@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: karrygo
+      POSTGRES_USER: karrygo
+      POSTGRES_PASSWORD: karrygo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgres://karrygo:karrygo@postgres:5432/karrygo?sslmode=disable
+      REDIS_ADDR: redis:6379
+      REDIS_DB: 0
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:

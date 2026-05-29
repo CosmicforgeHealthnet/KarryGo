@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Dart/Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+
+# Android/iOS generated noise
+**/android/.gradle/
+**/ios/Flutter/ephemeral/
+
+# Node/Next.js
+node_modules/
+.next/
+out/
+.env*.local
+
+# Go
+/bin/
+*.test
+coverage.out
+
+# Local env
+.env
