@@ -1,19 +1,17 @@
 go 1.26.3
 
 use (
-	./backend
-	./shared/go
-	./services/api-gateway
-	./services/customer-service
-	./services/taxi-service
-	./services/dispatch-delivery-service
-	./services/hauling-service
-	./services/payment-wallet-service
-	./services/notification-service
-	./services/support-dispute-service
-	./services/verification-compliance-service
-	./services/media-file-service
 	./services/admin-backoffice-service
 	./services/analytics-service
+	./services/api-gateway
+	./services/customer-service
+	./services/driver-dispatch-delivery-service
+	./services/driver-hauling-service
+	./services/media-file-service
+	./services/notification-service
+	./services/payment-wallet-service
+	./services/support-dispute-service
+	./services/driver-taxi-service
+	./services/verification-compliance-service
+	./shared/go
 )
-

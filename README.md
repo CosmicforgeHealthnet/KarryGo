@@ -1,6 +1,6 @@
 # KarryGo
 
-KarryGo is a multi-application logistics platform with four mobile apps, one admin web app, and one shared backend.
+KarryGo is a multi-application logistics platform with four mobile apps, one admin web app, and a microservice backend.
 
 ## Apps
 
@@ -15,13 +15,9 @@ KarryGo is a multi-application logistics platform with four mobile apps, one adm
 - packages/ui_kit: reusable KarryGo UI components and theme
 - packages/api_core: shared API foundation for Flutter apps
 
-## Backend
+## Backend Services
 
-- backend: current Go API server, migrations, Docker setup, Nginx notes, and scripts
-
-## Microservice Scaffold
-
-The repo now includes a microservice-ready backend layout under `services/`.
+The active backend lives under `services/`.
 The main business services are:
 
 - services/customer-service: customer profiles, saved locations, preferences, and customer-facing request history
