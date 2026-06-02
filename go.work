@@ -1,0 +1,19 @@
+go 1.26.3
+
+use (
+	./backend
+	./shared/go
+	./services/api-gateway
+	./services/customer-service
+	./services/taxi-service
+	./services/dispatch-delivery-service
+	./services/hauling-service
+	./services/payment-wallet-service
+	./services/notification-service
+	./services/support-dispute-service
+	./services/verification-compliance-service
+	./services/media-file-service
+	./services/admin-backoffice-service
+	./services/analytics-service
+)
+
