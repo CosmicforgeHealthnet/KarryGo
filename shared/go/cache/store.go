@@ -10,7 +10,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"karrygo/backend/internal/platform/apperrors"
+	"karrygo/shared/go/apperrors"
 )
 
 type Store struct {
