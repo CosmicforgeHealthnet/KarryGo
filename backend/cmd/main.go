@@ -11,8 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"karrygo/backend/internal/api"
 	"karrygo/backend/internal/config"
-	"karrygo/backend/internal/platform/apperrors"
 	"karrygo/backend/internal/platform/cache"
 	"karrygo/backend/internal/platform/httpx"
 	"karrygo/backend/internal/platform/jobs"
@@ -57,27 +57,9 @@ func main() {
 	router.Use(httpx.Recovery())
 	router.Use(httpx.ErrorHandler())
 
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"success": true, "status": "ok"})
-	})
-
-	router.GET("/ready", func(c *gin.Context) {
-		if err := redisClient.Ping(c.Request.Context()).Err(); err != nil {
-			httpx.Abort(c, apperrors.Unavailable("redis is not ready", err))
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"success": true, "status": "ready"})
-	})
-
-	router.POST("/debug/cache", func(c *gin.Context) {
-		payload := map[string]string{"service": "karrygo", "status": "cached"}
-		if err := cacheStore.SetJSON(c.Request.Context(), "debug:status", payload, time.Minute); err != nil {
-			httpx.Abort(c, err)
-			return
-		}
-
-		c.JSON(http.StatusCreated, gin.H{"success": true})
+	api.RegisterRoutes(router, api.Dependencies{
+		Redis: redisClient,
+		Cache: cacheStore,
 	})
 
 	server := &http.Server{
