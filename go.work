@@ -7,11 +7,11 @@ use (
 	./services/customer-service
 	./services/driver-dispatch-delivery-service
 	./services/driver-hauling-service
+	./services/driver-taxi-service
 	./services/media-file-service
 	./services/notification-service
 	./services/payment-wallet-service
 	./services/support-dispute-service
-	./services/driver-taxi-service
 	./services/verification-compliance-service
 	./shared/go
 )

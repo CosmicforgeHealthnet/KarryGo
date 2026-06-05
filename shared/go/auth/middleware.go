@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"karrygo/shared/go/apperrors"
-	"karrygo/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 const ClaimsContextKey = "auth_claims"

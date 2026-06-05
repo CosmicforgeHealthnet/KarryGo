@@ -8,8 +8,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: customer_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5433:5432"
     volumes:
@@ -24,8 +24,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: taxi_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5434:5432"
     volumes:
@@ -40,8 +40,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: dispatch_delivery_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5435:5432"
     volumes:
@@ -56,8 +56,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: hauling_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5436:5432"
     volumes:
@@ -72,8 +72,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: payment_wallet_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5437:5432"
     volumes:
@@ -88,8 +88,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: notification_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5438:5432"
     volumes:
@@ -104,8 +104,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: support_dispute_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5439:5432"
     volumes:
@@ -115,8 +115,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: verification_compliance_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5440:5432"
     volumes:
@@ -126,8 +126,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: media_file_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5441:5432"
     volumes:
@@ -137,8 +137,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: admin_backoffice_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5442:5432"
     volumes:
@@ -153,8 +153,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: analytics_service
-      POSTGRES_USER: karrygo
-      POSTGRES_PASSWORD: karrygo
+      POSTGRES_USER: cosmicforge_logistics
+      POSTGRES_PASSWORD: cosmicforge_logistics
     ports:
       - "5443:5432"
     volumes:
@@ -184,7 +184,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8101
-      CUSTOMER_DATABASE_URL: postgres://karrygo:karrygo@customer-postgres:5432/customer_service?sslmode=disable
+      CUSTOMER_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@customer-postgres:5432/customer_service?sslmode=disable
       CUSTOMER_REDIS_ADDR: customer-redis:6379
       CUSTOMER_ACCESS_TOKEN_SECRET: development-customer-access-token-secret
       CUSTOMER_REFRESH_TOKEN_SECRET: development-customer-refresh-token-secret
@@ -205,7 +205,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8102
-      TAXI_DATABASE_URL: postgres://karrygo:karrygo@taxi-postgres:5432/taxi_service?sslmode=disable
+      TAXI_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@taxi-postgres:5432/taxi_service?sslmode=disable
       TAXI_REDIS_ADDR: taxi-redis:6379
     depends_on:
       - taxi-postgres
@@ -222,7 +222,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8103
-      DISPATCH_DELIVERY_DATABASE_URL: postgres://karrygo:karrygo@dispatch-delivery-postgres:5432/dispatch_delivery_service?sslmode=disable
+      DISPATCH_DELIVERY_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@dispatch-delivery-postgres:5432/dispatch_delivery_service?sslmode=disable
       DISPATCH_DELIVERY_REDIS_ADDR: dispatch-delivery-redis:6379
     depends_on:
       - dispatch-delivery-postgres
@@ -239,7 +239,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8104
-      HAULING_DATABASE_URL: postgres://karrygo:karrygo@hauling-postgres:5432/hauling_service?sslmode=disable
+      HAULING_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@hauling-postgres:5432/hauling_service?sslmode=disable
       HAULING_REDIS_ADDR: hauling-redis:6379
     depends_on:
       - hauling-postgres
@@ -256,7 +256,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8105
-      PAYMENT_WALLET_DATABASE_URL: postgres://karrygo:karrygo@payment-wallet-postgres:5432/payment_wallet_service?sslmode=disable
+      PAYMENT_WALLET_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@payment-wallet-postgres:5432/payment_wallet_service?sslmode=disable
       PAYMENT_WALLET_REDIS_ADDR: payment-wallet-redis:6379
     depends_on:
       - payment-wallet-postgres
@@ -273,7 +273,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8106
-      NOTIFICATION_DATABASE_URL: postgres://karrygo:karrygo@notification-postgres:5432/notification_service?sslmode=disable
+      NOTIFICATION_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@notification-postgres:5432/notification_service?sslmode=disable
       NOTIFICATION_REDIS_ADDR: notification-redis:6379
     depends_on:
       - notification-postgres
@@ -290,7 +290,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8107
-      SUPPORT_DISPUTE_DATABASE_URL: postgres://karrygo:karrygo@support-dispute-postgres:5432/support_dispute_service?sslmode=disable
+      SUPPORT_DISPUTE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@support-dispute-postgres:5432/support_dispute_service?sslmode=disable
     depends_on:
       - support-dispute-postgres
     ports:
@@ -305,7 +305,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8108
-      VERIFICATION_COMPLIANCE_DATABASE_URL: postgres://karrygo:karrygo@verification-compliance-postgres:5432/verification_compliance_service?sslmode=disable
+      VERIFICATION_COMPLIANCE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@verification-compliance-postgres:5432/verification_compliance_service?sslmode=disable
     depends_on:
       - verification-compliance-postgres
     ports:
@@ -320,7 +320,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8109
-      MEDIA_FILE_DATABASE_URL: postgres://karrygo:karrygo@media-file-postgres:5432/media_file_service?sslmode=disable
+      MEDIA_FILE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@media-file-postgres:5432/media_file_service?sslmode=disable
     depends_on:
       - media-file-postgres
     ports:
@@ -335,7 +335,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8110
-      ADMIN_BACKOFFICE_DATABASE_URL: postgres://karrygo:karrygo@admin-backoffice-postgres:5432/admin_backoffice_service?sslmode=disable
+      ADMIN_BACKOFFICE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@admin-backoffice-postgres:5432/admin_backoffice_service?sslmode=disable
       ADMIN_BACKOFFICE_REDIS_ADDR: admin-backoffice-redis:6379
     depends_on:
       - admin-backoffice-postgres
@@ -352,7 +352,7 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8111
-      ANALYTICS_DATABASE_URL: postgres://karrygo:karrygo@analytics-postgres:5432/analytics_service?sslmode=disable
+      ANALYTICS_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@analytics-postgres:5432/analytics_service?sslmode=disable
     depends_on:
       - analytics-postgres
     ports:

@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"karrygo/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 const RequestIDKey = "request_id"

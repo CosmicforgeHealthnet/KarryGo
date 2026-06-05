@@ -1,8 +1,8 @@
 package main
 
 import (
-	"karrygo/services/media-file-service/internal/config"
-	"karrygo/shared/go/serviceapp"
+	"cosmicforge/logistics/services/media-file-service/internal/config"
+	"cosmicforge/logistics/shared/go/serviceapp"
 )
 
 func main() {

@@ -13,9 +13,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"karrygo/shared/go/apperrors"
-	"karrygo/shared/go/httpx"
-	"karrygo/shared/go/redisx"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/redisx"
 )
 
 type Options struct {

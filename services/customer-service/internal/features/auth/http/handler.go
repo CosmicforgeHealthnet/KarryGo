@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authusecases "karrygo/services/customer-service/internal/features/auth/usecases"
-	"karrygo/shared/go/apperrors"
-	sharedauth "karrygo/shared/go/auth"
-	"karrygo/shared/go/httpx"
+	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/apperrors"
+	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 type AuthHandler struct {

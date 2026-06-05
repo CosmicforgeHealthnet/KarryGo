@@ -11,11 +11,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authmodels "karrygo/services/customer-service/internal/features/auth/models"
-	authusecases "karrygo/services/customer-service/internal/features/auth/usecases"
-	profilemodels "karrygo/services/customer-service/internal/features/profile/models"
-	"karrygo/shared/go/apperrors"
-	"karrygo/shared/go/httpx"
+	authmodels "cosmicforge/logistics/services/customer-service/internal/features/auth/models"
+	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
+	profilemodels "cosmicforge/logistics/services/customer-service/internal/features/profile/models"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 func TestCustomerAuthHTTPFlow(t *testing.T) {

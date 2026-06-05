@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"karrygo/shared/go/redisx"
+	"cosmicforge/logistics/shared/go/redisx"
 )
 
 type Config struct {
@@ -34,7 +34,7 @@ func Load() Config {
 		AppEnv:   getEnv("APP_ENV", "development"),
 		HTTPAddr: getEnv("HTTP_ADDR", ":8101"),
 
-		DatabaseURL: getEnv("CUSTOMER_DATABASE_URL", "postgres://karrygo:karrygo@localhost:5433/customer_service?sslmode=disable"),
+		DatabaseURL: getEnv("CUSTOMER_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5433/customer_service?sslmode=disable"),
 		Redis: redisx.Config{
 			Addr:     getEnv("CUSTOMER_REDIS_ADDR", "localhost:6380"),
 			Password: os.Getenv("CUSTOMER_REDIS_PASSWORD"),

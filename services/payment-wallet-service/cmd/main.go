@@ -1,8 +1,8 @@
 package main
 
 import (
-	"karrygo/services/payment-wallet-service/internal/config"
-	"karrygo/shared/go/serviceapp"
+	"cosmicforge/logistics/services/payment-wallet-service/internal/config"
+	"cosmicforge/logistics/shared/go/serviceapp"
 )
 
 func main() {

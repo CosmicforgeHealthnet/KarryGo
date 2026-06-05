@@ -1,7 +1,7 @@
 package config
 
 import (
-	"karrygo/shared/go/redisx"
+	"cosmicforge/logistics/shared/go/redisx"
 	"os"
 	"strconv"
 )
@@ -17,7 +17,7 @@ func Load() Config {
 	return Config{
 		AppEnv:      getEnv("APP_ENV", "development"),
 		HTTPAddr:    getEnv("HTTP_ADDR", ":8110"),
-		DatabaseURL: getEnv("ADMIN_BACKOFFICE_DATABASE_URL", "postgres://karrygo:karrygo@localhost:5442/admin_backoffice_service?sslmode=disable"),
+		DatabaseURL: getEnv("ADMIN_BACKOFFICE_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5442/admin_backoffice_service?sslmode=disable"),
 		Redis: redisx.Config{
 			Addr:     getEnv("ADMIN_BACKOFFICE_REDIS_ADDR", "localhost:6386"),
 			Password: os.Getenv("ADMIN_BACKOFFICE_REDIS_PASSWORD"),

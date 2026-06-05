@@ -9,12 +9,12 @@ COPY services/${SERVICE_DIR} ./services/${SERVICE_DIR}
 
 WORKDIR /workspace/services/${SERVICE_DIR}
 RUN go mod download
-RUN go build -o /bin/karrygo-service ./cmd
+RUN go build -o /bin/cosmicforge-logistics-service ./cmd
 
 FROM alpine:3.22
-RUN addgroup -S karrygo && adduser -S karrygo -G karrygo
-USER karrygo
-COPY --from=build /bin/karrygo-service /bin/karrygo-service
+RUN addgroup -S cosmicforge && adduser -S cosmicforge -G cosmicforge
+USER cosmicforge
+COPY --from=build /bin/cosmicforge-logistics-service /bin/cosmicforge-logistics-service
 EXPOSE 8080
-ENTRYPOINT ["/bin/karrygo-service"]
+ENTRYPOINT ["/bin/cosmicforge-logistics-service"]
 

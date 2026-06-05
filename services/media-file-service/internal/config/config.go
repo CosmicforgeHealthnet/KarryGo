@@ -12,7 +12,7 @@ func Load() Config {
 	return Config{
 		AppEnv:      getEnv("APP_ENV", "development"),
 		HTTPAddr:    getEnv("HTTP_ADDR", ":8109"),
-		DatabaseURL: getEnv("MEDIA_FILE_DATABASE_URL", "postgres://karrygo:karrygo@localhost:5441/media_file_service?sslmode=disable"),
+		DatabaseURL: getEnv("MEDIA_FILE_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5441/media_file_service?sslmode=disable"),
 	}
 }
 

@@ -12,7 +12,7 @@ func Load() Config {
 	return Config{
 		AppEnv:      getEnv("APP_ENV", "development"),
 		HTTPAddr:    getEnv("HTTP_ADDR", ":8111"),
-		DatabaseURL: getEnv("ANALYTICS_DATABASE_URL", "postgres://karrygo:karrygo@localhost:5443/analytics_service?sslmode=disable"),
+		DatabaseURL: getEnv("ANALYTICS_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5443/analytics_service?sslmode=disable"),
 	}
 }
 

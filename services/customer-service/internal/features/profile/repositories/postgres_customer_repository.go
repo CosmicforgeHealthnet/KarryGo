@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	profilemodels "karrygo/services/customer-service/internal/features/profile/models"
-	"karrygo/shared/go/apperrors"
+	profilemodels "cosmicforge/logistics/services/customer-service/internal/features/profile/models"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 type CustomerRepository interface {

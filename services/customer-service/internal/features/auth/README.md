@@ -37,7 +37,7 @@ auth/http
   receives HTTP requests
   validates request JSON shape
   calls auth/usecases
-  returns the standard KarryGo response envelope
+  returns the standard Cosmicforge Logistics response envelope
 
 auth/usecases
   runs the auth workflow

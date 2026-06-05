@@ -1,7 +1,7 @@
 package config
 
 import (
-	"karrygo/shared/go/redisx"
+	"cosmicforge/logistics/shared/go/redisx"
 	"os"
 	"strconv"
 )
@@ -17,7 +17,7 @@ func Load() Config {
 	return Config{
 		AppEnv:      getEnv("APP_ENV", "development"),
 		HTTPAddr:    getEnv("HTTP_ADDR", ":8105"),
-		DatabaseURL: getEnv("PAYMENT_WALLET_DATABASE_URL", "postgres://karrygo:karrygo@localhost:5437/payment_wallet_service?sslmode=disable"),
+		DatabaseURL: getEnv("PAYMENT_WALLET_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5437/payment_wallet_service?sslmode=disable"),
 		Redis: redisx.Config{
 			Addr:     getEnv("PAYMENT_WALLET_REDIS_ADDR", "localhost:6384"),
 			Password: os.Getenv("PAYMENT_WALLET_REDIS_PASSWORD"),

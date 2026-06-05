@@ -7,14 +7,14 @@ import (
 
 	"github.com/google/uuid"
 
-	authclients "karrygo/services/customer-service/internal/features/auth/clients"
-	authmodels "karrygo/services/customer-service/internal/features/auth/models"
-	authrepositories "karrygo/services/customer-service/internal/features/auth/repositories"
-	profilemodels "karrygo/services/customer-service/internal/features/profile/models"
-	profilerepositories "karrygo/services/customer-service/internal/features/profile/repositories"
-	"karrygo/shared/go/apperrors"
-	sharedauth "karrygo/shared/go/auth"
-	"karrygo/shared/go/phonenumber"
+	authclients "cosmicforge/logistics/services/customer-service/internal/features/auth/clients"
+	authmodels "cosmicforge/logistics/services/customer-service/internal/features/auth/models"
+	authrepositories "cosmicforge/logistics/services/customer-service/internal/features/auth/repositories"
+	profilemodels "cosmicforge/logistics/services/customer-service/internal/features/profile/models"
+	profilerepositories "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
+	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/phonenumber"
 )
 
 const (

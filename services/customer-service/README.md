@@ -86,7 +86,7 @@ database before handling live auth requests.
 
 ## Response Format
 
-All auth endpoints use the shared KarryGo success and error envelopes. Error
+All auth endpoints use the shared Cosmicforge Logistics success and error envelopes. Error
 responses come from `shared/go/httpx` and `shared/go/apperrors`, for example:
 
 ```json

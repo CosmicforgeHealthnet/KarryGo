@@ -41,6 +41,20 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.19.1"
+  cosmicforge_logistics_api_core:
+    dependency: "direct main"
+    description:
+      path: "../../packages/api_core"
+      relative: true
+    source: path
+    version: "0.0.1"
+  cosmicforge_logistics_ui_kit:
+    dependency: "direct main"
+    description:
+      path: "../../packages/ui_kit"
+      relative: true
+    source: path
+    version: "0.0.1"
   cupertino_icons:
     dependency: "direct main"
     description:
@@ -75,20 +89,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  karrygo_api_core:
-    dependency: "direct main"
-    description:
-      path: "../../packages/api_core"
-      relative: true
-    source: path
-    version: "0.0.1"
-  karrygo_ui_kit:
-    dependency: "direct main"
-    description:
-      path: "../../packages/ui_kit"
-      relative: true
-    source: path
-    version: "0.0.1"
   leak_tracker:
     dependency: transitive
     description:

@@ -1,4 +1,4 @@
-module karrygo/shared/go
+module cosmicforge/logistics/shared/go
 
 go 1.26.3
 

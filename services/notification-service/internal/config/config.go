@@ -1,7 +1,7 @@
 package config
 
 import (
-	"karrygo/shared/go/redisx"
+	"cosmicforge/logistics/shared/go/redisx"
 	"os"
 	"strconv"
 )
@@ -17,7 +17,7 @@ func Load() Config {
 	return Config{
 		AppEnv:      getEnv("APP_ENV", "development"),
 		HTTPAddr:    getEnv("HTTP_ADDR", ":8106"),
-		DatabaseURL: getEnv("NOTIFICATION_DATABASE_URL", "postgres://karrygo:karrygo@localhost:5438/notification_service?sslmode=disable"),
+		DatabaseURL: getEnv("NOTIFICATION_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5438/notification_service?sslmode=disable"),
 		Redis: redisx.Config{
 			Addr:     getEnv("NOTIFICATION_REDIS_ADDR", "localhost:6385"),
 			Password: os.Getenv("NOTIFICATION_REDIS_PASSWORD"),

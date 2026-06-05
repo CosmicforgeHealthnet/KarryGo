@@ -5,19 +5,22 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
-	"karrygo/services/customer-service/internal/config"
-	"karrygo/services/customer-service/internal/database"
-	authclients "karrygo/services/customer-service/internal/features/auth/clients"
-	customerhttp "karrygo/services/customer-service/internal/features/auth/http"
-	authrepositories "karrygo/services/customer-service/internal/features/auth/repositories"
-	authusecases "karrygo/services/customer-service/internal/features/auth/usecases"
-	profilerepositories "karrygo/services/customer-service/internal/features/profile/repositories"
-	"karrygo/shared/go/serviceapp"
+	"cosmicforge/logistics/services/customer-service/internal/config"
+	"cosmicforge/logistics/services/customer-service/internal/database"
+	authclients "cosmicforge/logistics/services/customer-service/internal/features/auth/clients"
+	customerhttp "cosmicforge/logistics/services/customer-service/internal/features/auth/http"
+	authrepositories "cosmicforge/logistics/services/customer-service/internal/features/auth/repositories"
+	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
+	profilerepositories "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories"
+	"cosmicforge/logistics/shared/go/serviceapp"
 )
 
 func main() {
+	_ = godotenv.Load()
+
 	cfg := config.Load()
 
 	ctx := context.Background()

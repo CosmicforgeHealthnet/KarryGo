@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.karrygo" "\0"
+            VALUE "CompanyName", "Cosmicforge Logistics" "\0"
             VALUE "FileDescription", "taxi_provider" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "taxi_provider" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.karrygo. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Cosmicforge Logistics. All rights reserved." "\0"
             VALUE "OriginalFilename", "taxi_provider.exe" "\0"
             VALUE "ProductName", "taxi_provider" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

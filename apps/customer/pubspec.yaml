@@ -1,5 +1,5 @@
 name: customer
-description: "A new Flutter project."
+description: "Cosmicforge Logistics customer app."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -31,10 +31,13 @@ dependencies:
   flutter:
     sdk: flutter
 
-  karrygo_ui_kit:
+  flutter_secure_storage: ^9.2.4
+  http: ^1.5.0
+
+  cosmicforge_logistics_ui_kit:
     path: ../../packages/ui_kit
 
-  karrygo_api_core:
+  cosmicforge_logistics_api_core:
     path: ../../packages/api_core
 
   # The following adds the Cupertino Icons font to your application.
@@ -62,6 +65,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/figma/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"karrygo/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 var nonDigitPhoneChars = regexp.MustCompile(`[^\d+]`)

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"karrygo/services/verification-compliance-service/internal/config"
-	"karrygo/shared/go/serviceapp"
+	"cosmicforge/logistics/services/verification-compliance-service/internal/config"
+	"cosmicforge/logistics/shared/go/serviceapp"
 )
 
 func main() {

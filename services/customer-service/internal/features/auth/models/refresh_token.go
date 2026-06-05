@@ -3,7 +3,7 @@ package authmodels
 import (
 	"strings"
 
-	"karrygo/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 func ParseRefreshTokenSessionID(refreshToken string) (string, error) {

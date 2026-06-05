@@ -1,6 +1,6 @@
-# KarryGo
+# Cosmicforge Logistics
 
-KarryGo is a multi-application logistics platform with four mobile apps, one admin web app, and a microservice backend.
+Cosmicforge Logistics is a multi-application logistics platform with four mobile apps, one admin web app, and a microservice backend.
 
 ## Apps
 
@@ -12,7 +12,7 @@ KarryGo is a multi-application logistics platform with four mobile apps, one adm
 
 ## Shared Flutter Packages
 
-- packages/ui_kit: reusable KarryGo UI components and theme
+- packages/ui_kit: reusable Cosmicforge Logistics UI components and theme
 - packages/api_core: shared API foundation for Flutter apps
 
 ## Backend Services
@@ -36,6 +36,6 @@ Shared platform services live alongside them:
 - services/admin-backoffice-service
 - services/analytics-service
 
-Shared Go platform code lives in `shared/go`, including the standard KarryGo
+Shared Go platform code lives in `shared/go`, including the standard Cosmicforge Logistics
 API error envelope and HTTP middleware. See `docs/microservices-architecture.md`
 for the service boundaries and local development notes.

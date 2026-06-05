@@ -1,6 +1,6 @@
 package validation
 
-import "karrygo/shared/go/apperrors"
+import "cosmicforge/logistics/shared/go/apperrors"
 
 type FieldError = apperrors.FieldViolation
 

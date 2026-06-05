@@ -1,17 +1,45 @@
-# customer
+# Cosmicforge Logistics Customer App
 
-A new Flutter project.
+Flutter customer app for phone-based onboarding and authentication.
 
-## Getting Started
+## Auth Flow
 
-This project is a starting point for a Flutter application.
+- Splash checks for a saved session.
+- Onboarding introduces ride booking, package delivery, and truck hauling.
+- Phone entry calls `POST /api/v1/customer/auth/start`.
+- OTP verification calls `POST /api/v1/customer/auth/verify`.
+- Saved sessions are validated with `GET /api/v1/customer/me`.
+- Expired access tokens are refreshed with `POST /api/v1/customer/auth/refresh`.
+- Logout calls `POST /api/v1/customer/auth/logout` and clears local auth state.
 
-A few resources to get you started if this is your first Flutter project:
+The first profile-completion step is frontend-only until the customer profile update API exists.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## API Base URL
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The app reads the customer API base URL from `CUSTOMER_API_BASE_URL`.
+
+Default:
+
+```bash
+http://localhost:8101/api/v1/customer
+```
+
+Desktop, web, or iOS simulator:
+
+```bash
+flutter run --dart-define=CUSTOMER_API_BASE_URL=http://localhost:8101/api/v1/customer
+```
+
+Android emulator:
+
+```bash
+flutter run --dart-define=CUSTOMER_API_BASE_URL=http://10.0.2.2:8101/api/v1/customer
+```
+
+## Local Checks
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+```

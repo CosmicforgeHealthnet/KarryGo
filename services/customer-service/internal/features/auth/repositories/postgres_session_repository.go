@@ -7,8 +7,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	authmodels "karrygo/services/customer-service/internal/features/auth/models"
-	"karrygo/shared/go/apperrors"
+	authmodels "cosmicforge/logistics/services/customer-service/internal/features/auth/models"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 type RefreshSessionRepository interface {

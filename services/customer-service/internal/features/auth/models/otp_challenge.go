@@ -3,8 +3,8 @@ package authmodels
 import (
 	"time"
 
-	"karrygo/shared/go/apperrors"
-	sharedauth "karrygo/shared/go/auth"
+	"cosmicforge/logistics/shared/go/apperrors"
+	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 
 type OTPChallenge struct {

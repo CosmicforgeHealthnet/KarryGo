@@ -1,4 +1,4 @@
-# KarryGo Microservice Architecture
+# Cosmicforge Logistics Microservice Architecture
 
 This structure keeps the monorepo but separates backend ownership into distinct
 services. Booking and matching are not standalone services. They live inside the
@@ -56,7 +56,7 @@ Booking and matching stay inside the relevant operational service:
 
 Every service should use:
 
-- `shared/go/apperrors` for the KarryGo error model.
+- `shared/go/apperrors` for the Cosmicforge Logistics error model.
 - `shared/go/httpx` for request IDs, recovery, and error responses.
 - `shared/go/events` for event names.
 - `shared/go/validation` for shared validation helpers.

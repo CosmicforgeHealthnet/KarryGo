@@ -9,8 +9,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	authmodels "karrygo/services/customer-service/internal/features/auth/models"
-	"karrygo/shared/go/apperrors"
+	authmodels "cosmicforge/logistics/services/customer-service/internal/features/auth/models"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 type OTPChallengeRepository interface {

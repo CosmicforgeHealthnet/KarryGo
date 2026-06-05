@@ -1,4 +1,4 @@
-import 'package:karrygo_api_core/karrygo_api_core.dart';
+import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
 class DispatchProviderApi {
   const DispatchProviderApi(this.config);

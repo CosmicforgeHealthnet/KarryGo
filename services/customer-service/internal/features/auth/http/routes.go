@@ -3,8 +3,8 @@ package authhttp
 import (
 	"github.com/gin-gonic/gin"
 
-	authusecases "karrygo/services/customer-service/internal/features/auth/usecases"
-	sharedauth "karrygo/shared/go/auth"
+	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
+	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 
 func RegisterCustomerRoutes(group *gin.RouterGroup, authService *authusecases.AuthService) {

@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"karrygo/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 func RequestID() gin.HandlerFunc {

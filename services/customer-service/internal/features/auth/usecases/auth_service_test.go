@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	authmodels "karrygo/services/customer-service/internal/features/auth/models"
-	profilemodels "karrygo/services/customer-service/internal/features/profile/models"
-	"karrygo/shared/go/apperrors"
-	sharedauth "karrygo/shared/go/auth"
+	authmodels "cosmicforge/logistics/services/customer-service/internal/features/auth/models"
+	profilemodels "cosmicforge/logistics/services/customer-service/internal/features/profile/models"
+	"cosmicforge/logistics/shared/go/apperrors"
+	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 
 func TestStartAndVerifyAuth(t *testing.T) {
