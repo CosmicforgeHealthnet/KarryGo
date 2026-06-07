@@ -30,6 +30,7 @@ type Error struct {
 	Status  int                    `json:"-"`
 	Fields  []FieldViolation       `json:"fields,omitempty"`
 	Details map[string]interface{} `json:"details,omitempty"`
+	Reason  interface{}            `json:"reason,omitempty"`
 	Cause   error                  `json:"-"`
 }
 

@@ -7,15 +7,17 @@ import (
 )
 
 type Config struct {
-	AppEnv   string
-	HTTPAddr string
-	Redis    redisx.Config
+	AppEnv      string
+	HTTPAddr    string
+	DatabaseURL string
+	Redis       redisx.Config
 }
 
 func Load() Config {
 	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8080"),
+		AppEnv:      getEnv("APP_ENV", "development"),
+		HTTPAddr:    getEnv("HTTP_ADDR", ":8080"),
+		DatabaseURL: os.Getenv("DATABASE_URL"),
 		Redis: redisx.Config{
 			Addr:     getEnv("API_GATEWAY_REDIS_ADDR", "localhost:6379"),
 			Password: os.Getenv("API_GATEWAY_REDIS_PASSWORD"),

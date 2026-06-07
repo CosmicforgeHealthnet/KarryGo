@@ -36,7 +36,7 @@ services:
     ports:
       - "6381:6379"
 
-  dispatch-delivery-postgres:
+  driver-dispatch-delivery-postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: dispatch_delivery_service
@@ -46,8 +46,31 @@ services:
       - "5435:5432"
     volumes:
       - dispatch_delivery_postgres_data:/var/lib/postgresql/data
+      - ../services/driver-dispatch-delivery-service/migrations/001_dispatch_rider_auth.sql:/docker-entrypoint-initdb.d/001_dispatch_rider_auth.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/002_dispatch_rider_auth_alter.sql:/docker-entrypoint-initdb.d/002_dispatch_rider_auth_alter.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000004_create_providers.up.sql:/docker-entrypoint-initdb.d/000004_create_providers.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000005_create_emergency_contacts.up.sql:/docker-entrypoint-initdb.d/000005_create_emergency_contacts.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000006_create_guarantors.up.sql:/docker-entrypoint-initdb.d/000006_create_guarantors.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000007_create_ratings.up.sql:/docker-entrypoint-initdb.d/000007_create_ratings.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000008_create_verification_steps.up.sql:/docker-entrypoint-initdb.d/000008_create_verification_steps.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000009_create_verification_documents.up.sql:/docker-entrypoint-initdb.d/000009_create_verification_documents.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000010_create_face_checks.up.sql:/docker-entrypoint-initdb.d/000010_create_face_checks.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000011_create_verification_audit.up.sql:/docker-entrypoint-initdb.d/000011_create_verification_audit.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000012_expand_verification_audit_actions.up.sql:/docker-entrypoint-initdb.d/000012_expand_verification_audit_actions.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000013_add_fully_approved_audit.up.sql:/docker-entrypoint-initdb.d/000013_add_fully_approved_audit.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000014_create_bikes.up.sql:/docker-entrypoint-initdb.d/000014_create_bikes.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000015_create_bike_documents.up.sql:/docker-entrypoint-initdb.d/000015_create_bike_documents.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000016_create_bike_audit.up.sql:/docker-entrypoint-initdb.d/000016_create_bike_audit.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000017_create_provider_availability.up.sql:/docker-entrypoint-initdb.d/000017_create_provider_availability.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000018_create_availability_sessions.up.sql:/docker-entrypoint-initdb.d/000018_create_availability_sessions.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000019_create_request_broadcasts.up.sql:/docker-entrypoint-initdb.d/000019_create_request_broadcasts.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000020_create_provider_request_inbox.up.sql:/docker-entrypoint-initdb.d/000020_create_provider_request_inbox.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000021_create_trips.up.sql:/docker-entrypoint-initdb.d/000021_create_trips.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000022_create_trip_state_log.up.sql:/docker-entrypoint-initdb.d/000022_create_trip_state_log.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000023_create_delivery_proofs.up.sql:/docker-entrypoint-initdb.d/000023_create_delivery_proofs.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/000024_create_cancellations.up.sql:/docker-entrypoint-initdb.d/000024_create_cancellations.sql:ro
 
-  dispatch-delivery-redis:
+  driver-dispatch-delivery-redis:
     image: redis:7-alpine
     ports:
       - "6382:6379"
@@ -213,20 +236,35 @@ services:
     ports:
       - "8102:8102"
 
-  dispatch-delivery-service:
+  driver-dispatch-delivery-service:
     build:
       context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: dispatch-delivery-service
+      dockerfile: services/driver-dispatch-delivery-service/Dockerfile
     environment:
       APP_ENV: development
+      GIN_MODE: debug
+      SERVICE_NAME: driver-dispatch-delivery-service
       HTTP_ADDR: :8103
-      DISPATCH_DELIVERY_DATABASE_URL: postgres://karrygo:karrygo@dispatch-delivery-postgres:5432/dispatch_delivery_service?sslmode=disable
-      DISPATCH_DELIVERY_REDIS_ADDR: dispatch-delivery-redis:6379
+      DISPATCH_DELIVERY_DATABASE_URL: postgres://karrygo:karrygo@driver-dispatch-delivery-postgres:5432/dispatch_delivery_service?sslmode=disable
+      DISPATCH_DELIVERY_REDIS_ADDR: driver-dispatch-delivery-redis:6379
+      DISPATCH_DELIVERY_INTERNAL_SERVICE_KEY: development-internal-service-key
+      AVAILABILITY_SERVICE_URL: http://localhost:8103
+      BROADCAST_INITIAL_RADIUS_KM: "5.0"
+      BROADCAST_RADIUS_INCREMENT_KM: "3.0"
+      BROADCAST_MAX_ATTEMPTS: "3"
+      BROADCAST_WINDOW_SECONDS: "30"
+      DISPATCH_RIDER_ACCESS_TOKEN_SECRET: development-dispatch-rider-access-token-secret
+      DISPATCH_RIDER_REFRESH_TOKEN_SECRET: development-dispatch-rider-refresh-token-secret
+      DISPATCH_RIDER_OTP_SECRET: development-dispatch-rider-otp-secret
+      DISPATCH_RIDER_DEBUG_OTP: "true"
+      VERIFICATION_STORAGE_MODE: local_private
+      VERIFICATION_UPLOAD_ROOT: /app/uploads
+      SMILE_IDENTITY_FAKE_MODE: pass
     depends_on:
-      - dispatch-delivery-postgres
-      - dispatch-delivery-redis
+      - driver-dispatch-delivery-postgres
+      - driver-dispatch-delivery-redis
+    volumes:
+      - ../tmp/karrygo-uploads:/app/uploads
     ports:
       - "8103:8103"
 

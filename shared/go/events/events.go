@@ -4,6 +4,8 @@ const (
 	CustomerCreated        = "customer.created"
 	ProviderCreated        = "provider.created"
 	ProviderVerified       = "provider.verified"
+	ProviderAuthOTPRequested     = "provider.auth.otp_requested"
+	ProviderAuthSessionCreated   = "provider.auth.session_created"
 	TaxiRideCreated        = "taxi.ride.created"
 	TaxiRideMatched        = "taxi.ride.matched"
 	DeliveryCreated        = "dispatch.delivery.created"

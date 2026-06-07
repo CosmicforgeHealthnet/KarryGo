@@ -22,6 +22,7 @@ type errorBody struct {
 	RequestID string                     `json:"request_id,omitempty"`
 	Fields    []apperrors.FieldViolation `json:"fields,omitempty"`
 	Details   map[string]interface{}     `json:"details,omitempty"`
+	Reason    interface{}                `json:"reason,omitempty"`
 }
 
 func Abort(c *gin.Context, err error) {
@@ -49,6 +50,7 @@ func RespondError(c *gin.Context, err error) {
 			RequestID: requestID,
 			Fields:    appErr.Fields,
 			Details:   appErr.Details,
+			Reason:    appErr.Reason,
 		},
 	})
 }
