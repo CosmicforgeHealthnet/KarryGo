@@ -4,19 +4,23 @@ import 'package:flutter/services.dart';
 class BikeTypeData {
   const BikeTypeData({
     required this.licenseNo,
-    required this.expiryYear,
-    required this.expiryDate,
+    required this.licenceExpiryDate,
     required this.bikeType,
     required this.bikeBrand,
+    required this.bikeModel,
+    required this.bikeYear,
     required this.color,
     required this.plateNumber,
   });
 
   final String licenseNo;
-  final String expiryYear;
-  final String expiryDate;
+  /// Full licence expiry date — for backend use expiry_year + expiry_month.
+  final DateTime licenceExpiryDate;
+  /// Backend-normalized bike type: "motorcycle" or "dispatch_bike".
   final String bikeType;
   final String bikeBrand;
+  final String bikeModel;
+  final int bikeYear;
   final String color;
   final String plateNumber;
 }
@@ -30,7 +34,7 @@ class BikeTypeScreen extends StatefulWidget {
     required this.totalSteps,
   });
 
-  final ValueChanged<String> onContinue;
+  final ValueChanged<BikeTypeData> onContinue;
   final VoidCallback onBack;
   final int currentStep;
   final int totalSteps;
@@ -42,32 +46,49 @@ class BikeTypeScreen extends StatefulWidget {
 class _BikeTypeScreenState extends State<BikeTypeScreen> {
   final _licenseNoController = TextEditingController();
   final _bikeBrandController = TextEditingController();
+  final _bikeModelController = TextEditingController();
+  final _bikeYearController = TextEditingController();
   final _colorController = TextEditingController();
   final _plateNumberController = TextEditingController();
 
-  String? _expiryYear;
-  DateTime? _expiryDate;
+  /// Licence expiry — full date picker (DD/MM/YYYY).
+  /// expiryYear + expiryMonth are derived from this for backend use.
+  DateTime? _licenceExpiryDate;
   String? _bikeType;
 
+  /// Display labels shown in the dropdown — exactly what the backend accepts
+  /// after mapping via [_mapBikeTypeToBackend].
   static const _bikeTypes = [
     'Motorcycle',
-    'Scooter',
-    'Tricycle',
-    'Bicycle',
-    'Electric Bike',
+    'Dispatch Bike',
   ];
 
-  static final _years = List.generate(
-    20,
-    (i) => (DateTime.now().year + i).toString(),
-  );
+  /// Maps the display label to the backend-accepted snake_case value.
+  String _mapBikeTypeToBackend(String displayLabel) {
+    switch (displayLabel) {
+      case 'Motorcycle':
+        return 'motorcycle';
+      case 'Dispatch Bike':
+        return 'dispatch_bike';
+      default:
+        return displayLabel.toLowerCase().replaceAll(' ', '_');
+    }
+  }
+
+  bool _isValidYear(String value) {
+    final year = int.tryParse(value);
+    if (year == null) return false;
+    final currentYear = DateTime.now().year;
+    return year >= 1900 && year <= currentYear + 1;
+  }
 
   bool get _canContinue =>
       _licenseNoController.text.trim().isNotEmpty &&
-      _expiryYear != null &&
-      _expiryDate != null &&
+      _licenceExpiryDate != null &&
       _bikeType != null &&
       _bikeBrandController.text.trim().isNotEmpty &&
+      _bikeModelController.text.trim().isNotEmpty &&
+      _isValidYear(_bikeYearController.text.trim()) &&
       _colorController.text.trim().isNotEmpty &&
       _plateNumberController.text.trim().isNotEmpty;
 
@@ -75,18 +96,21 @@ class _BikeTypeScreenState extends State<BikeTypeScreen> {
   void dispose() {
     _licenseNoController.dispose();
     _bikeBrandController.dispose();
+    _bikeModelController.dispose();
+    _bikeYearController.dispose();
     _colorController.dispose();
     _plateNumberController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickLicenceExpiry() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: now,
-      firstDate: now,
+      firstDate: now, // must be future — expired licences not accepted
       lastDate: DateTime(now.year + 20),
+      helpText: 'Driver Licence Expiry Date',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.light(
@@ -96,12 +120,12 @@ class _BikeTypeScreenState extends State<BikeTypeScreen> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _expiryDate = picked);
+    if (picked != null) setState(() => _licenceExpiryDate = picked);
   }
 
-  String get _formattedDate {
-    if (_expiryDate == null) return '';
-    final d = _expiryDate!;
+  String get _formattedLicenceExpiry {
+    if (_licenceExpiryDate == null) return '';
+    final d = _licenceExpiryDate!;
     return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
 
@@ -155,127 +179,149 @@ class _BikeTypeScreenState extends State<BikeTypeScreen> {
                     ),
                     const SizedBox(height: 28),
 
-                    // License No
+                    // License No — alphanumeric + hyphens (e.g. ABC-1234-EFG)
                     const _FieldLabel(label: "Your Driver's license no"),
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _licenseNoController,
-                      hint: '1234567890',
+                      hint: 'e.g. ABC-1234-EFG',
                       keyboardType: TextInputType.text,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[a-zA-Z0-9\-]'),
+                        ),
+                      ],
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 16),
 
-                    // Expiry Year + Expiry Date
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const _FieldLabel(label: 'Expiry Year'),
-                              const SizedBox(height: 8),
-                              _DropdownField(
-                                value: _expiryYear,
-                                hint: 'Select Year',
-                                items: _years,
-                                onChanged: (v) =>
-                                    setState(() => _expiryYear = v),
-                              ),
-                            ],
-                          ),
+                    // Driver Licence Expiry Date — single picker (DD/MM/YYYY)
+                    // No separate year dropdown — the date picker captures year.
+                    // TODO backend: use licenceExpiryDate.year → expiry_year,
+                    //               licenceExpiryDate.month → expiry_month
+                    const _FieldLabel(label: 'Driver Licence Expiry Date'),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: _pickLicenceExpiry,
+                      child: Container(
+                        height: 50,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE0E0E0)),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const _FieldLabel(label: 'Expiry Date'),
-                              const SizedBox(height: 8),
-                              GestureDetector(
-                                onTap: _pickDate,
-                                child: Container(
-                                  height: 50,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                        color: const Color(0xFFE0E0E0)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          _expiryDate == null
-                                              ? 'Select Expiry Date'
-                                              : _formattedDate,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: _expiryDate == null
-                                                ? const Color(0xFFBBBBBB)
-                                                : const Color(0xFF1A1A1A),
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.calendar_month_outlined,
-                                        size: 18,
-                                        color: Color(0xFF888888),
-                                      ),
-                                    ],
-                                  ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _licenceExpiryDate == null
+                                    ? 'Select expiry date (DD/MM/YYYY)'
+                                    : _formattedLicenceExpiry,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: _licenceExpiryDate == null
+                                      ? const Color(0xFFBBBBBB)
+                                      : const Color(0xFF1A1A1A),
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
-                          ),
+                            ),
+                            const Icon(
+                              Icons.calendar_month_outlined,
+                              size: 18,
+                              color: Color(0xFF888888),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 16),
 
-                    // Bike Type
+                    // Bike Type — only "motorcycle" and "dispatch_bike" accepted by backend
                     const _FieldLabel(label: 'Bike Type'),
                     const SizedBox(height: 8),
                     _DropdownField(
                       value: _bikeType,
-                      hint: 'Motorcycle',
+                      hint: 'Select bike type',
                       items: _bikeTypes,
                       onChanged: (v) => setState(() => _bikeType = v),
                     ),
                     const SizedBox(height: 16),
 
-                    // Bike Brand
+                    // Bike Brand — alphanumeric + spaces (e.g. Honda, TVS King)
                     const _FieldLabel(label: 'Bike Brand'),
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _bikeBrandController,
-                      hint: 'Sedan',
+                      hint: 'e.g. Honda',
+                      keyboardType: TextInputType.text,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[a-zA-Z0-9 ]'),
+                        ),
+                      ],
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 16),
 
-                    // Color
+                    // Bike Model — alphanumeric, spaces, hyphens (e.g. CB300R)
+                    const _FieldLabel(label: 'Bike Model'),
+                    const SizedBox(height: 8),
+                    _InputField(
+                      controller: _bikeModelController,
+                      hint: 'e.g. CB300R',
+                      keyboardType: TextInputType.text,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[a-zA-Z0-9 \-]'),
+                        ),
+                      ],
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Year of Manufacture — 4-digit integer, 1900 to current year + 1
+                    const _FieldLabel(label: 'Year of Manufacture'),
+                    const SizedBox(height: 8),
+                    _InputField(
+                      controller: _bikeYearController,
+                      hint: 'e.g. ${DateTime.now().year - 2}',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Color — letters and spaces only
                     const _FieldLabel(label: 'Color'),
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _colorController,
-                      hint: 'Enter color',
+                      hint: 'e.g. Red',
+                      keyboardType: TextInputType.text,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z ]')),
+                      ],
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 16),
 
-                    // Plate Number
+                    // Plate Number — alphanumeric, hyphens, spaces; auto-uppercase
                     const _FieldLabel(label: 'Plate Number'),
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _plateNumberController,
-                      hint: 'AS347654',
+                      hint: 'e.g. AB 123 XYZ',
+                      keyboardType: TextInputType.text,
+                      textCapitalization: TextCapitalization.characters,
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(
-                            RegExp(r'[a-zA-Z0-9]')),
+                          RegExp(r'[a-zA-Z0-9\- ]'),
+                        ),
                       ],
                       onChanged: (_) => setState(() {}),
                     ),
@@ -293,7 +339,17 @@ class _BikeTypeScreenState extends State<BikeTypeScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _canContinue
-                      ? () => widget.onContinue(_bikeType!)
+                      ? () => widget.onContinue(BikeTypeData(
+                            licenseNo: _licenseNoController.text.trim(),
+                            licenceExpiryDate: _licenceExpiryDate!,
+                            bikeType: _mapBikeTypeToBackend(_bikeType!),
+                            bikeBrand: _bikeBrandController.text.trim(),
+                            bikeModel: _bikeModelController.text.trim(),
+                            bikeYear:
+                                int.parse(_bikeYearController.text.trim()),
+                            color: _colorController.text.trim(),
+                            plateNumber: _plateNumberController.text.trim(),
+                          ))
                       : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
@@ -373,6 +429,7 @@ class _InputField extends StatelessWidget {
     this.keyboardType,
     this.inputFormatters,
     this.onChanged,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final TextEditingController controller;
@@ -380,6 +437,7 @@ class _InputField extends StatelessWidget {
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
+  final TextCapitalization textCapitalization;
 
   @override
   Widget build(BuildContext context) {
@@ -388,6 +446,7 @@ class _InputField extends StatelessWidget {
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       onChanged: onChanged,
+      textCapitalization: textCapitalization,
       style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
       decoration: InputDecoration(
         hintText: hint,

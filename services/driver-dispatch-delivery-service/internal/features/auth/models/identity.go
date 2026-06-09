@@ -14,6 +14,7 @@ const (
 type Identity struct {
 	ID          string
 	PhoneNumber string
+	Email       *string // nullable; set during signup, nil for legacy phone-only accounts
 	Status      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time

@@ -272,8 +272,14 @@ There are 34 unique topic names in production source: 32 active publish/subscrib
 | `TRIP_PROOF_STORAGE_MODE` | Falls back to `VERIFICATION_STORAGE_MODE` | Trip | Trip proof storage selection |
 | `TRIP_PROOF_UPLOAD_ROOT` | Falls back to `VERIFICATION_UPLOAD_ROOT` then OS temp | Trip | Trip proof local root |
 | `TRIP_PROOF_STORAGE_BASE_URL` | Falls back to `VERIFICATION_STORAGE_BASE_URL`, then `local-private://` | Trip | Trip proof returned reference prefix |
+| `DISPATCH_AVAILABILITY_TEST_DATABASE_URL` | Optional; test-only | Availability migration tests | Runs database apply/validate/rollback checks |
+| `DISPATCH_REQUEST_TEST_DATABASE_URL` | Optional; test-only | Request migration/repository tests | Runs database integration checks |
+| `DISPATCH_TRIP_TEST_DATABASE_URL` | Optional; test-only | Trip migration/repository tests | Runs database integration checks |
+| `DISPATCH_VEHICLE_TEST_DATABASE_URL` | Optional; test-only | Vehicle migration tests | Runs database apply/validate/rollback checks |
+| `DISPATCH_VERIFICATION_TEST_DATABASE_URL` | Optional; test-only | Verification migration tests | Runs database apply/validate/rollback checks |
+| `TEST_DATABASE_URL` | Optional shared fallback; test-only | Migration/repository tests | Fallback database URL when a feature-specific test URL is absent |
 
-Asynq concurrency and queue weights are hardcoded in `cmd/main.go`; no Asynq-specific environment variables were found. Firebase credential/config environment keys were **not found**.
+Compose-only PostgreSQL container variables are `POSTGRES_DB=dispatch_delivery_service`, `POSTGRES_USER=karrygo`, and `POSTGRES_PASSWORD=karrygo`; the Go service does not read them directly. `FIREBASE_PROJECT_ID` and `FIREBASE_CREDENTIALS_PATH` appear only as commented placeholders in `.env.example` and are not read by production code. Asynq concurrency and queue weights are hardcoded in `cmd/main.go`; no Asynq-specific environment variables were found.
 
 ## 8. Database Migrations
 
@@ -416,7 +422,7 @@ Storage conclusions:
 ### Test Inventory
 
 - Test files: **61**
-- Named `Test...` functions: **768**
+- Named `Test...` functions: **767**
 - Migration test files: **5**
 - Main tested areas: auth token/OTP/session behavior, route protection, profile ownership/public filtering, verification workflow/audit/storage, vehicle IDOR/storage/review, availability live store/WebSocket/internal auth/rate limits, request locks/rebroadcast/IDOR, trip state/proof/completion/cancellation/customer events, and migration apply/validate/rollback.
 - Numeric statement/branch coverage percentage: **Not confirmed in code**; no checked-in coverage report was found.
@@ -460,7 +466,13 @@ go test ./migrations
 - Phase-focused unit/integration tests exist through Phase 7, including `phase6cde/fgh/ijk` and `phase7cde/fgh/ijk/lmn`.
 - Current audit attempt on **June 7, 2026**:
   - `docker compose -f infra/docker-compose.yml config --quiet`: **passed**
-  - Docker `go test ./...`, `go vet ./...`, and `go build ./...`: **not rerun**, because the Docker Desktop Linux engine was not running.
+  - `go test ./...`: **passed**
+  - `go vet ./...`: **passed**
+  - `go build ./...`: **passed**
+  - `go test -v ./migrations`: **passed**; file-existence checks ran, while database apply/validate/rollback checks skipped because no `DISPATCH_*_TEST_DATABASE_URL` or `TEST_DATABASE_URL` was set.
+  - `docker compose -f infra/docker-compose.yml ps`: PostgreSQL, Redis, and the service were **running**.
+  - `GET http://localhost:8103/health`: **passed** with status `ok`.
+  - `GET http://localhost:8103/ready`: **passed** with status `ready`.
 
 ## 14. Final API Inventory
 

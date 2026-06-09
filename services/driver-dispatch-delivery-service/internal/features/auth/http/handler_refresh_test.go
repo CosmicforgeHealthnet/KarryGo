@@ -38,10 +38,20 @@ func (r *refreshHTTPIdentityRepo) GetByID(ctx context.Context, id string) (authm
 	return authmodels.Identity{}, false, nil
 }
 
+func (r *refreshHTTPIdentityRepo) FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error) {
+	return authmodels.Identity{}, false, nil
+}
+
 func (r *refreshHTTPIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
 	if identity, ok := r.byPhone[phone]; ok {
 		return identity, nil
 	}
+	identity := authmodels.Identity{ID: "rider-http-1", PhoneNumber: phone, Status: authmodels.StatusActive}
+	r.byPhone[phone] = identity
+	return identity, nil
+}
+
+func (r *refreshHTTPIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
 	identity := authmodels.Identity{ID: "rider-http-1", PhoneNumber: phone, Status: authmodels.StatusActive}
 	r.byPhone[phone] = identity
 	return identity, nil

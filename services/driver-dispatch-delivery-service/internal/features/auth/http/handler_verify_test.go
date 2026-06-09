@@ -80,6 +80,14 @@ func (r *verifyIdentityRepo) FindByPhone(ctx context.Context, phone string) (aut
 	id, ok := r.identities[phone]
 	return id, ok, nil
 }
+func (r *verifyIdentityRepo) FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error) {
+	for _, identity := range r.identities {
+		if identity.Email != nil && *identity.Email == email {
+			return identity, true, nil
+		}
+	}
+	return authmodels.Identity{}, false, nil
+}
 func (r *verifyIdentityRepo) GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error) {
 	for _, identity := range r.identities {
 		if identity.ID == id {
@@ -98,6 +106,13 @@ func (r *verifyIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (a
 	r.identities[phone] = id
 	return id, nil
 }
+func (r *verifyIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+	id := authmodels.Identity{
+		ID: "htest-id-" + phone, PhoneNumber: phone, Status: authmodels.StatusActive,
+	}
+	r.identities[phone] = id
+	return id, nil
+}
 
 var _ authrepositories.IdentityRepository = (*verifyIdentityRepo)(nil)
 
@@ -106,10 +121,16 @@ type verifySuspendedIdentityRepo struct{}
 func (r *verifySuspendedIdentityRepo) FindByPhone(ctx context.Context, phone string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{Status: authmodels.StatusSuspended}, true, nil
 }
+func (r *verifySuspendedIdentityRepo) FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error) {
+	return authmodels.Identity{}, false, nil
+}
 func (r *verifySuspendedIdentityRepo) GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{ID: id, Status: authmodels.StatusSuspended}, true, nil
 }
 func (r *verifySuspendedIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+	return authmodels.Identity{ID: "sus-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, nil
+}
+func (r *verifySuspendedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "sus-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, nil
 }
 

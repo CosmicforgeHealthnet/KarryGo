@@ -1,6 +1,9 @@
 // profile details screen
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:karrygo_api_core/karrygo_api_core.dart';
+import '../../profile/state/provider_profile_controller.dart';
+import '../../../shared/widgets/document_upload_box.dart';
 
 class ProfileDetailsScreen extends StatefulWidget {
   const ProfileDetailsScreen({
@@ -9,12 +12,22 @@ class ProfileDetailsScreen extends StatefulWidget {
     required this.onBack,
     required this.currentStep,
     required this.totalSteps,
+    this.initialPhone,
+    this.initialEmail,
+    required this.profileController,
+    required this.operationType,
   });
 
-  final ValueChanged<ProfileDetailsData> onContinue;
+  final Future<void> Function(ProfileDetailsData) onContinue;
   final VoidCallback onBack;
   final int currentStep;
   final int totalSteps;
+  /// Phone number from the OTP-verified signup/login flow. Pre-filled and locked.
+  final String? initialPhone;
+  /// Email from the signup start step. Pre-filled and locked (signup flow only).
+  final String? initialEmail;
+  final ProviderProfileController profileController;
+  final String? operationType;
 
   @override
   State<ProfileDetailsScreen> createState() => _ProfileDetailsScreenState();
@@ -25,10 +38,70 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _cityController = TextEditingController();
+  final _idNumberController = TextEditingController();
   String? _selectedState;
-  String? _uploadedFileName;
-  bool _isUploading = false;
-  double _uploadProgress = 0;
+  String? _selectedIdType;
+  String? _govtIdFilePath;
+  String? _govtIdFileName;
+  bool _isLoading = false;
+  /// True when the email was supplied by the signup OTP flow; the field is
+  /// shown as read-only so the user does not accidentally clear a verified email.
+  bool _emailReadOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    // 1. Initialize phone from widget.initialPhone (strip +234 prefix for display).
+    String localPhone = widget.initialPhone ?? '';
+    if (localPhone.startsWith('+234')) {
+      localPhone = localPhone.substring(4);
+    } else if (localPhone.startsWith('234')) {
+      localPhone = localPhone.substring(3);
+    }
+    while (localPhone.startsWith('0')) {
+      localPhone = localPhone.substring(1);
+    }
+    _phoneController.text = localPhone;
+
+    // 2. Prefill email from signup flow — lock it as read-only because the
+    //    user verified ownership via OTP.
+    if (widget.initialEmail != null && widget.initialEmail!.isNotEmpty) {
+      _emailController.text = widget.initialEmail!;
+      _emailReadOnly = true;
+    }
+
+    // 3. Fetch authenticated profile from backend.
+    setState(() => _isLoading = true);
+    final result = await widget.profileController.loadMe();
+    result.when(
+      success: (profile) {
+        if (mounted) {
+          setState(() {
+            _nameController.text = profile.fullName ?? '';
+            _cityController.text = profile.city ?? '';
+            if (profile.state != null && profile.state!.isNotEmpty) {
+              _selectedState = profile.state;
+            }
+            // Only overwrite email with backend value if no signup email was
+            // provided (login path where the user didn't just sign up).
+            if (!_emailReadOnly) {
+              _emailController.text = profile.email ?? '';
+            }
+          });
+        }
+      },
+      failure: (error) {
+        debugPrint('GET /provider/me failed or profile does not exist yet: ${error.message}');
+      },
+    );
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   static const _states = [
     'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa',
@@ -39,46 +112,140 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
   ];
 
+  static const _idTypes = [
+    'NIN',
+    'Driver\'s Licence',
+    'Voter\'s Card',
+    'International Passport',
+  ];
+
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     _cityController.dispose();
+    _idNumberController.dispose();
     super.dispose();
   }
 
   bool get _canContinue =>
       _nameController.text.trim().isNotEmpty &&
       _emailController.text.trim().isNotEmpty &&
-      _uploadedFileName != null;
+      _selectedIdType != null &&
+      _idNumberController.text.trim().isNotEmpty &&
+      _govtIdFilePath != null;
 
-  void _simulateUpload() async {
-    setState(() {
-      _isUploading = true;
-      _uploadProgress = 0;
-      _uploadedFileName = null;
-    });
-    for (int i = 1; i <= 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 120));
-      if (!mounted) return;
-      setState(() => _uploadProgress = i / 10);
-    }
-    setState(() {
-      _isUploading = false;
-      _uploadedFileName = 'IMG_20250720_174356.jpg';
-    });
+  // TODO: backend upload — when submitting, send govt ID file to:
+  //   POST /api/v1/provider/verification/identity
+  //   multipart fields: govt_id_type, govt_id_number, govt_id_file, profile_photo
+  //   Use _govtIdFilePath as the local file path.
+
+  String _mapIdTypeToBackend(String uiType) {
+    return switch (uiType) {
+      'NIN' => 'nin',
+      'Driver\'s Licence' => 'drivers_licence',
+      'Voter\'s Card' => 'voter_card',
+      'International Passport' => 'passport',
+      _ => 'nin',
+    };
   }
 
-  void _continue() {
-    widget.onContinue(ProfileDetailsData(
-      fullName: _nameController.text.trim(),
-      phone: '+234${_phoneController.text.trim()}',
-      state: _selectedState ?? '',
-      city: _cityController.text.trim(),
-      email: _emailController.text.trim(),
-      governmentIdFileName: _uploadedFileName ?? '',
-    ));
+  static bool _isValidEmail(String email) =>
+      RegExp(r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$').hasMatch(email);
+
+  void _continue() async {
+    // ── Validate full name: must contain at least two non-empty parts ──────
+    final name = _nameController.text.trim();
+    final nameParts =
+        name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (nameParts.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please enter your full name.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    // ── Validate email format ─────────────────────────────────────────────
+    final email = _emailController.text.trim();
+    if (email.isNotEmpty && !_isValidEmail(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please enter a valid email address.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      debugPrint('[ONBOARDING] Submitting POST /provider/onboarding...');
+      final result = await widget.profileController.submitOnboarding(
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        state: _selectedState ?? '',
+        city: _cityController.text.trim(),
+        operationType: widget.operationType ?? 'individual',
+      );
+
+      bool onboardingReady = false;
+      String? onboardingError;
+      result.when(
+        success: (_) {
+          debugPrint('[ONBOARDING] POST /provider/onboarding succeeded');
+          onboardingReady = true;
+        },
+        failure: (error) {
+          debugPrint('[ONBOARDING] POST /provider/onboarding result: ${error.message} (code=${error.code})');
+          if (error.code == ApiErrorCode.conflict) {
+            // Onboarding was already completed in a prior session — proceed.
+            debugPrint('[ONBOARDING] Already completed — proceeding to verification');
+            onboardingReady = true;
+          } else {
+            onboardingError = error.message;
+          }
+        },
+      );
+
+      if (!onboardingReady) {
+        if (mounted && onboardingError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Onboarding failed: $onboardingError'),
+              backgroundColor: Colors.red.shade800,
+            ),
+          );
+        }
+        return;
+      }
+
+      final data = ProfileDetailsData(
+        fullName: _nameController.text.trim(),
+        phone: '+234${_phoneController.text.trim()}',
+        state: _selectedState ?? '',
+        city: _cityController.text.trim(),
+        email: _emailController.text.trim(),
+        governmentIdFileName: _govtIdFileName ?? '',
+        governmentIdFilePath: _govtIdFilePath ?? '',
+        governmentIdType: _mapIdTypeToBackend(_selectedIdType!),
+        governmentIdNumber: _idNumberController.text.trim(),
+      );
+
+      // Spinner stays on while parent polls GET /verification/status.
+      debugPrint('[ONBOARDING] Awaiting parent onContinue (verification step poll)...');
+      await widget.onContinue(data);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$e'.replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red.shade800,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -141,7 +308,14 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _nameController,
-                      hint: 'Demaulux_1',
+                      hint: 'e.g. Favour Daniel',
+                      keyboardType: TextInputType.name,
+                      inputFormatters: [
+                        // Allow letters, spaces, hyphens, and apostrophes only.
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r"[a-zA-Z '\-]"),
+                        ),
+                      ],
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 20),
@@ -190,6 +364,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
+                            readOnly: true,
                           ),
                         ),
                       ],
@@ -208,6 +383,12 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                     _InputField(
                       controller: _cityController,
                       hint: 'City',
+                      keyboardType: TextInputType.text,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r"[a-zA-Z '\-]"),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
 
@@ -216,33 +397,60 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _emailController,
-                      hint: 'uiuxwithdema@gmail.com',
+                      hint: 'you@example.com',
                       keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
+                      onChanged: (_) => setState(() {}),
+                      readOnly: _emailReadOnly,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Government ID Type
+                    const _FieldLabel(label: 'Government ID Type'),
+                    const SizedBox(height: 8),
+                    _IdTypeDropdown(
+                      value: _selectedIdType,
+                      items: _idTypes,
+                      onChanged: (v) => setState(() => _selectedIdType = v),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Government ID Number
+                    const _FieldLabel(label: 'Government ID Number'),
+                    const SizedBox(height: 8),
+                    _InputField(
+                      controller: _idNumberController,
+                      hint: 'Enter ID Number',
+                      keyboardType: TextInputType.text,
+                      inputFormatters: [
+                        // Allow alphanumeric, hyphens, and slashes (common in IDs).
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[a-zA-Z0-9\-\/]'),
+                        ),
+                      ],
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 20),
 
-                    // Upload
+                    // Upload Govt ID — real picker (camera/gallery/PDF)
                     const _FieldLabel(label: 'Upload Approved Government ID'),
                     const SizedBox(height: 8),
-                    _UploadBox(
-                      fileName: _uploadedFileName,
-                      isUploading: _isUploading,
-                      progress: _uploadProgress,
-                      onTap: _simulateUpload,
-                      onRemove: () => setState(() {
-                        _uploadedFileName = null;
-                        _uploadProgress = 0;
+                    DocumentUploadBox(
+                      filePath: _govtIdFilePath,
+                      fileName: _govtIdFileName,
+                      hint: 'International passport, NIN, Voter\'s card or Driver\'s License\nSupported file type: JPG, PNG, PDF\nMaximum File Size: 500 MB',
+                      onFileSelected: (path, name) {
+                        setState(() {
+                          _govtIdFilePath = path;
+                          _govtIdFileName = name;
+                        });
+                      },
+                      onClear: () => setState(() {
+                        _govtIdFilePath = null;
+                        _govtIdFileName = null;
                       }),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'International passport, NIN, Voter\'s card or Driver\'s License\nSupported file type: JPG, PNG\nMaximum File Size: 500MB',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFFAAAAAA),
-                        height: 1.6,
-                      ),
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -250,14 +458,13 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
               ),
             ),
 
-            // Continue button — pinned to bottom
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
               child: SizedBox(
                 height: 52,
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _canContinue ? _continue : null,
+                  onPressed: _canContinue && !_isLoading ? _continue : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
                     disabledBackgroundColor:
@@ -266,14 +473,23 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Text(
+                          'Continue',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -294,6 +510,9 @@ class ProfileDetailsData {
     required this.city,
     required this.email,
     required this.governmentIdFileName,
+    required this.governmentIdFilePath,
+    required this.governmentIdType,
+    required this.governmentIdNumber,
   });
 
   final String fullName;
@@ -302,6 +521,12 @@ class ProfileDetailsData {
   final String city;
   final String email;
   final String governmentIdFileName;
+  /// Local file path for the selected govt ID document.
+  /// TODO: use this path when uploading to
+  ///   POST /api/v1/provider/verification/identity
+  final String governmentIdFilePath;
+  final String governmentIdType;
+  final String governmentIdNumber;
 }
 
 // ─── Field Label ─────────────────────────────────────────────────────────────
@@ -332,6 +557,7 @@ class _InputField extends StatelessWidget {
     this.keyboardType,
     this.inputFormatters,
     this.onChanged,
+    this.readOnly = false,
   });
 
   final TextEditingController controller;
@@ -339,6 +565,7 @@ class _InputField extends StatelessWidget {
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -347,7 +574,11 @@ class _InputField extends StatelessWidget {
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       onChanged: onChanged,
-      style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+      readOnly: readOnly,
+      style: TextStyle(
+        fontSize: 14,
+        color: readOnly ? const Color(0xFF666666) : const Color(0xFF1A1A1A),
+      ),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(
@@ -355,7 +586,8 @@ class _InputField extends StatelessWidget {
           color: Color(0xFFBBBBBB),
         ),
         filled: true,
-        fillColor: Colors.white,
+        // Subtly different background when field is locked (verified data).
+        fillColor: readOnly ? const Color(0xFFF0F0F0) : Colors.white,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
         border: OutlineInputBorder(
@@ -420,186 +652,49 @@ class _StateDropdown extends StatelessWidget {
   }
 }
 
-// ─── Upload Box ───────────────────────────────────────────────────────────────
-
-class _UploadBox extends StatelessWidget {
-  const _UploadBox({
-    required this.onTap,
-    required this.onRemove,
-    this.fileName,
-    this.isUploading = false,
-    this.progress = 0,
+class _IdTypeDropdown extends StatelessWidget {
+  const _IdTypeDropdown({
+    required this.value,
+    required this.items,
+    required this.onChanged,
   });
 
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-  final String? fileName;
-  final bool isUploading;
-  final double progress;
+  final String? value;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    // Uploaded state
-    if (fileName != null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F5E9),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.image_outlined,
-                size: 18,
-                color: Color(0xFF4CAF50),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                fileName!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1A1A1A),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            GestureDetector(
-              onTap: onRemove,
-              child: const Icon(
-                Icons.cancel_outlined,
-                size: 20,
-                color: Color(0xFF888888),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Uploading / progress state
-    if (isUploading) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress,
-            backgroundColor: const Color(0xFFE0E0E0),
-            color: const Color(0xFF4CAF50),
-            minHeight: 6,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          hint: const Text(
+            'Government ID Type',
+            style: TextStyle(color: Color(0xFFBBBBBB), fontSize: 14),
           ),
-        ),
-      );
-    }
-
-    // Default — dashed border upload prompt (matches Figma)
-    return GestureDetector(
-      onTap: onTap,
-      child: CustomPaint(
-        painter: _DashedBorderPainter(
-          color: const Color(0xFFCCCCCC),
-          borderRadius: 10,
-          dashWidth: 6,
-          dashSpace: 4,
-        ),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+          isExpanded: true,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Color(0xFF888888),
           ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.upload_rounded,
-                size: 30,
-                color: Color(0xFF4CAF50),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Upload ID',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-            ],
-          ),
+          style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+          items: items
+              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+              .toList(),
+          onChanged: onChanged,
         ),
       ),
     );
   }
 }
 
-// ─── Dashed Border Painter ────────────────────────────────────────────────────
-
-class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({
-    required this.color,
-    required this.borderRadius,
-    required this.dashWidth,
-    required this.dashSpace,
-  });
-
-  final Color color;
-  final double borderRadius;
-  final double dashWidth;
-  final double dashSpace;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Radius.circular(borderRadius),
-      ));
-
-    final dashPath = Path();
-    final metrics = path.computeMetrics();
-    for (final metric in metrics) {
-      double distance = 0;
-      while (distance < metric.length) {
-        dashPath.addPath(
-          metric.extractPath(distance, distance + dashWidth),
-          Offset.zero,
-        );
-        distance += dashWidth + dashSpace;
-      }
-    }
-    canvas.drawPath(dashPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.dashWidth != dashWidth ||
-      oldDelegate.dashSpace != dashSpace;
-}
 
 // ─── Nigeria Flag ─────────────────────────────────────────────────────────────
 

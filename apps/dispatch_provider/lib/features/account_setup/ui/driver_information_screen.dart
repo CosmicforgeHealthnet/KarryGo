@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../profile/state/provider_profile_controller.dart';
+import '../../../shared/widgets/document_upload_box.dart';
 
 // ── Data model ──────────────────────────────────────────────────────────────
 
 class DriverInformationData {
   const DriverInformationData({
     required this.licenseFileName,
+    required this.licenseFilePath,
     required this.vehicleRegFileName,
+    required this.vehicleRegFilePath,
     required this.guarantorName,
     required this.guarantorPhone,
     required this.emergencyName,
@@ -15,7 +19,15 @@ class DriverInformationData {
   });
 
   final String licenseFileName;
+  /// Local file path.
+  /// TODO: POST /api/v1/provider/verification/licence
+  ///   fields: licence_number, expiry_year, expiry_month, licence_file
+  final String licenseFilePath;
   final String vehicleRegFileName;
+  /// Local file path.
+  /// TODO: POST /api/v1/provider/vehicle/:id/documents
+  ///   fields: document_type, expiry_date (optional), document_file
+  final String vehicleRegFilePath;
   final String guarantorName;
   final String guarantorPhone;
   final String emergencyName;
@@ -32,12 +44,14 @@ class DriverInformationScreen extends StatefulWidget {
     required this.onBack,
     required this.currentStep,
     required this.totalSteps,
+    required this.profileController,
   });
 
-  final ValueChanged<DriverInformationData> onSubmit;
+  final Future<void> Function(DriverInformationData) onSubmit;
   final VoidCallback onBack;
   final int currentStep;
   final int totalSteps;
+  final ProviderProfileController profileController;
 
   @override
   State<DriverInformationScreen> createState() =>
@@ -46,22 +60,76 @@ class DriverInformationScreen extends StatefulWidget {
 
 class _DriverInformationScreenState extends State<DriverInformationScreen> {
   String? _licenseFileName;
-  bool _isUploadingLicense = false;
-  double _licenseProgress = 0;
+  String? _licenseFilePath;
 
   String? _vehicleRegFileName;
-  bool _isUploadingVehicleReg = false;
-  double _vehicleRegProgress = 0;
+  String? _vehicleRegFilePath;
 
   final _guarantorNameController = TextEditingController();
   final _guarantorPhoneController = TextEditingController();
   final _emergencyNameController = TextEditingController();
   final _emergencyPhoneController = TextEditingController();
   String? _relationshipType;
+  bool _isLoading = false;
 
   static const _relationships = [
     'Parent', 'Sibling', 'Spouse', 'Friend', 'Child', 'Other',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingData();
+  }
+
+  void _loadExistingData() async {
+    setState(() => _isLoading = true);
+
+    // 1. Fetch guarantor
+    final guarantorRes = await widget.profileController.loadGuarantor();
+    guarantorRes.when(
+      success: (data) {
+        if (mounted) {
+          setState(() {
+            _guarantorNameController.text = data.fullName;
+            String phone = data.phone;
+            if (phone.startsWith('+234')) {
+              phone = phone.substring(4);
+            }
+            _guarantorPhoneController.text = phone;
+          });
+        }
+      },
+      failure: (_) {}, // Ignore not found / error
+    );
+
+    // 2. Fetch emergency contact
+    final contactRes = await widget.profileController.loadEmergencyContact();
+    contactRes.when(
+      success: (data) {
+        if (mounted) {
+          setState(() {
+            _emergencyNameController.text = data.fullName;
+            String phone = data.phone;
+            if (phone.startsWith('+234')) {
+              phone = phone.substring(4);
+            }
+            _emergencyPhoneController.text = phone;
+            if (_relationships.contains(data.relationship)) {
+              _relationshipType = data.relationship;
+            } else {
+              _relationshipType = 'Other';
+            }
+          });
+        }
+      },
+      failure: (_) {}, // Ignore not found / error
+    );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -73,44 +141,139 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
   }
 
   bool get _canSubmit =>
-      _licenseFileName != null &&
-      _vehicleRegFileName != null &&
+      _licenseFilePath != null &&
+      _vehicleRegFilePath != null &&
       _guarantorNameController.text.trim().isNotEmpty &&
       _guarantorPhoneController.text.trim().isNotEmpty &&
       _emergencyNameController.text.trim().isNotEmpty &&
       _emergencyPhoneController.text.trim().isNotEmpty &&
       _relationshipType != null;
 
-  void _uploadLicense() async {
-    setState(() { _isUploadingLicense = true; _licenseProgress = 0; });
-    for (int i = 1; i <= 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 120));
-      if (!mounted) return;
-      setState(() => _licenseProgress = i / 10);
-    }
-    setState(() { _isUploadingLicense = false; _licenseFileName = 'drivers_license.jpg'; });
-  }
+  // TODO: backend upload — when submitting, send licence file to:
+  //   POST /api/v1/provider/verification/licence
+  //   fields: licence_number, expiry_year, expiry_month, licence_file
+  //   Use _licenseFilePath as the local file path.
 
-  void _uploadVehicleReg() async {
-    setState(() { _isUploadingVehicleReg = true; _vehicleRegProgress = 0; });
-    for (int i = 1; i <= 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 120));
-      if (!mounted) return;
-      setState(() => _vehicleRegProgress = i / 10);
-    }
-    setState(() { _isUploadingVehicleReg = false; _vehicleRegFileName = 'vehicle_registration.jpg'; });
-  }
+  // TODO: backend upload — when submitting, send vehicle reg to:
+  //   POST /api/v1/provider/vehicle/:id/documents
+  //   fields: document_type, expiry_date (optional), document_file
+  //   Use _vehicleRegFilePath as the local file path.
 
-  void _submit() {
-    widget.onSubmit(DriverInformationData(
-      licenseFileName: _licenseFileName!,
-      vehicleRegFileName: _vehicleRegFileName!,
-      guarantorName: _guarantorNameController.text.trim(),
-      guarantorPhone: _guarantorPhoneController.text.trim(),
-      emergencyName: _emergencyNameController.text.trim(),
-      emergencyPhone: _emergencyPhoneController.text.trim(),
-      relationshipType: _relationshipType!,
-    ));
+  void _submit() async {
+    // ── Validate guarantor full name (at least two parts) ─────────────────
+    final gName = _guarantorNameController.text.trim();
+    if (gName.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text("Please enter your guarantor's full name."),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    // ── Validate emergency contact full name ──────────────────────────────
+    final eName = _emergencyNameController.text.trim();
+    if (eName.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text("Please enter your emergency contact's full name."),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    String gPhone = _guarantorPhoneController.text.trim();
+    while (gPhone.startsWith('0')) {
+      gPhone = gPhone.substring(1);
+    }
+    if (gPhone.startsWith('234')) {
+      gPhone = gPhone.substring(3);
+    }
+    if (gPhone.startsWith('+234')) {
+      gPhone = gPhone.substring(4);
+    }
+    final guarantorPhoneE164 = '+234$gPhone';
+
+    String ePhone = _emergencyPhoneController.text.trim();
+    while (ePhone.startsWith('0')) {
+      ePhone = ePhone.substring(1);
+    }
+    if (ePhone.startsWith('234')) {
+      ePhone = ePhone.substring(3);
+    }
+    if (ePhone.startsWith('+234')) {
+      ePhone = ePhone.substring(4);
+    }
+    final emergencyPhoneE164 = '+234$ePhone';
+
+    setState(() => _isLoading = true);
+
+    // 1. Submit Guarantor
+    final guarantorRes = await widget.profileController.saveGuarantor(
+      fullName: _guarantorNameController.text.trim(),
+      phone: guarantorPhoneE164,
+    );
+
+    bool hasError = false;
+    String errMsg = '';
+
+    await guarantorRes.when(
+      success: (_) async {
+        // 2. Submit Emergency Contact
+        final emergencyRes = await widget.profileController.saveEmergencyContact(
+          fullName: _emergencyNameController.text.trim(),
+          phone: emergencyPhoneE164,
+          relationship: _relationshipType!,
+        );
+        emergencyRes.when(
+          success: (_) {},
+          failure: (error) {
+            hasError = true;
+            errMsg = 'Emergency Contact failed: ${error.message}';
+          },
+        );
+      },
+      failure: (error) {
+        hasError = true;
+        errMsg = 'Guarantor failed: ${error.message}';
+      },
+    );
+
+    if (!mounted) return;
+
+    if (hasError) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errMsg),
+          backgroundColor: Colors.red.shade800,
+        ),
+      );
+    } else {
+      try {
+        await widget.onSubmit(DriverInformationData(
+          licenseFileName: _licenseFileName ?? '',
+          licenseFilePath: _licenseFilePath ?? '',
+          vehicleRegFileName: _vehicleRegFileName ?? '',
+          vehicleRegFilePath: _vehicleRegFilePath ?? '',
+          guarantorName: _guarantorNameController.text.trim(),
+          guarantorPhone: guarantorPhoneE164,
+          emergencyName: _emergencyNameController.text.trim(),
+          emergencyPhone: emergencyPhoneE164,
+          relationshipType: _relationshipType!,
+        ));
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Submission failed: $e'),
+              backgroundColor: Colors.red.shade800,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
   }
 
   @override
@@ -168,38 +331,44 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
                     ),
                     const SizedBox(height: 28),
 
-                    // ── Driver's License upload
+                    // ── Driver's License upload (real picker)
                     const _FieldLabel(label: "Upload Driver's License"),
                     const SizedBox(height: 8),
-                    _UploadBox(
+                    DocumentUploadBox(
+                      filePath: _licenseFilePath,
                       fileName: _licenseFileName,
-                      isUploading: _isUploadingLicense,
-                      progress: _licenseProgress,
-                      onTap: _uploadLicense,
-                      onRemove: () => setState(() {
+                      hint: 'Supported file type: JPG, PNG, PDF\nMaximum File Size: 500 MB',
+                      onFileSelected: (path, name) {
+                        setState(() {
+                          _licenseFilePath = path;
+                          _licenseFileName = name;
+                        });
+                      },
+                      onClear: () => setState(() {
+                        _licenseFilePath = null;
                         _licenseFileName = null;
-                        _licenseProgress = 0;
                       }),
                     ),
-                    const SizedBox(height: 8),
-                    const _UploadHint(),
                     const SizedBox(height: 20),
 
-                    // ── Vehicle Registration upload
+                    // ── Vehicle Registration upload (real picker)
                     const _FieldLabel(label: 'Upload Vehicle Registration Sticker'),
                     const SizedBox(height: 8),
-                    _UploadBox(
+                    DocumentUploadBox(
+                      filePath: _vehicleRegFilePath,
                       fileName: _vehicleRegFileName,
-                      isUploading: _isUploadingVehicleReg,
-                      progress: _vehicleRegProgress,
-                      onTap: _uploadVehicleReg,
-                      onRemove: () => setState(() {
+                      hint: 'Supported file type: JPG, PNG, PDF\nMaximum File Size: 500 MB',
+                      onFileSelected: (path, name) {
+                        setState(() {
+                          _vehicleRegFilePath = path;
+                          _vehicleRegFileName = name;
+                        });
+                      },
+                      onClear: () => setState(() {
+                        _vehicleRegFilePath = null;
                         _vehicleRegFileName = null;
-                        _vehicleRegProgress = 0;
                       }),
                     ),
-                    const SizedBox(height: 8),
-                    const _UploadHint(),
                     const SizedBox(height: 28),
 
                     // ── Guarantor Information section
@@ -220,7 +389,13 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _guarantorNameController,
-                      hint: 'Enter name',
+                      hint: 'Enter full name',
+                      keyboardType: TextInputType.name,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r"[a-zA-Z '\-]"),
+                        ),
+                      ],
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 16),
@@ -247,7 +422,13 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _emergencyNameController,
-                      hint: 'Enter name',
+                      hint: 'Enter full name',
+                      keyboardType: TextInputType.name,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r"[a-zA-Z '\-]"),
+                        ),
+                      ],
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 16),
@@ -275,7 +456,7 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
                 height: 52,
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _canSubmit ? _submit : null,
+                  onPressed: _canSubmit && !_isLoading ? _submit : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
                     disabledBackgroundColor:
@@ -284,14 +465,23 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                  child: const Text(
-                    'Final Step',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Text(
+                          'Final Step',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -371,21 +561,7 @@ class _InfoBanner extends StatelessWidget {
   }
 }
 
-class _UploadHint extends StatelessWidget {
-  const _UploadHint();
 
-  @override
-  Widget build(BuildContext context) {
-    return const Text(
-      'International passport, NIN, Voter\'s card or Driver\'s License\nSupported file type: JPG, PNG\nMaximum File Size: 500MB',
-      style: TextStyle(
-        fontSize: 11,
-        color: Color(0xFFAAAAAA),
-        height: 1.6,
-      ),
-    );
-  }
-}
 
 class _InputField extends StatelessWidget {
   const _InputField({
@@ -531,177 +707,6 @@ class _RelationshipDropdown extends StatelessWidget {
   }
 }
 
-class _UploadBox extends StatelessWidget {
-  const _UploadBox({
-    required this.fileName,
-    required this.isUploading,
-    required this.progress,
-    required this.onTap,
-    required this.onRemove,
-  });
-
-  final String? fileName;
-  final bool isUploading;
-  final double progress;
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    // Uploaded state
-    if (fileName != null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F5E9),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.image_outlined,
-                size: 18,
-                color: Color(0xFF4CAF50),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                fileName!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1A1A1A),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            GestureDetector(
-              onTap: onRemove,
-              child: const Icon(
-                Icons.cancel_outlined,
-                size: 20,
-                color: Color(0xFF888888),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Uploading state
-    if (isUploading) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress,
-            backgroundColor: const Color(0xFFE0E0E0),
-            color: const Color(0xFF4CAF50),
-            minHeight: 6,
-          ),
-        ),
-      );
-    }
-
-    // Default — dashed border
-    return GestureDetector(
-      onTap: onTap,
-      child: CustomPaint(
-        painter: _DashedBorderPainter(
-          color: const Color(0xFFCCCCCC),
-          borderRadius: 10,
-          dashWidth: 6,
-          dashSpace: 4,
-        ),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.upload_rounded, size: 28, color: Color(0xFF4CAF50)),
-              SizedBox(height: 8),
-              Text(
-                'Upload ID',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Dashed border painter ─────────────────────────────────────────────────────
-
-class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({
-    required this.color,
-    required this.borderRadius,
-    required this.dashWidth,
-    required this.dashSpace,
-  });
-
-  final Color color;
-  final double borderRadius;
-  final double dashWidth;
-  final double dashSpace;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Radius.circular(borderRadius),
-      ));
-
-    final dashPath = Path();
-    for (final metric in path.computeMetrics()) {
-      double distance = 0;
-      while (distance < metric.length) {
-        dashPath.addPath(
-          metric.extractPath(distance, distance + dashWidth),
-          Offset.zero,
-        );
-        distance += dashWidth + dashSpace;
-      }
-    }
-    canvas.drawPath(dashPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter old) =>
-      old.color != color || old.dashWidth != dashWidth || old.dashSpace != dashSpace;
-}
 
 // ── Nigeria flag ──────────────────────────────────────────────────────────────
 

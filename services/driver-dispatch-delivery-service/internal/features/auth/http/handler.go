@@ -21,10 +21,8 @@ func NewHandler(auth *authusecases.AuthUsecase) *Handler {
 	return &Handler{auth: auth}
 }
 
-// Start handles POST /api/v1/auth/start.
-// Validates phone number, enforces OTP rate limit, generates and stores an OTP,
-// publishes the OTP-requested event, and returns expires_in_seconds.
-// OTP is never included in the response.
+// Start handles POST /api/v1/auth/start (legacy — phone-only, no login/signup split).
+// Kept for backward compatibility with older clients.
 func (h *Handler) Start(c *gin.Context) {
 	var req StartRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -52,9 +50,72 @@ func (h *Handler) Start(c *gin.Context) {
 	})
 }
 
+// SignupStart handles POST /api/v1/auth/signup/start.
+// Validates phone + email, checks neither is already registered, sends OTP.
+func (h *Handler) SignupStart(c *gin.Context) {
+	var req SignupStartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+			{Field: "phone_number", Message: "Invalid request body."},
+		}))
+		return
+	}
+
+	result, err := h.auth.SignupStart(c.Request.Context(), authusecases.SignupStartInput{
+		PhoneNumber:   req.PhoneNumber,
+		Email:         req.Email,
+		CorrelationID: httpx.GetRequestID(c),
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": StartResponse{
+			Message:          "OTP sent to your phone number and email.",
+			ExpiresInSeconds: result.ExpiresInSeconds,
+		},
+	})
+}
+
+// LoginStart handles POST /api/v1/auth/login/start.
+// Accepts a phone number or email as identifier, looks up the existing account,
+// returns 404 if not found.
+func (h *Handler) LoginStart(c *gin.Context) {
+	var req LoginStartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+			{Field: "identifier", Message: "Invalid request body."},
+		}))
+		return
+	}
+
+	result, err := h.auth.LoginStart(c.Request.Context(), authusecases.LoginStartInput{
+		Identifier:    req.Identifier,
+		CorrelationID: httpx.GetRequestID(c),
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": StartResponse{
+			Message:          "OTP sent to the contact method associated with your account.",
+			ExpiresInSeconds: result.ExpiresInSeconds,
+		},
+	})
+}
+
 // Verify handles POST /api/v1/auth/verify.
-// Validates OTP, upserts dispatch rider identity, creates session, issues tokens.
-// Tokens are never logged. OTP is never returned in the response.
+// Validates OTP, resolves/creates the dispatch rider identity (based on purpose),
+// creates a session, and issues tokens.
+//
+// Backward compatible: clients that send only phone_number + otp_code (no purpose /
+// identifier) continue to work via the legacy upsert path.
 func (h *Handler) Verify(c *gin.Context) {
 	var req VerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -66,7 +127,9 @@ func (h *Handler) Verify(c *gin.Context) {
 
 	result, err := h.auth.Verify(c.Request.Context(), authusecases.VerifyInput{
 		PhoneNumber:   req.PhoneNumber,
+		Identifier:    req.Identifier,
 		OTPCode:       req.OTPCode,
+		Purpose:       req.Purpose,
 		CorrelationID: httpx.GetRequestID(c),
 		Metadata: authusecases.RequestMetadata{
 			DeviceID:   req.DeviceID,

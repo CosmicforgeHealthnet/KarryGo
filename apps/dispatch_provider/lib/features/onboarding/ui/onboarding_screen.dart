@@ -151,7 +151,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         fontFamily: 'Roboto',
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
-                        color: Colors.white.withOpacity(0.75),
+                        color: Colors.white.withValues(alpha: 0.75),
                         height: 1.25,
                         letterSpacing: 0.0,
                       ),

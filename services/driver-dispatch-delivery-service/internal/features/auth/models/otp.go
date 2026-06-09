@@ -9,6 +9,12 @@ import (
 type OTP struct {
 	ID          string
 	PhoneNumber string
+	// Email is set only for signup OTPs; nil for login OTPs.
+	// It is retrieved during Verify(purpose=signup) to create the identity with the email.
+	Email       *string
+	// Purpose distinguishes signup OTPs from login OTPs for audit.
+	// Values: "login" (default), "signup".
+	Purpose     string
 	OTPCodeHash string
 	Attempts    int
 	MaxAttempts int

@@ -23,7 +23,11 @@ func TestLoggingNotificationClientDoesNotLogOTPWhenDebugDisabled(t *testing.T) {
 	}
 }
 
-func TestLoggingNotificationClientLogsOTPOnlyWhenDebugEnabled(t *testing.T) {
+// TestLoggingNotificationClientSendOTPIsNoOp verifies that SendOTP does not
+// emit OTP log lines even when debug mode is enabled.  OTP logging (with the
+// purpose label "signup" / "login") is now the responsibility of the usecase
+// layer, which covers both the phone and email channels in one place.
+func TestLoggingNotificationClientSendOTPIsNoOp(t *testing.T) {
 	var buf bytes.Buffer
 	originalOutput := log.Writer()
 	log.SetOutput(&buf)
@@ -33,7 +37,7 @@ func TestLoggingNotificationClientLogsOTPOnlyWhenDebugEnabled(t *testing.T) {
 	if err := client.SendOTP(context.Background(), "+2348012345678", "123456"); err != nil {
 		t.Fatalf("SendOTP() error = %v", err)
 	}
-	if !strings.Contains(buf.String(), "otp=123456") {
-		t.Fatalf("debug logging should include OTP, got %q", buf.String())
+	if strings.Contains(buf.String(), "otp=") {
+		t.Fatalf("SendOTP must not log OTP (logging moved to usecase layer), got %q", buf.String())
 	}
 }

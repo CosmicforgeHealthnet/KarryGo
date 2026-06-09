@@ -136,6 +136,39 @@ func (u *OTPUsecase) Create(ctx context.Context, phoneNumber string) (authmodels
 	otp := authmodels.OTP{
 		ID:          otpID,
 		PhoneNumber: phoneNumber,
+		Purpose:     "login",
+		OTPCodeHash: u.HashCode(otpID, phoneNumber, code),
+		MaxAttempts: u.maxAttempts,
+		ExpiresAt:   u.now().Add(u.ttl),
+	}
+	saved, err := u.repository.Create(ctx, otp)
+	if err != nil {
+		return authmodels.OTP{}, "", err
+	}
+	return saved, code, nil
+}
+
+// CreateForSignup creates a signup OTP for the given phone number, storing the
+// associated email so it can be retrieved during the Verify step to create the
+// identity.  The email is persisted in the OTP row and is never sent to clients.
+func (u *OTPUsecase) CreateForSignup(ctx context.Context, phoneNumber, email string) (authmodels.OTP, string, error) {
+	if err := u.checkLimit(ctx, phoneNumber); err != nil {
+		return authmodels.OTP{}, "", err
+	}
+	code, err := u.GenerateCode()
+	if err != nil {
+		return authmodels.OTP{}, "", apperrors.Internal("Verification code could not be generated.", err)
+	}
+	otpID := uuid.NewString()
+	var emailPtr *string
+	if email != "" {
+		emailPtr = &email
+	}
+	otp := authmodels.OTP{
+		ID:          otpID,
+		PhoneNumber: phoneNumber,
+		Email:       emailPtr,
+		Purpose:     "signup",
 		OTPCodeHash: u.HashCode(otpID, phoneNumber, code),
 		MaxAttempts: u.maxAttempts,
 		ExpiresAt:   u.now().Add(u.ttl),
@@ -191,6 +224,45 @@ func (u *OTPUsecase) VerifyLatest(ctx context.Context, phoneNumber string, code 
 
 func (u *OTPUsecase) TTLSeconds() int64 {
 	return int64(u.ttl.Seconds())
+}
+
+// LooksLikeEmail returns true if s contains an '@' with non-empty parts on both
+// sides.  Used to route login/verify requests to email vs. phone paths.
+func LooksLikeEmail(s string) bool {
+	at := strings.LastIndex(s, "@")
+	return at > 0 && at < len(s)-1
+}
+
+// NormalizeEmail trims whitespace and lower-cases an email address.
+func NormalizeEmail(raw string) (string, error) {
+	email := strings.ToLower(strings.TrimSpace(raw))
+	if err := ValidateEmail(email); err != nil {
+		return "", err
+	}
+	return email, nil
+}
+
+// ValidateEmail performs lightweight structural validation of an email address.
+func ValidateEmail(email string) error {
+	if email == "" {
+		return apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+			{Field: "email", Message: "Email address is required."},
+		})
+	}
+	at := strings.LastIndex(email, "@")
+	if at <= 0 || at >= len(email)-1 {
+		return apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+			{Field: "email", Message: "Please enter a valid email address."},
+		})
+	}
+	domain := email[at+1:]
+	dotPos := strings.LastIndex(domain, ".")
+	if dotPos <= 0 || dotPos >= len(domain)-1 {
+		return apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+			{Field: "email", Message: "Please enter a valid email address."},
+		})
+	}
+	return nil
 }
 
 // ValidatePhoneNumber validates a normalised phone number.

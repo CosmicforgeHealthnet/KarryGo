@@ -26,6 +26,15 @@ func (f *fakeIdentityRepository) FindByPhone(ctx context.Context, phone string) 
 	return id, ok, nil
 }
 
+func (f *fakeIdentityRepository) FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error) {
+	for _, identity := range f.identities {
+		if identity.Email != nil && *identity.Email == email {
+			return identity, true, nil
+		}
+	}
+	return authmodels.Identity{}, false, nil
+}
+
 func (f *fakeIdentityRepository) GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error) {
 	for _, identity := range f.identities {
 		if identity.ID == id {
@@ -52,16 +61,42 @@ func (f *fakeIdentityRepository) UpsertByPhone(ctx context.Context, phone string
 	return id, nil
 }
 
+func (f *fakeIdentityRepository) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+	if _, exists := f.identities[phone]; exists {
+		return authmodels.Identity{}, apperrors.Conflict("An account with this phone number or email already exists.", nil)
+	}
+	var emailPtr *string
+	if email != "" {
+		emailPtr = &email
+	}
+	id := authmodels.Identity{
+		ID:          "identity-" + phone,
+		PhoneNumber: phone,
+		Email:       emailPtr,
+		Status:      authmodels.StatusActive,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	f.identities[phone] = id
+	return id, nil
+}
+
 // suspendedIdentityRepo always returns a suspended identity.
 type suspendedIdentityRepo struct{}
 
 func (r *suspendedIdentityRepo) FindByPhone(ctx context.Context, phone string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{ID: "id-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, true, nil
 }
+func (r *suspendedIdentityRepo) FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error) {
+	return authmodels.Identity{}, false, nil
+}
 func (r *suspendedIdentityRepo) GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{ID: id, PhoneNumber: "+2348012345678", Status: authmodels.StatusSuspended}, true, nil
 }
 func (r *suspendedIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+	return authmodels.Identity{ID: "id-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, nil
+}
+func (r *suspendedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "id-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, nil
 }
 
@@ -71,10 +106,16 @@ type deletedIdentityRepo struct{}
 func (r *deletedIdentityRepo) FindByPhone(ctx context.Context, phone string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{ID: "id-2", PhoneNumber: phone, Status: authmodels.StatusDeleted}, true, nil
 }
+func (r *deletedIdentityRepo) FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error) {
+	return authmodels.Identity{}, false, nil
+}
 func (r *deletedIdentityRepo) GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{ID: id, PhoneNumber: "+2348012345678", Status: authmodels.StatusDeleted}, true, nil
 }
 func (r *deletedIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+	return authmodels.Identity{ID: "id-2", PhoneNumber: phone, Status: authmodels.StatusDeleted}, nil
+}
+func (r *deletedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "id-2", PhoneNumber: phone, Status: authmodels.StatusDeleted}, nil
 }
 
@@ -194,8 +235,10 @@ func newVerifyUsecase(
 // IdentityRepositoryIface satisfies both the real and fake identity repos in tests.
 type IdentityRepositoryIface interface {
 	FindByPhone(ctx context.Context, phoneNumber string) (authmodels.Identity, bool, error)
+	FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error)
 	GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error)
 	UpsertByPhone(ctx context.Context, phoneNumber string) (authmodels.Identity, error)
+	CreateForSignup(ctx context.Context, phoneNumber, email string) (authmodels.Identity, error)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

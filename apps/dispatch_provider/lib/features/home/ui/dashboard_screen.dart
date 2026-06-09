@@ -4,9 +4,21 @@ import '../../requests/ui/requests_screen.dart';
 import '../../bookings/ui/bookings_screen.dart';
 import '../../wallet/ui/wallet_screen.dart';
 import '../../profile/ui/profile_screen.dart';
+import '../../profile/state/provider_profile_controller.dart';
+import '../../verification/state/verification_controller.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final ProviderProfileController profileController;
+  final VerificationController verificationController;
+  /// Called when the user confirms logout from the Profile tab.
+  final VoidCallback? onLogout;
+
+  const DashboardScreen({
+    super.key,
+    required this.profileController,
+    required this.verificationController,
+    this.onLogout,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -15,13 +27,22 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _index = 0;
 
-  final _screens = const [
-    HomeScreen(),
-    RequestsScreen(),
-    BookingsScreen(),
-    WalletScreen(),
-    ProfileScreen(),
-  ];
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomeScreen(verificationController: widget.verificationController),
+      const RequestsScreen(),
+      const BookingsScreen(),
+      const WalletScreen(),
+      ProfileScreen(
+        profileController: widget.profileController,
+        onLogout: widget.onLogout,
+      ),
+    ];
+  }
 
   static const _icons = [
     Icons.home_rounded,

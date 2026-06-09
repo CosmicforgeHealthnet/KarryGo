@@ -33,10 +33,17 @@ func (r *PostgresOTPRepository) Create(ctx context.Context, otp authmodels.OTP) 
 		otp.ID = uuid.NewString()
 	}
 
+	purpose := otp.Purpose
+	if purpose == "" {
+		purpose = "login"
+	}
+
 	row := r.db.QueryRow(ctx, `
 		INSERT INTO dispatch_rider_otps (
 			id,
 			phone_number,
+			email,
+			purpose,
 			otp_code_hash,
 			attempts,
 			max_attempts,
@@ -44,16 +51,16 @@ func (r *PostgresOTPRepository) Create(ctx context.Context, otp authmodels.OTP) 
 			verified,
 			locked_until
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id::text, phone_number, otp_code_hash, attempts, max_attempts, expires_at, verified, locked_until, created_at, updated_at
-	`, otp.ID, otp.PhoneNumber, otp.OTPCodeHash, otp.Attempts, otp.MaxAttempts, otp.ExpiresAt, otp.Verified, otp.LockedUntil)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		RETURNING id::text, phone_number, email, purpose, otp_code_hash, attempts, max_attempts, expires_at, verified, locked_until, created_at, updated_at
+	`, otp.ID, otp.PhoneNumber, otp.Email, purpose, otp.OTPCodeHash, otp.Attempts, otp.MaxAttempts, otp.ExpiresAt, otp.Verified, otp.LockedUntil)
 
 	return scanOTP(row)
 }
 
 func (r *PostgresOTPRepository) LatestByPhone(ctx context.Context, phoneNumber string) (authmodels.OTP, bool, error) {
 	row := r.db.QueryRow(ctx, `
-		SELECT id::text, phone_number, otp_code_hash, attempts, max_attempts, expires_at, verified, locked_until, created_at, updated_at
+		SELECT id::text, phone_number, email, purpose, otp_code_hash, attempts, max_attempts, expires_at, verified, locked_until, created_at, updated_at
 		FROM dispatch_rider_otps
 		WHERE phone_number = $1
 		ORDER BY created_at DESC
@@ -99,9 +106,12 @@ type otpRow interface {
 func scanOTP(row otpRow) (authmodels.OTP, error) {
 	var otp authmodels.OTP
 	var lockedUntil sql.NullTime
+	var email sql.NullString
 	err := row.Scan(
 		&otp.ID,
 		&otp.PhoneNumber,
+		&email,
+		&otp.Purpose,
 		&otp.OTPCodeHash,
 		&otp.Attempts,
 		&otp.MaxAttempts,
@@ -115,6 +125,9 @@ func scanOTP(row otpRow) (authmodels.OTP, error) {
 		return authmodels.OTP{}, err
 	}
 
+	if email.Valid {
+		otp.Email = &email.String
+	}
 	if lockedUntil.Valid {
 		otp.LockedUntil = &lockedUntil.Time
 	}

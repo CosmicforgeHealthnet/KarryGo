@@ -48,6 +48,7 @@ services:
       - dispatch_delivery_postgres_data:/var/lib/postgresql/data
       - ../services/driver-dispatch-delivery-service/migrations/001_dispatch_rider_auth.sql:/docker-entrypoint-initdb.d/001_dispatch_rider_auth.sql:ro
       - ../services/driver-dispatch-delivery-service/migrations/002_dispatch_rider_auth_alter.sql:/docker-entrypoint-initdb.d/002_dispatch_rider_auth_alter.sql:ro
+      - ../services/driver-dispatch-delivery-service/migrations/003_dispatch_rider_auth_signup.sql:/docker-entrypoint-initdb.d/003_dispatch_rider_auth_signup.sql:ro
       - ../services/driver-dispatch-delivery-service/migrations/000004_create_providers.up.sql:/docker-entrypoint-initdb.d/000004_create_providers.sql:ro
       - ../services/driver-dispatch-delivery-service/migrations/000005_create_emergency_contacts.up.sql:/docker-entrypoint-initdb.d/000005_create_emergency_contacts.sql:ro
       - ../services/driver-dispatch-delivery-service/migrations/000006_create_guarantors.up.sql:/docker-entrypoint-initdb.d/000006_create_guarantors.sql:ro

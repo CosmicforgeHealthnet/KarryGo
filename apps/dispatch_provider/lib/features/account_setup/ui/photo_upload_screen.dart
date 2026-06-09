@@ -1,5 +1,8 @@
 // photo upload screen
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class PhotoUploadScreen extends StatefulWidget {
   const PhotoUploadScreen({
@@ -10,7 +13,7 @@ class PhotoUploadScreen extends StatefulWidget {
     required this.totalSteps,
   });
 
-  final VoidCallback onContinue;
+  final Future<void> Function(String) onContinue;
   final VoidCallback onBack;
   final int currentStep;
   final int totalSteps;
@@ -20,10 +23,71 @@ class PhotoUploadScreen extends StatefulWidget {
 }
 
 class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
-  bool _hasPhoto = false;
+  XFile? _pickedFile;
+  bool _loading = false;
+
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickImage(ImageSource source) async {
+    if (_loading) return;
+    setState(() => _loading = true);
+
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1080,
+        maxHeight: 1080,
+      );
+
+      if (!mounted) return;
+
+      if (file != null) {
+        setState(() => _pickedFile = file);
+      }
+      // If file == null the user cancelled — do nothing.
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            source == ImageSource.camera
+                ? 'Camera unavailable. Please grant camera permission in Settings.'
+                : 'Could not access gallery. Please grant photo permission in Settings.',
+          ),
+          backgroundColor: const Color(0xFFE53935),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _handleContinue() async {
+    if (_pickedFile == null || _loading) return;
+    setState(() => _loading = true);
+    try {
+      await widget.onContinue(_pickedFile!.path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload failed: $e'),
+            backgroundColor: const Color(0xFFE53935),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bool hasPhoto = _pickedFile != null;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: SafeArea(
@@ -74,7 +138,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
               ),
               const SizedBox(height: 48),
 
-              // Avatar circle — checkerboard pattern when empty, matches Figma
+              // Avatar circle — shows live preview or checkerboard placeholder
               Center(
                 child: Stack(
                   alignment: Alignment.center,
@@ -87,15 +151,23 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                         color: Color(0xFFE8E8E8),
                       ),
                       child: ClipOval(
-                        child: _hasPhoto
-                            ? const ColoredBox(
-                                color: Color(0xFFBBBBBB),
+                        child: hasPhoto
+                            ? Image.file(
+                                File(_pickedFile!.path),
+                                fit: BoxFit.cover,
+                                width: 200,
+                                height: 200,
                               )
                             : CustomPaint(
                                 painter: _CheckerboardPainter(),
                               ),
                       ),
                     ),
+                    if (_loading)
+                      const CircularProgressIndicator(
+                        color: Color(0xFF4CAF50),
+                        strokeWidth: 3,
+                      ),
                   ],
                 ),
               ),
@@ -107,7 +179,8 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => setState(() => _hasPhoto = true),
+                      onPressed:
+                          _loading ? null : () => _pickImage(ImageSource.camera),
                       icon: const Icon(Icons.camera_alt_outlined, size: 18),
                       label: const Text('Take Photo'),
                       style: OutlinedButton.styleFrom(
@@ -130,7 +203,8 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: () => setState(() => _hasPhoto = true),
+                      onPressed:
+                          _loading ? null : () => _pickImage(ImageSource.gallery),
                       icon: const Icon(Icons.upload_rounded, size: 18),
                       label: const Text('Upload Photo'),
                       style: FilledButton.styleFrom(
@@ -154,7 +228,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
               SizedBox(
                 height: 52,
                 child: FilledButton(
-                  onPressed: _hasPhoto ? widget.onContinue : null,
+                  onPressed: hasPhoto && !_loading ? _handleContinue : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
                     disabledBackgroundColor:
@@ -163,14 +237,23 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Text(
+                          'Continue',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ],

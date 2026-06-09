@@ -1,10 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:karrygo_api_core/karrygo_api_core.dart';
+import '../state/dispatch_auth_controller.dart';
 
+/// Signup screen — collects phone number + email address.
+/// Called [PhoneEntryScreen] to preserve existing import paths.
 class PhoneEntryScreen extends StatefulWidget {
-  const PhoneEntryScreen({super.key, required this.onContinue});
-  final ValueChanged<String> onContinue;
+  const PhoneEntryScreen({
+    super.key,
+    required this.onContinue,
+    required this.controller,
+    this.onLoginTap,
+  });
+
+  /// Called with (phone, email) after signupStart succeeds.
+  final void Function(String phone, String email) onContinue;
+  final DispatchAuthController controller;
+
+  /// Called when the user taps "Already have an account? Log In".
+  final VoidCallback? onLoginTap;
 
   @override
   State<PhoneEntryScreen> createState() => _PhoneEntryScreenState();
@@ -12,10 +27,13 @@ class PhoneEntryScreen extends StatefulWidget {
 
 class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -29,8 +47,8 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 149),
-              // Car illustration — Figma: w:323 h:88 left:53
+              const SizedBox(height: 120),
+              // Car illustration
               Padding(
                 padding: const EdgeInsets.only(left: 29.0),
                 child: Image.asset(
@@ -61,15 +79,17 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Enter your phone number to continue.',
+                'Create your account to get started.',
                 style: TextStyle(
                   fontSize: 13,
                   color: Color(0xFF888888),
                 ),
               ),
               const SizedBox(height: 28),
+
+              // ── Phone number ──────────────────────────────────────────────
               const Text(
-                'Enter your Phone Number',
+                'Phone Number',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -135,15 +155,11 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF4CAF50),
-                          ),
+                          borderSide: const BorderSide(color: Color(0xFF4CAF50)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF4CAF50),
-                          ),
+                          borderSide: const BorderSide(color: Color(0xFF4CAF50)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -157,9 +173,62 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+
+              // ── Email address ─────────────────────────────────────────────
+              const Text(
+                'Email Address',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                inputFormatters: [
+                  // Disallow spaces — email addresses never contain spaces.
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                ],
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF1A1A1A),
+                ),
+                decoration: InputDecoration(
+                  hintText: 'you@example.com',
+                  hintStyle: const TextStyle(
+                    color: Color(0xFFBBBBBB),
+                    fontSize: 14,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 16,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF4CAF50),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(height: 8),
               const Text(
-                "We'll send you a verification code.",
+                "We'll send your verification code to your phone.",
                 style: TextStyle(
                   fontSize: 12,
                   color: Color(0xFF4CAF50),
@@ -167,33 +236,13 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _phoneController,
-                builder: (context, value, _) {
-                  final canContinue = value.text.trim().isNotEmpty;
-                  return SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: canContinue ? _continue : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                        disabledBackgroundColor:
-                            const Color(0xFF4CAF50).withValues(alpha: 0.45),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      child: const Text(
-                        'Continue',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+
+              // ── Continue button ───────────────────────────────────────────
+              _ContinueButton(
+                phoneListenable: _phoneController,
+                emailListenable: _emailController,
+                isLoading: _isLoading,
+                onTap: _signup,
               ),
               const SizedBox(height: 28),
               const _DividerLabel(label: 'Or'),
@@ -224,8 +273,8 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                         width: 22,
                         height: 22,
                       ),
-                      SizedBox(width: 12),
-                      Text(
+                      const SizedBox(width: 12),
+                      const Text(
                         'Continue with Google',
                         style: TextStyle(
                           fontSize: 15,
@@ -267,24 +316,27 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-              Text.rich(
-                TextSpan(
-                  text: 'Already have an account? ',
-                  style: const TextStyle(
-                    color: Color(0xFF888888),
-                    fontSize: 13,
-                  ),
-                  children: const [
-                    TextSpan(
-                      text: 'Log In',
-                      style: TextStyle(
-                        color: Color(0xFF4CAF50),
-                        fontWeight: FontWeight.w700,
-                      ),
+              GestureDetector(
+                onTap: widget.onLoginTap,
+                child: Text.rich(
+                  TextSpan(
+                    text: 'Already have an account? ',
+                    style: const TextStyle(
+                      color: Color(0xFF888888),
+                      fontSize: 13,
                     ),
-                  ],
+                    children: const [
+                      TextSpan(
+                        text: 'Log In',
+                        style: TextStyle(
+                          color: Color(0xFF4CAF50),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
             ],
@@ -294,11 +346,167 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
     );
   }
 
-  void _continue() {
+  void _signup() async {
+    if (_isLoading) return; // guard against double-tap
+
+    final rawPhone = _phoneController.text.replaceAll(' ', '').trim();
+    final email = _emailController.text.trim();
+
+    if (rawPhone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please enter your phone number.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please enter your email address.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    // Basic email format validation.
+    final emailRegex = RegExp(r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$');
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please enter a valid email address.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
     FocusScope.of(context).unfocus();
-    final raw = _phoneController.text.replaceAll(' ', '').trim();
-    final phone = raw.startsWith('0') ? '+234${raw.substring(1)}' : '+234$raw';
-    widget.onContinue(phone);
+
+    // Normalize phone: strip country code prefix and re-add +234.
+    String subscriber = rawPhone;
+    if (subscriber.startsWith('+234')) {
+      subscriber = subscriber.substring(4);
+    } else if (subscriber.startsWith('234')) {
+      subscriber = subscriber.substring(3);
+    }
+    while (subscriber.startsWith('0')) {
+      subscriber = subscriber.substring(1);
+    }
+
+    // Nigerian subscriber number is 10 digits (e.g. 8012345678).
+    if (subscriber.length != 10 || !RegExp(r'^\d{10}$').hasMatch(subscriber)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please enter a valid Nigerian phone number.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    final phone = '+234$subscriber';
+    debugPrint('[SIGNUP] Normalized phone: $phone');
+
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isLoading = true);
+
+    // signupStart always returns ApiResult — it never throws.
+    final result = await widget.controller.signupStart(
+      phoneNumber: phone,
+      email: email,
+    );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    result.when(
+      success: (_) => widget.onContinue(phone, email),
+      failure: (error) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(_signupErrorMessage(error)),
+          backgroundColor: Colors.red.shade800,
+          duration: const Duration(seconds: 5),
+        ));
+      },
+    );
+  }
+
+  /// Returns a user-friendly message for signup errors.
+  static String _signupErrorMessage(ApiException error) {
+    switch (error.code) {
+      case ApiErrorCode.conflict:
+        return 'An account already exists with this phone number or email. Please log in instead.';
+      case ApiErrorCode.network:
+        final cause = error.cause?.toString() ?? '';
+        if (cause.toLowerCase().contains('timeout')) {
+          return 'The request timed out. Please try again.';
+        }
+        return 'Could not connect to the server. Please check your connection and try again.';
+      case ApiErrorCode.rateLimited:
+        return 'Too many attempts. Please wait a moment and try again.';
+      case ApiErrorCode.validationFailed:
+        return error.message.isNotEmpty
+            ? error.message
+            : 'Please check your details and try again.';
+      default:
+        return error.message.isNotEmpty
+            ? error.message
+            : 'Something went wrong. Please try again.';
+    }
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+class _ContinueButton extends StatelessWidget {
+  const _ContinueButton({
+    required this.phoneListenable,
+    required this.emailListenable,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final TextEditingController phoneListenable;
+  final TextEditingController emailListenable;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([phoneListenable, emailListenable]),
+      builder: (context, _) {
+        final canContinue =
+            phoneListenable.text.trim().isNotEmpty &&
+            emailListenable.text.trim().isNotEmpty;
+        return SizedBox(
+          height: 52,
+          child: FilledButton(
+            onPressed: canContinue && !isLoading ? onTap : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
+              disabledBackgroundColor:
+                  const Color(0xFF4CAF50).withValues(alpha: 0.45),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            child: isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -337,9 +545,7 @@ class _DividerLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(
-          child: Divider(color: Color(0xFFDDDDDD)),
-        ),
+        const Expanded(child: Divider(color: Color(0xFFDDDDDD))),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
@@ -351,9 +557,7 @@ class _DividerLabel extends StatelessWidget {
             ),
           ),
         ),
-        const Expanded(
-          child: Divider(color: Color(0xFFDDDDDD)),
-        ),
+        const Expanded(child: Divider(color: Color(0xFFDDDDDD))),
       ],
     );
   }

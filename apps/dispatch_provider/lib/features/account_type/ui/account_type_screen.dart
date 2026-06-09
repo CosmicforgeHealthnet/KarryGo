@@ -103,7 +103,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                       fontWeight: FontWeight.w700,
                       color: _selected != null
                           ? Colors.white
-                          : Colors.white.withOpacity(0.9),
+                          : Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
                 ),
@@ -143,7 +143,7 @@ class _OptionCard extends StatelessWidget {
           border: Border.all(color: Colors.transparent, width: 0),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
@@ -159,7 +159,7 @@ class _OptionCard extends StatelessWidget {
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) => Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF27A747).withOpacity(0.1),
+                    color: const Color(0xFF27A747).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
