@@ -4,6 +4,7 @@ class CustomerProfile {
   const CustomerProfile({
     required this.id,
     required this.phone,
+    this.email = '',
     required this.onboardingStatus,
     this.firstName,
     this.lastName,
@@ -12,6 +13,7 @@ class CustomerProfile {
 
   final String id;
   final String phone;
+  final String email;
   final String onboardingStatus;
   final String? firstName;
   final String? lastName;
@@ -25,6 +27,9 @@ class CustomerProfile {
         .cast<String>()
         .toList();
     if (parts.isEmpty) {
+      if (email.trim().isNotEmpty) {
+        return email;
+      }
       return phone;
     }
     return parts.join(' ');
@@ -34,6 +39,7 @@ class CustomerProfile {
     return CustomerProfile(
       id: json['id']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
       firstName: json['first_name']?.toString(),
       lastName: json['last_name']?.toString(),
       onboardingStatus:
@@ -46,6 +52,7 @@ class CustomerProfile {
     return {
       'id': id,
       'phone': phone,
+      'email': email,
       'first_name': firstName,
       'last_name': lastName,
       'onboarding_status': onboardingStatus,

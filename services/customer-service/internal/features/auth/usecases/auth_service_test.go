@@ -66,12 +66,74 @@ func TestVerifyAuthRejectsWrongOTP(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected wrong otp to fail")
 	}
-	stored, ok, err := challenges.Get(ctx, "+2348012345678")
+	stored, ok, err := challenges.Get(ctx, authmodels.AuthIdentifier{Type: authmodels.IdentifierTypePhone, Value: "+2348012345678"})
 	if err != nil || !ok {
 		t.Fatalf("expected stored challenge, ok=%v err=%v", ok, err)
 	}
 	if stored.Attempts != 1 {
 		t.Fatalf("expected one failed attempt, got %d", stored.Attempts)
+	}
+}
+
+func TestStartAndVerifyEmailAuth(t *testing.T) {
+	ctx := context.Background()
+	customers := newFakeCustomerRepository()
+	service := newTestService(customers, newFakeSessionRepository(), newFakeChallengeStore())
+
+	start, err := service.StartAuth(ctx, StartAuthInput{Email: "Ada@Example.COM"})
+	if err != nil {
+		t.Fatalf("StartAuth() error = %v", err)
+	}
+
+	result, err := service.VerifyAuth(ctx, VerifyAuthInput{
+		Email:       "ada@example.com",
+		OTP:         start.DebugOTP,
+		ChallengeID: start.ChallengeID,
+	})
+	if err != nil {
+		t.Fatalf("VerifyAuth() error = %v", err)
+	}
+	if result.Customer.Email != "ada@example.com" {
+		t.Fatalf("unexpected customer email: %+v", result.Customer)
+	}
+	if _, ok := customers.byEmail["ada@example.com"]; !ok {
+		t.Fatal("expected customer to be stored by normalized email")
+	}
+}
+
+func TestStartAuthRejectsInvalidIdentifierInput(t *testing.T) {
+	ctx := context.Background()
+	service := newTestService(newFakeCustomerRepository(), newFakeSessionRepository(), newFakeChallengeStore())
+
+	for name, input := range map[string]StartAuthInput{
+		"missing": {},
+		"both":    {Phone: "08012345678", Email: "ada@example.com"},
+		"email":   {Email: "not-an-email"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := service.StartAuth(ctx, input)
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			var appErr *apperrors.Error
+			if !errors.As(err, &appErr) || appErr.Code != apperrors.CodeValidationFailed {
+				t.Fatalf("expected validation error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestStartAuthRateLimitSeparatesPhoneAndEmail(t *testing.T) {
+	ctx := context.Background()
+	service := newTestService(newFakeCustomerRepository(), newFakeSessionRepository(), newFakeChallengeStore())
+
+	for i := 0; i < 5; i++ {
+		if _, err := service.StartAuth(ctx, StartAuthInput{Phone: "08012345678"}); err != nil {
+			t.Fatalf("phone StartAuth(%d) error = %v", i, err)
+		}
+	}
+	if _, err := service.StartAuth(ctx, StartAuthInput{Email: "ada@example.com"}); err != nil {
+		t.Fatalf("expected email request to have separate rate limit, got %v", err)
 	}
 }
 
@@ -185,12 +247,14 @@ func newTestService(customers *fakeCustomerRepository, sessions *fakeSessionRepo
 
 type fakeCustomerRepository struct {
 	byPhone map[string]profilemodels.Customer
+	byEmail map[string]profilemodels.Customer
 	byID    map[string]profilemodels.Customer
 }
 
 func newFakeCustomerRepository() *fakeCustomerRepository {
 	return &fakeCustomerRepository{
 		byPhone: map[string]profilemodels.Customer{},
+		byEmail: map[string]profilemodels.Customer{},
 		byID:    map[string]profilemodels.Customer{},
 	}
 }
@@ -209,6 +273,24 @@ func (r *fakeCustomerRepository) UpsertByPhone(ctx context.Context, phone string
 		UpdatedAt:        time.Now(),
 	}
 	r.byPhone[phone] = created
+	r.byID[created.ID] = created
+	return created, nil
+}
+
+func (r *fakeCustomerRepository) UpsertByEmail(ctx context.Context, email string) (profilemodels.Customer, error) {
+	if existing, ok := r.byEmail[email]; ok {
+		return existing, nil
+	}
+
+	created := profilemodels.Customer{
+		ID:               "customer-1",
+		Email:            email,
+		OnboardingStatus: profilemodels.OnboardingProfileNeeded,
+		Status:           profilemodels.StatusActive,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+	}
+	r.byEmail[email] = created
 	r.byID[created.ID] = created
 	return created, nil
 }
@@ -261,27 +343,28 @@ func newFakeChallengeStore() *fakeChallengeStore {
 }
 
 func (s *fakeChallengeStore) Save(ctx context.Context, challenge authmodels.OTPChallenge, ttl time.Duration, rateWindow time.Duration, maxRequests int) error {
-	s.requests[challenge.Phone]++
-	if s.requests[challenge.Phone] > maxRequests {
+	key := challenge.IdentifierKey()
+	s.requests[key]++
+	if s.requests[key] > maxRequests {
 		return apperrors.RateLimited("Too many attempts. Please try again shortly.", nil)
 	}
-	s.challenges[challenge.Phone] = challenge
+	s.challenges[key] = challenge
 	return nil
 }
 
-func (s *fakeChallengeStore) Get(ctx context.Context, phone string) (authmodels.OTPChallenge, bool, error) {
-	challenge, ok := s.challenges[phone]
+func (s *fakeChallengeStore) Get(ctx context.Context, identifier authmodels.AuthIdentifier) (authmodels.OTPChallenge, bool, error) {
+	challenge, ok := s.challenges[identifier.Key()]
 	return challenge, ok, nil
 }
 
 func (s *fakeChallengeStore) RecordFailedAttempt(ctx context.Context, challenge authmodels.OTPChallenge, ttl time.Duration) error {
 	challenge.Attempts++
-	s.challenges[challenge.Phone] = challenge
+	s.challenges[challenge.IdentifierKey()] = challenge
 	return nil
 }
 
-func (s *fakeChallengeStore) Delete(ctx context.Context, phone string) error {
-	delete(s.challenges, phone)
+func (s *fakeChallengeStore) Delete(ctx context.Context, identifier authmodels.AuthIdentifier) error {
+	delete(s.challenges, identifier.Key())
 	return nil
 }
 

@@ -27,6 +27,9 @@ type Config struct {
 	OTPMaxRequests int
 	OTPMaxAttempts int
 	OTPDebug       bool
+
+	NotificationBaseURL string
+	NotificationSecret  []byte
 }
 
 func Load() Config {
@@ -53,6 +56,9 @@ func Load() Config {
 		OTPMaxRequests: getEnvInt("CUSTOMER_OTP_MAX_REQUESTS", 5),
 		OTPMaxAttempts: getEnvInt("CUSTOMER_OTP_MAX_ATTEMPTS", 5),
 		OTPDebug:       getEnvBool("CUSTOMER_DEBUG_OTP", false),
+
+		NotificationBaseURL: getEnv("CUSTOMER_NOTIFICATION_BASE_URL", ""),
+		NotificationSecret:  []byte(getEnv("CUSTOMER_NOTIFICATION_SECRET", "")),
 	}
 }
 

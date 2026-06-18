@@ -8,11 +8,12 @@ import (
 )
 
 type OTPChallenge struct {
-	ID        string    `json:"id"`
-	Phone     string    `json:"phone"`
-	OTPHash   string    `json:"otp_hash"`
-	Attempts  int       `json:"attempts"`
-	ExpiresAt time.Time `json:"expires_at"`
+	ID              string    `json:"id"`
+	IdentifierType  string    `json:"identifier_type"`
+	IdentifierValue string    `json:"identifier_value"`
+	OTPHash         string    `json:"otp_hash"`
+	Attempts        int       `json:"attempts"`
+	ExpiresAt       time.Time `json:"expires_at"`
 }
 
 func VerifyOTPChallenge(secret []byte, challenge OTPChallenge, challengeID string, otp string, maxAttempts int, now time.Time) error {
@@ -25,9 +26,17 @@ func VerifyOTPChallenge(secret []byte, challenge OTPChallenge, challengeID strin
 	if challenge.Attempts >= maxAttempts {
 		return apperrors.Unauthorized("Invalid or expired verification code.", nil)
 	}
-	if !sharedauth.VerifyOTP(secret, challenge.ID, challenge.Phone, otp, challenge.OTPHash) {
+	if !sharedauth.VerifyOTP(secret, challenge.ID, challenge.IdentifierKey(), otp, challenge.OTPHash) {
 		return apperrors.Unauthorized("Invalid or expired verification code.", nil)
 	}
 
 	return nil
+}
+
+func (c OTPChallenge) Identifier() AuthIdentifier {
+	return AuthIdentifier{Type: c.IdentifierType, Value: c.IdentifierValue}
+}
+
+func (c OTPChallenge) IdentifierKey() string {
+	return c.Identifier().Key()
 }

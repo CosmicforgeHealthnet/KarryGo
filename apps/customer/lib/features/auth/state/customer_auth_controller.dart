@@ -18,11 +18,15 @@ enum CustomerAuthStatus {
   authenticated,
 }
 
+enum CustomerAuthIdentifierType { phone, email }
+
 class CustomerAuthState {
   const CustomerAuthState({
     required this.status,
     this.isLoading = false,
+    this.identifierType = CustomerAuthIdentifierType.phone,
     this.phone = '',
+    this.email = '',
     this.challengeId,
     this.otpExpiresIn = 0,
     this.debugOtp,
@@ -40,7 +44,9 @@ class CustomerAuthState {
 
   final CustomerAuthStatus status;
   final bool isLoading;
+  final CustomerAuthIdentifierType identifierType;
   final String phone;
+  final String email;
   final String? challengeId;
   final int otpExpiresIn;
   final String? debugOtp;
@@ -52,10 +58,19 @@ class CustomerAuthState {
   final bool hasProfilePhoto;
   final ApiException? error;
 
+  String get activeIdentifier {
+    return switch (identifierType) {
+      CustomerAuthIdentifierType.phone => phone,
+      CustomerAuthIdentifierType.email => email,
+    };
+  }
+
   CustomerAuthState copyWith({
     CustomerAuthStatus? status,
     bool? isLoading,
+    CustomerAuthIdentifierType? identifierType,
     String? phone,
+    String? email,
     String? challengeId,
     int? otpExpiresIn,
     String? debugOtp,
@@ -76,7 +91,9 @@ class CustomerAuthState {
     return CustomerAuthState(
       status: status ?? this.status,
       isLoading: isLoading ?? this.isLoading,
+      identifierType: identifierType ?? this.identifierType,
       phone: phone ?? this.phone,
+      email: email ?? this.email,
       challengeId: clearChallenge ? null : challengeId ?? this.challengeId,
       otpExpiresIn: otpExpiresIn ?? this.otpExpiresIn,
       debugOtp: clearDebugOtp ? null : debugOtp ?? this.debugOtp,
@@ -168,19 +185,29 @@ class CustomerAuthController extends ChangeNotifier {
     _setState(_state.copyWith(clearError: true));
   }
 
-  Future<void> startAuth(String phone) async {
-    final normalizedPhone = phone.trim();
-    if (normalizedPhone.isEmpty) {
+  Future<void> startAuth({
+    required CustomerAuthIdentifierType type,
+    required String value,
+  }) async {
+    final normalizedValue = value.trim();
+    if (normalizedValue.isEmpty) {
       _setState(
         _state.copyWith(
           status: CustomerAuthStatus.phoneEntry,
-          error: const ApiException(
+          identifierType: type,
+          error: ApiException(
             code: ApiErrorCode.validationFailed,
-            message: 'Enter your phone number to continue.',
+            message: type == CustomerAuthIdentifierType.email
+                ? 'Enter your email address to continue.'
+                : 'Enter your phone number to continue.',
             fields: [
               ApiFieldError(
-                field: 'phone',
-                message: 'Phone number is required.',
+                field: type == CustomerAuthIdentifierType.email
+                    ? 'email'
+                    : 'phone',
+                message: type == CustomerAuthIdentifierType.email
+                    ? 'Email address is required.'
+                    : 'Phone number is required.',
               ),
             ],
           ),
@@ -192,7 +219,16 @@ class CustomerAuthController extends ChangeNotifier {
     _setState(
       _state.copyWith(
         status: CustomerAuthStatus.phoneEntry,
-        phone: normalizedPhone,
+        identifierType: type,
+        phone: type == CustomerAuthIdentifierType.phone
+            ? normalizedValue
+            : _state.phone,
+        email: type == CustomerAuthIdentifierType.email
+            ? normalizedValue
+            : _state.email,
+        profileEmail: type == CustomerAuthIdentifierType.email
+            ? normalizedValue
+            : _state.profileEmail,
         isLoading: true,
         clearError: true,
         clearDebugOtp: true,
@@ -200,7 +236,10 @@ class CustomerAuthController extends ChangeNotifier {
     );
 
     try {
-      final result = await _api.startAuth(phone: normalizedPhone);
+      final result = await _api.startAuth(
+        phone: type == CustomerAuthIdentifierType.phone ? normalizedValue : null,
+        email: type == CustomerAuthIdentifierType.email ? normalizedValue : null,
+      );
       _setState(
         _state.copyWith(
           status: CustomerAuthStatus.otpVerification,
@@ -217,11 +256,11 @@ class CustomerAuthController extends ChangeNotifier {
   }
 
   Future<void> resendOtp() async {
-    if (_state.phone.isEmpty) {
+    if (_state.activeIdentifier.isEmpty) {
       backToPhoneEntry();
       return;
     }
-    await startAuth(_state.phone);
+    await startAuth(type: _state.identifierType, value: _state.activeIdentifier);
   }
 
   Future<void> verifyOtp(String otp) async {
@@ -232,7 +271,7 @@ class CustomerAuthController extends ChangeNotifier {
         _state.copyWith(
           error: const ApiException(
             code: ApiErrorCode.validationFailed,
-            message: 'Enter the verification code sent to your phone.',
+            message: 'Enter the verification code we sent you.',
             fields: [
               ApiFieldError(
                 field: 'otp',
@@ -250,7 +289,12 @@ class CustomerAuthController extends ChangeNotifier {
     try {
       final deviceId = await _sessionStore.readOrCreateDeviceId();
       final result = await _api.verifyAuth(
-        phone: _state.phone,
+        phone: _state.identifierType == CustomerAuthIdentifierType.phone
+            ? _state.phone
+            : null,
+        email: _state.identifierType == CustomerAuthIdentifierType.email
+            ? _state.email
+            : null,
         otp: code,
         challengeId: challengeId,
         deviceId: deviceId,
@@ -379,6 +423,8 @@ class CustomerAuthController extends ChangeNotifier {
         session: session,
         customer: session.customer,
         phone: session.customer.phone,
+        email: session.customer.email,
+        profileEmail: session.customer.email,
       ),
     );
   }

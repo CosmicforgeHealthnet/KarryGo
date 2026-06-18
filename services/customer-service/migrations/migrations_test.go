@@ -18,5 +18,9 @@ func TestCustomerAuthMigrationContainsRequiredTables(t *testing.T) {
 			t.Fatalf("expected migration to create %s", table)
 		}
 	}
+	for _, fragment := range []string{"email text UNIQUE", "idx_customer_auth_events_email"} {
+		if !strings.Contains(sql, fragment) {
+			t.Fatalf("expected migration to contain %q", fragment)
+		}
+	}
 }
-

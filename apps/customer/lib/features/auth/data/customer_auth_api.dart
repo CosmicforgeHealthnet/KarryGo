@@ -13,26 +13,32 @@ class CustomerAuthApi {
   final ApiCoreConfig _config;
   final http.Client _client;
 
-  Future<StartAuthResult> startAuth({required String phone}) async {
-    final data = await _sendJson('POST', '/auth/start', body: {'phone': phone});
+  Future<StartAuthResult> startAuth({String? phone, String? email}) async {
+    final data = await _sendJson(
+      'POST',
+      '/auth/start',
+      body: _identifierBody(phone: phone, email: email),
+    );
     return StartAuthResult.fromJson(data);
   }
 
   Future<AuthTokenResult> verifyAuth({
-    required String phone,
+    String? phone,
+    String? email,
     required String otp,
     required String challengeId,
     required String deviceId,
   }) async {
-    final data = await _sendJson(
-      'POST',
-      '/auth/verify',
-      body: {
-        'phone': phone,
+    final body = _identifierBody(phone: phone, email: email)
+      ..addAll({
         'otp': otp,
         'challenge_id': challengeId,
         'device_id': deviceId,
-      },
+      });
+    final data = await _sendJson(
+      'POST',
+      '/auth/verify',
+      body: body,
     );
     return AuthTokenResult.fromJson(data);
   }
@@ -135,4 +141,15 @@ class CustomerAuthApi {
       },
     };
   }
+}
+
+Map<String, dynamic> _identifierBody({String? phone, String? email}) {
+  final body = <String, dynamic>{};
+  if (phone != null && phone.trim().isNotEmpty) {
+    body['phone'] = phone;
+  }
+  if (email != null && email.trim().isNotEmpty) {
+    body['email'] = email;
+  }
+  return body;
 }

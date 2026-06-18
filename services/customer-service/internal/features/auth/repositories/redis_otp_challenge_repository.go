@@ -15,9 +15,9 @@ import (
 
 type OTPChallengeRepository interface {
 	Save(ctx context.Context, challenge authmodels.OTPChallenge, ttl time.Duration, rateWindow time.Duration, maxRequests int) error
-	Get(ctx context.Context, phone string) (authmodels.OTPChallenge, bool, error)
+	Get(ctx context.Context, identifier authmodels.AuthIdentifier) (authmodels.OTPChallenge, bool, error)
 	RecordFailedAttempt(ctx context.Context, challenge authmodels.OTPChallenge, ttl time.Duration) error
-	Delete(ctx context.Context, phone string) error
+	Delete(ctx context.Context, identifier authmodels.AuthIdentifier) error
 }
 
 type RedisOTPChallengeRepository struct {
@@ -29,7 +29,8 @@ func NewRedisOTPChallengeRepository(client *redis.Client) *RedisOTPChallengeRepo
 }
 
 func (r *RedisOTPChallengeRepository) Save(ctx context.Context, challenge authmodels.OTPChallenge, ttl time.Duration, rateWindow time.Duration, maxRequests int) error {
-	rateKey := rateKey(challenge.Phone)
+	identifierKey := challenge.IdentifierKey()
+	rateKey := rateKey(identifierKey)
 	count, err := r.client.Incr(ctx, rateKey).Result()
 	if err != nil {
 		return apperrors.Unavailable("OTP service is temporarily unavailable.", err)
@@ -47,15 +48,15 @@ func (r *RedisOTPChallengeRepository) Save(ctx context.Context, challenge authmo
 	if err != nil {
 		return apperrors.Internal("OTP challenge could not be prepared.", err)
 	}
-	if err := r.client.Set(ctx, challengeKey(challenge.Phone), payload, ttl).Err(); err != nil {
+	if err := r.client.Set(ctx, challengeKey(identifierKey), payload, ttl).Err(); err != nil {
 		return apperrors.Unavailable("OTP service is temporarily unavailable.", err)
 	}
 
 	return nil
 }
 
-func (r *RedisOTPChallengeRepository) Get(ctx context.Context, phone string) (authmodels.OTPChallenge, bool, error) {
-	value, err := r.client.Get(ctx, challengeKey(phone)).Result()
+func (r *RedisOTPChallengeRepository) Get(ctx context.Context, identifier authmodels.AuthIdentifier) (authmodels.OTPChallenge, bool, error) {
+	value, err := r.client.Get(ctx, challengeKey(identifier.Key())).Result()
 	if errors.Is(err, redis.Nil) {
 		return authmodels.OTPChallenge{}, false, nil
 	}
@@ -77,24 +78,24 @@ func (r *RedisOTPChallengeRepository) RecordFailedAttempt(ctx context.Context, c
 	if err != nil {
 		return apperrors.Internal("OTP challenge could not be prepared.", err)
 	}
-	if err := r.client.Set(ctx, challengeKey(challenge.Phone), payload, ttl).Err(); err != nil {
+	if err := r.client.Set(ctx, challengeKey(challenge.IdentifierKey()), payload, ttl).Err(); err != nil {
 		return apperrors.Unavailable("OTP service is temporarily unavailable.", err)
 	}
 
 	return nil
 }
 
-func (r *RedisOTPChallengeRepository) Delete(ctx context.Context, phone string) error {
-	if err := r.client.Del(ctx, challengeKey(phone)).Err(); err != nil {
+func (r *RedisOTPChallengeRepository) Delete(ctx context.Context, identifier authmodels.AuthIdentifier) error {
+	if err := r.client.Del(ctx, challengeKey(identifier.Key())).Err(); err != nil {
 		return apperrors.Unavailable("OTP service is temporarily unavailable.", err)
 	}
 	return nil
 }
 
-func challengeKey(phone string) string {
-	return fmt.Sprintf("customer:auth:otp:%s", phone)
+func challengeKey(identifierKey string) string {
+	return fmt.Sprintf("customer:auth:otp:%s", identifierKey)
 }
 
-func rateKey(phone string) string {
-	return fmt.Sprintf("customer:auth:otp-rate:%s", phone)
+func rateKey(identifierKey string) string {
+	return fmt.Sprintf("customer:auth:otp-rate:%s", identifierKey)
 }

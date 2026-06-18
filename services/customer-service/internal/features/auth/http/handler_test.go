@@ -54,6 +54,34 @@ func TestVerifyAuthHTTPRejectsWrongOTP(t *testing.T) {
 	}, http.StatusUnauthorized)
 }
 
+func TestCustomerEmailAuthHTTPFlow(t *testing.T) {
+	router := newHTTPTestRouter()
+	startBody := postJSON(t, router, "/api/v1/customer/auth/start", map[string]interface{}{
+		"email": "Ada@Example.COM",
+	}, http.StatusCreated)
+	debugOTP := startBody["data"].(map[string]interface{})["debug_otp"].(string)
+	challengeID := startBody["data"].(map[string]interface{})["challenge_id"].(string)
+
+	verifyBody := postJSON(t, router, "/api/v1/customer/auth/verify", map[string]interface{}{
+		"email":        "ada@example.com",
+		"otp":          debugOTP,
+		"challenge_id": challengeID,
+	}, http.StatusOK)
+	customer := verifyBody["data"].(map[string]interface{})["customer"].(map[string]interface{})
+	if customer["email"] != "ada@example.com" {
+		t.Fatalf("expected normalized email customer, got %+v", customer)
+	}
+}
+
+func TestStartAuthHTTPRejectsBothIdentifiers(t *testing.T) {
+	router := newHTTPTestRouter()
+
+	postJSON(t, router, "/api/v1/customer/auth/start", map[string]interface{}{
+		"phone": "08012345678",
+		"email": "ada@example.com",
+	}, http.StatusUnprocessableEntity)
+}
+
 func TestStartAuthHTTPRateLimitsOTPRequests(t *testing.T) {
 	router := newHTTPTestRouter()
 	for i := 0; i < 5; i++ {
@@ -147,6 +175,7 @@ func postJSON(t *testing.T, router *gin.Engine, path string, body map[string]int
 func newHTTPTestService() *authusecases.AuthService {
 	customers := &httpFakeCustomerRepository{
 		byPhone: map[string]profilemodels.Customer{},
+		byEmail: map[string]profilemodels.Customer{},
 		byID:    map[string]profilemodels.Customer{},
 	}
 	sessions := &httpFakeSessionRepository{sessions: map[string]authmodels.RefreshSession{}}
@@ -174,6 +203,7 @@ func newHTTPTestService() *authusecases.AuthService {
 
 type httpFakeCustomerRepository struct {
 	byPhone map[string]profilemodels.Customer
+	byEmail map[string]profilemodels.Customer
 	byID    map[string]profilemodels.Customer
 }
 
@@ -188,6 +218,21 @@ func (r *httpFakeCustomerRepository) UpsertByPhone(ctx context.Context, phone st
 		Status:           profilemodels.StatusActive,
 	}
 	r.byPhone[phone] = created
+	r.byID[created.ID] = created
+	return created, nil
+}
+
+func (r *httpFakeCustomerRepository) UpsertByEmail(ctx context.Context, email string) (profilemodels.Customer, error) {
+	if existing, ok := r.byEmail[email]; ok {
+		return existing, nil
+	}
+	created := profilemodels.Customer{
+		ID:               "customer-http-1",
+		Email:            email,
+		OnboardingStatus: profilemodels.OnboardingProfileNeeded,
+		Status:           profilemodels.StatusActive,
+	}
+	r.byEmail[email] = created
 	r.byID[created.ID] = created
 	return created, nil
 }
@@ -223,26 +268,27 @@ type httpFakeChallengeStore struct {
 }
 
 func (s *httpFakeChallengeStore) Save(ctx context.Context, challenge authmodels.OTPChallenge, ttl time.Duration, rateWindow time.Duration, maxRequests int) error {
-	s.requests[challenge.Phone]++
-	if s.requests[challenge.Phone] > maxRequests {
+	key := challenge.IdentifierKey()
+	s.requests[key]++
+	if s.requests[key] > maxRequests {
 		return apperrors.RateLimited("Too many attempts. Please try again shortly.", nil)
 	}
-	s.challenges[challenge.Phone] = challenge
+	s.challenges[key] = challenge
 	return nil
 }
 
-func (s *httpFakeChallengeStore) Get(ctx context.Context, phone string) (authmodels.OTPChallenge, bool, error) {
-	challenge, ok := s.challenges[phone]
+func (s *httpFakeChallengeStore) Get(ctx context.Context, identifier authmodels.AuthIdentifier) (authmodels.OTPChallenge, bool, error) {
+	challenge, ok := s.challenges[identifier.Key()]
 	return challenge, ok, nil
 }
 
 func (s *httpFakeChallengeStore) RecordFailedAttempt(ctx context.Context, challenge authmodels.OTPChallenge, ttl time.Duration) error {
 	challenge.Attempts++
-	s.challenges[challenge.Phone] = challenge
+	s.challenges[challenge.IdentifierKey()] = challenge
 	return nil
 }
 
-func (s *httpFakeChallengeStore) Delete(ctx context.Context, phone string) error {
-	delete(s.challenges, phone)
+func (s *httpFakeChallengeStore) Delete(ctx context.Context, identifier authmodels.AuthIdentifier) error {
+	delete(s.challenges, identifier.Key())
 	return nil
 }

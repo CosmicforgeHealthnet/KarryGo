@@ -23,24 +23,37 @@ class PhoneEntryScreen extends StatefulWidget {
 
 class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
   late final TextEditingController _phoneController;
+  late final TextEditingController _emailController;
+  late CustomerAuthIdentifierType _identifierType;
 
   @override
   void initState() {
     super.initState();
+    _identifierType = widget.state.identifierType;
     _phoneController = TextEditingController(
       text: _displayPhone(widget.state.phone),
     );
+    _emailController = TextEditingController(text: widget.state.email);
   }
 
   @override
   void dispose() {
     _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final fieldError = _fieldError(widget.state.error, 'phone');
+    final field = _identifierType == CustomerAuthIdentifierType.email
+        ? 'email'
+        : 'phone';
+    final fieldError =
+        _fieldError(widget.state.error, field) ??
+        _fieldError(widget.state.error, 'identifier');
+    final activeController = _identifierType == CustomerAuthIdentifierType.email
+        ? _emailController
+        : _phoneController;
 
     return FigmaPhoneScaffold(
       key: const ValueKey(CustomerAppRoutes.phoneEntry),
@@ -70,12 +83,21 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
             ),
             const SizedBox(height: 18),
             const Text(
-              'Enter your phone number to continue.',
+              'Enter your phone number or email to continue.',
               style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 24),
+            _IdentifierSegmentedControl(
+              value: _identifierType,
+              onChanged: (value) {
+                setState(() {
+                  _identifierType = value;
+                });
+              },
+            ),
+            const SizedBox(height: 20),
             const Text(
-              'Enter your Phone Number',
+              'Enter your details',
               style: TextStyle(
                 color: CustomerFigmaColors.text,
                 fontSize: 13,
@@ -83,7 +105,10 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            _PhoneNumberField(controller: _phoneController),
+            if (_identifierType == CustomerAuthIdentifierType.email)
+              _EmailField(controller: _emailController)
+            else
+              _PhoneNumberField(controller: _phoneController),
             if (fieldError != null) ...[
               const SizedBox(height: 8),
               CosmicforgeLogisticsFieldError(message: fieldError),
@@ -108,7 +133,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
             ],
             const SizedBox(height: 34),
             ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _phoneController,
+              valueListenable: activeController,
               builder: (context, value, _) {
                 final canContinue = value.text.trim().isNotEmpty;
                 return FigmaPrimaryButton(
@@ -163,13 +188,67 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
 
   void _continue() {
     FocusScope.of(context).unfocus();
-    widget.controller.startAuth(_normalizedPhone(_phoneController.text));
+    widget.controller.startAuth(
+      type: _identifierType,
+      value: _identifierType == CustomerAuthIdentifierType.email
+          ? _emailController.text
+          : _normalizedPhone(_phoneController.text),
+    );
   }
 
   void _showSocialUnavailable() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Phone authentication is available for now.'),
+      ),
+    );
+  }
+}
+
+class _IdentifierSegmentedControl extends StatelessWidget {
+  const _IdentifierSegmentedControl({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final CustomerAuthIdentifierType value;
+  final ValueChanged<CustomerAuthIdentifierType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<CustomerAuthIdentifierType>(
+      segments: const [
+        ButtonSegment(
+          value: CustomerAuthIdentifierType.phone,
+          label: Text('Phone'),
+          icon: Icon(Icons.phone_iphone_rounded),
+        ),
+        ButtonSegment(
+          value: CustomerAuthIdentifierType.email,
+          label: Text('Email'),
+          icon: Icon(Icons.alternate_email_rounded),
+        ),
+      ],
+      selected: {value},
+      onSelectionChanged: (selection) => onChanged(selection.single),
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        textStyle: WidgetStateProperty.all(
+          const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.white
+              : CustomerFigmaColors.text,
+        ),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? CustomerFigmaColors.primary
+              : Colors.white,
+        ),
+        side: WidgetStateProperty.all(
+          const BorderSide(color: CustomerFigmaColors.primary),
+        ),
       ),
     );
   }
@@ -250,6 +329,44 @@ class _PhoneNumberField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _EmailField extends StatelessWidget {
+  const _EmailField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.emailAddress,
+      textInputAction: TextInputAction.done,
+      autofillHints: const [AutofillHints.email],
+      decoration: InputDecoration(
+        hintText: 'ada@example.com',
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: CustomerFigmaColors.primary),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: CustomerFigmaColors.primary),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: CustomerFigmaColors.primary),
+        ),
+      ),
+      onSubmitted: (_) {},
     );
   }
 }

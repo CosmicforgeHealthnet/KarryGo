@@ -190,6 +190,8 @@ services:
       CUSTOMER_REFRESH_TOKEN_SECRET: development-customer-refresh-token-secret
       CUSTOMER_OTP_SECRET: development-customer-otp-secret
       CUSTOMER_DEBUG_OTP: "true"
+      CUSTOMER_NOTIFICATION_BASE_URL: http://notification-service:8106
+      CUSTOMER_NOTIFICATION_SECRET: development-customer-notification-secret
     depends_on:
       - customer-postgres
       - customer-redis
@@ -275,6 +277,8 @@ services:
       HTTP_ADDR: :8106
       NOTIFICATION_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@notification-postgres:5432/notification_service?sslmode=disable
       NOTIFICATION_REDIS_ADDR: notification-redis:6379
+      NOTIFICATION_SERVICE_SECRETS: customer-service=development-customer-notification-secret,payment-wallet-service=development-payment-notification-secret,dispatch-delivery-service=development-dispatch-notification-secret,hauling-service=development-hauling-notification-secret
+      NOTIFICATION_REALTIME_TOKEN_SECRET: development-notification-realtime-token-secret
     depends_on:
       - notification-postgres
       - notification-redis
@@ -321,6 +325,12 @@ services:
       APP_ENV: development
       HTTP_ADDR: :8109
       MEDIA_FILE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@media-file-postgres:5432/media_file_service?sslmode=disable
+      MEDIA_FILE_FIREBASE_BUCKET: ${MEDIA_FILE_FIREBASE_BUCKET:-}
+      MEDIA_FILE_FIREBASE_CREDENTIALS_FILE: ${MEDIA_FILE_FIREBASE_CREDENTIALS_FILE:-}
+      MEDIA_FILE_FIREBASE_CREDENTIALS_JSON: ${MEDIA_FILE_FIREBASE_CREDENTIALS_JSON:-}
+      MEDIA_FILE_PUBLIC_BASE_URL: ${MEDIA_FILE_PUBLIC_BASE_URL:-}
+      MEDIA_FILE_MAX_UPLOAD_BYTES: ${MEDIA_FILE_MAX_UPLOAD_BYTES:-26214400}
+      MEDIA_FILE_SERVICE_TOKENS: ${MEDIA_FILE_SERVICE_TOKENS:-customer-service=development-media-token,taxi-service=development-media-token,dispatch-delivery-service=development-media-token,hauling-service=development-media-token,verification-compliance-service=development-media-token}
     depends_on:
       - media-file-postgres
     ports:

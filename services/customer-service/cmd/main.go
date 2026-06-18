@@ -15,6 +15,7 @@ import (
 	authrepositories "cosmicforge/logistics/services/customer-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
 	profilerepositories "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories"
+	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceapp"
 )
 
@@ -40,7 +41,14 @@ func main() {
 	customerRepo := profilerepositories.NewPostgresCustomerRepository(db)
 	sessionRepo := authrepositories.NewPostgresRefreshSessionRepository(db)
 	challengeStore := authrepositories.NewRedisOTPChallengeRepository(redisClient)
-	otpSender := authclients.NewLoggingOTPSender(cfg.OTPDebug)
+	var otpSender authclients.OTPSender = authclients.NewLoggingOTPSender(cfg.OTPDebug)
+	if cfg.NotificationBaseURL != "" && len(cfg.NotificationSecret) > 0 {
+		otpSender = authclients.NewNotificationEmailOTPSender(notifications.Client{
+			BaseURL:     cfg.NotificationBaseURL,
+			ServiceName: "customer-service",
+			Secret:      cfg.NotificationSecret,
+		}, otpSender)
+	}
 	authService := authusecases.NewAuthService(authusecases.Options{
 		Customers:          customerRepo,
 		Sessions:           sessionRepo,

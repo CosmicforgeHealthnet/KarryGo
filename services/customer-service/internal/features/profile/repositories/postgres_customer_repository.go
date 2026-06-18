@@ -14,6 +14,7 @@ import (
 
 type CustomerRepository interface {
 	UpsertByPhone(ctx context.Context, phone string) (profilemodels.Customer, error)
+	UpsertByEmail(ctx context.Context, email string) (profilemodels.Customer, error)
 	GetByID(ctx context.Context, id string) (profilemodels.Customer, error)
 }
 
@@ -31,15 +32,27 @@ func (r *PostgresCustomerRepository) UpsertByPhone(ctx context.Context, phone st
 		INSERT INTO customers (id, phone, onboarding_status, status)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (phone) DO UPDATE SET updated_at = now()
-		RETURNING id::text, phone, first_name, last_name, onboarding_status, status, created_at, updated_at
+		RETURNING id::text, COALESCE(phone, ''), COALESCE(email, ''), first_name, last_name, onboarding_status, status, created_at, updated_at
 	`, id, phone, profilemodels.OnboardingProfileNeeded, profilemodels.StatusActive)
+
+	return scanCustomer(row)
+}
+
+func (r *PostgresCustomerRepository) UpsertByEmail(ctx context.Context, email string) (profilemodels.Customer, error) {
+	id := uuid.NewString()
+	row := r.db.QueryRow(ctx, `
+		INSERT INTO customers (id, email, onboarding_status, status)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (email) DO UPDATE SET updated_at = now()
+		RETURNING id::text, COALESCE(phone, ''), COALESCE(email, ''), first_name, last_name, onboarding_status, status, created_at, updated_at
+	`, id, email, profilemodels.OnboardingProfileNeeded, profilemodels.StatusActive)
 
 	return scanCustomer(row)
 }
 
 func (r *PostgresCustomerRepository) GetByID(ctx context.Context, id string) (profilemodels.Customer, error) {
 	row := r.db.QueryRow(ctx, `
-		SELECT id::text, phone, first_name, last_name, onboarding_status, status, created_at, updated_at
+		SELECT id::text, COALESCE(phone, ''), COALESCE(email, ''), first_name, last_name, onboarding_status, status, created_at, updated_at
 		FROM customers
 		WHERE id = $1
 	`, id)
@@ -60,6 +73,7 @@ func scanCustomer(row customerRow) (profilemodels.Customer, error) {
 	err := row.Scan(
 		&customer.ID,
 		&customer.Phone,
+		&customer.Email,
 		&customer.FirstName,
 		&customer.LastName,
 		&customer.OnboardingStatus,

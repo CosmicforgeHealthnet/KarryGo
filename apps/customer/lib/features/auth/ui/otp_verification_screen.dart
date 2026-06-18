@@ -35,6 +35,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     final fieldError = _fieldError(widget.state.error, 'otp');
+    final channel = widget.state.identifierType == CustomerAuthIdentifierType.email
+        ? 'email'
+        : 'number';
 
     return FigmaPhoneScaffold(
       key: const ValueKey(CustomerAppRoutes.otpVerification),
@@ -65,7 +68,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           const SizedBox(height: 10),
           Text.rich(
             TextSpan(
-              text: 'We sent you a 6-digit code via your number\n',
+              text: 'We sent you a 6-digit code via your $channel\n',
               style: const TextStyle(
                 color: CustomerFigmaColors.muted,
                 fontSize: 12,
@@ -73,7 +76,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
               children: [
                 TextSpan(
-                  text: widget.state.phone,
+                  text: widget.state.activeIdentifier,
                   style: const TextStyle(
                     color: CustomerFigmaColors.primary,
                     fontWeight: FontWeight.w800,

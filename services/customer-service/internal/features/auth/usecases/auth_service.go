@@ -14,7 +14,6 @@ import (
 	profilerepositories "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
-	"cosmicforge/logistics/shared/go/phonenumber"
 )
 
 const (
@@ -81,6 +80,7 @@ func NewAuthService(opts Options) *AuthService {
 
 type StartAuthInput struct {
 	Phone string
+	Email string
 }
 
 type StartAuthResult struct {
@@ -90,7 +90,7 @@ type StartAuthResult struct {
 }
 
 func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (StartAuthResult, error) {
-	phone, err := phonenumber.NormalizeNigerianPhoneNumber(input.Phone)
+	identifier, err := authmodels.NormalizeAuthIdentifier(input.Phone, input.Email)
 	if err != nil {
 		return StartAuthResult{}, err
 	}
@@ -102,17 +102,19 @@ func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (Star
 
 	challengeID := uuid.NewString()
 	challenge := authmodels.OTPChallenge{
-		ID:        challengeID,
-		Phone:     phone,
-		OTPHash:   sharedauth.HashOTP(s.otpSecret, challengeID, phone, otp),
-		ExpiresAt: s.now().Add(s.otpTTL),
+		ID:              challengeID,
+		IdentifierType:  identifier.Type,
+		IdentifierValue: identifier.Value,
+		OTPHash:         sharedauth.HashOTP(s.otpSecret, challengeID, identifier.Key(), otp),
+		ExpiresAt:       s.now().Add(s.otpTTL),
 	}
 
 	if err := s.challenges.Save(ctx, challenge, s.otpTTL, s.otpRateWindow, s.otpMaxRequests); err != nil {
 		return StartAuthResult{}, err
 	}
 	if s.otpSender != nil {
-		if err := s.otpSender.SendOTP(ctx, phone, otp); err != nil {
+		destination := authclients.OTPDestination{Type: identifier.Type, Value: identifier.Value}
+		if err := s.otpSender.SendOTP(ctx, destination, otp); err != nil {
 			return StartAuthResult{}, apperrors.Unavailable("OTP delivery is temporarily unavailable.", err)
 		}
 	}
@@ -130,6 +132,7 @@ func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (Star
 
 type VerifyAuthInput struct {
 	Phone       string
+	Email       string
 	OTP         string
 	ChallengeID string
 	DeviceID    *string
@@ -145,7 +148,7 @@ type TokenResult struct {
 }
 
 func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (TokenResult, error) {
-	phone, err := phonenumber.NormalizeNigerianPhoneNumber(input.Phone)
+	identifier, err := authmodels.NormalizeAuthIdentifier(input.Phone, input.Email)
 	if err != nil {
 		return TokenResult{}, err
 	}
@@ -155,7 +158,7 @@ func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (To
 		})
 	}
 
-	challenge, ok, err := s.challenges.Get(ctx, phone)
+	challenge, ok, err := s.challenges.Get(ctx, identifier)
 	if err != nil {
 		return TokenResult{}, err
 	}
@@ -168,11 +171,21 @@ func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (To
 		return TokenResult{}, err
 	}
 
-	if err := s.challenges.Delete(ctx, phone); err != nil {
+	if err := s.challenges.Delete(ctx, identifier); err != nil {
 		return TokenResult{}, err
 	}
 
-	customer, err := s.customers.UpsertByPhone(ctx, phone)
+	var customer profilemodels.Customer
+	switch identifier.Type {
+	case authmodels.IdentifierTypePhone:
+		customer, err = s.customers.UpsertByPhone(ctx, identifier.Value)
+	case authmodels.IdentifierTypeEmail:
+		customer, err = s.customers.UpsertByEmail(ctx, identifier.Value)
+	default:
+		err = apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+			{Field: "identifier", Message: "Phone number or email address is required."},
+		})
+	}
 	if err != nil {
 		return TokenResult{}, err
 	}

@@ -2,10 +2,12 @@ package authhttp
 
 type startAuthRequest struct {
 	Phone string `json:"phone"`
+	Email string `json:"email"`
 }
 
 type verifyAuthRequest struct {
 	Phone       string  `json:"phone"`
+	Email       string  `json:"email"`
 	OTP         string  `json:"otp"`
 	ChallengeID string  `json:"challenge_id"`
 	DeviceID    *string `json:"device_id"`
