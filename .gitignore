@@ -27,3 +27,7 @@ coverage.out
 # Local env
 .env
 tmp/
+
+# Secrets / service account credentials
+credentials/
+*firebase*.json
