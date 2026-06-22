@@ -299,6 +299,44 @@ func (r *fakeCustomerRepository) GetByID(ctx context.Context, id string) (profil
 	return r.byID[id], nil
 }
 
+func (r *fakeCustomerRepository) UpdateProfilePhoto(ctx context.Context, id, assetID, photoURL string) (profilemodels.Customer, error) {
+	customer, ok := r.byID[id]
+	if !ok {
+		return profilemodels.Customer{}, nil
+	}
+	customer.ProfilePhotoURL = &photoURL
+	customer.ProfilePhotoAssetID = &assetID
+	r.byID[id] = customer
+	return customer, nil
+}
+
+func (r *fakeCustomerRepository) UpdateProfile(ctx context.Context, id, firstName, lastName string) (profilemodels.Customer, error) {
+	customer, ok := r.byID[id]
+	if !ok {
+		return profilemodels.Customer{}, nil
+	}
+	if firstName != "" {
+		customer.FirstName = &firstName
+	}
+	if lastName != "" {
+		customer.LastName = &lastName
+	}
+	r.byID[id] = customer
+	return customer, nil
+}
+
+func (r *fakeCustomerRepository) GetEmergencyContacts(ctx context.Context, customerID string) ([]profilemodels.EmergencyContact, error) {
+	return nil, nil
+}
+
+func (r *fakeCustomerRepository) AddEmergencyContact(ctx context.Context, customerID, name, phone, relationship string) (profilemodels.EmergencyContact, error) {
+	return profilemodels.EmergencyContact{}, nil
+}
+
+func (r *fakeCustomerRepository) DeleteEmergencyContact(ctx context.Context, id, customerID string) error {
+	return nil
+}
+
 type fakeSessionRepository struct {
 	sessions map[string]authmodels.RefreshSession
 	revoked  map[string]bool
@@ -371,10 +409,11 @@ func (s *fakeChallengeStore) Delete(ctx context.Context, identifier authmodels.A
 func TestVerifyChallenge(t *testing.T) {
 	now := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
 	challenge := authmodels.OTPChallenge{
-		ID:        "challenge",
-		Phone:     "+2348012345678",
-		OTPHash:   sharedauth.HashOTP([]byte("secret"), "challenge", "+2348012345678", "123456"),
-		ExpiresAt: now.Add(time.Minute),
+		ID:              "challenge",
+		IdentifierType:  authmodels.IdentifierTypePhone,
+		IdentifierValue: "+2348012345678",
+		OTPHash:         sharedauth.HashOTP([]byte("secret"), "challenge", authmodels.AuthIdentifier{Type: authmodels.IdentifierTypePhone, Value: "+2348012345678"}.Key(), "123456"),
+		ExpiresAt:       now.Add(time.Minute),
 	}
 
 	if err := authmodels.VerifyOTPChallenge([]byte("secret"), challenge, "challenge", "123456", 5, now); err != nil {
@@ -385,10 +424,11 @@ func TestVerifyChallenge(t *testing.T) {
 func TestVerifyChallengeRejectsExpiredOTP(t *testing.T) {
 	now := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
 	challenge := authmodels.OTPChallenge{
-		ID:        "challenge",
-		Phone:     "+2348012345678",
-		OTPHash:   sharedauth.HashOTP([]byte("secret"), "challenge", "+2348012345678", "123456"),
-		ExpiresAt: now.Add(-time.Minute),
+		ID:              "challenge",
+		IdentifierType:  authmodels.IdentifierTypePhone,
+		IdentifierValue: "+2348012345678",
+		OTPHash:         sharedauth.HashOTP([]byte("secret"), "challenge", authmodels.AuthIdentifier{Type: authmodels.IdentifierTypePhone, Value: "+2348012345678"}.Key(), "123456"),
+		ExpiresAt:       now.Add(-time.Minute),
 	}
 
 	err := authmodels.VerifyOTPChallenge([]byte("secret"), challenge, "challenge", "123456", 5, now)

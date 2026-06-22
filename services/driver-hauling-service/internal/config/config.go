@@ -4,47 +4,110 @@ import (
 	"cosmicforge/logistics/shared/go/redisx"
 	"os"
 	"strconv"
+	"time"
 )
 
 type Config struct {
-	AppEnv      string
-	HTTPAddr    string
+	AppEnv   string
+	HTTPAddr string
+
+	Migration bool
+
 	DatabaseURL string
 	Redis       redisx.Config
+
+	// Provider token signing
+	ProviderTokenSecret  []byte
+	ProviderRefreshSecret []byte
+	ProviderOTPSecret    []byte
+
+	// Customer token verification (mirrors customer-service secret)
+	CustomerTokenSecret []byte
+
+	// Token TTLs
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+	OTPTTL          time.Duration
+	OTPRateWindow   time.Duration
+	OTPMaxRequests  int
+	OTPMaxAttempts  int
+	OTPDebug        bool
+
+	// Internal service clients
+	NotificationURL    string
+	NotificationSecret []byte
+	PaymentURL         string
+	PaymentSecret      []byte
+
+	// Matching config
+	BookingMatchTimeout int // seconds provider has to accept
+	ProviderOnlineTTL   int // seconds provider stays online without heartbeat
 }
 
 func Load() Config {
 	return Config{
-		AppEnv:      getEnv("APP_ENV", "development"),
-		HTTPAddr:    getEnv("HTTP_ADDR", ":8104"),
+		AppEnv:   getEnv("APP_ENV", "development"),
+		HTTPAddr: getEnv("HTTP_ADDR", ":8104"),
+
+		Migration: getEnvBool("HAULING_MIGRATION", false),
+
 		DatabaseURL: getEnv("HAULING_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5436/hauling_service?sslmode=disable"),
 		Redis: redisx.Config{
 			Addr:     getEnv("HAULING_REDIS_ADDR", "localhost:6383"),
 			Password: os.Getenv("HAULING_REDIS_PASSWORD"),
 			DB:       getEnvInt("HAULING_REDIS_DB", 0),
 		},
+
+		ProviderTokenSecret:   []byte(getEnv("HAULING_PROVIDER_TOKEN_SECRET", "development-hauling-provider-token-secret")),
+		ProviderRefreshSecret: []byte(getEnv("HAULING_PROVIDER_REFRESH_SECRET", "development-hauling-provider-refresh-secret")),
+		ProviderOTPSecret:     []byte(getEnv("HAULING_PROVIDER_OTP_SECRET", "development-hauling-provider-otp-secret")),
+		CustomerTokenSecret:   []byte(getEnv("HAULING_CUSTOMER_TOKEN_SECRET", "development-customer-token-secret")),
+
+		AccessTokenTTL:  time.Duration(getEnvInt("HAULING_ACCESS_TOKEN_TTL_SECONDS", 3600)) * time.Second,
+		RefreshTokenTTL: time.Duration(getEnvInt("HAULING_REFRESH_TOKEN_TTL_DAYS", 30)) * 24 * time.Hour,
+		OTPTTL:          time.Duration(getEnvInt("HAULING_OTP_TTL_SECONDS", 600)) * time.Second,
+		OTPRateWindow:   time.Duration(getEnvInt("HAULING_OTP_RATE_WINDOW_SECONDS", 60)) * time.Second,
+		OTPMaxRequests:  getEnvInt("HAULING_OTP_MAX_REQUESTS", 5),
+		OTPMaxAttempts:  getEnvInt("HAULING_OTP_MAX_ATTEMPTS", 5),
+		OTPDebug:        getEnvBool("HAULING_OTP_DEBUG", false),
+
+		NotificationURL:    os.Getenv("HAULING_NOTIFICATION_URL"),
+		NotificationSecret: []byte(os.Getenv("HAULING_NOTIFICATION_SECRET")),
+		PaymentURL:         os.Getenv("HAULING_PAYMENT_URL"),
+		PaymentSecret:      []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
+
+		BookingMatchTimeout: getEnvInt("HAULING_BOOKING_MATCH_TIMEOUT", 30),
+		ProviderOnlineTTL:   getEnvInt("HAULING_PROVIDER_ONLINE_TTL", 7200),
 	}
 }
 
 func getEnv(key string, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-
-	return value
+	return fallback
 }
 
-func getEnvInt(key string, fallback int) int {
-	value := os.Getenv(key)
-	if value == "" {
+func getEnvBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
 		return fallback
 	}
-
-	parsed, err := strconv.Atoi(value)
+	b, err := strconv.ParseBool(v)
 	if err != nil {
 		return fallback
 	}
+	return b
+}
 
-	return parsed
+func getEnvInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }

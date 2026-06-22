@@ -11,6 +11,7 @@ import (
 type Config struct {
 	AppEnv   string
 	HTTPAddr string
+	Migration bool
 
 	DatabaseURL string
 	Redis       redisx.Config
@@ -30,12 +31,16 @@ type Config struct {
 
 	NotificationBaseURL string
 	NotificationSecret  []byte
+
+	MediaBaseURL     string
+	MediaServiceToken string
 }
 
 func Load() Config {
 	return Config{
 		AppEnv:   getEnv("APP_ENV", "development"),
 		HTTPAddr: getEnv("HTTP_ADDR", ":8101"),
+		Migration: getEnvBool("MIGRATION", false),
 
 		DatabaseURL: getEnv("CUSTOMER_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5433/customer_service?sslmode=disable"),
 		Redis: redisx.Config{
@@ -59,6 +64,9 @@ func Load() Config {
 
 		NotificationBaseURL: getEnv("CUSTOMER_NOTIFICATION_BASE_URL", ""),
 		NotificationSecret:  []byte(getEnv("CUSTOMER_NOTIFICATION_SECRET", "")),
+
+		MediaBaseURL:      getEnv("CUSTOMER_MEDIA_BASE_URL", ""),
+		MediaServiceToken: getEnv("CUSTOMER_MEDIA_SERVICE_TOKEN", ""),
 	}
 }
 

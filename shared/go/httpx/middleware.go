@@ -1,12 +1,14 @@
 package httpx
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/logging"
 )
 
 func RequestID() gin.HandlerFunc {
@@ -24,6 +26,7 @@ func RequestID() gin.HandlerFunc {
 
 func Recovery() gin.HandlerFunc {
 	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+		logging.Error("panic", "recovered req=%s value=%s", GetRequestID(c), fmt.Sprintf("%v", recovered))
 		RespondError(c, apperrors.Internal("Something went wrong. Please try again.", nil))
 		c.Abort()
 	})

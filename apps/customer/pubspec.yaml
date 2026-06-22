@@ -33,6 +33,13 @@ dependencies:
 
   flutter_secure_storage: ^9.2.4
   http: ^1.5.0
+  image_picker: ^1.2.2
+  http_parser: ^4.1.2
+  permission_handler: ^11.3.1
+  google_maps_flutter: ^2.10.0
+  url_launcher: ^6.3.1
+  webview_flutter: ^4.10.0
+  web_socket_channel: ^3.0.1
 
   cosmicforge_logistics_ui_kit:
     path: ../../packages/ui_kit
@@ -43,6 +50,7 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

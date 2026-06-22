@@ -2,9 +2,19 @@ module cosmicforge/logistics/services/hauling-service
 
 go 1.26.3
 
-require cosmicforge/logistics/shared/go v0.0.0
+require (
+	cosmicforge/logistics/shared/go v0.0.0
+	github.com/gin-gonic/gin v1.12.0
+	github.com/google/uuid v1.6.0
+	github.com/jackc/pgx/v5 v5.9.2
+	github.com/joho/godotenv v1.5.1
+	github.com/redis/go-redis/v9 v9.20.0
+)
 
 require (
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect

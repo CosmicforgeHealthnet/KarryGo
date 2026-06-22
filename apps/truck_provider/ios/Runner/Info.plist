@@ -2,6 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to capture proof-of-delivery photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to attach proof-of-delivery photos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We use your location to find nearby jobs and guide you to pickup and delivery points.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We use your location to match you with nearby jobs.</string>
+	<!-- Paste your Google Maps iOS key here (same as the customer app). Kept empty to avoid committing the secret. -->
+	<key>GMSApiKey</key>
+	<string></string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

@@ -18,6 +18,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	customer.GET("/wallets/me", handler.CustomerWallet)
 	customer.GET("/wallets/me/transactions", handler.CustomerTransactions)
 	customer.POST("/topups", handler.CreateTopUp)
+	customer.POST("/topups/:reference/verify", handler.VerifyTopUp)
 
 	provider := group.Group("/provider")
 	provider.Use(providerBearerMiddleware(providerAccessSecrets))

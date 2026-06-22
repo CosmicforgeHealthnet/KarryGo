@@ -1,382 +1,382 @@
-services:
-  api-gateway-redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+# services:
+#   api-gateway-redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6379:6379"
 
-  customer-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: customer_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5433:5432"
-    volumes:
-      - customer_postgres_data:/var/lib/postgresql/data
+#   customer-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: customer_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5433:5432"
+#     volumes:
+#       - customer_postgres_data:/var/lib/postgresql/data
 
-  customer-redis:
-    image: redis:7-alpine
-    ports:
-      - "6380:6379"
+#   customer-redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6380:6379"
 
-  taxi-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: taxi_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5434:5432"
-    volumes:
-      - taxi_postgres_data:/var/lib/postgresql/data
+#   taxi-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: taxi_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5434:5432"
+#     volumes:
+#       - taxi_postgres_data:/var/lib/postgresql/data
 
-  taxi-redis:
-    image: redis:7-alpine
-    ports:
-      - "6381:6379"
+#   taxi-redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6381:6379"
 
-  dispatch-delivery-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: dispatch_delivery_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5435:5432"
-    volumes:
-      - dispatch_delivery_postgres_data:/var/lib/postgresql/data
+#   dispatch-delivery-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: dispatch_delivery_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5435:5432"
+#     volumes:
+#       - dispatch_delivery_postgres_data:/var/lib/postgresql/data
 
-  dispatch-delivery-redis:
-    image: redis:7-alpine
-    ports:
-      - "6382:6379"
+#   dispatch-delivery-redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6382:6379"
 
-  hauling-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: hauling_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5436:5432"
-    volumes:
-      - hauling_postgres_data:/var/lib/postgresql/data
+#   hauling-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: hauling_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5436:5432"
+#     volumes:
+#       - hauling_postgres_data:/var/lib/postgresql/data
 
-  hauling-redis:
-    image: redis:7-alpine
-    ports:
-      - "6383:6379"
+#   hauling-redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6383:6379"
 
-  payment-wallet-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: payment_wallet_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5437:5432"
-    volumes:
-      - payment_wallet_postgres_data:/var/lib/postgresql/data
+#   payment-wallet-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: payment_wallet_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5437:5432"
+#     volumes:
+#       - payment_wallet_postgres_data:/var/lib/postgresql/data
 
-  payment-wallet-redis:
-    image: redis:7-alpine
-    ports:
-      - "6384:6379"
+#   payment-wallet-redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6384:6379"
 
-  notification-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: notification_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5438:5432"
-    volumes:
-      - notification_postgres_data:/var/lib/postgresql/data
+#   notification-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: notification_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5438:5432"
+#     volumes:
+#       - notification_postgres_data:/var/lib/postgresql/data
 
-  notification-redis:
-    image: redis:7-alpine
-    ports:
-      - "6385:6379"
+#   notification-redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6385:6379"
 
-  support-dispute-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: support_dispute_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5439:5432"
-    volumes:
-      - support_dispute_postgres_data:/var/lib/postgresql/data
+#   support-dispute-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: support_dispute_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5439:5432"
+#     volumes:
+#       - support_dispute_postgres_data:/var/lib/postgresql/data
 
-  verification-compliance-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: verification_compliance_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5440:5432"
-    volumes:
-      - verification_compliance_postgres_data:/var/lib/postgresql/data
+#   verification-compliance-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: verification_compliance_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5440:5432"
+#     volumes:
+#       - verification_compliance_postgres_data:/var/lib/postgresql/data
 
-  media-file-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: media_file_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5441:5432"
-    volumes:
-      - media_file_postgres_data:/var/lib/postgresql/data
+#   media-file-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: media_file_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5441:5432"
+#     volumes:
+#       - media_file_postgres_data:/var/lib/postgresql/data
 
-  admin-backoffice-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: admin_backoffice_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5442:5432"
-    volumes:
-      - admin_backoffice_postgres_data:/var/lib/postgresql/data
+#   admin-backoffice-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: admin_backoffice_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5442:5432"
+#     volumes:
+#       - admin_backoffice_postgres_data:/var/lib/postgresql/data
 
-  admin-backoffice-redis:
-    image: redis:7-alpine
-    ports:
-      - "6386:6379"
+#   admin-backoffice-redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6386:6379"
 
-  analytics-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: analytics_service
-      POSTGRES_USER: cosmicforge_logistics
-      POSTGRES_PASSWORD: cosmicforge_logistics
-    ports:
-      - "5443:5432"
-    volumes:
-      - analytics_postgres_data:/var/lib/postgresql/data
+#   analytics-postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: analytics_service
+#       POSTGRES_USER: cosmicforge_logistics
+#       POSTGRES_PASSWORD: cosmicforge_logistics
+#     ports:
+#       - "5443:5432"
+#     volumes:
+#       - analytics_postgres_data:/var/lib/postgresql/data
 
-  api-gateway:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: api-gateway
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8080
-      API_GATEWAY_REDIS_ADDR: api-gateway-redis:6379
-    depends_on:
-      - api-gateway-redis
-    ports:
-      - "8080:8080"
+#   api-gateway:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: api-gateway
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8080
+#       API_GATEWAY_REDIS_ADDR: api-gateway-redis:6379
+#     depends_on:
+#       - api-gateway-redis
+#     ports:
+#       - "8080:8080"
 
-  customer-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: customer-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8101
-      CUSTOMER_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@customer-postgres:5432/customer_service?sslmode=disable
-      CUSTOMER_REDIS_ADDR: customer-redis:6379
-      CUSTOMER_ACCESS_TOKEN_SECRET: development-customer-access-token-secret
-      CUSTOMER_REFRESH_TOKEN_SECRET: development-customer-refresh-token-secret
-      CUSTOMER_OTP_SECRET: development-customer-otp-secret
-      CUSTOMER_DEBUG_OTP: "true"
-      CUSTOMER_NOTIFICATION_BASE_URL: http://notification-service:8106
-      CUSTOMER_NOTIFICATION_SECRET: development-customer-notification-secret
-    depends_on:
-      - customer-postgres
-      - customer-redis
-    ports:
-      - "8101:8101"
+#   customer-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: customer-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8101
+#       CUSTOMER_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@customer-postgres:5432/customer_service?sslmode=disable
+#       CUSTOMER_REDIS_ADDR: customer-redis:6379
+#       CUSTOMER_ACCESS_TOKEN_SECRET: development-customer-access-token-secret
+#       CUSTOMER_REFRESH_TOKEN_SECRET: development-customer-refresh-token-secret
+#       CUSTOMER_OTP_SECRET: development-customer-otp-secret
+#       CUSTOMER_DEBUG_OTP: "true"
+#       CUSTOMER_NOTIFICATION_BASE_URL: http://notification-service:8106
+#       CUSTOMER_NOTIFICATION_SECRET: development-customer-notification-secret
+#     depends_on:
+#       - customer-postgres
+#       - customer-redis
+#     ports:
+#       - "8101:8101"
 
-  taxi-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: taxi-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8102
-      TAXI_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@taxi-postgres:5432/taxi_service?sslmode=disable
-      TAXI_REDIS_ADDR: taxi-redis:6379
-    depends_on:
-      - taxi-postgres
-      - taxi-redis
-    ports:
-      - "8102:8102"
+#   taxi-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: taxi-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8102
+#       TAXI_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@taxi-postgres:5432/taxi_service?sslmode=disable
+#       TAXI_REDIS_ADDR: taxi-redis:6379
+#     depends_on:
+#       - taxi-postgres
+#       - taxi-redis
+#     ports:
+#       - "8102:8102"
 
-  dispatch-delivery-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: dispatch-delivery-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8103
-      DISPATCH_DELIVERY_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@dispatch-delivery-postgres:5432/dispatch_delivery_service?sslmode=disable
-      DISPATCH_DELIVERY_REDIS_ADDR: dispatch-delivery-redis:6379
-    depends_on:
-      - dispatch-delivery-postgres
-      - dispatch-delivery-redis
-    ports:
-      - "8103:8103"
+#   dispatch-delivery-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: dispatch-delivery-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8103
+#       DISPATCH_DELIVERY_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@dispatch-delivery-postgres:5432/dispatch_delivery_service?sslmode=disable
+#       DISPATCH_DELIVERY_REDIS_ADDR: dispatch-delivery-redis:6379
+#     depends_on:
+#       - dispatch-delivery-postgres
+#       - dispatch-delivery-redis
+#     ports:
+#       - "8103:8103"
 
-  hauling-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: hauling-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8104
-      HAULING_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@hauling-postgres:5432/hauling_service?sslmode=disable
-      HAULING_REDIS_ADDR: hauling-redis:6379
-    depends_on:
-      - hauling-postgres
-      - hauling-redis
-    ports:
-      - "8104:8104"
+#   hauling-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: hauling-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8104
+#       HAULING_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@hauling-postgres:5432/hauling_service?sslmode=disable
+#       HAULING_REDIS_ADDR: hauling-redis:6379
+#     depends_on:
+#       - hauling-postgres
+#       - hauling-redis
+#     ports:
+#       - "8104:8104"
 
-  payment-wallet-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: payment-wallet-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8105
-      PAYMENT_WALLET_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@payment-wallet-postgres:5432/payment_wallet_service?sslmode=disable
-      PAYMENT_WALLET_REDIS_ADDR: payment-wallet-redis:6379
-    depends_on:
-      - payment-wallet-postgres
-      - payment-wallet-redis
-    ports:
-      - "8105:8105"
+#   payment-wallet-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: payment-wallet-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8105
+#       PAYMENT_WALLET_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@payment-wallet-postgres:5432/payment_wallet_service?sslmode=disable
+#       PAYMENT_WALLET_REDIS_ADDR: payment-wallet-redis:6379
+#     depends_on:
+#       - payment-wallet-postgres
+#       - payment-wallet-redis
+#     ports:
+#       - "8105:8105"
 
-  notification-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: notification-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8106
-      NOTIFICATION_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@notification-postgres:5432/notification_service?sslmode=disable
-      NOTIFICATION_REDIS_ADDR: notification-redis:6379
-      NOTIFICATION_SERVICE_SECRETS: customer-service=development-customer-notification-secret,payment-wallet-service=development-payment-notification-secret,dispatch-delivery-service=development-dispatch-notification-secret,hauling-service=development-hauling-notification-secret
-      NOTIFICATION_REALTIME_TOKEN_SECRET: development-notification-realtime-token-secret
-    depends_on:
-      - notification-postgres
-      - notification-redis
-    ports:
-      - "8106:8106"
+#   notification-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: notification-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8106
+#       NOTIFICATION_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@notification-postgres:5432/notification_service?sslmode=disable
+#       NOTIFICATION_REDIS_ADDR: notification-redis:6379
+#       NOTIFICATION_SERVICE_SECRETS: customer-service=development-customer-notification-secret,payment-wallet-service=development-payment-notification-secret,dispatch-delivery-service=development-dispatch-notification-secret,hauling-service=development-hauling-notification-secret
+#       NOTIFICATION_REALTIME_TOKEN_SECRET: development-notification-realtime-token-secret
+#     depends_on:
+#       - notification-postgres
+#       - notification-redis
+#     ports:
+#       - "8106:8106"
 
-  support-dispute-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: support-dispute-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8107
-      SUPPORT_DISPUTE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@support-dispute-postgres:5432/support_dispute_service?sslmode=disable
-    depends_on:
-      - support-dispute-postgres
-    ports:
-      - "8107:8107"
+#   support-dispute-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: support-dispute-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8107
+#       SUPPORT_DISPUTE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@support-dispute-postgres:5432/support_dispute_service?sslmode=disable
+#     depends_on:
+#       - support-dispute-postgres
+#     ports:
+#       - "8107:8107"
 
-  verification-compliance-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: verification-compliance-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8108
-      VERIFICATION_COMPLIANCE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@verification-compliance-postgres:5432/verification_compliance_service?sslmode=disable
-    depends_on:
-      - verification-compliance-postgres
-    ports:
-      - "8108:8108"
+#   verification-compliance-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: verification-compliance-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8108
+#       VERIFICATION_COMPLIANCE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@verification-compliance-postgres:5432/verification_compliance_service?sslmode=disable
+#     depends_on:
+#       - verification-compliance-postgres
+#     ports:
+#       - "8108:8108"
 
-  media-file-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: media-file-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8109
-      MEDIA_FILE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@media-file-postgres:5432/media_file_service?sslmode=disable
-      MEDIA_FILE_FIREBASE_BUCKET: ${MEDIA_FILE_FIREBASE_BUCKET:-}
-      MEDIA_FILE_FIREBASE_CREDENTIALS_FILE: ${MEDIA_FILE_FIREBASE_CREDENTIALS_FILE:-}
-      MEDIA_FILE_FIREBASE_CREDENTIALS_JSON: ${MEDIA_FILE_FIREBASE_CREDENTIALS_JSON:-}
-      MEDIA_FILE_PUBLIC_BASE_URL: ${MEDIA_FILE_PUBLIC_BASE_URL:-}
-      MEDIA_FILE_MAX_UPLOAD_BYTES: ${MEDIA_FILE_MAX_UPLOAD_BYTES:-26214400}
-      MEDIA_FILE_SERVICE_TOKENS: ${MEDIA_FILE_SERVICE_TOKENS:-customer-service=development-media-token,taxi-service=development-media-token,dispatch-delivery-service=development-media-token,hauling-service=development-media-token,verification-compliance-service=development-media-token}
-    depends_on:
-      - media-file-postgres
-    ports:
-      - "8109:8109"
+#   media-file-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: media-file-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8109
+#       MEDIA_FILE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@media-file-postgres:5432/media_file_service?sslmode=disable
+#       MEDIA_FILE_FIREBASE_BUCKET: ${MEDIA_FILE_FIREBASE_BUCKET:-}
+#       MEDIA_FILE_FIREBASE_CREDENTIALS_FILE: ${MEDIA_FILE_FIREBASE_CREDENTIALS_FILE:-}
+#       MEDIA_FILE_FIREBASE_CREDENTIALS_JSON: ${MEDIA_FILE_FIREBASE_CREDENTIALS_JSON:-}
+#       MEDIA_FILE_PUBLIC_BASE_URL: ${MEDIA_FILE_PUBLIC_BASE_URL:-}
+#       MEDIA_FILE_MAX_UPLOAD_BYTES: ${MEDIA_FILE_MAX_UPLOAD_BYTES:-26214400}
+#       MEDIA_FILE_SERVICE_TOKENS: ${MEDIA_FILE_SERVICE_TOKENS:-customer-service=development-media-token,taxi-service=development-media-token,dispatch-delivery-service=development-media-token,hauling-service=development-media-token,verification-compliance-service=development-media-token}
+#     depends_on:
+#       - media-file-postgres
+#     ports:
+#       - "8109:8109"
 
-  admin-backoffice-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: admin-backoffice-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8110
-      ADMIN_BACKOFFICE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@admin-backoffice-postgres:5432/admin_backoffice_service?sslmode=disable
-      ADMIN_BACKOFFICE_REDIS_ADDR: admin-backoffice-redis:6379
-    depends_on:
-      - admin-backoffice-postgres
-      - admin-backoffice-redis
-    ports:
-      - "8110:8110"
+#   admin-backoffice-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: admin-backoffice-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8110
+#       ADMIN_BACKOFFICE_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@admin-backoffice-postgres:5432/admin_backoffice_service?sslmode=disable
+#       ADMIN_BACKOFFICE_REDIS_ADDR: admin-backoffice-redis:6379
+#     depends_on:
+#       - admin-backoffice-postgres
+#       - admin-backoffice-redis
+#     ports:
+#       - "8110:8110"
 
-  analytics-service:
-    build:
-      context: ..
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE_DIR: analytics-service
-    environment:
-      APP_ENV: development
-      HTTP_ADDR: :8111
-      ANALYTICS_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@analytics-postgres:5432/analytics_service?sslmode=disable
-    depends_on:
-      - analytics-postgres
-    ports:
-      - "8111:8111"
+#   analytics-service:
+#     build:
+#       context: ..
+#       dockerfile: services/Dockerfile
+#       args:
+#         SERVICE_DIR: analytics-service
+#     environment:
+#       APP_ENV: development
+#       HTTP_ADDR: :8111
+#       ANALYTICS_DATABASE_URL: postgres://cosmicforge_logistics:cosmicforge_logistics@analytics-postgres:5432/analytics_service?sslmode=disable
+#     depends_on:
+#       - analytics-postgres
+#     ports:
+#       - "8111:8111"
 
-volumes:
-  customer_postgres_data:
-  taxi_postgres_data:
-  dispatch_delivery_postgres_data:
-  hauling_postgres_data:
-  payment_wallet_postgres_data:
-  notification_postgres_data:
-  support_dispute_postgres_data:
-  verification_compliance_postgres_data:
-  media_file_postgres_data:
-  admin_backoffice_postgres_data:
-  analytics_postgres_data:
+# volumes:
+#   customer_postgres_data:
+#   taxi_postgres_data:
+#   dispatch_delivery_postgres_data:
+#   hauling_postgres_data:
+#   payment_wallet_postgres_data:
+#   notification_postgres_data:
+#   support_dispute_postgres_data:
+#   verification_compliance_postgres_data:
+#   media_file_postgres_data:
+#   admin_backoffice_postgres_data:
+#   analytics_postgres_data:

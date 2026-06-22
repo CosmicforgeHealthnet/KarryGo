@@ -20,7 +20,7 @@ class AllSetScreen extends StatelessWidget {
       key: const ValueKey(CustomerAppRoutes.allSet),
       bottom: FigmaPrimaryButton(
         label: 'Continue to dashboard',
-        onPressed: controller.finishProfileSetup,
+        onPressed: state.isLoading ? null : () => controller.finishProfileSetup(),
       ),
       child: SingleChildScrollView(
         child: Column(

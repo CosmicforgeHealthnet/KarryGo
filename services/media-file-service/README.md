@@ -67,3 +67,38 @@ Copy `.env.example` and set:
 
 The configured bucket or prefix must be publicly readable because v1 returns
 permanent public URLs.
+
+## Local Bootstrap
+
+For a full local setup, use the helper script from the repo root:
+
+```bash
+./scripts/media-local-bootstrap.sh
+```
+
+It starts local Postgres on `5441`, creates the `media_file_service` database if
+needed, applies the media migrations, and prints the command to run the
+service.
+
+If you prefer to do it manually:
+
+```bash
+mkdir -p /tmp/postgres-media
+initdb -D /tmp/postgres-media
+pg_ctl -D /tmp/postgres-media -o "-p 5441" start
+psql -p 5441 -d template1
+```
+
+Inside `psql`:
+
+```sql
+CREATE USER cosmicforge_logistics WITH PASSWORD 'cosmicforge_logistics';
+CREATE DATABASE media_file_service OWNER cosmicforge_logistics;
+```
+
+Then apply the migration:
+
+```bash
+psql "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5441/media_file_service?sslmode=disable" \
+  -f services/media-file-service/migrations/001_media_assets.sql
+```

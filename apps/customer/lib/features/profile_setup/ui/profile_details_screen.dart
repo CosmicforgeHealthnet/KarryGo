@@ -87,7 +87,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
               controller: _phoneController,
               label: 'Your Phone Number',
               keyboardType: TextInputType.phone,
-              readOnly: true,
+              readOnly: widget.state.phone.isNotEmpty,
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
               ],
@@ -98,6 +98,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
               label: 'Email',
               hintText: 'Demaunix_1',
               keyboardType: TextInputType.emailAddress,
+              readOnly: widget.state.email.isNotEmpty,
               onSubmitted: (_) => _continue(),
             ),
           ],

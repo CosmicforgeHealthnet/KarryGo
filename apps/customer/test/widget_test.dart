@@ -6,10 +6,40 @@ import 'package:customer/features/auth/data/customer_auth_api.dart';
 import 'package:customer/features/auth/data/customer_session_store.dart';
 import 'package:customer/features/auth/models/customer_auth_models.dart';
 import 'package:customer/features/auth/state/customer_auth_controller.dart';
+import 'package:customer/features/media/data/media_file_api.dart';
+import 'package:customer/features/media/data/media_upload_service.dart';
+import 'package:customer/features/media/models/media_upload_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:image_picker/image_picker.dart';
+
+/// Returns a fixed fake result without opening the image picker.
+class _FakeMediaUploadService extends MediaUploadService {
+  _FakeMediaUploadService()
+      : super(
+          api: MediaFileApi(
+            config: const ApiCoreConfig(
+              baseUrl: 'http://localhost:8109/api/v1/media-files',
+            ),
+            serviceToken: 'test-token',
+            client: MockClient((_) async => http.Response('{}', 500)),
+          ),
+        );
+
+  @override
+  Future<MediaUploadResult?> pickAndUpload({
+    required String ownerId,
+    required String purpose,
+    required ImageSource source,
+  }) async {
+    return const MediaUploadResult(
+      id: 'test-asset-id',
+      url: 'https://example.com/test-photo.jpg',
+    );
+  }
+}
 
 void main() {
   testWidgets('customer can complete Figma-style OTP and profile setup flow', (
@@ -56,6 +86,32 @@ void main() {
           );
         }
 
+        if (request.method == 'PUT' &&
+            request.url.path.endsWith('/profile') &&
+            !request.url.path.endsWith('/photo-url')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'id': 'customer-1',
+                'phone': '+2348012345678',
+                'first_name': 'Ada',
+                'last_name': 'Okafor',
+                'onboarding_status': 'complete',
+                'status': 'active',
+              },
+            }),
+            200,
+          );
+        }
+
+        if (request.url.path.endsWith('/profile/photo-url')) {
+          return http.Response(
+            jsonEncode({'success': true, 'data': {}}),
+            200,
+          );
+        }
+
         return http.Response(
           jsonEncode({
             'success': false,
@@ -69,6 +125,7 @@ void main() {
     final controller = CustomerAuthController(
       api: api,
       sessionStore: MemoryCustomerSessionStore(),
+      mediaUploadService: _FakeMediaUploadService(),
     );
 
     await tester.pumpWidget(CustomerApp(controller: controller));
@@ -76,13 +133,10 @@ void main() {
 
     expect(find.text('Enable Location'), findsOneWidget);
 
-    await tester.tap(find.text('Allow Location'));
+    // In test env, permission requests return denied, so use secondary buttons to skip.
+    await tester.tap(find.text('Enter location manually'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Enable Location'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Open Settings'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Enable Notification'));
+    await tester.tap(find.text('Skip for now'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('I want to receive updates'));
     await tester.pumpAndSettle();
@@ -136,7 +190,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Book a ride'), findsOneWidget);
+    expect(find.text('Car Ride'), findsOneWidget);
   });
 
   testWidgets('phone continue is disabled until a number is entered', (
@@ -150,6 +204,7 @@ void main() {
         client: MockClient((request) async => http.Response('{}', 500)),
       ),
       sessionStore: MemoryCustomerSessionStore(),
+      mediaUploadService: _FakeMediaUploadService(),
     );
 
     await tester.pumpWidget(
@@ -206,12 +261,13 @@ void main() {
         }),
       ),
       sessionStore: store,
+      mediaUploadService: _FakeMediaUploadService(),
     );
 
     await tester.pumpWidget(CustomerApp(controller: controller));
     await tester.pumpAndSettle();
 
     expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Welcome, Ada Okafor'), findsOneWidget);
+    expect(find.text('What do you want to do?'), findsOneWidget);
   });
 }

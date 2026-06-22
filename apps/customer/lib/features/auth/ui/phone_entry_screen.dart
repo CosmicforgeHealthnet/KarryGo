@@ -160,26 +160,6 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
               dark: true,
               onPressed: _showSocialUnavailable,
             ),
-            const SizedBox(height: 26),
-            Text.rich(
-              TextSpan(
-                text: 'Already have an account? ',
-                style: const TextStyle(
-                  color: CustomerFigmaColors.text,
-                  fontSize: 12,
-                ),
-                children: const [
-                  TextSpan(
-                    text: 'Log In',
-                    style: TextStyle(
-                      color: CustomerFigmaColors.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              textAlign: TextAlign.center,
-            ),
           ],
         ),
       ),

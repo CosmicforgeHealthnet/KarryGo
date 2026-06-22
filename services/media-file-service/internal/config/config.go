@@ -9,6 +9,7 @@ import (
 type Config struct {
 	AppEnv   string
 	HTTPAddr string
+	Migration bool
 
 	DatabaseURL string
 
@@ -26,6 +27,7 @@ func Load() Config {
 	return Config{
 		AppEnv:   getEnv("APP_ENV", "development"),
 		HTTPAddr: getEnv("HTTP_ADDR", ":8109"),
+		Migration: getEnvBool("MIGRATION", false),
 
 		DatabaseURL: getEnv("MEDIA_FILE_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5441/media_file_service?sslmode=disable"),
 
@@ -55,6 +57,20 @@ func getEnvInt64(key string, fallback int64) int64 {
 	}
 
 	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		return fallback
 	}

@@ -1,0 +1,344 @@
+{
+  "info": {
+    "name": "Payment & Wallet Service",
+    "description": "Local API collection for cosmicforge payment-wallet-service (port 8105).\n\nAll money values are kobo integers (1 NGN = 100 kobo). API base path: /api/v1/payment-wallet.\n\nAuth modes:\n- Customer endpoints: bearer token, role=customer, service=customer.\n- Provider endpoints: bearer token, service in {taxi, dispatch, hauling}, any non-empty role.\n- Internal endpoints: service-to-service HMAC (shared/go/serviceauth). The 'Internal (HMAC)' folder signs requests automatically via a pre-request script.\n- Webhook: Paystack x-paystack-signature (HMAC-SHA512 over raw body), signed manually.\n\nMint dev bearer tokens with: go run ./docs/devtoken -kind=customer (or -kind=provider -service=hauling). See docs/README.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "GET /ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/ready", "host": ["{{base_url}}"], "path": ["ready"] }
+          }
+        },
+        {
+          "name": "GET /meta",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/meta",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["meta"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer",
+      "description": "Customer bearer token (role=customer, service=customer). Set {{customer_token}} in the environment. customer_id is always taken from the token subject.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "GET /wallets/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/wallets/me",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["wallets", "me"]
+            }
+          }
+        },
+        {
+          "name": "GET /wallets/me/transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/wallets/me/transactions?limit=50",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["wallets", "me", "transactions"],
+              "query": [{ "key": "limit", "value": "50" }]
+            }
+          }
+        },
+        {
+          "name": "POST /topups",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_kobo\": 100000,\n  \"currency\": \"NGN\",\n  \"customer_email\": \"customer@example.com\",\n  \"idempotency_key\": \"topup-{{$guid}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/topups",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["topups"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /topups/:reference/verify",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/topups/:reference/verify",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["topups", ":reference", "verify"],
+              "variable": [{ "key": "reference", "value": "paystack-or-intent-reference" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Provider",
+      "description": "Provider bearer token (service in {taxi, dispatch, hauling}). Set {{taxi_provider_token}} / {{hauling_provider_token}} in the environment and point this folder's auth at the one you are testing. provider_type/provider_id come from the token.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{hauling_provider_token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "GET /provider/earnings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/provider/earnings",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["provider", "earnings"]
+            }
+          }
+        },
+        {
+          "name": "POST /provider/bank-accounts/resolve",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_number\": \"0123456789\",\n  \"bank_code\": \"011\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/provider/bank-accounts/resolve",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["provider", "bank-accounts", "resolve"]
+            }
+          }
+        },
+        {
+          "name": "POST /provider/bank-accounts",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bank_code\": \"011\",\n  \"bank_name\": \"First Bank Nigeria\",\n  \"account_number\": \"0123456789\",\n  \"currency\": \"NGN\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/provider/bank-accounts",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["provider", "bank-accounts"]
+            }
+          }
+        },
+        {
+          "name": "POST /provider/withdrawals",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bank_account_id\": \"bank-account-uuid\",\n  \"amount_kobo\": 500000,\n  \"currency\": \"NGN\",\n  \"idempotency_key\": \"withdrawal-{{$guid}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/provider/withdrawals",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["provider", "withdrawals"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Internal (HMAC)",
+      "description": "Service-to-service endpoints. Requests in this folder are signed automatically by the folder pre-request script using {{service_name}} and {{service_secret}} (shared/go/serviceauth: HMAC-SHA256 over METHOD\\nrequestURI\\ntimestamp\\nsha256hex(body)). All money-moving calls require an idempotency_key.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Reproduces shared/go/serviceauth signing so internal endpoints accept the request.",
+              "// Canonical string = UPPER(method) \\n requestURI \\n unixTimestamp \\n sha256hex(rawBody), HMAC-SHA256 with the service secret, hex-encoded.",
+              "var serviceName = pm.variables.replaceIn('{{service_name}}');",
+              "var serviceSecret = pm.variables.replaceIn('{{service_secret}}');",
+              "if (!serviceName || !serviceSecret) {",
+              "    console.warn('service_name / service_secret not set; internal request will fail HMAC auth.');",
+              "}",
+              "",
+              "// Resolve the request URI exactly as Go's req.URL.RequestURI() sees it: path + optional ?query.",
+              "var rawUrl = pm.variables.replaceIn(pm.request.url.toString());",
+              "var noScheme = rawUrl.replace(/^[a-zA-Z]+:\\/\\//, '');",
+              "var slash = noScheme.indexOf('/');",
+              "var requestURI = slash === -1 ? '/' : noScheme.substring(slash);",
+              "",
+              "// Raw body (empty string when there is no body).",
+              "var rawBody = '';",
+              "if (pm.request.body && pm.request.body.mode === 'raw' && pm.request.body.raw) {",
+              "    rawBody = pm.variables.replaceIn(pm.request.body.raw);",
+              "}",
+              "",
+              "var timestamp = Math.floor(Date.now() / 1000).toString();",
+              "var bodyHash = CryptoJS.SHA256(rawBody).toString(CryptoJS.enc.Hex);",
+              "var canonical = pm.request.method.toUpperCase() + '\\n' + requestURI + '\\n' + timestamp + '\\n' + bodyHash;",
+              "var signature = CryptoJS.HmacSHA256(canonical, serviceSecret).toString(CryptoJS.enc.Hex);",
+              "",
+              "pm.request.headers.upsert({ key: 'X-Service-Name', value: serviceName });",
+              "pm.request.headers.upsert({ key: 'X-Service-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Service-Signature', value: signature });"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "POST /internal/payment-intents",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_service\": \"taxi-service\",\n  \"source_reference\": \"booking-id\",\n  \"customer_id\": \"customer-uuid\",\n  \"customer_email\": \"customer@example.com\",\n  \"provider_id\": \"provider-uuid\",\n  \"provider_type\": \"taxi\",\n  \"amount_kobo\": 500000,\n  \"currency\": \"NGN\",\n  \"payment_method\": \"wallet\",\n  \"idempotency_key\": \"intent-{{$guid}}\",\n  \"metadata\": { \"booking_id\": \"booking-id\" }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/internal/payment-intents",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["internal", "payment-intents"]
+            }
+          }
+        },
+        {
+          "name": "POST /internal/payment-intents/:id/pay-from-wallet",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotency_key\": \"pay-{{$guid}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/internal/payment-intents/:id/pay-from-wallet",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["internal", "payment-intents", ":id", "pay-from-wallet"],
+              "variable": [{ "key": "id", "value": "payment-intent-uuid" }]
+            }
+          }
+        },
+        {
+          "name": "POST /internal/jobs/:source_service/:source_reference/complete",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/internal/jobs/:source_service/:source_reference/complete",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["internal", "jobs", ":source_service", ":source_reference", "complete"],
+              "variable": [
+                { "key": "source_service", "value": "taxi-service" },
+                { "key": "source_reference", "value": "booking-id" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /internal/refunds",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_reference\": \"payment-ref\",\n  \"amount_kobo\": 100000,\n  \"currency\": \"NGN\",\n  \"reason\": \"Customer cancelled\",\n  \"idempotency_key\": \"refund-{{$guid}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/internal/refunds",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["internal", "refunds"]
+            }
+          }
+        },
+        {
+          "name": "GET /internal/payments/:reference",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/internal/payments/:reference",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["internal", "payments", ":reference"],
+              "variable": [{ "key": "reference", "value": "payment-reference" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhook",
+      "description": "Paystack webhook. Verified by HMAC-SHA512 over the RAW request body using the Paystack secret key (x-paystack-signature). The pre-request script signs the raw body with {{paystack_secret_key}}. The route must stay un-proxied and un-rewritten so the body is byte-for-byte identical.",
+      "item": [
+        {
+          "name": "POST /webhooks/paystack",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign the raw body with HMAC-SHA512 using the Paystack secret key, matching Paystack's webhook signature.",
+                  "var secret = pm.variables.replaceIn('{{paystack_secret_key}}');",
+                  "var rawBody = '';",
+                  "if (pm.request.body && pm.request.body.mode === 'raw' && pm.request.body.raw) {",
+                  "    rawBody = pm.variables.replaceIn(pm.request.body.raw);",
+                  "}",
+                  "var signature = CryptoJS.HmacSHA512(rawBody, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-paystack-signature', value: signature });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"reference\": \"paystack-reference\",\n    \"amount\": 100000,\n    \"currency\": \"NGN\",\n    \"status\": \"success\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/webhooks/paystack",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["webhooks", "paystack"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8105" },
+    { "key": "api_base", "value": "/api/v1/payment-wallet" }
+  ]
+}

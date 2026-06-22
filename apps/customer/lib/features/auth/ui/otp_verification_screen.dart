@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -24,12 +27,35 @@ class OtpVerificationScreen extends StatefulWidget {
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final _otpController = TextEditingController();
   final _focusNode = FocusNode();
+  late int _remainingSeconds;
+  Timer? _countdownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _remainingSeconds = widget.state.otpExpiresIn;
+    _startCountdown();
+  }
 
   @override
   void dispose() {
     _otpController.dispose();
     _focusNode.dispose();
+    _countdownTimer?.cancel();
     super.dispose();
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _countdownTimer?.cancel();
+        }
+      });
+    });
   }
 
   @override
@@ -53,7 +79,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         },
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           FigmaBackButton(onPressed: widget.controller.backToPhoneEntry),
           const SizedBox(height: 8),
@@ -112,6 +138,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             child: Opacity(
               opacity: 0.01,
               child: TextField(
+                autofocus: true,
                 focusNode: _focusNode,
                 controller: _otpController,
                 keyboardType: TextInputType.number,
@@ -130,9 +157,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           Row(
             children: [
               TextButton(
-                onPressed: widget.state.isLoading
+                onPressed: widget.state.isLoading || _remainingSeconds > 0
                     ? null
-                    : widget.controller.resendOtp,
+                    : () => widget.controller.resendOtp(),
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   foregroundColor: CustomerFigmaColors.primary,
@@ -145,7 +172,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
               const Spacer(),
               Text(
-                _formatTimer(widget.state.otpExpiresIn),
+                _formatTimer(_remainingSeconds),
                 style: const TextStyle(
                   color: CustomerFigmaColors.primary,
                   fontSize: 12,
@@ -154,7 +181,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
             ],
           ),
-          if (widget.state.debugOtp != null) ...[
+          if (kDebugMode && widget.state.debugOtp != null) ...[
             const SizedBox(height: 8),
             Text(
               'Local test code: ${widget.state.debugOtp}',
@@ -199,24 +226,28 @@ class _OtpSlots extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: List.generate(6, (index) {
         final hasValue = index < chars.length;
+        final Color borderColor;
+        if (hasError) {
+          borderColor = Colors.red.shade400;
+        } else if (hasValue) {
+          borderColor = CustomerFigmaColors.primary;
+        } else {
+          borderColor = CustomerFigmaColors.border;
+        }
+
         return Container(
-          width: 46,
-          height: 46,
+          width: 54,
+          height: 54,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
-            border: Border.all(
-              color: hasError || hasValue
-                  ? CustomerFigmaColors.primary
-                  : Colors.white,
-              width: 1.4,
-            ),
+            border: Border.all(color: borderColor, width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -224,7 +255,7 @@ class _OtpSlots extends StatelessWidget {
             hasValue ? chars[index] : '',
             style: const TextStyle(
               color: CustomerFigmaColors.text,
-              fontSize: 14,
+              fontSize: 17,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -236,7 +267,7 @@ class _OtpSlots extends StatelessWidget {
 
 String _formatTimer(int seconds) {
   if (seconds <= 0) {
-    return '04:11';
+    return '00:00';
   }
   final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
   final remainder = (seconds % 60).toString().padLeft(2, '0');

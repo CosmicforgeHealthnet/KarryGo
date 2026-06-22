@@ -2,11 +2,13 @@ package uploadclients
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
 	gcs "cloud.google.com/go/storage"
 	firebase "firebase.google.com/go/v4"
@@ -28,14 +30,17 @@ type UploadObjectInput struct {
 
 type ObjectStorage interface {
 	Upload(ctx context.Context, input UploadObjectInput) (StorageObject, error)
+	Download(ctx context.Context, path string) (io.ReadCloser, error)
 	Delete(ctx context.Context, path string) error
 	Check(ctx context.Context) error
 }
 
 type FirebaseStorageClient struct {
-	bucketName    string
-	bucket        *gcs.BucketHandle
-	publicBaseURL string
+	bucketName      string
+	bucket          *gcs.BucketHandle
+	publicBaseURL   string
+	useSignedURLs   bool
+	credentialsJSON []byte
 }
 
 type FirebaseStorageOptions struct {
@@ -51,8 +56,10 @@ func NewFirebaseStorageClient(ctx context.Context, opts FirebaseStorageOptions) 
 	}
 
 	clientOptions := []option.ClientOption{}
+	var credentialsJSON []byte
 	if opts.CredentialsJSON != "" {
-		clientOptions = append(clientOptions, option.WithCredentialsJSON([]byte(opts.CredentialsJSON)))
+		credentialsJSON = []byte(opts.CredentialsJSON)
+		clientOptions = append(clientOptions, option.WithCredentialsJSON(credentialsJSON))
 	} else if opts.CredentialsFile != "" {
 		clientOptions = append(clientOptions, option.WithCredentialsFile(opts.CredentialsFile))
 	}
@@ -79,10 +86,14 @@ func NewFirebaseStorageClient(ctx context.Context, opts FirebaseStorageOptions) 
 		publicBaseURL = "https://storage.googleapis.com/" + opts.BucketName
 	}
 
+	useSignedURLs := opts.CredentialsJSON != "" || opts.CredentialsFile != ""
+
 	return &FirebaseStorageClient{
-		bucketName:    opts.BucketName,
-		bucket:        bucket,
-		publicBaseURL: publicBaseURL,
+		bucketName:      opts.BucketName,
+		bucket:          bucket,
+		publicBaseURL:   publicBaseURL,
+		useSignedURLs:   useSignedURLs,
+		credentialsJSON: credentialsJSON,
 	}, nil
 }
 
@@ -100,11 +111,67 @@ func (c *FirebaseStorageClient) Upload(ctx context.Context, input UploadObjectIn
 		return StorageObject{}, err
 	}
 
+	var signedURL string
+	if c.useSignedURLs && len(c.credentialsJSON) > 0 {
+		url, err := c.generateSignedURL(ctx, input.Path)
+		if err != nil {
+			return StorageObject{}, fmt.Errorf("generate signed url: %w", err)
+		}
+		signedURL = url
+	} else {
+		signedURL = c.publicURL(input.Path)
+	}
+
 	return StorageObject{
 		Bucket: c.bucketName,
 		Path:   input.Path,
-		URL:    c.publicURL(input.Path),
+		URL:    signedURL,
 	}, nil
+}
+
+func (c *FirebaseStorageClient) generateSignedURL(ctx context.Context, path string) (string, error) {
+	type serviceAccount struct {
+		Type        string `json:"type"`
+		ProjectID   string `json:"project_id"`
+		PrivateKeyID string `json:"private_key_id"`
+		PrivateKey  string `json:"private_key"`
+		ClientEmail string `json:"client_email"`
+	}
+
+	var sa serviceAccount
+	if err := json.Unmarshal(c.credentialsJSON, &sa); err != nil {
+		return "", fmt.Errorf("parse credentials: %w", err)
+	}
+
+	if sa.ClientEmail == "" || sa.PrivateKey == "" {
+		return "", fmt.Errorf("missing client_email or private_key in credentials")
+	}
+
+	opts := &gcs.SignedURLOptions{
+		Scheme:         gcs.SigningSchemeV4,
+		Method:         "GET",
+		Expires:        time.Now().Add(24 * time.Hour * 365),
+		GoogleAccessID: sa.ClientEmail,
+		PrivateKey:     []byte(sa.PrivateKey),
+	}
+
+	signedURL, err := gcs.SignedURL(c.bucketName, path, opts)
+	if err != nil {
+		return "", fmt.Errorf("sign url (bucket=%s path=%s email=%s): %w", c.bucketName, path, sa.ClientEmail, err)
+	}
+
+	return signedURL, nil
+}
+
+func (c *FirebaseStorageClient) Download(ctx context.Context, path string) (io.ReadCloser, error) {
+	reader, err := c.bucket.Object(path).NewReader(ctx)
+	if err != nil {
+		if errors.Is(err, gcs.ErrObjectNotExist) {
+			return nil, fmt.Errorf("file not found")
+		}
+		return nil, err
+	}
+	return reader, nil
 }
 
 func (c *FirebaseStorageClient) Delete(ctx context.Context, path string) error {

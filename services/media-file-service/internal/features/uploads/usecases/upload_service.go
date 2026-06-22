@@ -111,6 +111,8 @@ func (s *UploadService) Upload(ctx context.Context, input UploadInput) (filemeta
 		return filemetadatamodels.MediaAsset{}, apperrors.Unavailable("File storage is temporarily unavailable.", err)
 	}
 
+	downloadURL := fmt.Sprintf("/%s/download", assetID)
+
 	asset, err := s.assets.Create(ctx, filemetadatamodels.CreateMediaAssetInput{
 		ID:                assetID,
 		OwnerService:      input.OwnerService,
@@ -122,7 +124,7 @@ func (s *UploadService) Upload(ctx context.Context, input UploadInput) (filemeta
 		ChecksumSHA256:    hex.EncodeToString(hasher.Sum(nil)),
 		StorageBucket:     object.Bucket,
 		StoragePath:       object.Path,
-		PublicURL:         object.URL,
+		PublicURL:         downloadURL,
 		Metadata:          input.Metadata,
 		UploadedByService: input.CallerService,
 	})
@@ -163,6 +165,30 @@ func (s *UploadService) Delete(ctx context.Context, id string) error {
 	}
 
 	return s.assets.MarkDeleted(ctx, id)
+}
+
+type DownloadOutput struct {
+	ContentType string
+	Size        int64
+	Reader      io.ReadCloser
+}
+
+func (s *UploadService) Download(ctx context.Context, id string) (DownloadOutput, error) {
+	asset, err := s.GetByID(ctx, id)
+	if err != nil {
+		return DownloadOutput{}, err
+	}
+
+	reader, err := s.storage.Download(ctx, asset.StoragePath)
+	if err != nil {
+		return DownloadOutput{}, apperrors.Unavailable("File storage is temporarily unavailable.", err)
+	}
+
+	return DownloadOutput{
+		ContentType: asset.ContentType,
+		Size:        asset.SizeBytes,
+		Reader:      reader,
+	}, nil
 }
 
 func (s *UploadService) validateUploadInput(input UploadInput) error {

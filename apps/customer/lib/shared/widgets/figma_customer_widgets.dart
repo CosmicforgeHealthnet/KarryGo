@@ -12,6 +12,7 @@ class CustomerFigmaColors {
   static const surface = Color(0xFFF7F8F7);
   static const field = Color(0xFFFFFFFF);
   static const border = Color(0xFFE5E9E5);
+  static const primaryTint = Color(0xFFEAF8EE);
 
   const CustomerFigmaColors._();
 }
@@ -152,14 +153,11 @@ class FigmaBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: IconButton(
-        tooltip: 'Back',
-        onPressed: onPressed,
-        icon: const Icon(Icons.arrow_back_rounded),
-        color: CustomerFigmaColors.text,
-        visualDensity: VisualDensity.compact,
+    return GestureDetector(
+      onTap: onPressed,
+      child: SizedBox(
+        height: 32,
+        child: const Icon(Icons.arrow_back_rounded),
       ),
     );
   }
@@ -176,12 +174,9 @@ class FigmaProgressHeader extends StatelessWidget {
     return Row(
       children: [
         if (onBack != null) ...[
-          IconButton(
-            tooltip: 'Back',
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
-            color: CustomerFigmaColors.text,
-            visualDensity: VisualDensity.compact,
+          GestureDetector(
+            onTap: onBack,
+            child: const Icon(Icons.arrow_back_rounded),
           ),
           const SizedBox(width: 4),
         ],

@@ -9,3 +9,5 @@ models/        Feature-owned data structures
 repositories/  Database or Redis persistence
 clients/       Outbound integrations
 ```
+
+> **Status: scaffolding only.** The live implementation for this concern currently lives under `internal/features/wallets/`.

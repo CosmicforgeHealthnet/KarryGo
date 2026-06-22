@@ -1,0 +1,330 @@
+{
+  "info": {
+    "name": "Notification Service",
+    "description": "Local API collection for cosmicforge notification-service (port 8106).\n\nThe notification-service is the central service for all platform notifications (push, email, websocket, in_app). API base path: /api/v1/notifications.\n\nAuth modes:\n- Service endpoints (/send, /messages, /realtime/token, /devices): service-to-service HMAC (shared/go/serviceauth). The 'Service (HMAC)' folder signs requests automatically via a pre-request script using {{service_name}} / {{service_secret}}.\n- WebSocket (/ws): no HMAC; gated by a realtime token minted from /realtime/token (Postman cannot open ws:// — see the WebSocket request notes).\n\nApp-facing proxies (so apps never hold the HMAC secret):\n- Customer app -> customer-service /api/v1/customer/notifications (bearer, role=customer, service=customer).\n- Provider app -> driver-hauling-service /api/v1/hauling/provider/notifications (bearer, service=hauling).\nThe proxy services sign the downstream HMAC call on the app's behalf.\n\nMint dev bearer tokens for the proxy folders with: go run ./docs/devtoken -kind=customer (or -kind=provider -service=hauling). See docs/README.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "GET /ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/ready", "host": ["{{base_url}}"], "path": ["ready"] }
+          }
+        },
+        {
+          "name": "GET /meta",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/meta",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["meta"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Service (HMAC)",
+      "description": "Service-to-service endpoints. Requests in this folder are signed automatically by the folder pre-request script using {{service_name}} and {{service_secret}} (shared/go/serviceauth: HMAC-SHA256 over METHOD\\nrequestURI\\ntimestamp\\nsha256hex(body)). The default service_name/service_secret (customer-service / development-customer-notification-secret) must match an entry in the service's NOTIFICATION_SERVICE_SECRETS.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Reproduces shared/go/serviceauth signing so service endpoints accept the request.",
+              "// Canonical string = UPPER(method) \\n requestURI \\n unixTimestamp \\n sha256hex(rawBody), HMAC-SHA256 with the service secret, hex-encoded.",
+              "var serviceName = pm.variables.replaceIn('{{service_name}}');",
+              "var serviceSecret = pm.variables.replaceIn('{{service_secret}}');",
+              "if (!serviceName || !serviceSecret) {",
+              "    console.warn('service_name / service_secret not set; service request will fail HMAC auth.');",
+              "}",
+              "",
+              "// Resolve the request URI exactly as Go's req.URL.RequestURI() sees it: path + optional ?query.",
+              "var rawUrl = pm.variables.replaceIn(pm.request.url.toString());",
+              "var noScheme = rawUrl.replace(/^[a-zA-Z]+:\\/\\//, '');",
+              "var slash = noScheme.indexOf('/');",
+              "var requestURI = slash === -1 ? '/' : noScheme.substring(slash);",
+              "",
+              "// Raw body (empty string when there is no body).",
+              "var rawBody = '';",
+              "if (pm.request.body && pm.request.body.mode === 'raw' && pm.request.body.raw) {",
+              "    rawBody = pm.variables.replaceIn(pm.request.body.raw);",
+              "}",
+              "",
+              "var timestamp = Math.floor(Date.now() / 1000).toString();",
+              "var bodyHash = CryptoJS.SHA256(rawBody).toString(CryptoJS.enc.Hex);",
+              "var canonical = pm.request.method.toUpperCase() + '\\n' + requestURI + '\\n' + timestamp + '\\n' + bodyHash;",
+              "var signature = CryptoJS.HmacSHA256(canonical, serviceSecret).toString(CryptoJS.enc.Hex);",
+              "",
+              "pm.request.headers.upsert({ key: 'X-Service-Name', value: serviceName });",
+              "pm.request.headers.upsert({ key: 'X-Service-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Service-Signature', value: signature });"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "POST /send (inline title/body)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotency_key\": \"demo-{{$guid}}\",\n  \"source_service\": \"customer-service\",\n  \"event_type\": \"demo.test\",\n  \"recipient\": {\n    \"type\": \"customer\",\n    \"id\": \"{{recipient_id}}\"\n  },\n  \"channels\": [\"websocket\", \"in_app\"],\n  \"title\": \"Hello from Postman\",\n  \"body\": \"This is a test notification.\",\n  \"priority\": \"normal\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/send",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["send"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /send (template key)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotency_key\": \"booking-{{$guid}}\",\n  \"source_service\": \"driver-hauling-service\",\n  \"event_type\": \"booking.matched\",\n  \"recipient\": {\n    \"type\": \"provider\",\n    \"id\": \"{{recipient_id}}\"\n  },\n  \"template_key\": \"booking.matched\",\n  \"template_data\": { \"booking_id\": \"booking-123\" }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/send",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["send"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/messages?recipient_type=customer&recipient_id={{recipient_id}}&limit=50",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["messages"],
+              "query": [
+                { "key": "recipient_type", "value": "customer" },
+                { "key": "recipient_id", "value": "{{recipient_id}}" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /messages/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/messages/:id",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["messages", ":id"],
+              "variable": [{ "key": "id", "value": "message-uuid" }]
+            }
+          }
+        },
+        {
+          "name": "POST /realtime/token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Save the minted realtime token so the WebSocket request can reference it.",
+                  "try {",
+                  "    var json = pm.response.json();",
+                  "    if (json && json.data && json.data.token) {",
+                  "        pm.environment.set('realtime_token', json.data.token);",
+                  "        console.log('saved realtime_token (expires_in=' + json.data.expires_in + 's)');",
+                  "    }",
+                  "} catch (e) { console.warn('could not parse realtime token response'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient_type\": \"customer\",\n  \"recipient_id\": \"{{recipient_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/realtime/token",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["realtime", "token"]
+            }
+          }
+        },
+        {
+          "name": "POST /devices",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient_type\": \"customer\",\n  \"recipient_id\": \"{{recipient_id}}\",\n  \"token\": \"fcm-device-token\",\n  \"platform\": \"android\",\n  \"app\": \"customer\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/devices",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["devices"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "WebSocket (realtime)",
+      "description": "Realtime delivery channel. Postman's REST request cannot open a ws:// upgrade — use a Postman WebSocket request (New > WebSocket Request) or a CLI tool such as websocat.\n\nFlow: run 'Service (HMAC) > POST /realtime/token' first (it saves {{realtime_token}}), then connect to:\n  ws://localhost:8106/api/v1/notifications/ws?token={{realtime_token}}\n\nMessages pushed to that recipient arrive as JSON: { event_type, title, body, data }. The request below documents the URL; sending it over REST returns 'WebSocket upgrade failed', which is expected.",
+      "item": [
+        {
+          "name": "GET /ws (documentation only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/ws?token={{realtime_token}}",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["ws"],
+              "query": [{ "key": "token", "value": "{{realtime_token}}" }]
+            },
+            "description": "Open this over a real WebSocket client, not REST. Example with websocat:\n  websocat \"ws://localhost:8106/api/v1/notifications/ws?token=$REALTIME_TOKEN\""
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer App Proxy (bearer)",
+      "description": "App-facing notification endpoints on customer-service (port 8101, base /api/v1/customer). The app uses its customer bearer token; customer-service signs the downstream HMAC call to notification-service. Recipient is always the token subject. Set {{customer_token}} in the environment.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "GET /customer/notifications (feed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{customer_base_url}}/api/v1/customer/notifications?limit=50",
+              "host": ["{{customer_base_url}}"],
+              "path": ["api", "v1", "customer", "notifications"],
+              "query": [{ "key": "limit", "value": "50" }]
+            }
+          }
+        },
+        {
+          "name": "POST /customer/notifications/realtime-token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{customer_base_url}}/api/v1/customer/notifications/realtime-token",
+              "host": ["{{customer_base_url}}"],
+              "path": ["api", "v1", "customer", "notifications", "realtime-token"]
+            }
+          }
+        },
+        {
+          "name": "POST /customer/notifications/devices",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fcm-device-token\",\n  \"platform\": \"android\",\n  \"app\": \"customer\"\n}"
+            },
+            "url": {
+              "raw": "{{customer_base_url}}/api/v1/customer/notifications/devices",
+              "host": ["{{customer_base_url}}"],
+              "path": ["api", "v1", "customer", "notifications", "devices"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Provider App Proxy (bearer)",
+      "description": "App-facing notification endpoints on driver-hauling-service (port 8104, base /api/v1/hauling). The provider app uses its provider bearer token (service=hauling, role=truck_provider); the hauling service signs the downstream HMAC call. Recipient is always the token subject. Set {{hauling_provider_token}} in the environment.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{hauling_provider_token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "GET /provider/notifications (feed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{hauling_base_url}}/api/v1/hauling/provider/notifications?limit=50",
+              "host": ["{{hauling_base_url}}"],
+              "path": ["api", "v1", "hauling", "provider", "notifications"],
+              "query": [{ "key": "limit", "value": "50" }]
+            }
+          }
+        },
+        {
+          "name": "POST /provider/notifications/realtime-token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{hauling_base_url}}/api/v1/hauling/provider/notifications/realtime-token",
+              "host": ["{{hauling_base_url}}"],
+              "path": ["api", "v1", "hauling", "provider", "notifications", "realtime-token"]
+            }
+          }
+        },
+        {
+          "name": "POST /provider/notifications/devices",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fcm-device-token\",\n  \"platform\": \"android\",\n  \"app\": \"truck_provider\"\n}"
+            },
+            "url": {
+              "raw": "{{hauling_base_url}}/api/v1/hauling/provider/notifications/devices",
+              "host": ["{{hauling_base_url}}"],
+              "path": ["api", "v1", "hauling", "provider", "notifications", "devices"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8106" },
+    { "key": "api_base", "value": "/api/v1/notifications" },
+    { "key": "customer_base_url", "value": "http://localhost:8101" },
+    { "key": "hauling_base_url", "value": "http://localhost:8104" }
+  ]
+}

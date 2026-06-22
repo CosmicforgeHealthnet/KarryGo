@@ -6,12 +6,22 @@ import 'package:http/http.dart' as http;
 import '../models/customer_auth_models.dart';
 
 class CustomerAuthApi {
-  CustomerAuthApi({required ApiCoreConfig config, http.Client? client})
-    : _config = config,
-      _client = client ?? http.Client();
+  CustomerAuthApi({
+    required ApiCoreConfig config,
+    http.Client? client,
+    this.onAuthFailure,
+  }) : _config = config,
+       _client = client ?? http.Client();
 
   final ApiCoreConfig _config;
   final http.Client _client;
+
+  /// Called when a *bearer-authenticated* request fails with an auth error
+  /// (401 / unauthorized). Only fires for requests that carried an access
+  /// token, so the unauthenticated auth flow (start/verify/refresh) — where a
+  /// 401 is expected and handled by the controller — never triggers a global
+  /// logout.
+  final void Function()? onAuthFailure;
 
   Future<StartAuthResult> startAuth({String? phone, String? email}) async {
     final data = await _sendJson(
@@ -63,6 +73,69 @@ class CustomerAuthApi {
     );
   }
 
+  Future<CustomerProfile> getProfile({required String accessToken}) async {
+    final data = await _sendJson('GET', '/profile', accessToken: accessToken);
+    return CustomerProfile.fromJson(data);
+  }
+
+  Future<CustomerProfile> updateProfile({
+    required String accessToken,
+    required String firstName,
+    required String lastName,
+  }) async {
+    final data = await _sendJson(
+      'PUT',
+      '/profile',
+      body: {'first_name': firstName, 'last_name': lastName},
+      accessToken: accessToken,
+    );
+    return CustomerProfile.fromJson(data);
+  }
+
+  Future<void> saveProfilePhotoUrl({
+    required String accessToken,
+    required String photoUrl,
+    required String assetId,
+  }) async {
+    await _sendJson(
+      'PUT',
+      '/profile/photo-url',
+      body: {'photo_url': photoUrl, 'asset_id': assetId},
+      accessToken: accessToken,
+    );
+  }
+
+  Future<List<EmergencyContact>> getEmergencyContacts({required String accessToken}) async {
+    final data = await _sendJson('GET', '/profile/emergency-contacts', accessToken: accessToken);
+    final raw = data['contacts'];
+    if (raw is! List) return [];
+    return raw
+        .map((e) => EmergencyContact.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  Future<EmergencyContact> addEmergencyContact({
+    required String accessToken,
+    required String name,
+    required String phone,
+    required String relationship,
+  }) async {
+    final data = await _sendJson(
+      'POST',
+      '/profile/emergency-contacts',
+      accessToken: accessToken,
+      body: {'name': name, 'phone': phone, 'relationship': relationship},
+    );
+    return EmergencyContact.fromJson(data);
+  }
+
+  Future<void> deleteEmergencyContact({
+    required String accessToken,
+    required String id,
+  }) async {
+    await _sendJson('DELETE', '/profile/emergency-contacts/$id', accessToken: accessToken);
+  }
+
   Future<CustomerProfile> me({required String accessToken}) async {
     final data = await _sendJson('GET', '/me', accessToken: accessToken);
     return CustomerProfile.fromJson(data);
@@ -93,6 +166,12 @@ class CustomerAuthApi {
           headers: headers,
           body: jsonEncode(body ?? const {}),
         ),
+        'PUT' => await _client.put(
+          uri,
+          headers: headers,
+          body: jsonEncode(body ?? const {}),
+        ),
+        'DELETE' => await _client.delete(uri, headers: headers),
         _ => throw UnsupportedError('Unsupported HTTP method: $method'),
       };
 
@@ -116,7 +195,8 @@ class CustomerAuthApi {
         return Map<String, dynamic>.from(rawData);
       }
       return const {};
-    } on ApiException {
+    } on ApiException catch (error) {
+      if (accessToken != null && error.isAuthFailure) onAuthFailure?.call();
       rethrow;
     } catch (error) {
       throw ApiException.network(error);

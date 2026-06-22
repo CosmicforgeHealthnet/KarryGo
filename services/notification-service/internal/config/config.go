@@ -8,8 +8,9 @@ import (
 )
 
 type Config struct {
-	AppEnv   string
-	HTTPAddr string
+	AppEnv    string
+	HTTPAddr  string
+	Migration bool
 
 	DatabaseURL string
 	Redis       redisx.Config
@@ -41,8 +42,9 @@ type SMTPConfig struct {
 
 func Load() Config {
 	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8106"),
+		AppEnv:    getEnv("APP_ENV", "development"),
+		HTTPAddr:  getEnv("HTTP_ADDR", ":8106"),
+		Migration: getEnvBool("MIGRATION", false),
 
 		DatabaseURL: getEnv("NOTIFICATION_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5438/notification_service?sslmode=disable"),
 		Redis: redisx.Config{
@@ -82,6 +84,20 @@ func getEnv(key string, fallback string) string {
 	}
 
 	return value
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
 }
 
 func getEnvInt(key string, fallback int) int {

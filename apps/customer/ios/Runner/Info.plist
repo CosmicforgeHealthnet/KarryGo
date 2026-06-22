@@ -66,5 +66,16 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to take your profile photo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to select your profile photo.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We use your location to find nearby drivers, estimate prices, and make pickup faster.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We use your location to find nearby drivers and estimate prices.</string>
+	<key>GMSApiKey</key>
+	<string>AIzaSyAW-L1mC7We7M41u148dBCLFAklBjfNeZ8</string>
+
 </dict>
 </plist>

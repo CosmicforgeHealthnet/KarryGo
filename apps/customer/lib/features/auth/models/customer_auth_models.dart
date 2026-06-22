@@ -9,6 +9,7 @@ class CustomerProfile {
     this.firstName,
     this.lastName,
     this.status,
+    this.photoUrl,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class CustomerProfile {
   final String? firstName;
   final String? lastName;
   final String? status;
+  final String? photoUrl;
 
   bool get requiresProfile => onboardingStatus == 'profile_required';
 
@@ -45,6 +47,7 @@ class CustomerProfile {
       onboardingStatus:
           json['onboarding_status']?.toString() ?? 'profile_required',
       status: json['status']?.toString(),
+      photoUrl: json['profile_photo_url']?.toString(),
     );
   }
 
@@ -58,6 +61,32 @@ class CustomerProfile {
       'onboarding_status': onboardingStatus,
       'status': status,
     };
+  }
+}
+
+class EmergencyContact {
+  const EmergencyContact({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.relationship,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String name;
+  final String phone;
+  final String relationship;
+  final DateTime createdAt;
+
+  factory EmergencyContact.fromJson(Map<String, dynamic> json) {
+    return EmergencyContact(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      relationship: json['relationship']?.toString() ?? '',
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
+    );
   }
 }
 

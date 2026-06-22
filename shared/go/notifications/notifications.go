@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -31,6 +32,55 @@ const (
 	DeadLetterStream = "notification:dead_letters"
 	ConsumerGroup    = "notification-service"
 )
+
+// Recipient types. These are the canonical audiences notification requests
+// target. Using these constants keeps recipient_type values consistent across
+// every service that sends notifications.
+const (
+	RecipientCustomer = "customer"
+	RecipientProvider = "provider"
+)
+
+// Event types grouped by domain. Senders should reference these constants
+// instead of hand-typing event_type strings so the catalog stays consistent
+// and templates can key off a known set of events.
+const (
+	// customer-service
+	EventCustomerAuthOTP                 = "customer.auth.otp"
+	EventCustomerProfileUpdated          = "customer.profile_updated"
+	EventCustomerPhotoUpdated            = "customer.photo_updated"
+	EventCustomerEmergencyContactAdded   = "customer.emergency_contact_added"
+	EventCustomerEmergencyContactRemoved = "customer.emergency_contact_removed"
+
+	// driver-hauling-service booking lifecycle
+	EventBookingMatched             = "booking.matched"
+	EventBookingAccepted            = "booking.accepted"
+	EventBookingUnmatched           = "booking.unmatched"
+	EventCargoPickedUp              = "cargo.picked_up"
+	EventCargoDelivered             = "cargo.delivered"
+	EventBookingCompleted           = "booking.completed"
+	EventBookingCancelled           = "booking.cancelled"
+	EventBookingCancelledByProvider = "booking.cancelled_by_provider"
+
+	// payment-wallet-service
+	EventPaymentTopupSuccess = "payment.topup_success"
+	EventPaymentSuccess      = "payment.success"
+	EventPaymentFailed       = "payment.failed"
+	EventWithdrawalCompleted = "withdrawal.completed"
+	EventWithdrawalFailed    = "withdrawal.failed"
+	EventWithdrawalReversed  = "withdrawal.reversed"
+	EventRefundCompleted     = "refund.completed"
+	EventRefundFailed        = "refund.failed"
+)
+
+// IdempotencyKey builds a deterministic idempotency key for a notification
+// request from the source service, event type, and the domain entity the event
+// is about. Because it is deterministic (no timestamp), a genuine retry of the
+// same logical event dedupes against the existing notification message instead
+// of creating a duplicate.
+func IdempotencyKey(sourceService, eventType, entityID string) string {
+	return fmt.Sprintf("%s:%s:%s", sourceService, eventType, entityID)
+}
 
 var DefaultChannels = []string{ChannelPush, ChannelWebSocket, ChannelInApp}
 
@@ -110,6 +160,12 @@ func IsValidChannel(channel string) bool {
 	default:
 		return false
 	}
+}
+
+// Notifier is the minimal interface service usecases should depend on when they
+// need to send notifications. Client implements it; tests can supply a fake.
+type Notifier interface {
+	Send(ctx context.Context, request Request) (SendResponse, error)
 }
 
 type Client struct {

@@ -3,6 +3,8 @@ package uploadhttp
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
+	"io"
 	"strings"
 
 	nethttp "net/http"
@@ -137,6 +139,23 @@ func (h *UploadHandler) DeleteFile(c *gin.Context) {
 	}
 
 	respondOK(c, gin.H{"deleted": true})
+}
+
+func (h *UploadHandler) Download(c *gin.Context) {
+	result, err := h.uploads.Download(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	defer result.Reader.Close()
+
+	c.Header("Content-Type", result.ContentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", result.Size))
+	c.Header("Content-Disposition", "inline")
+
+	if _, err := io.Copy(c.Writer, result.Reader); err != nil {
+		c.Error(err)
+	}
 }
 
 func parseMetadata(raw string) (map[string]interface{}, error) {

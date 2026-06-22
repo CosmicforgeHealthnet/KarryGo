@@ -2,6 +2,18 @@
 
 Cosmicforge Logistics is a multi-application logistics platform with four mobile apps, one admin web app, and a microservice backend.
 
+## Purpose
+
+Cosmicforge Logistics is designed to manage the full logistics journey in one connected platform. It brings customers, providers, and internal operations into a shared ecosystem so people can move between onboarding, booking, fulfillment, payment, support, and reporting without switching to separate systems.
+
+At the product level, the application is meant to:
+
+- give customers a single place to request rides, package delivery, and hauling services
+- give taxi, dispatch, and truck providers focused apps for receiving and completing jobs
+- support authentication, profiles, wallets, notifications, media uploads, and compliance workflows
+- help operations teams handle disputes, moderation, verification, and performance tracking
+- keep the codebase modular so each logistics line can grow independently without rewriting the whole platform
+
 ## Apps
 
 - apps/customer: customer mobile app

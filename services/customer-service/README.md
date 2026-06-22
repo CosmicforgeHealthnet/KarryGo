@@ -56,10 +56,47 @@ In local Docker Compose, customer-service uses:
 - `customer-postgres` on host port `5433`.
 - `customer-redis` on host port `6380`.
 
+For a pure local setup on macOS, this repo includes a helper script that starts
+Redis and Postgres, creates the customer role and database if needed, and
+applies the customer migrations:
+
+```bash
+./scripts/customer-local-bootstrap.sh
+```
+
+If you want to do it manually, the same flow is:
+
+```bash
+mkdir -p /tmp/redis-6380
+redis-server --port 6380 --dir /tmp/redis-6380 --daemonize yes
+
+mkdir -p /tmp/postgres-customer
+initdb -D /tmp/postgres-customer
+pg_ctl -D /tmp/postgres-customer -o "-p 5433" start
+
+psql -p 5433 -d template1
+```
+
+Inside `psql`, create the role and database:
+
+```sql
+CREATE USER cosmicforge_logistics WITH PASSWORD 'cosmicforge_logistics';
+CREATE DATABASE customer_service OWNER cosmicforge_logistics;
+```
+
+Then apply the customer migrations:
+
+```bash
+psql "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5433/customer_service?sslmode=disable" \
+  -f services/customer-service/migrations/001_customer_auth.sql \
+  -f services/customer-service/migrations/002_customer_email_auth.sql
+```
+
 Important environment variables:
 
 | Variable | Purpose |
 |---|---|
+| `MIGRATION` | When `true`, applies customer-service SQL migrations on local startup |
 | `CUSTOMER_DATABASE_URL` | Customer-owned Postgres connection string |
 | `CUSTOMER_REDIS_ADDR` | Customer-owned Redis address or Redis namespace endpoint |
 | `CUSTOMER_ACCESS_TOKEN_SECRET` | HMAC secret for customer access tokens |
@@ -83,6 +120,29 @@ It creates:
 
 The service expects these migrations to be applied to the customer-service
 database before handling live auth requests.
+
+## Postgres Access
+
+To log in and inspect the database:
+
+```bash
+psql "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5433/customer_service?sslmode=disable"
+```
+
+Useful queries:
+
+```sql
+\dt
+SELECT * FROM customers ORDER BY created_at DESC LIMIT 10;
+SELECT * FROM customer_sessions ORDER BY created_at DESC LIMIT 10;
+SELECT * FROM customer_auth_events ORDER BY created_at DESC LIMIT 10;
+```
+
+To leave `psql`, run:
+
+```sql
+\q
+```
 
 ## Response Format
 

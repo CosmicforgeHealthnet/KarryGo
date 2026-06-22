@@ -15,4 +15,6 @@ func RegisterUploadRoutes(group *gin.RouterGroup, uploadService *uploadusecases.
 	protected.GET("/files/:id", handler.GetFile)
 	protected.GET("/files", handler.ListFiles)
 	protected.DELETE("/files/:id", handler.DeleteFile)
+
+	group.GET("/:id/download", handler.Download)
 }

@@ -241,6 +241,44 @@ func (r *httpFakeCustomerRepository) GetByID(ctx context.Context, id string) (pr
 	return r.byID[id], nil
 }
 
+func (r *httpFakeCustomerRepository) UpdateProfilePhoto(ctx context.Context, id, assetID, photoURL string) (profilemodels.Customer, error) {
+	customer, ok := r.byID[id]
+	if !ok {
+		return profilemodels.Customer{}, nil
+	}
+	customer.ProfilePhotoURL = &photoURL
+	customer.ProfilePhotoAssetID = &assetID
+	r.byID[id] = customer
+	return customer, nil
+}
+
+func (r *httpFakeCustomerRepository) UpdateProfile(ctx context.Context, id, firstName, lastName string) (profilemodels.Customer, error) {
+	customer, ok := r.byID[id]
+	if !ok {
+		return profilemodels.Customer{}, nil
+	}
+	if firstName != "" {
+		customer.FirstName = &firstName
+	}
+	if lastName != "" {
+		customer.LastName = &lastName
+	}
+	r.byID[id] = customer
+	return customer, nil
+}
+
+func (r *httpFakeCustomerRepository) GetEmergencyContacts(ctx context.Context, customerID string) ([]profilemodels.EmergencyContact, error) {
+	return nil, nil
+}
+
+func (r *httpFakeCustomerRepository) AddEmergencyContact(ctx context.Context, customerID, name, phone, relationship string) (profilemodels.EmergencyContact, error) {
+	return profilemodels.EmergencyContact{}, nil
+}
+
+func (r *httpFakeCustomerRepository) DeleteEmergencyContact(ctx context.Context, id, customerID string) error {
+	return nil
+}
+
 type httpFakeSessionRepository struct {
 	sessions map[string]authmodels.RefreshSession
 }

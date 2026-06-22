@@ -43,6 +43,7 @@ func Run(opts Options) {
 
 	router := gin.New()
 	router.Use(httpx.RequestID())
+	router.Use(httpx.Logger())
 	router.Use(httpx.Recovery())
 	router.Use(httpx.ErrorHandler())
 

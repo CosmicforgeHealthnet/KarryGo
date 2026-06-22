@@ -35,7 +35,12 @@ func providerBearerMiddleware(secrets map[string][]byte) gin.HandlerFunc {
 			if err != nil {
 				continue
 			}
-			if claims.Type == sharedauth.TokenTypeAccess && claims.Role == "provider" && claims.Service == service {
+			// The signing secret and the service binding already prove this is a
+			// provider access token issued by the matched provider service. Provider
+			// apps use service-specific role strings (e.g. "truck_provider" for
+			// hauling), so we require a non-empty role bound to the service rather
+			// than a single hardcoded role value.
+			if claims.Type == sharedauth.TokenTypeAccess && claims.Role != "" && claims.Service == service {
 				c.Set(providerIDKey, claims.Subject)
 				c.Set(providerTypeKey, service)
 				c.Next()

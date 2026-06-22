@@ -15,6 +15,7 @@ import (
 type WalletService struct {
 	repository        *walletrepositories.PostgresWalletRepository
 	paystack          walletclients.PaystackClient
+	notifier          *walletclients.WalletNotifier
 	defaultCurrency   string
 	platformFeeBPS    int64
 	callbackBaseURL   string
@@ -25,6 +26,7 @@ type WalletService struct {
 type Options struct {
 	Repository        *walletrepositories.PostgresWalletRepository
 	Paystack          walletclients.PaystackClient
+	Notifier          *walletclients.WalletNotifier
 	DefaultCurrency   string
 	PlatformFeeBPS    int64
 	CallbackBaseURL   string
@@ -75,11 +77,11 @@ type ResolvedBankAccount struct {
 }
 
 type RequestWithdrawalInput struct {
-	ProviderType  string
-	ProviderID    string
-	BankAccountID string
-	AmountKobo    int64
-	Currency      string
+	ProviderType   string
+	ProviderID     string
+	BankAccountID  string
+	AmountKobo     int64
+	Currency       string
 	IdempotencyKey string
 }
 
@@ -92,9 +94,14 @@ type RefundInput struct {
 }
 
 func NewWalletService(opts Options) *WalletService {
+	notifier := opts.Notifier
+	if notifier == nil {
+		notifier = walletclients.NewWalletNotifier("", nil)
+	}
 	return &WalletService{
 		repository:        opts.Repository,
 		paystack:          opts.Paystack,
+		notifier:          notifier,
 		defaultCurrency:   walletmodels.DefaultCurrency(opts.DefaultCurrency),
 		platformFeeBPS:    opts.PlatformFeeBPS,
 		callbackBaseURL:   strings.TrimRight(opts.CallbackBaseURL, "/"),
@@ -169,6 +176,51 @@ func (s *WalletService) CreateTopUp(ctx context.Context, input TopUpInput) (wall
 		return walletmodels.PaymentIntent{}, apperrors.Unavailable("Paystack payment could not be initialized.", err)
 	}
 	return s.repository.UpdatePaymentIntentPaystack(ctx, intent.ID, initialized.Reference, initialized.AuthorizationURL, initialized.AccessCode)
+}
+
+// VerifyTopUp verifies a customer top-up directly with Paystack and credits the
+// wallet if the charge succeeded. It lets the app confirm a top-up immediately
+// after checkout without depending on the asynchronous Paystack webhook (which
+// cannot reach local/dev hosts). Safe to call repeatedly: the underlying credit
+// is idempotent.
+func (s *WalletService) VerifyTopUp(ctx context.Context, customerID string, reference string) (walletmodels.PaymentIntent, error) {
+	if strings.TrimSpace(reference) == "" {
+		return walletmodels.PaymentIntent{}, apperrors.BadRequest("Payment reference is required.", nil)
+	}
+	intent, err := s.repository.GetPaymentIntentByReference(ctx, reference)
+	if err != nil {
+		return walletmodels.PaymentIntent{}, err
+	}
+	if intent.CustomerID != customerID {
+		return walletmodels.PaymentIntent{}, apperrors.Forbidden("You do not have access to this payment.", nil)
+	}
+	if intent.PaymentMethod != walletmodels.PaymentMethodPaystack || intent.PaystackRef == "" {
+		return walletmodels.PaymentIntent{}, apperrors.Conflict("This payment cannot be verified.", nil)
+	}
+	// Already credited — return the current state without re-verifying.
+	if intent.Status == walletmodels.PaymentStatusCompleted {
+		return intent, nil
+	}
+
+	verified, err := s.paystack.VerifyTransaction(ctx, intent.PaystackRef)
+	if err != nil {
+		return walletmodels.PaymentIntent{}, apperrors.Unavailable("Paystack transaction could not be verified.", err)
+	}
+	if verified.Status != "success" {
+		// Not paid yet (abandoned or pending) — report the current intent state.
+		return intent, nil
+	}
+	if verified.AmountKobo != intent.AmountKobo || walletmodels.DefaultCurrency(verified.Currency) != intent.Currency {
+		return walletmodels.PaymentIntent{}, apperrors.Conflict("Paystack transaction amount does not match payment intent.", nil)
+	}
+	applied, err := s.repository.ApplyPaystackChargeSuccess(ctx, intent.PaystackRef)
+	if err != nil {
+		return walletmodels.PaymentIntent{}, err
+	}
+	// The webhook may also deliver charge.success; the idempotency key derived
+	// from the intent reference dedupes the two notifications.
+	s.notifyChargeSuccess(ctx, applied)
+	return applied, nil
 }
 
 func (s *WalletService) CreatePaymentIntent(ctx context.Context, input CreatePaymentIntentInput) (walletmodels.PaymentIntent, error) {
@@ -457,17 +509,33 @@ func (s *WalletService) processPaystackEvent(ctx context.Context, eventType stri
 		if verified.AmountKobo != intent.AmountKobo || walletmodels.DefaultCurrency(verified.Currency) != intent.Currency {
 			return apperrors.Conflict("Paystack transaction amount does not match payment intent.", nil)
 		}
-		_, err = s.repository.ApplyPaystackChargeSuccess(ctx, data.Reference)
-		return err
+		applied, err := s.repository.ApplyPaystackChargeSuccess(ctx, data.Reference)
+		if err != nil {
+			return err
+		}
+		s.notifyChargeSuccess(ctx, applied)
+		return nil
 	case "transfer.success":
-		_, err := s.repository.ApplyTransferSuccess(ctx, data.TransferCode)
-		return err
+		withdrawal, err := s.repository.ApplyTransferSuccess(ctx, data.TransferCode)
+		if err != nil {
+			return err
+		}
+		s.notifier.NotifyWithdrawalCompleted(ctx, withdrawal.ProviderID, withdrawal.Reference, withdrawal.AmountKobo)
+		return nil
 	case "transfer.failed":
-		_, err := s.repository.ApplyTransferFailure(ctx, data.TransferCode, "failed", data.Reason)
-		return err
+		withdrawal, err := s.repository.ApplyTransferFailure(ctx, data.TransferCode, "failed", data.Reason)
+		if err != nil {
+			return err
+		}
+		s.notifier.NotifyWithdrawalFailed(ctx, withdrawal.ProviderID, withdrawal.Reference, withdrawal.FailureReason)
+		return nil
 	case "transfer.reversed":
-		_, err := s.repository.ApplyTransferFailure(ctx, data.TransferCode, "reversed", data.Reason)
-		return err
+		withdrawal, err := s.repository.ApplyTransferFailure(ctx, data.TransferCode, "reversed", data.Reason)
+		if err != nil {
+			return err
+		}
+		s.notifier.NotifyWithdrawalReversed(ctx, withdrawal.ProviderID, withdrawal.Reference, withdrawal.FailureReason)
+		return nil
 	case "refund.processed":
 		_, err := s.repository.MarkRefundProcessed(ctx, data.Reference)
 		return err
@@ -477,6 +545,17 @@ func (s *WalletService) processPaystackEvent(ctx context.Context, eventType stri
 	default:
 		return nil
 	}
+}
+
+// notifyChargeSuccess routes a successful charge to the right customer
+// notification: a wallet top-up versus a booking/job payment, distinguished by
+// the intent metadata "kind" set at creation time.
+func (s *WalletService) notifyChargeSuccess(ctx context.Context, intent walletmodels.PaymentIntent) {
+	if kind, _ := intent.Metadata["kind"].(string); kind == "wallet_topup" {
+		s.notifier.NotifyTopUpSuccess(ctx, intent.CustomerID, intent.Reference, intent.AmountKobo)
+		return
+	}
+	s.notifier.NotifyPaymentSuccess(ctx, intent.CustomerID, intent.Reference, intent.AmountKobo)
 }
 
 func (s *WalletService) paystackBalanceCanCover(ctx context.Context, currency string, amountKobo int64) bool {

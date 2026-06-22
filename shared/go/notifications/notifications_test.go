@@ -47,3 +47,19 @@ func TestRequestValidateRejectsUnknownChannel(t *testing.T) {
 		t.Fatalf("expected validation error, got %v", err)
 	}
 }
+
+func TestIdempotencyKeyIsDeterministic(t *testing.T) {
+	first := IdempotencyKey("driver-hauling-service", EventBookingMatched, "booking-1")
+	second := IdempotencyKey("driver-hauling-service", EventBookingMatched, "booking-1")
+
+	if first != second {
+		t.Fatalf("expected deterministic key, got %q and %q", first, second)
+	}
+	if want := "driver-hauling-service:booking.matched:booking-1"; first != want {
+		t.Fatalf("IdempotencyKey() = %q, want %q", first, want)
+	}
+}
+
+func TestClientImplementsNotifier(t *testing.T) {
+	var _ Notifier = Client{}
+}

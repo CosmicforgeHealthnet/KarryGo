@@ -45,9 +45,13 @@ func main() {
 			Timeout: cfg.HTTPRequestTimeout,
 		},
 	}
+	// walletNotifier emits financial notifications via notification-service.
+	// No-op when PAYMENT_WALLET_NOTIFICATION_URL/SECRET are unset (local dev).
+	walletNotifier := walletclients.NewWalletNotifier(cfg.NotificationURL, cfg.NotificationSecret)
 	walletService := walletusecases.NewWalletService(walletusecases.Options{
 		Repository:        repository,
 		Paystack:          paystack,
+		Notifier:          walletNotifier,
 		DefaultCurrency:   cfg.DefaultCurrency,
 		PlatformFeeBPS:    cfg.PlatformFeeBPS,
 		CallbackBaseURL:   cfg.PublicCallbackBaseURL,

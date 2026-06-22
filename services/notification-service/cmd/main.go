@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -14,6 +14,7 @@ import (
 	messagehttp "cosmicforge/logistics/services/notification-service/internal/features/messages/http"
 	messagerepositories "cosmicforge/logistics/services/notification-service/internal/features/messages/repositories"
 	messageusecases "cosmicforge/logistics/services/notification-service/internal/features/messages/usecases"
+	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -22,11 +23,12 @@ func main() {
 	_ = godotenv.Load()
 
 	cfg := config.Load()
+	logging.Notice("notification-service config", "migration=%t database=%s redis=%s", cfg.Migration, cfg.DatabaseURL, cfg.Redis.Addr)
 
 	ctx := context.Background()
 	db, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("create notification database pool: %v", err)
+		logging.Fatal("database", "create notification database pool: %v", err)
 	}
 	defer db.Close()
 
@@ -36,6 +38,19 @@ func main() {
 		DB:       cfg.Redis.DB,
 	})
 	defer redisClient.Close()
+
+	logConnectivity(ctx, cfg.DatabaseURL, cfg.Redis.Addr, db, redisClient)
+
+	if cfg.Migration {
+		logging.Notice("migration", "mode enabled")
+		migrationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		if err := database.ApplyMigrations(migrationCtx, db); err != nil {
+			cancel()
+			logging.Fatal("migration", "apply notification-service migrations: %v", err)
+		}
+		cancel()
+		logging.Success("migration", "applied successfully")
+	}
 
 	repository := messagerepositories.NewPostgresNotificationRepository(db)
 	queue := messageclients.NewRedisQueue(redisClient, cfg.RequestStream, cfg.DeliveryStream, cfg.DeadLetterStream)
@@ -75,6 +90,23 @@ func main() {
 			messagehttp.RegisterRoutes(group, notificationService, hub, serviceauth.Secrets(cfg.ServiceSecrets))
 		},
 	})
+}
+
+func logConnectivity(ctx context.Context, databaseURL string, redisAddr string, db interface{ Ping(context.Context) error }, redisClient interface{ Ping(context.Context) *redis.StatusCmd }) {
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := db.Ping(pingCtx); err != nil {
+		logging.Error("database", "failed url=%s err=%v", databaseURL, err)
+	} else {
+		logging.Success("database", "connected url=%s", databaseURL)
+	}
+
+	if err := redisClient.Ping(pingCtx).Err(); err != nil {
+		logging.Error("redis", "failed addr=%s err=%v", redisAddr, err)
+	} else {
+		logging.Success("redis", "connected addr=%s", redisAddr)
+	}
 }
 
 func buildPushSender(cfg config.Config) messageclients.PushSender {

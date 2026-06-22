@@ -62,6 +62,9 @@ func (h *Handler) CreateTopUp(c *gin.Context) {
 		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
 		return
 	}
+	// CustomerID is always the token subject. CustomerEmail comes from the body
+	// because access-token claims carry no email; it is used only as the Paystack
+	// receipt address, not for customer lookup or authorization.
 	result, err := h.service.CreateTopUp(c.Request.Context(), walletusecases.TopUpInput{
 		CustomerID:     claims.Subject,
 		CustomerEmail:  request.CustomerEmail,
@@ -74,6 +77,20 @@ func (h *Handler) CreateTopUp(c *gin.Context) {
 		return
 	}
 	respond(c, nethttp.StatusCreated, result)
+}
+
+func (h *Handler) VerifyTopUp(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	result, err := h.service.VerifyTopUp(c.Request.Context(), claims.Subject, c.Param("reference"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, result)
 }
 
 func (h *Handler) ProviderEarnings(c *gin.Context) {

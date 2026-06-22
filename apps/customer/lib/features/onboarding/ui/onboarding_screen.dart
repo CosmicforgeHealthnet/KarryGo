@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../features/auth/state/customer_auth_controller.dart';
@@ -15,6 +17,13 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _index = 0;
+
+  // Step indices
+  static const _stepLocation = 0;
+  static const _stepLocationDenied = 1;
+  static const _stepLocationPermanent = 2;
+  static const _stepNotification = 3;
+  static const _stepUpdates = 4;
 
   static const _steps = [
     _PermissionStep(
@@ -46,7 +55,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           'Get real-time alerts and updates about your rides, deliveries, and activity.',
       imageAsset: CustomerFigmaAssets.notificationBell,
       primaryLabel: 'Enable Notification',
-      secondaryLabel: 'Enter location manually',
+      secondaryLabel: 'Skip for now',
     ),
     _PermissionStep(
       title: 'Get Updates and Reminders',
@@ -93,13 +102,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          FigmaPrimaryButton(label: step.primaryLabel, onPressed: _next),
+          FigmaPrimaryButton(
+            label: step.primaryLabel,
+            isLoading: _busy,
+            onPressed: _onPrimary,
+          ),
           if (step.secondaryLabel != null) ...[
             const SizedBox(height: 12),
             FigmaSecondaryButton(
               label: step.secondaryLabel!,
               dark: true,
-              onPressed: _next,
+              onPressed: _onSecondary,
             ),
           ],
           const Spacer(flex: 3),
@@ -108,12 +121,93 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  void _next() {
-    if (_index == _steps.length - 1) {
-      widget.controller.completeOnboarding();
-      return;
+  bool _busy = false;
+
+  Future<void> _onPrimary() async {
+    if (_busy) return;
+    switch (_index) {
+      case _stepLocation:
+        await _requestLocation();
+      case _stepLocationDenied:
+        await _openLocationSettings();
+      case _stepLocationPermanent:
+        await openAppSettings();
+        // Re-check after returning from settings; advance if now granted.
+        final status = await Permission.locationWhenInUse.status;
+        if (status.isGranted) {
+          _goTo(_stepNotification);
+        }
+      case _stepNotification:
+        await _requestNotification();
+      case _stepUpdates:
+        widget.controller.completeOnboarding();
     }
-    setState(() => _index += 1);
+  }
+
+  void _onSecondary() {
+    switch (_index) {
+      case _stepLocation:
+      case _stepLocationDenied:
+        _goTo(_stepNotification);
+      case _stepNotification:
+        _goTo(_stepUpdates);
+      case _stepUpdates:
+        widget.controller.completeOnboarding();
+    }
+  }
+
+  Future<void> _requestLocation() async {
+    setState(() => _busy = true);
+    try {
+      final status = await Permission.locationWhenInUse.request();
+      if (status.isGranted || status.isLimited) {
+        // On Android the app permission can be granted while the device
+        // Location Services (GPS) switch is still off. Check both.
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (serviceEnabled) {
+          _goTo(_stepNotification);
+        } else {
+          _goTo(_stepLocationDenied);
+        }
+      } else if (status.isPermanentlyDenied) {
+        _goTo(_stepLocationPermanent);
+      } else {
+        _goTo(_stepLocationDenied);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _openLocationSettings() async {
+    setState(() => _busy = true);
+    try {
+      // App permission may already be granted; the device GPS switch is off.
+      // Open the device location settings so the user can turn it on.
+      await Geolocator.openLocationSettings();
+      // Re-check after returning; advance if the service is now enabled.
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      final status = await Permission.locationWhenInUse.request();
+      if (enabled && (status.isGranted || status.isLimited)) {
+        _goTo(_stepNotification);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _requestNotification() async {
+    setState(() => _busy = true);
+    try {
+      await Permission.notification.request();
+      _goTo(_stepUpdates);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _goTo(int step) {
+    if (mounted) setState(() => _index = step);
   }
 }
 
