@@ -248,6 +248,7 @@ class CustomerAuthController extends ChangeNotifier {
   Future<void> startAuth({
     required CustomerAuthIdentifierType type,
     required String value,
+    CustomerAuthStatus loadingStatus = CustomerAuthStatus.phoneEntry,
   }) async {
     final normalizedValue = value.trim();
     if (normalizedValue.isEmpty) {
@@ -278,7 +279,7 @@ class CustomerAuthController extends ChangeNotifier {
 
     _setState(
       _state.copyWith(
-        status: CustomerAuthStatus.phoneEntry,
+        status: loadingStatus,
         identifierType: type,
         phone: type == CustomerAuthIdentifierType.phone
             ? normalizedValue
@@ -320,7 +321,11 @@ class CustomerAuthController extends ChangeNotifier {
       backToPhoneEntry();
       return;
     }
-    await startAuth(type: _state.identifierType, value: _state.activeIdentifier);
+    await startAuth(
+      type: _state.identifierType,
+      value: _state.activeIdentifier,
+      loadingStatus: CustomerAuthStatus.otpVerification,
+    );
   }
 
   Future<void> verifyOtp(String otp) async {

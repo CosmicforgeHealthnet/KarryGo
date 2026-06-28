@@ -19,4 +19,6 @@ func RegisterProviderAuthRoutes(group *gin.RouterGroup, authService *provideraut
 	protected := group.Group("/provider")
 	protected.Use(sharedauth.BearerMiddleware(authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
 	protected.GET("/me", handler.Me)
+	protected.POST("/phone/change/start", handler.ChangePhoneStart)
+	protected.POST("/phone/change/verify", handler.ChangePhoneVerify)
 }

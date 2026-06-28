@@ -19,6 +19,10 @@ class HaulingActiveTripView extends StatelessWidget {
     final booking = state.activeBooking!;
     final pickupLatLng = LatLng(booking.pickupLat, booking.pickupLng);
     final dropoffLatLng = LatLng(booking.dropoffLat, booking.dropoffLng);
+    final driverLoc = controller.state.providerLocation;
+    final driverLatLng = (driverLoc != null && driverLoc.hasFix)
+        ? LatLng(driverLoc.lat, driverLoc.lng)
+        : null;
     final canCancel = [
       HaulingBookingStatus.accepted,
       HaulingBookingStatus.enRoutePickup,
@@ -31,6 +35,7 @@ class HaulingActiveTripView extends StatelessWidget {
             child: HaulingMapWidget(
               pickupLatLng: pickupLatLng,
               dropoffLatLng: dropoffLatLng,
+              driverLatLng: driverLatLng,
             ),
           ),
 

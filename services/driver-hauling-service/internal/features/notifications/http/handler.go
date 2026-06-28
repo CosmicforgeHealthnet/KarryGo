@@ -13,21 +13,27 @@ import (
 )
 
 const (
-	recipientType   = notifications.RecipientProvider
 	defaultFeedSize = 50
 	maxFeedSize     = 100
 )
 
-// Handler brokers provider-app notification access to notification-service. The
-// provider app authenticates with its provider bearer token; this handler signs
-// the downstream call with the service HMAC secret. The recipient is always the
-// authenticated provider (token subject).
+// Handler brokers app notification access to notification-service. The app
+// authenticates with its bearer token; this handler signs the downstream call
+// with the service HMAC secret. The recipient is always the authenticated
+// subject, with the recipient type fixed per handler instance (provider or
+// customer) so the same handler serves both apps.
 type Handler struct {
-	client notifications.Client
+	client        notifications.Client
+	recipientType string
 }
 
 func NewHandler(client notifications.Client) *Handler {
-	return &Handler{client: client}
+	return &Handler{client: client, recipientType: notifications.RecipientProvider}
+}
+
+// NewHandlerFor builds a handler scoped to a specific recipient type.
+func NewHandlerFor(client notifications.Client, recipientType string) *Handler {
+	return &Handler{client: client, recipientType: recipientType}
 }
 
 type registerDeviceRequest struct {
@@ -54,7 +60,7 @@ func (h *Handler) ListFeed(c *gin.Context) {
 		limit = maxFeedSize
 	}
 
-	messages, err := h.client.ListMessages(c.Request.Context(), recipientType, claims.Subject, limit)
+	messages, err := h.client.ListMessages(c.Request.Context(), h.recipientType, claims.Subject, limit)
 	if err != nil {
 		httpx.Abort(c, apperrors.Unavailable("Notifications are unavailable right now.", err))
 		return
@@ -73,7 +79,7 @@ func (h *Handler) RealtimeToken(c *gin.Context) {
 		return
 	}
 
-	result, err := h.client.MintRealtimeToken(c.Request.Context(), recipientType, claims.Subject)
+	result, err := h.client.MintRealtimeToken(c.Request.Context(), h.recipientType, claims.Subject)
 	if err != nil {
 		httpx.Abort(c, apperrors.Unavailable("Realtime notifications are unavailable right now.", err))
 		return
@@ -100,7 +106,7 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 	}
 
 	if err := h.client.RegisterDevice(c.Request.Context(), notifications.DeviceInput{
-		RecipientType: recipientType,
+		RecipientType: h.recipientType,
 		RecipientID:   claims.Subject,
 		Token:         req.Token,
 		Platform:      req.Platform,

@@ -63,8 +63,15 @@ class HaulingCancelledView extends StatelessWidget {
               FigmaPrimaryButton(
                 label: 'Try again',
                 onPressed: () {
-                  controller.reset();
-                  controller.startHaulingFlow();
+                  // Re-prefill from the cancelled booking (still in state) so the
+                  // customer doesn't have to re-enter everything.
+                  final prior = state.activeBooking;
+                  if (prior != null) {
+                    controller.rebookFrom(prior);
+                  } else {
+                    controller.reset();
+                    controller.startHaulingFlow();
+                  }
                 },
               ),
               const SizedBox(height: 10),

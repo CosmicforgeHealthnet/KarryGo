@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PG_PORT="${PG_PORT:-5437}"
 REDIS_PORT="${REDIS_PORT:-6384}"
 PG_DATA_DIR="${PG_DATA_DIR:-/tmp/postgres-payment}"

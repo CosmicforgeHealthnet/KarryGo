@@ -16,6 +16,7 @@ func RegisterProfileRoutes(group *gin.RouterGroup, svc *providerprofileusecases.
 
 	protected.GET("/profile", handler.GetProfile)
 	protected.PUT("/profile", handler.UpdateProfile)
+	protected.GET("/contact-availability", handler.CheckContactAvailability)
 
 	protected.POST("/trucks", handler.CreateTruck)
 	protected.GET("/trucks", handler.ListTrucks)

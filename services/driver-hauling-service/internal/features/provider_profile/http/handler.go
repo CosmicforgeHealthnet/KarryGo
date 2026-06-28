@@ -49,10 +49,15 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 		FirstName:                    req.FirstName,
 		LastName:                     req.LastName,
 		Email:                        req.Email,
+		Phone:                        req.Phone,
 		LocationState:                req.LocationState,
 		LocationCity:                 req.LocationCity,
 		OperationMode:                req.OperationMode,
 		ServiceType:                  req.ServiceType,
+		Language:                     req.Language,
+		DriverLicenseNumber:          req.DriverLicenseNumber,
+		LicenseExpiryYear:            req.LicenseExpiryYear,
+		LicenseExpiryDate:            req.LicenseExpiryDate,
 		GovIDURL:                     req.GovIDURL,
 		DriverLicenseURL:             req.DriverLicenseURL,
 		VehicleRegURL:                req.VehicleRegURL,
@@ -72,6 +77,25 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": profile})
 }
 
+func (h *ProfileHandler) CheckContactAvailability(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	emailTaken, phoneTaken, err := h.svc.CheckContactAvailability(
+		c.Request.Context(), claims.Subject, c.Query("email"), c.Query("phone"),
+	)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": gin.H{
+		"email_taken": emailTaken,
+		"phone_taken": phoneTaken,
+	}})
+}
+
 func (h *ProfileHandler) CreateTruck(c *gin.Context) {
 	claims, ok := sharedauth.ClaimsFromContext(c)
 	if !ok {
@@ -84,14 +108,19 @@ func (h *ProfileHandler) CreateTruck(c *gin.Context) {
 		return
 	}
 	truck, err := h.svc.CreateTruck(c.Request.Context(), providerprofileusecases.CreateTruckInput{
-		ProviderID:  claims.Subject,
-		TruckType:   req.TruckType,
-		CapacityKg:  req.CapacityKg,
-		PlateNumber: req.PlateNumber,
-		Year:        req.Year,
-		Make:        req.Make,
-		Model:       req.Model,
-		Color:       req.Color,
+		ProviderID:        claims.Subject,
+		TruckType:         req.TruckType,
+		CapacityKg:        req.CapacityKg,
+		PlateNumber:       req.PlateNumber,
+		Year:              req.Year,
+		Make:              req.Make,
+		Model:             req.Model,
+		Color:             req.Color,
+		LicenseType:       req.LicenseType,
+		NumberOfAxles:     req.NumberOfAxles,
+		YearsOfExperience: req.YearsOfExperience,
+		GoodsTypes:        req.GoodsTypes,
+		HasInsurance:      req.HasInsurance,
 	})
 	if err != nil {
 		httpx.Abort(c, err)
@@ -140,16 +169,21 @@ func (h *ProfileHandler) UpdateTruck(c *gin.Context) {
 		return
 	}
 	truck, err := h.svc.UpdateTruck(c.Request.Context(), providerprofileusecases.UpdateTruckInput{
-		ID:          c.Param("id"),
-		ProviderID:  claims.Subject,
-		TruckType:   req.TruckType,
-		CapacityKg:  req.CapacityKg,
-		PlateNumber: req.PlateNumber,
-		Year:        req.Year,
-		Make:        req.Make,
-		Model:       req.Model,
-		Color:       req.Color,
-		Status:      req.Status,
+		ID:                c.Param("id"),
+		ProviderID:        claims.Subject,
+		TruckType:         req.TruckType,
+		CapacityKg:        req.CapacityKg,
+		PlateNumber:       req.PlateNumber,
+		Year:              req.Year,
+		Make:              req.Make,
+		Model:             req.Model,
+		Color:             req.Color,
+		LicenseType:       req.LicenseType,
+		NumberOfAxles:     req.NumberOfAxles,
+		YearsOfExperience: req.YearsOfExperience,
+		GoodsTypes:        req.GoodsTypes,
+		HasInsurance:      req.HasInsurance,
+		Status:            req.Status,
 	})
 	if err != nil {
 		httpx.Abort(c, err)

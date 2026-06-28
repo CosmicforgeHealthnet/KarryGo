@@ -8,18 +8,33 @@ import (
 	"cosmicforge/logistics/shared/go/notifications"
 )
 
-// RegisterNotificationRoutes wires the provider-app notification proxy. All
-// routes require a provider bearer token; the recipient is the token subject.
-// Registration is skipped when the notification client is not configured.
-func RegisterNotificationRoutes(group *gin.RouterGroup, client notifications.Client, accessSigner *sharedauth.TokenSigner) {
+// RegisterNotificationRoutes wires the provider- and customer-app notification
+// proxies. Each route requires the matching bearer token; the recipient is the
+// token subject. Registration is skipped when the notification client is not
+// configured.
+func RegisterNotificationRoutes(
+	group *gin.RouterGroup,
+	client notifications.Client,
+	accessSigner *sharedauth.TokenSigner,
+	customerSigner *sharedauth.TokenSigner,
+) {
 	if client.BaseURL == "" {
 		return
 	}
-	handler := NewHandler(client)
 
-	protected := group.Group("/provider/notifications")
-	protected.Use(sharedauth.BearerMiddleware(accessSigner, providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
-	protected.GET("", handler.ListFeed)
-	protected.POST("/realtime-token", handler.RealtimeToken)
-	protected.POST("/devices", handler.RegisterDevice)
+	providerHandler := NewHandlerFor(client, notifications.RecipientProvider)
+	provider := group.Group("/provider/notifications")
+	provider.Use(sharedauth.BearerMiddleware(accessSigner, providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
+	provider.GET("", providerHandler.ListFeed)
+	provider.POST("/realtime-token", providerHandler.RealtimeToken)
+	provider.POST("/devices", providerHandler.RegisterDevice)
+
+	// Customer realtime channel: the fast path for booking status + driver
+	// updates on the customer app, mirroring the provider setup.
+	customerHandler := NewHandlerFor(client, notifications.RecipientCustomer)
+	customer := group.Group("/customer/notifications")
+	customer.Use(sharedauth.BearerMiddleware(customerSigner, "customer", "customer"))
+	customer.GET("", customerHandler.ListFeed)
+	customer.POST("/realtime-token", customerHandler.RealtimeToken)
+	customer.POST("/devices", customerHandler.RegisterDevice)
 }

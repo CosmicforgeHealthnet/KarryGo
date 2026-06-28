@@ -102,4 +102,34 @@ class PlacesApi {
     if (location == null) return null;
     return (lat: (location['lat'] as num).toDouble(), lng: (location['lng'] as num).toDouble());
   }
+
+  /// Reverse-geocodes coordinates to a human-readable formatted address.
+  /// Returns null on any failure (missing key, network, non-OK status) so the
+  /// caller can fall back to a generic label.
+  Future<String?> reverseGeocode(double lat, double lng) async {
+    if (apiKey.isEmpty) return null;
+    final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+      'latlng': '$lat,$lng',
+      'key': apiKey,
+    });
+
+    late final http.Response response;
+    try {
+      response = await http.get(uri).timeout(const Duration(seconds: 8));
+    } catch (e) {
+      developer.log('Reverse geocode network error', name: 'PlacesApi', error: e);
+      return null;
+    }
+    if (response.statusCode != 200) return null;
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final status = body['status'] as String? ?? 'UNKNOWN';
+    if (status != 'OK') {
+      developer.log('Reverse geocode denied: $status', name: 'PlacesApi');
+      return null;
+    }
+    final results = body['results'] as List<dynamic>? ?? [];
+    if (results.isEmpty) return null;
+    return (results.first as Map<String, dynamic>)['formatted_address'] as String?;
+  }
 }

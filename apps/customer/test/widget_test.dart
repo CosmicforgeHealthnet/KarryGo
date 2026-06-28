@@ -152,12 +152,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('OTP Confirmation!'), findsOneWidget);
-    expect(find.textContaining('Local test code: 123456'), findsOneWidget);
+    expect(find.text('123456'), findsOneWidget); // debug OTP shown as large digits
 
-    await tester.enterText(find.byType(TextField).first, '123456');
+    // New 6-digit pin input: enter each digit into its own field
+    for (var i = 0; i < 6; i++) {
+      await tester.enterText(find.byType(TextField).at(i), '123456'[i]);
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Continue').first);
-    await tester.pumpAndSettle();
+    // The 6th digit triggers auto-submit; tap Continue if still on OTP screen
+    if (find.widgetWithText(FilledButton, 'Continue').evaluate().isNotEmpty) {
+      await tester.tap(find.widgetWithText(FilledButton, 'Continue').first);
+      await tester.pumpAndSettle();
+    }
 
     expect(
       find.text('How do you want to use Cosmicforge Logistics?'),

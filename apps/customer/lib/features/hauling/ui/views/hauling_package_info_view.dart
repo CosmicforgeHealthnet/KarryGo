@@ -139,7 +139,7 @@ class _HaulingPackageInfoViewState extends State<HaulingPackageInfoView> {
           ],
           FigmaPrimaryButton(
             label: 'Continue',
-            onPressed: _canContinue ? _ctrl.proceedFromPackageInfoToLocation : null,
+            onPressed: _canContinue ? _ctrl.proceedFromPackageInfoToPayment : null,
           ),
         ],
       ),

@@ -27,9 +27,22 @@ class TruckProvider {
     required this.onboardingStatus,
     this.firstName = '',
     this.lastName = '',
+    this.email = '',
     this.profilePhotoUrl,
     this.rating = 0.0,
     this.totalTrips = 0,
+    this.locationState = '',
+    this.locationCity = '',
+    this.language = '',
+    this.serviceType = '',
+    this.operationMode = '',
+    this.driverLicenseNumber = '',
+    this.licenseExpiryYear = '',
+    this.licenseExpiryDate = '',
+    this.govIdUrl = '',
+    this.driverLicenseUrl = '',
+    this.vehicleRegUrl = '',
+    this.createdAt,
   });
 
   final String id;
@@ -37,9 +50,22 @@ class TruckProvider {
   final String onboardingStatus;
   final String firstName;
   final String lastName;
+  final String email;
   final String? profilePhotoUrl;
   final double rating;
   final int totalTrips;
+  final String locationState;
+  final String locationCity;
+  final String language;
+  final String serviceType;
+  final String operationMode;
+  final String driverLicenseNumber;
+  final String licenseExpiryYear;
+  final String licenseExpiryDate;
+  final String govIdUrl;
+  final String driverLicenseUrl;
+  final String vehicleRegUrl;
+  final DateTime? createdAt;
 
   String get displayName {
     final name = '$firstName $lastName'.trim();
@@ -48,15 +74,107 @@ class TruckProvider {
 
   bool get needsProfile => onboardingStatus == 'profile_required';
 
+  bool get isVerified => onboardingStatus == 'complete';
+  bool get isProcessing => onboardingStatus == 'pending_verification';
+
+  /// Verification badge text shown on the profile header + verification screen.
+  String get verificationLabel {
+    if (isVerified) return 'Verified';
+    if (isProcessing) return 'Processing';
+    return 'Unverified';
+  }
+
+  /// Service line shown under the name (e.g. "Truck"). Falls back to "Truck"
+  /// since this is the truck-provider app.
+  String get displayServiceType {
+    final s = serviceType.trim();
+    if (s.isEmpty) return 'Truck';
+    return s[0].toUpperCase() + s.substring(1);
+  }
+
+  /// "Driving with KarryGo . 1 year" tenure label derived from createdAt.
+  String get tenureLabel {
+    final created = createdAt;
+    if (created == null) return 'New';
+    final days = DateTime.now().difference(created).inDays;
+    if (days < 30) return '$days ${days == 1 ? 'day' : 'days'}';
+    if (days < 365) {
+      final months = (days / 30).floor();
+      return '$months ${months == 1 ? 'month' : 'months'}';
+    }
+    final years = (days / 365).floor();
+    return '$years ${years == 1 ? 'year' : 'years'}';
+  }
+
+  TruckProvider copyWith({
+    String? phone,
+    String? onboardingStatus,
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? profilePhotoUrl,
+    double? rating,
+    int? totalTrips,
+    String? locationState,
+    String? locationCity,
+    String? language,
+    String? serviceType,
+    String? operationMode,
+    String? driverLicenseNumber,
+    String? licenseExpiryYear,
+    String? licenseExpiryDate,
+    String? govIdUrl,
+    String? driverLicenseUrl,
+    String? vehicleRegUrl,
+    DateTime? createdAt,
+  }) {
+    return TruckProvider(
+      id: id,
+      phone: phone ?? this.phone,
+      onboardingStatus: onboardingStatus ?? this.onboardingStatus,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      email: email ?? this.email,
+      profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
+      rating: rating ?? this.rating,
+      totalTrips: totalTrips ?? this.totalTrips,
+      locationState: locationState ?? this.locationState,
+      locationCity: locationCity ?? this.locationCity,
+      language: language ?? this.language,
+      serviceType: serviceType ?? this.serviceType,
+      operationMode: operationMode ?? this.operationMode,
+      driverLicenseNumber: driverLicenseNumber ?? this.driverLicenseNumber,
+      licenseExpiryYear: licenseExpiryYear ?? this.licenseExpiryYear,
+      licenseExpiryDate: licenseExpiryDate ?? this.licenseExpiryDate,
+      govIdUrl: govIdUrl ?? this.govIdUrl,
+      driverLicenseUrl: driverLicenseUrl ?? this.driverLicenseUrl,
+      vehicleRegUrl: vehicleRegUrl ?? this.vehicleRegUrl,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory TruckProvider.fromJson(Map<String, dynamic> j) => TruckProvider(
         id: j['id'] as String,
         phone: j['phone'] as String? ?? '',
         onboardingStatus: j['onboarding_status'] as String? ?? 'profile_required',
         firstName: j['first_name'] as String? ?? '',
         lastName: j['last_name'] as String? ?? '',
+        email: j['email'] as String? ?? '',
         profilePhotoUrl: j['profile_photo_url'] as String?,
         rating: (j['rating'] as num? ?? 0).toDouble(),
         totalTrips: (j['total_trips'] as num? ?? 0).toInt(),
+        locationState: j['location_state'] as String? ?? '',
+        locationCity: j['location_city'] as String? ?? '',
+        language: j['language'] as String? ?? '',
+        serviceType: j['service_type'] as String? ?? '',
+        operationMode: j['operation_mode'] as String? ?? '',
+        driverLicenseNumber: j['driver_license_number'] as String? ?? '',
+        licenseExpiryYear: j['license_expiry_year'] as String? ?? '',
+        licenseExpiryDate: j['license_expiry_date'] as String? ?? '',
+        govIdUrl: j['gov_id_url'] as String? ?? '',
+        driverLicenseUrl: j['driver_license_url'] as String? ?? '',
+        vehicleRegUrl: j['vehicle_reg_url'] as String? ?? '',
+        createdAt: j['created_at'] != null ? DateTime.tryParse(j['created_at'] as String) : null,
       );
 }
 
@@ -74,7 +192,7 @@ class OtpChallenge {
       );
 }
 
-// Truck model (for assign-truck screen and listings)
+// Truck model (for assign-truck screen, listings, and the Truck Information screens)
 @immutable
 class ProviderTruck {
   const ProviderTruck({
@@ -83,6 +201,15 @@ class ProviderTruck {
     required this.capacityKg,
     this.plateNumber = '',
     this.status = 'active',
+    this.year,
+    this.make = '',
+    this.model = '',
+    this.color = '',
+    this.licenseType = '',
+    this.numberOfAxles = '',
+    this.yearsOfExperience = '',
+    this.goodsTypes = const [],
+    this.hasInsurance = false,
   });
 
   final String id;
@@ -90,17 +217,19 @@ class ProviderTruck {
   final int capacityKg;
   final String plateNumber;
   final String status;
+  final int? year;
+  final String make;
+  final String model;
+  final String color;
+  final String licenseType;
+  final String numberOfAxles;
+  final String yearsOfExperience;
+  final List<String> goodsTypes;
+  final bool hasInsurance;
 
   bool get isActive => status == 'active';
 
-  String get displayType => switch (truckType) {
-        'flatbed' => 'Flatbed',
-        'container' => 'Container',
-        'tipper' => 'Tipper',
-        'van' => 'Van',
-        'refrigerated' => 'Refrigerated',
-        _ => truckType,
-      };
+  String get displayType => truckTypeLabel(truckType);
 
   factory ProviderTruck.fromJson(Map<String, dynamic> j) => ProviderTruck(
         id: j['id'] as String,
@@ -108,8 +237,54 @@ class ProviderTruck {
         capacityKg: (j['capacity_kg'] as num? ?? 0).toInt(),
         plateNumber: j['plate_number'] as String? ?? '',
         status: j['status'] as String? ?? 'active',
+        year: (j['year'] as num?)?.toInt(),
+        make: j['make'] as String? ?? '',
+        model: j['model'] as String? ?? '',
+        color: j['color'] as String? ?? '',
+        licenseType: j['license_type'] as String? ?? '',
+        numberOfAxles: j['number_of_axles'] as String? ?? '',
+        yearsOfExperience: j['years_of_experience'] as String? ?? '',
+        goodsTypes: (j['goods_types'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        hasInsurance: j['has_insurance'] as bool? ?? false,
       );
 }
+
+/// Truck-type slug → display label. Covers the original seeded slugs plus the
+/// options in the Truck Information form ("Select Truck Type").
+String truckTypeLabel(String slug) => switch (slug) {
+      'flatbed' => 'Flatbed Truck',
+      'container' => 'Container',
+      'tipper' => 'Tipper',
+      'van' => 'Van',
+      'refrigerated' => 'Refrigerated Truck',
+      'pickup' => 'Pickup Truck',
+      'box' => 'Box Truck',
+      'tanker' => 'Tanker',
+      'trailer' => 'Trailer (Articulated Truck)',
+      'dump' => 'Dump Truck',
+      'lowbed' => 'Lowbed Truck',
+      'crane' => 'Crane Truck',
+      'other' => 'Other',
+      _ => slug.isEmpty ? '' : slug,
+    };
+
+/// Truck-type options for the Truck Information form, matching the Figma
+/// "Select Truck Type" dropdown. Value is the slug stored by the backend.
+const providerTruckTypeOptions = <({String slug, String label})>[
+  (slug: 'pickup', label: 'Pickup Truck'),
+  (slug: 'box', label: 'Box Truck'),
+  (slug: 'flatbed', label: 'Flatbed Truck'),
+  (slug: 'refrigerated', label: 'Refrigerated Truck'),
+  (slug: 'tanker', label: 'Tanker'),
+  (slug: 'trailer', label: 'Trailer (Articulated Truck)'),
+  (slug: 'dump', label: 'Dump Truck'),
+  (slug: 'lowbed', label: 'Lowbed Truck'),
+  (slug: 'crane', label: 'Crane Truck'),
+  (slug: 'container', label: 'Container'),
+  (slug: 'van', label: 'Van'),
+  (slug: 'tipper', label: 'Tipper'),
+  (slug: 'other', label: 'Other'),
+];
 
 // Provider booking model (incoming request / active trip)
 @immutable

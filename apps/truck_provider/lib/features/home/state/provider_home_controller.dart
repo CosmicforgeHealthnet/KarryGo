@@ -2,11 +2,18 @@ import 'dart:async';
 
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../auth/models/provider_auth_models.dart';
 import '../../auth/state/provider_auth_controller.dart';
 import '../../notifications/data/provider_realtime_listener.dart';
 import '../data/provider_api.dart';
+
+/// Lagos city-center fallback used when the device location is unavailable
+/// (permission denied, services off, or a lookup error). Going online must never
+/// be blocked by a location failure, so we degrade to this instead.
+const _fallbackLat = 6.5244;
+const _fallbackLng = 3.3792;
 
 enum ProviderHomeStatus {
   /// Dashboard / Requests / other tabs — no active trip
@@ -109,13 +116,39 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      await _api.setOnline(accessToken: token, lat: 6.5244, lng: 3.3792);
+      final pos = await _currentPosition();
+      await _api.setOnline(accessToken: token, lat: pos.$1, lng: pos.$2);
       _emit(_state.copyWith(isOnline: true, isLoading: false));
       _startHeartbeat();
       _startPolling();
       _startRealtime();
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+    }
+  }
+
+  /// Resolves the device's current position for availability + matching. Returns
+  /// the Lagos fallback (never throws) so going online is never blocked by a
+  /// permission prompt or a disabled location service.
+  Future<(double, double)> _currentPosition() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        return (_fallbackLat, _fallbackLng);
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return (_fallbackLat, _fallbackLng);
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      return (pos.latitude, pos.longitude);
+    } catch (_) {
+      return (_fallbackLat, _fallbackLng);
     }
   }
 
@@ -146,17 +179,48 @@ class ProviderHomeController extends ChangeNotifier {
     }
   }
 
+  /// Re-syncs the in-memory online state with the backend on app startup.
+  ///
+  /// The provider's online status is persisted server-side in Redis (with a TTL
+  /// refreshed by heartbeats), so a quick refresh/restart should keep them
+  /// online. We only restore the UI + background loops here — we deliberately do
+  /// NOT re-announce via `setOnline` (the provider is already online server-side
+  /// and re-posting would overwrite their location). The immediate heartbeat
+  /// refreshes the backend lat/lng + TTL.
+  Future<void> restoreOnlineStatus() async {
+    final token = _token;
+    if (token == null || _state.isOnline) return;
+    try {
+      final online = await _api.getAvailability(accessToken: token);
+      if (!online) return;
+      _emit(_state.copyWith(isOnline: true));
+      unawaited(_sendHeartbeat());
+      _startHeartbeat();
+      _startPolling();
+      _startRealtime();
+    } catch (_) {
+      // Leave the provider offline in the UI if the check fails; they can toggle
+      // manually.
+    }
+  }
+
   // ─── Heartbeat ────────────────────────────────────────────────────────────
 
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      final token = _token;
-      if (token == null) return;
-      try {
-        await _api.heartbeat(accessToken: token, lat: 6.5244, lng: 3.3792);
-      } catch (_) {}
-    });
+    _heartbeatTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _sendHeartbeat(),
+    );
+  }
+
+  Future<void> _sendHeartbeat() async {
+    final token = _token;
+    if (token == null) return;
+    try {
+      final pos = await _currentPosition();
+      await _api.heartbeat(accessToken: token, lat: pos.$1, lng: pos.$2);
+    } catch (_) {}
   }
 
   void _stopHeartbeat() {
@@ -282,6 +346,34 @@ class ProviderHomeController extends ChangeNotifier {
 
   // ─── Trip lifecycle ───────────────────────────────────────────────────────
 
+  Future<void> markEnRoutePickup() async {
+    final token = _token;
+    final booking = _state.activeBooking;
+    if (token == null || booking == null) return;
+
+    _emit(_state.copyWith(isLoading: true, clearError: true));
+    try {
+      final updated = await _api.markEnRoutePickup(accessToken: token, bookingId: booking.id);
+      _emit(_state.copyWith(isLoading: false, activeBooking: updated));
+    } catch (e) {
+      _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+    }
+  }
+
+  Future<void> markArrived() async {
+    final token = _token;
+    final booking = _state.activeBooking;
+    if (token == null || booking == null) return;
+
+    _emit(_state.copyWith(isLoading: true, clearError: true));
+    try {
+      final updated = await _api.markArrived(accessToken: token, bookingId: booking.id);
+      _emit(_state.copyWith(isLoading: false, activeBooking: updated));
+    } catch (e) {
+      _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+    }
+  }
+
   Future<void> confirmPickup() async {
     final token = _token;
     final booking = _state.activeBooking;
@@ -290,6 +382,20 @@ class ProviderHomeController extends ChangeNotifier {
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
       final updated = await _api.confirmPickup(accessToken: token, bookingId: booking.id);
+      _emit(_state.copyWith(isLoading: false, activeBooking: updated));
+    } catch (e) {
+      _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+    }
+  }
+
+  Future<void> markEnRouteDelivery() async {
+    final token = _token;
+    final booking = _state.activeBooking;
+    if (token == null || booking == null) return;
+
+    _emit(_state.copyWith(isLoading: true, clearError: true));
+    try {
+      final updated = await _api.markEnRouteDelivery(accessToken: token, bookingId: booking.id);
       _emit(_state.copyWith(isLoading: false, activeBooking: updated));
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));

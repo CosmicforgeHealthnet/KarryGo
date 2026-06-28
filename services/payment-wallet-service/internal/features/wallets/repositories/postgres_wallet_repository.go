@@ -427,6 +427,29 @@ func (r *PostgresWalletRepository) GetProviderBankAccount(ctx context.Context, p
 	return scanProviderBankAccount(row)
 }
 
+func (r *PostgresWalletRepository) ListProviderBankAccounts(ctx context.Context, providerType string, providerID string) ([]walletmodels.ProviderBankAccount, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id::text, provider_type, provider_id, bank_code, bank_name, account_number, account_name, recipient_code, currency, status, created_at, updated_at
+		FROM provider_bank_accounts
+		WHERE provider_type = $1 AND provider_id = $2
+		ORDER BY created_at DESC
+	`, providerType, providerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	accounts := []walletmodels.ProviderBankAccount{}
+	for rows.Next() {
+		account, err := scanProviderBankAccount(rows)
+		if err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, account)
+	}
+	return accounts, rows.Err()
+}
+
 func (r *PostgresWalletRepository) GetProviderBankAccountByRecipient(ctx context.Context, recipientCode string) (walletmodels.ProviderBankAccount, error) {
 	row := r.db.QueryRow(ctx, `
 		SELECT id::text, provider_type, provider_id, bank_code, bank_name, account_number, account_name, recipient_code, currency, status, created_at, updated_at

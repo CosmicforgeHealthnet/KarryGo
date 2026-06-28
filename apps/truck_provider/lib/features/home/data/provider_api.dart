@@ -4,6 +4,8 @@ import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.da
 import 'package:http/http.dart' as http;
 
 import '../../auth/models/provider_auth_models.dart';
+import '../../earnings/models/earnings_models.dart';
+import '../../trips/models/customer_review.dart';
 
 class ProviderApi {
   ProviderApi({required ApiCoreConfig config, http.Client? client})
@@ -35,11 +37,23 @@ class ProviderApi {
     await _post('/provider/availability/heartbeat', {'lat': lat, 'lng': lng}, accessToken: accessToken);
   }
 
+  Future<bool> getAvailability({required String accessToken}) async {
+    final data = await _get('/provider/availability', accessToken: accessToken);
+    return data['status'] == 'online';
+  }
+
   // ─── Trucks ───────────────────────────────────────────────────────────────
 
   Future<List<ProviderTruck>> listTrucks({required String accessToken}) async {
     final list = await _getList('/provider/trucks', accessToken: accessToken);
     return list.map((e) => ProviderTruck.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+  }
+
+  // ─── Earnings ─────────────────────────────────────────────────────────────
+
+  Future<ProviderEarnings> getEarnings({required String accessToken}) async {
+    final data = await _get('/provider/earnings', accessToken: accessToken);
+    return ProviderEarnings.fromJson(data);
   }
 
   // ─── Bookings ─────────────────────────────────────────────────────────────
@@ -48,6 +62,24 @@ class ProviderApi {
     final q = status != null ? '?status=$status&limit=20' : '?limit=20';
     final list = await _getList('/provider/bookings$q', accessToken: accessToken);
     return list.map((e) => ProviderBooking.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+  }
+
+  Future<ProviderBooking> getBooking({required String accessToken, required String bookingId}) async {
+    final data = await _get('/provider/bookings/$bookingId', accessToken: accessToken);
+    return ProviderBooking.fromJson(data);
+  }
+
+  /// Fetches the customer's review for a completed booking. Returns null when no
+  /// review exists yet (the endpoint responds 404), which the trip detail screen
+  /// treats as "no review submitted".
+  Future<CustomerReview?> getBookingReview({required String accessToken, required String bookingId}) async {
+    try {
+      final data = await _get('/provider/bookings/$bookingId/review', accessToken: accessToken);
+      return CustomerReview.fromJson(data);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
   }
 
   Future<ProviderBooking> acceptBooking({required String accessToken, required String bookingId}) async {
@@ -60,8 +92,23 @@ class ProviderApi {
     return ProviderBooking.fromJson(data);
   }
 
+  Future<ProviderBooking> markEnRoutePickup({required String accessToken, required String bookingId}) async {
+    final data = await _put('/provider/bookings/$bookingId/en-route-pickup', {}, accessToken: accessToken);
+    return ProviderBooking.fromJson(data);
+  }
+
+  Future<ProviderBooking> markArrived({required String accessToken, required String bookingId}) async {
+    final data = await _put('/provider/bookings/$bookingId/arrived', {}, accessToken: accessToken);
+    return ProviderBooking.fromJson(data);
+  }
+
   Future<ProviderBooking> confirmPickup({required String accessToken, required String bookingId}) async {
     final data = await _put('/provider/bookings/$bookingId/pickup-confirmed', {}, accessToken: accessToken);
+    return ProviderBooking.fromJson(data);
+  }
+
+  Future<ProviderBooking> markEnRouteDelivery({required String accessToken, required String bookingId}) async {
+    final data = await _put('/provider/bookings/$bookingId/en-route-delivery', {}, accessToken: accessToken);
     return ProviderBooking.fromJson(data);
   }
 
@@ -101,6 +148,17 @@ class ProviderApi {
         headers: _headers(accessToken),
         body: jsonEncode(body),
       );
+      return _unwrap(response);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException.network(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> _get(String path, {required String accessToken}) async {
+    try {
+      final response = await _client.get(_config.uri(path), headers: _headers(accessToken));
       return _unwrap(response);
     } on ApiException {
       rethrow;

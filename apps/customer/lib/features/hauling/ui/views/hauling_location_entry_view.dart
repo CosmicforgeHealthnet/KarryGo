@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../data/places_api.dart';
@@ -31,6 +33,8 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
   List<PlaceSuggestion> _dropoffSuggestions = [];
   bool _pickupLoading = false;
   bool _dropoffLoading = false;
+  // true while resolving the device's current location
+  bool _locatingCurrent = false;
   // surfaced Places API failure (REQUEST_DENIED, billing, network, etc.)
   String? _suggestionsError;
   // tracks which field is active to show its suggestions
@@ -44,8 +48,14 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
   LatLng? get _dropoffLatLng =>
       _state.dropoffAddress.isNotEmpty ? LatLng(_state.dropoffLat, _state.dropoffLng) : null;
 
+  // Require resolved (non-null-island) coordinates for both points: a bare
+  // address string isn't enough — the backend rejects (0,0) and matching needs
+  // real geometry to compute distance and find nearby trucks.
   bool get _canProceed =>
-      _state.pickupAddress.isNotEmpty && _state.dropoffAddress.isNotEmpty;
+      _hasRealCoords(_state.pickupLat, _state.pickupLng) &&
+      _hasRealCoords(_state.dropoffLat, _state.dropoffLng);
+
+  bool _hasRealCoords(double lat, double lng) => !(lat == 0 && lng == 0);
 
   @override
   void initState() {
@@ -139,6 +149,71 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
     }
   }
 
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  /// Resolves the device's current position, reverse-geocodes it to an address,
+  /// and fills the active field (defaults to pickup). Mirrors the permission /
+  /// service handling used by the home-map "locate me" button.
+  Future<void> _useCurrentLocation() async {
+    if (_locatingCurrent) return;
+    final target = _activeField ?? _ActiveField.pickup;
+    setState(() {
+      _locatingCurrent = true;
+      if (target == _ActiveField.pickup) {
+        _pickupLoading = true;
+      } else {
+        _dropoffLoading = true;
+      }
+    });
+    try {
+      var permission = await Permission.locationWhenInUse.status;
+      if (!permission.isGranted && !permission.isLimited) {
+        permission = await Permission.locationWhenInUse.request();
+      }
+      if (!permission.isGranted && !permission.isLimited) {
+        _showSnack('Enable location access to use your current location.');
+        return;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _showSnack('Turn on device location to use your current location.');
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (!mounted) return;
+      final address = await widget.placesApi.reverseGeocode(pos.latitude, pos.longitude) ??
+          'Current location';
+      if (!mounted) return;
+      if (target == _ActiveField.pickup) {
+        _pickupCtrl.text = address;
+        _ctrl.setPickupLocation(address, pos.latitude, pos.longitude);
+        setState(() => _pickupSuggestions = []);
+      } else {
+        _dropoffCtrl.text = address;
+        _ctrl.setDropoffLocation(address, pos.latitude, pos.longitude);
+        setState(() => _dropoffSuggestions = []);
+      }
+    } catch (_) {
+      _showSnack('Could not get your location. Try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _locatingCurrent = false;
+          _pickupLoading = false;
+          _dropoffLoading = false;
+          _activeField = null;
+        });
+      }
+    }
+  }
+
   Future<void> _selectPickup(PlaceSuggestion suggestion) async {
     _pickupCtrl.text = suggestion.description;
     setState(() {
@@ -208,7 +283,7 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
               elevation: 2,
               child: InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () => widget.controller.backToPackageInfo(),
+                onTap: () => Navigator.of(context).pop(),
                 child: const Padding(
                   padding: EdgeInsets.all(8),
                   child: Icon(Icons.arrow_back, color: CustomerFigmaColors.text, size: 20),
@@ -217,19 +292,33 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
             ),
           ),
 
-          // Bottom panel
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
+          // Bottom panel. Padded on the OUTSIDE by the keyboard inset so the
+          // whole sheet lifts to rest just above the keyboard instead of having
+          // its content pushed up inside a bottom-aligned, height-capped box
+          // (which made the card jump to the top of the screen on focus).
+          Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+              ),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+              padding: const EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 12,
+                bottom: 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   // Drag handle
                   Center(
                     child: Container(
@@ -242,27 +331,48 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Discount banner
+                  // Discount banner — matches mockup 1733
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5EE),
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: CustomerFigmaColors.border),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.local_offer_outlined, color: CustomerFigmaColors.primary, size: 16),
-                        SizedBox(width: 8),
-                        Text(
-                          '10% off your first truck booking!',
-                          style: TextStyle(
-                            color: CustomerFigmaColors.darkGreen,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                        Container(
+                          width: 32, height: 32,
+                          decoration: const BoxDecoration(
+                            color: CustomerFigmaColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check, color: Colors.white, size: 18),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '10% off first booking',
+                                style: TextStyle(
+                                  color: CustomerFigmaColors.text,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                'View Details',
+                                style: TextStyle(
+                                  color: CustomerFigmaColors.muted,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Spacer(),
-                        Icon(Icons.chevron_right, color: CustomerFigmaColors.primary, size: 16),
+                        const Icon(Icons.chevron_right, color: CustomerFigmaColors.muted, size: 18),
                       ],
                     ),
                   ),
@@ -273,12 +383,12 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
                     style: TextStyle(
                       color: CustomerFigmaColors.text,
                       fontWeight: FontWeight.w800,
-                      fontSize: 18,
+                      fontSize: 20,
                     ),
                   ),
                   const SizedBox(height: 2),
                   const Text(
-                    'Tell us your pickup and destination',
+                    'Tell us your destination',
                     style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
@@ -293,6 +403,41 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
                     onDropoffChanged: _onDropoffChanged,
                     onPickupTap: () => setState(() => _activeField = _ActiveField.pickup),
                     onDropoffTap: () => setState(() => _activeField = _ActiveField.dropoff),
+                  ),
+
+                  const SizedBox(height: 10),
+                  // Use my current location — fills the active field (pickup by
+                  // default) with the device's reverse-geocoded address.
+                  InkWell(
+                    onTap: _locatingCurrent ? null : _useCurrentLocation,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          _locatingCurrent
+                              ? const SizedBox(
+                                  width: 18, height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: CustomerFigmaColors.primary,
+                                  ),
+                                )
+                              : const Icon(Icons.my_location,
+                                  color: CustomerFigmaColors.primary, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            _activeField == _ActiveField.dropoff
+                                ? 'Use my current location for drop off'
+                                : 'Use my current location',
+                            style: const TextStyle(
+                              color: CustomerFigmaColors.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
 
                   // Places API error (REQUEST_DENIED, billing, network, etc.)
@@ -392,9 +537,10 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
                     isLoading: _state.isLoading,
                     onPressed: _canProceed ? _ctrl.checkAvailabilityAndProceed : null,
                   ),
-                  SizedBox(height: MediaQuery.of(context).padding.bottom),
-                ],
+                  ],
+                ),
               ),
+            ),
             ),
           ),
         ],
@@ -490,38 +636,62 @@ class _LocationInputCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Pickup field
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 10, 14, 0),
+                    child: Text(
+                      'Pick-up',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                   TextField(
                     controller: pickupCtrl,
                     onChanged: onPickupChanged,
                     onTap: onPickupTap,
                     textInputAction: TextInputAction.next,
+                    style: const TextStyle(color: CustomerFigmaColors.text, fontSize: 13, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
-                      hintText: 'Choose pick up point',
-                      hintStyle: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 14),
+                      hintText: 'Enter pick up address',
+                      hintStyle: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
                       filled: true,
                       fillColor: Colors.transparent,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
-                      contentPadding: const EdgeInsets.fromLTRB(0, 14, 14, 14),
+                      contentPadding: const EdgeInsets.fromLTRB(0, 4, 14, 10),
                     ),
                   ),
                   const Divider(height: 1, color: CustomerFigmaColors.border),
                   // Dropoff field
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 10, 14, 0),
+                    child: Text(
+                      'Drop off (optional)',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                   TextField(
                     controller: dropoffCtrl,
                     onChanged: onDropoffChanged,
                     onTap: onDropoffTap,
                     textInputAction: TextInputAction.done,
+                    style: const TextStyle(color: CustomerFigmaColors.text, fontSize: 13, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
-                      hintText: 'Choose your destination',
-                      hintStyle: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 14),
+                      hintText: 'Enter destination address',
+                      hintStyle: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
                       filled: true,
                       fillColor: Colors.transparent,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
-                      contentPadding: const EdgeInsets.fromLTRB(0, 14, 14, 14),
+                      contentPadding: const EdgeInsets.fromLTRB(0, 4, 14, 10),
                     ),
                   ),
                 ],

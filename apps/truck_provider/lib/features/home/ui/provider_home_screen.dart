@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../auth/state/provider_auth_controller.dart';
+import '../../earnings/state/provider_earnings_controller.dart';
+import '../../earnings/ui/provider_earnings_screen.dart';
+import '../../profile/state/provider_profile_controller.dart';
+import '../../profile/ui/provider_profile_screen.dart';
+import '../../disputes/state/provider_dispute_controller.dart';
+import '../../disputes/ui/provider_log_disputes_screen.dart';
+import '../../trips/state/provider_trips_controller.dart';
+import '../../trips/ui/provider_trips_screen.dart';
+import '../../wallet/state/provider_withdrawal_controller.dart';
+import '../../wallet/ui/provider_withdrawal_form_screen.dart';
 import '../state/provider_home_controller.dart';
 import 'screens/provider_active_trip_screen.dart';
 import 'screens/provider_dashboard_screen.dart';
@@ -15,10 +26,20 @@ class ProviderHomeScreen extends StatefulWidget {
     super.key,
     required this.authController,
     required this.homeController,
+    required this.profileController,
+    required this.earningsController,
+    required this.withdrawalController,
+    required this.disputeController,
+    required this.tripsController,
   });
 
   final ProviderAuthController authController;
   final ProviderHomeController homeController;
+  final ProviderProfileController profileController;
+  final ProviderEarningsController earningsController;
+  final ProviderWithdrawalController withdrawalController;
+  final ProviderDisputeController disputeController;
+  final ProviderTripsController tripsController;
 
   @override
   State<ProviderHomeScreen> createState() => _ProviderHomeScreenState();
@@ -28,15 +49,12 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
   int _tabIndex = 0;
 
   void _onTabTap(int index) {
-    if (index == 2 || index == 3) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Coming soon'),
-          duration: Duration(seconds: 1),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
+    // Refresh the relevant tab's data when it's opened.
+    if (index == 2) {
+      widget.tripsController.load();
+    }
+    if (index == 3) {
+      widget.earningsController.load();
     }
     setState(() => _tabIndex = index);
   }
@@ -44,6 +62,25 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
   void _openNotifications() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ProviderNotificationsScreen()),
+    );
+  }
+
+  void _openWithdrawal() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProviderWithdrawalFormScreen(controller: widget.withdrawalController),
+      ),
+    );
+  }
+
+  void _openDisputes() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProviderLogDisputesScreen(
+          disputeController: widget.disputeController,
+          earningsController: widget.earningsController,
+        ),
+      ),
     );
   }
 
@@ -79,9 +116,16 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
                 homeController: widget.homeController,
                 state: state,
               ),
-              const SizedBox.shrink(),
-              const SizedBox.shrink(),
-              _ProfileTab(authController: widget.authController),
+              ProviderTripsScreen(controller: widget.tripsController),
+              ProviderEarningsScreen(
+                controller: widget.earningsController,
+                onWithdraw: _openWithdrawal,
+                onDispute: _openDisputes,
+              ),
+              ProviderProfileScreen(
+                authController: widget.authController,
+                profileController: widget.profileController,
+              ),
             ],
           ),
           bottomNavigationBar: _ProviderBottomNav(
@@ -108,12 +152,12 @@ class _ProviderBottomNav extends StatelessWidget {
   final int pendingCount;
   final ValueChanged<int> onTap;
 
-  static const _items = [
-    (Icons.home_rounded, 'Home'),
-    (Icons.swap_vert_rounded, 'Requests'),
-    (Icons.calendar_today_rounded, 'Calendar'),
-    (Icons.credit_card_rounded, 'Card'),
-    (Icons.person_rounded, 'Profile'),
+  static final _items = <(_NavIcon, String)>[
+    (_NavIcon.svg('assets/figma/House_01.svg'), 'Home'),
+    (_NavIcon.svg('assets/figma/Group 1000004752.svg'), 'Requests'),
+    (_NavIcon.icon(Icons.calendar_month_rounded), 'Trips'),
+    (_NavIcon.icon(Icons.account_balance_wallet_rounded), 'Earnings'),
+    (_NavIcon.svg('assets/figma/user.svg'), 'Profile'),
   ];
 
   @override
@@ -155,7 +199,7 @@ class _NavItem extends StatelessWidget {
     this.badge,
   });
 
-  final IconData icon;
+  final _NavIcon icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -179,7 +223,7 @@ class _NavItem extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: selected ? Colors.white : kProviderMuted, size: 22),
+                icon.build(selected ? Colors.white : kProviderMuted),
                 if (selected) ...[
                   const SizedBox(width: 8),
                   Text(
@@ -215,108 +259,26 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-// ─── Profile tab ──────────────────────────────────────────────────────────────
+// ─── Nav icon descriptor (asset SVG or Material icon) ─────────────────────────
 
-class _ProfileTab extends StatelessWidget {
-  const _ProfileTab({required this.authController});
+class _NavIcon {
+  const _NavIcon._({this.assetPath, this.iconData});
+  factory _NavIcon.svg(String path) => _NavIcon._(assetPath: path);
+  factory _NavIcon.icon(IconData data) => _NavIcon._(iconData: data);
 
-  final ProviderAuthController authController;
+  final String? assetPath;
+  final IconData? iconData;
 
-  @override
-  Widget build(BuildContext context) {
-    final provider = authController.state.session?.provider;
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Profile',
-          style: TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 17),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: kProviderGreenTint,
-                shape: BoxShape.circle,
-                border: Border.all(color: kProviderGreen, width: 2),
-              ),
-              child: provider?.profilePhotoUrl != null
-                  ? ClipOval(child: Image.network(provider!.profilePhotoUrl!, fit: BoxFit.cover))
-                  : const Icon(Icons.person_rounded, color: kProviderGreen, size: 40),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              provider?.displayName ?? 'Provider',
-              style: const TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 18),
-            ),
-            Text(provider?.phone ?? '', style: const TextStyle(color: kProviderMuted, fontSize: 13)),
-            const SizedBox(height: 32),
-            _MenuItem(icon: Icons.local_shipping_rounded, label: 'My Trucks', onTap: () {}),
-            _MenuItem(icon: Icons.history_rounded, label: 'Trip History', onTap: () {}),
-            _MenuItem(icon: Icons.support_agent_rounded, label: 'Support', onTap: () {}),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => authController.logout(),
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Sign out'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MenuItem extends StatelessWidget {
-  const _MenuItem({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kProviderSurface,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: kProviderGreen, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(color: kProviderText, fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: kProviderMuted, size: 20),
-          ],
-        ),
-      ),
-    );
+  Widget build(Color color) {
+    final path = assetPath;
+    if (path != null) {
+      return SvgPicture.asset(
+        path,
+        width: 22,
+        height: 22,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      );
+    }
+    return Icon(iconData, color: color, size: 22);
   }
 }

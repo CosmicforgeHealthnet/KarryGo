@@ -29,7 +29,14 @@ type createBookingRequest struct {
 	PackageContent     string     `json:"package_content"`
 	PackageSize        string     `json:"package_size"`
 	IsFragile          bool       `json:"is_fragile"`
+	PaymentMethod      string     `json:"payment_method"`
 	ScheduledAt        *time.Time `json:"scheduled_at"`
+}
+
+// initiateCardPaymentRequest carries the email Paystack requires to start the
+// up-front card payment for a booking.
+type initiateCardPaymentRequest struct {
+	CustomerEmail string `json:"customer_email"`
 }
 
 type submitReviewRequest struct {

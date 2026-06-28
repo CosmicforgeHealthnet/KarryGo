@@ -67,6 +67,18 @@ enum HaulingBookingStatus {
     HaulingBookingStatus.unknown            => 'Unknown',
   };
 
+  /// Short label used on the Trips list status pill (Figma:
+  /// Completed / Ongoing… / Upcoming / Cancelled).
+  String get tripChipLabel => switch (this) {
+    HaulingBookingStatus.completed => 'Completed',
+    HaulingBookingStatus.cancelled => 'Cancelled',
+    HaulingBookingStatus.unmatched => 'Cancelled',
+    HaulingBookingStatus.delivered => 'Completed',
+    _ when isSearching => 'Upcoming',
+    _ when isActive => 'Ongoing...',
+    _ => 'Ongoing...',
+  };
+
   String get activeTripHeading => switch (this) {
     HaulingBookingStatus.accepted        => 'Driver assigned, arriving soon',
     HaulingBookingStatus.enRoutePickup   => 'Driver is on the way',
@@ -84,6 +96,14 @@ enum WeightCategory {
   moderate,
   heavy,
   veryHeavy;
+
+  /// Reverse of `.name` (stored on the booking) — null when it doesn't match.
+  static WeightCategory? fromName(String name) {
+    for (final c in WeightCategory.values) {
+      if (c.name == name) return c;
+    }
+    return null;
+  }
 
   int get kg => switch (this) {
     WeightCategory.light    => 100,
@@ -139,6 +159,18 @@ enum HaulingTruckTypeOption {
     HaulingTruckTypeOption.craneTruck        => 'flatbed',
     HaulingTruckTypeOption.other             => '',
   };
+
+  /// Best-effort reverse of `apiValue` (the backend stores the collapsed value,
+  /// e.g. 'flatbed'/'van'/'container'). The mapping is many-to-one, so this picks
+  /// the first matching option — good enough to prefill a re-book; returns null
+  /// for empty/unknown values so the user re-selects.
+  static HaulingTruckTypeOption? fromApiValue(String apiValue) {
+    if (apiValue.isEmpty) return null;
+    for (final o in HaulingTruckTypeOption.values) {
+      if (o.apiValue == apiValue) return o;
+    }
+    return null;
+  }
 }
 
 // ─── Truck tier ───────────────────────────────────────────────────────────────
@@ -302,6 +334,8 @@ class HaulageBooking {
     this.fareFinalKobo,
     required this.status,
     this.cancelReason,
+    this.scheduledAt,
+    this.completedAt,
     required this.createdAt,
   });
 
@@ -331,10 +365,18 @@ class HaulageBooking {
   final int? fareFinalKobo;
   final HaulingBookingStatus status;
   final String? cancelReason;
+  final DateTime? scheduledAt;
+  final DateTime? completedAt;
   final DateTime createdAt;
 
   int get displayFareKobo => fareFinalKobo ?? fareEstimateKobo ?? 0;
   double get displayFareNaira => displayFareKobo / 100;
+
+  /// A booking scheduled for a future time that hasn't started yet.
+  bool get isUpcoming =>
+      scheduledAt != null &&
+      scheduledAt!.isAfter(DateTime.now()) &&
+      (status.isSearching || status == HaulingBookingStatus.accepted);
 
   factory HaulageBooking.fromJson(Map<String, dynamic> j) => HaulageBooking(
     id: j['id'] as String,
@@ -363,6 +405,12 @@ class HaulageBooking {
     fareFinalKobo: (j['fare_final_kobo'] as num?)?.toInt(),
     status: HaulingBookingStatus.fromString(j['status'] as String),
     cancelReason: j['cancel_reason'] as String?,
+    scheduledAt: j['scheduled_at'] != null
+        ? DateTime.tryParse(j['scheduled_at'] as String)
+        : null,
+    completedAt: j['completed_at'] != null
+        ? DateTime.tryParse(j['completed_at'] as String)
+        : null,
     createdAt: DateTime.parse(j['created_at'] as String),
   );
 }
@@ -431,4 +479,55 @@ enum CargoType {
     CargoType.food         => 'Food / perishables',
     CargoType.general      => 'General cargo',
   };
+}
+
+// ─── Card payment init ───────────────────────────────────────────────────────
+
+/// Result of starting an up-front card (Paystack) payment for a booking.
+class CardPaymentInit {
+  const CardPaymentInit({
+    required this.authorizationUrl,
+    required this.paymentIntentId,
+  });
+
+  final String authorizationUrl;
+  final String paymentIntentId;
+}
+
+// ─── Realtime + live location ────────────────────────────────────────────────
+
+/// Short-lived token for the customer realtime websocket.
+class RealtimeToken {
+  const RealtimeToken({required this.token, required this.expiresAt});
+
+  final String token;
+  final String expiresAt;
+
+  bool get isValid => token.isNotEmpty;
+}
+
+/// Live location of the provider assigned to a booking.
+class ProviderLocation {
+  const ProviderLocation({
+    required this.lat,
+    required this.lng,
+    required this.available,
+    this.updatedAt = 0,
+  });
+
+  final double lat;
+  final double lng;
+  final bool available;
+  final int updatedAt;
+
+  factory ProviderLocation.fromJson(Map<String, dynamic> json) {
+    return ProviderLocation(
+      lat: (json['lat'] as num?)?.toDouble() ?? 0,
+      lng: (json['lng'] as num?)?.toDouble() ?? 0,
+      available: json['available'] as bool? ?? false,
+      updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  bool get hasFix => available && !(lat == 0 && lng == 0);
 }

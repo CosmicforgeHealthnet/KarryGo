@@ -40,8 +40,14 @@ class HaulingErrorView extends StatelessWidget {
       bottom: FigmaPrimaryButton(
         label: 'Try again',
         onPressed: () {
-          controller.reset();
-          controller.startHaulingFlow();
+          // Re-prefill from the prior booking if one exists, otherwise start fresh.
+          final prior = controller.state.activeBooking;
+          if (prior != null) {
+            controller.rebookFrom(prior);
+          } else {
+            controller.reset();
+            controller.startHaulingFlow();
+          }
         },
       ),
     );

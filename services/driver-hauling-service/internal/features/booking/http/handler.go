@@ -78,6 +78,7 @@ func (h *BookingHandler) CreateBooking(c *gin.Context) {
 		PackageContent:     req.PackageContent,
 		PackageSize:        req.PackageSize,
 		IsFragile:          req.IsFragile,
+		PaymentMethod:      req.PaymentMethod,
 		ScheduledAt:        req.ScheduledAt,
 	})
 	if err != nil {
@@ -85,6 +86,47 @@ func (h *BookingHandler) CreateBooking(c *gin.Context) {
 		return
 	}
 	c.JSON(nethttp.StatusCreated, gin.H{"success": true, "data": booking})
+}
+
+// InitiateCardPayment starts the up-front Paystack payment for a card booking and
+// returns the authorization URL the customer completes in the checkout WebView.
+func (h *BookingHandler) InitiateCardPayment(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	var req initiateCardPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	result, err := h.svc.InitiateCardPayment(c.Request.Context(), bookingusecases.InitiateCardPaymentInput{
+		BookingID:     c.Param("id"),
+		CustomerID:    claims.Subject,
+		CustomerEmail: req.CustomerEmail,
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": result})
+}
+
+// GetBookingLocation returns the live location of the assigned provider for the
+// customer's trip map.
+func (h *BookingHandler) GetBookingLocation(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	loc, err := h.svc.GetBookingLocation(c.Request.Context(), c.Param("id"), claims.Subject)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": loc})
 }
 
 func (h *BookingHandler) GetCustomerBooking(c *gin.Context) {
@@ -224,6 +266,22 @@ func (h *BookingHandler) ListProviderBookings(c *gin.Context) {
 	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": bookings})
 }
 
+// GetProviderEarnings returns the provider's trip-earnings projection
+// (balances, today's stats, recent transactions) for the Earnings/Wallet screen.
+func (h *BookingHandler) GetProviderEarnings(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	earnings, err := h.svc.GetProviderEarnings(c.Request.Context(), claims.Subject)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": earnings})
+}
+
 func (h *BookingHandler) GetProviderBooking(c *gin.Context) {
 	claims, ok := sharedauth.ClaimsFromContext(c)
 	if !ok {
@@ -236,6 +294,20 @@ func (h *BookingHandler) GetProviderBooking(c *gin.Context) {
 		return
 	}
 	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
+}
+
+func (h *BookingHandler) GetProviderBookingReview(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	review, err := h.svc.GetProviderBookingReview(c.Request.Context(), c.Param("id"), claims.Subject)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": review})
 }
 
 func (h *BookingHandler) AcceptBooking(c *gin.Context) {
@@ -259,6 +331,48 @@ func (h *BookingHandler) RejectBooking(c *gin.Context) {
 		return
 	}
 	booking, err := h.svc.RejectBooking(c.Request.Context(), c.Param("id"), claims.Subject)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
+}
+
+func (h *BookingHandler) MarkEnRoutePickup(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	booking, err := h.svc.MarkEnRoutePickup(c.Request.Context(), c.Param("id"), claims.Subject)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
+}
+
+func (h *BookingHandler) MarkArrivedAtPickup(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	booking, err := h.svc.MarkArrivedAtPickup(c.Request.Context(), c.Param("id"), claims.Subject)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
+}
+
+func (h *BookingHandler) MarkEnRouteDelivery(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	booking, err := h.svc.MarkEnRouteDelivery(c.Request.Context(), c.Param("id"), claims.Subject)
 	if err != nil {
 		httpx.Abort(c, err)
 		return

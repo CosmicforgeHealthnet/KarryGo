@@ -2,14 +2,17 @@ package providerprofileusecases
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	providerauthmodels "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/models"
 	providerprofilemodels "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/models"
 	providerprofilerepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/phonenumber"
 )
 
 type ProfileService struct {
@@ -28,10 +31,15 @@ type UpdateProfileInput struct {
 	FirstName                    string
 	LastName                     string
 	Email                        string
+	Phone                        string
 	LocationState                string
 	LocationCity                 string
 	OperationMode                string
 	ServiceType                  string
+	Language                     string
+	DriverLicenseNumber          string
+	LicenseExpiryYear            string
+	LicenseExpiryDate            string
 	GovIDURL                     string
 	DriverLicenseURL             string
 	VehicleRegURL                string
@@ -64,15 +72,31 @@ func (s *ProfileService) UpdateProfile(ctx context.Context, input UpdateProfileI
 		return providerauthmodels.PublicProvider{}, apperrors.Validation("Please check your details.", fields)
 	}
 
+	// Normalize the phone (when provided) to Nigerian +234 format before persisting,
+	// so it matches the format used at sign-in and the unique constraint is meaningful.
+	phone := strings.TrimSpace(input.Phone)
+	if phone != "" {
+		normalized, err := phonenumber.NormalizeNigerianPhoneNumber(phone)
+		if err != nil {
+			return providerauthmodels.PublicProvider{}, err
+		}
+		phone = normalized
+	}
+
 	p, err := s.profiles.UpdateProfile(ctx, providerprofilerepositories.UpdateProfileParams{
 		ProviderID:                   input.ProviderID,
 		FirstName:                    firstName,
 		LastName:                     strings.TrimSpace(input.LastName),
 		Email:                        strings.ToLower(strings.TrimSpace(input.Email)),
+		Phone:                        phone,
 		LocationState:                strings.TrimSpace(input.LocationState),
 		LocationCity:                 strings.TrimSpace(input.LocationCity),
 		OperationMode:                strings.ToLower(strings.TrimSpace(input.OperationMode)),
 		ServiceType:                  strings.ToLower(strings.TrimSpace(input.ServiceType)),
+		Language:                     strings.TrimSpace(input.Language),
+		DriverLicenseNumber:          strings.TrimSpace(input.DriverLicenseNumber),
+		LicenseExpiryYear:            strings.TrimSpace(input.LicenseExpiryYear),
+		LicenseExpiryDate:            strings.TrimSpace(input.LicenseExpiryDate),
 		GovIDURL:                     strings.TrimSpace(input.GovIDURL),
 		DriverLicenseURL:             strings.TrimSpace(input.DriverLicenseURL),
 		VehicleRegURL:                strings.TrimSpace(input.VehicleRegURL),
@@ -86,22 +110,56 @@ func (s *ProfileService) UpdateProfile(ctx context.Context, input UpdateProfileI
 		SubmitForVerification:        input.SubmitForVerification,
 	})
 	if err != nil {
+		// A unique-constraint violation means the email or phone is already taken by
+		// another provider. Surface a friendly validation error instead of a 500.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			field, msg := "email", "This email address is already in use."
+			if strings.Contains(pgErr.ConstraintName, "phone") {
+				field, msg = "phone", "This phone number is already in use."
+			}
+			return providerauthmodels.PublicProvider{}, apperrors.Validation(msg, []apperrors.FieldViolation{
+				{Field: field, Message: msg},
+			})
+		}
 		return providerauthmodels.PublicProvider{}, err
 	}
 	return p.Public(), nil
 }
 
+// CheckContactAvailability reports whether the given email and/or phone already
+// belong to a provider other than providerID. Lets the onboarding UI flag a taken
+// identifier before the user advances. The phone is normalized to match stored
+// values; a malformed phone returns a validation error.
+func (s *ProfileService) CheckContactAvailability(ctx context.Context, providerID, email, phone string) (emailTaken, phoneTaken bool, err error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	phone = strings.TrimSpace(phone)
+	if phone != "" {
+		normalized, perr := phonenumber.NormalizeNigerianPhoneNumber(phone)
+		if perr != nil {
+			return false, false, perr
+		}
+		phone = normalized
+	}
+	return s.profiles.ContactTaken(ctx, providerID, email, phone)
+}
+
 // ─── Trucks ───────────────────────────────────────────────────────────────────
 
 type CreateTruckInput struct {
-	ProviderID  string
-	TruckType   string
-	CapacityKg  int
-	PlateNumber string
-	Year        *int
-	Make        *string
-	Model       *string
-	Color       *string
+	ProviderID        string
+	TruckType         string
+	CapacityKg        int
+	PlateNumber       string
+	Year              *int
+	Make              *string
+	Model             *string
+	Color             *string
+	LicenseType       string
+	NumberOfAxles     string
+	YearsOfExperience string
+	GoodsTypes        []string
+	HasInsurance      bool
 }
 
 func (s *ProfileService) CreateTruck(ctx context.Context, input CreateTruckInput) (providerprofilemodels.PublicTruck, error) {
@@ -121,19 +179,37 @@ func (s *ProfileService) CreateTruck(ctx context.Context, input CreateTruckInput
 	}
 
 	truck := providerprofilemodels.Truck{
-		ID:          uuid.NewString(),
-		ProviderID:  input.ProviderID,
-		TruckType:   strings.ToLower(input.TruckType),
-		CapacityKg:  input.CapacityKg,
-		PlateNumber: plate,
-		Year:        input.Year,
-		Make:        input.Make,
-		Model:       input.Model,
-		Color:       input.Color,
+		ID:                uuid.NewString(),
+		ProviderID:        input.ProviderID,
+		TruckType:         strings.ToLower(input.TruckType),
+		CapacityKg:        input.CapacityKg,
+		PlateNumber:       plate,
+		Year:              input.Year,
+		Make:              input.Make,
+		Model:             input.Model,
+		Color:             input.Color,
+		LicenseType:       strings.TrimSpace(input.LicenseType),
+		NumberOfAxles:     strings.TrimSpace(input.NumberOfAxles),
+		YearsOfExperience: strings.TrimSpace(input.YearsOfExperience),
+		GoodsTypes:        normalizeGoods(input.GoodsTypes),
+		HasInsurance:      input.HasInsurance,
 	}
 
 	created, err := s.trucks.Create(ctx, truck)
 	if err != nil {
+		// A plate-number unique-violation means the plate is already registered.
+		// If it belongs to this same provider, treat the create as idempotent
+		// (e.g. an onboarding retry re-submitting the same truck); otherwise
+		// surface a friendly validation error instead of a 500.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if existing, lookupErr := s.trucks.GetByPlate(ctx, plate); lookupErr == nil && existing.ProviderID == input.ProviderID {
+				return existing.Public(), nil
+			}
+			return providerprofilemodels.PublicTruck{}, apperrors.Validation("This plate number is already in use.", []apperrors.FieldViolation{
+				{Field: "plate_number", Message: "This plate number is already in use."},
+			})
+		}
 		return providerprofilemodels.PublicTruck{}, apperrors.Internal("Truck could not be registered.", err)
 	}
 	return created.Public(), nil
@@ -160,16 +236,21 @@ func (s *ProfileService) GetTruck(ctx context.Context, id, providerID string) (p
 }
 
 type UpdateTruckInput struct {
-	ID          string
-	ProviderID  string
-	TruckType   string
-	CapacityKg  int
-	PlateNumber string
-	Year        *int
-	Make        *string
-	Model       *string
-	Color       *string
-	Status      string
+	ID                string
+	ProviderID        string
+	TruckType         string
+	CapacityKg        int
+	PlateNumber       string
+	Year              *int
+	Make              *string
+	Model             *string
+	Color             *string
+	LicenseType       string
+	NumberOfAxles     string
+	YearsOfExperience string
+	GoodsTypes        []string
+	HasInsurance      bool
+	Status            string
 }
 
 func (s *ProfileService) UpdateTruck(ctx context.Context, input UpdateTruckInput) (providerprofilemodels.PublicTruck, error) {
@@ -192,20 +273,37 @@ func (s *ProfileService) UpdateTruck(ctx context.Context, input UpdateTruckInput
 	}
 
 	truck := providerprofilemodels.Truck{
-		ID:          input.ID,
-		ProviderID:  input.ProviderID,
-		TruckType:   strings.ToLower(input.TruckType),
-		CapacityKg:  input.CapacityKg,
-		PlateNumber: plate,
-		Year:        input.Year,
-		Make:        input.Make,
-		Model:       input.Model,
-		Color:       input.Color,
-		Status:      input.Status,
+		ID:                input.ID,
+		ProviderID:        input.ProviderID,
+		TruckType:         strings.ToLower(input.TruckType),
+		CapacityKg:        input.CapacityKg,
+		PlateNumber:       plate,
+		Year:              input.Year,
+		Make:              input.Make,
+		Model:             input.Model,
+		Color:             input.Color,
+		LicenseType:       strings.TrimSpace(input.LicenseType),
+		NumberOfAxles:     strings.TrimSpace(input.NumberOfAxles),
+		YearsOfExperience: strings.TrimSpace(input.YearsOfExperience),
+		GoodsTypes:        normalizeGoods(input.GoodsTypes),
+		HasInsurance:      input.HasInsurance,
+		Status:            input.Status,
 	}
 	updated, err := s.trucks.Update(ctx, truck)
 	if err != nil {
 		return providerprofilemodels.PublicTruck{}, err
 	}
 	return updated.Public(), nil
+}
+
+// normalizeGoods trims and drops empty entries, always returning a non-nil slice
+// so it stores as an empty array rather than NULL.
+func normalizeGoods(goods []string) []string {
+	out := make([]string, 0, len(goods))
+	for _, g := range goods {
+		if g = strings.TrimSpace(g); g != "" {
+			out = append(out, g)
+		}
+	}
+	return out
 }

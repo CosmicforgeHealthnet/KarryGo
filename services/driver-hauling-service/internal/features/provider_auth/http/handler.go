@@ -96,6 +96,50 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	respondOK(c, gin.H{"logged_out": true})
 }
 
+func (h *AuthHandler) ChangePhoneStart(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+
+	var req changePhoneStartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+
+	result, err := h.auth.ChangePhoneStart(c.Request.Context(), claims.Subject, req.Phone)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+
+	respondCreated(c, result)
+}
+
+func (h *AuthHandler) ChangePhoneVerify(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+
+	var req changePhoneVerifyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+
+	provider, err := h.auth.ChangePhoneVerify(c.Request.Context(), claims.Subject, req.Phone, req.OTP, req.ChallengeID)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+
+	respondOK(c, provider)
+}
+
 func (h *AuthHandler) Me(c *gin.Context) {
 	claims, ok := sharedauth.ClaimsFromContext(c)
 	if !ok {

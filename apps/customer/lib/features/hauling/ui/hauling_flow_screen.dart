@@ -36,16 +36,10 @@ class HaulingFlowScreen extends StatelessWidget {
         final state = controller.state;
         return switch (state.status) {
           HaulingFlowStatus.idle ||
-          HaulingFlowStatus.details =>
-            HaulingDetailsView(controller: controller, state: state),
-
-          HaulingFlowStatus.packageInfo =>
-            HaulingPackageInfoView(controller: controller, state: state),
-
-          HaulingFlowStatus.locationEntry =>
+          HaulingFlowStatus.locationEntry ||
+          HaulingFlowStatus.checkingAvailability =>
             HaulingLocationEntryView(controller: controller, placesApi: placesApi),
 
-          HaulingFlowStatus.checkingAvailability ||
           HaulingFlowStatus.unavailable =>
             HaulingUnavailableView(
               controller: controller,
@@ -53,7 +47,13 @@ class HaulingFlowScreen extends StatelessWidget {
             ),
 
           HaulingFlowStatus.tierSelection =>
-            HaulingTierSelectionView(controller: controller),
+            HaulingTierSelectionView(controller: controller, state: state),
+
+          HaulingFlowStatus.details =>
+            HaulingDetailsView(controller: controller, state: state),
+
+          HaulingFlowStatus.packageInfo =>
+            HaulingPackageInfoView(controller: controller, state: state),
 
           HaulingFlowStatus.payment =>
             HaulingPaymentView(controller: controller),

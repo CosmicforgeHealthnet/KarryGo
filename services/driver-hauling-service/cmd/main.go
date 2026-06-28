@@ -17,9 +17,11 @@ import (
 
 	bookingclients "cosmicforge/logistics/services/hauling-service/internal/features/booking/clients"
 	bookinghttp "cosmicforge/logistics/services/hauling-service/internal/features/booking/http"
+	bookingpayments "cosmicforge/logistics/services/hauling-service/internal/features/booking/payments"
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
 
+	identityhttp "cosmicforge/logistics/services/hauling-service/internal/features/identity/http"
 	notificationhttp "cosmicforge/logistics/services/hauling-service/internal/features/notifications/http"
 
 	providerauthhttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/http"
@@ -34,6 +36,7 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceapp"
+	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
 func main() {
@@ -113,7 +116,25 @@ func main() {
 	// bookingNotifier sends booking-lifecycle notifications via notification-service.
 	// When HAULING_NOTIFICATION_URL/SECRET are unset it is a no-op (local dev).
 	bookingNotifier := bookingclients.NewBookingNotifier(cfg.NotificationURL, cfg.NotificationSecret)
-	bookingService := bookingusecases.NewBookingService(bookingRepo, availabilityStore, bookingNotifier, cfg.BookingMatchTimeout)
+
+	// paymentClient binds booking fares to payment-wallet-service. When
+	// HAULING_PAYMENT_URL/SECRET are unset (local dev) payment is disabled and the
+	// booking flow settles without charging.
+	var paymentClient bookingusecases.PaymentClient
+	if cfg.PaymentURL != "" && len(cfg.PaymentSecret) > 0 {
+		paymentClient = bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret)
+	}
+
+	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
+		Bookings:            bookingRepo,
+		Availability:        availabilityStore,
+		Trucks:              truckLookup{trucks: truckRepo},
+		Payments:            paymentClient,
+		Notifier:            bookingNotifier,
+		MatchTimeoutSeconds: cfg.BookingMatchTimeout,
+		SearchWindowSeconds: cfg.BookingSearchWindow,
+		MaxRadiusKm:         cfg.MatchMaxRadiusKm,
+	})
 
 	// notificationClient brokers provider-app notification access to
 	// notification-service (feed, realtime token, device registration). Empty
@@ -153,9 +174,29 @@ func main() {
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService)
 			availabilityhttp.RegisterAvailabilityRoutes(group, availService, authService, customerSigner)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo)
-			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner())
+			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
+			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 		},
 	})
+}
+
+// truckLookup adapts the provider_profile truck repository to the booking
+// usecase TruckLookup interface, so the matcher can filter providers by truck
+// type and capacity without the usecase importing the provider_profile package.
+type truckLookup struct {
+	trucks providerprofilerepositories.TruckRepository
+}
+
+func (t truckLookup) GetTruck(ctx context.Context, truckID string) (bookingusecases.TruckInfo, error) {
+	truck, err := t.trucks.GetByIDAnywhere(ctx, truckID)
+	if err != nil {
+		return bookingusecases.TruckInfo{}, err
+	}
+	return bookingusecases.TruckInfo{
+		TruckType:  truck.TruckType,
+		CapacityKg: truck.CapacityKg,
+		Status:     truck.Status,
+	}, nil
 }
 
 func logConnectivity(ctx context.Context, databaseURL, redisAddr string, db interface{ Ping(context.Context) error }, redisClient interface {

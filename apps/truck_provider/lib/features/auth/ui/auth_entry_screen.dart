@@ -4,15 +4,15 @@ import 'package:flutter/services.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../state/provider_auth_controller.dart';
 
-class ProviderPhoneEntryScreen extends StatefulWidget {
-  const ProviderPhoneEntryScreen({super.key, required this.controller});
+class ProviderAuthEntryScreen extends StatefulWidget {
+  const ProviderAuthEntryScreen({super.key, required this.controller});
   final ProviderAuthController controller;
 
   @override
-  State<ProviderPhoneEntryScreen> createState() => _ProviderPhoneEntryScreenState();
+  State<ProviderAuthEntryScreen> createState() => _ProviderAuthEntryScreenState();
 }
 
-class _ProviderPhoneEntryScreenState extends State<ProviderPhoneEntryScreen> {
+class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   bool _useEmail = false;
@@ -42,9 +42,7 @@ class _ProviderPhoneEntryScreenState extends State<ProviderPhoneEntryScreen> {
   }
 
   void _toggleMode() {
-    setState(() {
-      _useEmail = !_useEmail;
-    });
+    setState(() => _useEmail = !_useEmail);
   }
 
   @override
@@ -86,14 +84,16 @@ class _ProviderPhoneEntryScreenState extends State<ProviderPhoneEntryScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Enter your phone number or email to continue.',
+              Text(
+                _useEmail
+                    ? 'Enter your email to continue.'
+                    : 'Enter your phone number to continue.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: kProviderMuted, fontSize: 13),
+                style: const TextStyle(color: kProviderMuted, fontSize: 13),
               ),
               const SizedBox(height: 32),
 
-              // ── Phone label ──────────────────────────────────────────────
+              // ── Contact label ────────────────────────────────────────────
               Text(
                 _useEmail ? 'Enter your Email Address' : 'Enter your Phone Number',
                 style: const TextStyle(
@@ -104,7 +104,7 @@ class _ProviderPhoneEntryScreenState extends State<ProviderPhoneEntryScreen> {
               ),
               const SizedBox(height: 8),
 
-              // ── Input (phone or email) ───────────────────────────────────
+              // ── Contact input (email or phone) ───────────────────────────
               if (_useEmail)
                 Container(
                   decoration: BoxDecoration(
@@ -216,26 +216,26 @@ class _ProviderPhoneEntryScreenState extends State<ProviderPhoneEntryScreen> {
               ),
               const SizedBox(height: 24),
 
-              // ── Log In link ──────────────────────────────────────────────
-              GestureDetector(
-                onTap: () => _showComingSoon(context),
-                child: RichText(
-                  textAlign: TextAlign.center,
-                  text: const TextSpan(
-                    style: TextStyle(color: kProviderMuted, fontSize: 13),
-                    children: [
-                      TextSpan(text: 'Already have an account? '),
-                      TextSpan(
-                        text: 'Log In',
-                        style: TextStyle(
-                          color: kProviderGreen,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              // // ── Log In link ──────────────────────────────────────────────
+              // GestureDetector(
+              //   onTap: () => _showComingSoon(context),
+              //   child: RichText(
+              //     textAlign: TextAlign.center,
+              //     text: const TextSpan(
+              //       style: TextStyle(color: kProviderMuted, fontSize: 13),
+              //       children: [
+              //         TextSpan(text: 'Already have an account? '),
+              //         TextSpan(
+              //           text: 'Log In',
+              //           style: TextStyle(
+              //             color: kProviderGreen,
+              //             fontWeight: FontWeight.w700,
+              //           ),
+              //         ),
+              //       ],
+              //     ),
+              //   ),
+              // ),
               const SizedBox(height: 32),
             ],
           ),

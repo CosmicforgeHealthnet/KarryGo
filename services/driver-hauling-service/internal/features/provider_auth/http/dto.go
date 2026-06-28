@@ -21,3 +21,13 @@ type refreshRequest struct {
 type logoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
+
+type changePhoneStartRequest struct {
+	Phone string `json:"phone"`
+}
+
+type changePhoneVerifyRequest struct {
+	Phone       string `json:"phone"`
+	OTP         string `json:"otp"`
+	ChallengeID string `json:"challenge_id"`
+}

@@ -42,26 +42,34 @@ class _ProviderActiveTripScreenState extends State<ProviderActiveTripScreen> {
           );
         }
 
-        return Stack(
-          children: [
-            // ─── Full-screen map ───────────────────────────────────
-            const Positioned.fill(child: ProviderHomeMap()),
+        // Scaffold gives the trip sheet a Material ancestor; without it the
+        // Text widgets render with the default yellow-underline debug style.
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: Stack(
+            children: [
+              // ─── Full-screen map ───────────────────────────────────
+              const Positioned.fill(child: ProviderHomeMap()),
 
-            // ─── Bottom sheet: trip info ───────────────────────────
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _TripSheet(
-                booking: booking,
-                isLoading: state.isLoading,
-                error: state.error,
-                onConfirmPickup: widget.controller.confirmPickup,
-                onEndTrip: () => setState(() => _showCompletion = true),
-                onCancel: () => widget.controller.cancelActiveTrip(),
+              // ─── Bottom sheet: trip info ───────────────────────────
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _TripSheet(
+                  booking: booking,
+                  isLoading: state.isLoading,
+                  error: state.error,
+                  onEnRoutePickup: widget.controller.markEnRoutePickup,
+                  onArrived: widget.controller.markArrived,
+                  onConfirmPickup: widget.controller.confirmPickup,
+                  onEnRouteDelivery: widget.controller.markEnRouteDelivery,
+                  onEndTrip: () => setState(() => _showCompletion = true),
+                  onCancel: () => widget.controller.cancelActiveTrip(),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -75,7 +83,10 @@ class _TripSheet extends StatelessWidget {
     required this.booking,
     required this.isLoading,
     this.error,
+    required this.onEnRoutePickup,
+    required this.onArrived,
     required this.onConfirmPickup,
+    required this.onEnRouteDelivery,
     required this.onEndTrip,
     required this.onCancel,
   });
@@ -83,7 +94,10 @@ class _TripSheet extends StatelessWidget {
   final ProviderBooking booking;
   final bool isLoading;
   final String? error;
+  final VoidCallback onEnRoutePickup;
+  final VoidCallback onArrived;
   final VoidCallback onConfirmPickup;
+  final VoidCallback onEnRouteDelivery;
   final VoidCallback onEndTrip;
   final VoidCallback onCancel;
 
@@ -94,20 +108,30 @@ class _TripSheet extends StatelessWidget {
     final distanceKm = booking.distanceKm;
     final estMinutes = distanceKm != null ? (distanceKm / 30 * 60).round() : null;
 
-    final bool isArrived = status == 'arrived_at_pickup';
+    // The single primary action depends on the booking status. This is the path
+    // that was previously broken: the only action was "Start Trip", gated on
+    // arrived_at_pickup, a status nothing ever set — so an accepted trip could
+    // never progress. Each status now exposes the next forward transition.
+    final _TripAction action = _actionFor(status);
     final bool inProgress = status == 'picked_up' || status == 'en_route_delivery';
 
-    final String heading = inProgress
-        ? 'Trip has started...'
-        : isArrived
-            ? 'Arrived at Pickup'
-            : 'Arriving at pick up in 1 minute';
+    final String heading = switch (status) {
+      'accepted' => 'Trip assigned',
+      'en_route_pickup' => 'Arriving at pick up',
+      'arrived_at_pickup' => 'Arrived at Pickup',
+      'picked_up' => 'Cargo loaded',
+      'en_route_delivery' => 'Trip has started...',
+      _ => 'Trip in progress',
+    };
 
-    final String subtitle = inProgress
-        ? 'You are on your way to your destination'
-        : isArrived
-            ? 'You have gotten to the pick-up point.'
-            : 'You are on your way to the pick-up point!';
+    final String subtitle = switch (status) {
+      'accepted' => 'Head to the pickup location to start the trip.',
+      'en_route_pickup' => 'You are on your way to the pick-up point!',
+      'arrived_at_pickup' => 'You have gotten to the pick-up point.',
+      'picked_up' => 'Cargo is loaded. Start the delivery.',
+      'en_route_delivery' => 'You are on your way to your destination',
+      _ => 'Keep the customer updated on your progress.',
+    };
 
     return Container(
       decoration: const BoxDecoration(
@@ -185,7 +209,11 @@ class _TripSheet extends StatelessWidget {
           ],
 
           // ─── Action buttons ───────────────────────────────────────
-          if (inProgress)
+          // The final leg (en_route_delivery) completes the trip via a single
+          // red "End Trip" button. Every earlier leg shows Cancel + the next
+          // forward transition (Start Driving / I've Arrived / Start Trip /
+          // Start Delivery).
+          if (action.isEndTrip)
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -218,9 +246,10 @@ class _TripSheet extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _StartTripButton(
-                    enabled: isArrived && !isLoading,
+                    label: action.label,
+                    enabled: !isLoading,
                     isLoading: isLoading,
-                    onPressed: isArrived && !isLoading ? onConfirmPickup : null,
+                    onPressed: isLoading ? null : action.onPressed,
                   ),
                 ),
               ],
@@ -228,6 +257,18 @@ class _TripSheet extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Maps the current booking status to the next forward transition. Unknown or
+  /// just-accepted states default to "Start Driving" so the trip is never stuck.
+  _TripAction _actionFor(String status) {
+    return switch (status) {
+      'en_route_pickup' => _TripAction(label: "I've Arrived", onPressed: onArrived),
+      'arrived_at_pickup' => _TripAction(label: 'Start Trip', onPressed: onConfirmPickup),
+      'picked_up' => _TripAction(label: 'Start Delivery', onPressed: onEnRouteDelivery),
+      'en_route_delivery' => _TripAction(label: 'End Trip', onPressed: onEndTrip, isEndTrip: true),
+      _ => _TripAction(label: 'Start Driving', onPressed: onEnRoutePickup),
+    };
   }
 }
 
@@ -272,11 +313,17 @@ class _ProgressBar extends StatelessWidget {
   }
 }
 
-// ─── Start Trip button (green when arrived, muted when en-route) ──────────────
+// ─── Forward-action button (advances the trip to the next stage) ──────────────
 
 class _StartTripButton extends StatelessWidget {
-  const _StartTripButton({required this.enabled, required this.isLoading, this.onPressed});
+  const _StartTripButton({
+    required this.label,
+    required this.enabled,
+    required this.isLoading,
+    this.onPressed,
+  });
 
+  final String label;
   final bool enabled;
   final bool isLoading;
   final VoidCallback? onPressed;
@@ -298,7 +345,7 @@ class _StartTripButton extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
             )
           : Text(
-              'Start Trip',
+              label,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
@@ -307,6 +354,19 @@ class _StartTripButton extends StatelessWidget {
             ),
     );
   }
+}
+
+// ─── Trip action model ────────────────────────────────────────────────────────
+
+/// The single forward action available to the provider for the current booking
+/// status. [isEndTrip] flags the final leg, which renders the red "End Trip"
+/// (confirm delivery) button instead of the green forward button.
+class _TripAction {
+  const _TripAction({required this.label, required this.onPressed, this.isEndTrip = false});
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool isEndTrip;
 }
 
 // ─── Completion / Proof screen (Figma 2040–2043) ─────────────────────────────

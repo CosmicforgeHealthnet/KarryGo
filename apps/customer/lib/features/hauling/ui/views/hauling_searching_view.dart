@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -94,6 +96,8 @@ class HaulingSearchingView extends StatelessWidget {
                     'Connecting you with a nearby driver. The driver will be on their way as soon as they confirm your request.',
                     style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 13, height: 1.5),
                   ),
+                  const SizedBox(height: 10),
+                  _SearchCountdown(deadline: controller.searchDeadline),
                   const SizedBox(height: 14),
 
                   // Driver card — shimmer if not yet loaded
@@ -128,15 +132,38 @@ class HaulingSearchingView extends StatelessWidget {
                     const SizedBox(height: 14),
                   ],
 
+                  if (state.error != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red[200]!),
+                      ),
+                      child: Text(
+                        state.error!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+
                   OutlinedButton(
-                    onPressed: () => _confirmCancel(context),
+                    onPressed: state.isLoading ? null : () => _confirmCancel(context),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.red),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('Cancel Truck', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: state.isLoading
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
+                          )
+                        : const Text('Cancel Truck', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ],
               ),
@@ -225,4 +252,53 @@ class _RouteRow extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Live countdown to the search timeout. Ticks every second off [deadline];
+/// renders nothing when no search is in flight.
+class _SearchCountdown extends StatefulWidget {
+  const _SearchCountdown({required this.deadline});
+
+  final DateTime? deadline;
+
+  @override
+  State<_SearchCountdown> createState() => _SearchCountdownState();
+}
+
+class _SearchCountdownState extends State<_SearchCountdown> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final deadline = widget.deadline;
+    if (deadline == null) return const SizedBox.shrink();
+    final remaining = deadline.difference(DateTime.now());
+    final seconds = remaining.inSecondsClamp;
+    return Text(
+      'Searching for up to ${seconds}s…',
+      style: const TextStyle(
+        color: CustomerFigmaColors.primary,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
+extension on Duration {
+  int get inSecondsClamp => inSeconds < 0 ? 0 : inSeconds;
 }

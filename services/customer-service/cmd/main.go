@@ -14,6 +14,7 @@ import (
 	customerhttp "cosmicforge/logistics/services/customer-service/internal/features/auth/http"
 	authrepositories "cosmicforge/logistics/services/customer-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
+	identityhttp "cosmicforge/logistics/services/customer-service/internal/features/identity/http"
 	notificationhttp "cosmicforge/logistics/services/customer-service/internal/features/notifications/http"
 	profilehttp "cosmicforge/logistics/services/customer-service/internal/features/profile/http"
 	profilerepositories "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories"
@@ -22,6 +23,7 @@ import (
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceapp"
+	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
 func main() {
@@ -126,6 +128,7 @@ func main() {
 			customerhttp.RegisterCustomerRoutes(group, authService)
 			profilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner())
+			identityhttp.RegisterIdentityRoutes(group, profileService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 		},
 	})
 }

@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PG_PORT="${PG_PORT:-5433}"
-REDIS_PORT="${REDIS_PORT:-6380}"
-PG_DATA_DIR="${PG_DATA_DIR:-/tmp/postgres-customer}"
-REDIS_DATA_DIR="${REDIS_DATA_DIR:-/tmp/redis-6380}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PG_PORT="${PG_PORT:-5441}"
+PG_DATA_DIR="${PG_DATA_DIR:-/tmp/postgres-media}"
 PG_BIN="${PG_BIN:-$(command -v postgres >/dev/null 2>&1 && dirname "$(command -v postgres)" || echo /opt/homebrew/opt/postgresql@16/bin)}"
-REDIS_BIN="${REDIS_BIN:-$(command -v redis-server)}"
 PSQL_BIN="${PSQL_BIN:-$(command -v psql)}"
 INITDB_BIN="${INITDB_BIN:-$(command -v initdb)}"
 PG_CTL_BIN="${PG_CTL_BIN:-$(command -v pg_ctl)}"
@@ -15,25 +12,14 @@ CREATEDB_BIN="${CREATEDB_BIN:-$(command -v createdb)}"
 
 ROLE_NAME="cosmicforge_logistics"
 ROLE_PASSWORD="cosmicforge_logistics"
-DB_NAME="customer_service"
+DB_NAME="media_file_service"
 
 log() {
-  printf '\033[1;36m[customer-local]\033[0m %s\n' "$*"
+  printf '\033[1;36m[media-local]\033[0m %s\n' "$*"
 }
 
 ensure_dir() {
   mkdir -p "$1"
-}
-
-start_redis() {
-  if lsof -nP -iTCP:"$REDIS_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-    log "redis already listening on ${REDIS_PORT}"
-    return
-  fi
-
-  ensure_dir "$REDIS_DATA_DIR"
-  log "starting redis on ${REDIS_PORT}"
-  "$REDIS_BIN" --port "$REDIS_PORT" --dir "$REDIS_DATA_DIR" --daemonize yes
 }
 
 start_postgres() {
@@ -53,8 +39,8 @@ start_postgres() {
   "$PG_CTL_BIN" -D "$PG_DATA_DIR" -o "-p $PG_PORT" -l "$PG_DATA_DIR/postgres.log" start
 }
 
-ensure_customer_role_and_db() {
-  log "ensuring customer role and database exist"
+ensure_role_and_db() {
+  log "ensuring media role and database exist"
   if ! "$PSQL_BIN" -p "$PG_PORT" -d template1 -tAc "SELECT 1 FROM pg_roles WHERE rolname = '${ROLE_NAME}'" | grep -q 1; then
     log "creating role ${ROLE_NAME}"
     "$PSQL_BIN" -p "$PG_PORT" -d template1 -v ON_ERROR_STOP=1 -c "CREATE ROLE ${ROLE_NAME} LOGIN PASSWORD '${ROLE_PASSWORD}' CREATEDB;"
@@ -71,21 +57,19 @@ ensure_customer_role_and_db() {
 }
 
 apply_migrations() {
-  log "applying customer migrations"
+  log "applying media migrations"
   "$PSQL_BIN" "postgres://${ROLE_NAME}:${ROLE_PASSWORD}@localhost:${PG_PORT}/${DB_NAME}?sslmode=disable" \
-    -f "$ROOT_DIR/services/customer-service/migrations/001_customer_auth.sql" \
-    -f "$ROOT_DIR/services/customer-service/migrations/002_customer_email_auth.sql"
+    -f "$ROOT_DIR/services/media-file-service/migrations/001_media_assets.sql"
 }
 
 main() {
   cd "$ROOT_DIR"
-  start_redis
   start_postgres
-  ensure_customer_role_and_db
+  ensure_role_and_db
   apply_migrations
 
   log "ready. start the service with:"
-  printf 'cd %s/services/customer-service && MIGRATION=true go run ./cmd\n' "$ROOT_DIR"
+  printf 'cd %s/services/media-file-service && MIGRATION=true go run ./cmd\n' "$ROOT_DIR"
 }
 
 main "$@"

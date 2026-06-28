@@ -36,16 +36,27 @@ class NotificationApi {
   }
 
   /// Mints a short-lived realtime token used to open the notification websocket.
-  Future<RealtimeToken> fetchRealtimeToken({required String accessToken}) async {
-    final data = await _sendJson(
-      'POST',
-      '/notifications/realtime-token',
-      accessToken: accessToken,
-    );
-    return RealtimeToken(
-      token: (data['token'] as String?) ?? '',
-      expiresIn: (data['expires_in'] as num?)?.toInt() ?? 0,
-    );
+  ///
+  /// Returns null when the proxy endpoint returns 404 (customer-service not
+  /// configured with a notification-service URL). The caller should treat null
+  /// as "realtime unavailable" and fall back to polling.
+  Future<RealtimeToken?> fetchRealtimeToken({required String accessToken}) async {
+    try {
+      final data = await _sendJson(
+        'POST',
+        '/notifications/realtime-token',
+        accessToken: accessToken,
+      );
+      return RealtimeToken(
+        token: (data['token'] as String?) ?? '',
+        expiresIn: (data['expires_in'] as num?)?.toInt() ?? 0,
+      );
+    } on ApiException catch (e) {
+      // 404 means the proxy route is not registered on customer-service (e.g.
+      // CUSTOMER_NOTIFICATION_BASE_URL not set). Signal "unavailable" with null.
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
   }
 
   /// Registers an FCM device token so push notifications reach this device.

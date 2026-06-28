@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PG_PORT="${PG_PORT:-5441}"
-PG_DATA_DIR="${PG_DATA_DIR:-/tmp/postgres-media}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PG_PORT="${PG_PORT:-5436}"
+REDIS_PORT="${REDIS_PORT:-6383}"
+PG_DATA_DIR="${PG_DATA_DIR:-/tmp/postgres-hauling}"
+REDIS_DATA_DIR="${REDIS_DATA_DIR:-/tmp/redis-6383}"
 PG_BIN="${PG_BIN:-$(command -v postgres >/dev/null 2>&1 && dirname "$(command -v postgres)" || echo /opt/homebrew/opt/postgresql@16/bin)}"
+REDIS_BIN="${REDIS_BIN:-$(command -v redis-server)}"
 PSQL_BIN="${PSQL_BIN:-$(command -v psql)}"
 INITDB_BIN="${INITDB_BIN:-$(command -v initdb)}"
 PG_CTL_BIN="${PG_CTL_BIN:-$(command -v pg_ctl)}"
@@ -12,14 +15,25 @@ CREATEDB_BIN="${CREATEDB_BIN:-$(command -v createdb)}"
 
 ROLE_NAME="cosmicforge_logistics"
 ROLE_PASSWORD="cosmicforge_logistics"
-DB_NAME="media_file_service"
+DB_NAME="hauling_service"
 
 log() {
-  printf '\033[1;36m[media-local]\033[0m %s\n' "$*"
+  printf '\033[1;36m[hauling-local]\033[0m %s\n' "$*"
 }
 
 ensure_dir() {
   mkdir -p "$1"
+}
+
+start_redis() {
+  if lsof -nP -iTCP:"$REDIS_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    log "redis already listening on ${REDIS_PORT}"
+    return
+  fi
+
+  ensure_dir "$REDIS_DATA_DIR"
+  log "starting redis on ${REDIS_PORT}"
+  "$REDIS_BIN" --port "$REDIS_PORT" --dir "$REDIS_DATA_DIR" --daemonize yes
 }
 
 start_postgres() {
@@ -40,7 +54,7 @@ start_postgres() {
 }
 
 ensure_role_and_db() {
-  log "ensuring media role and database exist"
+  log "ensuring hauling role and database exist"
   if ! "$PSQL_BIN" -p "$PG_PORT" -d template1 -tAc "SELECT 1 FROM pg_roles WHERE rolname = '${ROLE_NAME}'" | grep -q 1; then
     log "creating role ${ROLE_NAME}"
     "$PSQL_BIN" -p "$PG_PORT" -d template1 -v ON_ERROR_STOP=1 -c "CREATE ROLE ${ROLE_NAME} LOGIN PASSWORD '${ROLE_PASSWORD}' CREATEDB;"
@@ -57,19 +71,25 @@ ensure_role_and_db() {
 }
 
 apply_migrations() {
-  log "applying media migrations"
-  "$PSQL_BIN" "postgres://${ROLE_NAME}:${ROLE_PASSWORD}@localhost:${PG_PORT}/${DB_NAME}?sslmode=disable" \
-    -f "$ROOT_DIR/services/media-file-service/migrations/001_media_assets.sql"
+  log "applying hauling migrations"
+  local dsn="postgres://${ROLE_NAME}:${ROLE_PASSWORD}@localhost:${PG_PORT}/${DB_NAME}?sslmode=disable"
+  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/001_hauling_core.sql"
+  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/002_schema_updates.sql"
+  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/003_provider_onboarding.sql"
+  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/004_package_info_and_reviews.sql"
+  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/005_provider_profile_extras.sql"
+  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/006_booking_payment.sql"
 }
 
 main() {
   cd "$ROOT_DIR"
+  start_redis
   start_postgres
   ensure_role_and_db
   apply_migrations
 
   log "ready. start the service with:"
-  printf 'cd %s/services/media-file-service && MIGRATION=true go run ./cmd\n' "$ROOT_DIR"
+  printf 'cd %s/services/driver-hauling-service && go run ./cmd\n' "$ROOT_DIR"
 }
 
 main "$@"

@@ -44,6 +44,27 @@ const (
 	ActorSystem   = "system"
 )
 
+// Payment methods
+const (
+	PaymentMethodWallet = "wallet"
+	PaymentMethodCard   = "card"
+	PaymentMethodCash   = "cash"
+)
+
+var ValidPaymentMethods = map[string]bool{
+	PaymentMethodWallet: true,
+	PaymentMethodCard:   true,
+	PaymentMethodCash:   true,
+}
+
+// Payment statuses (mirror the relevant payment-wallet intent states for the trip)
+const (
+	PaymentStatusUnpaid = "unpaid" // no charge yet (e.g. cash, or wallet before acceptance)
+	PaymentStatusHeld   = "held"   // funds authorized/held against the booking
+	PaymentStatusPaid   = "paid"   // settled to the provider
+	PaymentStatusFailed = "failed" // charge attempt failed
+)
+
 type Booking struct {
 	ID         string
 	CustomerID string
@@ -76,6 +97,8 @@ type Booking struct {
 	FareEstimateKobo *int64
 	FareFinalKobo    *int64
 
+	PaymentMethod   string
+	PaymentStatus   string
 	PaymentIntentID *string
 
 	Status       string
@@ -127,6 +150,9 @@ type PublicBooking struct {
 	FareEstimateKobo *int64   `json:"fare_estimate_kobo,omitempty"`
 	FareFinalKobo    *int64   `json:"fare_final_kobo,omitempty"`
 
+	PaymentMethod string `json:"payment_method,omitempty"`
+	PaymentStatus string `json:"payment_status,omitempty"`
+
 	Status      string  `json:"status"`
 	CancelReason *string `json:"cancel_reason,omitempty"`
 
@@ -168,6 +194,8 @@ func (b Booking) Public() PublicBooking {
 		DistanceKm:       b.DistanceKm,
 		FareEstimateKobo: b.FareEstimateKobo,
 		FareFinalKobo:    b.FareFinalKobo,
+		PaymentMethod:    b.PaymentMethod,
+		PaymentStatus:    b.PaymentStatus,
 		Status:           b.Status,
 		CancelReason:     b.CancelReason,
 		MatchedAt:        b.MatchedAt,

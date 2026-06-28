@@ -196,38 +196,104 @@ class _IdentifierSegmentedControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<CustomerAuthIdentifierType>(
-      segments: const [
-        ButtonSegment(
-          value: CustomerAuthIdentifierType.phone,
-          label: Text('Phone'),
-          icon: Icon(Icons.phone_iphone_rounded),
-        ),
-        ButtonSegment(
-          value: CustomerAuthIdentifierType.email,
-          label: Text('Email'),
-          icon: Icon(Icons.alternate_email_rounded),
-        ),
-      ],
-      selected: {value},
-      onSelectionChanged: (selection) => onChanged(selection.single),
-      style: ButtonStyle(
-        visualDensity: VisualDensity.compact,
-        textStyle: WidgetStateProperty.all(
-          const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-        ),
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? Colors.white
-              : CustomerFigmaColors.text,
-        ),
-        backgroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? CustomerFigmaColors.primary
-              : Colors.white,
-        ),
-        side: WidgetStateProperty.all(
-          const BorderSide(color: CustomerFigmaColors.primary),
+    final isPhone = value == CustomerAuthIdentifierType.phone;
+
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: CustomerFigmaColors.primaryTint,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: CustomerFigmaColors.primaryPale),
+      ),
+      child: Stack(
+        children: [
+          // Sliding selected pill.
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment:
+                isPhone ? Alignment.centerLeft : Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: CustomerFigmaColors.primary,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CustomerFigmaColors.primary.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Row(
+              children: [
+                _SegmentTab(
+                  icon: Icons.phone_iphone_rounded,
+                  label: 'Phone',
+                  selected: isPhone,
+                  onTap: () => onChanged(CustomerAuthIdentifierType.phone),
+                ),
+                _SegmentTab(
+                  icon: Icons.alternate_email_rounded,
+                  label: 'Email',
+                  selected: !isPhone,
+                  onTap: () => onChanged(CustomerAuthIdentifierType.email),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentTab extends StatelessWidget {
+  const _SegmentTab({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? Colors.white : CustomerFigmaColors.muted;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 8),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 220),
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                height: 1,
+              ),
+              child: Text(label),
+            ),
+          ],
         ),
       ),
     );
@@ -242,6 +308,7 @@ class _PhoneNumberField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
           height: 48,
@@ -253,6 +320,7 @@ class _PhoneNumberField extends StatelessWidget {
           ),
           child: const Row(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _NigeriaFlagMark(),
               SizedBox(width: 8),
@@ -260,11 +328,12 @@ class _PhoneNumberField extends StatelessWidget {
                 '+234',
                 style: TextStyle(
                   color: CustomerFigmaColors.text,
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              Icon(Icons.keyboard_arrow_down_rounded, size: 16),
+              SizedBox(width: 2),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 18),
             ],
           ),
         ),
@@ -274,6 +343,7 @@ class _PhoneNumberField extends StatelessWidget {
             controller: controller,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.done,
+            textAlignVertical: TextAlignVertical.center,
             autofillHints: const [AutofillHints.telephoneNumber],
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
@@ -282,10 +352,8 @@ class _PhoneNumberField extends StatelessWidget {
               hintText: '8067735987',
               filled: true,
               fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 14,
-              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              constraints: const BoxConstraints(minHeight: 48, maxHeight: 48),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: const BorderSide(
@@ -324,15 +392,14 @@ class _EmailField extends StatelessWidget {
       controller: controller,
       keyboardType: TextInputType.emailAddress,
       textInputAction: TextInputAction.done,
+      textAlignVertical: TextAlignVertical.center,
       autofillHints: const [AutofillHints.email],
       decoration: InputDecoration(
         hintText: 'ada@example.com',
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 14,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+        constraints: const BoxConstraints(minHeight: 48, maxHeight: 48),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: CustomerFigmaColors.primary),
@@ -356,14 +423,21 @@ class _NigeriaFlagMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
-      child: Row(
-        children: const [
-          _FlagStripe(color: CustomerFigmaColors.primary),
-          _FlagStripe(color: Colors.white),
-          _FlagStripe(color: CustomerFigmaColors.primary),
-        ],
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: CustomerFigmaColors.border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            _FlagStripe(color: CustomerFigmaColors.primary),
+            _FlagStripe(color: Colors.white),
+            _FlagStripe(color: CustomerFigmaColors.primary),
+          ],
+        ),
       ),
     );
   }
@@ -376,7 +450,7 @@ class _FlagStripe extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: 8, height: 18, color: color);
+    return Container(width: 7, height: 16, color: color);
   }
 }
 

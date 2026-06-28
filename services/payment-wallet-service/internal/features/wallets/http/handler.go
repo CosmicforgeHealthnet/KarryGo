@@ -103,6 +103,16 @@ func (h *Handler) ProviderEarnings(c *gin.Context) {
 	respondOK(c, result)
 }
 
+func (h *Handler) ListBankAccounts(c *gin.Context) {
+	providerType, providerID := providerIdentity(c)
+	result, err := h.service.ListBankAccounts(c.Request.Context(), providerType, providerID)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, gin.H{"bank_accounts": result})
+}
+
 func (h *Handler) ResolveBankAccount(c *gin.Context) {
 	var request resolveBankAccountRequest
 	if err := c.ShouldBindJSON(&request); err != nil {

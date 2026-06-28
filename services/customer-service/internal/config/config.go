@@ -34,6 +34,10 @@ type Config struct {
 
 	MediaBaseURL     string
 	MediaServiceToken string
+
+	// ServiceSecrets are the HMAC secrets for internal service-to-service callers
+	// (e.g. support-dispute-service resolving a customer identity).
+	ServiceSecrets string
 }
 
 func Load() Config {
@@ -67,6 +71,8 @@ func Load() Config {
 
 		MediaBaseURL:      getEnv("CUSTOMER_MEDIA_BASE_URL", ""),
 		MediaServiceToken: getEnv("CUSTOMER_MEDIA_SERVICE_TOKEN", ""),
+
+		ServiceSecrets: getEnv("CUSTOMER_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
 	}
 }
 

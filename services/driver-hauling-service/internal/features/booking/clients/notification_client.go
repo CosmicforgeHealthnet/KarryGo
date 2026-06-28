@@ -55,6 +55,21 @@ func (n *BookingNotifier) NotifyCustomerUnmatched(ctx context.Context, customerI
 	n.send(ctx, notifications.EventBookingUnmatched, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
+// NotifyCustomerEnRoutePickup tells the customer the driver is heading to pickup.
+func (n *BookingNotifier) NotifyCustomerEnRoutePickup(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	n.send(ctx, notifications.EventDriverEnRoutePickup, notifications.RecipientCustomer, customerID, bookingID, data)
+}
+
+// NotifyCustomerArrivedPickup tells the customer the driver arrived at pickup.
+func (n *BookingNotifier) NotifyCustomerArrivedPickup(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	n.send(ctx, notifications.EventDriverArrivedPickup, notifications.RecipientCustomer, customerID, bookingID, data)
+}
+
+// NotifyCustomerEnRouteDelivery tells the customer the cargo is on the way.
+func (n *BookingNotifier) NotifyCustomerEnRouteDelivery(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	n.send(ctx, notifications.EventDriverEnRouteDelivery, notifications.RecipientCustomer, customerID, bookingID, data)
+}
+
 // NotifyCustomerPickedUp tells the customer their cargo was picked up.
 func (n *BookingNotifier) NotifyCustomerPickedUp(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
 	n.send(ctx, notifications.EventCargoPickedUp, notifications.RecipientCustomer, customerID, bookingID, data)

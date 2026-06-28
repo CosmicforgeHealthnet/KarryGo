@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
 
@@ -12,13 +13,6 @@ class CustomerHomeBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onTap;
 
-  static const _items = [
-    (icon: Icons.home_rounded, label: 'Home'),
-    (icon: Icons.calendar_month_rounded, label: 'Trips'),
-    (icon: Icons.notifications_outlined, label: 'Alerts'),
-    (icon: Icons.person_outline_rounded, label: 'Profile'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -31,21 +25,68 @@ class CustomerHomeBottomNav extends StatelessWidget {
         child: SizedBox(
           height: 64,
           child: Row(
-            children: List.generate(_items.length, (i) {
-              final item = _items[i];
-              return _NavItem(
-                icon: item.icon,
-                label: item.label,
-                selected: selectedIndex == i,
-                onTap: () => onTap(i),
-              );
-            }),
+            children: [
+              _NavItem(
+                icon: _NavIcon.svg('assets/figma/House_01.svg'),
+                label: 'Home',
+                selected: selectedIndex == 0,
+                onTap: () => onTap(0),
+              ),
+              _NavItem(
+                icon: _NavIcon.svg('assets/figma/Group 1000004752.svg'),
+                label: 'Trips',
+                selected: selectedIndex == 1,
+                onTap: () => onTap(1),
+              ),
+              _NavItem(
+                icon: _NavIcon.png('assets/figma/notification_bell.png'),
+                label: 'Alerts',
+                selected: selectedIndex == 2,
+                onTap: () => onTap(2),
+              ),
+              _NavItem(
+                icon: _NavIcon.svg('assets/figma/user.svg'),
+                label: 'Profile',
+                selected: selectedIndex == 3,
+                onTap: () => onTap(3),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
+// ─── Icon descriptor ──────────────────────────────────────────────────────────
+
+class _NavIcon {
+  const _NavIcon._({required this.path, required this.isSvg});
+  factory _NavIcon.svg(String path) => _NavIcon._(path: path, isSvg: true);
+  factory _NavIcon.png(String path) => _NavIcon._(path: path, isSvg: false);
+
+  final String path;
+  final bool isSvg;
+
+  Widget build(Color color) {
+    if (isSvg) {
+      return SvgPicture.asset(
+        path,
+        width: 22,
+        height: 22,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      );
+    }
+    return Image.asset(
+      path,
+      width: 22,
+      height: 22,
+      color: color,
+    );
+  }
+}
+
+// ─── Nav item ─────────────────────────────────────────────────────────────────
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
@@ -55,7 +96,7 @@ class _NavItem extends StatelessWidget {
     required this.onTap,
   });
 
-  final IconData icon;
+  final _NavIcon icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -77,7 +118,7 @@ class _NavItem extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(icon, color: Colors.white, size: 18),
+                      icon.build(Colors.white),
                       const SizedBox(width: 6),
                       Text(
                         label,
@@ -90,7 +131,7 @@ class _NavItem extends StatelessWidget {
                     ],
                   ),
                 )
-              : Icon(icon, color: CustomerFigmaColors.muted, size: 24),
+              : icon.build(CustomerFigmaColors.muted),
         ),
       ),
     );

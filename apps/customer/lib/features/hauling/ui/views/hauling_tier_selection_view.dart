@@ -7,20 +7,32 @@ import '../../state/hauling_booking_controller.dart';
 import '../widgets/hauling_map_widget.dart';
 
 class HaulingTierSelectionView extends StatelessWidget {
-  const HaulingTierSelectionView({super.key, required this.controller});
+  const HaulingTierSelectionView({
+    super.key,
+    required this.controller,
+    required this.state,
+  });
 
   final HaulingBookingController controller;
-
-  HaulingBookingState get _state => controller.state;
+  final HaulingBookingState state;
 
   @override
   Widget build(BuildContext context) {
-    final pickupLatLng = _state.pickupAddress.isNotEmpty
-        ? LatLng(_state.pickupLat, _state.pickupLng)
+    final pickupLatLng = state.pickupAddress.isNotEmpty
+        ? LatLng(state.pickupLat, state.pickupLng)
         : null;
-    final dropoffLatLng = _state.dropoffAddress.isNotEmpty
-        ? LatLng(_state.dropoffLat, _state.dropoffLng)
+    final dropoffLatLng = state.dropoffAddress.isNotEmpty
+        ? LatLng(state.dropoffLat, state.dropoffLng)
         : null;
+
+    // Indicative price only: this preview estimate uses a default cargo weight
+    // until the customer enters details, and the tier itself has no backend
+    // effect on the fare. The final fare is computed at booking from the real
+    // weight/helpers, so label it "from ..." rather than an exact amount.
+    final fareKobo = state.fareEstimate?.fareEstimateKobo;
+    final fareLabel = fareKobo != null
+        ? 'from ₦${(fareKobo / 100).toStringAsFixed(0)}'
+        : '—';
 
     return Scaffold(
       body: Stack(
@@ -32,6 +44,7 @@ class HaulingTierSelectionView extends StatelessWidget {
             ),
           ),
 
+          // Back button
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             left: 12,
@@ -62,6 +75,7 @@ class HaulingTierSelectionView extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Drag handle
                   Center(
                     child: Container(
                       width: 36, height: 4,
@@ -71,52 +85,106 @@ class HaulingTierSelectionView extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
+
+                  // Discount banner
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: CustomerFigmaColors.border),
+                    ),
+                    child: const Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: CustomerFigmaColors.primary,
+                          child: Icon(Icons.check, color: Colors.white, size: 16),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '10% off first booking',
+                                style: TextStyle(
+                                  color: CustomerFigmaColors.text,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                'View Details',
+                                style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right, color: CustomerFigmaColors.muted, size: 18),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
 
                   // Route summary
-                  if (_state.pickupAddress.isNotEmpty) ...[
+                  if (state.pickupAddress.isNotEmpty) ...[
                     _RouteRow(
-                      icon: Icons.circle, color: CustomerFigmaColors.primary, size: 10,
-                      address: _state.pickupAddress,
+                      dot: const _GreenDot(),
+                      label: 'Pick-up',
+                      address: state.pickupAddress,
                     ),
-                    const Padding(
-                      padding: EdgeInsets.only(left: 4),
-                      child: SizedBox(width: 2, height: 8,
-                        child: DecoratedBox(decoration: BoxDecoration(color: CustomerFigmaColors.border))),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 9),
+                      child: SizedBox(
+                        width: 2, height: 12,
+                        child: CustomPaint(painter: _DashedLine()),
+                      ),
                     ),
                     _RouteRow(
-                      icon: Icons.circle, color: Colors.orange, size: 10,
-                      address: _state.dropoffAddress,
+                      dot: const _OrangeDot(),
+                      label: 'Drop off (optional)',
+                      address: state.dropoffAddress.isNotEmpty
+                          ? state.dropoffAddress
+                          : 'Not set',
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                   ],
 
+                  // Heading
                   const Text(
                     'Choose a Truck',
                     style: TextStyle(
                       color: CustomerFigmaColors.text,
                       fontWeight: FontWeight.w800,
-                      fontSize: 18,
+                      fontSize: 20,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   const Text(
-                    'Select the service tier that fits your needs',
+                    'Tell us your destination',
                     style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
 
-                  ...TruckTier.values.map((tier) => _TierRow(
-                    tier: tier,
-                    selected: _state.selectedTier == tier,
-                    onTap: () => controller.selectTier(tier),
-                  )),
+                  ...TruckTier.values.toList().asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final tier = entry.value;
+                    return _TierCard(
+                      tier: tier,
+                      selected: state.selectedTier == tier,
+                      fareLabel: fareLabel,
+                      isPopular: i == 0,
+                      onTap: () => controller.selectTier(tier),
+                    );
+                  }),
 
                   const SizedBox(height: 16),
                   FigmaPrimaryButton(
                     label: 'Select Truck',
-                    onPressed: _state.selectedTier != null
-                        ? controller.proceedFromTierToPayment
+                    onPressed: state.selectedTier != null
+                        ? controller.proceedFromTierToDetails
                         : null,
                   ),
                   SizedBox(height: MediaQuery.of(context).padding.bottom),
@@ -130,47 +198,21 @@ class HaulingTierSelectionView extends StatelessWidget {
   }
 }
 
-class _RouteRow extends StatelessWidget {
-  const _RouteRow({
-    required this.icon,
-    required this.color,
-    required this.size,
-    required this.address,
-  });
+// ─── Tier card ────────────────────────────────────────────────────────────────
 
-  final IconData icon;
-  final Color color;
-  final double size;
-  final String address;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: size),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            address,
-            style: const TextStyle(color: CustomerFigmaColors.text, fontSize: 12),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TierRow extends StatelessWidget {
-  const _TierRow({
+class _TierCard extends StatelessWidget {
+  const _TierCard({
     required this.tier,
     required this.selected,
+    required this.fareLabel,
+    required this.isPopular,
     required this.onTap,
   });
 
   final TruckTier tier;
   final bool selected;
+  final String fareLabel;
+  final bool isPopular;
   final VoidCallback onTap;
 
   @override
@@ -179,11 +221,11 @@ class _TierRow extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: selected ? CustomerFigmaColors.primaryTint : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? CustomerFigmaColors.primary : CustomerFigmaColors.border,
             width: selected ? 1.5 : 1,
@@ -191,12 +233,24 @@ class _TierRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.local_shipping_outlined,
-              color: selected ? CustomerFigmaColors.primary : CustomerFigmaColors.muted,
-              size: 24,
+            // Truck image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/figma/delivery truck back side view.png',
+                width: 56,
+                height: 44,
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => const Icon(
+                  Icons.local_shipping_rounded,
+                  color: CustomerFigmaColors.primary,
+                  size: 40,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
+
+            // Tier info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,27 +260,150 @@ class _TierRow extends StatelessWidget {
                     style: TextStyle(
                       color: selected ? CustomerFigmaColors.primary : CustomerFigmaColors.text,
                       fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                      fontSize: 15,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    tier.description,
-                    style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 12),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Text(
+                        fareLabel,
+                        style: TextStyle(
+                          color: selected ? CustomerFigmaColors.primary : CustomerFigmaColors.muted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Icon(
+                        Icons.access_time_rounded,
+                        size: 12,
+                        color: selected ? CustomerFigmaColors.primary : CustomerFigmaColors.muted,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '2 min',
+                        style: TextStyle(
+                          color: selected ? CustomerFigmaColors.primary : CustomerFigmaColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            Radio<TruckTier>(
-              value: tier,
-              groupValue: selected ? tier : null,
-              onChanged: (_) => onTap(),
-              activeColor: CustomerFigmaColors.primary,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+
+            // Popular badge + radio
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (isPopular)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Popular',
+                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                Radio<TruckTier>(
+                  value: tier,
+                  groupValue: selected ? tier : null,
+                  onChanged: (_) => onTap(),
+                  activeColor: CustomerFigmaColors.primary,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+}
+
+// ─── Route summary widgets ────────────────────────────────────────────────────
+
+class _RouteRow extends StatelessWidget {
+  const _RouteRow({required this.dot, required this.label, required this.address});
+
+  final Widget dot;
+  final String label;
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        dot,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 11),
+              ),
+              Text(
+                address,
+                style: const TextStyle(
+                  color: CustomerFigmaColors.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GreenDot extends StatelessWidget {
+  const _GreenDot();
+  @override
+  Widget build(BuildContext context) => const Icon(
+        Icons.radio_button_checked,
+        color: CustomerFigmaColors.primary,
+        size: 18,
+      );
+}
+
+class _OrangeDot extends StatelessWidget {
+  const _OrangeDot();
+  @override
+  Widget build(BuildContext context) => const Icon(
+        Icons.location_on,
+        color: Colors.orange,
+        size: 18,
+      );
+}
+
+class _DashedLine extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = CustomerFigmaColors.border
+      ..strokeWidth = 1.5;
+    const dash = 3.0, gap = 2.5;
+    double y = 0;
+    while (y < size.height) {
+      canvas.drawLine(Offset(size.width / 2, y),
+          Offset(size.width / 2, (y + dash).clamp(0, size.height)), paint);
+      y += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedLine _) => false;
 }

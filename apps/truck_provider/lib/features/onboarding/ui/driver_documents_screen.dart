@@ -1,4 +1,5 @@
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -43,6 +44,21 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Dev convenience: prefill the contact fields so testing onboarding doesn't
+    // require retyping. The license/vehicle-reg uploads still need a real pick.
+    // Never runs in release builds.
+    if (kDebugMode) {
+      _guarantorNameCtrl.text = 'Chidi Eze';
+      _guarantorPhoneCtrl.text = '8023456789';
+      _emergencyNameCtrl.text = 'Ada Okafor';
+      _emergencyPhoneCtrl.text = '8034567890';
+      _emergencyRelationship = 'Sibling';
+    }
+  }
+
+  @override
   void dispose() {
     _guarantorNameCtrl.dispose();
     _guarantorPhoneCtrl.dispose();
@@ -78,7 +94,6 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
 
       if (!mounted) return;
       widget.controller.saveDriverDocuments(
-        govIdUrl: '',
         driverLicenseUrl: licenseUrl ?? '',
         vehicleRegUrl: vehicleRegUrl ?? '',
         guarantorName: _guarantorNameCtrl.text.trim(),

@@ -20,13 +20,15 @@ class _ProviderOtpScreenState extends State<ProviderOtpScreen> {
   String get _code => _controllers.map((c) => c.text).join();
   bool get _complete => _code.length == 6;
 
+  static const int _resendCooldownSeconds = 30;
+
   late int _secondsLeft;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _secondsLeft = widget.controller.state.expiresIn > 0 ? widget.controller.state.expiresIn : 300;
+    _secondsLeft = _resendCooldownSeconds;
     _startTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNodes[0].requestFocus();
@@ -92,7 +94,7 @@ class _ProviderOtpScreenState extends State<ProviderOtpScreen> {
   void _resend() {
     final s = widget.controller.state;
     widget.controller.startAuth(phone: s.phone, email: s.email);
-    setState(() => _secondsLeft = 300);
+    setState(() => _secondsLeft = _resendCooldownSeconds);
     _startTimer();
   }
 

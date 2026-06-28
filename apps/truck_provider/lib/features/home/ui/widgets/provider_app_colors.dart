@@ -14,9 +14,12 @@ const kProviderSurface = Color(0xFFF7F8F7);
 const kProviderRejectBg = Color(0xFFFCE6E6);
 const kProviderRejectText = Color(0xFFE5484D);
 
-// Balance card gradient (bright green, Figma 2286)
+// Balance card gradient — bright green (top-left) to deep green (bottom-right).
 const kProviderBalanceGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: [Color(0xFF34B85C), Color(0xFF1E8F3E)],
+  colors: [Color(0xFF35B45A), Color(0xFF0A5626)],
 );
+
+// Page background behind the white cards so they read as elevated cards.
+const kProviderPageBg = Color(0xFFF4F6F8);

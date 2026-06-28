@@ -16,6 +16,7 @@ enum ProviderAuthStatus {
   operationMode,
   personalInfo,
   driverDocuments,
+  truckInfo,
   photoUpload,
   verificationPending,
   authenticated,
@@ -32,6 +33,7 @@ class OnboardingFormData {
     this.locationState = '',
     this.locationCity = '',
     this.email = '',
+    this.phone = '',
     this.govIdUrl = '',
     this.driverLicenseUrl = '',
     this.vehicleRegUrl = '',
@@ -42,6 +44,17 @@ class OnboardingFormData {
     this.emergencyContactRelationship = '',
     this.profilePhotoUrl = '',
     this.photoAssetId = '',
+    this.truckType = '',
+    this.truckCapacityKg = '',
+    this.truckPlateNumber = '',
+    this.truckLicenseType = '',
+    this.truckMake = '',
+    this.truckModel = '',
+    this.truckColor = '',
+    this.truckNumberOfAxles = '',
+    this.truckYearsOfExperience = '',
+    this.truckGoodsTypes = const [],
+    this.truckHasInsurance = false,
   });
 
   final String accountType;
@@ -52,6 +65,7 @@ class OnboardingFormData {
   final String locationState;
   final String locationCity;
   final String email;
+  final String phone;
   final String govIdUrl;
   final String driverLicenseUrl;
   final String vehicleRegUrl;
@@ -62,6 +76,17 @@ class OnboardingFormData {
   final String emergencyContactRelationship;
   final String profilePhotoUrl;
   final String photoAssetId;
+  final String truckType;
+  final String truckCapacityKg;
+  final String truckPlateNumber;
+  final String truckLicenseType;
+  final String truckMake;
+  final String truckModel;
+  final String truckColor;
+  final String truckNumberOfAxles;
+  final String truckYearsOfExperience;
+  final List<String> truckGoodsTypes;
+  final bool truckHasInsurance;
 
   OnboardingFormData copyWith({
     String? accountType,
@@ -72,6 +97,7 @@ class OnboardingFormData {
     String? locationState,
     String? locationCity,
     String? email,
+    String? phone,
     String? govIdUrl,
     String? driverLicenseUrl,
     String? vehicleRegUrl,
@@ -82,6 +108,17 @@ class OnboardingFormData {
     String? emergencyContactRelationship,
     String? profilePhotoUrl,
     String? photoAssetId,
+    String? truckType,
+    String? truckCapacityKg,
+    String? truckPlateNumber,
+    String? truckLicenseType,
+    String? truckMake,
+    String? truckModel,
+    String? truckColor,
+    String? truckNumberOfAxles,
+    String? truckYearsOfExperience,
+    List<String>? truckGoodsTypes,
+    bool? truckHasInsurance,
   }) {
     return OnboardingFormData(
       accountType: accountType ?? this.accountType,
@@ -92,6 +129,7 @@ class OnboardingFormData {
       locationState: locationState ?? this.locationState,
       locationCity: locationCity ?? this.locationCity,
       email: email ?? this.email,
+      phone: phone ?? this.phone,
       govIdUrl: govIdUrl ?? this.govIdUrl,
       driverLicenseUrl: driverLicenseUrl ?? this.driverLicenseUrl,
       vehicleRegUrl: vehicleRegUrl ?? this.vehicleRegUrl,
@@ -102,6 +140,17 @@ class OnboardingFormData {
       emergencyContactRelationship: emergencyContactRelationship ?? this.emergencyContactRelationship,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
       photoAssetId: photoAssetId ?? this.photoAssetId,
+      truckType: truckType ?? this.truckType,
+      truckCapacityKg: truckCapacityKg ?? this.truckCapacityKg,
+      truckPlateNumber: truckPlateNumber ?? this.truckPlateNumber,
+      truckLicenseType: truckLicenseType ?? this.truckLicenseType,
+      truckMake: truckMake ?? this.truckMake,
+      truckModel: truckModel ?? this.truckModel,
+      truckColor: truckColor ?? this.truckColor,
+      truckNumberOfAxles: truckNumberOfAxles ?? this.truckNumberOfAxles,
+      truckYearsOfExperience: truckYearsOfExperience ?? this.truckYearsOfExperience,
+      truckGoodsTypes: truckGoodsTypes ?? this.truckGoodsTypes,
+      truckHasInsurance: truckHasInsurance ?? this.truckHasInsurance,
     );
   }
 }
@@ -197,7 +246,18 @@ class ProviderAuthController extends ChangeNotifier {
     try {
       final refreshed = await _api.refreshSession(refreshToken: saved.refreshToken);
       await _store.saveSession(refreshed);
-      _emit(_state.copyWith(status: ProviderAuthStatus.authenticated, session: refreshed));
+      // A provider who only got as far as OTP (or quit partway through
+      // onboarding) still has a valid session, but their profile is not yet
+      // submitted (onboarding_status == 'profile_required'). Resume onboarding
+      // from the start instead of dropping them on the dashboard.
+      final needsOnboarding =
+          refreshed.provider.onboardingStatus == 'profile_required';
+      _emit(_state.copyWith(
+        status: needsOnboarding
+            ? ProviderAuthStatus.accountTypeSelection
+            : ProviderAuthStatus.authenticated,
+        session: refreshed,
+      ));
     } catch (_) {
       await _store.clearSession();
       _emit(_state.copyWith(status: ProviderAuthStatus.phoneEntry, clearError: true));
@@ -292,7 +352,9 @@ class ProviderAuthController extends ChangeNotifier {
     required String lastName,
     required String locationState,
     required String locationCity,
-    required String email,
+    String email = '',
+    String phone = '',
+    String govIdUrl = '',
   }) {
     _emit(_state.copyWith(
       status: ProviderAuthStatus.driverDocuments,
@@ -303,8 +365,26 @@ class ProviderAuthController extends ChangeNotifier {
         locationState: locationState,
         locationCity: locationCity,
         email: email,
+        phone: phone,
+        govIdUrl: govIdUrl,
       ),
     ));
+  }
+
+  /// Checks whether the entered email/phone already belongs to another provider.
+  /// Returns (false, false) if there is no active session. Throws [ApiException]
+  /// on a network/validation failure so the caller can decide how to handle it.
+  Future<({bool emailTaken, bool phoneTaken})> checkContactAvailability({
+    String email = '',
+    String phone = '',
+  }) async {
+    final session = _state.session;
+    if (session == null) return (emailTaken: false, phoneTaken: false);
+    return _api.checkContactAvailability(
+      accessToken: session.accessToken,
+      email: email,
+      phone: phone,
+    );
   }
 
   /// Uploads a picked document image to media-file-service and returns its
@@ -322,7 +402,6 @@ class ProviderAuthController extends ChangeNotifier {
   }
 
   void saveDriverDocuments({
-    required String govIdUrl,
     required String driverLicenseUrl,
     required String vehicleRegUrl,
     required String guarantorName,
@@ -332,10 +411,9 @@ class ProviderAuthController extends ChangeNotifier {
     required String emergencyContactRelationship,
   }) {
     _emit(_state.copyWith(
-      status: ProviderAuthStatus.photoUpload,
+      status: ProviderAuthStatus.truckInfo,
       clearError: true,
       onboarding: _state.onboarding.copyWith(
-        govIdUrl: govIdUrl,
         driverLicenseUrl: driverLicenseUrl,
         vehicleRegUrl: vehicleRegUrl,
         guarantorName: guarantorName,
@@ -343,6 +421,38 @@ class ProviderAuthController extends ChangeNotifier {
         emergencyContactName: emergencyContactName,
         emergencyContactPhone: emergencyContactPhone,
         emergencyContactRelationship: emergencyContactRelationship,
+      ),
+    ));
+  }
+
+  void saveTruckInfo({
+    required String truckType,
+    required String capacityKg,
+    required String plateNumber,
+    required String licenseType,
+    required String make,
+    required String model,
+    required String color,
+    required String numberOfAxles,
+    required String yearsOfExperience,
+    required List<String> goodsTypes,
+    required bool hasInsurance,
+  }) {
+    _emit(_state.copyWith(
+      status: ProviderAuthStatus.photoUpload,
+      clearError: true,
+      onboarding: _state.onboarding.copyWith(
+        truckType: truckType,
+        truckCapacityKg: capacityKg,
+        truckPlateNumber: plateNumber,
+        truckLicenseType: licenseType,
+        truckMake: make,
+        truckModel: model,
+        truckColor: color,
+        truckNumberOfAxles: numberOfAxles,
+        truckYearsOfExperience: yearsOfExperience,
+        truckGoodsTypes: goodsTypes,
+        truckHasInsurance: hasInsurance,
       ),
     ));
   }
@@ -371,6 +481,7 @@ class ProviderAuthController extends ChangeNotifier {
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
+        phone: data.phone,
         locationState: data.locationState,
         locationCity: data.locationCity,
         operationMode: data.operationMode,
@@ -386,18 +497,69 @@ class ProviderAuthController extends ChangeNotifier {
         profilePhotoUrl: data.profilePhotoUrl,
         photoAssetId: data.photoAssetId,
       );
+
+      // Register the provider's truck so they have at least one active truck and
+      // can go online. The backend availability gate requires this.
+      if (data.truckType.isNotEmpty) {
+        await _api.createTruck(
+          accessToken: session.accessToken,
+          body: {
+            'truck_type': data.truckType,
+            'capacity_kg': int.tryParse(data.truckCapacityKg) ?? 0,
+            'plate_number': data.truckPlateNumber,
+            'license_type': data.truckLicenseType,
+            'make': data.truckMake,
+            'model': data.truckModel,
+            'color': data.truckColor,
+            'number_of_axles': data.truckNumberOfAxles,
+            'years_of_experience': data.truckYearsOfExperience,
+            'goods_types': data.truckGoodsTypes,
+            'has_insurance': data.truckHasInsurance,
+          },
+        );
+      }
+
       _emit(_state.copyWith(
         status: ProviderAuthStatus.verificationPending,
         isLoading: false,
         onboarding: data,
       ));
     } catch (e) {
-      _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+      // A duplicate email/phone is only caught here (final submit). Send the user
+      // back to the personal-info step — where those fields live — so they can fix
+      // it, instead of leaving them stranded on the photo step.
+      final status = _identifierConflict(e)
+          ? ProviderAuthStatus.personalInfo
+          : _state.status;
+      _emit(_state.copyWith(status: status, isLoading: false, error: _msg(e)));
     }
+  }
+
+  /// True when the error is a validation conflict on the email or phone field
+  /// (i.e. the identifier is already in use), so the UI can route back to the
+  /// step where that field is edited.
+  bool _identifierConflict(Object e) {
+    if (e is! ApiException) return false;
+    return e.fields.any((f) => f.field == 'email' || f.field == 'phone');
   }
 
   void goToDashboard() {
     _emit(_state.copyWith(status: ProviderAuthStatus.authenticated, clearError: true));
+  }
+
+  /// Applies an updated provider (after a profile edit, photo change, phone
+  /// change, or verification submit) to the active session so name/photo/phone
+  /// changes propagate across the app, and persists the basics.
+  void applyProviderUpdate(TruckProvider provider) {
+    final session = _state.session;
+    if (session == null) return;
+    final updated = ProviderSession(
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      provider: provider,
+    );
+    _emit(_state.copyWith(session: updated));
+    _store.saveSession(updated);
   }
 
   // ─── Session ─────────────────────────────────────────────────────────────────

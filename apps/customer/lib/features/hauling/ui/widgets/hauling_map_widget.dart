@@ -8,11 +8,14 @@ class HaulingMapWidget extends StatefulWidget {
     super.key,
     this.pickupLatLng,
     this.dropoffLatLng,
+    this.driverLatLng,
     this.initialCenter,
   });
 
   final LatLng? pickupLatLng;
   final LatLng? dropoffLatLng;
+  // Live position of the assigned driver, shown as a blue marker during a trip.
+  final LatLng? driverLatLng;
   // Default center: Lagos island
   final LatLng? initialCenter;
 
@@ -37,7 +40,8 @@ class _HaulingMapWidgetState extends State<HaulingMapWidget> {
   void didUpdateWidget(HaulingMapWidget old) {
     super.didUpdateWidget(old);
     if (old.pickupLatLng != widget.pickupLatLng ||
-        old.dropoffLatLng != widget.dropoffLatLng) {
+        old.dropoffLatLng != widget.dropoffLatLng ||
+        old.driverLatLng != widget.driverLatLng) {
       _updateMarkers();
       _fitCamera();
     }
@@ -59,6 +63,14 @@ class _HaulingMapWidgetState extends State<HaulingMapWidget> {
         position: widget.dropoffLatLng!,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         infoWindow: const InfoWindow(title: 'Dropoff'),
+      ));
+    }
+    if (widget.driverLatLng != null) {
+      markers.add(Marker(
+        markerId: const MarkerId('driver'),
+        position: widget.driverLatLng!,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        infoWindow: const InfoWindow(title: 'Driver'),
       ));
     }
     setState(() => _markers = markers);

@@ -354,6 +354,10 @@ func (s *WalletService) RegisterBankAccount(ctx context.Context, input RegisterB
 	})
 }
 
+func (s *WalletService) ListBankAccounts(ctx context.Context, providerType string, providerID string) ([]walletmodels.ProviderBankAccount, error) {
+	return s.repository.ListProviderBankAccounts(ctx, providerType, providerID)
+}
+
 func (s *WalletService) ResolveBankAccount(ctx context.Context, input ResolveBankAccountInput) (ResolvedBankAccount, error) {
 	var fields []apperrors.FieldViolation
 	if input.AccountNumber == "" {

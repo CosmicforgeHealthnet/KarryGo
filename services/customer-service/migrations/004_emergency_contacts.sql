@@ -1,4 +1,4 @@
-CREATE TABLE emergency_contacts (
+CREATE TABLE IF NOT EXISTS emergency_contacts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -7,4 +7,4 @@ CREATE TABLE emergency_contacts (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX emergency_contacts_customer_id_idx ON emergency_contacts(customer_id);
+CREATE INDEX IF NOT EXISTS emergency_contacts_customer_id_idx ON emergency_contacts(customer_id);

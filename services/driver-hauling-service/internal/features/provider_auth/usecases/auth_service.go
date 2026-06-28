@@ -3,10 +3,12 @@ package providerauthusecases
 import (
 	"context"
 	"crypto/hmac"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	providerauthmodels "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/models"
 	providerauthrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/repositories"
@@ -279,6 +281,83 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 		return apperrors.Unauthorized("Your session has expired. Please sign in again.", nil)
 	}
 	return s.sessions.Revoke(ctx, sessionID)
+}
+
+// ─── Change Phone ───────────────────────────────────────────────────────────
+// Reuses the OTP infrastructure: an OTP is sent to the new phone, then verified
+// before the provider's phone is updated. Bearer-protected (provider identified
+// by the access token, not the OTP).
+
+func (s *AuthService) ChangePhoneStart(ctx context.Context, providerID, newPhone string) (StartAuthResult, error) {
+	normalized, err := phonenumber.NormalizeNigerianPhoneNumber(strings.TrimSpace(newPhone))
+	if err != nil {
+		return StartAuthResult{}, err
+	}
+
+	otp, err := sharedauth.GenerateNumericOTP(sharedauth.DefaultOTPLength)
+	if err != nil {
+		return StartAuthResult{}, apperrors.Internal("OTP could not be generated.", err)
+	}
+
+	identifierKey := "phone:" + normalized
+	challengeID := uuid.NewString()
+	challenge := providerauthmodels.OTPChallenge{
+		ID:              challengeID,
+		IdentifierType:  "phone",
+		IdentifierValue: normalized,
+		OTPHash:         sharedauth.HashOTP(s.otpSecret, challengeID, identifierKey, otp),
+		ExpiresAt:       s.now().Add(s.otpTTL),
+	}
+	if err := s.challenges.Save(ctx, challenge, s.otpTTL, s.otpRateWindow, s.otpMaxRequests); err != nil {
+		return StartAuthResult{}, err
+	}
+
+	result := StartAuthResult{
+		ChallengeID: challengeID,
+		ExpiresIn:   int64(s.otpTTL.Seconds()),
+	}
+	if s.otpDebug {
+		result.DebugOTP = otp
+	}
+	return result, nil
+}
+
+func (s *AuthService) ChangePhoneVerify(ctx context.Context, providerID, newPhone, otp, challengeID string) (providerauthmodels.PublicProvider, error) {
+	normalized, err := phonenumber.NormalizeNigerianPhoneNumber(strings.TrimSpace(newPhone))
+	if err != nil {
+		return providerauthmodels.PublicProvider{}, err
+	}
+	if otp == "" {
+		return providerauthmodels.PublicProvider{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+			{Field: "otp", Message: "Verification code is required."},
+		})
+	}
+
+	identifierKey := "phone:" + normalized
+	challenge, ok, err := s.challenges.Get(ctx, identifierKey)
+	if err != nil {
+		return providerauthmodels.PublicProvider{}, err
+	}
+	if !ok {
+		return providerauthmodels.PublicProvider{}, apperrors.Unauthorized("Invalid or expired verification code.", nil)
+	}
+	if err := providerauthmodels.VerifyOTPChallenge(s.otpSecret, challenge, challengeID, otp, s.otpMaxAttempts, s.now()); err != nil {
+		_ = s.challenges.RecordFailedAttempt(ctx, challenge, time.Until(challenge.ExpiresAt))
+		return providerauthmodels.PublicProvider{}, err
+	}
+	_ = s.challenges.Delete(ctx, identifierKey)
+
+	provider, err := s.providers.UpdatePhone(ctx, providerID, normalized)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return providerauthmodels.PublicProvider{}, apperrors.Validation("This phone number is already in use.", []apperrors.FieldViolation{
+				{Field: "phone", Message: "This phone number is already in use."},
+			})
+		}
+		return providerauthmodels.PublicProvider{}, err
+	}
+	return provider.Public(), nil
 }
 
 func (s *AuthService) Me(ctx context.Context, providerID string) (providerauthmodels.PublicProvider, error) {

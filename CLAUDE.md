@@ -856,3 +856,291 @@ flutter run --dart-define=HAULING_API_BASE_URL=http://localhost:8104/api/v1/haul
 - **Deleted:** `lib/features/home/ui/screens/provider_assign_truck_screen.dart`
 
 **Verification:** `flutter analyze` — 0 issues. `flutter build apk --debug` — builds successfully.
+
+### 2026-06-22 — Truck provider Profile section (full stack)
+
+**What changed:** Built the entire Profile section of the truck provider app to match the Figma mockups (Profile main, Profile Info edit, Change Phone, Verification & Documents, Face Verification, Truck Information view/edit, Support/Live Chat), and wired it to the hauling-service backend.
+
+**Backend (`services/driver-hauling-service`):**
+
+- `migrations/005_provider_profile_extras.sql` — `truck_providers`: `language`, `driver_license_number`, `license_expiry_year`, `license_expiry_date`. `trucks`: `license_type`, `number_of_axles`, `years_of_experience`, `goods_types TEXT[]`, `has_insurance`.
+- `provider_auth/models/provider.go` — `Provider`/`PublicProvider` extended with location/language/service/operation_mode/license/doc-url fields + `created_at`. `GET /provider/profile` (and verify/refresh) now return the full profile.
+- `provider_auth/repositories/postgres_provider_repository.go` — extended SELECT/RETURNING columns + `scanProvider`; new `UpdatePhone(id, phone)` repo method (added to `ProviderRepository` interface).
+- `provider_profile/models/models.go` — `Truck`/`PublicTruck` extended; `ValidTruckTypes` widened to a superset (adds pickup/box/tanker/trailer/dump/lowbed/crane/other alongside the original slugs).
+- `provider_profile/repositories/postgres_profile_repository.go` — rewritten with shared `providerColumns`/`truckColumns`; `UpdateProfile` now persists language/license fields **and** uses `CASE WHEN $x != '' THEN $x ELSE col END` preserve-on-empty semantics for location/operation/service/language/license/guarantor/emergency so partial profile updates don't wipe untouched fields; truck create/update carry the new columns; `UpdatePhone` delegator.
+- `provider_profile` http/usecases — DTO/input/handler carry the new profile + truck fields; `normalizeGoods` helper.
+- `provider_auth` usecases/http — `ChangePhoneStart`/`ChangePhoneVerify` (reuse OTP infra; bearer-protected; unique-violation → friendly validation error). Routes: `POST /provider/phone/change/start|verify`.
+
+**Frontend (`apps/truck_provider`):** new `lib/features/profile/`:
+- `data/provider_profile_api.dart` — getProfile, updateProfile (partial-safe), changePhoneStart/Verify, listTrucks, create/updateTruck.
+- `state/provider_profile_controller.dart` — `ProviderProfileController` (load profile+trucks, save profile info, photo, verification, truck; phone-change flow). Pushes name/photo/phone updates back into the auth session via new `ProviderAuthController.applyProviderUpdate`.
+- `ui/` — `provider_profile_screen.dart` (2110, replaces the old `_ProfileTab` in the home shell), `provider_profile_info_screen.dart` (2111/2112), `provider_change_phone_screen.dart` (2113 + OTP), `provider_verification_screen.dart` (2133-2141, real document uploads via media-file-service), `provider_face_verification_screen.dart` (2142/2143 + submitted state — visual KYC gate), `provider_truck_info_screen.dart` (2162 + 2163 dialog), `provider_truck_edit_screen.dart` (2164), `provider_support_screen.dart` (Account option-4/5 — live chat UI is local/canned), `provider_coming_soon_screen.dart` (Safety/Security/Privacy/Payments — no mockups yet), `widgets/provider_profile_widgets.dart` (header, fields, primary button, confirm dialog).
+- `auth/models/provider_auth_models.dart` — `TruckProvider` + `ProviderTruck` extended; `truckTypeLabel()` + `providerTruckTypeOptions`.
+
+**Notes / scope:** Face Verification scan and Live Chat are faithful UIs without a dedicated backend (no face-match service; real-time chat needs support-dispute-service). The confirmation dialogs use icon-based headers rather than the Figma 3D illustration (asset not bundled). Truck "Capacity" is kept as numeric kg (matching the booking/matching logic) under the Figma label.
+
+**Verification:** backend `go build ./...` + `go vet` + `go test ./...` clean. `flutter analyze` — No issues found.
+
+**Run:**
+```bash
+# Backend
+bash scripts/hauling-local-bootstrap.sh   # applies migrations 001–005
+cd services/driver-hauling-service && go run ./cmd/seed  # optional: seed dev providers
+cd services/driver-hauling-service && go run ./cmd
+
+# Truck provider app
+cd apps/truck_provider
+flutter run \
+  --dart-define=HAULING_API_BASE_URL=http://localhost:8104/api/v1/hauling \
+  --dart-define=MEDIA_FILE_API_BASE_URL=http://localhost:8109/api/v1/media-files \
+  --dart-define=MEDIA_FILE_SERVICE_TOKEN=development-media-token
+```
+
+`MEDIA_FILE_SERVICE_TOKENS=truck-provider=development-media-token` must be set in `services/media-file-service/.env` for document uploads to succeed.
+
+### 2026-06-22 — Customer app: booking flow fixes + bottom nav icons
+
+**Five issues fixed in `apps/customer` truck hauling flow:**
+
+**1. Long connection time** — added 90-second client-side `Timer` in `HaulingBookingController` (`_startSearchTimeout` / `_stopSearchTimeout`). If the booking is still in `searching` state after 90 s, it auto-cancels with the message "No trucks found nearby. Please try again later." Timer starts when polling starts and is cancelled on any terminal state.
+
+**2. Cancel not working** — the cancel button in `hauling_searching_view.dart` was missing error surfacing. Added a red bordered error container above the Cancel button that shows `state.error`. Cancel button is disabled while `state.isLoading` and shows a spinner. A confirmation bottom sheet (`_confirmCancel`) gates the action.
+
+**3. Paystack broken** — removed Paystack entirely. `hauling_payment_view.dart` now offers Wallet Balance and Cash on Delivery only. "Confirm & Find Truck" calls `confirmPayment()` directly (appropriate for MVP). No `url_launcher` usage remains.
+
+**4. Book a Truck / Choose a Truck UI** — redesigned to match Figma mockups (screens 1733-1735):
+- `hauling_location_entry_view.dart` — discount banner redesigned (white card + green checkmark), "Pick-up" / "Drop off (optional)" labels inside `_LocationInputCard`, title 20px, subtitle updated.
+- `hauling_tier_selection_view.dart` — full rewrite: route summary row at top (green/orange dots + dashed `CustomPainter` line + pickup/dropoff addresses), `_TierCard` widget with truck PNG (`assets/figma/delivery truck back side view.png`), tier name, fare from background estimate, ⏱ 2 min ETA, "Popular" dark badge on first tier (index 0), radio button, selected card has tinted background + primary border.
+- Flow order changed: `startHaulingFlow()` now emits `locationEntry` (first screen = location entry, not details form).
+- `checkAvailabilityAndProceed()` fires `_fetchPreviewFare()` after transitioning to `tierSelection` — background estimate (100 kg, 0 helpers) pre-populates tier card prices.
+
+**5. Bottom nav icons** — replaced Material `Icon` widgets with real Figma asset icons in `customer_home_bottom_nav.dart`:
+- Home: `assets/figma/House_01.svg` (SvgPicture)
+- Trips: `assets/figma/Group 1000004752.svg` (SvgPicture)
+- Alerts: `assets/figma/notification_bell.png` (Image.asset with color tint)
+- Profile: `assets/figma/user.svg` (SvgPicture)
+- Added `flutter_svg: ^2.0.10` to `pubspec.yaml`.
+- Selected tab: green pill with white icon + label. Unselected: muted-color icon only.
+
+**Files changed:**
+- `apps/customer/pubspec.yaml` — `flutter_svg: ^2.0.10`
+- `apps/customer/lib/features/home/ui/widgets/customer_home_bottom_nav.dart` — asset icons
+- `apps/customer/lib/features/hauling/state/hauling_booking_controller.dart` — search timeout, flow order fix, preview fare fetch
+- `apps/customer/lib/features/hauling/ui/hauling_flow_screen.dart` — router updated
+- `apps/customer/lib/features/hauling/ui/views/hauling_location_entry_view.dart` — UI polish
+- `apps/customer/lib/features/hauling/ui/views/hauling_tier_selection_view.dart` — full rewrite
+- `apps/customer/lib/features/hauling/ui/views/hauling_details_view.dart` — back → `backToTierSelection`
+- `apps/customer/lib/features/hauling/ui/views/hauling_package_info_view.dart` — continue → `proceedFromPackageInfoToPayment`
+- `apps/customer/lib/features/hauling/ui/views/hauling_payment_view.dart` — Paystack removed, Cash on Delivery added
+- `apps/customer/lib/features/hauling/ui/views/hauling_searching_view.dart` — error surfacing, cancel button fixes
+
+**Verification:** `flutter analyze` — 0 errors (12 pre-existing infos in unrelated files).
+
+**To run customer app:**
+```bash
+cd apps/customer
+flutter run \
+  --dart-define=CUSTOMER_API_BASE_URL=http://localhost:8101/api/v1/customer \
+  --dart-define=MEDIA_FILE_API_BASE_URL=http://localhost:8109/api/v1/media-files \
+  --dart-define=MEDIA_FILE_SERVICE_TOKEN=development-media-token \
+  --dart-define=SUPPORT_API_BASE_URL=http://localhost:8107/api/v1/support-disputes \
+  --dart-define=WALLET_API_BASE_URL=http://localhost:8105/api/v1/payment-wallet \
+  --dart-define=HAULING_API_BASE_URL=http://localhost:8104/api/v1/hauling
+```
+
+### 2026-06-22 — Customer app: Paystack online payment for truck booking
+
+**What changed:** Added a "Card or Bank Transfer" (Paystack) option to the truck-hauling payment screen. Frontend-only — reuses the existing, working wallet top-up endpoint (`POST /topups` → Paystack checkout → `POST /topups/:reference/verify`). No backend changes.
+
+**Architecture decision:** `payment-wallet-service` exposes Paystack to customers **only** through wallet top-ups; the `payment-intents` / `pay-from-wallet` endpoints are internal (service HMAC auth) and the hauling service is not wired to them. Booking creation in `driver-hauling-service` does **not** debit/escrow anything today (`payment_method` is not even sent to the booking API). So "pay with Paystack" = charge the fare into the customer wallet via the real Paystack checkout, then create the booking. Money is real and lands in the customer's Karry Go wallet.
+
+**Flow:** Payment screen → select "Card or Bank Transfer" → "Pay with Paystack" → `WalletApi.createTopUp(fareKobo)` → in-app `webview_flutter` checkout (`HaulingPaystackCheckoutView`, same return-URL detection as `WalletCheckoutView`) → on return → `verifyTopUp` (4 retries) → create booking → searching. Wallet/Cash paths unchanged (create booking directly).
+
+**Files changed (`apps/customer`):**
+- `lib/features/hauling/state/hauling_booking_controller.dart` — added `paystackCheckout` to `HaulingFlowStatus`; added `topUpReference` state field (cleared via existing `clearPaystackUrl`); `confirmPayment()` branches to `_startPaystackCheckout()` when method is `paystack`; new `_startPaystackCheckout()` (calls `createTopUp` with fare + profile email, guards empty fare/email), `onPaystackCheckoutReturned()` (verify + create booking), `cancelPaystackCheckout()`, `_customerEmail()` helper (prefers `profileEmail`, falls back to `email`).
+- `lib/features/hauling/ui/views/hauling_paystack_checkout_view.dart` — **new**; WebView checkout host modeled on `wallet/ui/funding/wallet_checkout_view.dart`.
+- `lib/features/hauling/ui/hauling_flow_screen.dart` — route `paystackCheckout` → `HaulingPaystackCheckoutView`.
+- `lib/features/hauling/ui/views/hauling_payment_view.dart` — new "Card or Bank Transfer" payment row; button label becomes "Pay with Paystack" when selected. (`_canConfirm` already permits any non-wallet method.)
+
+**Reused (no change):** `WalletApi.createTopUp` / `verifyTopUp` (`lib/features/wallet/data/wallet_api.dart`); backend `POST /topups`, `POST /topups/:reference/verify` (customer bearer auth).
+
+**Edge case:** customers without a profile email get an inline error ("Add an email to your profile to pay with card or transfer.") — Paystack requires a valid email.
+
+**Follow-up for true escrow** — DONE, see the next entry. The wallet top-up hack described above was superseded by the server-driven `card-payment` escrow endpoint; the customer app now creates the booking with a `payment_method` and (for card) opens an up-front Paystack intent bound to the booking.
+
+**Verification:** `flutter analyze` — 0 new issues (12 pre-existing infos/warnings unchanged). `flutter test` — all 25 tests pass.
+
+### 2026-06-22 — Hauling escrow: verified wiring + fixed two config bugs
+
+**Context:** True escrow (charge-on-acceptance) was already implemented in the working tree from the earlier "server-driven payment" session (backend `PaymentClient` + `booking/payments/wallet_payment_client.go` over `shared/go/walletclient`, `migrations/006_booking_payment.sql`, `POST /customer/bookings/:id/card-payment`, customer app `initiateCardPayment` + dispatch-before-payment). This pass **verified the whole chain and fixed two config bugs that would have broken it silently at runtime.** No new escrow logic was needed.
+
+**Escrow flow (confirmed wired across every lifecycle path in `booking_service.go`):**
+- Booking create → `payment_method` (`wallet|card|cash`), `payment_status=unpaid`.
+- Provider accept → `ensurePaymentSecured`: wallet → `HoldFromWallet` (CreatePaymentIntent + PayFromWallet); card → must already be paid up-front (else reject accept); cash → no-op. Blocks `accepted` if the charge fails. Sets `payment_status=held`.
+- Auto-complete worker + review-driven completion → `settleOnComplete` → `CompleteJob` (release escrow to provider), `payment_status=paid`.
+- Customer cancel, provider cancel, unmatched → `refundIfHeld` → `RequestRefund`, `payment_status=unpaid`.
+- `s.payments == nil` (no `HAULING_PAYMENT_URL`/`SECRET`) → every step is a no-op so local dev runs without payment-wallet.
+
+**Bug 1 — doubled base URL (would 404 every internal call).** `shared/go/walletclient` appends the full `/api/v1/payment-wallet/internal/...` path to `Client.BaseURL`, so `BaseURL` must be a **bare origin**. Both `services/driver-hauling-service/.env` and `.env.example` had `HAULING_PAYMENT_URL=http://localhost:8105/api/v1/payment-wallet` → fixed to `http://localhost:8105` (added the "bare origin only" comment, matching the existing `HAULING_NOTIFICATION_URL`).
+
+**Bug 2 — HMAC service-name + secret mismatch (would 403 every internal call).** The hauling payment client signs as `driver-hauling-service` with `HAULING_PAYMENT_SECRET=development-hauling-payment-secret` (its canonical identity — same name notification-service already trusts). But `payment-wallet-service` trusted `hauling-service=development-payment-wallet-service-secret`. Aligned payment-wallet to `driver-hauling-service=development-hauling-payment-secret` in both `services/payment-wallet-service/.env` and the `PAYMENT_WALLET_SERVICE_SECRETS` default in `internal/config/config.go` (matches notification-service's per-caller-secret convention).
+
+**Verification:** hauling + payment-wallet `go build ./... && go vet ./... && go test ./...` clean (matching + notification unit tests pass). Customer app `flutter analyze` — only 1 pre-existing unrelated warning; `flutter test` — all 25 pass.
+
+**To run with escrow active:**
+```bash
+bash scripts/hauling-local-bootstrap.sh        # applies migrations 001–006
+cd services/payment-wallet-service && go run ./cmd   # port 8105
+cd services/driver-hauling-service && go run ./cmd   # reads .env: HAULING_PAYMENT_URL=http://localhost:8105
+```
+Escrow only activates when `HAULING_PAYMENT_URL` + `HAULING_PAYMENT_SECRET` are set; otherwise bookings settle without charging (local dev). Card payment additionally needs the customer to have a profile email (Paystack requirement).
+
+### 2026-06-22 — Hauling booking flow: matching correctness, server-driven payment, customer realtime
+
+**What changed:** Reviewed the customer hauling flow end-to-end and implemented fixes across three tiers. Replaced the client-side "top-up wallet as a proxy for paying" hack with a **server-driven payment model** bound to the booking, fixed real matching-engine eligibility/concurrency bugs, and gave the customer a realtime channel + live driver location.
+
+**Decisions (with user):** all tiers; **charge-on-acceptance**; **card pays up-front** (Paystack intent at booking, completed in the WebView while searching, refunded if unmatched/cancelled); **wallet holds on provider acceptance**; **cash is record-only**; settle to provider via `CompleteJob` on completion.
+
+#### Backend — `services/driver-hauling-service`
+
+- **Matching engine** (`booking/usecases/booking_service.go`): `matchBooking` now loads the booking, filters online providers by a **serviceable radius** (`HAULING_MATCH_MAX_RADIUS_KM`, default 25) and by **truck type + capacity** (via a new `TruckLookup` interface adapted over the truck repo in `cmd/main.go`), and only then dispatches nearest-first. Lock lifecycle fixed: per-provider lock TTL is `matchTimeout + 15s`, released only **after** the accept/timeout decision (kept on accept); `MarkMatched` is now a guarded compare-and-set from `pending_match` only (`booking/repositories`). `RejectBooking` cancels the in-flight match goroutine (`cancelMatch`) before re-dispatching, so only one matcher runs per booking. Availability gate now uses `GetOnlineProviders` (prunes stale entries) instead of raw `CountOnline`, in both `CreateBooking` and `CheckAvailability`.
+- **Payment binding** (`PaymentClient` interface + `booking/payments/wallet_payment_client.go` adapter over `shared/go/walletclient`): `AcceptBooking` secures payment (wallet → `PayFromWallet` hold; card must already be held/paid; cash record-only) and **blocks `accepted` if the charge fails**. Completion (`autoCompleteDelivered` + `SubmitReview`) calls `Settle` (`CompleteJob`); cancel/unmatched call `Refund` (`RequestRefund`). New `InitiateCardPayment` usecase + `POST /customer/bookings/:id/card-payment` route returns the Paystack authorization URL. `payment_intent_id` stores the wallet payment **reference** (refunds/lookups resolve by reference). `payments == nil` (no `HAULING_PAYMENT_URL`) disables payment for local dev.
+- **Coordinate validation**: `CreateBooking` rejects null-island/out-of-range pickup & dropoff coords.
+- **Migration** `006_booking_payment.sql` — `payment_method` (`wallet|card|cash`, default `wallet`), `payment_status` (`unpaid|held|paid|failed`); wired into bootstrap script.
+- **Customer realtime**: notification handler parameterized by recipient type (`NewHandlerFor`); added a **customer** notification group (`/customer/notifications/...`, customer bearer) alongside the provider one. New `GET /customer/bookings/:id/location` returns the assigned provider's heartbeat lat/lng.
+- **Tests**: `booking/usecases/matching_test.go` — radius exclusion, capacity/type skip, eligible dispatch→unmatched-on-timeout, with a concurrency-safe in-memory repo/store honouring the status guards. Existing notification test updated to the new `Options` constructor + `SetPayment` fake. `go build/vet/test ./...` clean.
+
+#### Frontend — `apps/customer`
+
+- **Dispatch-before-payment** (`hauling_booking_controller.dart`): `confirmPayment` creates the booking immediately with `payment_method` (UI `'paystack'`→`'card'`), starts searching, then for card opens the up-front Paystack checkout via `initiateCardPayment` while the booking searches in the background. Removed the wallet top-up/verify hack (`_startPaystackCheckout`/`onPaystackCheckoutReturned` rewritten; `cancelPaystackCheckout` now cancels the unpaid card booking).
+- **Customer realtime + live location**: new `data/customer_realtime_listener.dart` (mirrors the provider's websocket fast-path + reconnect), wired in `customer_app.dart` via a `realtimeListenerFactory`; `_startRealtime`/`_onRealtimeEvent` refresh booking state on push, 5s poll remains the fallback. Driver location polled every 8s on the active trip (`getBookingLocation`) and shown as a blue marker (`hauling_map_widget.dart` `driverLatLng`).
+- **Coordinate guard**: location entry "Find Truck" requires resolved (non-(0,0)) pickup & dropoff coords.
+- **Polish**: payment view wallet "insufficient" hard block softened to a non-blocking low-balance note (wallet is charged on acceptance now); robust Paystack return-URL parsing (parse URL + match path/`trxref`/`reference`, not substrings); live search countdown in the searching view (`searchTimeout` constant + `searchDeadline`); tier-selection preview fare uses real weight/helpers once chosen.
+- New models: `CardPaymentInit`, `RealtimeToken`, `ProviderLocation`.
+
+**Verification:** backend `go build ./... && go vet ./... && go test ./...` clean (new matcher tests pass). `flutter analyze lib` — no new issues. `flutter test` — all 25 tests pass.
+
+**Run note:** wallet/card payment is server-driven and only active when `HAULING_PAYMENT_URL` + `HAULING_PAYMENT_SECRET` are set (point at payment-wallet-service with a shared HMAC secret); otherwise bookings settle without charging (local dev). Customer realtime needs `HAULING_NOTIFICATION_URL`/`SECRET` set (else the routes are skipped and the app falls back to polling).
+
+### 2026-06-22 — Truck provider Earnings/Wallet screen (full stack)
+
+**What:** Built the truck provider **Earnings/Wallet** screen to match the Figma mockup (zip screens 2271 balance-shown / 2272 balance-hidden) and connected it to a new backend endpoint. It is bottom-nav **tab 3** in the provider home shell — previously "Card" → "Coming soon", now "Earnings" (`account_balance_wallet` icon).
+
+**Backend (`services/driver-hauling-service`)** — new `GET /provider/earnings` (provider bearer) on the existing `booking` feature:
+- `internal/features/booking/models/earnings.go` — `ProviderEarnings` + `EarningsTransaction` read-model and the pure aggregator `ComputeEarnings(bookings, now)`. Unit-tested in `earnings_test.go`.
+- Aggregation: completed trips → `available_balance_kobo`; in-progress (accepted..delivered) → `pending_balance_kobo`; `today_earnings_kobo` + `trips_completed_today` from trips completed today; `hours_online` = 0 (no historical tracking yet). Bookings still `awaiting_acceptance`/`cancelled`/`unmatched` are ignored. Fare per booking = `fare_final_kobo ?? fare_estimate_kobo ?? 0`. Transactions sorted newest-first; title = receiver name (else "Haulage Trip"), subtitle = dropoff (else pickup) address.
+- `BookingService.GetProviderEarnings` (usecase) → `ListByProvider` (cap 200) + `ComputeEarnings`. Handler `GetProviderEarnings` + route in `booking/http`.
+- **Architecture note:** this is trip-earnings *reporting* over fare data the hauling service already owns (read-only projection) — it does NOT create a ledger. The authoritative provider wallet/ledger stays in `payment-wallet-service` (credited via `CompleteJob` settlement when payments are wired). The displayed `available_balance` is therefore a booking-derived estimate, not the real withdrawable balance.
+
+**Frontend (`apps/truck_provider`)** — new `lib/features/earnings/`:
+- `models/earnings_models.dart` — `ProviderEarnings`, `EarningsTransaction`, and `EarningsTransactionGroup.group()` (Today/Yesterday/Last Week/Earlier bucketing).
+- `state/provider_earnings_controller.dart` — `ProviderEarningsController` (loads `/provider/earnings`, tracks `balanceHidden`). Takes an `accessToken: () => ...` closure, not the whole auth controller.
+- `ui/provider_earnings_screen.dart` — the screen: header + "Earning Summary" pill, green balance card (eye toggle, Pending/Today's sub-balances, amber Dispute badge, Withdraw pill overhanging the bottom-right edge), stats card (Trips Completed Today / Hours Online), "Recent Transactions" + "View All", grouped transaction cards with "Go to Trips". Local `formatNaira` (thousands sep; app has no `intl` dep) + `formatTransactionDate` ("2nd Jan 2025, 12:00:23"). Eye toggle masks **only** the balance card; transaction amounts stay visible (matches 2272).
+- `ProviderApi.getEarnings()` + a `_get` Map helper added; `ProviderEarningsController` wired in `truck_provider_app.dart` and passed into `ProviderHomeScreen` (new required `earningsController`).
+- Tests: `test/earnings_screen_test.dart` (3 widget tests via `MockClient`: load+render, eye toggle, empty state).
+
+**Still stubbed as "coming soon"** (designs exist in the zip, not yet built): Withdraw flow (2281-2285 + receipt), Earning Summary chart (2273/2274), Transaction Detail (2275-2280), Disputes (2266-2270), View All, Go to Trips.
+
+**Verification:** backend `go build ./... && go vet ./... && go test ./...` clean. `flutter analyze` — No issues found. `flutter test` — earnings tests pass. Screen layout visually confirmed against the mockup via a throwaway golden render.
+
+### 2026-06-22 — Truck provider Withdrawal flow (full stack)
+
+**What:** Built the provider **withdrawal flow** (Figma 2281 → 2282 → 2284/2285 → 2283 → "Withdrawal Receipt"/Home.png), launched from the Earnings screen's "Withdraw" button. Wired to **payment-wallet-service** (the owner of money/withdrawals per the architecture rules), NOT hauling.
+
+**Key discovery:** `payment-wallet-service` already exposes a provider surface under `/api/v1/payment-wallet/provider` (provider bearer auth, accepts the hauling token via service-keyed secret `hauling=…`): `GET /provider/earnings` (real `WalletSummary` balance), `POST /provider/bank-accounts/resolve`, `POST /provider/bank-accounts`, `POST /provider/withdrawals`. The hauling provider token secret matches payment-wallet's `PAYMENT_WALLET_PROVIDER_ACCESS_TOKEN_SECRETS` default, so the truck provider app calls payment-wallet directly (same pattern as the customer top-up flow).
+
+**Backend (`payment-wallet-service`)** — one addition (everything else already existed): `GET /provider/bank-accounts` (list). Repo `ListProviderBankAccounts` + usecase `ListBankAccounts` + handler + route. `go build/vet/test` clean.
+
+**Frontend (`apps/truck_provider`)** — new `lib/features/wallet/`:
+- `core/config` — added `PAYMENT_WALLET_API_BASE_URL` (default `http://…:8105/api/v1/payment-wallet`).
+- `models/wallet_models.dart` — `WalletBalance`, `ProviderBankAccount`, `ResolvedBankAccount`, `WithdrawalResult`, curated `nigerianBanks` (code+name) list.
+- `data/provider_wallet_api.dart` — points at payment-wallet base URL with the provider bearer token: getBalance, listBankAccounts, resolveBankAccount, registerBankAccount, requestWithdrawal.
+- `state/provider_withdrawal_controller.dart` — shared multi-step flow state (balance/accounts load, amount keypad → kobo, account select, resolve+register bank, submit withdrawal with idempotency key). Token via `accessToken: () => ...` closure.
+- `ui/` — 7 screens: `provider_withdrawal_form_screen` (2281 amount keypad), `provider_withdrawal_confirm_screen` (2282), `provider_bank_accounts_screen` (select/change account), `provider_add_bank_account_screen` (bank dropdown + account number → resolve → register), `provider_transaction_auth_screen` (2284 password / 2285 PIN — **visual gate**, provider auth is OTP-only), `provider_withdrawal_processing_screen` (2283; runs the withdrawal, routes to receipt or error), `provider_withdrawal_receipt_screen` (Home.png; scalloped card + success seal). Shared `widgets/wallet_keypad.dart` (numeric keypad + primary button) and `widgets/wallet_widgets.dart` (flow app bar, amount-to-pay card, bank tile).
+- Earnings screen "Withdraw" now launches the flow via an `onWithdraw` hook threaded through `ProviderHomeScreen`; `ProviderWithdrawalController` + `ProviderWalletApi` wired in `truck_provider_app.dart`.
+- Shared formatter extracted to `lib/core/format/money_format.dart` (earnings screen updated to use it).
+- Tests: `test/withdrawal_flow_test.dart` (7 tests via `MockClient`: keypad/kobo, exceeds-balance gate, load, submit posts to `/provider/withdrawals`, error surfacing, form + confirm render).
+
+**Caveats:** resolve/register(recipient)/withdrawal(transfer) all call Paystack — fully works only with a Paystack secret + funded balance; otherwise the UI surfaces the backend error. PIN/password authorization is a visual gate (no transaction-PIN store yet). Known inconsistency: the withdrawal form shows payment-wallet's real `available_kobo`, while the Earnings screen still shows hauling's booking-derived balance — reconcile later (point the earnings balance card at payment-wallet, keep the trip transaction list from hauling).
+
+**Verification:** payment-wallet `go build/vet/test` clean. `flutter analyze` — No issues. `flutter test` — all 10 tests pass (3 earnings + 7 withdrawal). All 5 key screens visually confirmed against the mockups via a throwaway golden render at 430×932 (the iPhone 14/15 Pro Max design size).
+
+### 2026-06-23 — Truck provider Earning Summary screen (full stack)
+
+**What:** Built the provider **Earning Summary** screen (Figma 2273 / 2274 balance-hidden), reached from the Earnings screen's "Earning Summary" pill (was a "coming soon" snackbar). Lifetime total + a monthly earnings chart + the transaction list.
+
+**Backend (`services/driver-hauling-service`)** — extended the existing `GET /provider/earnings` (no new endpoint): `bookingmodels.ProviderEarnings` gained `total_earnings_kobo` (lifetime completed), `summary_year`, and `monthly_earnings_kobo` (length-12 Jan-Dec series for the current year). `ComputeEarnings` populates them from the same completed bookings it already iterates (over the endpoint's 200-booking cap). `earnings_test.go` updated. `go build/vet/test` clean.
+
+**Frontend (`apps/truck_provider`):**
+- `features/earnings/models/earnings_models.dart` — `ProviderEarnings` gained `totalEarningsKobo`, `summaryYear`, `monthlyEarningsKobo`.
+- `features/earnings/ui/widgets/earnings_chart.dart` — **new** `EarningsChart` custom painter: smooth Catmull-Rom area-line through 12 monthly points, vertical green gradient fill, dashed gridlines, painted month labels, and a tooltip bubble (with pointer) on the highest-earning month (clamped on-canvas).
+- `features/earnings/ui/widgets/earnings_transaction_list.dart` — **new** shared `EarningsTransactionList` + `EarningsTransactionCard` + `formatTransactionDate`, extracted from `provider_earnings_screen.dart` (which now imports them; its private copies removed). `formatNaira` already lives in `lib/core/format/money_format.dart`.
+- `features/earnings/ui/provider_earning_summary_screen.dart` — **new** screen: green Total Earnings card (eye toggle reuses the controller's `balanceHidden`), white "Earnings / Monitor and track your earnings." card with a display-only year pill + the chart, then the shared transaction list. Reuses the already-loaded `ProviderEarningsController` (no extra fetch).
+- `provider_earnings_screen.dart` — the "Earning Summary" pill now pushes the new screen.
+- Tests: `test/earning_summary_test.dart` (2 widget tests: renders total/chart/year, eye toggle masks total).
+
+**Notes:** the chart's highlighted point is the peak month (deterministic), not necessarily the mock's mid-curve point. Year dropdown is display-only (current year). Monthly/total are over the 200 most-recent bookings (the endpoint cap). Still stubbed: Transaction Detail (2275-2280), Disputes (2266-2270), View All, Go to Trips, year filter.
+
+**Verification:** hauling `go build/vet/test` clean. `flutter analyze` — No issues. `flutter test` — all 12 tests pass (3 earnings + 7 withdrawal + 2 summary). Screen + chart visually confirmed against 2273 via a throwaway golden render at 430×932.
+
+### 2026-06-23 — Truck provider Transaction Detail + Disputes flows (full stack)
+
+Built the final two wallet/earnings flows from the zip.
+
+**Transaction Detail (Figma 2275-2280)** — tap any transaction in the Earnings/Summary list.
+- `apps/truck_provider/lib/features/earnings/ui/provider_transaction_detail_screen.dart` — status-coloured amount (completed=green / pending=amber / failed=red), a commission breakdown (10% display-only; the earnings balances elsewhere stay gross), and a trip section for trip credits fetched from the existing `GET /provider/bookings/:id` (added `ProviderApi.getBooking` + `ProviderEarningsController.fetchTripDetail`).
+- Wired via a new `EarningsTransactionList.onTransactionTap` (earnings + summary screens both pass it). No backend change.
+
+**Disputes (Figma 2266-2270 + transaction-picker Frame)** — reached from the Earnings "Dispute" badge.
+- Backend (`services/support-dispute-service`): it was customer-only; added a `/provider` route group using `BearerMiddleware(haulingProviderSecret, "truck_provider", "hauling")` that reuses the existing complaint/chat handlers (config `SUPPORT_DISPUTE_HAULING_PROVIDER_TOKEN_SECRET`, default `development-hauling-provider-token-secret`; `complainantTypeFromRole` now maps `truck_provider`→`hauling_provider`). The complaint domain already supported `hauling_provider` + `booking_reference`. `handler_test.go` added. `go build/vet/test` clean.
+- Frontend `apps/truck_provider/lib/features/disputes/`: `provider_support_api.dart` (new `SUPPORT_API_BASE_URL`, default `:8107/api/v1/support-disputes`), `provider_dispute_controller.dart`, and screens: `provider_log_disputes_screen.dart` (feedback list + transaction picker sheet), `provider_select_dispute_type_screen.dart` (→ `POST /provider/complaints`, subject=dispute type, booking_reference=txn id), `provider_dispute_details_screen.dart` (status stepper + processing-record timeline), `provider_dispute_chat_screen.dart` (complaint messages; provider bubbles right/green, admin left/grey). Shared `ui/widgets/dispute_widgets.dart`.
+- A dispute = a complaint; complaint.status → Submitted/Processing/Completed stepper. Processing-record notes are placeholder (no per-status history table).
+
+**Notes:** the "Dispute" badge + transaction tap are now live (were "coming soon"). Both new client APIs use the provider's hauling bearer token directly (same pattern as withdrawals/top-ups). Remaining stubs are minor: View All, Go to Trips, year filter, receipt download.
+
+**Verification:** support-dispute `go build/vet/test` clean. `flutter analyze` — No issues. `flutter test` — all 21 tests pass (3 earnings + 7 withdrawal + 2 summary + 3 transaction-detail + 6 dispute). All 6 new screens visually confirmed against the mockups via throwaway golden renders at 430×932.
+
+### 2026-06-24 — Auth→booking review fixes (trip lifecycle, GPS, payment/cancel desync)
+
+**Context:** Walkthrough of customer + truck-provider apps and `driver-hauling-service` surfaced a blocker: **no booking could complete through the UI.** The provider "Start Trip" button gated on `arrived_at_pickup`, a status nothing ever set, so the trip dead-ended at `accepted`. Fixed that plus real GPS, the search-timeout/card-payment desync, and a few cleanup items.
+
+**1. Trip lifecycle (blocker) — full state machine wired.** Designed machine is now real: `accepted → en_route_pickup → arrived_at_pickup → picked_up → en_route_delivery → delivered → completed`. The customer app already rendered all six statuses (no customer change needed) — only the server transitions + provider UI were missing.
+- Backend `services/driver-hauling-service`:
+  - `booking/repositories/booking_repository.go` — new guarded transitions `MarkEnRoutePickup` (accepted→en_route_pickup), `MarkArrivedAtPickup` (en_route_pickup→arrived_at_pickup), `MarkEnRouteDelivery` (picked_up→en_route_delivery); widened `MarkPickedUp` to also accept `arrived_at_pickup`; widened `CancelByProvider` guard to all in-trip statuses; added the three methods to the `BookingRepository` interface.
+  - `booking/usecases/booking_service.go` — `MarkEnRoutePickup`/`MarkArrivedAtPickup`/`MarkEnRouteDelivery` (ownership check → repo → event → customer notify), mirroring `ConfirmPickup`.
+  - `booking/clients/notification_client.go` — `NotifyCustomerEnRoutePickup`/`ArrivedPickup`/`EnRouteDelivery`; new event constants in `shared/go/notifications/notifications.go` (`EventDriverEnRoutePickup`/`ArrivedPickup`/`EnRouteDelivery`).
+  - `booking/http/handler.go` + `routes.go` — `PUT /provider/bookings/:id/{en-route-pickup,arrived,en-route-delivery}`.
+  - New `booking/usecases/lifecycle_test.go` (full happy-path walk + wrong-provider rejection).
+- Provider app `apps/truck_provider`:
+  - `home/data/provider_api.dart` — `markEnRoutePickup`/`markArrived`/`markEnRouteDelivery`.
+  - `home/state/provider_home_controller.dart` — matching controller methods.
+  - `home/ui/screens/provider_active_trip_screen.dart` — replaced the dead `isArrived`-gated single button with a status-driven `_TripAction` (`_actionFor`): Start Driving → I've Arrived → Start Trip → Start Delivery → End Trip. `_StartTripButton` now takes a `label`.
+
+**2. Real GPS for provider (was hardcoded Lagos).** `home/state/provider_home_controller.dart` — new `_currentPosition()` helper (Geolocator check/request permission, location-service check, Lagos `_fallbackLat/Lng` on any failure — never blocks going online); used by `goOnline` + the 30s heartbeat (record `(double,double)` tuple). `geolocator` + iOS/Android perms were already present.
+
+**3. Payment & cancel desync.**
+- `apps/customer/.../hauling_booking_controller.dart` `_startSearchTimeout` now calls the cancel API server-side (`reason: 'search_timeout'`) instead of only flipping the UI to `cancelled`, so a timed-out booking can't still be accepted/charged. Falls back to local cancel if the server call fails.
+- `booking_service.go` `CreateBooking` no longer dispatches card bookings immediately; matching starts from `InitiateCardPayment` (once the customer commits to Paystack checkout), guarded to dispatch once. Clearer provider-facing error when an accept loses the card-payment race.
+
+**4. Cleanup.**
+- Provider `auth/ui/phone_entry_screen.dart` — removed the email login path (backend provider auth is phone-only; it had a hardcoded `samuel@karrygo.dev` default that would 4xx). Now phone-only.
+- Customer tier card fare relabeled `from ₦…` (indicative — preview uses default weight; tier has no backend fare effect).
+- Realtime: no code change — routes only register when `HAULING_NOTIFICATION_URL`/`SECRET` set; apps fall back to polling otherwise (listener already tolerates the 404).
+
+**Verification:** hauling + shared + notification-service `go build/vet/test` clean (new lifecycle test passes). `apps/truck_provider` `flutter analyze` — No issues; `flutter test` — all 21 pass. `apps/customer` `flutter analyze lib` — only pre-existing infos in untouched files; `flutter test` — all 25 pass.
+
+**Known remaining (not addressed):** provider earnings-balance vs withdrawal-balance inconsistency; card escrow still needs a Paystack webhook to flip `payment_status`→held; tiers remain presentation-only; face-verify / live-chat / transaction-PIN are still visual-only.
+
+### 2026-06-26 — Customer Trips screen redesign (Figma) + completed-trip visibility fix
+
+**What changed (`apps/customer`):** Rebuilt the "My Trips" tab to match the Figma (Past / Ongoing / Upcoming / Cancelled tab bar + rich trip cards) and fixed completed trips not appearing.
+
+- `lib/features/home/ui/tabs/customer_trips_tab.dart` — rewritten with a 4-tab `TabController` (Past / Ongoing / Upcoming / Cancelled), Figma header (menu + title + subtitle), per-tab `TabBarView`. Lazily fetches `ProviderSnapshot`s (cached in tab state) to fill driver name/tenure/trip count on cards without an N+1 blocking render. Categorization: Past = `completed`; Ongoing = searching/active/`delivered`; Upcoming = `isUpcoming`; Cancelled = `cancelled`/`unmatched`. Returning from the detail screen re-loads history.
+- `lib/features/hauling/ui/widgets/hauling_trip_widgets.dart` — new public `TripCard` (header date + 3-dot, driver row, dotted-connector route, fare + status pill), `TripStatusPill` (dark pill for completed/ongoing, green for upcoming, soft-green for cancelled), `_DottedConnectorPainter`. Kept old `TripStatusChip`/`tripStatusColor`/`formatTripDate`.
+- `lib/features/hauling/ui/views/hauling_trip_detail_screen.dart` — rewritten to the Figma "Trip Detail": driver header (avatar + name + truck `color make model` + plate), Trip Completed reference + Date, route+fee card, Receiver/Package Information, fragile note, cancellation reason, and an inline **review section** for completed trips (5-star rating, description, "Do you Recommend this Driver?" Yes/No, Submit Review → read-only after submit). Falls back to "Book again" for cancelled/unmatched. Fetches provider + truck snapshots in `initState`.
+- `lib/features/hauling/models/hauling_models.dart` — `HaulageBooking` gained `scheduledAt`, `completedAt` (parsed from API) + `isUpcoming` getter; `HaulingBookingStatus.tripChipLabel` (short Completed/Ongoing…/Upcoming/Cancelled labels).
+- `lib/features/hauling/state/hauling_booking_controller.dart` — exposed `api` getter (for lazy provider fetches); added `submitReviewForBooking()` (review an arbitrary booking from the detail screen + refresh history); `loadHistory()` now also runs after review submit/skip and on terminal poll updates, so a just-completed trip surfaces under "Past" immediately.
+
+**Issue #2 root cause:** submitting a review server-side `MarkCompleted`s a `delivered` booking (already in `SubmitReview`), but the Flutter history list was never refreshed after completion, so the trip didn't appear until app restart. Now refreshed in all completion paths. A skipped-review trip stays under "Ongoing" until the 30-min auto-complete worker (then moves to Past) — acceptable.
+
+**Verification:** `flutter analyze lib` — 0 errors (only pre-existing infos/warnings in untouched files). `flutter test` — all 25 pass.

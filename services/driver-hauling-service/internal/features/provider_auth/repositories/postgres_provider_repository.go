@@ -18,6 +18,10 @@ type ProviderRepository interface {
 	UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error)
 	UpsertByEmail(ctx context.Context, email string) (providerauthmodels.Provider, error)
 	GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error)
+	UpdatePhone(ctx context.Context, id, phone string) (providerauthmodels.Provider, error)
+	// ContactTaken reports whether the given email and/or phone already belong to a
+	// provider other than excludeID. Empty inputs report false for that field.
+	ContactTaken(ctx context.Context, excludeID, email, phone string) (emailTaken, phoneTaken bool, err error)
 }
 
 type PostgresProviderRepository struct {
@@ -37,7 +41,10 @@ func (r *PostgresProviderRepository) UpsertByPhone(ctx context.Context, phone st
 		RETURNING id::text, COALESCE(phone,''), COALESCE(email,''),
 		          first_name, last_name, onboarding_status, status,
 		          profile_photo_url, photo_asset_id,
-		          COALESCE(rating,5.00), total_trips, created_at, updated_at
+		          COALESCE(rating,5.00), total_trips, created_at, updated_at,
+		          location_state, location_city, language, service_type, operation_mode,
+		          driver_license_number, license_expiry_year, license_expiry_date,
+		          gov_id_url, driver_license_url, vehicle_reg_url
 	`, id, phone, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.ProviderStatusActive)
 
 	return scanProvider(row)
@@ -52,7 +59,10 @@ func (r *PostgresProviderRepository) UpsertByEmail(ctx context.Context, email st
 		RETURNING id::text, COALESCE(phone,''), COALESCE(email,''),
 		          first_name, last_name, onboarding_status, status,
 		          profile_photo_url, photo_asset_id,
-		          COALESCE(rating,5.00), total_trips, created_at, updated_at
+		          COALESCE(rating,5.00), total_trips, created_at, updated_at,
+		          location_state, location_city, language, service_type, operation_mode,
+		          driver_license_number, license_expiry_year, license_expiry_date,
+		          gov_id_url, driver_license_url, vehicle_reg_url
 	`, id, email, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.ProviderStatusActive)
 
 	return scanProvider(row)
@@ -63,7 +73,10 @@ func (r *PostgresProviderRepository) GetByID(ctx context.Context, id string) (pr
 		SELECT id::text, COALESCE(phone,''), COALESCE(email,''),
 		       first_name, last_name, onboarding_status, status,
 		       profile_photo_url, photo_asset_id,
-		       COALESCE(rating,5.00), total_trips, created_at, updated_at
+		       COALESCE(rating,5.00), total_trips, created_at, updated_at,
+		          location_state, location_city, language, service_type, operation_mode,
+		          driver_license_number, license_expiry_year, license_expiry_date,
+		          gov_id_url, driver_license_url, vehicle_reg_url
 		FROM truck_providers WHERE id = $1
 	`, id)
 
@@ -72,6 +85,40 @@ func (r *PostgresProviderRepository) GetByID(ctx context.Context, id string) (pr
 		return providerauthmodels.Provider{}, apperrors.NotFound("Provider could not be found.", err)
 	}
 	return p, err
+}
+
+func (r *PostgresProviderRepository) UpdatePhone(ctx context.Context, id, phone string) (providerauthmodels.Provider, error) {
+	row := r.db.QueryRow(ctx, `
+		UPDATE truck_providers SET phone = $2, updated_at = now()
+		WHERE id = $1
+		RETURNING id::text, COALESCE(phone,''), COALESCE(email,''),
+		          first_name, last_name, onboarding_status, status,
+		          profile_photo_url, photo_asset_id,
+		          COALESCE(rating,5.00), total_trips, created_at, updated_at,
+		          location_state, location_city, language, service_type, operation_mode,
+		          driver_license_number, license_expiry_year, license_expiry_date,
+		          gov_id_url, driver_license_url, vehicle_reg_url
+	`, id, phone)
+
+	p, err := scanProvider(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return providerauthmodels.Provider{}, apperrors.NotFound("Provider could not be found.", err)
+	}
+	return p, err
+}
+
+func (r *PostgresProviderRepository) ContactTaken(ctx context.Context, excludeID, email, phone string) (bool, bool, error) {
+	var emailTaken, phoneTaken bool
+	err := r.db.QueryRow(ctx, `
+		SELECT
+		  CASE WHEN $2 = '' THEN false ELSE EXISTS(
+		    SELECT 1 FROM truck_providers WHERE id <> $1 AND lower(email) = lower($2)
+		  ) END,
+		  CASE WHEN $3 = '' THEN false ELSE EXISTS(
+		    SELECT 1 FROM truck_providers WHERE id <> $1 AND phone = $3
+		  ) END
+	`, excludeID, email, phone).Scan(&emailTaken, &phoneTaken)
+	return emailTaken, phoneTaken, err
 }
 
 // ─── Session Repository ───────────────────────────────────────────────────────
@@ -135,6 +182,9 @@ func scanProvider(row scannable) (providerauthmodels.Provider, error) {
 		&p.FirstName, &p.LastName, &p.OnboardingStatus, &p.Status,
 		&p.ProfilePhotoURL, &p.PhotoAssetID,
 		&p.Rating, &p.TotalTrips, &p.CreatedAt, &p.UpdatedAt,
+		&p.LocationState, &p.LocationCity, &p.Language, &p.ServiceType, &p.OperationMode,
+		&p.DriverLicenseNumber, &p.LicenseExpiryYear, &p.LicenseExpiryDate,
+		&p.GovIDURL, &p.DriverLicenseURL, &p.VehicleRegURL,
 	)
 	return p, err
 }

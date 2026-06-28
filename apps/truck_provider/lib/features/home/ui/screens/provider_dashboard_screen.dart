@@ -45,6 +45,8 @@ class ProviderDashboardScreen extends StatelessWidget {
                 onTap: homeController.toggleOnline,
               ),
               const Spacer(),
+              _MessageButton(onTap: onNotificationsTap),
+              const SizedBox(width: 10),
               _BellButton(onTap: onNotificationsTap),
             ],
           ),
@@ -117,7 +119,8 @@ class _OnlineTogglePill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          // Green tint when online ("Go Offline"), grey when offline ("Go Online").
+          color: isOnline ? kProviderGreenPale : const Color(0xFFE6E8E6),
           borderRadius: BorderRadius.circular(30),
           boxShadow: const [
             BoxShadow(color: Color(0x28000000), blurRadius: 10, offset: Offset(0, 3)),
@@ -134,8 +137,8 @@ class _OnlineTogglePill extends StatelessWidget {
             else
               Text(
                 isOnline ? 'Go Offline' : 'Go Online',
-                style: const TextStyle(
-                  color: kProviderText,
+                style: TextStyle(
+                  color: isOnline ? kProviderDarkGreen : kProviderMuted,
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
                 ),
@@ -178,6 +181,30 @@ class _IosSwitch extends StatelessWidget {
   }
 }
 
+// ─── Message / shield button (Figma 2034 top-right, left of bell) ─────────────
+
+class _MessageButton extends StatelessWidget {
+  const _MessageButton({this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: const BoxDecoration(
+          color: Color(0xFFEDEFED),
+          shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 3))],
+        ),
+        child: const Icon(Icons.mail_outline_rounded, color: kProviderText, size: 20),
+      ),
+    );
+  }
+}
+
 // ─── Notification bell button (Figma 2034 top-right) ──────────────────────────
 
 class _BellButton extends StatelessWidget {
@@ -192,11 +219,11 @@ class _BellButton extends StatelessWidget {
         width: 42,
         height: 42,
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
+          color: Colors.white,
           shape: BoxShape.circle,
           boxShadow: [BoxShadow(color: Color(0x28000000), blurRadius: 10, offset: Offset(0, 3))],
         ),
-        child: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 20),
+        child: const Icon(Icons.notifications_none_rounded, color: kProviderText, size: 20),
       ),
     );
   }
@@ -271,7 +298,7 @@ class _OfflineModal extends StatelessWidget {
               onPressed: isLoading ? null : onGoOnline,
               style: FilledButton.styleFrom(
                 backgroundColor: kProviderGreen,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
               ),
               child: isLoading
                   ? const SizedBox.square(
@@ -314,54 +341,75 @@ class _IncomingRequestsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final first = requests.first;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final multiple = requests.length > 1;
+    // Show a peek of the next card when there is more than one request.
+    final cardWidth = multiple ? screenWidth - 64 : screenWidth - 40;
+
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [BoxShadow(color: Color(0x18000000), blurRadius: 24, offset: Offset(0, -6))],
       ),
-      padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding + 16),
+      padding: EdgeInsets.fromLTRB(0, 20, 0, bottomPadding + 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Incoming Requests...',
-            style: TextStyle(
-              color: kProviderText,
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-            ),
-          ),
-          const Text(
-            'Accept a request to start a trip.',
-            style: TextStyle(color: kProviderMuted, fontSize: 13),
-          ),
-          const SizedBox(height: 14),
-          GestureDetector(
-            onTap: () => onTapCard(first),
-            behavior: HitTestBehavior.opaque,
-            child: ProviderRequestCard(
-              booking: first,
-              isLoading: isLoading,
-              onReject: () => onReject(first.id),
-              onAccept: () => onAccept(first.id),
-            ),
-          ),
-          if (requests.length > 1) ...[
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                '+${requests.length - 1} more request${requests.length > 2 ? 's' : ''}',
-                style: const TextStyle(color: kProviderMuted, fontSize: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Incoming Requests...',
+              style: TextStyle(
+                color: kProviderText,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
               ),
             ),
-          ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Accept a request to start a trip.',
+              style: TextStyle(color: kProviderMuted, fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Horizontal carousel — next card peeks in on the right edge.
+          SizedBox(
+            height: _cardHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const PageScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: requests.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final booking = requests[index];
+                return SizedBox(
+                  width: cardWidth,
+                  child: GestureDetector(
+                    onTap: () => onTapCard(booking),
+                    behavior: HitTestBehavior.opaque,
+                    child: ProviderRequestCard(
+                      booking: booking,
+                      isLoading: isLoading,
+                      onReject: () => onReject(booking.id),
+                      onAccept: () => onAccept(booking.id),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
   }
+
+  // Approximate fixed height so the horizontal ListView can lay out its cards.
+  static const double _cardHeight = 270;
 }
 
 // ─── Error pill ───────────────────────────────────────────────────────────────

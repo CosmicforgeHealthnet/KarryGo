@@ -109,10 +109,14 @@ type CustomerAvailabilityResult struct {
 }
 
 func (s *AvailabilityService) CheckAvailability(ctx context.Context) (CustomerAvailabilityResult, error) {
-	count, err := s.store.CountOnline(ctx)
+	// Use the live provider list (which prunes stale set entries) rather than a
+	// raw SCARD, so the gate doesn't report "available" off expired keys and then
+	// immediately unmatch the booking.
+	providers, err := s.store.GetOnlineProviders(ctx)
 	if err != nil {
 		return CustomerAvailabilityResult{}, err
 	}
+	count := int64(len(providers))
 	return CustomerAvailabilityResult{
 		Available: count > 0,
 		Count:     count,

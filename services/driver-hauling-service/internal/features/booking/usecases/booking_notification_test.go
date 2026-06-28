@@ -24,7 +24,12 @@ func (r *recordingNotifier) Send(_ context.Context, request notifications.Reques
 func newServiceWithNotifier(repo *fakeBookingRepo) (*BookingService, *recordingNotifier) {
 	rec := &recordingNotifier{}
 	notifier := bookingclients.NewBookingNotifierWith(rec)
-	svc := NewBookingService(repo, noopAvailabilityStore{}, notifier, 30)
+	svc := NewBookingService(Options{
+		Bookings:            repo,
+		Availability:        noopAvailabilityStore{},
+		Notifier:            notifier,
+		MatchTimeoutSeconds: 30,
+	})
 	return svc, rec
 }
 
@@ -148,7 +153,16 @@ func (f *fakeBookingRepo) MarkMatched(_ context.Context, _, _, _ string) (bookin
 func (f *fakeBookingRepo) MarkAccepted(_ context.Context, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
+func (f *fakeBookingRepo) MarkEnRoutePickup(_ context.Context, _ string) (bookingmodels.Booking, error) {
+	return f.booking, nil
+}
+func (f *fakeBookingRepo) MarkArrivedAtPickup(_ context.Context, _ string) (bookingmodels.Booking, error) {
+	return f.booking, nil
+}
 func (f *fakeBookingRepo) MarkPickedUp(_ context.Context, _ string) (bookingmodels.Booking, error) {
+	return f.booking, nil
+}
+func (f *fakeBookingRepo) MarkEnRouteDelivery(_ context.Context, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
 func (f *fakeBookingRepo) MarkDelivered(_ context.Context, _ string) (bookingmodels.Booking, error) {
@@ -164,6 +178,13 @@ func (f *fakeBookingRepo) CancelByProvider(_ context.Context, _, _, _ string) (b
 	return f.booking, nil
 }
 func (f *fakeBookingRepo) ResetToMatching(_ context.Context, _ string) (bookingmodels.Booking, error) {
+	return f.booking, nil
+}
+func (f *fakeBookingRepo) SetPayment(_ context.Context, _, paymentStatus, paymentIntentID string) (bookingmodels.Booking, error) {
+	f.booking.PaymentStatus = paymentStatus
+	if paymentIntentID != "" {
+		f.booking.PaymentIntentID = &paymentIntentID
+	}
 	return f.booking, nil
 }
 func (f *fakeBookingRepo) ListDeliveredForAutoComplete(_ context.Context, _ time.Time) ([]bookingmodels.Booking, error) {

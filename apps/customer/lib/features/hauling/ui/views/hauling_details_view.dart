@@ -39,7 +39,7 @@ class _HaulingDetailsViewState extends State<HaulingDetailsView> {
   Widget build(BuildContext context) {
     return haulingFlowScaffold(
       title: 'Truck Hauling',
-      onBack: () => Navigator.of(context).pop(),
+      onBack: _ctrl.backToTierSelection,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

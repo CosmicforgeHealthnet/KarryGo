@@ -17,9 +17,9 @@ type Config struct {
 	Redis       redisx.Config
 
 	// Provider token signing
-	ProviderTokenSecret  []byte
+	ProviderTokenSecret   []byte
 	ProviderRefreshSecret []byte
-	ProviderOTPSecret    []byte
+	ProviderOTPSecret     []byte
 
 	// Customer token verification (mirrors customer-service secret)
 	CustomerTokenSecret []byte
@@ -39,9 +39,15 @@ type Config struct {
 	PaymentURL         string
 	PaymentSecret      []byte
 
+	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
+	// support-dispute-service resolving a provider identity).
+	ServiceSecrets string
+
 	// Matching config
-	BookingMatchTimeout int // seconds provider has to accept
-	ProviderOnlineTTL   int // seconds provider stays online without heartbeat
+	BookingMatchTimeout int     // seconds a matched provider has to accept
+	BookingSearchWindow int     // seconds to keep searching (rescanning) before unmatched
+	ProviderOnlineTTL   int     // seconds provider stays online without heartbeat
+	MatchMaxRadiusKm    float64 // providers farther than this from pickup are not dispatched
 }
 
 func Load() Config {
@@ -76,9 +82,25 @@ func Load() Config {
 		PaymentURL:         os.Getenv("HAULING_PAYMENT_URL"),
 		PaymentSecret:      []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
 
+		ServiceSecrets: getEnv("HAULING_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
+
 		BookingMatchTimeout: getEnvInt("HAULING_BOOKING_MATCH_TIMEOUT", 30),
+		BookingSearchWindow: getEnvInt("HAULING_BOOKING_SEARCH_WINDOW", 60),
 		ProviderOnlineTTL:   getEnvInt("HAULING_PROVIDER_ONLINE_TTL", 7200),
+		MatchMaxRadiusKm:    getEnvFloat("HAULING_MATCH_MAX_RADIUS_KM", 25),
 	}
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return fallback
+	}
+	return f
 }
 
 func getEnv(key string, fallback string) string {

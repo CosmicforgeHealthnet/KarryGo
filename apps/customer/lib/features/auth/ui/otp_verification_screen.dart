@@ -25,58 +25,104 @@ class OtpVerificationScreen extends StatefulWidget {
 }
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
-  final _otpController = TextEditingController();
-  final _focusNode = FocusNode();
+  final _controllers = List.generate(6, (_) => TextEditingController());
+  final _focusNodes = List.generate(6, (_) => FocusNode());
+  String get _code => _controllers.map((c) => c.text).join();
+  bool get _complete => _code.length == 6;
+
+  static const int _resendCooldownSeconds = 30;
+
   late int _remainingSeconds;
   Timer? _countdownTimer;
 
   @override
   void initState() {
     super.initState();
-    _remainingSeconds = widget.state.otpExpiresIn;
+    _remainingSeconds = _resendCooldownSeconds;
     _startCountdown();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNodes[0].requestFocus();
+    });
   }
 
   @override
   void dispose() {
-    _otpController.dispose();
-    _focusNode.dispose();
     _countdownTimer?.cancel();
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
   void _startCountdown() {
     _countdownTimer?.cancel();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       setState(() {
         if (_remainingSeconds > 0) {
           _remainingSeconds--;
         } else {
-          _countdownTimer?.cancel();
+          t.cancel();
         }
       });
     });
   }
 
+  void _onDigitEntered(int index, String value) {
+    final digit = value.replaceAll(RegExp(r'\D'), '');
+    if (digit.isEmpty) {
+      _controllers[index].clear();
+      if (index > 0) {
+        _focusNodes[index - 1].requestFocus();
+        _controllers[index - 1].clear();
+      }
+      setState(() {});
+      return;
+    }
+    _controllers[index].text = digit[digit.length - 1];
+    _controllers[index].selection =
+        TextSelection.fromPosition(const TextPosition(offset: 1));
+    setState(() {});
+    if (index < 5) {
+      _focusNodes[index + 1].requestFocus();
+    } else {
+      _focusNodes[index].unfocus();
+      _verify();
+    }
+  }
+
+  void _verify() {
+    if (!_complete) return;
+    FocusScope.of(context).unfocus();
+    widget.controller.verifyOtp(_code);
+  }
+
+  void _resend() {
+    widget.controller.resendOtp();
+    setState(() => _remainingSeconds = _resendCooldownSeconds);
+    _startCountdown();
+  }
+
   @override
   Widget build(BuildContext context) {
     final fieldError = _fieldError(widget.state.error, 'otp');
-    final channel = widget.state.identifierType == CustomerAuthIdentifierType.email
-        ? 'email'
-        : 'number';
+    final channel =
+        widget.state.identifierType == CustomerAuthIdentifierType.email
+            ? 'email'
+            : 'number';
 
     return FigmaPhoneScaffold(
       key: const ValueKey(CustomerAppRoutes.otpVerification),
-      bottom: ValueListenableBuilder<TextEditingValue>(
-        valueListenable: _otpController,
-        builder: (context, value, _) {
-          final canContinue = value.text.length == 6;
-          return FigmaPrimaryButton(
-            label: 'Continue',
-            isLoading: widget.state.isLoading,
-            onPressed: canContinue && !widget.state.isLoading ? _verify : null,
-          );
-        },
+      bottom: FigmaPrimaryButton(
+        label: 'Continue',
+        isLoading: widget.state.isLoading,
+        onPressed: _complete && !widget.state.isLoading ? _verify : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,7 +157,44 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
+          if (kDebugMode && widget.state.debugOtp != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: CustomerFigmaColors.primaryTint,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: CustomerFigmaColors.primary,
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Your OTP code',
+                    style: TextStyle(
+                      color: CustomerFigmaColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.state.debugOtp!,
+                    style: const TextStyle(
+                      color: CustomerFigmaColors.primary,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
           const Text(
             'Enter OTP',
             style: TextStyle(
@@ -121,31 +204,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: _otpController,
-            builder: (context, value, _) {
-              return GestureDetector(
-                onTap: _focusNode.requestFocus,
-                child: _OtpSlots(
-                  value: value.text,
-                  hasError: fieldError != null,
-                ),
-              );
-            },
-          ),
-          SizedBox(
-            height: 1,
-            child: Opacity(
-              opacity: 0.01,
-              child: TextField(
-                autofocus: true,
-                focusNode: _focusNode,
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(counterText: ''),
-                onSubmitted: (_) => _verify(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(
+              6,
+              (i) => _OtpCircle(
+                controller: _controllers[i],
+                focusNode: _focusNodes[i],
+                hasError: fieldError != null,
+                onChanged: (v) => _onDigitEntered(i, v),
+                onBackspace: i > 0
+                    ? () {
+                        _controllers[i].clear();
+                        _focusNodes[i - 1].requestFocus();
+                        _controllers[i - 1].clear();
+                        setState(() {});
+                      }
+                    : null,
               ),
             ),
           ),
@@ -159,7 +234,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               TextButton(
                 onPressed: widget.state.isLoading || _remainingSeconds > 0
                     ? null
-                    : () => widget.controller.resendOtp(),
+                    : _resend,
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   foregroundColor: CustomerFigmaColors.primary,
@@ -181,17 +256,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
             ],
           ),
-          if (kDebugMode && widget.state.debugOtp != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Local test code: ${widget.state.debugOtp}',
-              style: const TextStyle(
-                color: CustomerFigmaColors.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
           if (widget.state.error != null && fieldError == null) ...[
             const SizedBox(height: 18),
             CosmicforgeLogisticsErrorBanner(
@@ -205,62 +269,100 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       ),
     );
   }
-
-  void _verify() {
-    FocusScope.of(context).unfocus();
-    widget.controller.verifyOtp(_otpController.text);
-  }
 }
 
-class _OtpSlots extends StatelessWidget {
-  const _OtpSlots({required this.value, required this.hasError});
+// ─── Single OTP circle ───────────────────────────────────────────────────────
 
-  final String value;
+class _OtpCircle extends StatefulWidget {
+  const _OtpCircle({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.hasError,
+    this.onBackspace,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
   final bool hasError;
+  final VoidCallback? onBackspace;
+
+  @override
+  State<_OtpCircle> createState() => _OtpCircleState();
+}
+
+class _OtpCircleState extends State<_OtpCircle> {
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (mounted) setState(() => _focused = widget.focusNode.hasFocus);
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode.removeListener(_onFocusChange);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final chars = value.split('').take(6).toList();
+    final filled = widget.controller.text.isNotEmpty;
+    final Color borderColor;
+    if (widget.hasError) {
+      borderColor = Colors.red.shade400;
+    } else if (_focused || filled) {
+      borderColor = CustomerFigmaColors.primary;
+    } else {
+      borderColor = CustomerFigmaColors.border;
+    }
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: List.generate(6, (index) {
-        final hasValue = index < chars.length;
-        final Color borderColor;
-        if (hasError) {
-          borderColor = Colors.red.shade400;
-        } else if (hasValue) {
-          borderColor = CustomerFigmaColors.primary;
-        } else {
-          borderColor = CustomerFigmaColors.border;
-        }
-
-        return Container(
-          width: 54,
-          height: 54,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    return Container(
+      width: 48,
+      height: 56,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: filled ? CustomerFigmaColors.primaryTint : Colors.white,
+        border: Border.all(
+          color: borderColor,
+          width: _focused || filled || widget.hasError ? 2 : 1.5,
+        ),
+      ),
+      child: KeyboardListener(
+        focusNode: FocusNode(),
+        onKeyEvent: (event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.backspace &&
+              widget.controller.text.isEmpty) {
+            widget.onBackspace?.call();
+          }
+        },
+        child: TextField(
+          controller: widget.controller,
+          focusNode: widget.focusNode,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          maxLength: 1,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: CustomerFigmaColors.primary,
           ),
-          child: Text(
-            hasValue ? chars[index] : '',
-            style: const TextStyle(
-              color: CustomerFigmaColors.text,
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-            ),
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            counterText: '',
+            contentPadding: EdgeInsets.zero,
           ),
-        );
-      }),
+          onChanged: widget.onChanged,
+        ),
+      ),
     );
   }
 }

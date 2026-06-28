@@ -63,7 +63,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             haulingController: widget.haulingController,
             placesApi: widget.placesApi,
           ),
-          const CustomerTripsTab(),
+          CustomerTripsTab(
+            controller: widget.haulingController,
+            placesApi: widget.placesApi,
+          ),
           CustomerNotificationsTab(controller: widget.notificationController),
           session == null
               ? const _ProfilePlaceholder()
@@ -80,7 +83,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       ),
       bottomNavigationBar: CustomerHomeBottomNav(
         selectedIndex: _selectedIndex,
-        onTap: (i) => setState(() => _selectedIndex = i),
+        onTap: (i) {
+          setState(() => _selectedIndex = i);
+          // Refresh the bookings list each time the Trips tab is opened.
+          if (i == 1) widget.haulingController.loadHistory();
+        },
       ),
     );
   }

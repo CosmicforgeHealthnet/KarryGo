@@ -6,6 +6,7 @@ import '../core/cosmicforge_logistics_app_theme.dart';
 import '../features/auth/data/customer_auth_api.dart';
 import '../features/auth/data/customer_session_store.dart';
 import '../features/auth/state/customer_auth_controller.dart';
+import '../features/hauling/data/customer_realtime_listener.dart';
 import '../features/hauling/data/hauling_api.dart';
 import '../features/hauling/data/places_api.dart';
 import '../features/hauling/state/hauling_booking_controller.dart';
@@ -176,13 +177,20 @@ class _CustomerAppState extends State<CustomerApp> {
   void _initHaulingController() {
     final config = CustomerAppConfig.fromEnvironment();
     _placesApi = PlacesApi(apiKey: config.googleMapsApiKey);
+    final haulingApi = HaulingApi(
+      config: ApiCoreConfig(baseUrl: config.haulingApiBaseUrl),
+      onAuthFailure: _onAuthFailure,
+    );
     _haulingController = HaulingBookingController(
-      api: HaulingApi(
-        config: ApiCoreConfig(baseUrl: config.haulingApiBaseUrl),
-        onAuthFailure: _onAuthFailure,
-      ),
+      api: haulingApi,
       authController: _controller,
       walletApi: _walletApi,
+      realtimeListenerFactory: (accessToken, onEvent) => CustomerRealtimeListener(
+        fetchToken: (token) => haulingApi.fetchRealtimeToken(accessToken: token),
+        wsUrl: config.notificationWsUrl,
+        accessToken: accessToken,
+        onEvent: onEvent,
+      ),
     );
 
     // Notifications proxy lives on the customer API base; the websocket connects

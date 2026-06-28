@@ -90,6 +90,7 @@ class HaulingApi {
     String packageContent = '',
     String packageSize = '',
     bool isFragile = false,
+    String paymentMethod = 'wallet',
     DateTime? scheduledAt,
   }) async {
     final body = <String, dynamic>{
@@ -110,12 +111,32 @@ class HaulingApi {
       'package_content': packageContent,
       'package_size': packageSize,
       'is_fragile': isFragile,
+      'payment_method': paymentMethod,
     };
     if (scheduledAt != null) {
       body['scheduled_at'] = scheduledAt.toUtc().toIso8601String();
     }
     final data = await _sendJson('POST', '/customer/bookings', accessToken: accessToken, body: body);
     return HaulageBooking.fromJson(data);
+  }
+
+  /// Starts the up-front Paystack payment for a card booking and returns the
+  /// authorization URL to open in the in-app checkout WebView.
+  Future<CardPaymentInit> initiateCardPayment({
+    required String accessToken,
+    required String bookingId,
+    required String customerEmail,
+  }) async {
+    final data = await _sendJson(
+      'POST',
+      '/customer/bookings/$bookingId/card-payment',
+      accessToken: accessToken,
+      body: {'customer_email': customerEmail},
+    );
+    return CardPaymentInit(
+      authorizationUrl: (data['authorization_url'] as String?) ?? '',
+      paymentIntentId: (data['payment_intent_id'] as String?) ?? '',
+    );
   }
 
   Future<BookingReview> submitReview({
@@ -164,6 +185,43 @@ class HaulingApi {
       accessToken: accessToken,
     );
     return raw.map((e) => HaulageBooking.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+  }
+
+  /// Live location of the assigned provider for a booking (driver map marker).
+  Future<ProviderLocation> getBookingLocation({
+    required String accessToken,
+    required String bookingId,
+  }) async {
+    final data = await _sendJson(
+      'GET',
+      '/customer/bookings/$bookingId/location',
+      accessToken: accessToken,
+    );
+    return ProviderLocation.fromJson(data);
+  }
+
+  /// Mints a short-lived websocket token for the customer realtime channel.
+  ///
+  /// Returns null when the proxy endpoint returns 404 (hauling-service not
+  /// configured with a notification-service URL). The caller should treat null
+  /// as "realtime unavailable" and fall back to polling.
+  Future<RealtimeToken?> fetchRealtimeToken({required String accessToken}) async {
+    try {
+      final data = await _sendJson(
+        'POST',
+        '/customer/notifications/realtime-token',
+        accessToken: accessToken,
+      );
+      return RealtimeToken(
+        token: (data['token'] as String?) ?? '',
+        expiresAt: (data['expires_at'] as String?) ?? '',
+      );
+    } on ApiException catch (e) {
+      // 404 means the proxy route is not registered on hauling-service (e.g.
+      // HAULING_NOTIFICATION_URL not set). Signal "unavailable" with null.
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
   }
 
   Future<HaulageBooking> cancelBooking({

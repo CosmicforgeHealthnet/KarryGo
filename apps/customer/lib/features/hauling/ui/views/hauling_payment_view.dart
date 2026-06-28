@@ -1,15 +1,41 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
+import '../../../wallet/ui/funding/wallet_funding_flow_screen.dart';
 import '../../state/hauling_booking_controller.dart';
 
-class HaulingPaymentView extends StatelessWidget {
+/// Wallet-only payment step. The wallet is the single payment method; the fare
+/// is held when a provider accepts. When the balance is below the fare, the
+/// customer is prompted to top up via the existing wallet funding flow.
+class HaulingPaymentView extends StatefulWidget {
   const HaulingPaymentView({super.key, required this.controller});
 
   final HaulingBookingController controller;
 
-  HaulingBookingState get _state => controller.state;
+  @override
+  State<HaulingPaymentView> createState() => _HaulingPaymentViewState();
+}
+
+class _HaulingPaymentViewState extends State<HaulingPaymentView> {
+  HaulingBookingController get _controller => widget.controller;
+  HaulingBookingState get _state => _controller.state;
+
+  Future<void> _openTopUp() async {
+    final token = _controller.accessTokenForWallet;
+    if (token == null) return;
+    final funded = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => WalletFundingFlowScreen(
+          walletApi: _controller.walletApi,
+          accessToken: token,
+          customerEmail: _controller.customerEmail,
+        ),
+      ),
+    );
+    if (funded == true) {
+      await _controller.refreshWalletBalance();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +45,7 @@ class HaulingPaymentView extends StatelessWidget {
     final balance = _state.walletBalanceKobo ?? 0;
     final balanceNaira = balance / 100;
     final hasSufficientBalance = balance >= fareKobo;
-    final selectedMethod = _state.paymentMethod;
+    final canConfirm = hasSufficientBalance && fareKobo > 0;
 
     return Scaffold(
       backgroundColor: CustomerFigmaColors.surface,
@@ -28,7 +54,7 @@ class HaulingPaymentView extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: CustomerFigmaColors.text),
-          onPressed: controller.backToDetails,
+          onPressed: _controller.backToTierSelection,
         ),
         title: const Text(
           'Payment',
@@ -65,12 +91,12 @@ class HaulingPaymentView extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Total',
+                    'Total (estimate)',
                     style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '₦${fareNaira.toStringAsFixed(2)}',
+                    fareKobo > 0 ? '₦${fareNaira.toStringAsFixed(2)}' : '—',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 32,
@@ -83,20 +109,21 @@ class HaulingPaymentView extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Payment note
+            // Info note
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: const Color(0xFFE8F5EE),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Row(
-                children: const [
+              child: const Row(
+                children: [
                   Icon(Icons.info_outline, color: CustomerFigmaColors.primary, size: 16),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Payment validates your trip booking.',
+                      'Your wallet is charged only when a driver accepts. '
+                      'Final price is confirmed on pickup.',
                       style: TextStyle(color: CustomerFigmaColors.darkGreen, fontSize: 12),
                     ),
                   ),
@@ -106,7 +133,7 @@ class HaulingPaymentView extends StatelessWidget {
             const SizedBox(height: 20),
 
             const Text(
-              'Select Payment Method',
+              'Payment Method',
               style: TextStyle(
                 color: CustomerFigmaColors.text,
                 fontWeight: FontWeight.w700,
@@ -115,70 +142,96 @@ class HaulingPaymentView extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // Wallet option
-            _PaymentMethodRow(
-              selected: selectedMethod == 'wallet',
-              onTap: () => controller.setPaymentMethod('wallet'),
-              leading: const Icon(Icons.account_balance_wallet_outlined, color: CustomerFigmaColors.primary, size: 22),
-              title: 'Wallet Balance',
-              subtitle: hasSufficientBalance
-                  ? '₦${balanceNaira.toStringAsFixed(2)} available'
-                  : '₦${balanceNaira.toStringAsFixed(2)} (insufficient)',
-              subtitleColor: hasSufficientBalance ? CustomerFigmaColors.primary : Colors.red,
+            // Wallet is the only payment method.
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: CustomerFigmaColors.primaryTint,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: CustomerFigmaColors.primary, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_outlined,
+                      color: CustomerFigmaColors.primary, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Wallet Balance',
+                          style: TextStyle(
+                            color: CustomerFigmaColors.text,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasSufficientBalance
+                              ? '₦${balanceNaira.toStringAsFixed(2)} available'
+                              : '₦${balanceNaira.toStringAsFixed(2)} (insufficient)',
+                          style: TextStyle(
+                            color: hasSufficientBalance
+                                ? CustomerFigmaColors.primary
+                                : Colors.red,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.check_circle, color: CustomerFigmaColors.primary, size: 20),
+                ],
+              ),
             ),
+
             const SizedBox(height: 8),
-
-            // Direct transfer option
-            _PaymentMethodRow(
-              selected: selectedMethod == 'paystack',
-              onTap: () => controller.setPaymentMethod('paystack'),
-              leading: const Icon(Icons.credit_card_outlined, color: CustomerFigmaColors.primary, size: 22),
-              title: 'Direct Transfer',
-              subtitle: 'Pay via Paystack',
+            const Text(
+              'No money leaves your wallet until a driver accepts your booking.',
+              style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 11),
             ),
 
-            // Insufficient balance warning
-            if (selectedMethod == 'wallet' && !hasSufficientBalance) ...[
+            // Insufficient-balance block with a top-up call to action.
+            if (!hasSufficientBalance && fareKobo > 0) ...[
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red[50],
+                  color: const Color(0xFFFFEBEE),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red[200]!),
+                  border: Border.all(color: const Color(0xFFEF9A9A)),
                 ),
-                child: Text(
-                  'Your wallet balance is insufficient. '
-                  'You need ₦${((fareKobo - balance) / 100).toStringAsFixed(2)} more. '
-                  'Please top up or choose direct transfer.',
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ),
-            ],
-
-            // Paystack provider cards
-            if (selectedMethod == 'paystack') ...[
-              const SizedBox(height: 16),
-              const Text(
-                'Select Payment Provider',
-                style: TextStyle(
-                  color: CustomerFigmaColors.text,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ProviderCard(
-                      label: 'Paystack',
-                      icon: Icons.payment_rounded,
-                      color: const Color(0xFF0BA4DB),
-                      onTap: () => _launchPaystack(context),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Your wallet balance is too low (need '
+                      '₦${((fareKobo - balance) / 100).toStringAsFixed(2)} more). '
+                      'Top up your wallet to continue.',
+                      style: const TextStyle(color: Color(0xFFB71C1C), fontSize: 12),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _openTopUp,
+                      icon: const Icon(Icons.add, size: 18, color: CustomerFigmaColors.primary),
+                      label: const Text(
+                        'Top up wallet',
+                        style: TextStyle(
+                          color: CustomerFigmaColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: CustomerFigmaColors.primary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
 
@@ -201,146 +254,11 @@ class HaulingPaymentView extends StatelessWidget {
             ],
 
             FigmaPrimaryButton(
-              label: 'Confirm',
+              label: 'Confirm & Find Truck',
               isLoading: _state.isLoading,
-              onPressed: _canConfirm(selectedMethod, hasSufficientBalance)
-                  ? controller.confirmPayment
-                  : null,
+              onPressed: canConfirm ? _controller.confirmPayment : null,
             ),
             const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  bool _canConfirm(String? method, bool hasSufficientBalance) {
-    if (method == null) return false;
-    if (method == 'wallet' && !hasSufficientBalance) return false;
-    return true;
-  }
-
-  Future<void> _launchPaystack(BuildContext context) async {
-    const url = 'https://paystack.com';
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-}
-
-class _PaymentMethodRow extends StatelessWidget {
-  const _PaymentMethodRow({
-    required this.selected,
-    required this.onTap,
-    required this.leading,
-    required this.title,
-    this.subtitle,
-    this.subtitleColor,
-  });
-
-  final bool selected;
-  final VoidCallback onTap;
-  final Widget leading;
-  final String title;
-  final String? subtitle;
-  final Color? subtitleColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: selected ? CustomerFigmaColors.primaryTint : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? CustomerFigmaColors.primary : CustomerFigmaColors.border,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: CustomerFigmaColors.text,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: TextStyle(
-                        color: subtitleColor ?? CustomerFigmaColors.muted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Radio<bool>(
-              value: true,
-              groupValue: selected ? true : null,
-              onChanged: (_) => onTap(),
-              activeColor: CustomerFigmaColors.primary,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProviderCard extends StatelessWidget {
-  const _ProviderCard({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: CustomerFigmaColors.border),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
           ],
         ),
       ),

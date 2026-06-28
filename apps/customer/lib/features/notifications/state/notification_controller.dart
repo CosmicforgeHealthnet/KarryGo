@@ -14,9 +14,15 @@ import '../models/app_notification.dart';
 ///
 /// On [start] it loads the REST feed, mints a realtime token, and opens a
 /// websocket to notification-service. Each pushed message is prepended to the
-/// feed. A dropped socket reconnects with capped backoff; the realtime token is
-/// re-minted on each (re)connect, covering expiry. [stop] tears everything down
-/// (call on logout).
+/// feed. A dropped socket reconnects with exponential backoff; the realtime
+/// token is re-minted on each (re)connect, covering expiry. [stop] tears
+/// everything down (call on logout).
+///
+/// When [fetchRealtimeToken] returns null (proxy endpoint returned 404 —
+/// customer-service not configured with CUSTOMER_NOTIFICATION_BASE_URL),
+/// [_connect] treats this as a permanent "unavailable" signal and returns
+/// without scheduling a reconnect. The feed REST endpoint and the booking
+/// poll remain the fallback.
 class NotificationController extends ChangeNotifier {
   NotificationController({
     required NotificationApi api,
@@ -74,8 +80,8 @@ class NotificationController extends ChangeNotifier {
   }
 
   /// Tears down the realtime connection and clears state. Call on logout.
-  /// Safe to call when already stopped (no-op), so it can be driven from a build
-  /// method without emitting a notification mid-build.
+  /// Safe to call when already stopped (no-op), so it can be driven from a
+  /// build method without emitting a notification mid-build.
   void stop() {
     if (!_started && _channel == null && _notifications.isEmpty) return;
     _started = false;
@@ -133,8 +139,11 @@ class NotificationController extends ChangeNotifier {
     if (token == null) return;
 
     try {
+      // fetchRealtimeToken returns null when the proxy endpoint returns 404
+      // (customer-service not configured with CUSTOMER_NOTIFICATION_BASE_URL).
+      // Treat null as a permanent signal — no reconnect; rely on polling.
       final realtime = await _api.fetchRealtimeToken(accessToken: token);
-      if (!realtime.isValid || _disposed || !_started) return;
+      if (realtime == null || !realtime.isValid || _disposed || !_started) return;
 
       final uri = Uri.parse('$_wsUrl?token=${Uri.encodeComponent(realtime.token)}');
       final channel = WebSocketChannel.connect(uri);
@@ -172,7 +181,6 @@ class NotificationController extends ChangeNotifier {
     _socketSub = null;
     _channel = null;
     if (_disposed || !_started) return;
-
     _reconnectAttempts = (_reconnectAttempts + 1).clamp(1, 6);
     final delaySeconds = 1 << (_reconnectAttempts - 1); // 1,2,4,8,16,32
     _reconnectTimer?.cancel();

@@ -33,7 +33,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
     return OnboardingScaffold(
       title: 'Upload a Photo of yourself',
       subtitle: 'A clear, recent photo builds trust with customers and verifies your identity.',
-      step: 5,
+      step: 6,
       content: Column(
         children: [
           const SizedBox(height: 16),

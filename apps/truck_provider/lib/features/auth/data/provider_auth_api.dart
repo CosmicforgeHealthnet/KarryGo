@@ -57,6 +57,7 @@ class ProviderAuthApi {
     required String firstName,
     required String lastName,
     required String email,
+    required String phone,
     required String locationState,
     required String locationCity,
     required String operationMode,
@@ -76,6 +77,7 @@ class ProviderAuthApi {
       'first_name': firstName,
       'last_name': lastName,
       'email': email,
+      'phone': phone,
       'location_state': locationState,
       'location_city': locationCity,
       'operation_mode': operationMode,
@@ -94,12 +96,42 @@ class ProviderAuthApi {
     }, accessToken: accessToken);
   }
 
+  /// Checks whether the given email and/or phone already belong to another
+  /// provider. Used to flag a taken identifier during onboarding before advancing.
+  Future<({bool emailTaken, bool phoneTaken})> checkContactAvailability({
+    required String accessToken,
+    String email = '',
+    String phone = '',
+  }) async {
+    final query = <String, String>{};
+    if (email.isNotEmpty) query['email'] = email;
+    if (phone.isNotEmpty) query['phone'] = phone;
+    final data = await _get('/provider/contact-availability', accessToken: accessToken, query: query);
+    return (
+      emailTaken: data['email_taken'] as bool? ?? false,
+      phoneTaken: data['phone_taken'] as bool? ?? false,
+    );
+  }
+
+  /// Registers a truck for the authenticated provider during onboarding so they
+  /// have at least one active truck (required to go online).
+  Future<void> createTruck({
+    required String accessToken,
+    required Map<String, dynamic> body,
+  }) async {
+    await _post('/provider/trucks', body, accessToken: accessToken);
+  }
+
   void close() => _client.close();
 
-  Future<Map<String, dynamic>> _get(String path, {required String accessToken}) async {
+  Future<Map<String, dynamic>> _get(
+    String path, {
+    required String accessToken,
+    Map<String, String>? query,
+  }) async {
     try {
       final response = await _client.get(
-        _config.uri(path),
+        _config.uri(path, query),
         headers: {
           'Authorization': 'Bearer $accessToken',
           'Accept': 'application/json',
