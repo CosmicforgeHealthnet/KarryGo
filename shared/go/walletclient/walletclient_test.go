@@ -90,6 +90,20 @@ func TestCreatePaymentIntentSignsAndHitsCorrectPath(t *testing.T) {
 	}
 }
 
+func TestClientAcceptsFullAPIBaseURLWithoutDuplicatingPath(t *testing.T) {
+	server, rec := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		successEnvelope(w, PaymentIntent{ID: "pi-full-base"})
+	})
+	client := newClient(server.URL + "/api/v1/payment-wallet")
+
+	if _, err := client.CreatePaymentIntent(context.Background(), PaymentIntentRequest{}); err != nil {
+		t.Fatalf("CreatePaymentIntent: %v", err)
+	}
+	if rec.path != "/api/v1/payment-wallet/internal/payment-intents" {
+		t.Fatalf("path = %s, want a single API base prefix", rec.path)
+	}
+}
+
 func TestPayFromWalletEscapesIDInPath(t *testing.T) {
 	server, rec := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		successEnvelope(w, PaymentIntent{ID: "pi-9", Status: "held"})

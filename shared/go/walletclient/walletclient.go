@@ -65,6 +65,8 @@ type WalletPayRequest struct {
 
 type RefundRequest struct {
 	PaymentReference string `json:"payment_reference"`
+	SourceService    string `json:"source_service,omitempty"`
+	SourceReference  string `json:"source_reference,omitempty"`
 	AmountKobo       int64  `json:"amount_kobo"`
 	Currency         string `json:"currency"`
 	Reason           string `json:"reason"`
@@ -176,5 +178,10 @@ func (c Client) do(request *http.Request, body []byte, data interface{}) error {
 }
 
 func (c Client) url(path string) string {
-	return strings.TrimRight(c.BaseURL, "/") + path
+	baseURL := strings.TrimRight(c.BaseURL, "/")
+	const apiBasePath = "/api/v1/payment-wallet"
+	if strings.HasSuffix(baseURL, apiBasePath) && strings.HasPrefix(path, apiBasePath) {
+		path = strings.TrimPrefix(path, apiBasePath)
+	}
+	return baseURL + path
 }

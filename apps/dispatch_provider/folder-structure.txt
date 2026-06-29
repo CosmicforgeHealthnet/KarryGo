@@ -1,0 +1,420 @@
+﻿├── .dart_tool
+│   ├── dartpad
+│   │   └── web_plugin_registrant.dart
+│   ├── flutter_build
+│   │   ├── eeda6f5048ea34566b8ffaf90200d252
+│   │   │   ├── .filecache
+│   │   │   ├── app.dill
+│   │   │   ├── dart_build.d
+│   │   │   ├── dart_build.stamp
+│   │   │   ├── dart_build_result.json
+│   │   │   ├── debug_android_application.stamp
+│   │   │   ├── flutter_assets.d
+│   │   │   ├── gen_dart_plugin_registrant.stamp
+│   │   │   ├── gen_localizations.stamp
+│   │   │   ├── install_code_assets.d
+│   │   │   ├── install_code_assets.stamp
+│   │   │   ├── kernel_snapshot_program.d
+│   │   │   ├── kernel_snapshot_program.stamp
+│   │   │   ├── native_assets.json
+│   │   │   └── outputs.json
+│   │   └── dart_plugin_registrant.dart
+│   ├── hooks_runner
+│   │   ├── objective_c
+│   │   │   ├── 337ce265dc
+│   │   │   │   ├── out
+│   │   │   │   ├── .lock
+│   │   │   │   ├── dependencies.dependencies_hash_file.json
+│   │   │   │   ├── hook.dependencies_hash_file.json
+│   │   │   │   ├── hook.dill
+│   │   │   │   ├── hook.dill.d
+│   │   │   │   ├── input.json
+│   │   │   │   ├── output.json
+│   │   │   │   ├── stderr.txt
+│   │   │   │   └── stdout.txt
+│   │   │   └── b785a15086
+│   │   │       ├── out
+│   │   │       ├── .lock
+│   │   │       ├── dependencies.dependencies_hash_file.json
+│   │   │       ├── hook.dependencies_hash_file.json
+│   │   │       ├── hook.dill
+│   │   │       ├── hook.dill.d
+│   │   │       ├── input.json
+│   │   │       ├── output.json
+│   │   │       ├── stderr.txt
+│   │   │       └── stdout.txt
+│   │   └── shared
+│   │       └── objective_c
+│   │           └── .lock
+│   ├── package_config.json
+│   ├── package_graph.json
+│   └── version
+├── android
+│   ├── .gradle
+│   │   ├── 8.14
+│   │   │   ├── checksums
+│   │   │   │   ├── checksums.lock
+│   │   │   │   ├── md5-checksums.bin
+│   │   │   │   └── sha1-checksums.bin
+│   │   │   ├── executionHistory
+│   │   │   │   ├── executionHistory.bin
+│   │   │   │   └── executionHistory.lock
+│   │   │   ├── expanded
+│   │   │   ├── fileChanges
+│   │   │   │   └── last-build.bin
+│   │   │   ├── fileHashes
+│   │   │   │   ├── fileHashes.bin
+│   │   │   │   ├── fileHashes.lock
+│   │   │   │   └── resourceHashesCache.bin
+│   │   │   ├── vcsMetadata
+│   │   │   └── gc.properties
+│   │   ├── buildOutputCleanup
+│   │   │   ├── buildOutputCleanup.lock
+│   │   │   ├── cache.properties
+│   │   │   └── outputFiles.bin
+│   │   ├── noVersion
+│   │   │   └── buildLogic.lock
+│   │   ├── vcs-1
+│   │   │   └── gc.properties
+│   │   └── file-system.probe
+│   ├── .kotlin
+│   │   └── sessions
+│   ├── app
+│   │   ├── src
+│   │   │   ├── debug
+│   │   │   │   └── AndroidManifest.xml
+│   │   │   ├── main
+│   │   │   │   ├── java
+│   │   │   │   │   └── io
+│   │   │   │   │       └── flutter
+│   │   │   │   │           └── plugins
+│   │   │   │   │               └── GeneratedPluginRegistrant.java
+│   │   │   │   ├── kotlin
+│   │   │   │   │   └── com
+│   │   │   │   │       └── karrygo
+│   │   │   │   │           └── dispatch_provider
+│   │   │   │   │               └── MainActivity.kt
+│   │   │   │   ├── res
+│   │   │   │   │   ├── drawable
+│   │   │   │   │   │   └── launch_background.xml
+│   │   │   │   │   ├── drawable-v21
+│   │   │   │   │   │   └── launch_background.xml
+│   │   │   │   │   ├── mipmap-hdpi
+│   │   │   │   │   │   └── ic_launcher.png
+│   │   │   │   │   ├── mipmap-mdpi
+│   │   │   │   │   │   └── ic_launcher.png
+│   │   │   │   │   ├── mipmap-xhdpi
+│   │   │   │   │   │   └── ic_launcher.png
+│   │   │   │   │   ├── mipmap-xxhdpi
+│   │   │   │   │   │   └── ic_launcher.png
+│   │   │   │   │   ├── mipmap-xxxhdpi
+│   │   │   │   │   │   └── ic_launcher.png
+│   │   │   │   │   ├── values
+│   │   │   │   │   │   └── styles.xml
+│   │   │   │   │   └── values-night
+│   │   │   │   │       └── styles.xml
+│   │   │   │   └── AndroidManifest.xml
+│   │   │   └── profile
+│   │   │       └── AndroidManifest.xml
+│   │   └── build.gradle.kts
+│   ├── gradle
+│   │   └── wrapper
+│   │       ├── gradle-wrapper.jar
+│   │       └── gradle-wrapper.properties
+│   ├── .gitignore
+│   ├── build.gradle.kts
+│   ├── gradle.properties
+│   ├── gradlew
+│   ├── gradlew.bat
+│   ├── local.properties
+│   └── settings.gradle.kts
+├── assets
+│   └── figma
+│       ├── figma
+│       │   ├── account_customer.png
+│       │   ├── account_delivery.png
+│       │   ├── account_driver.png
+│       │   ├── auth_car_header.png
+│       │   ├── mode_fleet.png
+│       │   ├── mode_individual.png
+│       │   ├── onboarding_car.png
+│       │   ├── onboarding_rider.png
+│       │   ├── onboarding_truck.png
+│       │   ├── profile_submitted.png
+│       │   ├── service_package.png
+│       │   ├── service_taxi.png
+│       │   ├── service_truck.png
+│       │   └── splash_logo.png
+│       ├── account_customer.png
+│       ├── account_delivery.png
+│       ├── account_driver.png
+│       ├── auth_car_header.png
+│       ├── mode_fleet.png
+│       ├── mode_individual.png
+│       ├── onboarding_car.png
+│       ├── onboarding_rider.png
+│       ├── onboarding_truck.png
+│       ├── profile_submitted.png
+│       ├── service_package.png
+│       ├── service_taxi.png
+│       ├── service_truck.png
+│       └── splash_logo.png
+├── ios
+│   ├── Flutter
+│   │   ├── ephemeral
+│   │   │   ├── flutter_lldb_helper.py
+│   │   │   ├── flutter_lldbinit
+│   │   │   └── flutter_native_integration.env
+│   │   ├── AppFrameworkInfo.plist
+│   │   ├── Debug.xcconfig
+│   │   ├── flutter_export_environment.sh
+│   │   ├── Generated.xcconfig
+│   │   └── Release.xcconfig
+│   ├── Runner
+│   │   ├── Assets.xcassets
+│   │   │   ├── AppIcon.appiconset
+│   │   │   │   ├── Contents.json
+│   │   │   │   ├── Icon-App-1024x1024@1x.png
+│   │   │   │   ├── Icon-App-20x20@1x.png
+│   │   │   │   ├── Icon-App-20x20@2x.png
+│   │   │   │   ├── Icon-App-20x20@3x.png
+│   │   │   │   ├── Icon-App-29x29@1x.png
+│   │   │   │   ├── Icon-App-29x29@2x.png
+│   │   │   │   ├── Icon-App-29x29@3x.png
+│   │   │   │   ├── Icon-App-40x40@1x.png
+│   │   │   │   ├── Icon-App-40x40@2x.png
+│   │   │   │   ├── Icon-App-40x40@3x.png
+│   │   │   │   ├── Icon-App-60x60@2x.png
+│   │   │   │   ├── Icon-App-60x60@3x.png
+│   │   │   │   ├── Icon-App-76x76@1x.png
+│   │   │   │   ├── Icon-App-76x76@2x.png
+│   │   │   │   └── Icon-App-83.5x83.5@2x.png
+│   │   │   └── LaunchImage.imageset
+│   │   │       ├── Contents.json
+│   │   │       ├── LaunchImage.png
+│   │   │       ├── LaunchImage@2x.png
+│   │   │       ├── LaunchImage@3x.png
+│   │   │       └── README.md
+│   │   ├── Base.lproj
+│   │   │   ├── LaunchScreen.storyboard
+│   │   │   └── Main.storyboard
+│   │   ├── AppDelegate.swift
+│   │   ├── GeneratedPluginRegistrant.h
+│   │   ├── GeneratedPluginRegistrant.m
+│   │   ├── Info.plist
+│   │   ├── Runner-Bridging-Header.h
+│   │   └── SceneDelegate.swift
+│   ├── Runner.xcodeproj
+│   │   ├── project.xcworkspace
+│   │   │   ├── xcshareddata
+│   │   │   │   ├── IDEWorkspaceChecks.plist
+│   │   │   │   └── WorkspaceSettings.xcsettings
+│   │   │   └── contents.xcworkspacedata
+│   │   ├── xcshareddata
+│   │   │   └── xcschemes
+│   │   │       └── Runner.xcscheme
+│   │   └── project.pbxproj
+│   ├── Runner.xcworkspace
+│   │   ├── xcshareddata
+│   │   │   ├── IDEWorkspaceChecks.plist
+│   │   │   └── WorkspaceSettings.xcsettings
+│   │   └── contents.xcworkspacedata
+│   ├── RunnerTests
+│   │   └── RunnerTests.swift
+│   └── .gitignore
+├── lib
+│   ├── app
+│   │   ├── app_routes.dart
+│   │   └── dispatch_provider_app.dart
+│   ├── core
+│   │   ├── storage
+│   │   │   └── token_storage.dart
+│   │   ├── config.dart
+│   │   └── karrygo_app_theme.dart
+│   ├── data
+│   │   └── dispatch_provider_api.dart
+│   ├── features
+│   │   ├── account_setup
+│   │   │   └── ui
+│   │   │       ├── bike_type_screen.dart
+│   │   │       ├── driver_information_screen.dart
+│   │   │       ├── operation_mode_screen.dart
+│   │   │       ├── photo_upload_screen.dart
+│   │   │       ├── profile_details_screen.dart
+│   │   │       ├── service_type_screen.dart
+│   │   │       └── verification_pending_screen.dart
+│   │   ├── account_type
+│   │   │   └── ui
+│   │   │       └── account_type_screen.dart
+│   │   ├── auth
+│   │   │   ├── data
+│   │   │   │   └── dispatch_auth_api.dart
+│   │   │   ├── models
+│   │   │   │   └── dispatch_auth_models.dart
+│   │   │   ├── state
+│   │   │   │   └── dispatch_auth_controller.dart
+│   │   │   └── ui
+│   │   │       ├── login_screen.dart
+│   │   │       ├── otp_verification_screen.dart
+│   │   │       ├── phone_entry_screen.dart
+│   │   │       └── splash_screen.dart
+│   │   ├── home
+│   │   │   └── ui
+│   │   │       ├── widgets
+│   │   │       │   ├── incoming_request_card.dart
+│   │   │       │   ├── offline_modal.dart
+│   │   │       │   └── trip_completed_screen.dart
+│   │   │       ├── dashboard_screen.dart
+│   │   │       └── home_screen.dart
+│   │   ├── onboarding
+│   │   │   └── ui
+│   │   │       └── onboarding_screen.dart
+│   │   ├── profile
+│   │   │   ├── data
+│   │   │   │   └── provider_profile_api.dart
+│   │   │   ├── models
+│   │   │   │   └── provider_profile_models.dart
+│   │   │   ├── state
+│   │   │   │   └── provider_profile_controller.dart
+│   │   │   └── ui
+│   │   │       └── profile_screen.dart
+│   │   ├── requests
+│   │   │   └── ui
+│   │   │       ├── request_detail_screen.dart
+│   │   │       └── requests_screen.dart
+│   │   ├── trips
+│   │   │   └── ui
+│   │   │       ├── trip_detail_screen.dart
+│   │   │       └── trips_screen.dart
+│   │   ├── vehicle
+│   │   │   ├── data
+│   │   │   │   └── vehicle_api.dart
+│   │   │   └── state
+│   │   │       └── vehicle_controller.dart
+│   │   ├── verification
+│   │   │   ├── data
+│   │   │   │   └── verification_api.dart
+│   │   │   ├── models
+│   │   │   │   └── verification_models.dart
+│   │   │   └── state
+│   │   │       └── verification_controller.dart
+│   │   └── wallet
+│   │       └── ui
+│   │           ├── dispute_detail_screen.dart
+│   │           ├── earning_summary_screen.dart
+│   │           ├── log_dispute_screen.dart
+│   │           ├── payment_processing_screen.dart
+│   │           ├── transaction_auth_screen.dart
+│   │           ├── transaction_detail_screen.dart
+│   │           ├── wallet_screen.dart
+│   │           ├── withdrawal_confirm_screen.dart
+│   │           └── withdrawal_form_screen.dart
+│   ├── shared
+│   │   └── widgets
+│   │       ├── dispatch_screen_frame.dart
+│   │       ├── document_upload_box.dart
+│   │       └── numeric_keypad.dart
+│   └── main.dart
+├── linux
+│   ├── flutter
+│   │   ├── CMakeLists.txt
+│   │   ├── generated_plugin_registrant.cc
+│   │   ├── generated_plugin_registrant.h
+│   │   └── generated_plugins.cmake
+│   ├── runner
+│   │   ├── CMakeLists.txt
+│   │   ├── main.cc
+│   │   ├── my_application.cc
+│   │   └── my_application.h
+│   ├── .gitignore
+│   └── CMakeLists.txt
+├── macos
+│   ├── Flutter
+│   │   ├── ephemeral
+│   │   │   ├── flutter_export_environment.sh
+│   │   │   ├── flutter_native_integration.env
+│   │   │   └── Flutter-Generated.xcconfig
+│   │   ├── Flutter-Debug.xcconfig
+│   │   ├── Flutter-Release.xcconfig
+│   │   └── GeneratedPluginRegistrant.swift
+│   ├── Runner
+│   │   ├── Assets.xcassets
+│   │   │   └── AppIcon.appiconset
+│   │   │       ├── app_icon_1024.png
+│   │   │       ├── app_icon_128.png
+│   │   │       ├── app_icon_16.png
+│   │   │       ├── app_icon_256.png
+│   │   │       ├── app_icon_32.png
+│   │   │       ├── app_icon_512.png
+│   │   │       ├── app_icon_64.png
+│   │   │       └── Contents.json
+│   │   ├── Base.lproj
+│   │   │   └── MainMenu.xib
+│   │   ├── Configs
+│   │   │   ├── AppInfo.xcconfig
+│   │   │   ├── Debug.xcconfig
+│   │   │   ├── Release.xcconfig
+│   │   │   └── Warnings.xcconfig
+│   │   ├── AppDelegate.swift
+│   │   ├── DebugProfile.entitlements
+│   │   ├── Info.plist
+│   │   ├── MainFlutterWindow.swift
+│   │   └── Release.entitlements
+│   ├── Runner.xcodeproj
+│   │   ├── project.xcworkspace
+│   │   │   └── xcshareddata
+│   │   │       └── IDEWorkspaceChecks.plist
+│   │   ├── xcshareddata
+│   │   │   └── xcschemes
+│   │   │       └── Runner.xcscheme
+│   │   └── project.pbxproj
+│   ├── Runner.xcworkspace
+│   │   ├── xcshareddata
+│   │   │   └── IDEWorkspaceChecks.plist
+│   │   └── contents.xcworkspacedata
+│   ├── RunnerTests
+│   │   └── RunnerTests.swift
+│   └── .gitignore
+├── test
+│   └── widget_test.dart
+├── web
+│   ├── icons
+│   │   ├── Icon-192.png
+│   │   ├── Icon-512.png
+│   │   ├── Icon-maskable-192.png
+│   │   └── Icon-maskable-512.png
+│   ├── favicon.png
+│   ├── index.html
+│   └── manifest.json
+├── windows
+│   ├── flutter
+│   │   ├── ephemeral
+│   │   │   └── .plugin_symlinks
+│   │   ├── CMakeLists.txt
+│   │   ├── generated_plugin_registrant.cc
+│   │   ├── generated_plugin_registrant.h
+│   │   └── generated_plugins.cmake
+│   ├── runner
+│   │   ├── resources
+│   │   │   └── app_icon.ico
+│   │   ├── CMakeLists.txt
+│   │   ├── flutter_window.cpp
+│   │   ├── flutter_window.h
+│   │   ├── main.cpp
+│   │   ├── resource.h
+│   │   ├── runner.exe.manifest
+│   │   ├── Runner.rc
+│   │   ├── utils.cpp
+│   │   ├── utils.h
+│   │   ├── win32_window.cpp
+│   │   └── win32_window.h
+│   ├── .gitignore
+│   └── CMakeLists.txt
+├── .flutter-plugins-dependencies
+├── .gitignore
+├── .metadata
+├── analysis_options.yaml
+├── folder-structure.txt
+├── pubspec.lock
+├── pubspec.yaml
+└── README.md
