@@ -1,0 +1,478 @@
+{
+  "info": {
+    "name": "Support & Dispute Service",
+    "description": "Local API collection for support-dispute-service (port 8107). API base path: /api/v1/support-disputes.\n\nThe service owns complaints, evidence, disputes, support chat, FAQs and emergency SOS for the customer app and the three provider apps (taxi / dispatch / hauling), plus an admin/back-office surface.\n\nAUTH MODES\n- Public: no auth (categories, FAQs).\n- Customer / Provider: end-user bearer token. Each route group verifies the token with that service's secret and an exact role+service claim match:\n    customer        -> role=customer,        service=customer\n    /provider       -> role=truck_provider,  service=hauling\n    /taxi-provider  -> role=taxi_provider,    service=taxi\n    /dispatch-provider -> role=dispatch_provider, service=dispatch\n  Paste a real access token into {{customer_token}} / {{provider_token}}. (Customers can mint one via customer-service auth: POST /api/v1/customer/auth/start + /verify.)\n- Admin/internal: service-to-service HMAC (shared/go/serviceauth). The 'Admin (HMAC)' folder signs requests automatically via a pre-request script using {{service_name}} / {{service_secret}}. The default service_name (admin-backoffice-service) must match an entry in SUPPORT_DISPUTE_SERVICE_SECRETS.\n\nNotes\n- Provider endpoints are identical to the customer set minus the two dispute routes (dispute escalation is customer-initiated). The 'Provider' folder uses /provider (hauling); swap the prefix for /taxi-provider or /dispatch-provider.\n- The Realtime folder only works when notification-service is running and SUPPORT_DISPUTE_NOTIFICATION_URL is set.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8107" },
+    { "key": "api_base", "value": "/api/v1/support-disputes" },
+    { "key": "customer_token", "value": "" },
+    { "key": "provider_token", "value": "" },
+    { "key": "service_name", "value": "admin-backoffice-service" },
+    { "key": "service_secret", "value": "development-support-dispute-service-secret" },
+    { "key": "complaint_id", "value": "" },
+    { "key": "dispute_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Liveness probe. Returns 200 once the process is up.",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "GET /ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Readiness probe. Returns 200 only when the database is reachable (db.Ping).",
+            "url": { "raw": "{{base_url}}/ready", "host": ["{{base_url}}"], "path": ["ready"] }
+          }
+        },
+        {
+          "name": "GET /meta",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Service metadata + declared capabilities.",
+            "url": { "raw": "{{base_url}}{{api_base}}/meta", "host": ["{{base_url}}{{api_base}}"], "path": ["meta"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public (no auth)",
+      "item": [
+        {
+          "name": "GET /support/categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "List the complaint category codes (incorrect_delivery, delayed_arrival, payment, damaged_goods, provider_misconduct, fraud, other). Apps render these as a dropdown when filing a complaint.",
+            "url": { "raw": "{{base_url}}{{api_base}}/support/categories", "host": ["{{base_url}}{{api_base}}"], "path": ["support", "categories"] }
+          }
+        },
+        {
+          "name": "GET /support/faqs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Self-service help center. Returns published help_articles filtered by audience. audience = all | customer | provider (omit for 'all').",
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/support/faqs?audience=customer",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["support", "faqs"],
+              "query": [{ "key": "audience", "value": "customer" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer (bearer)",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+      "item": [
+        {
+          "name": "POST /complaints",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "File a complaint as the authenticated customer. service_type is required (taxi|dispatch|hauling|wallet|platform). category is optional but validated when present. booking_reference ties the complaint to a trip.",
+            "body": { "mode": "raw", "raw": "{\n  \"service_type\": \"hauling\",\n  \"category\": \"damaged_goods\",\n  \"booking_reference\": \"booking-123\",\n  \"subject\": \"Package arrived damaged\",\n  \"description\": \"The box was crushed on delivery.\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/complaints", "host": ["{{base_url}}{{api_base}}"], "path": ["complaints"] }
+          }
+        },
+        {
+          "name": "GET /complaints",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "List my complaints, newest first. Each item includes unread_count for a 'support replied' badge.",
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/complaints?limit=50&offset=0",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["complaints"],
+              "query": [{ "key": "limit", "value": "50" }, { "key": "offset", "value": "0" }]
+            }
+          }
+        },
+        {
+          "name": "GET /complaints/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "View one of my complaints (403 if it is not mine). Includes the live unread message count.",
+            "url": { "raw": "{{base_url}}{{api_base}}/complaints/{{complaint_id}}", "host": ["{{base_url}}{{api_base}}"], "path": ["complaints", "{{complaint_id}}"] }
+          }
+        },
+        {
+          "name": "POST /complaints/:id/evidence",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Attach evidence (a media URL/asset id from media-file-service + an optional note) to my complaint. Rejected if the complaint is resolved/closed, or if it is not mine (403).",
+            "body": { "mode": "raw", "raw": "{\n  \"media_url\": \"https://storage.example.com/evidence/photo.jpg\",\n  \"media_asset_id\": \"asset-123\",\n  \"note\": \"Photo of the damaged box\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/complaints/{{complaint_id}}/evidence", "host": ["{{base_url}}{{api_base}}"], "path": ["complaints", "{{complaint_id}}", "evidence"] }
+          }
+        },
+        {
+          "name": "GET /complaints/:id/evidence",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "List evidence attached to my complaint (403 if not mine).",
+            "url": { "raw": "{{base_url}}{{api_base}}/complaints/{{complaint_id}}/evidence", "host": ["{{base_url}}{{api_base}}"], "path": ["complaints", "{{complaint_id}}", "evidence"] }
+          }
+        },
+        {
+          "name": "POST /support-chat/start",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Open or resume a platform support-chat thread. Returns the (existing or newly created) complaint that backs the chat. Use its id for the messages endpoints.",
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/support-chat/start", "host": ["{{base_url}}{{api_base}}"], "path": ["support-chat", "start"] }
+          }
+        },
+        {
+          "name": "POST /complaints/:id/messages",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Send a chat message on my complaint. The complainant only; admin replies use the admin folder.",
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Hi, any update on my complaint?\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/complaints/{{complaint_id}}/messages", "host": ["{{base_url}}{{api_base}}"], "path": ["complaints", "{{complaint_id}}", "messages"] }
+          }
+        },
+        {
+          "name": "GET /complaints/:id/messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Read the chat thread for my complaint (oldest first).",
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/complaints/{{complaint_id}}/messages?limit=50&offset=0",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["complaints", "{{complaint_id}}", "messages"],
+              "query": [{ "key": "limit", "value": "50" }, { "key": "offset", "value": "0" }]
+            }
+          }
+        },
+        {
+          "name": "POST /complaints/:id/messages/read",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Mark the other party's messages as read (clears the unread badge). Call when the chat screen is opened.",
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/complaints/{{complaint_id}}/messages/read", "host": ["{{base_url}}{{api_base}}"], "path": ["complaints", "{{complaint_id}}", "messages", "read"] }
+          }
+        },
+        {
+          "name": "POST /sos",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Raise an emergency. Creates a priority=emergency complaint with the captured location, acknowledges the reporter, and surfaces at the top of the admin queue. Body is optional.",
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Unsafe situation during my trip\",\n  \"lat\": 6.5244,\n  \"lng\": 3.3792\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/sos", "host": ["{{base_url}}{{api_base}}"], "path": ["sos"] }
+          }
+        },
+        {
+          "name": "POST /complaints/:id/dispute (customer only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Escalate my complaint into a formal dispute against a respondent. respondent_type must be one of customer|taxi_provider|dispatch_provider|hauling_provider. Marks the complaint 'escalated'.",
+            "body": { "mode": "raw", "raw": "{\n  \"respondent_type\": \"hauling_provider\",\n  \"respondent_id\": \"provider-123\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/complaints/{{complaint_id}}/dispute", "host": ["{{base_url}}{{api_base}}"], "path": ["complaints", "{{complaint_id}}", "dispute"] }
+          }
+        },
+        {
+          "name": "GET /complaints/:id/dispute (customer only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "View the dispute raised on my complaint (403 if not mine).",
+            "url": { "raw": "{{base_url}}{{api_base}}/complaints/{{complaint_id}}/dispute", "host": ["{{base_url}}{{api_base}}"], "path": ["complaints", "{{complaint_id}}", "dispute"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Provider (bearer)",
+      "description": "Provider surface. Uses the /provider (hauling) prefix; for taxi/dispatch use /taxi-provider or /dispatch-provider with the matching token. Same as the customer set minus the dispute routes.",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{provider_token}}", "type": "string" }] },
+      "item": [
+        {
+          "name": "POST /provider/complaints",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "File a complaint as the authenticated provider. complainant identity is derived from the token claims.",
+            "body": { "mode": "raw", "raw": "{\n  \"service_type\": \"hauling\",\n  \"booking_reference\": \"booking-123\",\n  \"subject\": \"Customer was not at pickup\",\n  \"description\": \"Waited 20 minutes, customer never showed.\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/provider/complaints", "host": ["{{base_url}}{{api_base}}"], "path": ["provider", "complaints"] }
+          }
+        },
+        {
+          "name": "GET /provider/complaints",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "List the provider's complaints (with unread counts).",
+            "url": { "raw": "{{base_url}}{{api_base}}/provider/complaints", "host": ["{{base_url}}{{api_base}}"], "path": ["provider", "complaints"] }
+          }
+        },
+        {
+          "name": "GET /provider/complaints/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "View one of the provider's complaints.",
+            "url": { "raw": "{{base_url}}{{api_base}}/provider/complaints/{{complaint_id}}", "host": ["{{base_url}}{{api_base}}"], "path": ["provider", "complaints", "{{complaint_id}}"] }
+          }
+        },
+        {
+          "name": "POST /provider/complaints/:id/messages",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Send a chat message on the provider's complaint.",
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Following up on this.\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/provider/complaints/{{complaint_id}}/messages", "host": ["{{base_url}}{{api_base}}"], "path": ["provider", "complaints", "{{complaint_id}}", "messages"] }
+          }
+        },
+        {
+          "name": "POST /provider/complaints/:id/messages/read",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Mark admin replies as read on the provider's complaint.",
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/provider/complaints/{{complaint_id}}/messages/read", "host": ["{{base_url}}{{api_base}}"], "path": ["provider", "complaints", "{{complaint_id}}", "messages", "read"] }
+          }
+        },
+        {
+          "name": "POST /provider/sos",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Provider emergency SOS (e.g. unsafe situation mid-trip).",
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Vehicle breakdown in an unsafe area\",\n  \"lat\": 6.5244,\n  \"lng\": 3.3792\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/provider/sos", "host": ["{{base_url}}{{api_base}}"], "path": ["provider", "sos"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin (HMAC)",
+      "description": "Back-office endpoints. Requests are signed automatically by the folder pre-request script using {{service_name}} / {{service_secret}} (shared/go/serviceauth: HMAC-SHA256 over METHOD\\nrequestURI\\ntimestamp\\nsha256hex(body)). The service_name must be present in SUPPORT_DISPUTE_SERVICE_SECRETS.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Reproduces shared/go/serviceauth signing so admin endpoints accept the request.",
+              "var serviceName = pm.variables.replaceIn('{{service_name}}');",
+              "var serviceSecret = pm.variables.replaceIn('{{service_secret}}');",
+              "if (!serviceName || !serviceSecret) {",
+              "    console.warn('service_name / service_secret not set; admin request will fail HMAC auth.');",
+              "}",
+              "var rawUrl = pm.variables.replaceIn(pm.request.url.toString());",
+              "var noScheme = rawUrl.replace(/^[a-zA-Z]+:\\/\\//, '');",
+              "var slash = noScheme.indexOf('/');",
+              "var requestURI = slash === -1 ? '/' : noScheme.substring(slash);",
+              "var rawBody = '';",
+              "if (pm.request.body && pm.request.body.mode === 'raw' && pm.request.body.raw) {",
+              "    rawBody = pm.variables.replaceIn(pm.request.body.raw);",
+              "}",
+              "var timestamp = Math.floor(Date.now() / 1000).toString();",
+              "var bodyHash = CryptoJS.SHA256(rawBody).toString(CryptoJS.enc.Hex);",
+              "var canonical = pm.request.method.toUpperCase() + '\\n' + requestURI + '\\n' + timestamp + '\\n' + bodyHash;",
+              "var signature = CryptoJS.HmacSHA256(canonical, serviceSecret).toString(CryptoJS.enc.Hex);",
+              "pm.request.headers.upsert({ key: 'X-Service-Name', value: serviceName });",
+              "pm.request.headers.upsert({ key: 'X-Service-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Service-Signature', value: signature });"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "GET /admin/complaints",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Triage queue. List/filter complaints. Emergencies sort to the top. Filters (all optional): status, priority (normal|high|emergency), service_type, complainant_type.",
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/admin/complaints?status=open&limit=50&offset=0",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["admin", "complaints"],
+              "query": [
+                { "key": "status", "value": "open" },
+                { "key": "priority", "value": "", "disabled": true },
+                { "key": "service_type", "value": "", "disabled": true },
+                { "key": "complainant_type", "value": "", "disabled": true },
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /admin/complaints/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Review one complaint (admin bypasses ownership). Includes the resolved complainant_name/phone identity snapshot.",
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/complaints/{{complaint_id}}", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "complaints", "{{complaint_id}}"] }
+          }
+        },
+        {
+          "name": "GET /admin/complaints/:id/evidence",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Review the evidence attached to a complaint (admin).",
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/complaints/{{complaint_id}}/evidence", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "complaints", "{{complaint_id}}", "evidence"] }
+          }
+        },
+        {
+          "name": "GET /admin/complaints/:id/dispute",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "View the dispute linked to a complaint (admin).",
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/complaints/{{complaint_id}}/dispute", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "complaints", "{{complaint_id}}", "dispute"] }
+          }
+        },
+        {
+          "name": "GET /admin/complaints/:id/events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Read the audit trail for a complaint (complaint_created, status_changed, evidence_added, escalated, dispute_resolved, sos_raised).",
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/complaints/{{complaint_id}}/events", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "complaints", "{{complaint_id}}", "events"] }
+          }
+        },
+        {
+          "name": "POST /admin/complaints/:id/refresh-identity",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Re-pull the complainant's name/phone snapshot from the owning service (used when the original lookup was empty / is stale).",
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/complaints/{{complaint_id}}/refresh-identity", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "complaints", "{{complaint_id}}", "refresh-identity"] }
+          }
+        },
+        {
+          "name": "PUT /admin/complaints/:id/status",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Admin-ID", "value": "admin-1" }],
+            "description": "Change a complaint's status and notify the complainant. status = open|under_review|awaiting_evidence|resolved|closed|escalated. resolution_note is optional. X-Admin-ID identifies the actor in the audit trail.",
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"under_review\",\n  \"resolution_note\": \"Investigating with the provider.\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/complaints/{{complaint_id}}/status", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "complaints", "{{complaint_id}}", "status"] }
+          }
+        },
+        {
+          "name": "GET /admin/disputes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "List/filter disputes for adjudication. Filters (optional): outcome, service_type.",
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/admin/disputes?outcome=pending&limit=50&offset=0",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["admin", "disputes"],
+              "query": [
+                { "key": "outcome", "value": "pending" },
+                { "key": "service_type", "value": "", "disabled": true },
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /admin/disputes/:id/resolve",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Admin-ID", "value": "admin-1" }],
+            "description": "Resolve a dispute. outcome = favour_complainant|favour_respondent|split|dismissed. Optional refund (only honoured when outcome favours the complainant/split and payment-wallet is configured): refund_amount_kobo + refund_source_reference (the original payment reference).",
+            "body": { "mode": "raw", "raw": "{\n  \"outcome\": \"favour_complainant\",\n  \"note\": \"Damage confirmed from the photos.\",\n  \"refund_amount_kobo\": 500000,\n  \"refund_source_reference\": \"pay-ref-abc123\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/disputes/{{dispute_id}}/resolve", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "disputes", "{{dispute_id}}", "resolve"] }
+          }
+        },
+        {
+          "name": "POST /admin/complaints/:id/messages",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Admin-ID", "value": "admin-1" }],
+            "description": "Reply to a complainant in the chat as admin (notifies them; pushed live when notification-service is configured).",
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Thanks for the details — we are processing your refund.\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/complaints/{{complaint_id}}/messages", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "complaints", "{{complaint_id}}", "messages"] }
+          }
+        },
+        {
+          "name": "GET /admin/complaints/:id/messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Read the full chat thread for a complaint (admin).",
+            "url": { "raw": "{{base_url}}{{api_base}}/admin/complaints/{{complaint_id}}/messages", "host": ["{{base_url}}{{api_base}}"], "path": ["admin", "complaints", "{{complaint_id}}", "messages"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Realtime proxy (bearer)",
+      "description": "Live-chat support via notification-service. Only registered when SUPPORT_DISPUTE_NOTIFICATION_URL is set. Customer group shown; providers use /provider/notifications (+ /taxi-provider, /dispatch-provider).",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{customer_token}}", "type": "string" }] },
+      "item": [
+        {
+          "name": "GET /customer/notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Recent notification feed for the authenticated customer.",
+            "url": {
+              "raw": "{{base_url}}{{api_base}}/customer/notifications?limit=50",
+              "host": ["{{base_url}}{{api_base}}"],
+              "path": ["customer", "notifications"],
+              "query": [{ "key": "limit", "value": "50" }]
+            }
+          }
+        },
+        {
+          "name": "POST /customer/notifications/realtime-token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Mint a short-lived websocket token so the app can open a live support-chat socket against notification-service.",
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/customer/notifications/realtime-token", "host": ["{{base_url}}{{api_base}}"], "path": ["customer", "notifications", "realtime-token"] }
+          }
+        },
+        {
+          "name": "POST /customer/notifications/devices",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Register the customer's push device token.",
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"fcm-device-token\",\n  \"platform\": \"android\",\n  \"app\": \"customer\"\n}" },
+            "url": { "raw": "{{base_url}}{{api_base}}/customer/notifications/devices", "host": ["{{base_url}}{{api_base}}"], "path": ["customer", "notifications", "devices"] }
+          }
+        }
+      ]
+    }
+  ]
+}

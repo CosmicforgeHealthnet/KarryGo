@@ -141,6 +141,9 @@ func (r *PostgresSupportRepository) GetComplaintByID(ctx context.Context, id str
 
 func (r *PostgresSupportRepository) ListComplaintsByComplainant(ctx context.Context, complainantType supportmodels.ComplainantType, complainantID string, limit, offset int) ([]supportmodels.Complaint, error) {
 	// readerSenderType mirrors the complainant_type for chat unread accounting.
+	// $1 is bound as text and used in both an enum column (complainant_type) and
+	// a text column (sender_type); cast it to the enum in the WHERE so Postgres
+	// can deduce a single, consistent parameter type.
 	rows, err := r.db.Query(ctx, `
 		SELECT `+complaintColumns+`,
 		  (SELECT count(*) FROM support_chat_messages m
@@ -148,7 +151,7 @@ func (r *PostgresSupportRepository) ListComplaintsByComplainant(ctx context.Cont
 		       AND m.is_read = false
 		       AND m.sender_type <> $1) AS unread_count
 		FROM complaints
-		WHERE complainant_type = $1 AND complainant_id = $2
+		WHERE complainant_type = $1::complainant_type AND complainant_id = $2
 		ORDER BY created_at DESC
 		LIMIT $3 OFFSET $4
 	`, string(complainantType), complainantID, limit, offset)
@@ -194,15 +197,17 @@ func (r *PostgresSupportRepository) ListComplaints(ctx context.Context, filter C
 }
 
 func (r *PostgresSupportRepository) UpdateComplaintStatus(ctx context.Context, id string, status supportmodels.ComplaintStatus, note *string) (supportmodels.Complaint, error) {
+	// $2 is bound as text; cast it to the enum for the column assignment so it is
+	// not deduced inconsistently against the text IN-list below.
 	row := r.db.QueryRow(ctx, `
 		UPDATE complaints
-		SET status = $2,
+		SET status = $2::complaint_status,
 		    resolution_note = COALESCE($3, resolution_note),
 		    resolved_at = CASE WHEN $2 IN ('resolved','closed') THEN now() ELSE resolved_at END,
 		    updated_at = now()
 		WHERE id = $1
 		RETURNING `+complaintColumns,
-		id, status, note)
+		id, string(status), note)
 	c, err := scanComplaint(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return supportmodels.Complaint{}, apperrors.NotFound("Complaint not found.", err)

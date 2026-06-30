@@ -1144,3 +1144,40 @@ Built the final two wallet/earnings flows from the zip.
 **Issue #2 root cause:** submitting a review server-side `MarkCompleted`s a `delivered` booking (already in `SubmitReview`), but the Flutter history list was never refreshed after completion, so the trip didn't appear until app restart. Now refreshed in all completion paths. A skipped-review trip stays under "Ongoing" until the 30-min auto-complete worker (then moves to Past) — acceptable.
 
 **Verification:** `flutter analyze lib` — 0 errors (only pre-existing infos/warnings in untouched files). `flutter test` — all 25 pass.
+
+### 2026-06-30 — Support-dispute service: multi-app readiness + hardening (full stack)
+
+**Context:** Reviewed `support-dispute-service` against the product doc. It was well-modeled but only served 2 of 4 apps (customer + hauling provider), had IDOR holes, unvalidated enums (incl. a live `wallet` bug breaking the customer wallet-dispute screen), no admin triage surface, and missing audit/notifications/identity-validation. Implemented all fixes plus value-adds, then **ran it against real Postgres** and fixed two SQL bugs the in-memory unit tests could not catch.
+
+**Backend (`services/support-dispute-service`):**
+- **Multi-app routing** — `http/routes.go` registers customer (root) + three provider bearer groups via a `ProviderGroup` list: `/provider` (truck_provider/hauling, existing), `/taxi-provider` (taxi_provider/taxi), `/dispatch-provider` (dispatch_provider/dispatch). `registerCallerRoutes(grp, includeDispute)` shares the surface; only customer gets the `…/dispute` routes. Taxi/dispatch are wired + ready but not exercisable until those driver services issue tokens.
+- **Security (IDOR)** — ownership checks added to `AddEvidence`, `ListEvidence`, `EscalateToDispute`, `GetDispute` (usecase takes requester identity; admin passes empty type to bypass). `assertOwnership` helper.
+- **Validation** — `migrations/003_add_wallet_service_type.sql` (single-statement `ALTER TYPE … ADD VALUE 'wallet'`); usecase validates service_type/category/status/outcome/respondent_type → `validation_failed` (HTTP 422) instead of raw 500s.
+- **Admin triage** — `/admin/complaints` (filter by status/priority/service_type/complainant_type, emergency sorts first), `/admin/complaints/:id`, `/evidence`, `/dispute`, `/events`, `/disputes`, `/refresh-identity`. Repo `ListComplaints`/`ListDisputes` use a dynamic WHERE builder.
+- **Doc-gap features** — `complaint_events` audit trail now written (`RecordEvent`) + readable (`/events`); `SupportNotifier` (`clients/notifier.go`, fire-and-forget, no-op when unconfigured) notifies on status change / admin reply / dispute resolution; admin-driven refund hook in `ResolveDispute` via `shared/go/walletclient` (only when outcome favours complainant + payment-wallet configured + admin supplies `refund_source_reference`+`refund_amount_kobo`).
+- **Add-ons** — F1 unread counts + `…/messages/read` (uses `support_chat_messages.is_read`); F2 realtime chat proxy feature (`internal/features/notifications/http`, mirrors hauling) for customer + 3 providers; F3 `migrations/004_categories_and_help.sql` (`complaints.category/priority/incident_lat/lng` + `help_articles`) with public `GET /support/categories` + `/support/faqs` and `seeds/help_articles.sql`; F4 `POST /sos` (emergency-priority complaint + reporter ack).
+- **Cross-service identity (G)** — `clients/identity.go` resolves complainant/respondent identity from the owning service by `complainant_type`, signing HMAC as `support-dispute-service`; `migrations/005_identity_snapshot.sql` adds `complainant_name/phone` + `respondent_name/phone` snapshot columns. **Soft/non-blocking** — actions succeed even if the owning service is down. New internal endpoints on the owning services: `GET /api/v1/customer/internal/customers/:id` (customer-service `features/identity`) and `GET /api/v1/hauling/internal/providers/:id` (hauling `features/identity`), both behind `serviceauth.Middleware`; each owning service gained a `*_SERVICE_SECRETS` config trusting `support-dispute-service`.
+
+**Two SQL bugs found via smoke test + fixed** (`repositories/repository.go`) — Postgres enum/text parameter-binding errors invisible to the in-memory unit tests:
+1. `ListComplaintsByComplainant` unread subquery reused `$1` across an enum (`complainant_type`) and text (`sender_type`) → cast `$1::complainant_type`.
+2. `UpdateComplaintStatus` `status = $2` (enum) vs `$2 IN ('resolved','closed')` (text) → cast `$2::complaint_status`.
+
+**Tests:** `usecases/support_service_test.go` (in-memory repo: ownership denial, enum validation, wallet, SOS priority, unread). `repositories/repository_integration_test.go` — **DB-backed regression guard**, env-gated on `SUPPORT_DISPUTE_TEST_DATABASE_URL` (skips in plain `go test ./...`), locks in the two enum-cast fixes + exercises every repo method. `go build/vet/test ./...` green for support-dispute, customer-service, hauling.
+
+**Ops artifacts:**
+- `scripts/bootstrap_services/support-dispute-local-bootstrap.sh` — Postgres-only (port 5439, DB `support_dispute_service`), applies all `migrations/*.sql` in order + seeds FAQs. Added `support-dispute` to `bootstrap-all.sh`.
+- `docs/support-disputes.postman_collection.json` + `.postman_environment.json` — every endpoint with descriptions; admin folder auto-signs HMAC.
+- `README.md` — full endpoint reference + auth model + run instructions. `.env` + `.env.example`.
+
+**Smoke-test result:** bootstrap applied migrations 001–005 + seed; a throwaway Go tester (since deleted) drove 30/30 endpoint checks against a live instance on `:8107` — public/customer/provider/admin groups, wallet complaint, IDOR 403s, unread+mark-read, dispute lifecycle, SOS emergency, admin triage/resolve, auth-negative.
+
+**To run locally:**
+```bash
+bash scripts/bootstrap_services/support-dispute-local-bootstrap.sh
+cd services/support-dispute-service && go run ./cmd     # :8107
+# DB-backed regression test:
+SUPPORT_DISPUTE_TEST_DATABASE_URL='postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5439/support_dispute_service?sslmode=disable' \
+  go test ./internal/features/support/repositories/ -run Integration -v
+```
+
+**Known remaining:** taxi/dispatch provider groups are ready but their backend services don't issue tokens yet; SOS "admin alert" is a reporter ack + top-of-queue priority (notification-service has no admin recipient audience); refund hook needs payment-wallet + Paystack wired; identity/notifications/realtime are config-gated.

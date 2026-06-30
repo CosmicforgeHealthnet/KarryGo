@@ -19,6 +19,7 @@ SERVICES=(
   payment
   hauling
   customer
+  support-dispute
 )
 
 KEEP_GOING="${KEEP_GOING:-0}"
