@@ -3,6 +3,7 @@ package authclients
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/smtp"
@@ -10,56 +11,69 @@ import (
 	"time"
 )
 
-// EmailClient sends OTP codes via email.
+// EmailClient sends OTP codes and generic app notifications via email.
 type EmailClient interface {
 	SendOTP(ctx context.Context, to, code string) error
+	SendEmail(ctx context.Context, to, subject, textBody, htmlBody string) error
 }
 
-// NoopEmailClient discards all sends. Used when SMTP is not configured.
+var ErrEmailNotConfigured = errors.New("email delivery is not configured")
+
+// NoopEmailClient is kept for tests/backward compatibility. It reports that
+// email is unavailable instead of silently discarding an OTP.
 type NoopEmailClient struct{}
 
-func (NoopEmailClient) SendOTP(_ context.Context, _, _ string) error { return nil }
+func (NoopEmailClient) SendOTP(_ context.Context, _, _ string) error {
+	return ErrEmailNotConfigured
+}
+
+func (NoopEmailClient) SendEmail(_ context.Context, _, _, _, _ string) error {
+	return ErrEmailNotConfigured
+}
 
 // smtpDeadline is the maximum wall-clock time for a single email delivery,
 // covering both the TLS dial and all subsequent SMTP commands.
 const smtpDeadline = 15 * time.Second
 
-// CpanelEmailClient delivers OTP email via cPanel/Exim SMTP using implicit TLS
-// (port 465). Uses Go standard library net/smtp — no external email packages.
+// CpanelEmailClient delivers OTP email via cPanel/Exim SMTP. It supports
+// implicit TLS (usually port 465) and STARTTLS (usually port 587).
 type CpanelEmailClient struct {
 	Host     string // SMTP hostname, e.g. "mail.example.com"
-	Port     int    // 465 for implicit TLS
+	Port     int    // 465 for implicit TLS, 587 for STARTTLS
 	User     string // SMTP login username
 	Password string // SMTP login password
 	From     string // Envelope + header From address
+	TLSMode  string // "tls", "starttls", or "none"; empty auto-detects from Port
 }
 
-// SendOTP dials the SMTP server via implicit TLS (port 465) and sends the
-// OTP code to the recipient. The total operation is bounded by smtpDeadline
-// so a hung SMTP server cannot block the calling goroutine indefinitely.
-// Returns an error if delivery fails; the caller is expected to log and
-// continue — email failure is non-fatal.
-func (c *CpanelEmailClient) SendOTP(_ context.Context, to, code string) error {
-	addr := fmt.Sprintf("%s:%d", c.Host, c.Port)
-	deadline := time.Now().Add(smtpDeadline)
-
-	// Dial with an absolute deadline shared by both the TLS handshake and all
-	// subsequent SMTP commands (AUTH, MAIL FROM, RCPT TO, DATA, QUIT).
-	conn, err := tls.DialWithDialer(
-		&net.Dialer{Deadline: deadline},
-		"tcp", addr,
-		&tls.Config{ServerName: c.Host, MinVersion: tls.VersionTLS12},
+// SendOTP sends the OTP code using the generic cPanel SMTP sender.
+func (c *CpanelEmailClient) SendOTP(ctx context.Context, to, code string) error {
+	subject := "Your KarryGo Verification Code"
+	body := fmt.Sprintf(
+		"Your KarryGo OTP code is: %s\r\n\r\nThis code expires in 10 minutes. Do not share it with anyone.",
+		code,
 	)
-	if err != nil {
-		return fmt.Errorf("smtp tls dial %s: %w", addr, err)
-	}
-	// Apply the same deadline to all subsequent SMTP operations on the connection.
-	_ = conn.SetDeadline(deadline)
+	return c.SendEmail(ctx, to, subject, body, "")
+}
 
-	client, err := smtp.NewClient(conn, c.Host)
+// SendEmail sends a generic text or multipart text/html email through cPanel SMTP.
+// The total operation is bounded by smtpDeadline so a hung SMTP server cannot
+// block the request indefinitely.
+func (c *CpanelEmailClient) SendEmail(ctx context.Context, to, subject, textBody, htmlBody string) error {
+	if c.Host == "" || c.User == "" || c.Password == "" || c.From == "" {
+		return ErrEmailNotConfigured
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	deadline := time.Now().Add(smtpDeadline)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+
+	client, err := c.connect(ctx, deadline)
 	if err != nil {
-		_ = conn.Close()
-		return fmt.Errorf("smtp new client: %w", err)
+		return err
 	}
 	defer client.Close()
 
@@ -78,27 +92,118 @@ func (c *CpanelEmailClient) SendOTP(_ context.Context, to, code string) error {
 		return fmt.Errorf("smtp data: %w", err)
 	}
 
-	subject := "Your KarryGo Verification Code"
-	body := fmt.Sprintf(
-		"Your KarryGo OTP code is: %s\r\n\r\nThis code expires in 10 minutes. Do not share it with anyone.",
-		code,
-	)
-	msg := strings.Join([]string{
-		"From: " + c.From,
-		"To: " + to,
-		"Subject: " + subject,
-		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=UTF-8",
-		"",
-		body,
-	}, "\r\n")
-
+	msg := buildEmailMessage(c.From, to, subject, textBody, htmlBody)
 	if _, err := fmt.Fprint(w, msg); err != nil {
 		return fmt.Errorf("smtp write body: %w", err)
 	}
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("smtp close data writer: %w", err)
 	}
+	if err := client.Quit(); err != nil {
+		return fmt.Errorf("smtp quit: %w", err)
+	}
+	return nil
+}
 
-	return client.Quit()
+func buildEmailMessage(from, to, subject, textBody, htmlBody string) string {
+	headers := []string{
+		"From: " + sanitizeHeader(from),
+		"To: " + sanitizeHeader(to),
+		"Subject: " + sanitizeHeader(subject),
+		"MIME-Version: 1.0",
+	}
+	if strings.TrimSpace(htmlBody) == "" {
+		return strings.Join(append(headers,
+			"Content-Type: text/plain; charset=UTF-8",
+			"",
+			textBody,
+		), "\r\n")
+	}
+
+	boundary := "karrygo-email-boundary"
+	lines := append(headers,
+		`Content-Type: multipart/alternative; boundary="`+boundary+`"`,
+		"",
+		"--"+boundary,
+		"Content-Type: text/plain; charset=UTF-8",
+		"",
+		textBody,
+		"--"+boundary,
+		"Content-Type: text/html; charset=UTF-8",
+		"",
+		htmlBody,
+		"--"+boundary+"--",
+	)
+	return strings.Join(lines, "\r\n")
+}
+
+func sanitizeHeader(value string) string {
+	value = strings.ReplaceAll(value, "\r", " ")
+	value = strings.ReplaceAll(value, "\n", " ")
+	return strings.TrimSpace(value)
+}
+
+func (c *CpanelEmailClient) connect(ctx context.Context, deadline time.Time) (*smtp.Client, error) {
+	addr := fmt.Sprintf("%s:%d", c.Host, c.Port)
+	mode := strings.ToLower(strings.TrimSpace(c.TLSMode))
+	if mode == "" {
+		if c.Port == 465 {
+			mode = "tls"
+		} else {
+			mode = "starttls"
+		}
+	}
+
+	switch mode {
+	case "tls", "implicit_tls":
+		conn, err := tls.DialWithDialer(
+			&net.Dialer{Deadline: deadline},
+			"tcp", addr,
+			&tls.Config{ServerName: c.Host, MinVersion: tls.VersionTLS12},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("smtp tls dial %s: %w", addr, err)
+		}
+		_ = conn.SetDeadline(deadline)
+		client, err := smtp.NewClient(conn, c.Host)
+		if err != nil {
+			_ = conn.Close()
+			return nil, fmt.Errorf("smtp new client: %w", err)
+		}
+		return client, nil
+	case "none":
+		conn, err := (&net.Dialer{Deadline: deadline}).DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return nil, fmt.Errorf("smtp dial %s: %w", addr, err)
+		}
+		_ = conn.SetDeadline(deadline)
+		client, err := smtp.NewClient(conn, c.Host)
+		if err != nil {
+			_ = conn.Close()
+			return nil, fmt.Errorf("smtp new client: %w", err)
+		}
+		return client, nil
+	case "starttls":
+		conn, err := (&net.Dialer{Deadline: deadline}).DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return nil, fmt.Errorf("smtp dial %s: %w", addr, err)
+		}
+		_ = conn.SetDeadline(deadline)
+		client, err := smtp.NewClient(conn, c.Host)
+		if err != nil {
+			_ = conn.Close()
+			return nil, fmt.Errorf("smtp new client: %w", err)
+		}
+		if ok, _ := client.Extension("STARTTLS"); !ok {
+			_ = client.Close()
+			return nil, fmt.Errorf("smtp starttls unsupported by %s", addr)
+		}
+		if err := client.StartTLS(&tls.Config{ServerName: c.Host, MinVersion: tls.VersionTLS12}); err != nil {
+			_ = client.Close()
+			return nil, fmt.Errorf("smtp starttls: %w", err)
+		}
+		return client, nil
+	default:
+		return nil, fmt.Errorf("unsupported smtp tls mode %q", c.TLSMode)
+	}
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	"cosmicforge/logistics/shared/go/walletclient"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/database"
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
@@ -22,6 +21,7 @@ import (
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
+	"cosmicforge/logistics/shared/go/walletclient"
 )
 
 func main() {
@@ -52,40 +52,42 @@ func main() {
 		Secret:      cfg.WalletServiceSecret,
 	}
 
-	// Build email client. NoopEmailClient is used when SMTP is not configured
-	// so email delivery is gracefully disabled without changing any other logic.
 	var emailClient authclients.EmailClient
 	if cfg.SMTPHost != "" && cfg.SMTPUser != "" && cfg.SMTPPassword != "" && cfg.SMTPFrom != "" {
 		emailClient = &authclients.CpanelEmailClient{
 			Host:     cfg.SMTPHost,
 			Port:     cfg.SMTPPort,
+			TLSMode:  cfg.SMTPTLSMode,
 			User:     cfg.SMTPUser,
 			Password: cfg.SMTPPassword,
 			From:     cfg.SMTPFrom,
 		}
+		log.Printf("dispatch rider otp email smtp configured host=%s port=%d tls_mode=%q from=%s", cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPTLSMode, cfg.SMTPFrom)
 	} else {
 		emailClient = authclients.NoopEmailClient{}
+		log.Printf("dispatch rider otp email smtp not configured; email OTP delivery will be skipped when optional and fail when required")
 	}
 
 	authService := authusecases.NewAuthUsecase(authusecases.Options{
-		Identities:         authrepositories.NewPostgresIdentityRepository(db),
-		OTPs:               authrepositories.NewPostgresOTPRepository(db),
-		Sessions:           authrepositories.NewPostgresSessionRepository(db),
-		Notifier:           authclients.NewLoggingNotificationClient(cfg.OTPDebug),
-		EmailClient:        emailClient,
-		Publisher:          authclients.NewRedisEventPublisher(redisClient),
-		AccessTokenSecret:  cfg.AccessTokenSecret,
-		RefreshTokenSecret: cfg.RefreshTokenSecret,
-		OTPSecret:          cfg.OTPSecret,
-		AccessTokenTTL:     cfg.AccessTokenTTL,
-		RefreshTokenTTL:    cfg.RefreshTokenTTL,
-		OTPTTL:             cfg.OTPTTL,
-		OTPRateWindow:      cfg.OTPRateWindow,
-		OTPMaxRequests:     cfg.OTPMaxRequests,
-		OTPMaxAttempts:     cfg.OTPMaxAttempts,
-		OTPLockoutTTL:      cfg.OTPLockoutTTL,
-		OTPDebug:           cfg.OTPDebug,
-		Redis:              redisClient,
+		Identities:           authrepositories.NewPostgresIdentityRepository(db),
+		OTPs:                 authrepositories.NewPostgresOTPRepository(db),
+		Sessions:             authrepositories.NewPostgresSessionRepository(db),
+		Notifier:             authclients.NewLoggingNotificationClient(cfg.OTPDebug),
+		EmailClient:          emailClient,
+		Publisher:            authclients.NewRedisEventPublisher(redisClient),
+		AccessTokenSecret:    cfg.AccessTokenSecret,
+		RefreshTokenSecret:   cfg.RefreshTokenSecret,
+		OTPSecret:            cfg.OTPSecret,
+		AccessTokenTTL:       cfg.AccessTokenTTL,
+		RefreshTokenTTL:      cfg.RefreshTokenTTL,
+		OTPTTL:               cfg.OTPTTL,
+		OTPRateWindow:        cfg.OTPRateWindow,
+		OTPMaxRequests:       cfg.OTPMaxRequests,
+		OTPMaxAttempts:       cfg.OTPMaxAttempts,
+		OTPLockoutTTL:        cfg.OTPLockoutTTL,
+		OTPDebug:             cfg.OTPDebug,
+		RequireEmailDelivery: cfg.AppEnv != "development",
+		Redis:                redisClient,
 	})
 
 	asynqRedis := asynq.RedisClientOpt{

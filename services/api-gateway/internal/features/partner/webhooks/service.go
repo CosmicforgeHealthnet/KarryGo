@@ -1,0 +1,381 @@
+package webhooks
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"log"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+)
+
+const rfc3339 = time.RFC3339
+
+// Deps are the webhook service collaborators.
+type Deps struct {
+	Webhooks   WebhookRepository
+	Deliveries WebhookDeliveryRepository
+	Bookings   BookingLookup
+	Cryptor    *Cryptor
+	Sender     Sender
+	Now        func() time.Time
+	NewID      func() string
+}
+
+// Service implements partner webhook registration, delivery, and retry.
+type Service struct {
+	repo       WebhookRepository
+	deliveries WebhookDeliveryRepository
+	bookings   BookingLookup
+	cryptor    *Cryptor
+	sender     Sender
+	now        func() time.Time
+	newID      func() string
+}
+
+// NewService builds a webhook Service with default clock/id generators.
+func NewService(d Deps) *Service {
+	s := &Service{
+		repo:       d.Webhooks,
+		deliveries: d.Deliveries,
+		bookings:   d.Bookings,
+		cryptor:    d.Cryptor,
+		sender:     d.Sender,
+		now:        d.Now,
+		newID:      d.NewID,
+	}
+	if s.now == nil {
+		s.now = time.Now
+	}
+	if s.newID == nil {
+		s.newID = uuid.NewString
+	}
+	return s
+}
+
+// --- request/response DTOs --------------------------------------------------
+
+// CreateWebhookInput is the POST /webhooks body.
+type CreateWebhookInput struct {
+	URL    string   `json:"url"`
+	Events []string `json:"events"`
+}
+
+// CreateWebhookResult is returned once at creation; it includes the plaintext secret.
+type CreateWebhookResult struct {
+	ID            string   `json:"id"`
+	URL           string   `json:"url"`
+	Events        []string `json:"events"`
+	SigningSecret string   `json:"signing_secret"`
+	Status        string   `json:"status"`
+}
+
+// WebhookView is the GET /webhooks item shape (never includes the secret).
+type WebhookView struct {
+	ID        string   `json:"id"`
+	URL       string   `json:"url"`
+	Events    []string `json:"events"`
+	Status    string   `json:"status"`
+	CreatedAt string   `json:"created_at"`
+}
+
+// DeleteResult is the DELETE /webhooks/:id data.
+type DeleteResult struct {
+	ID      string `json:"id"`
+	Deleted bool   `json:"deleted"`
+}
+
+// --- registration -----------------------------------------------------------
+
+// CreateWebhook validates and stores a webhook, returning the plaintext signing
+// secret exactly once. The stored secret is AES-GCM encrypted, never plaintext.
+func (s *Service) CreateWebhook(ctx context.Context, partnerID string, in CreateWebhookInput) (*CreateWebhookResult, error) {
+	var fields []delivery.FieldError
+	if fe := validateWebhookURL(in.URL); fe != nil {
+		fields = append(fields, *fe)
+	}
+	events, fe := validateAndNormalizeEvents(in.Events)
+	if fe != nil {
+		fields = append(fields, *fe)
+	}
+	if len(fields) > 0 {
+		return nil, delivery.ValidationError(fields)
+	}
+
+	secret, err := generateSigningSecret()
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+	encrypted, err := s.cryptor.EncryptSecret(secret)
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+
+	created, err := s.repo.CreateWebhook(ctx, &Webhook{
+		ID:                     s.newID(),
+		PartnerID:              partnerID,
+		URL:                    strings.TrimSpace(in.URL),
+		Events:                 events,
+		EncryptedSigningSecret: encrypted,
+		Status:                 StatusActive,
+		CreatedAt:              s.now(),
+	})
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+
+	return &CreateWebhookResult{
+		ID:            created.ID,
+		URL:           created.URL,
+		Events:        created.Events,
+		SigningSecret: secret, // shown once, never stored/logged in plaintext
+		Status:        created.Status,
+	}, nil
+}
+
+// ListWebhooks returns a partner's webhooks without signing secrets.
+func (s *Service) ListWebhooks(ctx context.Context, partnerID string) ([]WebhookView, error) {
+	hooks, err := s.repo.ListWebhooks(ctx, partnerID)
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+	views := make([]WebhookView, 0, len(hooks))
+	for _, w := range hooks {
+		views = append(views, WebhookView{
+			ID:        w.ID,
+			URL:       w.URL,
+			Events:    w.Events,
+			Status:    w.Status,
+			CreatedAt: w.CreatedAt.UTC().Format(rfc3339),
+		})
+	}
+	return views, nil
+}
+
+// DeleteWebhook soft-deletes a partner's webhook (partner-scoped).
+func (s *Service) DeleteWebhook(ctx context.Context, partnerID, webhookID string) (*DeleteResult, error) {
+	existing, err := s.repo.FindWebhookByPartner(ctx, partnerID, webhookID)
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+	if existing == nil {
+		return nil, delivery.WebhookNotFound()
+	}
+	if err := s.repo.DeleteWebhook(ctx, partnerID, webhookID); err != nil {
+		return nil, delivery.ErrInternal()
+	}
+	return &DeleteResult{ID: webhookID, Deleted: true}, nil
+}
+
+// TestWebhook sends a real signed delivery.test event to one partner webhook and
+// returns success only on a 2xx response. It does not persist a delivery row
+// (partner_webhook_deliveries requires a booking FK) and does not schedule retries.
+func (s *Service) TestWebhook(ctx context.Context, partnerID, webhookID string) error {
+	w, err := s.repo.FindWebhookByPartner(ctx, partnerID, webhookID)
+	if err != nil {
+		return delivery.ErrInternal()
+	}
+	if w == nil {
+		return delivery.WebhookNotFound()
+	}
+	secret, err := s.cryptor.DecryptSecret(w.EncryptedSigningSecret)
+	if err != nil {
+		return delivery.ErrInternal()
+	}
+
+	now := s.now()
+	payload := WebhookPayload{
+		Event:      EventDeliveryTest,
+		DeliveryID: s.newID(),
+		BookingRef: "KGP-TESTONLY",
+		Status:     "test",
+		OccurredAt: now.UTC().Format(rfc3339),
+		Data:       map[string]any{"test": true},
+	}
+	status, sendErr := s.sender.Send(ctx, *w, WebhookDelivery{ID: payload.DeliveryID, WebhookID: w.ID, EventType: EventDeliveryTest}, secret, payload, now)
+	if sendErr != nil {
+		return delivery.WebhookDeliveryFailed("The webhook endpoint responded with status " + strconv.Itoa(status) + ".")
+	}
+	return nil
+}
+
+// --- dispatch event processing ---------------------------------------------
+
+// dispatchLifecycleEvent is the minimal shape decoded from dispatch topics. Every
+// dispatch lifecycle event carries booking_id (= partner dispatch_booking_id).
+// Mirrors driver-dispatch-delivery-service request/model.go and trip/model.go.
+type dispatchLifecycleEvent struct {
+	Event       string    `json:"event"`
+	BookingID   string    `json:"booking_id"`
+	OccurredAt  time.Time `json:"occurred_at"`
+	CompletedAt time.Time `json:"completed_at"`
+	CancelledAt time.Time `json:"cancelled_at"`
+}
+
+// ProcessDispatchEvent maps a dispatch event to a partner event, updates the
+// partner booking status, and fans out webhook deliveries. Malformed or
+// unmatched events are ignored (never crash the subscriber).
+func (s *Service) ProcessDispatchEvent(ctx context.Context, topic string, raw []byte) error {
+	mapping, ok := MappingForTopic(topic)
+	if !ok {
+		return nil
+	}
+	var ev dispatchLifecycleEvent
+	if err := json.Unmarshal(raw, &ev); err != nil {
+		log.Printf("webhooks: dropping malformed %s payload: %v", topic, err)
+		return nil
+	}
+	dispatchID := strings.TrimSpace(ev.BookingID)
+	if dispatchID == "" {
+		log.Printf("webhooks: %s missing booking_id - skipping", topic)
+		return nil
+	}
+
+	booking, err := s.bookings.FindByDispatchBookingID(ctx, dispatchID)
+	if err != nil {
+		return err
+	}
+	if booking == nil {
+		return nil // not a partner booking; ignore
+	}
+
+	if err := s.bookings.UpdateStatus(ctx, booking.ID, mapping.BookingStatus); err != nil {
+		log.Printf("webhooks: failed to update booking %s status: %v", booking.ID, err)
+	}
+
+	hooks, err := s.repo.FindActiveWebhooksForEvent(ctx, booking.PartnerID, mapping.PartnerEvent)
+	if err != nil {
+		return err
+	}
+
+	occurred := ev.OccurredAt
+	if occurred.IsZero() {
+		occurred = s.now()
+	}
+	for i := range hooks {
+		w := hooks[i]
+		payload := buildPayload(booking, mapping, ev, occurred)
+		body, err := json.Marshal(payload)
+		if err != nil {
+			continue
+		}
+		created, err := s.deliveries.CreateDelivery(ctx, &WebhookDelivery{
+			ID:        s.newID(),
+			WebhookID: w.ID,
+			BookingID: booking.ID,
+			EventType: mapping.PartnerEvent,
+			Payload:   body,
+			Attempts:  0,
+			Status:    DeliveryStatusPending,
+			CreatedAt: s.now(),
+		})
+		if err != nil {
+			log.Printf("webhooks: failed to record delivery for webhook %s: %v", w.ID, err)
+			continue
+		}
+		_, _ = s.deliverOnce(ctx, w, *created, payload) // immediate attempt; failures scheduled
+	}
+	return nil
+}
+
+func buildPayload(b *delivery.PartnerBooking, mapping EventMapping, ev dispatchLifecycleEvent, occurred time.Time) WebhookPayload {
+	data := map[string]any{}
+	if !ev.CompletedAt.IsZero() {
+		data["completed_at"] = ev.CompletedAt.UTC().Format(rfc3339)
+	}
+	if !ev.CancelledAt.IsZero() {
+		data["cancelled_at"] = ev.CancelledAt.UTC().Format(rfc3339)
+	}
+	return WebhookPayload{
+		Event:       mapping.PartnerEvent,
+		DeliveryID:  b.ID,
+		BookingRef:  b.BookingRef,
+		ExternalRef: b.ExternalRef,
+		Status:      mapping.BookingStatus,
+		OccurredAt:  occurred.UTC().Format(rfc3339),
+		Data:        data,
+	}
+}
+
+// --- retry worker -----------------------------------------------------------
+
+// ProcessDueDeliveries attempts all pending deliveries whose next_attempt_at is due.
+func (s *Service) ProcessDueDeliveries(ctx context.Context, limit int) error {
+	due, err := s.deliveries.FindPendingDueDeliveries(ctx, limit)
+	if err != nil {
+		return err
+	}
+	for i := range due {
+		d := due[i]
+		w, err := s.repo.FindWebhookByID(ctx, d.WebhookID)
+		if err != nil || w == nil {
+			// Orphaned delivery: stop retrying it.
+			_ = s.deliveries.MarkFailedPermanent(ctx, d.ID, nil)
+			continue
+		}
+		var payload WebhookPayload
+		if err := json.Unmarshal(d.Payload, &payload); err != nil {
+			_ = s.deliveries.MarkFailedPermanent(ctx, d.ID, nil)
+			continue
+		}
+		_, _ = s.deliverOnce(ctx, *w, d, payload)
+	}
+	return nil
+}
+
+// RunRetryWorker polls due deliveries on an interval until ctx is cancelled.
+func (s *Service) RunRetryWorker(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := s.ProcessDueDeliveries(ctx, 50); err != nil {
+				log.Printf("webhooks: retry worker error: %v", err)
+			}
+		}
+	}
+}
+
+// deliverOnce performs a single delivery attempt and records the outcome:
+// delivered on 2xx, otherwise scheduled for retry or marked failed_permanent
+// once attempts are exhausted.
+func (s *Service) deliverOnce(ctx context.Context, w Webhook, d WebhookDelivery, payload WebhookPayload) (int, error) {
+	newAttempts := d.Attempts + 1
+
+	secret, err := s.cryptor.DecryptSecret(w.EncryptedSigningSecret)
+	if err != nil {
+		// Cannot sign without the secret; do not retry indefinitely.
+		_ = s.deliveries.MarkFailedPermanent(ctx, d.ID, nil)
+		return 0, err
+	}
+
+	status, sendErr := s.sender.Send(ctx, w, d, secret, payload, s.now())
+	if sendErr == nil && status >= 200 && status < 300 {
+		_ = s.deliveries.MarkDelivered(ctx, d.ID, status)
+		return status, nil
+	}
+
+	var respStatus *int
+	if status > 0 {
+		st := status
+		respStatus = &st
+	}
+	if delay, ok := NextRetryDelay(newAttempts); ok {
+		next := s.now().Add(delay)
+		_ = s.deliveries.MarkFailedAttempt(ctx, d.ID, newAttempts, respStatus, &next)
+	} else {
+		_ = s.deliveries.MarkFailedPermanent(ctx, d.ID, respStatus)
+	}
+	if sendErr == nil {
+		sendErr = errors.New("webhook endpoint returned non-2xx status")
+	}
+	return status, sendErr
+}

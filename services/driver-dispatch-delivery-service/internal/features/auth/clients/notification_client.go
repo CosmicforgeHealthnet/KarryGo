@@ -1,10 +1,15 @@
 package authclients
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 type NotificationClient interface {
 	SendOTP(ctx context.Context, phoneNumber string, otp string) error
 }
+
+var ErrSMSNotConfigured = errors.New("sms delivery is not configured")
 
 type LoggingNotificationClient struct {
 	debugOTP bool
@@ -14,11 +19,9 @@ func NewLoggingNotificationClient(debugOTP bool) *LoggingNotificationClient {
 	return &LoggingNotificationClient{debugOTP: debugOTP}
 }
 
-// SendOTP is intentionally a no-op in the local dev environment.
-// OTP logging (with the purpose label "signup" / "login") is handled by the
-// usecase layer so that both the phone and email channels are covered in a
-// single place and the log lines include the correct purpose context.
-// A production implementation would call the SMS gateway here.
+// SendOTP does not deliver SMS. It returns ErrSMSNotConfigured so callers can
+// log an explicit skip instead of treating local development logging as a real
+// provider response.
 func (c *LoggingNotificationClient) SendOTP(ctx context.Context, phoneNumber string, otp string) error {
-	return nil
+	return ErrSMSNotConfigured
 }
