@@ -3,6 +3,8 @@ package authusecases
 import (
 	"context"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -10,24 +12,25 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
-	"cosmicforge/logistics/shared/go/apperrors"
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 // compile-time check: RedisEventPublisher implements EventPublisher
 var _ authclients.EventPublisher = (*authclients.RedisEventPublisher)(nil)
 
 type AuthUsecase struct {
-	identities  authrepositories.IdentityRepository
-	otp         *OTPUsecase
-	tokens      *TokenUsecase
-	sessions    *SessionUsecase
-	notifier    authclients.NotificationClient
-	emailClient authclients.EmailClient
-	publisher   authclients.EventPublisher
-	otpDebug    bool
+	identities           authrepositories.IdentityRepository
+	otp                  *OTPUsecase
+	tokens               *TokenUsecase
+	sessions             *SessionUsecase
+	notifier             authclients.NotificationClient
+	emailClient          authclients.EmailClient
+	publisher            authclients.EventPublisher
+	otpDebug             bool
+	requireEmailDelivery bool
 }
 
 type Options struct {
@@ -36,23 +39,24 @@ type Options struct {
 	Sessions   authrepositories.SessionRepository
 	Notifier   authclients.NotificationClient
 	// EmailClient delivers OTP codes via email alongside SMS.
-	// Nil or NoopEmailClient disables email delivery (SMS-only mode).
+	// Nil or NoopEmailClient disables email delivery only when RequireEmailDelivery is false.
 	EmailClient authclients.EmailClient
 	Publisher   authclients.EventPublisher
 	// OTPUsecase is an optional override for testing (e.g. to inject a fake rate-limiter).
-	OTPUsecase         *OTPUsecase
-	AccessTokenSecret  []byte
-	RefreshTokenSecret []byte
-	OTPSecret          []byte
-	AccessTokenTTL     time.Duration
-	RefreshTokenTTL    time.Duration
-	OTPTTL             time.Duration
-	OTPRateWindow      time.Duration
-	OTPMaxRequests     int
-	OTPMaxAttempts     int
-	OTPLockoutTTL      time.Duration
-	OTPDebug           bool
-	Redis              *redis.Client
+	OTPUsecase           *OTPUsecase
+	AccessTokenSecret    []byte
+	RefreshTokenSecret   []byte
+	OTPSecret            []byte
+	AccessTokenTTL       time.Duration
+	RefreshTokenTTL      time.Duration
+	OTPTTL               time.Duration
+	OTPRateWindow        time.Duration
+	OTPMaxRequests       int
+	OTPMaxAttempts       int
+	OTPLockoutTTL        time.Duration
+	OTPDebug             bool
+	RequireEmailDelivery bool
+	Redis                *redis.Client
 }
 
 type RequestMetadata struct {
@@ -65,9 +69,9 @@ type RequestMetadata struct {
 // ── Start (legacy) ─────────────────────────────────────────────────────────────
 
 type StartInput struct {
-	PhoneNumber   string
+	PhoneNumber string
 	// Email is optional. When non-empty, the same OTP code is also sent to this
-	// address via fire-and-forget. Email failure never blocks SMS delivery.
+	// address when an email provider is configured. Provider failures are returned.
 	Email         string
 	CorrelationID string
 }
@@ -168,15 +172,93 @@ func NewAuthUsecase(opts Options) *AuthUsecase {
 	}
 
 	return &AuthUsecase{
-		identities:  opts.Identities,
-		otp:         otpUsecase,
-		tokens:      NewTokenUsecase(opts.AccessTokenSecret, opts.AccessTokenTTL, opts.RefreshTokenTTL),
-		sessions:    sessions,
-		notifier:    opts.Notifier,
-		emailClient: opts.EmailClient,
-		publisher:   opts.Publisher,
-		otpDebug:    opts.OTPDebug,
+		identities:           opts.Identities,
+		otp:                  otpUsecase,
+		tokens:               NewTokenUsecase(opts.AccessTokenSecret, opts.AccessTokenTTL, opts.RefreshTokenTTL),
+		sessions:             sessions,
+		notifier:             opts.Notifier,
+		emailClient:          opts.EmailClient,
+		publisher:            opts.Publisher,
+		otpDebug:             opts.OTPDebug,
+		requireEmailDelivery: opts.RequireEmailDelivery,
 	}
+}
+
+func (u *AuthUsecase) deliverOTP(ctx context.Context, purpose, phoneNumber, email, code string) error {
+	smsDelivered, err := u.sendSMSOTP(ctx, purpose, phoneNumber, code)
+	if err != nil {
+		return err
+	}
+
+	emailDelivered, err := u.sendEmailOTP(ctx, purpose, email, code)
+	if err != nil {
+		return err
+	}
+
+	if !smsDelivered && !emailDelivered && u.requireEmailDelivery {
+		err := fmt.Errorf("%s otp delivery has no configured channel phone_number=%s email=%s", purpose, phoneNumber, email)
+		log.Printf("dispatch rider %s otp delivery failed err=%v", purpose, err)
+		return apperrors.Unavailable("Verification code delivery is not configured.", err)
+	}
+
+	return nil
+}
+
+func (u *AuthUsecase) sendSMSOTP(ctx context.Context, purpose, phoneNumber, code string) (bool, error) {
+	if u.notifier == nil {
+		log.Printf("dispatch rider %s otp sms skipped phone_number=%s reason=not_configured", purpose, phoneNumber)
+		return false, nil
+	}
+
+	if err := u.notifier.SendOTP(ctx, phoneNumber, code); err != nil {
+		if errors.Is(err, authclients.ErrSMSNotConfigured) {
+			log.Printf("dispatch rider %s otp sms skipped phone_number=%s reason=not_configured", purpose, phoneNumber)
+			return false, nil
+		}
+
+		wrapped := fmt.Errorf("%s otp sms delivery failed phone_number=%s: %w", purpose, phoneNumber, err)
+		log.Printf("dispatch rider %s otp sms delivery failed phone_number=%s err=%v", purpose, phoneNumber, err)
+		return false, apperrors.Unavailable("Verification code delivery is temporarily unavailable.", wrapped)
+	}
+
+	log.Printf("dispatch rider %s otp sms sent phone_number=%s", purpose, phoneNumber)
+	return true, nil
+}
+
+func (u *AuthUsecase) sendEmailOTP(ctx context.Context, purpose, email, code string) (bool, error) {
+	if strings.TrimSpace(email) == "" {
+		log.Printf("dispatch rider %s otp email skipped reason=no_email_target", purpose)
+		return false, nil
+	}
+	if u.emailClient == nil {
+		err := authclients.ErrEmailNotConfigured
+		if u.requireEmailDelivery {
+			wrapped := fmt.Errorf("%s otp email delivery not configured email=%s: %w", purpose, email, err)
+			log.Printf("dispatch rider %s otp email delivery failed email=%s err=%v", purpose, email, err)
+			return false, apperrors.Unavailable("Verification code delivery is not configured.", wrapped)
+		}
+		log.Printf("dispatch rider %s otp email skipped email=%s reason=not_configured", purpose, email)
+		return false, nil
+	}
+
+	if err := u.emailClient.SendOTP(ctx, email, code); err != nil {
+		if errors.Is(err, authclients.ErrEmailNotConfigured) {
+			if u.requireEmailDelivery {
+				wrapped := fmt.Errorf("%s otp email delivery not configured email=%s: %w", purpose, email, err)
+				log.Printf("dispatch rider %s otp email delivery failed email=%s err=%v", purpose, email, err)
+				return false, apperrors.Unavailable("Verification code delivery is not configured.", wrapped)
+			}
+			log.Printf("dispatch rider %s otp email skipped email=%s reason=not_configured", purpose, email)
+			return false, nil
+		}
+
+		wrapped := fmt.Errorf("%s otp email delivery failed email=%s: %w", purpose, email, err)
+		log.Printf("dispatch rider %s otp email delivery failed email=%s err=%v", purpose, email, err)
+		return false, apperrors.Unavailable("Verification code delivery is temporarily unavailable.", wrapped)
+	}
+
+	log.Printf("dispatch rider %s otp email sent email=%s", purpose, email)
+	return true, nil
 }
 
 // Start handles the legacy POST /api/v1/auth/start (phone-only, no login/signup distinction).
@@ -187,8 +269,8 @@ func NewAuthUsecase(opts Options) *AuthUsecase {
 //     (if one exists for this phone) and use it as the email target.
 //  2. If no email is provided (or the provided email was a duplicate), fall back
 //     to the email stored on the existing identity for this phone, if any.
-//  3. After SMS succeeds, fire-and-forget the same OTP code to the email target.
-//     Email failure is logged but never blocks the SMS response.
+//  3. Send through every configured delivery channel. Provider failures are
+//     logged with their internal cause and returned as a safe client error.
 func (u *AuthUsecase) Start(ctx context.Context, input StartInput) (StartResult, error) {
 	phoneNumber, err := NormalizePhoneNumber(input.PhoneNumber)
 	if err != nil {
@@ -249,21 +331,8 @@ func (u *AuthUsecase) Start(ctx context.Context, input StartInput) (StartResult,
 
 	// ── Send SMS (primary channel) ────────────────────────────────────────────
 
-	if u.notifier != nil {
-		if err := u.notifier.SendOTP(ctx, phoneNumber, code); err != nil {
-			return StartResult{}, apperrors.Unavailable("Verification code delivery is temporarily unavailable.", err)
-		}
-	}
-
-	// ── Fire-and-forget email (secondary channel) ─────────────────────────────
-
-	if u.emailClient != nil && emailTarget != "" {
-		emailCopy, codeCopy := emailTarget, code
-		go func() {
-			if sendErr := u.emailClient.SendOTP(context.Background(), emailCopy, codeCopy); sendErr != nil {
-				log.Printf("dispatch rider otp email send failed email=%s err=%v", emailCopy, sendErr)
-			}
-		}()
+	if err := u.deliverOTP(ctx, "start", phoneNumber, emailTarget, code); err != nil {
+		return StartResult{}, err
 	}
 
 	if u.publisher != nil {
@@ -324,20 +393,8 @@ func (u *AuthUsecase) SignupStart(ctx context.Context, input SignupStartInput) (
 	}
 
 	// Send OTP to phone.
-	if u.notifier != nil {
-		if err := u.notifier.SendOTP(ctx, phoneNumber, code); err != nil {
-			return StartResult{}, apperrors.Unavailable("Verification code delivery is temporarily unavailable.", err)
-		}
-	}
-
-	// Fire-and-forget email delivery. Never blocks SMS success path.
-	if u.emailClient != nil && email != "" {
-		emailTarget, otpCode := email, code
-		go func() {
-			if sendErr := u.emailClient.SendOTP(context.Background(), emailTarget, otpCode); sendErr != nil {
-				log.Printf("dispatch rider signup otp email send failed email=%s err=%v", emailTarget, sendErr)
-			}
-		}()
+	if err := u.deliverOTP(ctx, "signup", phoneNumber, email, code); err != nil {
+		return StartResult{}, err
 	}
 
 	// Dev-only: log OTP for both delivery channels.  Never log in production.
@@ -415,21 +472,12 @@ func (u *AuthUsecase) LoginStart(ctx context.Context, input LoginStartInput) (St
 		return StartResult{}, err
 	}
 
-	if u.notifier != nil {
-		if err := u.notifier.SendOTP(ctx, phoneNumber, code); err != nil {
-			return StartResult{}, apperrors.Unavailable("Verification code delivery is temporarily unavailable.", err)
-		}
+	emailTarget := ""
+	if identityEmail != nil {
+		emailTarget = *identityEmail
 	}
-
-	// Fire-and-forget email delivery to the stored identity email (if any).
-	// Never blocks SMS success path.
-	if u.emailClient != nil && identityEmail != nil {
-		emailTarget, otpCode := *identityEmail, code
-		go func() {
-			if sendErr := u.emailClient.SendOTP(context.Background(), emailTarget, otpCode); sendErr != nil {
-				log.Printf("dispatch rider login otp email send failed email=%s err=%v", emailTarget, sendErr)
-			}
-		}()
+	if err := u.deliverOTP(ctx, "login", phoneNumber, emailTarget, code); err != nil {
+		return StartResult{}, err
 	}
 
 	// Dev-only: log OTP for all available delivery channels.  Never log in production.
@@ -763,10 +811,8 @@ func (u *AuthUsecase) PhoneChangeStart(ctx context.Context, input PhoneChangeSta
 		return StartResult{}, err
 	}
 
-	if u.notifier != nil {
-		if err := u.notifier.SendOTP(ctx, newPhone, code); err != nil {
-			return StartResult{}, apperrors.Unavailable("Verification code delivery is temporarily unavailable.", err)
-		}
+	if err := u.deliverOTP(ctx, "phone_change", newPhone, "", code); err != nil {
+		return StartResult{}, err
 	}
 
 	if u.otpDebug {

@@ -37,10 +37,10 @@ type Config struct {
 	OTPLockoutTTL      time.Duration
 	OTPDebug           bool
 
-	// SMTP fields for optional email OTP delivery.
-	// When SMTPHost is empty, email delivery is disabled (SMS-only).
+	// SMTP fields for OTP email delivery.
 	SMTPHost     string
 	SMTPPort     int
+	SMTPTLSMode  string
 	SMTPUser     string
 	SMTPPassword string
 	SMTPFrom     string
@@ -96,6 +96,7 @@ func Load() (Config, error) {
 		OTPDebug:                   getEnvBool("DISPATCH_RIDER_DEBUG_OTP", false),
 		SMTPHost:                   getEnv("SMTP_HOST", ""),
 		SMTPPort:                   getEnvInt("SMTP_PORT", 465),
+		SMTPTLSMode:                getEnv("SMTP_TLS_MODE", ""),
 		SMTPUser:                   getEnv("SMTP_USER", ""),
 		SMTPPassword:               os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:                   getEnv("SMTP_FROM", ""),

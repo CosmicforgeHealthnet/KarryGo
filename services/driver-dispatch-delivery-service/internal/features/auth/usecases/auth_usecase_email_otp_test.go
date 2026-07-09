@@ -10,6 +10,7 @@ import (
 
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 // ── Fake email client ────────────────────────────────────────────────────────
@@ -23,6 +24,13 @@ type fakeEmailClient struct {
 func (f *fakeEmailClient) SendOTP(_ context.Context, to, code string) error {
 	f.mu.Lock()
 	f.calls = append(f.calls, struct{ to, code string }{to, code})
+	f.mu.Unlock()
+	return f.err
+}
+
+func (f *fakeEmailClient) SendEmail(_ context.Context, to, _, _, _ string) error {
+	f.mu.Lock()
+	f.calls = append(f.calls, struct{ to, code string }{to, ""})
 	f.mu.Unlock()
 	return f.err
 }
@@ -43,8 +51,8 @@ func (f *fakeEmailClient) lastCall() (to, code string) {
 	return c.to, c.code
 }
 
-// yieldForGoroutine gives the goroutine scheduler a chance to run the
-// fire-and-forget email goroutine before we make assertions.
+// yieldForGoroutine is retained for tests that predate synchronous email
+// delivery; it is harmless and keeps assertions stable across schedulers.
 func yieldForGoroutine() {
 	for i := 0; i < 20; i++ {
 		runtime.Gosched()
@@ -157,9 +165,9 @@ func TestStart_WithEmail_SendsToEmailClient(t *testing.T) {
 	}
 }
 
-// TestStart_EmailFailure_DoesNotBlockSMS verifies that an email client error
-// never causes Start to return an error — SMS is the primary channel.
-func TestStart_EmailFailure_DoesNotBlockSMS(t *testing.T) {
+// TestStart_EmailFailureReturnsUnavailable verifies that a configured email
+// provider failure is returned instead of being silently swallowed.
+func TestStart_EmailFailureReturnsUnavailable(t *testing.T) {
 	notifier := &fakeNotifier{}
 	ec := &fakeEmailClient{err: errors.New("smtp connection refused")}
 	svc := newStartUsecaseWithEmail(notifier, &fakePublisher{}, ec)
@@ -168,12 +176,18 @@ func TestStart_EmailFailure_DoesNotBlockSMS(t *testing.T) {
 		PhoneNumber: "+2348012345678",
 		Email:       "rider@example.com",
 	})
-	if err != nil {
-		t.Fatalf("Start() returned error despite email failure: %v", err)
+	if err == nil {
+		t.Fatal("Start() error = nil, want email delivery failure")
 	}
-	// SMS was still delivered.
+	var appErr *apperrors.Error
+	if !errors.As(err, &appErr) || appErr.Code != apperrors.CodeUnavailable {
+		t.Fatalf("Start() error = %v, want service_unavailable", err)
+	}
 	if len(notifier.calls) != 1 {
 		t.Fatalf("notifier calls = %d, want 1", len(notifier.calls))
+	}
+	if ec.callCount() != 1 {
+		t.Fatalf("email client calls = %d, want 1", ec.callCount())
 	}
 }
 
@@ -229,9 +243,9 @@ func TestSignupStart_SendsEmailViaDualChannel(t *testing.T) {
 	}
 }
 
-// TestSignupStart_EmailFailure_DoesNotBlock verifies signup OTP succeeds even
-// when the email client fails.
-func TestSignupStart_EmailFailure_DoesNotBlock(t *testing.T) {
+// TestSignupStart_EmailFailureReturnsUnavailable verifies signup returns a
+// safe service_unavailable response when configured email delivery fails.
+func TestSignupStart_EmailFailureReturnsUnavailable(t *testing.T) {
 	idRepo := newFakeIdentityRepository()
 	ec := &fakeEmailClient{err: errors.New("smtp timeout")}
 	svc := newSignupLoginUsecaseWithEmail(idRepo, &fakeNotifier{}, &fakePublisher{}, ec)
@@ -240,8 +254,15 @@ func TestSignupStart_EmailFailure_DoesNotBlock(t *testing.T) {
 		PhoneNumber: "+2348012345678",
 		Email:       "newrider@example.com",
 	})
-	if err != nil {
-		t.Fatalf("SignupStart() returned error despite email failure: %v", err)
+	if err == nil {
+		t.Fatal("SignupStart() error = nil, want email delivery failure")
+	}
+	var appErr *apperrors.Error
+	if !errors.As(err, &appErr) || appErr.Code != apperrors.CodeUnavailable {
+		t.Fatalf("SignupStart() error = %v, want service_unavailable", err)
+	}
+	if ec.callCount() != 1 {
+		t.Fatalf("email client calls = %d, want 1", ec.callCount())
 	}
 }
 
@@ -318,9 +339,9 @@ func TestLoginStart_NoStoredEmail_EmailClientNotCalled(t *testing.T) {
 	}
 }
 
-// TestLoginStart_EmailFailure_DoesNotBlock verifies login OTP succeeds even
-// when the email client fails.
-func TestLoginStart_EmailFailure_DoesNotBlock(t *testing.T) {
+// TestLoginStart_EmailFailureReturnsUnavailable verifies login returns a
+// safe service_unavailable response when configured email delivery fails.
+func TestLoginStart_EmailFailureReturnsUnavailable(t *testing.T) {
 	storedEmail := "user@example.com"
 	idRepo := newFakeIdentityRepository()
 	idRepo.identities["+2348012345678"] = authmodels.Identity{
@@ -338,8 +359,15 @@ func TestLoginStart_EmailFailure_DoesNotBlock(t *testing.T) {
 	_, err := svc.LoginStart(context.Background(), LoginStartInput{
 		Identifier: "+2348012345678",
 	})
-	if err != nil {
-		t.Fatalf("LoginStart() returned error despite email failure: %v", err)
+	if err == nil {
+		t.Fatal("LoginStart() error = nil, want email delivery failure")
+	}
+	var appErr *apperrors.Error
+	if !errors.As(err, &appErr) || appErr.Code != apperrors.CodeUnavailable {
+		t.Fatalf("LoginStart() error = %v, want service_unavailable", err)
+	}
+	if ec.callCount() != 1 {
+		t.Fatalf("email client calls = %d, want 1", ec.callCount())
 	}
 }
 
@@ -470,7 +498,7 @@ func TestStart_DuplicateEmail_SkippedEmailDelivery(t *testing.T) {
 
 	yieldForGoroutine()
 
-	// Email delivery must be silently skipped — no goroutine launched.
+	// Email delivery must be skipped explicitly — no goroutine launched.
 	if ec.callCount() != 0 {
 		t.Fatalf("email client calls = %d, want 0 (duplicate email must be skipped)", ec.callCount())
 	}
