@@ -20,6 +20,16 @@ import (
 const (
 	autoCompleteGracePeriod   = 30 * time.Minute
 	autoCompleteCheckInterval = 5 * time.Minute
+
+	// matchRecoveryCheckInterval is how often the recovery worker scans for
+	// bookings whose matcher goroutine was lost (e.g. across a restart).
+	matchRecoveryCheckInterval = 30 * time.Second
+	// matchRecoveryPendingGrace keeps the recovery worker away from pending_match
+	// bookings so fresh that their matcher may not have registered yet.
+	matchRecoveryPendingGrace = 10 * time.Second
+	// matchLockSlack pads provider match locks and stale-offer cutoffs beyond the
+	// acceptance window so a lock never expires mid-decision.
+	matchLockSlack = 15 * time.Second
 )
 
 // TruckInfo is the minimal truck data the matcher needs to decide eligibility.
@@ -180,6 +190,10 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	}
 	if !bookingmodels.ValidPaymentMethods[paymentMethod] {
 		fields = append(fields, apperrors.FieldViolation{Field: "payment_method", Message: "Choose a valid payment method."})
+	} else if paymentMethod == bookingmodels.PaymentMethodCard {
+		// Card is disabled until the Paystack webhook flips unpaid->held; without
+		// it a card booking can never be accepted (see ensurePaymentSecured).
+		fields = append(fields, apperrors.FieldViolation{Field: "payment_method", Message: "Card payment is coming soon. Choose wallet or cash."})
 	}
 	if len(fields) > 0 {
 		return bookingmodels.PublicBooking{}, apperrors.Validation("Please check your booking details.", fields)
@@ -235,14 +249,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	}
 
 	_ = s.addEvent(ctx, created.ID, "booking_created", bookingmodels.ActorCustomer, input.CustomerID)
-	// Card bookings must be paid up-front before a provider can accept (see
-	// ensurePaymentSecured). Don't dispatch yet — otherwise a provider could be
-	// matched and tap accept before the customer finishes Paystack checkout, only
-	// to be rejected. Matching starts from InitiateCardPayment once the customer
-	// has committed to the checkout. Wallet/cash dispatch immediately.
-	if paymentMethod != bookingmodels.PaymentMethodCard {
-		s.startMatchGoroutine(created.ID, input.PickupLat, input.PickupLng)
-	}
+	s.startMatchGoroutine(created.ID, input.PickupLat, input.PickupLng)
 	return created.Public(), nil
 }
 
@@ -376,7 +383,9 @@ func (s *BookingService) matchBooking(ctx context.Context, bookingID string, pic
 	// Keep searching until the window closes. When no truck is eligible right
 	// now we wait and re-scan rather than giving up — a provider may toggle
 	// online (or move into range) during the search. We only mark the booking
-	// unmatched once the deadline passes with no acceptance.
+	// unmatched once the deadline passes with no acceptance. Providers who
+	// already rejected this booking are excluded from every subsequent scan
+	// (see eligibleProviders) so a rejection never re-dispatches back to them.
 	deadline := time.Now().Add(s.searchWindow)
 	const rescanInterval = 3 * time.Second
 
@@ -449,7 +458,7 @@ func (s *BookingService) tryEligibleProviders(
 		// Lock the provider for longer than the acceptance window so the lock
 		// cannot expire mid-decision (and let another booking grab them while we
 		// are still waiting). We release it explicitly once we have decided.
-		lockTTL := s.matchTimeout + 15*time.Second
+		lockTTL := s.matchTimeout + matchLockSlack
 		acquired, err := s.availability.AcquireMatchLock(ctx, p.ProviderID, bookingID, lockTTL)
 		if err != nil || !acquired {
 			continue
@@ -472,37 +481,42 @@ func (s *BookingService) tryEligibleProviders(
 			return false, true
 		}
 
-		// Re-read status BEFORE releasing the lock, so a provider that accepts at
-		// the boundary cannot have their lock released and be re-matched by a
-		// concurrent booking on top of an accepted trip.
+		// Decide with a single guarded compare-and-set instead of read-then-reset:
+		// ResetToMatching only succeeds while the booking is still awaiting this
+		// provider's acceptance. If the provider's accept lands first — even in the
+		// instant after the timeout fires — the reset fails and the accepted trip is
+		// never clobbered back to matching.
+		if _, err := s.bookings.ResetToMatching(cleanupCtx, bookingID, p.ProviderID); err == nil {
+			// Provider did not accept in time — free them and try the next closest.
+			// A timed-out provider is treated like a rejection for this booking:
+			// without it, the next 3s rescan re-sorts nearest-first and re-offers the
+			// same silent provider, ping-ponging until the search window dies.
+			_ = s.availability.ReleaseMatchLock(cleanupCtx, p.ProviderID)
+			_ = s.availability.MarkRejected(cleanupCtx, bookingID, p.ProviderID, s.searchWindow+matchLockSlack)
+			_ = s.addEvent(cleanupCtx, bookingID, "match_timeout", bookingmodels.ActorSystem, p.ProviderID)
+			continue
+		}
+
+		// The reset was refused: the booking was accepted, cancelled, or otherwise
+		// moved on. Re-read to decide whether the provider keeps their lock.
 		current, err := s.bookings.GetByID(cleanupCtx, bookingID)
 		if err != nil {
 			_ = s.availability.ReleaseMatchLock(cleanupCtx, p.ProviderID)
 			return false, true
 		}
-		if current.Status == bookingmodels.StatusAccepted ||
-			current.Status == bookingmodels.StatusCancelled ||
-			current.Status == bookingmodels.StatusCompleted {
-			// Provider accepted (keep their lock — they own the trip now) or the
-			// booking is terminal. Either way we are done; only release the lock
-			// when the booking did not get accepted.
-			if current.Status != bookingmodels.StatusAccepted {
-				_ = s.availability.ReleaseMatchLock(cleanupCtx, p.ProviderID)
-			}
-			return current.Status == bookingmodels.StatusAccepted, true
+		// Keep the lock only when this provider accepted — they own the trip now.
+		if current.Status != bookingmodels.StatusAccepted {
+			_ = s.availability.ReleaseMatchLock(cleanupCtx, p.ProviderID)
 		}
-
-		// Provider did not accept — free them, reset, and try the next closest.
-		_ = s.availability.ReleaseMatchLock(cleanupCtx, p.ProviderID)
-		_, _ = s.bookings.ResetToMatching(cleanupCtx, bookingID)
-		_ = s.addEvent(cleanupCtx, bookingID, "match_timeout", bookingmodels.ActorSystem, p.ProviderID)
+		return current.Status == bookingmodels.StatusAccepted, true
 	}
 	return false, false
 }
 
 // eligibleProviders filters online providers down to those that can actually do
 // the job — within the serviceable radius, with an active truck of a type and
-// capacity that fits the cargo — and returns them sorted nearest-first.
+// capacity that fits the cargo, and not someone who already rejected this exact
+// booking — and returns them sorted nearest-first.
 func (s *BookingService) eligibleProviders(
 	ctx context.Context,
 	providers []availabilityrepositories.ProviderStatus,
@@ -511,12 +525,20 @@ func (s *BookingService) eligibleProviders(
 ) []availabilityrepositories.ProviderStatus {
 	wantType := strings.ToLower(strings.TrimSpace(booking.PreferredTruckType))
 
+	rejected, err := s.availability.GetRejectedProviders(ctx, booking.ID)
+	if err != nil {
+		rejected = nil
+	}
+
 	type scored struct {
 		p    availabilityrepositories.ProviderStatus
 		dist float64
 	}
 	var matches []scored
 	for _, p := range providers {
+		if rejected[p.ProviderID] {
+			continue
+		}
 		dist := haversineKm(pickupLat, pickupLng, p.Lat, p.Lng)
 		if dist > s.maxRadiusKm {
 			continue
@@ -548,9 +570,11 @@ func (s *BookingService) eligibleProviders(
 }
 
 // markUnmatched moves a booking to unmatched, records the event, releases any held
-// payment, and notifies the customer.
+// payment, and notifies the customer. The repo transition is a compare-and-set from
+// pending_match, so a deadline firing concurrently with an accept (or cancel) is a
+// silent no-op instead of clobbering the booking.
 func (s *BookingService) markUnmatched(ctx context.Context, bookingID, customerID string) {
-	if _, err := s.bookings.UpdateStatus(ctx, bookingID, bookingmodels.StatusUnmatched); err != nil {
+	if _, err := s.bookings.MarkUnmatched(ctx, bookingID); err != nil {
 		return
 	}
 	_ = s.addEvent(ctx, bookingID, "booking_unmatched", bookingmodels.ActorSystem, "system")
@@ -590,6 +614,72 @@ func (s *BookingService) autoCompleteDelivered(ctx context.Context) {
 			s.settleOnComplete(ctx, b.ID)
 			s.notifier.NotifyCustomerCompleted(ctx, b.CustomerID, b.ID, map[string]interface{}{"booking_id": b.ID})
 		}
+	}
+}
+
+// ─── Match recovery worker ────────────────────────────────────────────────────
+
+// RunMatchRecoveryWorker periodically re-adopts bookings whose matching was
+// orphaned. Matchers live in process memory, so a restart strands any booking
+// mid-search: pending_match with no goroutine, or awaiting_acceptance whose
+// offer window lapsed with nobody left to reset it. Stranded bookings resume
+// matching, or go unmatched once their search window (from creation) expired.
+// Run in a goroutine; stop by cancelling ctx.
+func (s *BookingService) RunMatchRecoveryWorker(ctx context.Context) {
+	s.recoverStaleMatching(ctx) // adopt any backlog from before the last restart
+	ticker := time.NewTicker(matchRecoveryCheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.recoverStaleMatching(ctx)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *BookingService) recoverStaleMatching(ctx context.Context) {
+	now := time.Now()
+	pendingCutoff := now.Add(-matchRecoveryPendingGrace)
+	// A healthy matcher resets an unanswered offer right after matchTimeout; an
+	// awaiting_acceptance row older than that (plus lock slack) has no live owner.
+	awaitingCutoff := now.Add(-(s.matchTimeout + matchLockSlack))
+	stale, err := s.bookings.ListStaleMatching(ctx, pendingCutoff, awaitingCutoff)
+	if err != nil {
+		return
+	}
+	for _, b := range stale {
+		if ctx.Err() != nil {
+			return
+		}
+		// A live matcher in this process owns the booking — leave it alone.
+		if _, live := s.activeMatches.Load(b.ID); live {
+			continue
+		}
+		// Legacy card bookings dispatch from InitiateCardPayment; one that was
+		// never initiated (no intent) is waiting on the customer, not on us.
+		if b.PaymentMethod == bookingmodels.PaymentMethodCard && b.PaymentIntentID == nil {
+			continue
+		}
+		// Orphaned offer: clear the assignment so the booking is back in
+		// pending_match, and free the provider for other bookings. The guarded
+		// reset refuses if the provider accepted in the meantime.
+		if b.Status == bookingmodels.StatusAwaitingAcceptance && b.ProviderID != nil {
+			provider := *b.ProviderID
+			if _, err := s.bookings.ResetToMatching(ctx, b.ID, provider); err != nil {
+				continue
+			}
+			_ = s.availability.ReleaseMatchLock(ctx, provider)
+			_ = s.addEvent(ctx, b.ID, "match_recovered", bookingmodels.ActorSystem, provider)
+		}
+		// The search window is anchored to creation: a booking that already spent
+		// its window (including downtime) goes unmatched instead of resuming.
+		if now.After(b.CreatedAt.Add(s.searchWindow)) {
+			s.markUnmatched(ctx, b.ID, b.CustomerID)
+			continue
+		}
+		s.startMatchGoroutine(b.ID, b.PickupLat, b.PickupLng)
 	}
 }
 
@@ -642,6 +732,9 @@ func (s *BookingService) SubmitReview(ctx context.Context, input SubmitReviewInp
 	if b.ProviderID == nil {
 		return bookingmodels.PublicBookingReview{}, apperrors.BadRequest("This booking has no assigned provider.", nil)
 	}
+	if _, err := s.bookings.GetReviewByBooking(ctx, input.BookingID); err == nil {
+		return bookingmodels.PublicBookingReview{}, apperrors.Conflict("You have already reviewed this trip.", nil)
+	}
 
 	review, err := s.bookings.CreateReview(ctx, bookingmodels.BookingReview{
 		BookingID:        input.BookingID,
@@ -666,9 +759,37 @@ func (s *BookingService) SubmitReview(ctx context.Context, input SubmitReviewInp
 	return review.Public(), nil
 }
 
+// GetCustomerBookingReview returns the customer's own review for one of their
+// bookings (so the trip detail screen can render a read-only view instead of
+// a resubmittable form once a review exists). Ownership is enforced: the
+// booking must belong to the customer. Returns a not-found error when no
+// review has been left yet.
+func (s *BookingService) GetCustomerBookingReview(ctx context.Context, bookingID, customerID string) (bookingmodels.PublicBookingReview, error) {
+	if _, err := s.bookings.GetByIDForCustomer(ctx, bookingID, customerID); err != nil {
+		return bookingmodels.PublicBookingReview{}, err
+	}
+	review, err := s.bookings.GetReviewByBooking(ctx, bookingID)
+	if err != nil {
+		return bookingmodels.PublicBookingReview{}, err
+	}
+	return review.Public(), nil
+}
+
 func (s *BookingService) CancelBooking(ctx context.Context, id, customerID, reason string) (bookingmodels.PublicBooking, error) {
 	b, err := s.bookings.CancelByCustomer(ctx, id, customerID, reason)
 	if err != nil {
+		// The guard refuses once the cargo is picked up (and for terminal
+		// bookings). Tell the customer why instead of a bare not-found.
+		if isNotFound(err) {
+			if current, getErr := s.bookings.GetByIDForCustomer(ctx, id, customerID); getErr == nil {
+				switch current.Status {
+				case bookingmodels.StatusPickedUp, bookingmodels.StatusEnRouteDelivery:
+					return bookingmodels.PublicBooking{}, apperrors.Conflict("Your cargo is already in transit and can no longer be cancelled. Contact support for help.", err)
+				case bookingmodels.StatusDelivered, bookingmodels.StatusCompleted, bookingmodels.StatusCancelled:
+					return bookingmodels.PublicBooking{}, apperrors.Conflict("This booking can no longer be cancelled.", err)
+				}
+			}
+		}
 		return bookingmodels.PublicBooking{}, err
 	}
 	s.cancelMatch(id)
@@ -759,8 +880,11 @@ func (s *BookingService) AcceptBooking(ctx context.Context, id, providerID strin
 		return bookingmodels.PublicBooking{}, err
 	}
 
-	updated, err := s.bookings.MarkAccepted(ctx, id)
+	updated, err := s.bookings.MarkAccepted(ctx, id, providerID)
 	if err != nil {
+		if isNotFound(err) {
+			return bookingmodels.PublicBooking{}, apperrors.Conflict("This request has expired or been reassigned.", err)
+		}
 		return bookingmodels.PublicBooking{}, err
 	}
 	_ = s.addEvent(ctx, id, "booking_accepted", bookingmodels.ActorProvider, providerID)
@@ -781,8 +905,15 @@ func (s *BookingService) RejectBooking(ctx context.Context, id, providerID strin
 	// never have two matching goroutines racing on the same booking.
 	s.cancelMatch(id)
 	_ = s.availability.ReleaseMatchLock(ctx, providerID)
-	updated, err := s.bookings.ResetToMatching(ctx, id)
+	// Remember this rejection so eligibleProviders never re-offers the booking
+	// to the same provider on a later re-scan (TTL covers the rest of the
+	// search window, mirroring the lockTTL slack used elsewhere in matching).
+	_ = s.availability.MarkRejected(ctx, id, providerID, s.searchWindow+matchLockSlack)
+	updated, err := s.bookings.ResetToMatching(ctx, id, providerID)
 	if err != nil {
+		if isNotFound(err) {
+			return bookingmodels.PublicBooking{}, apperrors.Conflict("This request can no longer be rejected.", err)
+		}
 		return bookingmodels.PublicBooking{}, err
 	}
 	_ = s.addEvent(ctx, id, "booking_rejected", bookingmodels.ActorProvider, providerID)
@@ -858,7 +989,10 @@ func (s *BookingService) ConfirmPickup(ctx context.Context, id, providerID strin
 	return updated.Public(), nil
 }
 
-func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID string) (bookingmodels.PublicBooking, error) {
+// ConfirmDelivery marks the cargo delivered, recording the proof-of-delivery
+// photo and receiver-signature URLs (media-file-service uploads; either may be
+// empty when skipped or when the upload failed — proof is best-effort).
+func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID, proofPhotoURL, signatureURL string) (bookingmodels.PublicBooking, error) {
 	b, err := s.bookings.GetByID(ctx, id)
 	if err != nil {
 		return bookingmodels.PublicBooking{}, err
@@ -866,7 +1000,7 @@ func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID str
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
 	}
-	updated, err := s.bookings.MarkDelivered(ctx, id)
+	updated, err := s.bookings.MarkDelivered(ctx, id, strings.TrimSpace(proofPhotoURL), strings.TrimSpace(signatureURL))
 	if err != nil {
 		return bookingmodels.PublicBooking{}, err
 	}
@@ -881,6 +1015,11 @@ func (s *BookingService) CancelByProvider(ctx context.Context, id, providerID, r
 	if err != nil {
 		return bookingmodels.PublicBooking{}, err
 	}
+	// A provider can cancel from awaiting_acceptance, where a matcher goroutine
+	// may still be waiting on them — stop it and free their match lock so
+	// neither the goroutine nor the lock outlives the cancelled booking.
+	s.cancelMatch(id)
+	_ = s.availability.ReleaseMatchLock(ctx, providerID)
 	_ = s.addEvent(ctx, id, "booking_cancelled_by_provider", bookingmodels.ActorProvider, providerID)
 	s.refundIfHeld(ctx, id, "cancelled_by_provider")
 	s.notifier.NotifyCustomerCancelledByProvider(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
@@ -991,6 +1130,13 @@ func fareToCharge(b bookingmodels.Booking) int64 {
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+// isNotFound reports whether err carries the apperrors not_found code (used to
+// tell a failed status-guard compare-and-set apart from a real failure).
+func isNotFound(err error) bool {
+	appErr := apperrors.From(err)
+	return appErr != nil && appErr.Code == apperrors.CodeNotFound
+}
 
 // validCoordinate rejects missing/null-island coordinates (0,0) and
 // out-of-range lat/lng so a booking can't be created with garbage geometry that

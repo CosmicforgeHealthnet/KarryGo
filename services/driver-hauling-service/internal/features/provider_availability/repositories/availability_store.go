@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	onlineSetKey  = "hauling:providers:online"
-	statusKeyFmt  = "hauling:provider:status:%s"
-	matchLockFmt  = "hauling:provider:matching:%s"
+	onlineSetKey   = "hauling:providers:online"
+	statusKeyFmt   = "hauling:provider:status:%s"
+	matchLockFmt   = "hauling:provider:matching:%s"
+	rejectedSetFmt = "hauling:booking:rejected:%s"
 )
 
 type ProviderStatus struct {
@@ -35,6 +36,8 @@ type AvailabilityStore interface {
 	GetProviderStatus(ctx context.Context, providerID string) (ProviderStatus, bool, error)
 	AcquireMatchLock(ctx context.Context, providerID, bookingID string, ttl time.Duration) (bool, error)
 	ReleaseMatchLock(ctx context.Context, providerID string) error
+	MarkRejected(ctx context.Context, bookingID, providerID string, ttl time.Duration) error
+	GetRejectedProviders(ctx context.Context, bookingID string) (map[string]bool, error)
 }
 
 type RedisAvailabilityStore struct {
@@ -152,10 +155,37 @@ func (s *RedisAvailabilityStore) ReleaseMatchLock(ctx context.Context, providerI
 	return s.client.Del(ctx, matchLockKey(providerID)).Err()
 }
 
+func (s *RedisAvailabilityStore) MarkRejected(ctx context.Context, bookingID, providerID string, ttl time.Duration) error {
+	pipe := s.client.Pipeline()
+	pipe.SAdd(ctx, rejectedKey(bookingID), providerID)
+	pipe.Expire(ctx, rejectedKey(bookingID), ttl)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return apperrors.Unavailable("Matching service is temporarily unavailable.", err)
+	}
+	return nil
+}
+
+func (s *RedisAvailabilityStore) GetRejectedProviders(ctx context.Context, bookingID string) (map[string]bool, error) {
+	ids, err := s.client.SMembers(ctx, rejectedKey(bookingID)).Result()
+	if err != nil {
+		return nil, apperrors.Unavailable("Matching service is temporarily unavailable.", err)
+	}
+	rejected := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		rejected[id] = true
+	}
+	return rejected, nil
+}
+
 func statusKey(providerID string) string {
 	return fmt.Sprintf(statusKeyFmt, providerID)
 }
 
 func matchLockKey(providerID string) string {
 	return fmt.Sprintf(matchLockFmt, providerID)
+}
+
+func rejectedKey(bookingID string) string {
+	return fmt.Sprintf(rejectedSetFmt, bookingID)
 }

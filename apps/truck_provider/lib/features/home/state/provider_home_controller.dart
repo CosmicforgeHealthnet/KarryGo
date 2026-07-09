@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../auth/models/provider_auth_models.dart';
 import '../../auth/state/provider_auth_controller.dart';
+import '../../media/data/media_upload_service.dart';
 import '../../notifications/data/provider_realtime_listener.dart';
 import '../data/provider_api.dart';
 
@@ -81,13 +83,19 @@ class ProviderHomeController extends ChangeNotifier {
   ProviderHomeController({
     required ProviderApi api,
     required ProviderAuthController authController,
+    MediaUploadService? mediaUploadService,
     ProviderRealtimeListener Function(String? Function() accessToken, void Function(String eventType) onEvent)? realtimeListenerFactory,
   })  : _api = api,
         _auth = authController,
+        _media = mediaUploadService,
         _realtimeFactory = realtimeListenerFactory;
 
   final ProviderApi _api;
   final ProviderAuthController _auth;
+
+  /// Uploads proof-of-delivery photo/signature to media-file-service. Optional
+  /// so tests can omit it; without it delivery confirms without proof URLs.
+  final MediaUploadService? _media;
 
   /// Builds the realtime websocket listener (fast path for incoming bookings).
   /// Optional so tests can omit it; when absent the 4-second poll alone drives
@@ -97,6 +105,16 @@ class ProviderHomeController extends ChangeNotifier {
 
   Timer? _heartbeatTimer;
   Timer? _pollTimer;
+
+  /// Guards the booking poll: only one request in flight at a time, and any
+  /// response fetched before a local mutation (accept/reject/complete/cancel)
+  /// is dropped — otherwise a poll that started just before an accept can
+  /// re-add the accepted booking to [ProviderHomeState.pendingRequests] and
+  /// re-show the incoming-request sheet ("asked to accept again").
+  bool _pollInFlight = false;
+  int _stateGeneration = 0;
+
+  void _bumpGeneration() => _stateGeneration++;
 
   ProviderHomeState _state = const ProviderHomeState(status: ProviderHomeStatus.dashboard);
   ProviderHomeState get state => _state;
@@ -156,9 +174,17 @@ class ProviderHomeController extends ChangeNotifier {
     final token = _token;
     if (token == null) return;
 
+    _bumpGeneration();
     _stopHeartbeat();
-    _stopPolling();
-    _stopRealtime();
+    // An in-progress trip must stay on screen and keep updating while offline —
+    // going offline only stops availability for NEW requests, it doesn't pause
+    // the cargo already on the truck.
+    final hasActiveTrip =
+        _state.status == ProviderHomeStatus.activeTrip && _state.activeBooking != null;
+    if (!hasActiveTrip) {
+      _stopPolling();
+      _stopRealtime();
+    }
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
       await _api.setOffline(accessToken: token);
@@ -166,7 +192,7 @@ class ProviderHomeController extends ChangeNotifier {
     _emit(_state.copyWith(
       isOnline: false,
       isLoading: false,
-      status: ProviderHomeStatus.dashboard,
+      status: hasActiveTrip ? ProviderHomeStatus.activeTrip : ProviderHomeStatus.dashboard,
       pendingRequests: const [],
     ));
   }
@@ -190,6 +216,16 @@ class ProviderHomeController extends ChangeNotifier {
   Future<void> restoreOnlineStatus() async {
     final token = _token;
     if (token == null || _state.isOnline) return;
+    // Recover an in-progress trip regardless of availability: the trip lives in
+    // the database, not Redis, so an expired online TTL (e.g. a longer app
+    // restart) must not hide cargo that's still on the truck.
+    try {
+      await _pollBookings();
+      if (_state.status == ProviderHomeStatus.activeTrip && !_state.isOnline) {
+        _startPolling();
+        _startRealtime();
+      }
+    } catch (_) {}
     try {
       final online = await _api.getAvailability(accessToken: token);
       if (!online) return;
@@ -248,6 +284,10 @@ class ProviderHomeController extends ChangeNotifier {
     _pollBookings();
   }
 
+  /// External fast-path poke (e.g. a foreground FCM push): refresh bookings
+  /// immediately when online. No-op while offline.
+  void pokeRefresh() => _onRealtimeEvent('push');
+
   // ─── Booking polling ──────────────────────────────────────────────────────
 
   void _startPolling() {
@@ -262,10 +302,16 @@ class ProviderHomeController extends ChangeNotifier {
 
   Future<void> _pollBookings() async {
     final token = _token;
-    if (token == null) return;
+    if (token == null || _pollInFlight) return;
 
+    _pollInFlight = true;
+    final generation = _stateGeneration;
     try {
       final bookings = await _api.listBookings(accessToken: token);
+
+      // A local mutation happened while this response was in flight — the data
+      // is stale (e.g. the just-accepted booking still reads awaiting_acceptance).
+      if (generation != _stateGeneration) return;
 
       // Active trip statuses
       const activeStatuses = {'accepted', 'en_route_pickup', 'arrived_at_pickup', 'picked_up', 'en_route_delivery'};
@@ -283,7 +329,8 @@ class ProviderHomeController extends ChangeNotifier {
         return;
       }
 
-      // Check if current active trip just completed
+      // Local state has an active trip but the poll found none — decide from the
+      // booking's own status instead of blindly dropping to the dashboard.
       if (_state.status == ProviderHomeStatus.activeTrip && _state.activeBooking != null) {
         final updated = bookings.where((b) => b.id == _state.activeBooking!.id).firstOrNull;
         if (updated != null && (updated.status == 'delivered' || updated.status == 'completed')) {
@@ -297,6 +344,22 @@ class ProviderHomeController extends ChangeNotifier {
           if (_state.isOnline) _startPolling();
           return;
         }
+        if (updated != null && (updated.status == 'cancelled' || updated.status == 'unmatched')) {
+          _emit(_state.copyWith(
+            status: ProviderHomeStatus.dashboard,
+            clearActive: true,
+            pendingRequests: pending,
+            error: 'This trip was cancelled by the customer.',
+          ));
+          // The poll may have been kept alive solely for this trip (provider
+          // went offline mid-trip) — stop it once the trip is gone.
+          if (!_state.isOnline) _stopPolling();
+          return;
+        }
+        // Booking missing from the page or in an unexpected state — keep the
+        // active trip on screen rather than kicking it off on partial data.
+        _emit(_state.copyWith(pendingRequests: pending));
+        return;
       }
 
       // Normal dashboard update with pending requests
@@ -304,43 +367,67 @@ class ProviderHomeController extends ChangeNotifier {
         status: ProviderHomeStatus.dashboard,
         pendingRequests: pending,
       ));
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _pollInFlight = false;
+    }
   }
 
   // ─── Accept / Reject ──────────────────────────────────────────────────────
 
-  Future<void> acceptBooking(String bookingId) async {
+  /// Returns true when the booking was accepted; false when the accept failed
+  /// (e.g. the request expired or was reassigned) — the error is in
+  /// [ProviderHomeState.error].
+  Future<bool> acceptBooking(String bookingId) async {
     final token = _token;
-    if (token == null) return;
+    if (token == null) return false;
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
       final updated = await _api.acceptBooking(accessToken: token, bookingId: bookingId);
+      _bumpGeneration();
       _emit(_state.copyWith(
         status: ProviderHomeStatus.activeTrip,
         isLoading: false,
         activeBooking: updated,
         pendingRequests: _state.pendingRequests.where((b) => b.id != bookingId).toList(),
       ));
+      return true;
     } catch (e) {
-      _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+      // The request may have expired/reassigned while we were accepting — drop
+      // it from the sheet instead of leaving a dead card the provider can re-tap.
+      _bumpGeneration();
+      _emit(_state.copyWith(
+        isLoading: false,
+        error: _msg(e),
+        pendingRequests: _state.pendingRequests.where((b) => b.id != bookingId).toList(),
+      ));
+      return false;
     }
   }
 
-  Future<void> rejectBooking(String bookingId) async {
+  Future<bool> rejectBooking(String bookingId) async {
     final token = _token;
-    if (token == null) return;
+    if (token == null) return false;
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
       await _api.rejectBooking(accessToken: token, bookingId: bookingId);
+      _bumpGeneration();
       _emit(_state.copyWith(
         isLoading: false,
         pendingRequests: _state.pendingRequests.where((b) => b.id != bookingId).toList(),
         clearError: true,
       ));
+      return true;
     } catch (e) {
-      _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+      _bumpGeneration();
+      _emit(_state.copyWith(
+        isLoading: false,
+        error: _msg(e),
+        pendingRequests: _state.pendingRequests.where((b) => b.id != bookingId).toList(),
+      ));
+      return false;
     }
   }
 
@@ -402,14 +489,57 @@ class ProviderHomeController extends ChangeNotifier {
     }
   }
 
-  Future<void> confirmDelivery() async {
+  /// Confirms delivery, uploading the proof-of-delivery photo and signature to
+  /// media-file-service first. Proof uploads are best-effort: a media outage
+  /// must never block completing the trip, so failures fall back to confirming
+  /// without the URLs.
+  Future<void> confirmDelivery({XFile? proofPhoto, Uint8List? signaturePng}) async {
     final token = _token;
     final booking = _state.activeBooking;
     if (token == null || booking == null) return;
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
+
+    var proofUrl = '';
+    var signatureUrl = '';
+    final media = _media;
+    final providerId = _auth.state.session?.provider.id ?? '';
+    if (media != null && providerId.isNotEmpty) {
+      if (proofPhoto != null) {
+        try {
+          final result = await media.uploadPicked(
+            ownerId: providerId,
+            purpose: MediaPurpose.proofImage,
+            file: proofPhoto,
+          );
+          proofUrl = result.url;
+        } catch (e) {
+          if (kDebugMode) debugPrint('proof photo upload failed: $e');
+        }
+      }
+      if (signaturePng != null && signaturePng.isNotEmpty) {
+        try {
+          final result = await media.uploadBytes(
+            ownerId: providerId,
+            purpose: MediaPurpose.signature,
+            filename: 'signature-${booking.id}.png',
+            bytes: signaturePng,
+          );
+          signatureUrl = result.url;
+        } catch (e) {
+          if (kDebugMode) debugPrint('signature upload failed: $e');
+        }
+      }
+    }
+
     try {
-      final updated = await _api.confirmDelivery(accessToken: token, bookingId: booking.id);
+      final updated = await _api.confirmDelivery(
+        accessToken: token,
+        bookingId: booking.id,
+        proofPhotoUrl: proofUrl,
+        signatureUrl: signatureUrl,
+      );
+      _bumpGeneration();
       _stopPolling();
       _emit(_state.copyWith(
         status: ProviderHomeStatus.dashboard,
@@ -431,6 +561,7 @@ class ProviderHomeController extends ChangeNotifier {
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
       await _api.cancelActiveTrip(accessToken: token, bookingId: booking.id);
+      _bumpGeneration();
       _stopPolling();
       _emit(_state.copyWith(
         status: ProviderHomeStatus.dashboard,

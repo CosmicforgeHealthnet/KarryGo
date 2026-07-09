@@ -38,7 +38,11 @@ func RespondError(c *gin.Context, err error) {
 	requestID := GetRequestID(c)
 
 	if appErr.Status >= http.StatusInternalServerError {
-		log.Printf("request_id=%s status=%d code=%s error=%v", requestID, appErr.Status, appErr.Code, err)
+		if cause := appErr.Unwrap(); cause != nil {
+			log.Printf("request_id=%s status=%d code=%s error=%v cause=%v", requestID, appErr.Status, appErr.Code, err, cause)
+		} else {
+			log.Printf("request_id=%s status=%d code=%s error=%v", requestID, appErr.Status, appErr.Code, err)
+		}
 	}
 
 	c.JSON(appErr.Status, errorResponse{

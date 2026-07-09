@@ -26,7 +26,11 @@ class HaulingApi {
   Future<AvailabilityResult> checkAvailability({
     required String accessToken,
   }) async {
-    final data = await _sendJson('GET', '/customer/availability', accessToken: accessToken);
+    final data = await _sendJson(
+      'GET',
+      '/customer/availability',
+      accessToken: accessToken,
+    );
     return AvailabilityResult.fromJson(data);
   }
 
@@ -40,14 +44,18 @@ class HaulingApi {
     required int cargoWeightKg,
     int helperCount = 0,
   }) async {
-    final data = await _sendJson('POST', '/customer/bookings/estimate', body: {
-      'pickup_lat': pickupLat,
-      'pickup_lng': pickupLng,
-      'dropoff_lat': dropoffLat,
-      'dropoff_lng': dropoffLng,
-      'cargo_weight_kg': cargoWeightKg,
-      'helper_count': helperCount,
-    });
+    final data = await _sendJson(
+      'POST',
+      '/customer/bookings/estimate',
+      body: {
+        'pickup_lat': pickupLat,
+        'pickup_lng': pickupLng,
+        'dropoff_lat': dropoffLat,
+        'dropoff_lng': dropoffLng,
+        'cargo_weight_kg': cargoWeightKg,
+        'helper_count': helperCount,
+      },
+    );
     return FareEstimate.fromJson(data);
   }
 
@@ -57,7 +65,11 @@ class HaulingApi {
     required String accessToken,
     required String providerId,
   }) async {
-    final data = await _sendJson('GET', '/customer/providers/$providerId', accessToken: accessToken);
+    final data = await _sendJson(
+      'GET',
+      '/customer/providers/$providerId',
+      accessToken: accessToken,
+    );
     return ProviderSnapshot.fromJson(data);
   }
 
@@ -65,7 +77,11 @@ class HaulingApi {
     required String accessToken,
     required String truckId,
   }) async {
-    final data = await _sendJson('GET', '/customer/trucks/$truckId', accessToken: accessToken);
+    final data = await _sendJson(
+      'GET',
+      '/customer/trucks/$truckId',
+      accessToken: accessToken,
+    );
     return TruckSnapshot.fromJson(data);
   }
 
@@ -116,27 +132,13 @@ class HaulingApi {
     if (scheduledAt != null) {
       body['scheduled_at'] = scheduledAt.toUtc().toIso8601String();
     }
-    final data = await _sendJson('POST', '/customer/bookings', accessToken: accessToken, body: body);
-    return HaulageBooking.fromJson(data);
-  }
-
-  /// Starts the up-front Paystack payment for a card booking and returns the
-  /// authorization URL to open in the in-app checkout WebView.
-  Future<CardPaymentInit> initiateCardPayment({
-    required String accessToken,
-    required String bookingId,
-    required String customerEmail,
-  }) async {
     final data = await _sendJson(
       'POST',
-      '/customer/bookings/$bookingId/card-payment',
+      '/customer/bookings',
       accessToken: accessToken,
-      body: {'customer_email': customerEmail},
+      body: body,
     );
-    return CardPaymentInit(
-      authorizationUrl: (data['authorization_url'] as String?) ?? '',
-      paymentIntentId: (data['payment_intent_id'] as String?) ?? '',
-    );
+    return HaulageBooking.fromJson(data);
   }
 
   Future<BookingReview> submitReview({
@@ -146,10 +148,7 @@ class HaulingApi {
     String reviewText = '',
     bool? recommendsDriver,
   }) async {
-    final body = <String, dynamic>{
-      'rating': rating,
-      'review_text': reviewText,
-    };
+    final body = <String, dynamic>{'rating': rating, 'review_text': reviewText};
     if (recommendsDriver != null) {
       body['recommends_driver'] = recommendsDriver;
     }
@@ -160,6 +159,25 @@ class HaulingApi {
       body: body,
     );
     return BookingReview.fromJson(data);
+  }
+
+  /// The customer's own review for a booking, or null when they haven't
+  /// reviewed it yet (backend returns 404 in that case).
+  Future<BookingReview?> getReviewForBooking({
+    required String accessToken,
+    required String bookingId,
+  }) async {
+    try {
+      final data = await _sendJson(
+        'GET',
+        '/customer/bookings/$bookingId/review',
+        accessToken: accessToken,
+      );
+      return BookingReview.fromJson(data);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
   }
 
   Future<HaulageBooking> getBooking({
@@ -184,7 +202,11 @@ class HaulingApi {
       '/customer/bookings?limit=$limit&offset=$offset',
       accessToken: accessToken,
     );
-    return raw.map((e) => HaulageBooking.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    return raw
+        .map(
+          (e) => HaulageBooking.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList();
   }
 
   /// Live location of the assigned provider for a booking (driver map marker).
@@ -205,7 +227,9 @@ class HaulingApi {
   /// Returns null when the proxy endpoint returns 404 (hauling-service not
   /// configured with a notification-service URL). The caller should treat null
   /// as "realtime unavailable" and fall back to polling.
-  Future<RealtimeToken?> fetchRealtimeToken({required String accessToken}) async {
+  Future<RealtimeToken?> fetchRealtimeToken({
+    required String accessToken,
+  }) async {
     try {
       final data = await _sendJson(
         'POST',
@@ -258,18 +282,32 @@ class HaulingApi {
 
       final response = switch (method) {
         'GET' => await _client.get(uri, headers: headers),
-        'POST' => await _client.post(uri, headers: headers, body: jsonEncode(body ?? const {})),
-        'PUT' => await _client.put(uri, headers: headers, body: jsonEncode(body ?? const {})),
+        'POST' => await _client.post(
+          uri,
+          headers: headers,
+          body: jsonEncode(body ?? const {}),
+        ),
+        'PUT' => await _client.put(
+          uri,
+          headers: headers,
+          body: jsonEncode(body ?? const {}),
+        ),
         'DELETE' => await _client.delete(uri, headers: headers),
         _ => throw UnsupportedError('Unsupported HTTP method: $method'),
       };
 
       final decoded = _decodeResponse(response);
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw ApiException.fromErrorEnvelope(decoded, statusCode: response.statusCode);
+        throw ApiException.fromErrorEnvelope(
+          decoded,
+          statusCode: response.statusCode,
+        );
       }
       if (decoded['success'] != true) {
-        throw ApiException.fromErrorEnvelope(decoded, statusCode: response.statusCode);
+        throw ApiException.fromErrorEnvelope(
+          decoded,
+          statusCode: response.statusCode,
+        );
       }
 
       final rawData = decoded['data'];
@@ -299,7 +337,10 @@ class HaulingApi {
       final response = await _client.get(uri, headers: headers);
       final decoded = _decodeResponse(response);
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw ApiException.fromErrorEnvelope(decoded, statusCode: response.statusCode);
+        throw ApiException.fromErrorEnvelope(
+          decoded,
+          statusCode: response.statusCode,
+        );
       }
       final rawData = decoded['data'];
       if (rawData is List) return rawData;
@@ -316,6 +357,9 @@ class HaulingApi {
     if (response.body.isEmpty) return const {'success': true, 'data': {}};
     final decoded = jsonDecode(response.body);
     if (decoded is Map) return Map<String, dynamic>.from(decoded);
-    return const {'success': false, 'error': {'code': 'unknown', 'message': 'Unexpected response.'}};
+    return const {
+      'success': false,
+      'error': {'code': 'unknown', 'message': 'Unexpected response.'},
+    };
   }
 }

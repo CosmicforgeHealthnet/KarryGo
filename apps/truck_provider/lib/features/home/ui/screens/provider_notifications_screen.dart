@@ -1,63 +1,28 @@
 import 'package:flutter/material.dart';
 
+import '../../../notifications/models/provider_notification.dart';
+import '../../../notifications/state/provider_notification_controller.dart';
 import '../widgets/provider_app_colors.dart';
 
-/// Notifications screen (Figma 2119).
-class ProviderNotificationsScreen extends StatelessWidget {
-  const ProviderNotificationsScreen({super.key});
+/// Notifications screen (Figma 2119), backed by the real notification feed.
+class ProviderNotificationsScreen extends StatefulWidget {
+  const ProviderNotificationsScreen({super.key, required this.controller});
 
-  static const _items = [
-    _NotifItem(
-      group: 'Today',
-      message: 'Your package has arrived!',
-      time: '12:05 PM',
-      isRead: false,
-    ),
-    _NotifItem(
-      group: 'Today',
-      message: 'You have uploaded a profile picture.',
-      time: '12:05 PM',
-      isRead: false,
-    ),
-    _NotifItem(
-      group: 'Yesterday',
-      message: 'Your Ride has arrived!',
-      time: '12:05 PM',
-      isRead: true,
-    ),
-    _NotifItem(
-      group: 'Yesterday',
-      message: "A driver confirmed your booking, he's on his way.",
-      time: '12:05 PM',
-      isRead: true,
-    ),
-    _NotifItem(
-      group: '3 days ago',
-      message: 'Your package has been picked.',
-      time: '12:05 PM',
-      isRead: true,
-    ),
-    _NotifItem(
-      group: '3 days ago',
-      message: 'Driver Canceled the order!',
-      time: '12:05 PM',
-      isRead: true,
-    ),
-    _NotifItem(
-      group: '4 days Ago',
-      message: 'Truck booking confirmed! Driver on his way.',
-      time: '12:05 PM',
-      isRead: false,
-    ),
-  ];
+  final ProviderNotificationController controller;
+
+  @override
+  State<ProviderNotificationsScreen> createState() => _ProviderNotificationsScreenState();
+}
+
+class _ProviderNotificationsScreenState extends State<ProviderNotificationsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.openFeed();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final groups = <String, List<_NotifItem>>{};
-    for (final item in _items) {
-      groups.putIfAbsent(item.group, () => []).add(item);
-    }
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -90,75 +55,180 @@ class ProviderNotificationsScreen extends StatelessWidget {
         ),
         titleSpacing: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+      body: AnimatedBuilder(
+        animation: widget.controller,
+        builder: (context, _) {
+          final controller = widget.controller;
+          final items = controller.notifications;
+
+          if (controller.isLoading && items.isEmpty) {
+            return const Center(
+              child: CircularProgressIndicator(color: kProviderGreen),
+            );
+          }
+          if (controller.error != null && items.isEmpty) {
+            return _FeedMessage(
+              icon: Icons.cloud_off_rounded,
+              message: controller.error!,
+              actionLabel: 'Try again',
+              onAction: controller.refresh,
+            );
+          }
+          if (items.isEmpty) {
+            return _FeedMessage(
+              icon: Icons.notifications_none_rounded,
+              message: 'No notifications yet.\nBooking updates will show up here.',
+              actionLabel: 'Refresh',
+              onAction: controller.refresh,
+            );
+          }
+
+          final groups = _groupByDay(items);
+          return RefreshIndicator(
+            color: kProviderGreen,
+            onRefresh: controller.refresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                for (final entry in groups.entries) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+                    child: Text(
+                      entry.key,
+                      style: const TextStyle(
+                        color: kProviderMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  for (final item in entry.value)
+                    _NotificationRow(
+                      item: item,
+                      isUnread: controller.isUnread(item),
+                    ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Groups notifications (already newest-first) into day buckets, preserving order.
+  Map<String, List<ProviderNotification>> _groupByDay(List<ProviderNotification> items) {
+    final groups = <String, List<ProviderNotification>>{};
+    for (final item in items) {
+      groups.putIfAbsent(_dayLabel(item.createdAt), () => []).add(item);
+    }
+    return groups;
+  }
+
+  String _dayLabel(DateTime time) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(time.year, time.month, time.day);
+    final diff = today.difference(day).inDays;
+    if (diff <= 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    if (diff < 7) return '$diff days ago';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${day.day} ${months[day.month - 1]}${day.year == now.year ? '' : ' ${day.year}'}';
+  }
+}
+
+class _NotificationRow extends StatelessWidget {
+  const _NotificationRow({required this.item, required this.isUnread});
+
+  final ProviderNotification item;
+  final bool isUnread;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = item.body.isNotEmpty ? item.body : item.title;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFF0F0F0))),
+      ),
+      child: Row(
         children: [
-          for (final entry in groups.entries) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-              child: Text(
-                entry.key,
-                style: const TextStyle(
-                  color: kProviderMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: isUnread ? kProviderGreen : kProviderGreenPale,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: isUnread ? kProviderText : kProviderMuted,
+                fontSize: 13,
+                fontWeight: isUnread ? FontWeight.w600 : FontWeight.w400,
+                height: 1.4,
               ),
             ),
-            for (final item in entry.value)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFFF0F0F0))),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: item.isRead ? kProviderGreenPale : kProviderGreen,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        item.message,
-                        style: TextStyle(
-                          color: item.isRead ? kProviderMuted : kProviderText,
-                          fontSize: 13,
-                          fontWeight: item.isRead ? FontWeight.w400 : FontWeight.w600,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      item.time,
-                      style: const TextStyle(color: kProviderMuted, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+          ),
+          const SizedBox(width: 12),
+          Text(
+            _formatTime(item.createdAt),
+            style: const TextStyle(color: kProviderMuted, fontSize: 11),
+          ),
         ],
       ),
     );
   }
+
+  String _formatTime(DateTime time) {
+    final hour12 = time.hour % 12 == 0 ? 12 : time.hour % 12;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.hour < 12 ? 'AM' : 'PM';
+    return '$hour12:$minute $period';
+  }
 }
 
-class _NotifItem {
-  const _NotifItem({
-    required this.group,
+class _FeedMessage extends StatelessWidget {
+  const _FeedMessage({
+    required this.icon,
     required this.message,
-    required this.time,
-    required this.isRead,
+    required this.actionLabel,
+    required this.onAction,
   });
 
-  final String group;
+  final IconData icon;
   final String message;
-  final String time;
-  final bool isRead;
+  final String actionLabel;
+  final Future<void> Function() onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 48, color: kProviderMuted),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: onAction,
+            child: Text(
+              actionLabel,
+              style: const TextStyle(color: kProviderGreen, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -141,8 +141,8 @@ class ProviderRequestDetailScreen extends StatelessWidget {
                         onPressed: state.isLoading
                             ? null
                             : () async {
-                                await homeController.rejectBooking(booking.id);
-                                if (context.mounted) Navigator.of(context).pop();
+                                final ok = await homeController.rejectBooking(booking.id);
+                                if (ok && context.mounted) Navigator.of(context).pop();
                               },
                       ),
                     ),
@@ -152,8 +152,8 @@ class ProviderRequestDetailScreen extends StatelessWidget {
                         onPressed: state.isLoading
                             ? null
                             : () async {
-                                await homeController.acceptBooking(booking.id);
-                                if (context.mounted) Navigator.of(context).pop();
+                                final ok = await homeController.acceptBooking(booking.id);
+                                if (ok && context.mounted) Navigator.of(context).pop();
                               },
                       ),
                     ),

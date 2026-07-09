@@ -8,6 +8,7 @@ import (
 	bookingclients "cosmicforge/logistics/services/hauling-service/internal/features/booking/clients"
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/notifications"
 )
 
@@ -77,7 +78,7 @@ func TestConfirmDeliveryNotifiesCustomer(t *testing.T) {
 	}}
 	svc, rec := newServiceWithNotifier(repo)
 
-	if _, err := svc.ConfirmDelivery(context.Background(), "booking-1", providerID); err != nil {
+	if _, err := svc.ConfirmDelivery(context.Background(), "booking-1", providerID, "", ""); err != nil {
 		t.Fatalf("ConfirmDelivery() error = %v", err)
 	}
 
@@ -124,6 +125,7 @@ func assertNotified(t *testing.T, rec *recordingNotifier, eventType, recipientTy
 // without a database.
 type fakeBookingRepo struct {
 	booking bookingmodels.Booking
+	review  *bookingmodels.BookingReview
 }
 
 func (f *fakeBookingRepo) Create(_ context.Context, b bookingmodels.Booking) (bookingmodels.Booking, error) {
@@ -132,7 +134,10 @@ func (f *fakeBookingRepo) Create(_ context.Context, b bookingmodels.Booking) (bo
 func (f *fakeBookingRepo) GetByID(_ context.Context, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
-func (f *fakeBookingRepo) GetByIDForCustomer(_ context.Context, _, _ string) (bookingmodels.Booking, error) {
+func (f *fakeBookingRepo) GetByIDForCustomer(_ context.Context, id, customerID string) (bookingmodels.Booking, error) {
+	if id != f.booking.ID || customerID != f.booking.CustomerID {
+		return bookingmodels.Booking{}, errNotFound
+	}
 	return f.booking, nil
 }
 func (f *fakeBookingRepo) ListByCustomer(_ context.Context, _ string, _, _ int) ([]bookingmodels.Booking, error) {
@@ -144,13 +149,13 @@ func (f *fakeBookingRepo) ListByProvider(_ context.Context, _ string, _, _ int) 
 func (f *fakeBookingRepo) UpdateStatus(_ context.Context, _, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
-func (f *fakeBookingRepo) AssignProvider(_ context.Context, _, _, _ string) (bookingmodels.Booking, error) {
-	return f.booking, nil
-}
 func (f *fakeBookingRepo) MarkMatched(_ context.Context, _, _, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
-func (f *fakeBookingRepo) MarkAccepted(_ context.Context, _ string) (bookingmodels.Booking, error) {
+func (f *fakeBookingRepo) MarkUnmatched(_ context.Context, _ string) (bookingmodels.Booking, error) {
+	return f.booking, nil
+}
+func (f *fakeBookingRepo) MarkAccepted(_ context.Context, _, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
 func (f *fakeBookingRepo) MarkEnRoutePickup(_ context.Context, _ string) (bookingmodels.Booking, error) {
@@ -165,7 +170,7 @@ func (f *fakeBookingRepo) MarkPickedUp(_ context.Context, _ string) (bookingmode
 func (f *fakeBookingRepo) MarkEnRouteDelivery(_ context.Context, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
-func (f *fakeBookingRepo) MarkDelivered(_ context.Context, _ string) (bookingmodels.Booking, error) {
+func (f *fakeBookingRepo) MarkDelivered(_ context.Context, _, _, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
 func (f *fakeBookingRepo) MarkCompleted(_ context.Context, _ string) (bookingmodels.Booking, error) {
@@ -177,7 +182,7 @@ func (f *fakeBookingRepo) CancelByCustomer(_ context.Context, _, _, _ string) (b
 func (f *fakeBookingRepo) CancelByProvider(_ context.Context, _, _, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
-func (f *fakeBookingRepo) ResetToMatching(_ context.Context, _ string) (bookingmodels.Booking, error) {
+func (f *fakeBookingRepo) ResetToMatching(_ context.Context, _, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
 func (f *fakeBookingRepo) SetPayment(_ context.Context, _, paymentStatus, paymentIntentID string) (bookingmodels.Booking, error) {
@@ -190,14 +195,24 @@ func (f *fakeBookingRepo) SetPayment(_ context.Context, _, paymentStatus, paymen
 func (f *fakeBookingRepo) ListDeliveredForAutoComplete(_ context.Context, _ time.Time) ([]bookingmodels.Booking, error) {
 	return nil, nil
 }
+func (f *fakeBookingRepo) ListStaleMatching(_ context.Context, _, _ time.Time) ([]bookingmodels.Booking, error) {
+	return nil, nil
+}
 func (f *fakeBookingRepo) AddEvent(_ context.Context, _ bookingmodels.BookingEvent) error {
 	return nil
 }
 func (f *fakeBookingRepo) CreateReview(_ context.Context, r bookingmodels.BookingReview) (bookingmodels.BookingReview, error) {
+	if f.review != nil {
+		return bookingmodels.BookingReview{}, errNotFound
+	}
+	f.review = &r
 	return r, nil
 }
-func (f *fakeBookingRepo) GetReviewByBooking(_ context.Context, _ string) (bookingmodels.BookingReview, error) {
-	return bookingmodels.BookingReview{}, nil
+func (f *fakeBookingRepo) GetReviewByBooking(_ context.Context, bookingID string) (bookingmodels.BookingReview, error) {
+	if f.review == nil || f.review.BookingID != bookingID {
+		return bookingmodels.BookingReview{}, apperrors.NotFound("Review not found.", nil)
+	}
+	return *f.review, nil
 }
 
 // noopAvailabilityStore satisfies AvailabilityStore for paths that never touch it.
@@ -221,3 +236,9 @@ func (noopAvailabilityStore) AcquireMatchLock(context.Context, string, string, t
 	return false, nil
 }
 func (noopAvailabilityStore) ReleaseMatchLock(context.Context, string) error { return nil }
+func (noopAvailabilityStore) MarkRejected(context.Context, string, string, time.Duration) error {
+	return nil
+}
+func (noopAvailabilityStore) GetRejectedProviders(context.Context, string) (map[string]bool, error) {
+	return nil, nil
+}

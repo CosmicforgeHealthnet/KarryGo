@@ -77,17 +77,27 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   walletApi: widget.walletApi,
                   controller: widget.controller,
                   mediaUploadService: widget.mediaUploadService,
+                  placesApi: widget.placesApi,
                   isTabView: true,
                 ),
         ],
       ),
-      bottomNavigationBar: CustomerHomeBottomNav(
-        selectedIndex: _selectedIndex,
-        onTap: (i) {
-          setState(() => _selectedIndex = i);
-          // Refresh the bookings list each time the Trips tab is opened.
-          if (i == 1) widget.haulingController.loadHistory();
-        },
+      bottomNavigationBar: AnimatedBuilder(
+        animation: widget.notificationController,
+        builder: (context, _) => CustomerHomeBottomNav(
+          selectedIndex: _selectedIndex,
+          alertsBadgeCount: widget.notificationController.unreadCount,
+          onTap: (i) {
+            setState(() => _selectedIndex = i);
+            // Refresh the bookings list each time the Trips tab is opened.
+            if (i == 1) widget.haulingController.loadHistory();
+            // Opening Alerts clears the unread badge and refreshes the feed.
+            if (i == 2) {
+              widget.notificationController.markAllRead();
+              widget.notificationController.loadFeed();
+            }
+          },
+        ),
       ),
     );
   }

@@ -173,26 +173,6 @@ enum HaulingTruckTypeOption {
   }
 }
 
-// ─── Truck tier ───────────────────────────────────────────────────────────────
-
-enum TruckTier {
-  normal,
-  economy,
-  comfort;
-
-  String get displayLabel => switch (this) {
-    TruckTier.normal  => 'Normal',
-    TruckTier.economy => 'Economy',
-    TruckTier.comfort => 'Comfort',
-  };
-
-  String get description => switch (this) {
-    TruckTier.normal  => 'Standard truck for everyday cargo',
-    TruckTier.economy => 'Budget-friendly option for light loads',
-    TruckTier.comfort => 'Premium service with extra care for fragile items',
-  };
-}
-
 // ─── Provider + truck snapshots ───────────────────────────────────────────────
 
 @immutable
@@ -205,6 +185,7 @@ class ProviderSnapshot {
     required this.phone,
     required this.rating,
     required this.totalTrips,
+    this.createdAt,
   });
 
   final String id;
@@ -214,8 +195,34 @@ class ProviderSnapshot {
   final String phone;
   final double rating;
   final int totalTrips;
+  final DateTime? createdAt;
 
   String get displayName => '$firstName $lastName';
+
+  /// Tenure on the platform ("1 year", "3 months") for the Figma driver card.
+  String get tenureLabel {
+    final since = createdAt;
+    if (since == null) return 'New';
+    final days = DateTime.now().difference(since).inDays;
+    if (days >= 365) {
+      final years = days ~/ 365;
+      return years == 1 ? '1 year' : '$years years';
+    }
+    if (days >= 30) {
+      final months = days ~/ 30;
+      return months == 1 ? '1 month' : '$months months';
+    }
+    return 'New';
+  }
+
+  /// Completed-trips bucket ("1,000+", "100+") for the Figma driver card.
+  String get tripsLabel {
+    final n = totalTrips;
+    if (n >= 1000) return '${n ~/ 1000},000+';
+    if (n >= 100) return '${(n ~/ 100) * 100}+';
+    if (n >= 10) return '${(n ~/ 10) * 10}+';
+    return '$n';
+  }
 
   factory ProviderSnapshot.fromJson(Map<String, dynamic> j) => ProviderSnapshot(
     id: j['id'] as String,
@@ -225,6 +232,9 @@ class ProviderSnapshot {
     phone: j['phone'] as String? ?? '',
     rating: (j['rating'] as num? ?? 5.0).toDouble(),
     totalTrips: (j['total_trips'] as num? ?? 0).toInt(),
+    createdAt: j['created_at'] != null
+        ? DateTime.tryParse(j['created_at'] as String)
+        : null,
   );
 }
 
@@ -479,19 +489,6 @@ enum CargoType {
     CargoType.food         => 'Food / perishables',
     CargoType.general      => 'General cargo',
   };
-}
-
-// ─── Card payment init ───────────────────────────────────────────────────────
-
-/// Result of starting an up-front card (Paystack) payment for a booking.
-class CardPaymentInit {
-  const CardPaymentInit({
-    required this.authorizationUrl,
-    required this.paymentIntentId,
-  });
-
-  final String authorizationUrl;
-  final String paymentIntentId;
 }
 
 // ─── Realtime + live location ────────────────────────────────────────────────

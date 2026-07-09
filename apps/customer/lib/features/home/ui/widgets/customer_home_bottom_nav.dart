@@ -8,10 +8,14 @@ class CustomerHomeBottomNav extends StatelessWidget {
     super.key,
     required this.selectedIndex,
     required this.onTap,
+    this.alertsBadgeCount = 0,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onTap;
+
+  /// Unread notification count rendered as a red badge on the Alerts item.
+  final int alertsBadgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +46,7 @@ class CustomerHomeBottomNav extends StatelessWidget {
                 icon: _NavIcon.png('assets/figma/notification_bell.png'),
                 label: 'Alerts',
                 selected: selectedIndex == 2,
+                badge: alertsBadgeCount > 0 ? alertsBadgeCount : null,
                 onTap: () => onTap(2),
               ),
               _NavItem(
@@ -94,12 +99,14 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.badge,
   });
 
   final _NavIcon icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final int? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -108,30 +115,54 @@ class _NavItem extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Center(
-          child: selected
-              ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: CustomerFigmaColors.primary,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      icon.build(Colors.white),
-                      const SizedBox(width: 6),
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              selected
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: CustomerFigmaColors.primary,
+                        borderRadius: BorderRadius.circular(24),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          icon.build(Colors.white),
+                          const SizedBox(width: 6),
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : icon.build(CustomerFigmaColors.muted),
+              if (badge != null && !selected)
+                Positioned(
+                  top: -6,
+                  right: -8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: Text(
+                      badge! > 9 ? '9+' : '$badge',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                )
-              : icon.build(CustomerFigmaColors.muted),
+                ),
+            ],
+          ),
         ),
       ),
     );

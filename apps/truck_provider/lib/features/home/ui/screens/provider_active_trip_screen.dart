@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -247,7 +251,7 @@ class _TripSheet extends StatelessWidget {
                 Expanded(
                   child: _StartTripButton(
                     label: action.label,
-                    enabled: !isLoading,
+                    enabled: !isLoading && action.onPressed != null,
                     isLoading: isLoading,
                     onPressed: isLoading ? null : action.onPressed,
                   ),
@@ -259,15 +263,18 @@ class _TripSheet extends StatelessWidget {
     );
   }
 
-  /// Maps the current booking status to the next forward transition. Unknown or
-  /// just-accepted states default to "Start Driving" so the trip is never stuck.
+  /// Maps the current booking status to the next forward transition. A status
+  /// this app version doesn't know renders a disabled button instead of
+  /// defaulting to "Start Driving" (which would re-fire an already-passed
+  /// transition against the server's status guard).
   _TripAction _actionFor(String status) {
     return switch (status) {
+      'accepted' => _TripAction(label: 'Start Driving', onPressed: onEnRoutePickup),
       'en_route_pickup' => _TripAction(label: "I've Arrived", onPressed: onArrived),
       'arrived_at_pickup' => _TripAction(label: 'Start Trip', onPressed: onConfirmPickup),
       'picked_up' => _TripAction(label: 'Start Delivery', onPressed: onEnRouteDelivery),
       'en_route_delivery' => _TripAction(label: 'End Trip', onPressed: onEndTrip, isEndTrip: true),
-      _ => _TripAction(label: 'Start Driving', onPressed: onEnRoutePickup),
+      _ => const _TripAction(label: 'Updating trip…', onPressed: null),
     };
   }
 }
@@ -360,12 +367,13 @@ class _StartTripButton extends StatelessWidget {
 
 /// The single forward action available to the provider for the current booking
 /// status. [isEndTrip] flags the final leg, which renders the red "End Trip"
-/// (confirm delivery) button instead of the green forward button.
+/// (confirm delivery) button instead of the green forward button. A null
+/// [onPressed] renders the button disabled (unknown status — wait for a poll).
 class _TripAction {
   const _TripAction({required this.label, required this.onPressed, this.isEndTrip = false});
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool isEndTrip;
 }
 
@@ -385,6 +393,7 @@ class _CompletionScreenState extends State<_CompletionScreen> {
   XFile? _photo;
   bool _pickingPhoto = false;
   final List<Offset> _signaturePoints = [];
+  final GlobalKey _signaturePadKey = GlobalKey();
 
   Future<void> _pickPhoto() async {
     if (_pickingPhoto) return;
@@ -396,6 +405,33 @@ class _CompletionScreenState extends State<_CompletionScreen> {
     } finally {
       if (mounted) setState(() => _pickingPhoto = false);
     }
+  }
+
+  /// Confirms delivery, sending the captured proof photo and signature (as a
+  /// rendered PNG) along so they are uploaded and stored on the booking.
+  Future<void> _confirm() async {
+    final signature = await _renderSignaturePng();
+    await widget.controller.confirmDelivery(
+      proofPhoto: _photo,
+      signaturePng: signature,
+    );
+  }
+
+  /// Rasterizes the drawn signature strokes to a PNG (white background), sized
+  /// to the on-screen pad so coordinates match what the receiver drew.
+  Future<Uint8List?> _renderSignaturePng() async {
+    if (_signaturePoints.isEmpty) return null;
+    final box = _signaturePadKey.currentContext?.findRenderObject() as RenderBox?;
+    final size = box?.size ?? const Size(360, 140);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    _SignaturePainter(points: _signaturePoints).paint(canvas, size);
+    final image = await recorder
+        .endRecording()
+        .toImage(size.width.ceil(), size.height.ceil());
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List();
   }
 
   @override
@@ -571,8 +607,8 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                               if (_photo != null) ...[
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    _photo!.path,
+                                  child: Image.file(
+                                    File(_photo!.path),
                                     width: 72,
                                     height: 72,
                                     fit: BoxFit.cover,
@@ -656,6 +692,7 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                                   setState(() => _signaturePoints.add(const Offset(-1, -1)));
                                 },
                                 child: CustomPaint(
+                                  key: _signaturePadKey,
                                   painter: _SignaturePainter(points: _signaturePoints),
                                   size: const Size(double.infinity, 140),
                                 ),
@@ -683,7 +720,7 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                             width: double.infinity,
                             height: 54,
                             child: FilledButton(
-                              onPressed: state.isLoading ? null : widget.controller.confirmDelivery,
+                              onPressed: state.isLoading ? null : _confirm,
                               style: FilledButton.styleFrom(
                                 backgroundColor: kProviderGreen,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

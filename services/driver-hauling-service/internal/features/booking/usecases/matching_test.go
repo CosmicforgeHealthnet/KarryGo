@@ -8,7 +8,9 @@ import (
 
 	bookingclients "cosmicforge/logistics/services/hauling-service/internal/features/booking/clients"
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
+	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 var errNotFound = errorString("not found")
@@ -29,13 +31,13 @@ const (
 	farLng = 4.5000
 )
 
-func newMatchService(repo *trackingRepo, store availabilityrepositories.AvailabilityStore, trucks TruckLookup, radiusKm float64) *BookingService {
+func newMatchService(repo bookingrepo.BookingRepository, store availabilityrepositories.AvailabilityStore, trucks TruckLookup, radiusKm float64) *BookingService {
 	// Short search window keeps the wait-and-retry loop fast in tests; the empty
 	// cases rescan a couple of times then mark unmatched.
 	return newMatchServiceWithWindow(repo, store, trucks, radiusKm, 2)
 }
 
-func newMatchServiceWithWindow(repo *trackingRepo, store availabilityrepositories.AvailabilityStore, trucks TruckLookup, radiusKm float64, searchWindowSeconds int) *BookingService {
+func newMatchServiceWithWindow(repo bookingrepo.BookingRepository, store availabilityrepositories.AvailabilityStore, trucks TruckLookup, radiusKm float64, searchWindowSeconds int) *BookingService {
 	return NewBookingService(Options{
 		Bookings:            repo,
 		Availability:        store,
@@ -170,7 +172,7 @@ func TestMatch_ProviderComesOnlineDuringSearchGetsMatched(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			time.Sleep(50 * time.Millisecond)
 			if repo.statusOf("b1") == bookingmodels.StatusAwaitingAcceptance {
-				_, _ = repo.MarkAccepted(context.Background(), "b1")
+				_, _ = repo.MarkAccepted(context.Background(), "b1", "near")
 				return
 			}
 		}
@@ -186,6 +188,106 @@ func TestMatch_ProviderComesOnlineDuringSearchGetsMatched(t *testing.T) {
 	}
 }
 
+func TestMatch_RejectedProviderNotReDispatchedSameBooking(t *testing.T) {
+	repo := newTrackingRepo(bookingmodels.Booking{
+		ID: "b1", CustomerID: "c1", Status: bookingmodels.StatusPendingMatch,
+		PickupLat: pickupLat, PickupLng: pickupLng, CargoWeightKg: 100,
+	})
+	// "near" is closer than "near2", so it would normally be tried first on
+	// every re-scan.
+	store := &fakeStore{providers: []availabilityrepositories.ProviderStatus{
+		{ProviderID: "near", TruckID: "t1", Lat: nearLat, Lng: nearLng},
+		{ProviderID: "near2", TruckID: "t2", Lat: nearLat + 0.01, Lng: nearLng + 0.01},
+	}}
+	svc := newMatchServiceWithWindow(repo, store, allTrucks{capacity: 10000}, 25, 6)
+
+	// Simulate "near" rejecting the booking as soon as it is matched, then let
+	// "near2" accept once matched.
+	go func() {
+		for i := 0; i < 100; i++ {
+			time.Sleep(50 * time.Millisecond)
+			b, _ := repo.GetByID(context.Background(), "b1")
+			if b.Status == bookingmodels.StatusAwaitingAcceptance && b.ProviderID != nil {
+				switch *b.ProviderID {
+				case "near":
+					if _, err := svc.RejectBooking(context.Background(), "b1", "near"); err == nil {
+						continue
+					}
+				case "near2":
+					_, _ = repo.MarkAccepted(context.Background(), "b1", "near2")
+					return
+				}
+			}
+		}
+	}()
+
+	svc.matchBooking(context.Background(), "b1", pickupLat, pickupLng)
+
+	if got := repo.statusOf("b1"); got != bookingmodels.StatusAccepted {
+		t.Fatalf("expected booking accepted by near2, got %s", got)
+	}
+	b, _ := repo.GetByID(context.Background(), "b1")
+	if b.ProviderID == nil || *b.ProviderID != "near2" {
+		t.Fatalf("expected near2 to hold the accepted booking, got %+v", b.ProviderID)
+	}
+	rejected, _ := store.GetRejectedProviders(context.Background(), "b1")
+	if !rejected["near"] {
+		t.Fatalf("expected near to be recorded as rejected for b1")
+	}
+}
+
+// TestMatch_AcceptAtTimeoutBoundaryNotClobbered pins the accept/timeout race:
+// the provider's accept lands in the instant AFTER the match timeout fires but
+// BEFORE the matcher resets the booking. The guarded ResetToMatching must refuse
+// the reset so the accepted trip is never clobbered back to pending_match and
+// re-dispatched ("accepted, then asked to accept again").
+func TestMatch_AcceptAtTimeoutBoundaryNotClobbered(t *testing.T) {
+	inner := newTrackingRepo(bookingmodels.Booking{
+		ID: "b1", CustomerID: "c1", Status: bookingmodels.StatusPendingMatch,
+		PickupLat: pickupLat, PickupLng: pickupLng, CargoWeightKg: 100,
+	})
+	repo := &acceptDuringResetRepo{trackingRepo: inner, acceptAs: "near"}
+	store := &fakeStore{providers: []availabilityrepositories.ProviderStatus{
+		{ProviderID: "near", TruckID: "ok", Lat: nearLat, Lng: nearLng},
+	}}
+	svc := newMatchServiceWithWindow(repo, store, allTrucks{capacity: 10000}, 25, 6)
+
+	svc.matchBooking(context.Background(), "b1", pickupLat, pickupLng)
+
+	if got := repo.statusOf("b1"); got != bookingmodels.StatusAccepted {
+		t.Fatalf("expected booking to stay accepted after boundary accept, got %s", got)
+	}
+	b, _ := repo.GetByID(context.Background(), "b1")
+	if b.ProviderID == nil || *b.ProviderID != "near" {
+		t.Fatalf("expected near to keep the accepted booking, got %+v", b.ProviderID)
+	}
+	if store.matched["near"] != 1 {
+		t.Fatalf("expected exactly one dispatch to near, got %d", store.matched["near"])
+	}
+	store.mu.Lock()
+	_, lockHeld := store.locks["near"]
+	store.mu.Unlock()
+	if !lockHeld {
+		t.Fatalf("expected near to keep the match lock after accepting")
+	}
+}
+
+// acceptDuringResetRepo simulates the provider accepting in the window between
+// the matcher's timeout firing and its ResetToMatching call: the first reset
+// attempt is preceded by a successful accept, so the guarded reset must fail.
+type acceptDuringResetRepo struct {
+	*trackingRepo
+	acceptAs string
+	once     sync.Once
+}
+
+func (r *acceptDuringResetRepo) ResetToMatching(ctx context.Context, id, expectedProviderID string) (bookingmodels.Booking, error) {
+	r.once.Do(func() {
+		_, _ = r.trackingRepo.MarkAccepted(ctx, id, r.acceptAs)
+	})
+	return r.trackingRepo.ResetToMatching(ctx, id, expectedProviderID)
+}
+
 // ─── fakes ──────────────────────────────────────────────────────────────────
 
 // trackingRepo is a concurrency-safe in-memory booking repo that honours the
@@ -193,10 +295,14 @@ func TestMatch_ProviderComesOnlineDuringSearchGetsMatched(t *testing.T) {
 type trackingRepo struct {
 	mu       sync.Mutex
 	bookings map[string]bookingmodels.Booking
+	reviews  map[string]bookingmodels.BookingReview
 }
 
 func newTrackingRepo(seed ...bookingmodels.Booking) *trackingRepo {
-	r := &trackingRepo{bookings: map[string]bookingmodels.Booking{}}
+	r := &trackingRepo{
+		bookings: map[string]bookingmodels.Booking{},
+		reviews:  map[string]bookingmodels.BookingReview{},
+	}
 	for _, b := range seed {
 		r.bookings[b.ID] = b
 	}
@@ -220,8 +326,14 @@ func (r *trackingRepo) GetByID(_ context.Context, id string) (bookingmodels.Book
 	defer r.mu.Unlock()
 	return r.bookings[id], nil
 }
-func (r *trackingRepo) GetByIDForCustomer(_ context.Context, id, _ string) (bookingmodels.Booking, error) {
-	return r.GetByID(context.Background(), id)
+func (r *trackingRepo) GetByIDForCustomer(_ context.Context, id, customerID string) (bookingmodels.Booking, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b, ok := r.bookings[id]
+	if !ok || b.CustomerID != customerID {
+		return bookingmodels.Booking{}, errNotFound
+	}
+	return b, nil
 }
 func (r *trackingRepo) ListByCustomer(context.Context, string, int, int) ([]bookingmodels.Booking, error) {
 	return nil, nil
@@ -237,9 +349,6 @@ func (r *trackingRepo) UpdateStatus(_ context.Context, id, status string) (booki
 	r.bookings[id] = b
 	return b, nil
 }
-func (r *trackingRepo) AssignProvider(_ context.Context, id, p, tr string) (bookingmodels.Booking, error) {
-	return r.MarkMatched(context.Background(), id, p, tr)
-}
 func (r *trackingRepo) MarkMatched(_ context.Context, id, p, tr string) (bookingmodels.Booking, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -253,8 +362,16 @@ func (r *trackingRepo) MarkMatched(_ context.Context, id, p, tr string) (booking
 	r.bookings[id] = b
 	return b, nil
 }
-func (r *trackingRepo) MarkAccepted(_ context.Context, id string) (bookingmodels.Booking, error) {
-	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusAccepted)
+func (r *trackingRepo) MarkAccepted(_ context.Context, id, providerID string) (bookingmodels.Booking, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	if b.Status != bookingmodels.StatusAwaitingAcceptance || b.ProviderID == nil || *b.ProviderID != providerID {
+		return bookingmodels.Booking{}, errNotFound
+	}
+	b.Status = bookingmodels.StatusAccepted
+	r.bookings[id] = b
+	return b, nil
 }
 func (r *trackingRepo) MarkEnRoutePickup(_ context.Context, id string) (bookingmodels.Booking, error) {
 	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusEnRoutePickup)
@@ -268,23 +385,53 @@ func (r *trackingRepo) MarkPickedUp(_ context.Context, id string) (bookingmodels
 func (r *trackingRepo) MarkEnRouteDelivery(_ context.Context, id string) (bookingmodels.Booking, error) {
 	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusEnRouteDelivery)
 }
-func (r *trackingRepo) MarkDelivered(_ context.Context, id string) (bookingmodels.Booking, error) {
+func (r *trackingRepo) MarkDelivered(_ context.Context, id, _, _ string) (bookingmodels.Booking, error) {
 	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusDelivered)
 }
 func (r *trackingRepo) MarkCompleted(_ context.Context, id string) (bookingmodels.Booking, error) {
 	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusCompleted)
 }
-func (r *trackingRepo) CancelByCustomer(_ context.Context, id, _, _ string) (bookingmodels.Booking, error) {
-	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusCancelled)
+
+// MarkUnmatched honours the pending_match compare-and-set guard like the real repo.
+func (r *trackingRepo) MarkUnmatched(_ context.Context, id string) (bookingmodels.Booking, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	if b.Status != bookingmodels.StatusPendingMatch {
+		return bookingmodels.Booking{}, errNotFound
+	}
+	b.Status = bookingmodels.StatusUnmatched
+	r.bookings[id] = b
+	return b, nil
+}
+
+// CancelByCustomer honours the real repo's guard: cancellation is refused once
+// the cargo is picked up or the booking is terminal. Guard failures surface as
+// apperrors NotFound so the usecase's conflict mapping can be exercised.
+func (r *trackingRepo) CancelByCustomer(_ context.Context, id, customerID, _ string) (bookingmodels.Booking, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b, ok := r.bookings[id]
+	if !ok || b.CustomerID != customerID {
+		return bookingmodels.Booking{}, apperrors.NotFound("Booking could not be found.", nil)
+	}
+	switch b.Status {
+	case bookingmodels.StatusPickedUp, bookingmodels.StatusEnRouteDelivery,
+		bookingmodels.StatusDelivered, bookingmodels.StatusCompleted, bookingmodels.StatusCancelled:
+		return bookingmodels.Booking{}, apperrors.NotFound("Booking could not be found.", nil)
+	}
+	b.Status = bookingmodels.StatusCancelled
+	r.bookings[id] = b
+	return b, nil
 }
 func (r *trackingRepo) CancelByProvider(_ context.Context, id, _, _ string) (bookingmodels.Booking, error) {
 	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusCancelled)
 }
-func (r *trackingRepo) ResetToMatching(_ context.Context, id string) (bookingmodels.Booking, error) {
+func (r *trackingRepo) ResetToMatching(_ context.Context, id, expectedProviderID string) (bookingmodels.Booking, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	b := r.bookings[id]
-	if b.Status == bookingmodels.StatusCancelled || b.Status == bookingmodels.StatusCompleted || b.Status == bookingmodels.StatusDelivered {
+	if b.Status != bookingmodels.StatusAwaitingAcceptance || b.ProviderID == nil || *b.ProviderID != expectedProviderID {
 		return bookingmodels.Booking{}, errNotFound
 	}
 	b.Status = bookingmodels.StatusPendingMatch
@@ -307,12 +454,39 @@ func (r *trackingRepo) SetPayment(_ context.Context, id, status, intent string) 
 func (r *trackingRepo) ListDeliveredForAutoComplete(context.Context, time.Time) ([]bookingmodels.Booking, error) {
 	return nil, nil
 }
+func (r *trackingRepo) ListStaleMatching(_ context.Context, pendingCutoff, awaitingCutoff time.Time) ([]bookingmodels.Booking, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []bookingmodels.Booking
+	for _, b := range r.bookings {
+		switch {
+		case b.Status == bookingmodels.StatusPendingMatch && b.CreatedAt.Before(pendingCutoff):
+			out = append(out, b)
+		case b.Status == bookingmodels.StatusAwaitingAcceptance && b.MatchedAt != nil && b.MatchedAt.Before(awaitingCutoff):
+			out = append(out, b)
+		}
+	}
+	return out, nil
+}
 func (r *trackingRepo) AddEvent(context.Context, bookingmodels.BookingEvent) error { return nil }
 func (r *trackingRepo) CreateReview(_ context.Context, rev bookingmodels.BookingReview) (bookingmodels.BookingReview, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.reviews[rev.BookingID]; exists {
+		return bookingmodels.BookingReview{}, errNotFound
+	}
+	rev.ID = "review-" + rev.BookingID
+	r.reviews[rev.BookingID] = rev
 	return rev, nil
 }
-func (r *trackingRepo) GetReviewByBooking(context.Context, string) (bookingmodels.BookingReview, error) {
-	return bookingmodels.BookingReview{}, nil
+func (r *trackingRepo) GetReviewByBooking(_ context.Context, bookingID string) (bookingmodels.BookingReview, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rev, ok := r.reviews[bookingID]
+	if !ok {
+		return bookingmodels.BookingReview{}, errNotFound
+	}
+	return rev, nil
 }
 
 // fakeStore is a concurrency-safe availability store recording lock activity.
@@ -321,6 +495,7 @@ type fakeStore struct {
 	providers []availabilityrepositories.ProviderStatus
 	locks     map[string]string
 	matched   map[string]int
+	rejected  map[string]map[string]bool
 }
 
 func (s *fakeStore) lockCount() int {
@@ -373,6 +548,27 @@ func (s *fakeStore) ReleaseMatchLock(_ context.Context, providerID string) error
 	defer s.mu.Unlock()
 	delete(s.locks, providerID)
 	return nil
+}
+func (s *fakeStore) MarkRejected(_ context.Context, bookingID, providerID string, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.rejected == nil {
+		s.rejected = map[string]map[string]bool{}
+	}
+	if s.rejected[bookingID] == nil {
+		s.rejected[bookingID] = map[string]bool{}
+	}
+	s.rejected[bookingID][providerID] = true
+	return nil
+}
+func (s *fakeStore) GetRejectedProviders(_ context.Context, bookingID string) (map[string]bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make(map[string]bool, len(s.rejected[bookingID]))
+	for id := range s.rejected[bookingID] {
+		result[id] = true
+	}
+	return result, nil
 }
 
 // allTrucks resolves every truck id to the same configured type/capacity.

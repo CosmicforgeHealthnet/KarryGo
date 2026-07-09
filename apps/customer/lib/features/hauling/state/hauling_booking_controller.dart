@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../auth/models/customer_auth_models.dart';
 import '../../auth/state/customer_auth_controller.dart';
 import '../../wallet/data/wallet_api.dart';
 import '../data/customer_realtime_listener.dart';
@@ -18,12 +20,10 @@ enum HaulingFlowStatus {
   locationEntry,
   checkingAvailability,
   unavailable,
-  tierSelection,
   payment,
   paymentProcessing,
   searching,
   activeTrip,
-  delivered,
   review,
   completed,
   cancelled,
@@ -38,6 +38,9 @@ class HaulingBookingState {
     this.isLoading = false,
     this.error,
     this.availability,
+    // trip progress (0..1 along pickup→destination during cargo leg)
+    this.tripProgress = 0.0,
+    this.tripStartedAt,
     // location inputs
     this.pickupAddress = '',
     this.pickupLat = 0.0,
@@ -45,8 +48,7 @@ class HaulingBookingState {
     this.dropoffAddress = '',
     this.dropoffLat = 0.0,
     this.dropoffLng = 0.0,
-    // tier + form selections
-    this.selectedTier,
+    // form selections
     this.weightCategory,
     this.truckTypeOption,
     this.cargoDescription = '',
@@ -86,6 +88,9 @@ class HaulingBookingState {
   final String? error;
   final AvailabilityResult? availability;
 
+  final double tripProgress;
+  final DateTime? tripStartedAt;
+
   final String pickupAddress;
   final double pickupLat;
   final double pickupLng;
@@ -93,7 +98,6 @@ class HaulingBookingState {
   final double dropoffLat;
   final double dropoffLng;
 
-  final TruckTier? selectedTier;
   final WeightCategory? weightCategory;
   final HaulingTruckTypeOption? truckTypeOption;
   final String cargoDescription;
@@ -136,13 +140,15 @@ class HaulingBookingState {
     bool? isLoading,
     String? error,
     AvailabilityResult? availability,
+    double? tripProgress,
+    DateTime? tripStartedAt,
+    bool clearTripProgress = false,
     String? pickupAddress,
     double? pickupLat,
     double? pickupLng,
     String? dropoffAddress,
     double? dropoffLat,
     double? dropoffLng,
-    TruckTier? selectedTier,
     WeightCategory? weightCategory,
     HaulingTruckTypeOption? truckTypeOption,
     String? cargoDescription,
@@ -178,13 +184,14 @@ class HaulingBookingState {
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
       availability: availability ?? this.availability,
+      tripProgress: clearTripProgress ? 0.0 : (tripProgress ?? this.tripProgress),
+      tripStartedAt: clearTripProgress ? null : (tripStartedAt ?? this.tripStartedAt),
       pickupAddress: pickupAddress ?? this.pickupAddress,
       pickupLat: pickupLat ?? this.pickupLat,
       pickupLng: pickupLng ?? this.pickupLng,
       dropoffAddress: dropoffAddress ?? this.dropoffAddress,
       dropoffLat: dropoffLat ?? this.dropoffLat,
       dropoffLng: dropoffLng ?? this.dropoffLng,
-      selectedTier: selectedTier ?? this.selectedTier,
       weightCategory: weightCategory ?? this.weightCategory,
       truckTypeOption: truckTypeOption ?? this.truckTypeOption,
       cargoDescription: cargoDescription ?? this.cargoDescription,
@@ -223,6 +230,7 @@ class HaulingBookingController extends ChangeNotifier {
       String? Function() accessToken,
       void Function(String eventType) onEvent,
     )? realtimeListenerFactory,
+    this.savedLocationsLoader,
   })  : _api = api,
         _auth = authController,
         _walletApi = walletApi,
@@ -231,6 +239,11 @@ class HaulingBookingController extends ChangeNotifier {
   final HaulingApi _api;
   final CustomerAuthController _auth;
   final WalletApi _walletApi;
+
+  /// Fetches the customer's saved locations so the location entry view can
+  /// offer them as one-tap fills. Optional — the view hides the section when
+  /// unset (tests/headless configs) or when the fetch fails.
+  final Future<List<SavedLocation>> Function()? savedLocationsLoader;
 
   /// Exposed so views (e.g. the Trips list) can lazily fetch provider snapshots
   /// for display without duplicating the HTTP client.
@@ -250,6 +263,15 @@ class HaulingBookingController extends ChangeNotifier {
 
   HaulingBookingState _state = const HaulingBookingState.idle();
   HaulingBookingState get state => _state;
+
+  /// Guards the booking/location polls: one request in flight at a time, and a
+  /// response fetched before a local flow mutation (cancel/reset/review/open)
+  /// is dropped — otherwise a poll that started just before a cancel can land
+  /// after it and revive the searching/active screen with stale data.
+  bool _pollInFlight = false;
+  int _stateGeneration = 0;
+
+  void _bumpGeneration() => _stateGeneration++;
 
   void _emit(HaulingBookingState next) {
     _state = next;
@@ -272,6 +294,7 @@ class HaulingBookingController extends ChangeNotifier {
   /// right flow status (activeTrip / searching / review) and kicks off the
   /// provider/location fetches.
   void openActiveBooking(HaulageBooking booking) {
+    _bumpGeneration();
     _emit(_state.copyWith(
       activeBooking: booking,
       clearError: true,
@@ -283,7 +306,7 @@ class HaulingBookingController extends ChangeNotifier {
 
   /// Prefills the booking form from a previous trip and starts the normal flow
   /// at location entry, so the customer can confirm addresses and walk through
-  /// tier → details → package → payment with everything pre-filled.
+  /// details → package → payment with everything pre-filled.
   void rebookFrom(HaulageBooking booking) {
     reset();
     setPickupLocation(booking.pickupAddress, booking.pickupLat, booking.pickupLng);
@@ -344,7 +367,7 @@ class HaulingBookingController extends ChangeNotifier {
       final result = await _api.checkAvailability(accessToken: token);
       if (result.available) {
         _emit(_state.copyWith(
-          status: HaulingFlowStatus.tierSelection,
+          status: HaulingFlowStatus.details,
           isLoading: false,
           availability: result,
         ));
@@ -367,9 +390,9 @@ class HaulingBookingController extends ChangeNotifier {
 
   void _fetchPreviewFare() {
     if (_state.pickupLat == 0 && _state.pickupLng == 0) return;
-    // Use the real cargo weight/helpers when the customer has already chosen
-    // them (e.g. returning to tier selection), so the price shown here matches
-    // what's charged. Falls back to a light default before details are entered.
+    // Use the real cargo weight/helpers once the customer has chosen them, so
+    // the preview matches what's charged. Falls back to a light default before
+    // details are entered.
     final weight = _state.weightCategory != null ? _state.cargoWeightKg : 100;
     _api.estimateFare(
       pickupLat: _state.pickupLat,
@@ -383,11 +406,7 @@ class HaulingBookingController extends ChangeNotifier {
     }).catchError((_) {});
   }
 
-  // ─── Tier selection ────────────────────────────────────────────────────────
-
-  void selectTier(TruckTier tier) {
-    _emit(_state.copyWith(selectedTier: tier));
-  }
+  // ─── Step transitions ──────────────────────────────────────────────────────
 
   void proceedFromDetailsToPackageInfo() {
     _emit(_state.copyWith(status: HaulingFlowStatus.packageInfo, clearError: true));
@@ -395,10 +414,6 @@ class HaulingBookingController extends ChangeNotifier {
 
   void proceedFromPackageInfoToPayment() {
     initiatePayment();
-  }
-
-  void proceedFromTierToDetails() {
-    _emit(_state.copyWith(status: HaulingFlowStatus.details, clearError: true));
   }
 
   // ─── Details form ──────────────────────────────────────────────────────────
@@ -472,6 +487,7 @@ class HaulingBookingController extends ChangeNotifier {
         reviewText: _state.reviewText,
         recommendsDriver: _state.recommendsDriver,
       );
+      _bumpGeneration();
       _emit(_state.copyWith(
         status: HaulingFlowStatus.completed,
         isLoading: false,
@@ -484,6 +500,7 @@ class HaulingBookingController extends ChangeNotifier {
   }
 
   void skipReview() {
+    _bumpGeneration();
     _emit(_state.copyWith(status: HaulingFlowStatus.completed));
     unawaited(loadHistory());
   }
@@ -645,6 +662,7 @@ class HaulingBookingController extends ChangeNotifier {
         bookingId: bookingId,
         reason: reason,
       );
+      _bumpGeneration();
       _stopPolling();
       _emit(_state.copyWith(
         status: HaulingFlowStatus.cancelled,
@@ -653,6 +671,17 @@ class HaulingBookingController extends ChangeNotifier {
       ));
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _errorMessage(e)));
+    }
+  }
+
+  /// "Edit Destination" while still connecting to a driver (Figma 1736):
+  /// the booking is already created server-side, so editing means cancelling
+  /// the current search and returning to location entry with the addresses
+  /// still filled in.
+  Future<void> editDestinationDuringSearch() async {
+    await cancelBooking(reason: 'edit_destination');
+    if (_state.status == HaulingFlowStatus.cancelled) {
+      startHaulingFlow();
     }
   }
 
@@ -704,6 +733,13 @@ class HaulingBookingController extends ChangeNotifier {
     _pollBookingStatus();
   }
 
+  /// External fast-path poke (e.g. a foreground FCM push): refresh the active
+  /// booking immediately when one is being tracked. No-op otherwise.
+  void pokeRefresh() {
+    if (_pollTimer == null) return;
+    _pollBookingStatus();
+  }
+
   // ─── Live driver location ────────────────────────────────────────────────────
 
   void _startLocationPolling() {
@@ -721,26 +757,37 @@ class HaulingBookingController extends ChangeNotifier {
     final token = _accessToken();
     final bookingId = _state.activeBooking?.id;
     if (token == null || bookingId == null) return;
+    final generation = _stateGeneration;
     try {
       final loc = await _api.getBookingLocation(accessToken: token, bookingId: bookingId);
+      // Flow moved on (cancelled/reset) while this was in flight — drop it.
+      if (generation != _stateGeneration) return;
+      final booking = _state.activeBooking;
+      if (booking == null) return;
       if (loc.hasFix) {
-        _emit(_state.copyWith(providerLocation: loc));
+        final progress = _computeTripProgress(booking, location: loc);
+        _emit(_state.copyWith(providerLocation: loc, tripProgress: progress));
+      } else {
+        // No fix: still advance the time-based bar.
+        _emit(_state.copyWith(tripProgress: _computeTripProgress(booking)));
       }
     } catch (_) {
-      // non-fatal — keep the last known location
+      // non-fatal — advance time-based bar anyway
+      if (generation != _stateGeneration) return;
+      final booking = _state.activeBooking;
+      if (booking != null) {
+        _emit(_state.copyWith(tripProgress: _computeTripProgress(booking)));
+      }
     }
   }
 
-  /// How long to wait for a driver before giving up. The searching view reads
-  /// [searchDeadline] to show a live countdown.
+  /// How long to wait for a driver before giving up. On expiry the booking is
+  /// cancelled server-side and the cancelled view explains that no trucks were
+  /// found.
   static const searchTimeout = Duration(seconds: 90);
-
-  DateTime? _searchDeadline;
-  DateTime? get searchDeadline => _searchDeadline;
 
   void _startSearchTimeout() {
     _searchTimeoutTimer?.cancel();
-    _searchDeadline = DateTime.now().add(searchTimeout);
     _searchTimeoutTimer = Timer(searchTimeout, () async {
       if (_state.status != HaulingFlowStatus.searching) return;
       // Cancel server-side too — otherwise the booking stays live and a provider
@@ -755,6 +802,7 @@ class HaulingBookingController extends ChangeNotifier {
             bookingId: bookingId,
             reason: 'search_timeout',
           );
+          _bumpGeneration();
           _stopPolling();
           _emit(_state.copyWith(
             status: HaulingFlowStatus.cancelled,
@@ -767,6 +815,7 @@ class HaulingBookingController extends ChangeNotifier {
           // Fall through to local cancel if the server call fails.
         }
       }
+      _bumpGeneration();
       _stopPolling();
       _emit(_state.copyWith(
         status: HaulingFlowStatus.cancelled,
@@ -779,19 +828,76 @@ class HaulingBookingController extends ChangeNotifier {
   void _stopSearchTimeout() {
     _searchTimeoutTimer?.cancel();
     _searchTimeoutTimer = null;
-    _searchDeadline = null;
+  }
+
+  // ─── Trip progress computation ──────────────────────────────────────────────
+
+  /// Returns a 0..1 value for the cargo-leg progress slider:
+  /// - GPS branch: `1 - driverRemaining / totalPickupToDropoff` (real geography)
+  /// - Time branch: elapsed / ETA (fallback when no GPS fix)
+  /// Both branches are clamped to [0.05, 0.95] and monotonic (never regress).
+  double _computeTripProgress(HaulageBooking booking, {ProviderLocation? location}) {
+    final prev = _state.tripProgress;
+
+    final cargoStatuses = [
+      HaulingBookingStatus.pickedUp,
+      HaulingBookingStatus.enRouteDelivery,
+    ];
+    if (!cargoStatuses.contains(booking.status)) return prev;
+
+    final totalKm = _haversine(
+      booking.pickupLat, booking.pickupLng,
+      booking.dropoffLat, booking.dropoffLng,
+    );
+    if (totalKm < 0.05) return prev;
+
+    double computed;
+    final loc = location ?? _state.providerLocation;
+    if (loc != null && loc.hasFix) {
+      final remaining = _haversine(loc.lat, loc.lng, booking.dropoffLat, booking.dropoffLng);
+      computed = (1 - remaining / totalKm).clamp(0.05, 0.95);
+    } else {
+      // Time-based fallback: estimate progress from elapsed time since pickup.
+      final started = _state.tripStartedAt;
+      if (started == null) return prev;
+      final etaMinutes = (totalKm / 30.0 * 60).ceil().clamp(1, 300);
+      final elapsedSeconds = DateTime.now().difference(started).inSeconds;
+      computed = (elapsedSeconds / (etaMinutes * 60)).clamp(0.05, 0.95);
+    }
+
+    // Monotonic: never regress even if GPS jitters or the clock re-anchors.
+    return math.max(prev, computed);
+  }
+
+  static double _haversine(double lat1, double lng1, double lat2, double lng2) {
+    const r = 6371.0;
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLng = (lng2 - lng1) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) *
+            math.cos(lat2 * math.pi / 180) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    return 2 * r * math.asin(math.min(1, math.sqrt(a)));
   }
 
   Future<void> _pollBookingStatus() async {
     final token = _accessToken();
     final bookingId = _state.activeBooking?.id;
-    if (token == null || bookingId == null) return;
+    if (token == null || bookingId == null || _pollInFlight) return;
 
+    _pollInFlight = true;
+    final generation = _stateGeneration;
     try {
       final booking = await _api.getBooking(accessToken: token, bookingId: bookingId);
+      // A local mutation (cancel/reset/review) happened while this response was
+      // in flight — the data is stale, don't let it revive the old screen.
+      if (generation != _stateGeneration) return;
       await _applyBookingUpdate(booking);
     } catch (_) {
       // network hiccup — keep polling
+    } finally {
+      _pollInFlight = false;
     }
   }
 
@@ -811,6 +917,26 @@ class HaulingBookingController extends ChangeNotifier {
 
     if (status == HaulingBookingStatus.delivered) {
       _stopPolling();
+      // The customer may already have reviewed this trip (e.g. from the Trips
+      // detail screen). Skip straight to completed instead of offering a form
+      // whose submit the server would reject as a duplicate.
+      final token = _accessToken();
+      if (token != null) {
+        try {
+          final existing = await _api.getReviewForBooking(
+            accessToken: token,
+            bookingId: booking.id,
+          );
+          if (existing != null) {
+            _emit(_state.copyWith(status: HaulingFlowStatus.completed, activeBooking: booking));
+            unawaited(loadHistory());
+            return;
+          }
+        } catch (_) {
+          // Review lookup failing must not block the flow — show the form; the
+          // server still guards against duplicates.
+        }
+      }
       _emit(_state.copyWith(status: HaulingFlowStatus.review, activeBooking: booking));
       return;
     }
@@ -818,7 +944,23 @@ class HaulingBookingController extends ChangeNotifier {
     if (status.isActive) {
       // Trip is live — start streaming the driver's location for the map.
       _startLocationPolling();
-      _emit(_state.copyWith(status: HaulingFlowStatus.activeTrip, activeBooking: booking));
+
+      // Anchor the start time the first time we enter the cargo leg so the
+      // time-based progress branch has a reference point.
+      final cargoStatuses = [
+        HaulingBookingStatus.pickedUp,
+        HaulingBookingStatus.enRouteDelivery,
+      ];
+      final startedAt = (cargoStatuses.contains(status) && _state.tripStartedAt == null)
+          ? DateTime.now()
+          : _state.tripStartedAt;
+
+      _emit(_state.copyWith(
+        status: HaulingFlowStatus.activeTrip,
+        activeBooking: booking,
+        tripStartedAt: startedAt,
+        tripProgress: _computeTripProgress(booking),
+      ));
       // Load the assigned provider/truck snapshot if not yet loaded.
       _maybeFetchProviderAndTruckInfo(booking);
       return;
@@ -826,7 +968,13 @@ class HaulingBookingController extends ChangeNotifier {
 
     // searching: pendingMatch or awaitingAcceptance
     // Load provider snapshot when we know the provider (awaitingAcceptance).
-    _emit(_state.copyWith(activeBooking: booking));
+    // When the booking dropped back to pendingMatch (provider timed out or
+    // rejected), clear the previous driver so the searching view returns to the
+    // "connecting" placeholder instead of showing a stale driver.
+    _emit(_state.copyWith(
+      activeBooking: booking,
+      clearProviderSnapshot: booking.providerId == null,
+    ));
     _maybeFetchProviderAndTruckInfo(booking);
   }
 
@@ -858,8 +1006,10 @@ class HaulingBookingController extends ChangeNotifier {
   // ─── Navigation helpers ────────────────────────────────────────────────────
 
   void reset() {
+    _bumpGeneration();
     _stopPolling();
     _emit(const HaulingBookingState.idle());
+    // tripProgress/tripStartedAt are reset by the idle constructor defaults.
   }
 
   void backToDetails() {
@@ -870,16 +1020,8 @@ class HaulingBookingController extends ChangeNotifier {
     _emit(_state.copyWith(status: HaulingFlowStatus.packageInfo, clearError: true));
   }
 
-  void backToPayment() {
-    _emit(_state.copyWith(status: HaulingFlowStatus.payment, clearError: true));
-  }
-
   void backToLocationEntry() {
     _emit(_state.copyWith(status: HaulingFlowStatus.locationEntry, clearError: true));
-  }
-
-  void backToTierSelection() {
-    _emit(_state.copyWith(status: HaulingFlowStatus.tierSelection, clearError: true));
   }
 
   // ─── Utilities ─────────────────────────────────────────────────────────────

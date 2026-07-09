@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter/material.dart';
 
@@ -5,6 +7,7 @@ import '../core/config/customer_app_config.dart';
 import '../core/cosmicforge_logistics_app_theme.dart';
 import '../features/auth/data/customer_auth_api.dart';
 import '../features/auth/data/customer_session_store.dart';
+import '../features/auth/models/customer_auth_models.dart';
 import '../features/auth/state/customer_auth_controller.dart';
 import '../features/hauling/data/customer_realtime_listener.dart';
 import '../features/hauling/data/hauling_api.dart';
@@ -12,7 +15,9 @@ import '../features/hauling/data/places_api.dart';
 import '../features/hauling/state/hauling_booking_controller.dart';
 import '../features/media/data/media_file_api.dart';
 import '../features/media/data/media_upload_service.dart';
+import '../features/notifications/data/firebase_push.dart';
 import '../features/notifications/data/notification_api.dart';
+import '../features/notifications/data/push_registration_service.dart';
 import '../features/notifications/state/notification_controller.dart';
 import '../features/support/data/support_api.dart';
 import '../features/wallet/data/wallet_api.dart';
@@ -47,6 +52,8 @@ class _CustomerAppState extends State<CustomerApp> {
   late final PlacesApi _placesApi;
   late final NotificationApi _notificationApi;
   late final NotificationController _notificationController;
+  StreamSubscription<String>? _fcmTokenRefreshSub;
+  StreamSubscription<dynamic>? _fcmForegroundSub;
 
   @override
   void initState() {
@@ -73,6 +80,8 @@ class _CustomerAppState extends State<CustomerApp> {
 
   @override
   void dispose() {
+    _fcmTokenRefreshSub?.cancel();
+    _fcmForegroundSub?.cancel();
     if (_ownsController) _controller.dispose();
     _haulingController.dispose();
     _notificationController.dispose();
@@ -191,6 +200,11 @@ class _CustomerAppState extends State<CustomerApp> {
         accessToken: accessToken,
         onEvent: onEvent,
       ),
+      savedLocationsLoader: () async {
+        final session = _controller.state.session;
+        if (session == null) return const <SavedLocation>[];
+        return _authApi.getSavedLocations(accessToken: session.accessToken);
+      },
     );
 
     // Notifications proxy lives on the customer API base; the websocket connects
@@ -199,11 +213,30 @@ class _CustomerAppState extends State<CustomerApp> {
       config: ApiCoreConfig(baseUrl: config.customerApiBaseUrl),
       onAuthFailure: _onAuthFailure,
     );
+    // FCM device registration: NotificationController.start() registers the
+    // token once authenticated. Degrades to a no-op when Firebase is not
+    // configured on this platform (e.g. iOS until it is registered).
+    final pushRegistration = PushRegistrationService(
+      api: _notificationApi,
+      tokenProvider: FirebasePush.deviceToken,
+    );
     _notificationController = NotificationController(
       api: _notificationApi,
       authController: _controller,
       wsUrl: config.notificationWsUrl,
+      pushRegistration: pushRegistration,
     );
+    // Rotated FCM tokens must be re-registered or background push goes dark.
+    _fcmTokenRefreshSub = FirebasePush.tokenRefresh().listen((_) {
+      final accessToken = _controller.state.session?.accessToken;
+      if (accessToken != null) pushRegistration.register(accessToken: accessToken);
+    });
+    // Foreground pushes show no system tray entry — refresh the in-app feed and
+    // poke the booking poll so the update is visible immediately.
+    _fcmForegroundSub = FirebasePush.foregroundMessages().listen((_) {
+      _notificationController.loadFeed();
+      _haulingController.pokeRefresh();
+    });
   }
 
   CustomerAuthController _buildController() {

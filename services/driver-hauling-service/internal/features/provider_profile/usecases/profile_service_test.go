@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	providerauthmodels "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/models"
-	providerprofilemodels "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/models"
 	providerprofilerepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
 )

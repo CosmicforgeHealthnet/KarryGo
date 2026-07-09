@@ -17,6 +17,9 @@ class HaulingCancelledView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unmatched = state.activeBooking?.status == HaulingBookingStatus.unmatched;
+    // A cancellation reason set by the controller (e.g. the search timeout's
+    // "No trucks found nearby") takes precedence over the generic copy.
+    final detail = state.error;
     return Scaffold(
       backgroundColor: CustomerFigmaColors.surface,
       body: SafeArea(
@@ -49,9 +52,10 @@ class HaulingCancelledView extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                unmatched
-                    ? "We couldn't find an available truck provider. Please try again later."
-                    : 'Your booking has been cancelled.',
+                detail ??
+                    (unmatched
+                        ? "We couldn't find an available truck provider. Please try again later."
+                        : 'Your booking has been cancelled.'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: CustomerFigmaColors.muted,

@@ -79,6 +79,16 @@ apply_migrations() {
   "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/004_package_info_and_reviews.sql"
   "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/005_provider_profile_extras.sql"
   "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/006_booking_payment.sql"
+  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/007_proof_of_delivery.sql"
+}
+
+seed_dev_providers() {
+  local seed="$ROOT_DIR/services/driver-hauling-service/seeds/dev_seed.sql"
+  if [ -f "$seed" ]; then
+    log "seeding dev truck providers (idempotent)"
+    local dsn="postgres://${ROLE_NAME}:${ROLE_PASSWORD}@localhost:${PG_PORT}/${DB_NAME}?sslmode=disable"
+    "$PSQL_BIN" "$dsn" -v ON_ERROR_STOP=1 -f "$seed"
+  fi
 }
 
 main() {
@@ -87,6 +97,7 @@ main() {
   start_postgres
   ensure_role_and_db
   apply_migrations
+  seed_dev_providers
 
   log "ready. start the service with:"
   printf 'cd %s/services/driver-hauling-service && go run ./cmd\n' "$ROOT_DIR"

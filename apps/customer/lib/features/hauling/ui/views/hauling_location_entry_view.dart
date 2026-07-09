@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
+import '../../../auth/models/customer_auth_models.dart';
 import '../../data/places_api.dart';
 import '../../state/hauling_booking_controller.dart';
 import '../widgets/hauling_map_widget.dart';
@@ -39,6 +40,8 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
   String? _suggestionsError;
   // tracks which field is active to show its suggestions
   _ActiveField? _activeField;
+  // one-tap saved locations (Home, Office, ...) — empty when unavailable
+  List<SavedLocation> _savedLocations = const [];
 
   HaulingBookingController get _ctrl => widget.controller;
   HaulingBookingState get _state => _ctrl.state;
@@ -62,6 +65,39 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
     super.initState();
     _pickupCtrl.text = _state.pickupAddress;
     _dropoffCtrl.text = _state.dropoffAddress;
+    _loadSavedLocations();
+  }
+
+  Future<void> _loadSavedLocations() async {
+    final loader = _ctrl.savedLocationsLoader;
+    if (loader == null) return;
+    try {
+      final locations = await loader();
+      if (!mounted) return;
+      setState(() => _savedLocations = locations);
+    } catch (_) {
+      // Saved locations are a convenience — booking works without them.
+    }
+  }
+
+  void _selectSavedLocation(SavedLocation location) {
+    FocusScope.of(context).unfocus();
+    final target = _activeField ?? _ActiveField.pickup;
+    if (target == _ActiveField.pickup) {
+      _pickupCtrl.text = location.address;
+      _ctrl.setPickupLocation(location.address, location.latitude, location.longitude);
+      setState(() {
+        _pickupSuggestions = [];
+        _activeField = null;
+      });
+    } else {
+      _dropoffCtrl.text = location.address;
+      _ctrl.setDropoffLocation(location.address, location.latitude, location.longitude);
+      setState(() {
+        _dropoffSuggestions = [];
+        _activeField = null;
+      });
+    }
   }
 
   @override
@@ -261,8 +297,27 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
     final isSuggestionsLoading = _activeField == _ActiveField.pickup
         ? _pickupLoading
         : _dropoffLoading;
+    // Saved locations show as one-tap fills while the active field (pickup by
+    // default) has no real query — once the user types, Places suggestions
+    // take over the space.
+    final activeQuery = _activeField == _ActiveField.dropoff
+        ? _dropoffCtrl.text
+        : _pickupCtrl.text;
+    final showSavedLocations = _savedLocations.isNotEmpty &&
+        suggestions.isEmpty &&
+        !isSuggestionsLoading &&
+        activeQuery.trim().length < 2;
 
     return Scaffold(
+      // Keyboard handling is done manually below with a viewInsets padding on
+      // the bottom sheet. The default resizeToAvoidBottomInset:true must be
+      // off, or the body shrinks by the keyboard height AND the padding lifts
+      // the sheet again (the padding reads viewInsets from the context above
+      // this Scaffold, where the inset is not consumed) — the double offset
+      // shoved the sheet to the top of the screen on focus. Keeping the body
+      // full-size also spares the GoogleMap a re-layout on every keyboard
+      // open/close.
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           // Full-screen map background
@@ -293,9 +348,9 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
           ),
 
           // Bottom panel. Padded on the OUTSIDE by the keyboard inset so the
-          // whole sheet lifts to rest just above the keyboard instead of having
-          // its content pushed up inside a bottom-aligned, height-capped box
-          // (which made the card jump to the top of the screen on focus).
+          // whole sheet lifts to rest just above the keyboard. This is the only
+          // keyboard compensation — resizeToAvoidBottomInset is false on the
+          // Scaffold above, otherwise the sheet is lifted twice.
           Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
             child: Align(
@@ -439,6 +494,91 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
                       ),
                     ),
                   ),
+
+                  // Saved locations — one tap fills the active field with the
+                  // stored address + coordinates (no Places round-trip).
+                  if (showSavedLocations) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 180),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: CustomerFigmaColors.border),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(14, 10, 14, 4),
+                            child: Text(
+                              'Saved locations',
+                              style: TextStyle(
+                                color: CustomerFigmaColors.muted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Flexible(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              padding: EdgeInsets.zero,
+                              itemCount: _savedLocations.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              itemBuilder: (context, i) {
+                                final location = _savedLocations[i];
+                                return InkWell(
+                                  onTap: () => _selectSavedLocation(location),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.bookmark_rounded,
+                                            color: CustomerFigmaColors.primary,
+                                            size: 16),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                location.title,
+                                                style: const TextStyle(
+                                                  color: CustomerFigmaColors.text,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                location.address,
+                                                style: const TextStyle(
+                                                  color: CustomerFigmaColors.muted,
+                                                  fontSize: 12,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   // Places API error (REQUEST_DENIED, billing, network, etc.)
                   if (_suggestionsError != null && !isSuggestionsLoading) ...[

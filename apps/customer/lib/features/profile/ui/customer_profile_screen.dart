@@ -5,6 +5,7 @@ import '../../../shared/widgets/figma_customer_widgets.dart';
 import '../../auth/data/customer_auth_api.dart';
 import '../../auth/models/customer_auth_models.dart';
 import '../../auth/state/customer_auth_controller.dart';
+import '../../hauling/data/places_api.dart';
 import '../../media/data/media_upload_service.dart';
 import '../../support/data/support_api.dart';
 import '../../wallet/data/wallet_api.dart';
@@ -20,6 +21,7 @@ class CustomerProfileScreen extends StatefulWidget {
     required this.walletApi,
     required this.controller,
     required this.mediaUploadService,
+    required this.placesApi,
     this.onProfileUpdated,
     this.isTabView = false,
   });
@@ -30,6 +32,7 @@ class CustomerProfileScreen extends StatefulWidget {
   final WalletApi walletApi;
   final CustomerAuthController controller;
   final MediaUploadService mediaUploadService;
+  final PlacesApi placesApi;
   final ValueChanged<CustomerProfile>? onProfileUpdated;
   final bool isTabView;
 
@@ -95,6 +98,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen>
                   walletApi: widget.walletApi,
                   controller: widget.controller,
                   mediaUploadService: widget.mediaUploadService,
+                  placesApi: widget.placesApi,
                   tabController: _tabController,
                   onProfileUpdated: (p) {
                     setState(() => _profile = p);
@@ -116,6 +120,7 @@ class _ProfileBody extends StatelessWidget {
     required this.walletApi,
     required this.controller,
     required this.mediaUploadService,
+    required this.placesApi,
     required this.tabController,
     required this.onProfileUpdated,
   });
@@ -127,6 +132,7 @@ class _ProfileBody extends StatelessWidget {
   final WalletApi walletApi;
   final CustomerAuthController controller;
   final MediaUploadService mediaUploadService;
+  final PlacesApi placesApi;
   final TabController tabController;
   final ValueChanged<CustomerProfile> onProfileUpdated;
 
@@ -198,6 +204,7 @@ class _ProfileBody extends StatelessWidget {
             supportApi: supportApi,
             controller: controller,
             mediaUploadService: mediaUploadService,
+            placesApi: placesApi,
             onProfileUpdated: onProfileUpdated,
           ),
           CustomerWalletScreen(

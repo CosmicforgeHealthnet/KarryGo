@@ -105,6 +105,9 @@ type Booking struct {
 	CancelReason *string
 	CancelledBy  *string
 
+	ProofPhotoURL string
+	SignatureURL  string
+
 	MatchedAt   *time.Time
 	AcceptedAt  *time.Time
 	PickedUpAt  *time.Time
@@ -156,6 +159,9 @@ type PublicBooking struct {
 	Status      string  `json:"status"`
 	CancelReason *string `json:"cancel_reason,omitempty"`
 
+	ProofPhotoURL string `json:"proof_photo_url,omitempty"`
+	SignatureURL  string `json:"signature_url,omitempty"`
+
 	MatchedAt   *time.Time `json:"matched_at,omitempty"`
 	AcceptedAt  *time.Time `json:"accepted_at,omitempty"`
 	PickedUpAt  *time.Time `json:"picked_up_at,omitempty"`
@@ -198,6 +204,8 @@ func (b Booking) Public() PublicBooking {
 		PaymentStatus:    b.PaymentStatus,
 		Status:           b.Status,
 		CancelReason:     b.CancelReason,
+		ProofPhotoURL:    b.ProofPhotoURL,
+		SignatureURL:     b.SignatureURL,
 		MatchedAt:        b.MatchedAt,
 		AcceptedAt:       b.AcceptedAt,
 		PickedUpAt:       b.PickedUpAt,

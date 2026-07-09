@@ -4,11 +4,13 @@ import '../../../shared/widgets/figma_customer_widgets.dart';
 import '../../auth/data/customer_auth_api.dart';
 import '../../auth/models/customer_auth_models.dart';
 import '../../auth/state/customer_auth_controller.dart';
+import '../../hauling/data/places_api.dart';
 import '../../media/data/media_upload_service.dart';
 import '../../support/data/support_api.dart';
 import '../../support/ui/support_chat_screen.dart';
 import 'customer_profile_edit_screen.dart';
 import 'emergency_contact_screen.dart';
+import 'saved_locations/saved_locations_screen.dart';
 
 class CustomerProfileTab extends StatelessWidget {
   const CustomerProfileTab({
@@ -19,6 +21,7 @@ class CustomerProfileTab extends StatelessWidget {
     required this.supportApi,
     required this.controller,
     required this.mediaUploadService,
+    required this.placesApi,
     required this.onProfileUpdated,
   });
 
@@ -28,6 +31,7 @@ class CustomerProfileTab extends StatelessWidget {
   final SupportApi supportApi;
   final CustomerAuthController controller;
   final MediaUploadService mediaUploadService;
+  final PlacesApi placesApi;
   final ValueChanged<CustomerProfile> onProfileUpdated;
 
   @override
@@ -121,7 +125,15 @@ class CustomerProfileTab extends StatelessWidget {
               CustomerProfileMenuItem(
                 icon: Icons.map_outlined,
                 label: 'Saved Locations',
-                onTap: () {},
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SavedLocationsScreen(
+                      session: session,
+                      api: api,
+                      placesApi: placesApi,
+                    ),
+                  ),
+                ),
               ),
               const CustomerProfileDivider(),
               CustomerProfileMenuItem(

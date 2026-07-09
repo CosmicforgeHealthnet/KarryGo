@@ -39,7 +39,9 @@ func TestTripLifecycle_AdvancesThroughAllStages(t *testing.T) {
 		{"arrived", func() (bookingmodels.PublicBooking, error) { return svc.MarkArrivedAtPickup(ctx, "b1", provider) }, bookingmodels.StatusArrivedAtPickup},
 		{"picked_up", func() (bookingmodels.PublicBooking, error) { return svc.ConfirmPickup(ctx, "b1", provider) }, bookingmodels.StatusPickedUp},
 		{"en_route_delivery", func() (bookingmodels.PublicBooking, error) { return svc.MarkEnRouteDelivery(ctx, "b1", provider) }, bookingmodels.StatusEnRouteDelivery},
-		{"delivered", func() (bookingmodels.PublicBooking, error) { return svc.ConfirmDelivery(ctx, "b1", provider) }, bookingmodels.StatusDelivered},
+		{"delivered", func() (bookingmodels.PublicBooking, error) {
+			return svc.ConfirmDelivery(ctx, "b1", provider, "https://media/proof.jpg", "https://media/sig.png")
+		}, bookingmodels.StatusDelivered},
 	}
 	for _, s := range steps {
 		if _, err := s.call(); err != nil {

@@ -149,6 +149,11 @@ func main() {
 	// grace period. Runs until ctx is cancelled (i.e. service shutdown).
 	go bookingService.RunAutoCompleteWorker(ctx)
 
+	// Match recovery worker: re-adopts bookings whose in-memory matcher was lost
+	// (e.g. across a restart) so they resume matching or go unmatched instead of
+	// stranding in pending_match forever.
+	go bookingService.RunMatchRecoveryWorker(ctx)
+
 	// ─── HTTP ──────────────────────────────────────────────────────────────────
 	serviceapp.Run(serviceapp.Options{
 		Name:        "hauling-service",

@@ -48,3 +48,10 @@ type submitReviewRequest struct {
 type cancelBookingRequest struct {
 	Reason string `json:"reason"`
 }
+
+// confirmDeliveryRequest carries the optional proof-of-delivery URLs uploaded
+// to media-file-service by the provider app before confirming.
+type confirmDeliveryRequest struct {
+	ProofPhotoURL string `json:"proof_photo_url"`
+	SignatureURL  string `json:"signature_url"`
+}

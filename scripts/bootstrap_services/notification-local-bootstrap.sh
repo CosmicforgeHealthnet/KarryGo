@@ -76,12 +76,21 @@ apply_migrations() {
     -f "$ROOT_DIR/services/notification-service/migrations/001_notifications.sql"
 }
 
+apply_seeds() {
+  # Templates are required: booking-lifecycle events reference them by key and a
+  # missing template silently drops the notification. The seed is idempotent.
+  log "seeding notification templates"
+  "$PSQL_BIN" "postgres://${ROLE_NAME}:${ROLE_PASSWORD}@localhost:${PG_PORT}/${DB_NAME}?sslmode=disable" \
+    -f "$ROOT_DIR/services/notification-service/seeds/dev_templates.sql"
+}
+
 main() {
   cd "$ROOT_DIR"
   start_redis
   start_postgres
   ensure_role_and_db
   apply_migrations
+  apply_seeds
 
   log "ready. start the service with:"
   printf 'cd %s/services/notification-service && MIGRATION=true go run ./cmd\n' "$ROOT_DIR"

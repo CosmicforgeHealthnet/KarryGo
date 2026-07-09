@@ -90,6 +90,35 @@ class EmergencyContact {
   }
 }
 
+class SavedLocation {
+  const SavedLocation({
+    required this.id,
+    required this.title,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.description,
+  });
+
+  final String id;
+  final String title;
+  final String address;
+  final double latitude;
+  final double longitude;
+  final String description;
+
+  factory SavedLocation.fromJson(Map<String, dynamic> json) {
+    return SavedLocation(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 0,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 0,
+      description: json['description']?.toString() ?? '',
+    );
+  }
+}
+
 class StartAuthResult {
   const StartAuthResult({
     required this.challengeId,

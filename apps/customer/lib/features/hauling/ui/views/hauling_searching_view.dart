@@ -1,13 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../state/hauling_booking_controller.dart';
-import '../widgets/hauling_driver_card.dart';
 import '../widgets/hauling_map_widget.dart';
+import '../widgets/hauling_trip_sheet_widgets.dart';
 
+/// "Connecting Driver…" screen (Figma 1736/1766): map + discount banner +
+/// bottom sheet with the matched driver, trip stats, route and actions.
 class HaulingSearchingView extends StatelessWidget {
   const HaulingSearchingView({super.key, required this.controller, required this.state});
 
@@ -26,6 +26,8 @@ class HaulingSearchingView extends StatelessWidget {
         : null;
 
     return Scaffold(
+      backgroundColor: Colors.white,
+      bottomNavigationBar: const HaulingFlowBottomNav(),
       body: Stack(
         children: [
           Positioned.fill(
@@ -37,139 +39,144 @@ class HaulingSearchingView extends StatelessWidget {
 
           Align(
             alignment: Alignment.bottomCenter,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Drag handle
-                  Center(
-                    child: Container(
-                      width: 36, height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Floating "10% off first booking" card over the map.
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14),
+                  child: HaulingDiscountBanner(),
+                ),
+                const SizedBox(height: 12),
 
-                  // Discount banner
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5EE),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: const [
-                        Icon(Icons.local_offer_outlined, color: CustomerFigmaColors.primary, size: 16),
-                        SizedBox(width: 8),
-                        Text(
-                          '10% off your first truck booking!',
+                Container(
+                  width: double.infinity,
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Connecting Driver…',
                           style: TextStyle(
-                            color: CustomerFigmaColors.darkGreen,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            color: CustomerFigmaColors.text,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
                           ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Connecting you with nearby driver. Driver will be on '
+                          'their way as soon as they confirmed your request.',
+                          style: TextStyle(
+                            color: CustomerFigmaColors.muted,
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Matched driver (shimmer until a provider is known).
+                        if (state.providerSnapshot != null)
+                          HaulingDriverProfileBlock(provider: state.providerSnapshot!)
+                        else
+                          const _ConnectingDriverPlaceholder(),
+                        const SizedBox(height: 18),
+
+                        HaulingTripStatsRow(
+                          distanceKm: booking?.distanceKm,
+                          fareKobo: booking?.fareEstimateKobo,
+                        ),
+                        const SizedBox(height: 16),
+
+                        if (booking != null)
+                          _RouteSection(
+                            pickupAddress: booking.pickupAddress,
+                            dropoffAddress: booking.dropoffAddress,
+                          ),
+                        const SizedBox(height: 18),
+
+                        // "Edit Destination" tinted pill
+                        _EditDestinationButton(
+                          onPressed:
+                              state.isLoading ? null : () => _confirmEditDestination(context),
+                        ),
+                        const SizedBox(height: 14),
+
+                        if (state.error != null) ...[
+                          Text(
+                            state.error!,
+                            style: const TextStyle(color: Colors.red, fontSize: 12),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+
+                        HaulingPillButton(
+                          label: 'Cancel Truck',
+                          isLoading: state.isLoading,
+                          onPressed: () => _confirmCancel(context),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-
-                  const Text(
-                    'Connecting Driver...',
-                    style: TextStyle(
-                      color: CustomerFigmaColors.text,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Connecting you with a nearby driver. The driver will be on their way as soon as they confirm your request.',
-                    style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 13, height: 1.5),
-                  ),
-                  const SizedBox(height: 10),
-                  _SearchCountdown(deadline: controller.searchDeadline),
-                  const SizedBox(height: 14),
-
-                  // Driver card — shimmer if not yet loaded
-                  if (booking?.providerId != null) ...[
-                    state.providerSnapshot != null
-                        ? HaulingDriverCard(
-                            provider: state.providerSnapshot!,
-                            truck: state.truckSnapshot,
-                            fareKobo: booking?.fareEstimateKobo,
-                            distanceKm: booking?.distanceKm,
-                          )
-                        : const HaulingDriverCardShimmer(),
-                    const SizedBox(height: 14),
-                  ],
-
-                  // Route rows
-                  if (booking != null) ...[
-                    _RouteRow(
-                      dotColor: CustomerFigmaColors.primary,
-                      label: 'Pickup',
-                      address: booking.pickupAddress,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 5),
-                      child: Container(width: 2, height: 12, color: CustomerFigmaColors.border),
-                    ),
-                    _RouteRow(
-                      dotColor: Colors.orange,
-                      label: 'Drop-off',
-                      address: booking.dropoffAddress,
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-
-                  if (state.error != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red[200]!),
-                      ),
-                      child: Text(
-                        state.error!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-
-                  OutlinedButton(
-                    onPressed: state.isLoading ? null : () => _confirmCancel(context),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: state.isLoading
-                        ? const SizedBox(
-                            width: 18, height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
-                          )
-                        : const Text('Cancel Truck', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _confirmEditDestination(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Edit destination?',
+              style: TextStyle(
+                color: CustomerFigmaColors.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'This cancels the current search so you can change your locations.',
+              style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FigmaPrimaryButton(
+              label: 'Yes, edit destination',
+              onPressed: () {
+                Navigator.of(context).pop();
+                controller.editDestinationDuringSearch();
+              },
+            ),
+            const SizedBox(height: 10),
+            FigmaSecondaryButton(
+              label: 'Keep searching',
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -215,36 +222,53 @@ class HaulingSearchingView extends StatelessWidget {
   }
 }
 
-class _RouteRow extends StatelessWidget {
-  const _RouteRow({required this.dotColor, required this.label, required this.address});
+// ─── Driver placeholder (no provider matched yet) ─────────────────────────────
 
-  final Color dotColor;
-  final String label;
-  final String address;
+class _ConnectingDriverPlaceholder extends StatelessWidget {
+  const _ConnectingDriverPlaceholder();
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 10, height: 10,
-          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          width: 64,
+          height: 64,
+          decoration: const BoxDecoration(
+            color: kHaulingCircleGrey,
+            shape: BoxShape.circle,
+          ),
+          child: const Center(
+            child: SizedBox.square(
+              dimension: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: CustomerFigmaColors.primary,
+              ),
+            ),
+          ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 10, fontWeight: FontWeight.w600),
+              Container(
+                height: 16,
+                width: 160,
+                decoration: BoxDecoration(
+                  color: kHaulingCircleGrey,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
-              Text(
-                address,
-                style: const TextStyle(color: CustomerFigmaColors.text, fontSize: 13),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 8),
+              Container(
+                height: 12,
+                width: 120,
+                decoration: BoxDecoration(
+                  color: kHaulingCircleGrey,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ],
           ),
@@ -254,51 +278,159 @@ class _RouteRow extends StatelessWidget {
   }
 }
 
-/// Live countdown to the search timeout. Ticks every second off [deadline];
-/// renders nothing when no search is in flight.
-class _SearchCountdown extends StatefulWidget {
-  const _SearchCountdown({required this.deadline});
+// ─── Route section (Pick-up / Add stop / Drop off) ────────────────────────────
 
-  final DateTime? deadline;
+class _RouteSection extends StatelessWidget {
+  const _RouteSection({required this.pickupAddress, required this.dropoffAddress});
 
-  @override
-  State<_SearchCountdown> createState() => _SearchCountdownState();
-}
-
-class _SearchCountdownState extends State<_SearchCountdown> {
-  Timer? _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
+  final String pickupAddress;
+  final String dropoffAddress;
 
   @override
   Widget build(BuildContext context) {
-    final deadline = widget.deadline;
-    if (deadline == null) return const SizedBox.shrink();
-    final remaining = deadline.difference(DateTime.now());
-    final seconds = remaining.inSecondsClamp;
-    return Text(
-      'Searching for up to ${seconds}s…',
-      style: const TextStyle(
-        color: CustomerFigmaColors.primary,
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(width: 18, child: _RouteIndicatorColumn()),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pick-up',
+                  style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  pickupAddress,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: CustomerFigmaColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: CustomerFigmaColors.border),
+                const SizedBox(height: 8),
+                const Text(
+                  'Add stop',
+                  style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: CustomerFigmaColors.border),
+                const SizedBox(height: 8),
+                const Text(
+                  'Drop off (optional)',
+                  style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  dropoffAddress,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: CustomerFigmaColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-extension on Duration {
-  int get inSecondsClamp => inSeconds < 0 ? 0 : inSeconds;
+/// Green connector column: donut → line → small dot → line → ringed dot.
+class _RouteIndicatorColumn extends StatelessWidget {
+  const _RouteIndicatorColumn();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Pick-up donut
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: CustomerFigmaColors.primary, width: 5),
+          ),
+        ),
+        Expanded(child: Container(width: 2.5, color: CustomerFigmaColors.primary)),
+        // Add-stop midpoint
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: CustomerFigmaColors.primary, width: 3.5),
+          ),
+        ),
+        Expanded(child: Container(width: 2.5, color: CustomerFigmaColors.primary)),
+        // Drop-off ring with center dot
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: CustomerFigmaColors.primary, width: 1.5),
+          ),
+          child: Center(
+            child: Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: CustomerFigmaColors.primary,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Edit Destination pill ────────────────────────────────────────────────────
+
+class _EditDestinationButton extends StatelessWidget {
+  const _EditDestinationButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.adjust, size: 18, color: CustomerFigmaColors.primary),
+        label: const Text(
+          'Edit Destination',
+          style: TextStyle(
+            color: CustomerFigmaColors.text,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: CustomerFigmaColors.primaryTint,
+          disabledBackgroundColor: CustomerFigmaColors.primaryTint,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        ),
+      ),
+    );
+  }
 }

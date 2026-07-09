@@ -38,8 +38,15 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
   final _reviewCtrl = TextEditingController();
   bool? _recommends;
   bool _submitting = false;
-  bool _submitted = false;
   String? _error;
+
+  // The customer's existing review for this booking, loaded from the server
+  // (or populated locally right after a successful submit). Whenever this is
+  // non-null the review section renders read-only instead of a submittable
+  // form — this is what actually prevents "review already given" from
+  // reappearing, rather than relying on local-only submitted state.
+  BookingReview? _existingReview;
+  bool _reviewLoading = false;
 
   HaulageBooking get booking => widget.booking;
 
@@ -58,6 +65,7 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
   void initState() {
     super.initState();
     _fetchProvider();
+    _fetchReview();
   }
 
   @override
@@ -71,17 +79,46 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
     final providerId = booking.providerId;
     if (token == null || providerId == null || providerId.isEmpty) return;
     try {
-      final p = await widget.controller.api
-          .getProvider(accessToken: token, providerId: providerId);
+      final p = await widget.controller.api.getProvider(
+        accessToken: token,
+        providerId: providerId,
+      );
       if (mounted) setState(() => _provider = p);
     } catch (_) {}
     final truckId = booking.truckId;
     if (truckId != null && truckId.isNotEmpty) {
       try {
-        final t = await widget.controller.api
-            .getTruck(accessToken: token, truckId: truckId);
+        final t = await widget.controller.api.getTruck(
+          accessToken: token,
+          truckId: truckId,
+        );
         if (mounted) setState(() => _truck = t);
       } catch (_) {}
+    }
+  }
+
+  Future<void> _fetchReview() async {
+    if (!_canReview) return;
+    final token = widget.controller.accessTokenForWallet;
+    if (token == null) return;
+    setState(() => _reviewLoading = true);
+    try {
+      final review = await widget.controller.api.getReviewForBooking(
+        accessToken: token,
+        bookingId: booking.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _reviewLoading = false;
+        if (review != null) {
+          _existingReview = review;
+          _rating = review.rating;
+          _reviewCtrl.text = review.reviewText;
+          _recommends = review.recommendsDriver;
+        }
+      });
+    } catch (_) {
+      if (mounted) setState(() => _reviewLoading = false);
     }
   }
 
@@ -105,7 +142,7 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
       _error = null;
     });
     try {
-      await widget.controller.submitReviewForBooking(
+      final review = await widget.controller.submitReviewForBooking(
         bookingId: booking.id,
         rating: _rating,
         reviewText: _reviewCtrl.text.trim(),
@@ -114,7 +151,7 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
       if (mounted) {
         setState(() {
           _submitting = false;
-          _submitted = true;
+          _existingReview = review;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Thanks for your review!')),
@@ -134,15 +171,18 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
   Widget build(BuildContext context) {
     final weightLabel =
         WeightCategory.fromName(booking.weightCategory)?.displayLabel ?? '';
-    final truckLabel = HaulingTruckTypeOption.fromApiValue(
-                booking.preferredTruckType)
-            ?.displayLabel ??
+    final truckLabel =
+        HaulingTruckTypeOption.fromApiValue(
+          booking.preferredTruckType,
+        )?.displayLabel ??
         '';
 
     final truckSubtitle = _truck != null
-        ? [_truck!.color, _truck!.make, _truck!.model]
-            .where((s) => s.trim().isNotEmpty)
-            .join(' · ')
+        ? [
+            _truck!.color,
+            _truck!.make,
+            _truck!.model,
+          ].where((s) => s.trim().isNotEmpty).join(' · ')
         : '';
 
     return Scaffold(
@@ -158,8 +198,10 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon:
-                  const Icon(Icons.arrow_back, color: CustomerFigmaColors.text),
+              icon: const Icon(
+                Icons.arrow_back,
+                color: CustomerFigmaColors.text,
+              ),
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
@@ -184,14 +226,19 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
                 CircleAvatar(
                   radius: 38,
                   backgroundColor: CustomerFigmaColors.primaryPale,
-                  backgroundImage: (_provider?.profilePhotoUrl != null &&
+                  backgroundImage:
+                      (_provider?.profilePhotoUrl != null &&
                           _provider!.profilePhotoUrl!.isNotEmpty)
                       ? NetworkImage(_provider!.profilePhotoUrl!)
                       : null,
-                  child: (_provider?.profilePhotoUrl == null ||
+                  child:
+                      (_provider?.profilePhotoUrl == null ||
                           _provider!.profilePhotoUrl!.isEmpty)
-                      ? const Icon(Icons.person,
-                          size: 40, color: CustomerFigmaColors.primary)
+                      ? const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: CustomerFigmaColors.primary,
+                        )
                       : null,
                 ),
                 const SizedBox(height: 12),
@@ -205,7 +252,8 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                if (truckSubtitle.isNotEmpty || (_truck?.plateNumber.isNotEmpty ?? false)) ...[
+                if (truckSubtitle.isNotEmpty ||
+                    (_truck?.plateNumber.isNotEmpty ?? false)) ...[
                   const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -239,7 +287,8 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
 
           // Trip Completed reference + Date
           _LabelValueRow(
-            label: (booking.status == HaulingBookingStatus.completed ||
+            label:
+                (booking.status == HaulingBookingStatus.completed ||
                     booking.status == HaulingBookingStatus.delivered)
                 ? 'Trip Completed:'
                 : 'Trip Reference:',
@@ -249,7 +298,8 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
           _LabelValueRow(
             label: 'Date:',
             value: formatTripDate(
-                booking.completedAt ?? booking.scheduledAt ?? booking.createdAt),
+              booking.completedAt ?? booking.scheduledAt ?? booking.createdAt,
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -312,8 +362,7 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
               _StackedField('Package Content', booking.packageContent),
             if (booking.packageSize.isNotEmpty)
               _StackedField('Package Size', booking.packageSize),
-            if (truckLabel.isNotEmpty)
-              _StackedField('Truck Type', truckLabel),
+            if (truckLabel.isNotEmpty) _StackedField('Truck Type', truckLabel),
             if (weightLabel.isNotEmpty) _StackedField('Weight', weightLabel),
             if (booking.isFragile) ...[
               const SizedBox(height: 12),
@@ -328,7 +377,10 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
               const SizedBox(height: 2),
               const Text(
                 'Let us know if the item needs to be handled with extra care.',
-                style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 12),
+                style: TextStyle(
+                  color: CustomerFigmaColors.muted,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 4),
               const Text(
@@ -350,14 +402,19 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline,
-                      color: Color(0xFFD7493B), size: 18),
+                  const Icon(
+                    Icons.info_outline,
+                    color: Color(0xFFD7493B),
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Cancelled: ${booking.cancelReason}',
                       style: const TextStyle(
-                          color: Color(0xFFB7362A), fontSize: 13),
+                        color: Color(0xFFB7362A),
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -365,27 +422,32 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
             ),
           ],
 
-          // Review section (completed trips only)
-          if (_canReview) ...[
+          // Review section (completed trips only). Nothing is shown while the
+          // existing-review check is in flight, to avoid flashing a
+          // submittable form before we know a review was already left.
+          if (_canReview && !_reviewLoading) ...[
             const SizedBox(height: 28),
             _ReviewSection(
               rating: _rating,
-              onRate: _submitted ? null : (v) => setState(() => _rating = v),
+              onRate: _existingReview != null
+                  ? null
+                  : (v) => setState(() => _rating = v),
               reviewController: _reviewCtrl,
               recommends: _recommends,
-              onRecommend: _submitted
+              onRecommend: _existingReview != null
                   ? null
                   : (v) => setState(() => _recommends = v),
-              readOnly: _submitted,
+              readOnly: _existingReview != null,
               error: _error,
             ),
-            const SizedBox(height: 20),
-            FigmaPrimaryButton(
-              label: _submitted ? 'Review Submitted' : 'Submit Review',
-              isLoading: _submitting,
-              onPressed:
-                  (_rating > 0 && !_submitting && !_submitted) ? _submitReview : null,
-            ),
+            if (_existingReview == null) ...[
+              const SizedBox(height: 20),
+              FigmaPrimaryButton(
+                label: 'Submit Review',
+                isLoading: _submitting,
+                onPressed: (_rating > 0 && !_submitting) ? _submitReview : null,
+              ),
+            ],
           ] else if (_canRebook) ...[
             const SizedBox(height: 28),
             FigmaPrimaryButton(label: 'Book again', onPressed: _bookAgain),
@@ -537,8 +599,10 @@ class _RouteMini extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _text('Pick-up',
-                  booking.pickupAddress.isEmpty ? '—' : booking.pickupAddress),
+              _text(
+                'Pick-up',
+                booking.pickupAddress.isEmpty ? '—' : booking.pickupAddress,
+              ),
               if (hasDropoff) ...[
                 const SizedBox(height: 18),
                 _text('Drop off (optional)', booking.dropoffAddress),
@@ -561,7 +625,8 @@ class _RouteMini extends StatelessWidget {
       ),
       child: filled
           ? const Center(
-              child: CircleAvatar(radius: 2.5, backgroundColor: Colors.white))
+              child: CircleAvatar(radius: 2.5, backgroundColor: Colors.white),
+            )
           : null,
     );
   }
@@ -570,9 +635,13 @@ class _RouteMini extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style:
-                const TextStyle(color: CustomerFigmaColors.muted, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: CustomerFigmaColors.muted,
+            fontSize: 12,
+          ),
+        ),
         const SizedBox(height: 2),
         Text(
           address,
@@ -638,8 +707,10 @@ class _ReviewSection extends StatelessWidget {
                 const SizedBox(height: 4),
                 const Text(
                   '(Describe your experience with 1 to 5 stars)',
-                  style:
-                      TextStyle(color: CustomerFigmaColors.muted, fontSize: 12),
+                  style: TextStyle(
+                    color: CustomerFigmaColors.muted,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ],
@@ -719,8 +790,10 @@ class _ReviewSection extends StatelessWidget {
         ),
         if (error != null) ...[
           const SizedBox(height: 12),
-          Text(error!,
-              style: const TextStyle(color: Color(0xFFB7362A), fontSize: 13)),
+          Text(
+            error!,
+            style: const TextStyle(color: Color(0xFFB7362A), fontSize: 13),
+          ),
         ],
       ],
     );

@@ -33,6 +33,7 @@ func RegisterBookingRoutes(
 	customerGroup.POST("/bookings/:id/card-payment", handler.InitiateCardPayment)
 	customerGroup.PUT("/bookings/:id/cancel", handler.CancelBooking)
 	customerGroup.POST("/bookings/:id/review", handler.SubmitReview)
+	customerGroup.GET("/bookings/:id/review", handler.GetCustomerBookingReview)
 	customerGroup.GET("/providers/:id", handler.GetPublicProvider)
 	customerGroup.GET("/trucks/:id", handler.GetPublicTruck)
 

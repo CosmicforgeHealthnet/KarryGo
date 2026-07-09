@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/provider_notification.dart';
+
 /// REST client for the provider notification proxy on driver-hauling-service
 /// (`/api/v1/hauling/provider/notifications`). Uses the provider bearer token;
 /// the hauling service brokers the HMAC call to notification-service.
@@ -13,6 +15,17 @@ class ProviderNotificationApi {
 
   final ApiCoreConfig _config;
   final http.Client _client;
+
+  /// Loads the provider's recent notifications (most recent first).
+  Future<List<ProviderNotification>> listNotifications({
+    required String accessToken,
+    int limit = 50,
+  }) async {
+    final raw = await _getList('/provider/notifications?limit=$limit', accessToken: accessToken);
+    return raw
+        .map((e) => ProviderNotification.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
 
   /// Mints a short-lived realtime token used to open the notification websocket.
   Future<RealtimeToken> fetchRealtimeToken({required String accessToken}) async {
@@ -38,6 +51,29 @@ class ProviderNotificationApi {
   }
 
   void close() => _client.close();
+
+  Future<List<dynamic>> _getList(String path, {required String accessToken}) async {
+    try {
+      final response = await _client.get(
+        _config.uri(path),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+      final decoded = _decode(response);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException.fromErrorEnvelope(decoded, statusCode: response.statusCode);
+      }
+      final data = decoded['data'];
+      if (data is List) return data;
+      return const [];
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException.network(e);
+    }
+  }
 
   Future<Map<String, dynamic>> _post(
     String path,

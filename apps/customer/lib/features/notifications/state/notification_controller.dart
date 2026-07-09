@@ -114,7 +114,9 @@ class NotificationController extends ChangeNotifier {
       _notifications
         ..clear()
         ..addAll(items);
-      _unread = 0;
+      // Deliberately leave _unread alone: it counts live pushes since the tab
+      // was last opened, and is cleared only by markAllRead (tab open) — a
+      // background reload must not silently eat the badge.
     } catch (error) {
       _error = 'Could not load notifications.';
       if (kDebugMode) debugPrint('notification feed error: $error');

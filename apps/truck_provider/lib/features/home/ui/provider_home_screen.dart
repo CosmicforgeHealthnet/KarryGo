@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../auth/state/provider_auth_controller.dart';
 import '../../earnings/state/provider_earnings_controller.dart';
 import '../../earnings/ui/provider_earnings_screen.dart';
+import '../../notifications/state/provider_notification_controller.dart';
 import '../../profile/state/provider_profile_controller.dart';
 import '../../profile/ui/provider_profile_screen.dart';
 import '../../disputes/state/provider_dispute_controller.dart';
@@ -31,6 +32,7 @@ class ProviderHomeScreen extends StatefulWidget {
     required this.withdrawalController,
     required this.disputeController,
     required this.tripsController,
+    required this.notificationController,
   });
 
   final ProviderAuthController authController;
@@ -40,6 +42,7 @@ class ProviderHomeScreen extends StatefulWidget {
   final ProviderWithdrawalController withdrawalController;
   final ProviderDisputeController disputeController;
   final ProviderTripsController tripsController;
+  final ProviderNotificationController notificationController;
 
   @override
   State<ProviderHomeScreen> createState() => _ProviderHomeScreenState();
@@ -61,7 +64,11 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
 
   void _openNotifications() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ProviderNotificationsScreen()),
+      MaterialPageRoute(
+        builder: (_) => ProviderNotificationsScreen(
+          controller: widget.notificationController,
+        ),
+      ),
     );
   }
 

@@ -1,25 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../models/hauling_models.dart';
 import '../../state/hauling_booking_controller.dart';
-import '../widgets/hauling_driver_card.dart';
 import '../widgets/hauling_map_widget.dart';
+import '../widgets/hauling_trip_sheet_widgets.dart';
 
+/// Live trip screen (Figma 1772 "Driver Assigned…" / 1773 "Trip has started."):
+/// map + bottom sheet with status heading, vehicle line, driver block, stats,
+/// progress slider and phase-specific actions.
 class HaulingActiveTripView extends StatelessWidget {
   const HaulingActiveTripView({super.key, required this.controller, required this.state});
 
   final HaulingBookingController controller;
   final HaulingBookingState state;
 
+  bool get _tripStarted => [
+        HaulingBookingStatus.pickedUp,
+        HaulingBookingStatus.enRouteDelivery,
+        HaulingBookingStatus.delivered,
+      ].contains(state.activeBooking!.status);
+
   @override
   Widget build(BuildContext context) {
     final booking = state.activeBooking!;
     final pickupLatLng = LatLng(booking.pickupLat, booking.pickupLng);
     final dropoffLatLng = LatLng(booking.dropoffLat, booking.dropoffLng);
-    final driverLoc = controller.state.providerLocation;
+    final driverLoc = state.providerLocation;
     final driverLatLng = (driverLoc != null && driverLoc.hasFix)
         ? LatLng(driverLoc.lat, driverLoc.lng)
         : null;
@@ -29,6 +39,8 @@ class HaulingActiveTripView extends StatelessWidget {
     ].contains(booking.status);
 
     return Scaffold(
+      backgroundColor: Colors.white,
+      bottomNavigationBar: const HaulingFlowBottomNav(),
       body: Stack(
         children: [
           Positioned.fill(
@@ -42,105 +54,101 @@ class HaulingActiveTripView extends StatelessWidget {
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
+              width: double.infinity,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+              ),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 16),
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Drag handle
-                    Center(
-                      child: Container(
-                        width: 36, height: 4,
-                        decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Status heading
                     Text(
-                      booking.status.activeTripHeading,
+                      _heading(booking),
                       style: const TextStyle(
                         color: CustomerFigmaColors.text,
                         fontWeight: FontWeight.w800,
-                        fontSize: 17,
+                        fontSize: 18,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
-                      _statusSubtitle(booking.status),
-                      style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 13, height: 1.4),
+                      _subtitle(booking.status),
+                      style: const TextStyle(
+                        color: CustomerFigmaColors.muted,
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
                     ),
-                    const SizedBox(height: 14),
-
-                    // Driver card
-                    if (state.providerSnapshot != null)
-                      HaulingDriverCard(
-                        provider: state.providerSnapshot!,
-                        truck: state.truckSnapshot,
-                        fareKobo: booking.displayFareKobo,
-                        distanceKm: booking.distanceKm,
-                      )
-                    else
-                      const HaulingDriverCardShimmer(),
-                    const SizedBox(height: 14),
-
-                    // Truck type + weight info row
-                    Row(
-                      children: [
-                        const Icon(Icons.local_shipping_outlined, color: CustomerFigmaColors.muted, size: 14),
-                        const SizedBox(width: 6),
-                        Text(
-                          booking.preferredTruckType.isNotEmpty
-                              ? '${booking.preferredTruckType} · ${booking.cargoWeightKg} kg'
-                              : '${booking.cargoWeightKg} kg cargo',
-                          style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Progress bar
-                    _TripProgressBar(status: booking.status),
+                    if (state.truckSnapshot != null) ...[
+                      const SizedBox(height: 10),
+                      HaulingVehicleLine(truck: state.truckSnapshot!),
+                    ],
                     const SizedBox(height: 16),
 
-                    // Action buttons row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _callDriver(state.providerSnapshot?.phone),
-                            icon: const Icon(Icons.phone_outlined, size: 16),
-                            label: const Text('Call Driver'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: CustomerFigmaColors.primary,
-                              side: const BorderSide(color: CustomerFigmaColors.primary),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                        if (canCancel) ...[
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => _confirmCancel(context),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                                side: const BorderSide(color: Colors.red),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              child: const Text('Cancel Truck', style: TextStyle(fontWeight: FontWeight.w700)),
-                            ),
-                          ),
-                        ],
-                      ],
+                    if (state.providerSnapshot != null)
+                      HaulingDriverProfileBlock(provider: state.providerSnapshot!)
+                    else
+                      const SizedBox(height: 64),
+                    const SizedBox(height: 18),
+
+                    HaulingTripStatsRow(
+                      distanceKm: booking.distanceKm,
+                      fareKobo: booking.displayFareKobo > 0
+                          ? booking.displayFareKobo
+                          : null,
                     ),
+                    const SizedBox(height: 18),
+
+                    HaulingTripProgressSlider(
+                      progress: state.tripProgress,
+                      showTruck: _tripStarted,
+                    ),
+                    const SizedBox(height: 20),
+
+                    if (state.error != null) ...[
+                      Text(
+                        state.error!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    if (_tripStarted)
+                      _TripActionCircles(
+                        onShare: () => _shareTrip(context, booking),
+                        onReport: () => _report(context),
+                        onSos: () => _sos(context),
+                      )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: HaulingPillButton(
+                              label: 'Call Driver',
+                              onPressed: () =>
+                                  _callDriver(state.providerSnapshot?.phone),
+                            ),
+                          ),
+                          if (canCancel) ...[
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: HaulingPillButton(
+                                label: 'Cancel Truck',
+                                background: CustomerFigmaColors.primarySoft,
+                                isLoading: state.isLoading,
+                                onPressed: () => _confirmCancel(context),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -151,19 +159,112 @@ class HaulingActiveTripView extends StatelessWidget {
     );
   }
 
-  String _statusSubtitle(HaulingBookingStatus status) => switch (status) {
-    HaulingBookingStatus.accepted        => 'The driver has accepted your request and is preparing to depart.',
-    HaulingBookingStatus.enRoutePickup   => 'The driver is on the way to your pickup location.',
-    HaulingBookingStatus.arrivedAtPickup => 'The driver has arrived at your pickup location.',
-    HaulingBookingStatus.pickedUp        => 'Your cargo has been loaded and is en route.',
-    HaulingBookingStatus.enRouteDelivery => 'Your cargo is on its way to the destination.',
-    _                                    => 'Your trip is in progress.',
-  };
+  // ─── Copy ───────────────────────────────────────────────────────────────────
+
+  String _heading(HaulageBooking booking) {
+    switch (booking.status) {
+      case HaulingBookingStatus.accepted:
+      case HaulingBookingStatus.enRoutePickup:
+        final eta = _etaToPickupMinutes(booking);
+        if (eta != null) {
+          return 'Driver Assigned, arriving in $eta minute${eta == 1 ? '' : 's'}';
+        }
+        return 'Driver Assigned, arriving soon';
+      case HaulingBookingStatus.arrivedAtPickup:
+        return 'Driver has arrived.';
+      default:
+        return 'Trip has started.';
+    }
+  }
+
+  String _subtitle(HaulingBookingStatus status) => switch (status) {
+        HaulingBookingStatus.accepted ||
+        HaulingBookingStatus.enRoutePickup =>
+          'The driver has accepted your request, they are on their way to you.',
+        HaulingBookingStatus.arrivedAtPickup =>
+          'Your driver is at the pickup location.',
+        _ => 'Your trip has started, enjoy your ride.',
+      };
+
+  /// Minutes for the driver to reach pickup, from the live location fix.
+  int? _etaToPickupMinutes(HaulageBooking booking) {
+    final loc = state.providerLocation;
+    if (loc == null || !loc.hasFix) return null;
+    final km = haulingHaversineKm(
+        loc.lat, loc.lng, booking.pickupLat, booking.pickupLng);
+    return haulingEtaMinutes(km);
+  }
+
+  // ─── Actions ────────────────────────────────────────────────────────────────
 
   Future<void> _callDriver(String? phone) async {
     if (phone == null || phone.isEmpty) return;
     final uri = Uri.parse('tel:$phone');
     if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  Future<void> _shareTrip(BuildContext context, HaulageBooking booking) async {
+    final driver = state.providerSnapshot?.displayName ?? 'a KarryGo driver';
+    final plate = state.truckSnapshot?.plateNumber ?? '';
+    await Clipboard.setData(ClipboardData(
+      text: 'I am on a KarryGo truck trip with $driver'
+          '${plate.isNotEmpty ? ' ($plate)' : ''}.\n'
+          'From: ${booking.pickupAddress}\n'
+          'To: ${booking.dropoffAddress}\n'
+          'Trip ref: ${booking.id}',
+    ));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Trip details copied — share them with a contact.')),
+      );
+    }
+  }
+
+  void _report(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Reporting is coming soon. For urgent issues use SOS.')),
+    );
+  }
+
+  void _sos(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Emergency SOS',
+              style: TextStyle(color: CustomerFigmaColors.text, fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Call the national emergency line (112)?',
+              style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FigmaPrimaryButton(
+              label: 'Call 112',
+              onPressed: () async {
+                Navigator.of(context).pop();
+                final uri = Uri.parse('tel:112');
+                if (await canLaunchUrl(uri)) await launchUrl(uri);
+              },
+            ),
+            const SizedBox(height: 10),
+            FigmaSecondaryButton(
+              label: 'Not now',
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _confirmCancel(BuildContext context) {
@@ -207,51 +308,88 @@ class HaulingActiveTripView extends StatelessWidget {
   }
 }
 
-// ─── Progress bar ─────────────────────────────────────────────────────────────
+// ─── Share Trip / Report / SOS circles (Figma 1773) ───────────────────────────
 
-class _TripProgressBar extends StatelessWidget {
-  const _TripProgressBar({required this.status});
+class _TripActionCircles extends StatelessWidget {
+  const _TripActionCircles({
+    required this.onShare,
+    required this.onReport,
+    required this.onSos,
+  });
 
-  final HaulingBookingStatus status;
-
-  static const _orderedStatuses = [
-    HaulingBookingStatus.accepted,
-    HaulingBookingStatus.enRoutePickup,
-    HaulingBookingStatus.arrivedAtPickup,
-    HaulingBookingStatus.pickedUp,
-    HaulingBookingStatus.enRouteDelivery,
-    HaulingBookingStatus.delivered,
-  ];
-
-  double get _progress {
-    final idx = _orderedStatuses.indexOf(status);
-    if (idx < 0) return 0;
-    return (idx + 1) / _orderedStatuses.length;
-  }
+  final VoidCallback onShare;
+  final VoidCallback onReport;
+  final VoidCallback onSos;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: _progress,
-            backgroundColor: CustomerFigmaColors.border,
-            color: CustomerFigmaColors.primary,
-            minHeight: 6,
-          ),
+        _ActionCircle(
+          icon: Icons.shortcut,
+          iconColor: CustomerFigmaColors.text,
+          label: 'Share Trip',
+          onTap: onShare,
         ),
-        const SizedBox(height: 6),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Pickup', style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 11)),
-            Text('Destination', style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 11)),
-          ],
+        _ActionCircle(
+          icon: Icons.warning_amber_rounded,
+          iconColor: CustomerFigmaColors.text,
+          label: 'Report',
+          onTap: onReport,
+        ),
+        _ActionCircle(
+          icon: Icons.power_settings_new,
+          iconColor: const Color(0xFFE03131),
+          label: 'SOS',
+          onTap: onSos,
         ),
       ],
+    );
+  }
+}
+
+class _ActionCircle extends StatelessWidget {
+  const _ActionCircle({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: const BoxDecoration(
+              color: kHaulingCircleGrey,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 26, color: iconColor),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: CustomerFigmaColors.text,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

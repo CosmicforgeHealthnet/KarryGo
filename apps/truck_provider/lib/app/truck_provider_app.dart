@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../core/config/provider_app_config.dart';
@@ -13,8 +17,10 @@ import '../features/home/state/provider_home_controller.dart';
 import '../features/home/ui/provider_home_screen.dart';
 import '../features/media/data/media_file_api.dart';
 import '../features/media/data/media_upload_service.dart';
+import '../features/notifications/data/firebase_push.dart';
 import '../features/notifications/data/provider_notification_api.dart';
 import '../features/notifications/data/provider_realtime_listener.dart';
+import '../features/notifications/state/provider_notification_controller.dart';
 import '../features/profile/data/provider_profile_api.dart';
 import '../features/profile/state/provider_profile_controller.dart';
 import '../features/trips/state/provider_trips_controller.dart';
@@ -46,6 +52,7 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
   late final ProviderWithdrawalController _withdrawalController;
   late final ProviderDisputeController _disputeController;
   late final ProviderTripsController _tripsController;
+  late final ProviderNotificationController _notificationController;
   late final ProviderAuthApi _authApi;
   late final ProviderApi _providerApi;
   late final ProviderProfileApi _profileApi;
@@ -53,6 +60,10 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
   late final ProviderWalletApi _walletApi;
   late final ProviderSupportApi _supportApi;
   late final MediaUploadService _mediaUploadService;
+
+  bool _pushRegistered = false;
+  StreamSubscription<String>? _fcmTokenRefreshSub;
+  StreamSubscription<dynamic>? _fcmForegroundSub;
 
   @override
   void initState() {
@@ -86,14 +97,25 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
       mediaUploadService: _mediaUploadService,
     );
 
+    _notificationController = ProviderNotificationController(
+      api: _notificationApi,
+      accessToken: () => _authController.state.session?.accessToken,
+    );
+
     _homeController = ProviderHomeController(
       api: _providerApi,
       authController: _authController,
+      mediaUploadService: _mediaUploadService,
       realtimeListenerFactory: (accessToken, onEvent) => ProviderRealtimeListener(
         api: _notificationApi,
         wsUrl: config.notificationWsUrl,
         accessToken: accessToken,
-        onEvent: onEvent,
+        // Fan the pushed event out to the home controller (poll poke) and the
+        // notification feed (live refresh) over the single shared websocket.
+        onEvent: (eventType) {
+          onEvent(eventType);
+          _notificationController.onRealtimeEvent(eventType);
+        },
       ),
     );
 
@@ -123,6 +145,23 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
       accessToken: () => _authController.state.session?.accessToken,
     );
 
+    // FCM device registration: register once per login so background push
+    // (new booking requests) reaches this device. Degrades to a no-op when
+    // Firebase is not configured on this platform.
+    _authController.addListener(_onAuthChangedForPush);
+    _fcmTokenRefreshSub = FirebasePush.tokenRefresh().listen((_) {
+      _pushRegistered = false;
+      _onAuthChangedForPush();
+    });
+    // Foreground pushes show no system tray entry — poke the booking poll and
+    // refresh the notification feed so the request appears immediately.
+    _fcmForegroundSub = FirebasePush.foregroundMessages().listen((message) {
+      _homeController.pokeRefresh();
+      _notificationController.onRealtimeEvent(
+        (message.data['event_type'] as String?) ?? '',
+      );
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _authController.initialize();
       if (_authController.state.status == ProviderAuthStatus.authenticated) {
@@ -131,8 +170,41 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
     });
   }
 
+  void _onAuthChangedForPush() {
+    final authenticated = _authController.state.status == ProviderAuthStatus.authenticated;
+    if (!authenticated) {
+      _pushRegistered = false;
+      return;
+    }
+    if (_pushRegistered) return;
+    _pushRegistered = true;
+    _registerPushDevice();
+  }
+
+  Future<void> _registerPushDevice() async {
+    final accessToken = _authController.state.session?.accessToken;
+    if (accessToken == null) return;
+    try {
+      final fcmToken = await FirebasePush.deviceToken();
+      if (fcmToken == null || fcmToken.isEmpty) return;
+      await _notificationApi.registerDevice(
+        accessToken: accessToken,
+        token: fcmToken,
+        platform: Platform.isIOS ? 'ios' : 'android',
+      );
+    } catch (error) {
+      // Registration failing must never break the app; the websocket + poll
+      // remain the delivery path. Retried on next login/token refresh.
+      _pushRegistered = false;
+      if (kDebugMode) debugPrint('push registration error: $error');
+    }
+  }
+
   @override
   void dispose() {
+    _fcmTokenRefreshSub?.cancel();
+    _fcmForegroundSub?.cancel();
+    _authController.removeListener(_onAuthChangedForPush);
     _authController.dispose();
     _homeController.dispose();
     _profileController.dispose();
@@ -140,6 +212,7 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
     _withdrawalController.dispose();
     _disputeController.dispose();
     _tripsController.dispose();
+    _notificationController.dispose();
     _authApi.close();
     _providerApi.close();
     _profileApi.close();
@@ -215,6 +288,7 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
               withdrawalController: _withdrawalController,
               disputeController: _disputeController,
               tripsController: _tripsController,
+              notificationController: _notificationController,
             ),
           };
         },

@@ -97,15 +97,19 @@ func (n *BookingNotifier) NotifyCustomerCancelledByProvider(ctx context.Context,
 
 // send builds and dispatches a notification request. It is fire-and-forget:
 // errors are logged and swallowed. The idempotency key is derived from the
-// event and booking so retries of the same logical event dedupe. Title/body are
-// resolved from a seeded template keyed on the event type; data is passed as
-// both notification data and template variables.
+// event, booking AND recipient: matching offers the same booking to several
+// providers in turn, and a booking-only key would make notification-service
+// silently drop every provider's booking.matched after the first (ON CONFLICT
+// DO NOTHING on idempotency_key). Retries of the same logical event to the
+// same recipient still dedupe. Title/body are resolved from a seeded template
+// keyed on the event type; data is passed as both notification data and
+// template variables.
 func (n *BookingNotifier) send(ctx context.Context, eventType, recipientType, recipientID, bookingID string, data map[string]interface{}) {
 	if recipientID == "" {
 		return
 	}
 	_, err := n.notifier.Send(ctx, notifications.Request{
-		IDempotencyKey: notifications.IdempotencyKey(sourceService, eventType, bookingID),
+		IDempotencyKey: notifications.IdempotencyKey(sourceService, eventType, bookingID+":"+recipientID),
 		SourceService:  sourceService,
 		EventType:      eventType,
 		Recipient: notifications.Recipient{

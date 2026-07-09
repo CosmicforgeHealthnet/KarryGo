@@ -136,6 +136,69 @@ class CustomerAuthApi {
     await _sendJson('DELETE', '/profile/emergency-contacts/$id', accessToken: accessToken);
   }
 
+  Future<List<SavedLocation>> getSavedLocations({required String accessToken}) async {
+    final data = await _sendJson('GET', '/saved-locations', accessToken: accessToken);
+    final raw = data['locations'];
+    if (raw is! List) return [];
+    return raw
+        .map((e) => SavedLocation.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  Future<SavedLocation> addSavedLocation({
+    required String accessToken,
+    required String title,
+    required String address,
+    required double latitude,
+    required double longitude,
+    String description = '',
+  }) async {
+    final data = await _sendJson(
+      'POST',
+      '/saved-locations',
+      accessToken: accessToken,
+      body: {
+        'title': title,
+        'address': address,
+        'latitude': latitude,
+        'longitude': longitude,
+        'description': description,
+      },
+    );
+    return SavedLocation.fromJson(data);
+  }
+
+  Future<SavedLocation> updateSavedLocation({
+    required String accessToken,
+    required String id,
+    required String title,
+    required String address,
+    required double latitude,
+    required double longitude,
+    String description = '',
+  }) async {
+    final data = await _sendJson(
+      'PUT',
+      '/saved-locations/$id',
+      accessToken: accessToken,
+      body: {
+        'title': title,
+        'address': address,
+        'latitude': latitude,
+        'longitude': longitude,
+        'description': description,
+      },
+    );
+    return SavedLocation.fromJson(data);
+  }
+
+  Future<void> deleteSavedLocation({
+    required String accessToken,
+    required String id,
+  }) async {
+    await _sendJson('DELETE', '/saved-locations/$id', accessToken: accessToken);
+  }
+
   Future<CustomerProfile> me({required String accessToken}) async {
     final data = await _sendJson('GET', '/me', accessToken: accessToken);
     return CustomerProfile.fromJson(data);

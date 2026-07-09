@@ -54,7 +54,7 @@ class _HaulingPaymentViewState extends State<HaulingPaymentView> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: CustomerFigmaColors.text),
-          onPressed: _controller.backToTierSelection,
+          onPressed: _controller.backToPackageInfo,
         ),
         title: const Text(
           'Payment',

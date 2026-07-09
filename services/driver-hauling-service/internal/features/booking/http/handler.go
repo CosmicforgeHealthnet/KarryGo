@@ -185,6 +185,20 @@ func (h *BookingHandler) SubmitReview(c *gin.Context) {
 	c.JSON(nethttp.StatusCreated, gin.H{"success": true, "data": review})
 }
 
+func (h *BookingHandler) GetCustomerBookingReview(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	review, err := h.svc.GetCustomerBookingReview(c.Request.Context(), c.Param("id"), claims.Subject)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": review})
+}
+
 func (h *BookingHandler) CancelBooking(c *gin.Context) {
 	claims, ok := sharedauth.ClaimsFromContext(c)
 	if !ok {
@@ -222,6 +236,7 @@ func (h *BookingHandler) GetPublicProvider(c *gin.Context) {
 		"phone":             provider.Phone,
 		"rating":            provider.Rating,
 		"total_trips":       provider.TotalTrips,
+		"created_at":        provider.CreatedAt,
 	}})
 }
 
@@ -400,7 +415,10 @@ func (h *BookingHandler) ConfirmDelivery(c *gin.Context) {
 		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
 		return
 	}
-	booking, err := h.svc.ConfirmDelivery(c.Request.Context(), c.Param("id"), claims.Subject)
+	// Proof of delivery is optional (the body may be empty `{}` from older apps).
+	var req confirmDeliveryRequest
+	_ = c.ShouldBindJSON(&req)
+	booking, err := h.svc.ConfirmDelivery(c.Request.Context(), c.Param("id"), claims.Subject, req.ProofPhotoURL, req.SignatureURL)
 	if err != nil {
 		httpx.Abort(c, err)
 		return

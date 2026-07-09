@@ -20,20 +20,21 @@ type BookingRepository interface {
 	ListByCustomer(ctx context.Context, customerID string, limit, offset int) ([]bookingmodels.Booking, error)
 	ListByProvider(ctx context.Context, providerID string, limit, offset int) ([]bookingmodels.Booking, error)
 	UpdateStatus(ctx context.Context, id, status string) (bookingmodels.Booking, error)
-	AssignProvider(ctx context.Context, id, providerID, truckID string) (bookingmodels.Booking, error)
 	MarkMatched(ctx context.Context, id, providerID, truckID string) (bookingmodels.Booking, error)
-	MarkAccepted(ctx context.Context, id string) (bookingmodels.Booking, error)
+	MarkAccepted(ctx context.Context, id, providerID string) (bookingmodels.Booking, error)
 	MarkEnRoutePickup(ctx context.Context, id string) (bookingmodels.Booking, error)
 	MarkArrivedAtPickup(ctx context.Context, id string) (bookingmodels.Booking, error)
 	MarkPickedUp(ctx context.Context, id string) (bookingmodels.Booking, error)
 	MarkEnRouteDelivery(ctx context.Context, id string) (bookingmodels.Booking, error)
-	MarkDelivered(ctx context.Context, id string) (bookingmodels.Booking, error)
+	MarkDelivered(ctx context.Context, id, proofPhotoURL, signatureURL string) (bookingmodels.Booking, error)
 	MarkCompleted(ctx context.Context, id string) (bookingmodels.Booking, error)
+	MarkUnmatched(ctx context.Context, id string) (bookingmodels.Booking, error)
 	CancelByCustomer(ctx context.Context, id, customerID, reason string) (bookingmodels.Booking, error)
 	CancelByProvider(ctx context.Context, id, providerID, reason string) (bookingmodels.Booking, error)
-	ResetToMatching(ctx context.Context, id string) (bookingmodels.Booking, error)
+	ResetToMatching(ctx context.Context, id, expectedProviderID string) (bookingmodels.Booking, error)
 	SetPayment(ctx context.Context, id, paymentStatus, paymentIntentID string) (bookingmodels.Booking, error)
 	ListDeliveredForAutoComplete(ctx context.Context, cutoff time.Time) ([]bookingmodels.Booking, error)
+	ListStaleMatching(ctx context.Context, pendingCutoff, awaitingCutoff time.Time) ([]bookingmodels.Booking, error)
 	AddEvent(ctx context.Context, event bookingmodels.BookingEvent) error
 	CreateReview(ctx context.Context, r bookingmodels.BookingReview) (bookingmodels.BookingReview, error)
 	GetReviewByBooking(ctx context.Context, bookingID string) (bookingmodels.BookingReview, error)
@@ -116,14 +117,6 @@ func (r *PostgresBookingRepository) UpdateStatus(ctx context.Context, id, status
 	return scanBookingNotFound(row)
 }
 
-func (r *PostgresBookingRepository) AssignProvider(ctx context.Context, id, providerID, truckID string) (bookingmodels.Booking, error) {
-	row := r.db.QueryRow(ctx, `
-		UPDATE haulage_bookings SET provider_id=$2, truck_id=$3, status=$4, matched_at=now(), updated_at=now()
-		WHERE id=$1 RETURNING `+bookingSelectCols,
-		id, providerID, truckID, bookingmodels.StatusAwaitingAcceptance)
-	return scanBookingNotFound(row)
-}
-
 // MarkMatched assigns a provider/truck and moves the booking to
 // awaiting_acceptance, but only from pending_match. The status guard makes this a
 // compare-and-set so a late ResetToMatching (from a previous provider's matching
@@ -164,11 +157,16 @@ func (r *PostgresBookingRepository) SetPayment(ctx context.Context, id, paymentS
 	return scanBookingNotFound(row)
 }
 
-func (r *PostgresBookingRepository) MarkAccepted(ctx context.Context, id string) (bookingmodels.Booking, error) {
+// MarkAccepted moves the booking to accepted, but only when it is still
+// awaiting acceptance AND still assigned to this provider. The provider_id guard
+// closes the race where the booking was reset and re-matched to another provider
+// between the caller's ownership read and this update. Returns NotFound when the
+// guard fails (expired, reassigned, or already accepted).
+func (r *PostgresBookingRepository) MarkAccepted(ctx context.Context, id, providerID string) (bookingmodels.Booking, error) {
 	row := r.db.QueryRow(ctx, `
 		UPDATE haulage_bookings SET status=$2, accepted_at=now(), updated_at=now()
-		WHERE id=$1 AND status=$3 RETURNING `+bookingSelectCols,
-		id, bookingmodels.StatusAccepted, bookingmodels.StatusAwaitingAcceptance)
+		WHERE id=$1 AND status=$3 AND provider_id=$4 RETURNING `+bookingSelectCols,
+		id, bookingmodels.StatusAccepted, bookingmodels.StatusAwaitingAcceptance, providerID)
 	return scanBookingNotFound(row)
 }
 
@@ -205,11 +203,16 @@ func (r *PostgresBookingRepository) MarkEnRouteDelivery(ctx context.Context, id 
 	return scanBookingNotFound(row)
 }
 
-func (r *PostgresBookingRepository) MarkDelivered(ctx context.Context, id string) (bookingmodels.Booking, error) {
+// MarkDelivered moves the booking to delivered, storing the proof-of-delivery
+// photo and receiver-signature URLs captured by the provider (either may be
+// empty when the provider skipped them or the upload failed).
+func (r *PostgresBookingRepository) MarkDelivered(ctx context.Context, id, proofPhotoURL, signatureURL string) (bookingmodels.Booking, error) {
 	row := r.db.QueryRow(ctx, `
-		UPDATE haulage_bookings SET status=$2, delivered_at=now(), updated_at=now()
+		UPDATE haulage_bookings
+		SET status=$2, delivered_at=now(), proof_photo_url=$5, signature_url=$6, updated_at=now()
 		WHERE id=$1 AND status IN ($3,$4) RETURNING `+bookingSelectCols,
-		id, bookingmodels.StatusDelivered, bookingmodels.StatusPickedUp, bookingmodels.StatusEnRouteDelivery)
+		id, bookingmodels.StatusDelivered, bookingmodels.StatusPickedUp, bookingmodels.StatusEnRouteDelivery,
+		proofPhotoURL, signatureURL)
 	return scanBookingNotFound(row)
 }
 
@@ -221,14 +224,30 @@ func (r *PostgresBookingRepository) MarkCompleted(ctx context.Context, id string
 	return scanBookingNotFound(row)
 }
 
+// MarkUnmatched moves a booking to unmatched, but only from pending_match. The
+// status guard makes this a compare-and-set — a matcher deadline firing
+// concurrently with a provider's accept must never clobber the accepted (or
+// cancelled) booking to unmatched.
+func (r *PostgresBookingRepository) MarkUnmatched(ctx context.Context, id string) (bookingmodels.Booking, error) {
+	row := r.db.QueryRow(ctx, `
+		UPDATE haulage_bookings SET status=$2, updated_at=now()
+		WHERE id=$1 AND status=$3 RETURNING `+bookingSelectCols,
+		id, bookingmodels.StatusUnmatched, bookingmodels.StatusPendingMatch)
+	return scanBookingNotFound(row)
+}
+
+// CancelByCustomer cancels a booking on the customer's behalf. Cancellation is
+// only allowed until the cargo is picked up — once the provider is hauling
+// (picked_up / en_route_delivery) the customer must go through support instead.
 func (r *PostgresBookingRepository) CancelByCustomer(ctx context.Context, id, customerID, reason string) (bookingmodels.Booking, error) {
 	row := r.db.QueryRow(ctx, `
 		UPDATE haulage_bookings
 		SET status=$3, cancel_reason=$4, cancelled_by='customer', cancelled_at=now(), updated_at=now()
 		WHERE id=$1 AND customer_id=$2
-		  AND status NOT IN ($5,$6,$7)
+		  AND status NOT IN ($5,$6,$7,$8,$9)
 		RETURNING `+bookingSelectCols,
 		id, customerID, bookingmodels.StatusCancelled, reason,
+		bookingmodels.StatusPickedUp, bookingmodels.StatusEnRouteDelivery,
 		bookingmodels.StatusDelivered, bookingmodels.StatusCompleted, bookingmodels.StatusCancelled)
 	return scanBookingNotFound(row)
 }
@@ -247,14 +266,18 @@ func (r *PostgresBookingRepository) CancelByProvider(ctx context.Context, id, pr
 	return scanBookingNotFound(row)
 }
 
-func (r *PostgresBookingRepository) ResetToMatching(ctx context.Context, id string) (bookingmodels.Booking, error) {
-	// Guard: never overwrite a terminal status (cancelled/completed/delivered).
+// ResetToMatching clears the provider assignment and returns the booking to
+// pending_match, but only while it is still awaiting acceptance by the expected
+// provider. The compare-and-set closes the accept/timeout race: if the provider's
+// accept lands first, this reset fails with NotFound instead of clobbering an
+// accepted trip back to matching.
+func (r *PostgresBookingRepository) ResetToMatching(ctx context.Context, id, expectedProviderID string) (bookingmodels.Booking, error) {
 	row := r.db.QueryRow(ctx, `
 		UPDATE haulage_bookings
 		SET status=$2, provider_id=NULL, truck_id=NULL, matched_at=NULL, updated_at=now()
-		WHERE id=$1 AND status NOT IN ($3,$4,$5) RETURNING `+bookingSelectCols,
+		WHERE id=$1 AND status=$3 AND provider_id=$4 RETURNING `+bookingSelectCols,
 		id, bookingmodels.StatusPendingMatch,
-		bookingmodels.StatusCancelled, bookingmodels.StatusCompleted, bookingmodels.StatusDelivered)
+		bookingmodels.StatusAwaitingAcceptance, expectedProviderID)
 	return scanBookingNotFound(row)
 }
 
@@ -262,6 +285,25 @@ func (r *PostgresBookingRepository) ListDeliveredForAutoComplete(ctx context.Con
 	rows, err := r.db.Query(ctx,
 		`SELECT `+bookingSelectCols+` FROM haulage_bookings WHERE status = $1 AND delivered_at < $2`,
 		bookingmodels.StatusDelivered, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanBookings(rows)
+}
+
+// ListStaleMatching returns bookings whose matching may have been orphaned by a
+// service restart: pending_match rows older than pendingCutoff (a fresh booking's
+// matcher registers itself synchronously, so anything older with no live matcher
+// is stranded) and awaiting_acceptance rows whose offer window expired before
+// awaitingCutoff (a healthy matcher would already have reset them).
+func (r *PostgresBookingRepository) ListStaleMatching(ctx context.Context, pendingCutoff, awaitingCutoff time.Time) ([]bookingmodels.Booking, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT `+bookingSelectCols+` FROM haulage_bookings
+		WHERE (status = $1 AND created_at < $2)
+		   OR (status = $3 AND matched_at IS NOT NULL AND matched_at < $4)`,
+		bookingmodels.StatusPendingMatch, pendingCutoff,
+		bookingmodels.StatusAwaitingAcceptance, awaitingCutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -287,6 +329,7 @@ const bookingSelectCols = `
 	weight_category, receiver_name, receiver_phone, package_content, package_size, is_fragile,
 	distance_km, fare_estimate_kobo, fare_final_kobo,
 	payment_method, payment_status, payment_intent_id, status, cancel_reason, cancelled_by,
+	proof_photo_url, signature_url,
 	matched_at, accepted_at, picked_up_at, delivered_at, completed_at, cancelled_at,
 	scheduled_at, created_at, updated_at
 `
@@ -305,6 +348,7 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 		&b.WeightCategory, &b.ReceiverName, &b.ReceiverPhone, &b.PackageContent, &b.PackageSize, &b.IsFragile,
 		&b.DistanceKm, &b.FareEstimateKobo, &b.FareFinalKobo,
 		&b.PaymentMethod, &b.PaymentStatus, &b.PaymentIntentID, &b.Status, &b.CancelReason, &b.CancelledBy,
+		&b.ProofPhotoURL, &b.SignatureURL,
 		&b.MatchedAt, &b.AcceptedAt, &b.PickedUpAt, &b.DeliveredAt, &b.CompletedAt, &b.CancelledAt,
 		&b.ScheduledAt, &b.CreatedAt, &b.UpdatedAt,
 	)

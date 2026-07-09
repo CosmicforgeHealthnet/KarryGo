@@ -39,7 +39,7 @@ class _HaulingDetailsViewState extends State<HaulingDetailsView> {
   Widget build(BuildContext context) {
     return haulingFlowScaffold(
       title: 'Truck Hauling',
-      onBack: _ctrl.backToTierSelection,
+      onBack: _ctrl.backToLocationEntry,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -81,7 +81,7 @@ class _HaulingDetailsViewState extends State<HaulingDetailsView> {
             haulingSectionLabel('Truck Type'),
             const SizedBox(height: 8),
             DropdownButtonFormField<HaulingTruckTypeOption>(
-              value: _state.truckTypeOption,
+              initialValue: _state.truckTypeOption,
               hint: const Text('Select truck type', style: TextStyle(color: CustomerFigmaColors.muted)),
               decoration: InputDecoration(
                 filled: true,

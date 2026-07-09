@@ -13,7 +13,6 @@ import 'views/hauling_payment_processing_view.dart';
 import 'views/hauling_payment_view.dart';
 import 'views/hauling_review_view.dart';
 import 'views/hauling_searching_view.dart';
-import 'views/hauling_tier_selection_view.dart';
 import 'views/hauling_unavailable_view.dart';
 
 /// Entry point for the truck hauling booking flow.
@@ -46,9 +45,6 @@ class HaulingFlowScreen extends StatelessWidget {
               count: state.availability?.count ?? 0,
             ),
 
-          HaulingFlowStatus.tierSelection =>
-            HaulingTierSelectionView(controller: controller, state: state),
-
           HaulingFlowStatus.details =>
             HaulingDetailsView(controller: controller, state: state),
 
@@ -67,7 +63,6 @@ class HaulingFlowScreen extends StatelessWidget {
           HaulingFlowStatus.activeTrip =>
             HaulingActiveTripView(controller: controller, state: state),
 
-          HaulingFlowStatus.delivered ||
           HaulingFlowStatus.review =>
             HaulingReviewView(controller: controller, state: state),
 

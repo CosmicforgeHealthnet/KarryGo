@@ -25,6 +25,21 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
      'We could not match a driver for your booking right now. Please try again shortly.',
      '["push", "websocket", "in_app"]'),
 
+    ('booking.en_route_pickup', 'en-NG',
+     'Driver on the way to pickup',
+     'Your driver is heading to the pickup location now.',
+     '["push", "websocket", "in_app"]'),
+
+    ('booking.arrived_at_pickup', 'en-NG',
+     'Driver has arrived',
+     'Your driver has arrived at the pickup location.',
+     '["push", "websocket", "in_app"]'),
+
+    ('booking.en_route_delivery', 'en-NG',
+     'Cargo on the way',
+     'Your cargo is on its way to the destination.',
+     '["push", "websocket", "in_app"]'),
+
     ('cargo.picked_up', 'en-NG',
      'Cargo picked up',
      'Your cargo has been picked up and is on its way to the destination.',

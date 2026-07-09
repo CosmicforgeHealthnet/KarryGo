@@ -112,8 +112,20 @@ class ProviderApi {
     return ProviderBooking.fromJson(data);
   }
 
-  Future<ProviderBooking> confirmDelivery({required String accessToken, required String bookingId}) async {
-    final data = await _put('/provider/bookings/$bookingId/delivered', {}, accessToken: accessToken);
+  Future<ProviderBooking> confirmDelivery({
+    required String accessToken,
+    required String bookingId,
+    String proofPhotoUrl = '',
+    String signatureUrl = '',
+  }) async {
+    final data = await _put(
+      '/provider/bookings/$bookingId/delivered',
+      {
+        if (proofPhotoUrl.isNotEmpty) 'proof_photo_url': proofPhotoUrl,
+        if (signatureUrl.isNotEmpty) 'signature_url': signatureUrl,
+      },
+      accessToken: accessToken,
+    );
     return ProviderBooking.fromJson(data);
   }
 

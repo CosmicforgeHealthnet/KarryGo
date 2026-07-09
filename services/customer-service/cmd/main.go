@@ -19,6 +19,9 @@ import (
 	profilehttp "cosmicforge/logistics/services/customer-service/internal/features/profile/http"
 	profilerepositories "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories"
 	profileusecases "cosmicforge/logistics/services/customer-service/internal/features/profile/usecases"
+	savedlocationhttp "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/http"
+	savedlocationrepositories "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/repositories"
+	savedlocationusecases "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/usecases"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
@@ -90,6 +93,9 @@ func main() {
 		Customers:   customerRepo,
 		MediaClient: mediaClient,
 	})
+	savedLocationService := savedlocationusecases.NewSavedLocationService(
+		savedlocationrepositories.NewPostgresSavedLocationRepository(db),
+	)
 
 	authService := authusecases.NewAuthService(authusecases.Options{
 		Customers:          customerRepo,
@@ -127,6 +133,7 @@ func main() {
 		Register: func(group *gin.RouterGroup) {
 			customerhttp.RegisterCustomerRoutes(group, authService)
 			profilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
+			savedlocationhttp.RegisterSavedLocationRoutes(group, savedLocationService, authService.AccessSigner())
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner())
 			identityhttp.RegisterIdentityRoutes(group, profileService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 		},
