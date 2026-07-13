@@ -74,3 +74,23 @@ func (h *Handler) TestWebhook(c *gin.Context) {
 	}
 	respondData(c, http.StatusOK, gin.H{"id": c.Param("id"), "delivered": true})
 }
+
+// ListWebhookDeliveries handles GET /webhooks/:id/deliveries - the delivery
+// attempt history (timestamp, event, status, HTTP response code, attempts) for
+// one partner webhook. This is the "webhook logs" screen; it is separate from
+// ListWebhooks above, which only lists registered endpoint URLs, not delivery
+// attempts against them.
+func (h *Handler) ListWebhookDeliveries(c *gin.Context) {
+	if h.webhooks == nil {
+		notImplemented(c)
+		return
+	}
+	page := atoiDefault(c.Query("page"), 0)
+	limit := atoiDefault(c.Query("limit"), 0)
+	resp, err := h.webhooks.ListDeliveries(c.Request.Context(), partnerauth.PartnerID(c), c.Param("id"), page, limit)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondData(c, http.StatusOK, resp)
+}

@@ -27,13 +27,22 @@ const (
 )
 
 // Account is the public partner account view. It NEVER contains password_hash.
+//
+// BusinessPhone, State, City, and BusinessLogoURL are pointers because they
+// were added by migration 004 as nullable columns (accounts created before
+// that migration - or that simply haven't filled in their profile yet - have
+// no value for them).
 type Account struct {
-	ID            string    `json:"id"`
-	BusinessName  string    `json:"business_name"`
-	BusinessEmail string    `json:"business_email"`
-	Status        string    `json:"status"`
-	Plan          string    `json:"plan"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID              string    `json:"id"`
+	BusinessName    string    `json:"business_name"`
+	BusinessEmail   string    `json:"business_email"`
+	BusinessPhone   *string   `json:"business_phone"`
+	State           *string   `json:"state"`
+	City            *string   `json:"city"`
+	BusinessLogoURL *string   `json:"business_logo_url"`
+	Status          string    `json:"status"`
+	Plan            string    `json:"plan"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // Session mirrors a partner_sessions row.
@@ -47,11 +56,18 @@ type Session struct {
 }
 
 // KeyView is the safe API key listing shape (no key_hash, no raw key).
+//
+// Description, ExpiresAt, and Permissions were added by migration 005 (the
+// Generate API Key form's description/expiration/permissions fields).
+// Permissions is never nil (defaults to '{}' at the DB level).
 type KeyView struct {
 	ID          string     `json:"id"`
 	Prefix      string     `json:"prefix"`
 	Environment string     `json:"environment"`
 	Label       string     `json:"label"`
+	Description string     `json:"description"`
+	ExpiresAt   *time.Time `json:"expires_at"`
+	Permissions []string   `json:"permissions"`
 	Status      string     `json:"status"`
 	LastUsedAt  *time.Time `json:"last_used_at"`
 	CreatedAt   time.Time  `json:"created_at"`

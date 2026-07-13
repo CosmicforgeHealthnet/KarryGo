@@ -18,6 +18,18 @@ type CreateAccountParams struct {
 	Plan          string
 }
 
+// UpdateProfileParams is the input for updating the editable profile fields
+// (migration 004). Pointer fields distinguish "leave unchanged" (nil) from
+// "clear it" (non-nil pointer to ""), matching PATCH-style partial updates -
+// the Settings > Profile edit form only sends the fields the partner touched.
+type UpdateProfileParams struct {
+	BusinessName    *string
+	BusinessPhone   *string
+	State           *string
+	City            *string
+	BusinessLogoURL *string
+}
+
 // AccountRepository persists partner accounts.
 type AccountRepository interface {
 	// CreateAccount inserts a new account. It returns ErrEmailTaken on a unique
@@ -32,6 +44,10 @@ type AccountRepository interface {
 	UpdatePlan(ctx context.Context, id, plan string) (found bool, err error)
 	// UpdateStatus sets the status; found is false when no such account exists.
 	UpdateStatus(ctx context.Context, id, status string) (found bool, err error)
+	// UpdateProfile applies a partial update to the editable profile fields and
+	// returns the account as it is after the update. found is false when no
+	// such account exists.
+	UpdateProfile(ctx context.Context, id string, params UpdateProfileParams) (account *Account, found bool, err error)
 }
 
 // CreateSessionParams is the input for a new dashboard session.
@@ -52,7 +68,8 @@ type SessionRepository interface {
 	Revoke(ctx context.Context, tokenHash string) error
 }
 
-// CreateKeyParams is the input for storing a new API key (hash + prefix only).
+// CreateKeyParams is the input for storing a new API key (hash + prefix, plus
+// the description/expiry/permissions added by migration 005).
 type CreateKeyParams struct {
 	PartnerID   string
 	KeyHash     string
@@ -60,6 +77,9 @@ type CreateKeyParams struct {
 	Environment string
 	Label       string
 	Status      string
+	Description string
+	ExpiresAt   *time.Time
+	Permissions []string
 }
 
 // APIKeyStore manages partner API keys for the dashboard (create/list/revoke).

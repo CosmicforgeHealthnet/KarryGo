@@ -88,6 +88,23 @@ func (h *Handlers) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"account": account}})
 }
 
+// UpdateProfile handles PATCH /profile (session required). This is the
+// Settings > Profile edit form: business name, phone, state, city, logo URL.
+// Only fields present in the request body are changed - omitted fields are
+// left untouched (see UpdateProfileInput / UpdateProfileParams).
+func (h *Handlers) UpdateProfile(c *gin.Context) {
+	var in UpdateProfileInput
+	if !bindJSON(c, &in) {
+		return
+	}
+	account, err := h.svc.UpdateProfile(c.Request.Context(), SessionPartnerID(c), in)
+	if err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"account": account}})
+}
+
 // --- API key management ------------------------------------------------------
 
 // GenerateKey handles POST /keys (session required).

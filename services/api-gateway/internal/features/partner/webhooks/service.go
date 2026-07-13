@@ -16,6 +16,11 @@ import (
 
 const rfc3339 = time.RFC3339
 
+const (
+	defaultDeliveryListLimit = 20
+	maxDeliveryListLimit     = 100
+)
+
 // Deps are the webhook service collaborators.
 type Deps struct {
 	Webhooks   WebhookRepository
@@ -88,6 +93,30 @@ type WebhookView struct {
 type DeleteResult struct {
 	ID      string `json:"id"`
 	Deleted bool   `json:"deleted"`
+}
+
+// WebhookDeliveryView is one row of the GET /webhooks/:id/deliveries response -
+// the delivery log/history screen. Note: only the HTTP response STATUS CODE is
+// stored (partner_webhook_deliveries has no response body column), not the full
+// response body - if the dashboard needs to display a full response body, that
+// requires a new migration adding a response body column, which has not been
+// done here.
+type WebhookDeliveryView struct {
+	ID             string          `json:"id"`
+	EventType      string          `json:"event_type"`
+	Status         string          `json:"status"`
+	ResponseStatus *int            `json:"response_status"`
+	Attempts       int             `json:"attempts"`
+	Payload        json.RawMessage `json:"payload"`
+	LastAttemptAt  *string         `json:"last_attempt_at"`
+	NextAttemptAt  *string         `json:"next_attempt_at"`
+	CreatedAt      string          `json:"created_at"`
+}
+
+// WebhookDeliveryListResponse is the GET /webhooks/:id/deliveries response data.
+type WebhookDeliveryListResponse struct {
+	Deliveries []WebhookDeliveryView `json:"deliveries"`
+	Meta       delivery.ListMeta     `json:"meta"`
 }
 
 // --- registration -----------------------------------------------------------
@@ -202,6 +231,72 @@ func (s *Service) TestWebhook(ctx context.Context, partnerID, webhookID string) 
 		return delivery.WebhookDeliveryFailed("The webhook endpoint responded with status " + strconv.Itoa(status) + ".")
 	}
 	return nil
+}
+
+// ListDeliveries returns a page of delivery attempt history (the "webhook
+// logs" screen) for one of the partner's own webhooks. Ownership is checked
+// first via FindWebhookByPartner - the same guard DeleteWebhook and TestWebhook
+// already use - so a partner can never read another partner's delivery log by
+// guessing a webhook id.
+//
+// This data was already being written by ProcessDispatchEvent via
+// s.deliveries.CreateDelivery/MarkDelivered/etc.; it was just never exposed for
+// reading before this method + the new ListByWebhook repo method existed.
+func (s *Service) ListDeliveries(ctx context.Context, partnerID, webhookID string, page, limit int) (*WebhookDeliveryListResponse, error) {
+	w, err := s.repo.FindWebhookByPartner(ctx, partnerID, webhookID)
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+	if w == nil {
+		return nil, delivery.WebhookNotFound()
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = defaultDeliveryListLimit
+	}
+	if limit > maxDeliveryListLimit {
+		limit = maxDeliveryListLimit
+	}
+	offset := (page - 1) * limit
+
+	items, total, err := s.deliveries.ListByWebhook(ctx, webhookID, limit, offset)
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+
+	views := make([]WebhookDeliveryView, 0, len(items))
+	for i := range items {
+		views = append(views, deliveryViewOf(&items[i]))
+	}
+	return &WebhookDeliveryListResponse{
+		Deliveries: views,
+		Meta:       delivery.ListMeta{Page: page, Limit: limit, Total: total},
+	}, nil
+}
+
+func deliveryViewOf(d *WebhookDelivery) WebhookDeliveryView {
+	return WebhookDeliveryView{
+		ID:             d.ID,
+		EventType:      d.EventType,
+		Status:         d.Status,
+		ResponseStatus: d.ResponseStatus,
+		Attempts:       d.Attempts,
+		Payload:        json.RawMessage(d.Payload),
+		LastAttemptAt:  formatTimePtr(d.LastAttemptAt),
+		NextAttemptAt:  formatTimePtr(d.NextAttemptAt),
+		CreatedAt:      d.CreatedAt.UTC().Format(rfc3339),
+	}
+}
+
+func formatTimePtr(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.UTC().Format(rfc3339)
+	return &s
 }
 
 // --- dispatch event processing ---------------------------------------------

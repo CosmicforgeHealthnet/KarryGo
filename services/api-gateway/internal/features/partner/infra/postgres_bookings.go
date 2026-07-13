@@ -24,23 +24,29 @@ type BookingRepo struct {
 // NewBookingRepo constructs a BookingRepo.
 func NewBookingRepo(pool *pgxpool.Pool) *BookingRepo { return &BookingRepo{pool: pool} }
 
-const bookingColumns = `id, booking_ref, partner_id, external_ref, pickup_address, pickup_lat, pickup_lng,
-	dest_address, dest_lat, dest_lng, receiver_name, receiver_phone, package_type, package_size,
-	is_fragile, service_tier, fare_amount_kobo, currency, status, payment_intent_id,
-	dispatch_booking_id, idempotency_key, event_published_at, created_at, updated_at`
+// bookingColumns includes pickup_contact_name, pickup_contact_phone,
+// distance_km, and package_description, added by migration 003. All four are
+// nullable, matching PartnerBooking's pointer fields for them.
+const bookingColumns = `id, booking_ref, partner_id, external_ref, pickup_address, pickup_contact_name,
+	pickup_contact_phone, pickup_lat, pickup_lng, dest_address, dest_lat, dest_lng, receiver_name,
+	receiver_phone, package_type, package_size, package_description, is_fragile, service_tier,
+	distance_km, fare_amount_kobo, currency, status, payment_intent_id, dispatch_booking_id,
+	idempotency_key, event_published_at, created_at, updated_at`
 
 func (r *BookingRepo) CreatePendingBooking(ctx context.Context, b *delivery.PartnerBooking) error {
 	const q = `INSERT INTO partner_bookings (
-		id, booking_ref, partner_id, external_ref, pickup_address, pickup_lat, pickup_lng,
-		dest_address, dest_lat, dest_lng, receiver_name, receiver_phone, package_type, package_size,
-		is_fragile, service_tier, fare_amount_kobo, currency, status, dispatch_booking_id,
+		id, booking_ref, partner_id, external_ref, pickup_address, pickup_contact_name,
+		pickup_contact_phone, pickup_lat, pickup_lng, dest_address, dest_lat, dest_lng, receiver_name,
+		receiver_phone, package_type, package_size, package_description, is_fragile, service_tier,
+		distance_km, fare_amount_kobo, currency, status, dispatch_booking_id,
 		idempotency_key, created_at, updated_at)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`
 
 	_, err := r.pool.Exec(ctx, q,
-		b.ID, b.BookingRef, b.PartnerID, b.ExternalRef, b.PickupAddress, b.PickupLat, b.PickupLng,
-		b.DestAddress, b.DestLat, b.DestLng, b.ReceiverName, b.ReceiverPhone, b.PackageType, b.PackageSize,
-		b.IsFragile, b.ServiceTier, b.FareAmountKobo, b.Currency, b.Status, b.DispatchBookingID,
+		b.ID, b.BookingRef, b.PartnerID, b.ExternalRef, b.PickupAddress, b.PickupContactName,
+		b.PickupContactPhone, b.PickupLat, b.PickupLng, b.DestAddress, b.DestLat, b.DestLng, b.ReceiverName,
+		b.ReceiverPhone, b.PackageType, b.PackageSize, b.PackageDescription, b.IsFragile, b.ServiceTier,
+		b.DistanceKM, b.FareAmountKobo, b.Currency, b.Status, b.DispatchBookingID,
 		b.IdempotencyKey, b.CreatedAt, b.UpdatedAt,
 	)
 	if err != nil {
@@ -148,9 +154,10 @@ type rowScanner interface {
 func scanBooking(row rowScanner) (*delivery.PartnerBooking, error) {
 	var b delivery.PartnerBooking
 	err := row.Scan(
-		&b.ID, &b.BookingRef, &b.PartnerID, &b.ExternalRef, &b.PickupAddress, &b.PickupLat, &b.PickupLng,
-		&b.DestAddress, &b.DestLat, &b.DestLng, &b.ReceiverName, &b.ReceiverPhone, &b.PackageType, &b.PackageSize,
-		&b.IsFragile, &b.ServiceTier, &b.FareAmountKobo, &b.Currency, &b.Status, &b.PaymentIntentID,
+		&b.ID, &b.BookingRef, &b.PartnerID, &b.ExternalRef, &b.PickupAddress, &b.PickupContactName,
+		&b.PickupContactPhone, &b.PickupLat, &b.PickupLng, &b.DestAddress, &b.DestLat, &b.DestLng, &b.ReceiverName,
+		&b.ReceiverPhone, &b.PackageType, &b.PackageSize, &b.PackageDescription, &b.IsFragile, &b.ServiceTier,
+		&b.DistanceKM, &b.FareAmountKobo, &b.Currency, &b.Status, &b.PaymentIntentID,
 		&b.DispatchBookingID, &b.IdempotencyKey, &b.EventPublishedAt, &b.CreatedAt, &b.UpdatedAt,
 	)
 	if err != nil {

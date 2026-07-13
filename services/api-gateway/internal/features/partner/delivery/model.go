@@ -49,32 +49,40 @@ func canCancel(status string) bool {
 }
 
 // PartnerBooking mirrors a partner_bookings row.
+//
+// PickupContactName, PickupContactPhone, DistanceKM, and PackageDescription are
+// pointers because they were added by migration 003 as nullable columns (rows
+// created before that migration have no value for them).
 type PartnerBooking struct {
-	ID                string
-	BookingRef        string
-	PartnerID         string
-	ExternalRef       *string
-	PickupAddress     string
-	PickupLat         float64
-	PickupLng         float64
-	DestAddress       string
-	DestLat           float64
-	DestLng           float64
-	ReceiverName      string
-	ReceiverPhone     string
-	PackageType       *string
-	PackageSize       *string
-	IsFragile         bool
-	ServiceTier       string
-	FareAmountKobo    int64
-	Currency          string
-	Status            string
-	PaymentIntentID   *string
-	DispatchBookingID *string
-	IdempotencyKey    string
-	EventPublishedAt  *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                  string
+	BookingRef          string
+	PartnerID           string
+	ExternalRef         *string
+	PickupAddress       string
+	PickupContactName   *string
+	PickupContactPhone  *string
+	PickupLat           float64
+	PickupLng           float64
+	DestAddress         string
+	DestLat             float64
+	DestLng             float64
+	ReceiverName        string
+	ReceiverPhone       string
+	PackageType         *string
+	PackageSize         *string
+	PackageDescription  *string
+	IsFragile           bool
+	ServiceTier         string
+	DistanceKM          *float64
+	FareAmountKobo      int64
+	Currency            string
+	Status              string
+	PaymentIntentID     *string
+	DispatchBookingID   *string
+	IdempotencyKey      string
+	EventPublishedAt    *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // ListFilter is a partner booking list query.
@@ -98,24 +106,32 @@ type QuoteRequest struct {
 }
 
 // DeliveryRequest is the POST /deliveries body.
+//
+// PickupContactName, PickupContactPhone, and PackageDescription are new,
+// optional fields (added alongside migration 003). DistanceKM is NOT a request
+// field - it is always server-computed from pickup/dest coordinates, the same
+// way fare already is, so a partner cannot submit a fake distance.
 type DeliveryRequest struct {
-	PickupAddress  string   `json:"pickup_address"`
-	PickupLat      *float64 `json:"pickup_lat"`
-	PickupLng      *float64 `json:"pickup_lng"`
-	DestAddress    string   `json:"dest_address"`
-	DestLat        *float64 `json:"dest_lat"`
-	DestLng        *float64 `json:"dest_lng"`
-	ReceiverName   string   `json:"receiver_name"`
-	ReceiverPhone  string   `json:"receiver_phone"`
-	PackageType    string   `json:"package_type"`
-	PackageSize    string   `json:"package_size"`
-	IsFragile      bool     `json:"is_fragile"`
-	ServiceTier    string   `json:"service_tier"`
-	PaymentMethod  string   `json:"payment_method"`
-	CustomerID     string   `json:"customer_id"`
-	CustomerEmail  string   `json:"customer_email"`
-	IdempotencyKey string   `json:"idempotency_key"`
-	ExternalRef    string   `json:"external_ref"`
+	PickupAddress      string   `json:"pickup_address"`
+	PickupContactName  string   `json:"pickup_contact_name"`
+	PickupContactPhone string   `json:"pickup_contact_phone"`
+	PickupLat          *float64 `json:"pickup_lat"`
+	PickupLng          *float64 `json:"pickup_lng"`
+	DestAddress        string   `json:"dest_address"`
+	DestLat            *float64 `json:"dest_lat"`
+	DestLng            *float64 `json:"dest_lng"`
+	ReceiverName       string   `json:"receiver_name"`
+	ReceiverPhone      string   `json:"receiver_phone"`
+	PackageType        string   `json:"package_type"`
+	PackageSize        string   `json:"package_size"`
+	PackageDescription string   `json:"package_description"`
+	IsFragile          bool     `json:"is_fragile"`
+	ServiceTier        string   `json:"service_tier"`
+	PaymentMethod      string   `json:"payment_method"`
+	CustomerID         string   `json:"customer_id"`
+	CustomerEmail      string   `json:"customer_email"`
+	IdempotencyKey     string   `json:"idempotency_key"`
+	ExternalRef        string   `json:"external_ref"`
 }
 
 // --- response DTOs ----------------------------------------------------------
@@ -135,7 +151,9 @@ type QuoteResponse struct {
 	ExpiresAt    string  `json:"expires_at"`
 }
 
-// DeliverySummary is the compact booking shape used by create/list.
+// DeliverySummary is the compact booking shape used by create/list. Left
+// unchanged in this pass (contact/distance/package-description detail live on
+// DeliveryDetail only, matching what the list screen actually shows).
 type DeliverySummary struct {
 	ID            string  `json:"id"`
 	BookingRef    string  `json:"booking_ref"`
@@ -156,6 +174,9 @@ type TimelineEntry struct {
 }
 
 // RiderInfo is rider detail (null until dispatch lifecycle sync exists).
+// Vehicle is intentionally not added here yet - it needs a cross-service
+// decision (live call to driver-dispatch-delivery-service vs. an event-carried
+// snapshot) before it can be implemented; see conversation notes.
 type RiderInfo struct {
 	Name   *string  `json:"name"`
 	Rating *float64 `json:"rating"`
@@ -163,19 +184,28 @@ type RiderInfo struct {
 }
 
 // DeliveryDetail is the GET /deliveries/:id response data.
+//
+// New fields vs. the original: PickupContactName, PickupContactPhone,
+// ReceiverPhone (data already existed on PartnerBooking, just was never put on
+// this response DTO before), DistanceKM, PackageDescription.
 type DeliveryDetail struct {
-	ID            string          `json:"id"`
-	BookingRef    string          `json:"booking_ref"`
-	Status        string          `json:"status"`
-	ServiceTier   string          `json:"service_tier"`
-	FareAmount    Money           `json:"fare_amount"`
-	PickupAddress string          `json:"pickup_address"`
-	DestAddress   string          `json:"dest_address"`
-	ReceiverName  string          `json:"receiver_name"`
-	Rider         RiderInfo       `json:"rider"`
-	TrackingURL   *string         `json:"tracking_url"`
-	Timeline      []TimelineEntry `json:"timeline"`
-	CreatedAt     string          `json:"created_at"`
+	ID                 string          `json:"id"`
+	BookingRef         string          `json:"booking_ref"`
+	Status             string          `json:"status"`
+	ServiceTier        string          `json:"service_tier"`
+	FareAmount         Money           `json:"fare_amount"`
+	PickupAddress      string          `json:"pickup_address"`
+	PickupContactName  *string         `json:"pickup_contact_name"`
+	PickupContactPhone *string         `json:"pickup_contact_phone"`
+	DestAddress        string          `json:"dest_address"`
+	ReceiverName       string          `json:"receiver_name"`
+	ReceiverPhone      string          `json:"receiver_phone"`
+	DistanceKM         *float64        `json:"distance_km"`
+	PackageDescription *string         `json:"package_description"`
+	Rider              RiderInfo       `json:"rider"`
+	TrackingURL        *string         `json:"tracking_url"`
+	Timeline           []TimelineEntry `json:"timeline"`
+	CreatedAt          string          `json:"created_at"`
 }
 
 // ListResponse is the GET /deliveries response data.
@@ -227,17 +257,22 @@ func detailOf(b *PartnerBooking) DeliveryDetail {
 		})
 	}
 	return DeliveryDetail{
-		ID:            b.ID,
-		BookingRef:    b.BookingRef,
-		Status:        b.Status,
-		ServiceTier:   b.ServiceTier,
-		FareAmount:    Money{Kobo: b.FareAmountKobo, Display: formatNaira(b.FareAmountKobo)},
-		PickupAddress: b.PickupAddress,
-		DestAddress:   b.DestAddress,
-		ReceiverName:  b.ReceiverName,
-		Rider:         RiderInfo{},
-		TrackingURL:   nil,
-		Timeline:      timeline,
-		CreatedAt:     b.CreatedAt.UTC().Format(rfc3339),
+		ID:                 b.ID,
+		BookingRef:         b.BookingRef,
+		Status:             b.Status,
+		ServiceTier:        b.ServiceTier,
+		FareAmount:         Money{Kobo: b.FareAmountKobo, Display: formatNaira(b.FareAmountKobo)},
+		PickupAddress:      b.PickupAddress,
+		PickupContactName:  b.PickupContactName,
+		PickupContactPhone: b.PickupContactPhone,
+		DestAddress:        b.DestAddress,
+		ReceiverName:       b.ReceiverName,
+		ReceiverPhone:      b.ReceiverPhone,
+		DistanceKM:         b.DistanceKM,
+		PackageDescription: b.PackageDescription,
+		Rider:              RiderInfo{},
+		TrackingURL:        nil,
+		Timeline:           timeline,
+		CreatedAt:          b.CreatedAt.UTC().Format(rfc3339),
 	}
 }

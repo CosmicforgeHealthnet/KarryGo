@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -61,8 +62,72 @@ func RequirePartnerSession(svc *Service) gin.HandlerFunc {
 	}
 }
 
+// RequirePartnerSessionOrAPIKey authenticates a dashboard-facing READ route
+// using EITHER a session JWT (normal dashboard usage after login) OR a partner
+// API key (so any existing third-party integration hitting the same read
+// routes with X-API-Key/Bearer keeps working unchanged).
+//
+// Session is tried first since it's the expected path for dashboard traffic.
+// If the Authorization header is present but is not a valid session token, it
+// is NOT discarded - it's retried as a raw API key, since a partner API key can
+// also be sent as "Authorization: Bearer <key>" (see partnerauth.ExtractAPIKey).
+//
+// On success it sets the same partner_id context key that
+// partnerauth.PartnerID(c) reads, via partnerauth.ApplyAPIKeyContext for the
+// key path, so ListDeliveries/GetDelivery/ListWebhooks need no changes at all.
+// When authenticated via API key, this also sets the key's permission scopes
+// in context, so partnerauth.RequirePermission (chained after this on the
+// route) can enforce them; session-authenticated requests are never scope
+// gated by RequirePermission (see that function's doc comment).
+//
+// This is intentionally NOT a replacement for RequirePartnerSession: routes
+// that mutate state (create/cancel delivery, register/delete/test webhook)
+// stay API-key-only and are not wired through this function.
+func RequirePartnerSessionOrAPIKey(svc *Service, keyRepo partnerauth.APIKeyRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if raw := bearerToken(c); raw != "" {
+			pid, tokenHash, account, err := svc.AuthenticateSession(c.Request.Context(), raw)
+			if err == nil {
+				c.Set(ctxPartnerID, pid)
+				c.Set(ctxSessionTokenHash, tokenHash)
+				c.Set(ctxPartnerPlan, account.Plan)
+				c.Set(ctxPartnerStatus, account.Status)
+				c.Next()
+				return
+			}
+			// Not a valid session token - fall through and try the same or a
+			// separately-provided value as an API key below.
+		}
+
+		raw := partnerauth.ExtractAPIKey(c)
+		if raw == "" {
+			respondAPIError(c, delivery.NewAPIError(http.StatusUnauthorized, "missing_credentials",
+				"Provide a session token or an API key.", nil))
+			return
+		}
+
+		record, err := partnerauth.VerifyAPIKey(c.Request.Context(), keyRepo, raw, time.Now())
+		if err != nil {
+			status, code, message, ok := partnerauth.AsAPIKeyError(err)
+			if !ok {
+				status, code, message = http.StatusUnauthorized, "invalid_api_key", "Your API key is invalid."
+			}
+			respondAPIError(c, delivery.NewAPIError(status, code, message, nil))
+			return
+		}
+
+		partnerauth.ApplyAPIKeyContext(c, record)
+		partnerauth.RecordAPIKeyUsage(keyRepo, record.ID)
+		c.Next()
+	}
+}
+
 // RequireActiveAccount ensures the API-key-authenticated partner is active. It
-// runs AFTER partnerauth.RequirePartnerAPIKey (which sets partner_id).
+// runs AFTER partnerauth.RequirePartnerAPIKey (which sets partner_id). It is
+// also safe to chain after RequirePartnerSessionOrAPIKey: when the request
+// authenticated via session, AuthenticateSession already checked the account
+// is active, so this becomes a cheap redundant confirmation rather than a
+// behavior change.
 func RequireActiveAccount(accounts AccountRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		pid := partnerauth.PartnerID(c)

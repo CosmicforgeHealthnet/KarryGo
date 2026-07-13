@@ -28,6 +28,11 @@ type WebhookDeliveryRepository interface {
 	MarkFailedAttempt(ctx context.Context, deliveryID string, attempts int, responseStatus *int, nextAttemptAt *time.Time) error
 	MarkFailedPermanent(ctx context.Context, deliveryID string, responseStatus *int) error
 	FindPendingDueDeliveries(ctx context.Context, limit int) ([]WebhookDelivery, error)
+	// ListByWebhook returns a page of delivery attempts for one webhook, most
+	// recent first, plus the total matching count for pagination. This backs the
+	// dashboard's webhook delivery log/history screen - the rows this writes via
+	// CreateDelivery/MarkDelivered/etc. were never previously exposed for reading.
+	ListByWebhook(ctx context.Context, webhookID string, limit, offset int) ([]WebhookDelivery, int, error)
 }
 
 // BookingLookup resolves partner bookings for dispatch event mapping and updates

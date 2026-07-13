@@ -15,6 +15,7 @@ import (
 
 	"cosmicforge/logistics/services/api-gateway/internal/config"
 	"cosmicforge/logistics/services/api-gateway/internal/database"
+	"cosmicforge/logistics/services/api-gateway/internal/features/partner/billing"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
 	partnerhttp "cosmicforge/logistics/services/api-gateway/internal/features/partner/http"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/infra"
@@ -29,6 +30,7 @@ import (
 const (
 	serviceName         = "api-gateway"
 	retryWorkerEvery    = 15 * time.Second
+	billingWorkerEvery  = 1 * time.Hour
 	depInitTimeout      = 10 * time.Second
 	shutdownGracePeriod = 10 * time.Second
 )
@@ -50,7 +52,8 @@ func main() {
 	}
 
 	// Root context cancelled on SIGINT/SIGTERM. Shared by the HTTP server,
-	// dispatch subscribers, and the webhook retry worker for graceful shutdown.
+	// dispatch subscribers, the webhook retry worker, and the monthly billing
+	// worker for graceful shutdown.
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -74,6 +77,12 @@ func main() {
 			go deps.webhookSvc.RunRetryWorker(rootCtx, retryWorkerEvery)
 			log.Printf("%s: webhook subscribers and retry worker started", serviceName)
 		}
+
+		if deps.accountDeps.BillingService != nil {
+			go deps.accountDeps.BillingService.RunMonthlyInvoiceWorker(rootCtx, billingWorkerEvery)
+			log.Printf("%s: monthly billing invoice worker started (rate=%d kobo/delivery)",
+				serviceName, cfg.Billing.RatePerDeliveryKobo)
+		}
 	} else {
 		log.Printf("%s: partner API routes NOT registered (DB/Redis unavailable); serving health/ready/meta only", serviceName)
 	}
@@ -89,11 +98,11 @@ func main() {
 	}
 }
 
-// buildPartnerDeps wires DB-backed repos, Redis, wallet, delivery + webhook
-// services, and the rate limiter. partnerReady is false when DB or Redis is
-// unavailable, so partner routes are never backed by nil dependencies. The
-// webhook service is only built when WEBHOOK_SIGNING_SECRET is set, so webhook
-// secrets are never handled insecurely.
+// buildPartnerDeps wires DB-backed repos, Redis, wallet, delivery + webhook +
+// billing services, and the rate limiter. partnerReady is false when DB or
+// Redis is unavailable, so partner routes are never backed by nil
+// dependencies. The webhook service is only built when WEBHOOK_SIGNING_SECRET
+// is set, so webhook secrets are never handled insecurely.
 func buildPartnerDeps(cfg config.Config) gatewayDeps {
 	if cfg.DatabaseURL == "" {
 		log.Printf("%s: API_GATEWAY_DATABASE_URL not set", serviceName)
@@ -144,6 +153,19 @@ func buildPartnerDeps(cfg config.Config) gatewayDeps {
 		JWTTTL:    cfg.PartnerAuth.JWTTTL,
 	})
 
+	// Billing (Billing & Usage dashboard screen + monthly invoice generation).
+	// See billing package doc comment: this does NOT collect payment against
+	// the saved Paystack authorization_code - invoices are generated 'pending'
+	// only. RatePerDeliveryKobo defaults to a placeholder (see config.go) until
+	// BILLING_RATE_PER_DELIVERY_KOBO is set to the real agreed price.
+	billingSvc := billing.NewService(billing.Options{
+		Invoices:            infra.NewInvoiceRepo(pool),
+		PaymentMethods:      infra.NewPaymentMethodRepo(pool),
+		Usage:               infra.NewBillingUsageReader(pool),
+		Partners:            infra.NewBillingPartnerLister(pool),
+		RatePerDeliveryKobo: cfg.Billing.RatePerDeliveryKobo,
+	})
+
 	// Webhook service is optional and requires a secure encryption key. Without
 	// WEBHOOK_SIGNING_SECRET we do NOT operate webhooks insecurely: the routes
 	// stay 501 and no subscribers/worker start.
@@ -162,11 +184,12 @@ func buildPartnerDeps(cfg config.Config) gatewayDeps {
 
 	return gatewayDeps{
 		routeDeps: partnerhttp.Dependencies{
-			KeyRepo:     apiKeyRepo,
-			Deliveries:  deliverySvc,
-			Webhooks:    webhookSvc,
-			RateLimiter: rateLimiter,
-			AccountRepo: accountRepo,
+			KeyRepo:        apiKeyRepo,
+			Deliveries:     deliverySvc,
+			Webhooks:       webhookSvc,
+			RateLimiter:    rateLimiter,
+			AccountRepo:    accountRepo,
+			AccountService: accountSvc,
 			Pricing: pricing.Config{
 				BaseKobo:          cfg.Pricing.BaseKobo,
 				StandardPerKmKobo: cfg.Pricing.StandardPerKmKobo,
@@ -176,6 +199,7 @@ func buildPartnerDeps(cfg config.Config) gatewayDeps {
 		},
 		accountDeps: partneraccount.Dependencies{
 			Service:            accountSvc,
+			BillingService:     billingSvc,
 			InternalServiceKey: cfg.PartnerAuth.InternalServiceKey,
 		},
 		pool:         pool,

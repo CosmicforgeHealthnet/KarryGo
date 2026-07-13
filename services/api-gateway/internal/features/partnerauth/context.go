@@ -4,10 +4,11 @@ import "github.com/gin-gonic/gin"
 
 // Gin context keys populated on successful partner authentication.
 const (
-	ctxPartnerID           = "partner_id"
-	ctxPartnerEnvironment  = "partner_environment"
-	ctxPartnerAPIKeyID     = "partner_api_key_id"
-	ctxPartnerAPIKeyPrefix = "partner_api_key_prefix"
+	ctxPartnerID                = "partner_id"
+	ctxPartnerEnvironment       = "partner_environment"
+	ctxPartnerAPIKeyID          = "partner_api_key_id"
+	ctxPartnerAPIKeyPrefix      = "partner_api_key_prefix"
+	ctxPartnerAPIKeyPermissions = "partner_api_key_permissions"
 )
 
 // PartnerID returns the authenticated partner's ID, or "" if unauthenticated.

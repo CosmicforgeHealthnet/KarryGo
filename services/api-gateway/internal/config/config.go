@@ -25,6 +25,8 @@ type Config struct {
 	PartnerAuth PartnerAuthConfig
 	// Pricing holds the fare engine parameters.
 	Pricing PricingConfig
+	// Billing holds the partner Billing & Usage parameters.
+	Billing BillingConfig
 }
 
 // WalletConfig holds the payment-wallet client settings. The URL is a bare
@@ -48,6 +50,15 @@ type PricingConfig struct {
 	StandardPerKmKobo int64
 	ExpressPerKmKobo  int64
 	LargeMultiplier   float64
+}
+
+// BillingConfig holds the partner Billing & Usage parameters. RatePerDeliveryKobo
+// is a single fixed rate applied to every partner (not per-partner pricing) -
+// this is a placeholder default (100 NGN) and MUST be set to the real agreed
+// price via BILLING_RATE_PER_DELIVERY_KOBO before this is used for anything
+// real; nothing in this codebase currently validates or challenges that value.
+type BillingConfig struct {
+	RatePerDeliveryKobo int64
 }
 
 func Load() Config {
@@ -78,6 +89,11 @@ func Load() Config {
 			StandardPerKmKobo: getEnvInt64("PRICING_STANDARD_PER_KM_KOBO", 15000),
 			ExpressPerKmKobo:  getEnvInt64("PRICING_EXPRESS_PER_KM_KOBO", 25000),
 			LargeMultiplier:   getEnvFloat("PRICING_LARGE_MULTIPLIER", 1.5),
+		},
+		Billing: BillingConfig{
+			// 10000 kobo (₦100.00) is a PLACEHOLDER, not a real price. Set
+			// BILLING_RATE_PER_DELIVERY_KOBO in .env before this touches real invoices.
+			RatePerDeliveryKobo: getEnvInt64("BILLING_RATE_PER_DELIVERY_KOBO", 10000),
 		},
 	}
 }

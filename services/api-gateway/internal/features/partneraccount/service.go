@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/api-gateway/internal/features/partnerauth"
 )
 
 const (
@@ -72,18 +73,40 @@ type LoginInput struct {
 	Password string `json:"password"`
 }
 
+// CreateKeyInput is the POST /keys body (the Generate API Key form).
+// Expiration accepts either a short code ("30d", "90d", "1y") or the literal
+// dropdown label the frontend currently sends ("30 days", "90 days", "1 year"),
+// or "" / "No expiration" for a key that never expires. See parseExpiration.
 type CreateKeyInput struct {
-	Label       string `json:"label"`
-	Environment string `json:"environment"`
+	Label       string   `json:"label"`
+	Environment string   `json:"environment"`
+	Description string   `json:"description"`
+	Expiration  string   `json:"expiration"`
+	Permissions []string `json:"permissions"`
+}
+
+// UpdateProfileInput is the PATCH /profile body (Settings > Profile edit form).
+// Every field is a pointer so the handler can tell "not sent" (nil, leave
+// unchanged) apart from "sent as empty string" (non-nil pointer to "", clears
+// the field) - a plain string field could not make that distinction.
+type UpdateProfileInput struct {
+	BusinessName    *string `json:"business_name"`
+	BusinessPhone   *string `json:"business_phone"`
+	State           *string `json:"state"`
+	City            *string `json:"city"`
+	BusinessLogoURL *string `json:"business_logo_url"`
 }
 
 // IssuedAPIKey is the one-time key creation payload (raw key shown once).
 type IssuedAPIKey struct {
-	ID          string `json:"id,omitempty"`
-	Key         string `json:"key"`
-	Prefix      string `json:"prefix"`
-	Environment string `json:"environment,omitempty"`
-	Warning     string `json:"warning"`
+	ID          string     `json:"id,omitempty"`
+	Key         string     `json:"key"`
+	Prefix      string     `json:"prefix"`
+	Environment string     `json:"environment,omitempty"`
+	Description string     `json:"description,omitempty"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	Permissions []string   `json:"permissions,omitempty"`
+	Warning     string     `json:"warning"`
 }
 
 // RegisterResult is returned by Register.
@@ -122,6 +145,12 @@ func validationErr(field, message string) *delivery.APIError {
 // --- dashboard auth ----------------------------------------------------------
 
 // Register creates a partner account, its first sandbox key, and a session.
+//
+// The first sandbox key is granted ALL permissions (partnerauth.AllPermissions),
+// not whatever a form would have picked - there is no Generate API Key form at
+// registration time, so it cannot be scoped down by user choice, and issuing it
+// with zero permissions would make it unusable against every permission-gated
+// route the moment signup finishes.
 func (s *Service) Register(ctx context.Context, in RegisterInput, meta RequestMeta) (*RegisterResult, error) {
 	name := strings.TrimSpace(in.BusinessName)
 	email := normalizeEmail(in.BusinessEmail)
@@ -154,8 +183,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput, meta RequestMe
 		return nil, delivery.ErrInternal()
 	}
 
-	// First sandbox API key (shown once).
-	issued, err := s.issueKey(ctx, account.ID, EnvironmentSandbox, firstKeyLabel)
+	// First sandbox API key (shown once). Full permissions - see doc comment above.
+	issued, err := s.issueKey(ctx, account.ID, EnvironmentSandbox, firstKeyLabel,
+		"Auto-generated sandbox key for getting started.", nil, partnerauth.AllPermissions())
 	if err != nil {
 		return nil, delivery.ErrInternal()
 	}
@@ -217,6 +247,33 @@ func (s *Service) Me(ctx context.Context, partnerID string) (*Account, error) {
 	return account, nil
 }
 
+// UpdateProfile applies the Settings > Profile edit form's changes. Only fields
+// present (non-nil) in the input are updated; omitted fields are left as-is.
+func (s *Service) UpdateProfile(ctx context.Context, partnerID string, in UpdateProfileInput) (*Account, error) {
+	if in.BusinessName != nil {
+		trimmed := strings.TrimSpace(*in.BusinessName)
+		if trimmed == "" {
+			return nil, validationErr("business_name", "Business name cannot be empty.")
+		}
+		in.BusinessName = &trimmed
+	}
+
+	account, found, err := s.accounts.UpdateProfile(ctx, partnerID, UpdateProfileParams{
+		BusinessName:    in.BusinessName,
+		BusinessPhone:   in.BusinessPhone,
+		State:           in.State,
+		City:            in.City,
+		BusinessLogoURL: in.BusinessLogoURL,
+	})
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+	if !found {
+		return nil, apiErr(http.StatusUnauthorized, "invalid_token", "Session expired or invalid.")
+	}
+	return account, nil
+}
+
 // AuthenticateSession validates a raw session JWT against the DB. It returns the
 // partner id, the token hash, and the loaded account. Used by RequirePartnerSession.
 func (s *Service) AuthenticateSession(ctx context.Context, rawToken string) (partnerID, tokenHash string, account *Account, err error) {
@@ -256,6 +313,14 @@ func (s *Service) AuthenticateSession(ctx context.Context, rawToken string) (par
 // --- API key management ------------------------------------------------------
 
 // CreateKey issues a new API key for a partner. Live keys require a live plan.
+//
+// NOTE: the Generate API Key form does not mark Permissions as required (no
+// asterisk in the Figma design), so in.Permissions may legitimately be empty.
+// A key created with zero permissions will be rejected by every
+// permission-gated route (see partnerauth.RequirePermission) - this method
+// does not second-guess that and force a default, since Figma explicitly did
+// not require it. If that is not the intended behavior, the fix belongs on the
+// form (make Permissions required), not here.
 func (s *Service) CreateKey(ctx context.Context, partnerID, plan string, in CreateKeyInput) (*IssuedAPIKey, error) {
 	env := strings.TrimSpace(strings.ToLower(in.Environment))
 	if env == "" {
@@ -271,7 +336,19 @@ func (s *Service) CreateKey(ctx context.Context, partnerID, plan string, in Crea
 	if label == "" {
 		label = defaultKeyLabel
 	}
-	issued, err := s.issueKey(ctx, partnerID, env, label)
+
+	for _, p := range in.Permissions {
+		if !partnerauth.ValidPermission(p) {
+			return nil, validationErr("permissions", "Unknown permission: "+p)
+		}
+	}
+
+	expiresAt, err := parseExpiration(in.Expiration, s.now())
+	if err != nil {
+		return nil, validationErr("expiration", "Unrecognized expiration option.")
+	}
+
+	issued, err := s.issueKey(ctx, partnerID, env, label, strings.TrimSpace(in.Description), expiresAt, in.Permissions)
 	if err != nil {
 		return nil, delivery.ErrInternal()
 	}
@@ -336,7 +413,7 @@ func (s *Service) UpdateStatus(ctx context.Context, partnerID, status string) er
 
 // --- helpers -----------------------------------------------------------------
 
-func (s *Service) issueKey(ctx context.Context, partnerID, env, label string) (IssuedAPIKey, error) {
+func (s *Service) issueKey(ctx context.Context, partnerID, env, label, description string, expiresAt *time.Time, permissions []string) (IssuedAPIKey, error) {
 	raw, prefix, err := generateRawAPIKey(env)
 	if err != nil {
 		return IssuedAPIKey{}, err
@@ -345,6 +422,9 @@ func (s *Service) issueKey(ctx context.Context, partnerID, env, label string) (I
 	if err != nil {
 		return IssuedAPIKey{}, err
 	}
+	if permissions == nil {
+		permissions = []string{}
+	}
 	id, err := s.keys.CreateKey(ctx, CreateKeyParams{
 		PartnerID:   partnerID,
 		KeyHash:     string(keyHash),
@@ -352,11 +432,23 @@ func (s *Service) issueKey(ctx context.Context, partnerID, env, label string) (I
 		Environment: env,
 		Label:       label,
 		Status:      "active",
+		Description: description,
+		ExpiresAt:   expiresAt,
+		Permissions: permissions,
 	})
 	if err != nil {
 		return IssuedAPIKey{}, err
 	}
-	return IssuedAPIKey{ID: id, Key: raw, Prefix: prefix, Environment: env, Warning: keyWarning}, nil
+	return IssuedAPIKey{
+		ID:          id,
+		Key:         raw,
+		Prefix:      prefix,
+		Environment: env,
+		Description: description,
+		ExpiresAt:   expiresAt,
+		Permissions: permissions,
+		Warning:     keyWarning,
+	}, nil
 }
 
 func (s *Service) issueSession(ctx context.Context, partnerID string, meta RequestMeta) (string, time.Time, error) {
@@ -387,3 +479,34 @@ func validEmail(email string) bool {
 	_, err := mail.ParseAddress(email)
 	return err == nil
 }
+
+// parseExpiration turns the Generate API Key form's Expiration selection into
+// an absolute *time.Time (nil = never expires). It accepts both a short code
+// ("30d"/"90d"/"1y") and the literal option label the frontend currently sends
+// ("30 days"/"90 days"/"1 year"/"No expiration") - the frontend was built
+// against display strings as option values rather than machine-readable codes,
+// so this stays permissive rather than breaking every key creation until the
+// frontend is updated to send codes instead of labels.
+func parseExpiration(input string, now time.Time) (*time.Time, error) {
+	switch strings.TrimSpace(strings.ToLower(input)) {
+	case "", "no expiration", "none":
+		return nil, nil
+	case "30 days", "30d":
+		t := now.AddDate(0, 0, 30)
+		return &t, nil
+	case "90 days", "90d":
+		t := now.AddDate(0, 0, 90)
+		return &t, nil
+	case "1 year", "1y":
+		t := now.AddDate(1, 0, 0)
+		return &t, nil
+	default:
+		return nil, errUnrecognizedExpiration
+	}
+}
+
+var errUnrecognizedExpiration = errUnrecognizedExpirationErr{}
+
+type errUnrecognizedExpirationErr struct{}
+
+func (errUnrecognizedExpirationErr) Error() string { return "unrecognized expiration option" }
