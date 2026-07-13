@@ -139,7 +139,7 @@ func TestHandlerQuoteReturns200(t *testing.T) {
 func TestHandlerCreateDeliveryReturns201(t *testing.T) {
 	svc, _ := newTestService()
 	r := newRouterWithService(t, svc)
-	body := `{"pickup_address":"A","pickup_lat":6.4474,"pickup_lng":3.4343,"dest_address":"B","dest_lat":6.4969,"dest_lng":3.3481,"receiver_name":"Chidi","receiver_phone":"+2348011223344","package_size":"small","service_tier":"express","payment_method":"wallet","customer_id":"cust-1","customer_email":"c@x.com","idempotency_key":"k-1"}`
+	body := `{"pickup_address":"A","pickup_lat":6.4474,"pickup_lng":3.4343,"pickup_contact_name":"Emeka","pickup_contact_phone":"+2348022334455","dropoff_address":"B","dropoff_lat":6.4969,"dropoff_lng":3.3481,"receiver_name":"Chidi","receiver_phone":"+2348011223344","package_type":"medical","package_size":"small","package_desc":"BP meds","package_weight":0.5,"service_tier":"express","payment_method":"wallet","customer_id":"cust-1","customer_email":"c@x.com","idempotency_key":"k-1","external_ref":"ORDER-1"}`
 	w := requestBody(r, http.MethodPost, "/api/v1/partner/v1/deliveries", body, true)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201 (body=%s)", w.Code, w.Body.String())

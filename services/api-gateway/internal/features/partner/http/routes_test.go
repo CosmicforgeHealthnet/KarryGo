@@ -42,6 +42,7 @@ func newTestRepo(t *testing.T) *fakeKeyRepo {
 		KeyPrefix:   testRawKey[:12],
 		Environment: partnerauth.EnvironmentSandbox,
 		Status:      partnerauth.APIKeyStatusActive,
+		Permissions: partnerauth.AllPermissions(),
 	}}
 }
 

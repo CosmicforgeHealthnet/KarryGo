@@ -50,12 +50,14 @@ const (
 // trip/subscribers.go); they are duplicated here because cross-service internal
 // packages must not be imported.
 const (
-	DispatchTopicRequestAccepted = "request.accepted"
-	DispatchTopicNoProviderFound = "request.no_provider_found"
-	DispatchTopicTripStarted     = "trip.started"
-	DispatchTopicTripCompleted   = "trip.completed"
-	DispatchTopicTripCancelled   = "trip.cancelled"
-	DispatchTopicTripFailed      = "trip.failed"
+	DispatchTopicRequestAccepted    = "request.accepted"
+	DispatchTopicNoProviderFound    = "request.no_provider_found"
+	DispatchTopicProviderArrived    = "trip.provider_arrived"
+	DispatchTopicProviderArrivedAlt = "provider.arrived"
+	DispatchTopicTripStarted        = "trip.started"
+	DispatchTopicTripCompleted      = "trip.completed"
+	DispatchTopicTripCancelled      = "trip.cancelled"
+	DispatchTopicTripFailed         = "trip.failed"
 )
 
 // EventMapping maps a dispatch topic to a partner event and partner booking status.
@@ -66,12 +68,14 @@ type EventMapping struct {
 
 // dispatchTopicMap maps dispatch topics to partner events + booking statuses.
 var dispatchTopicMap = map[string]EventMapping{
-	DispatchTopicRequestAccepted: {EventDeliveryAccepted, delivery.StatusAccepted},
-	DispatchTopicNoProviderFound: {EventDeliveryNoProvider, delivery.StatusNoProvider},
-	DispatchTopicTripStarted:     {EventDeliveryInProgress, delivery.StatusInProgress},
-	DispatchTopicTripCompleted:   {EventDeliveryCompleted, delivery.StatusCompleted},
-	DispatchTopicTripCancelled:   {EventDeliveryCancelled, delivery.StatusCancelled},
-	DispatchTopicTripFailed:      {EventDeliveryFailed, delivery.StatusFailed},
+	DispatchTopicRequestAccepted:    {EventDeliveryAccepted, delivery.StatusAccepted},
+	DispatchTopicNoProviderFound:    {EventDeliveryNoProvider, delivery.StatusNoProvider},
+	DispatchTopicProviderArrived:    {"", delivery.StatusArrived},
+	DispatchTopicProviderArrivedAlt: {"", delivery.StatusArrived},
+	DispatchTopicTripStarted:        {EventDeliveryInProgress, delivery.StatusInProgress},
+	DispatchTopicTripCompleted:      {EventDeliveryCompleted, delivery.StatusCompleted},
+	DispatchTopicTripCancelled:      {EventDeliveryCancelled, delivery.StatusCancelled},
+	DispatchTopicTripFailed:         {EventDeliveryFailed, delivery.StatusFailed},
 }
 
 // DispatchTopics returns the dispatch topics api-gateway subscribes to.
@@ -79,6 +83,8 @@ func DispatchTopics() []string {
 	return []string{
 		DispatchTopicRequestAccepted,
 		DispatchTopicNoProviderFound,
+		DispatchTopicProviderArrived,
+		DispatchTopicProviderArrivedAlt,
 		DispatchTopicTripStarted,
 		DispatchTopicTripCompleted,
 		DispatchTopicTripCancelled,

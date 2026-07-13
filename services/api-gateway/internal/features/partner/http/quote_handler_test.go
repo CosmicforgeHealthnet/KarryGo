@@ -43,6 +43,9 @@ func (r *fakeAccountRepo) UpdatePlan(context.Context, string, string) (bool, err
 func (r *fakeAccountRepo) UpdateStatus(context.Context, string, string) (bool, error) {
 	return true, nil
 }
+func (r *fakeAccountRepo) UpdateProfile(context.Context, string, partneraccount.UpdateProfileParams) (*partneraccount.Account, bool, error) {
+	return r.account, r.account != nil, nil
+}
 
 // newQuoteRouter builds a router with API-key auth, the pricing config, and an
 // optional account repo (for active-account enforcement).

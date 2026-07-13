@@ -80,6 +80,31 @@ func (r *fakeAccountRepo) UpdateStatus(_ context.Context, id, status string) (bo
 	return true, nil
 }
 
+func (r *fakeAccountRepo) UpdateProfile(_ context.Context, id string, params UpdateProfileParams) (*Account, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, ok := r.byID[id]
+	if !ok {
+		return nil, false, nil
+	}
+	if params.BusinessName != nil {
+		a.BusinessName = *params.BusinessName
+	}
+	if params.BusinessPhone != nil {
+		a.BusinessPhone = params.BusinessPhone
+	}
+	if params.State != nil {
+		a.State = params.State
+	}
+	if params.City != nil {
+		a.City = params.City
+	}
+	if params.BusinessLogoURL != nil {
+		a.BusinessLogoURL = params.BusinessLogoURL
+	}
+	cp := *a
+	return &cp, true, nil
+}
 func (r *fakeAccountRepo) passwordHash(id string) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()

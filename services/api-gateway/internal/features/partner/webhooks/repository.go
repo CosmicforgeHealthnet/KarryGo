@@ -17,7 +17,7 @@ type WebhookRepository interface {
 	FindWebhookByPartner(ctx context.Context, partnerID, webhookID string) (*Webhook, error)
 	FindActiveWebhooksForEvent(ctx context.Context, partnerID, eventType string) ([]Webhook, error)
 	// FindWebhookByID loads a webhook without a partner filter. It is used only by
-	// the internal retry worker (deliveries reference webhook_id, not partner_id).
+	// the internal retry worker.
 	FindWebhookByID(ctx context.Context, webhookID string) (*Webhook, error)
 }
 
@@ -29,15 +29,14 @@ type WebhookDeliveryRepository interface {
 	MarkFailedPermanent(ctx context.Context, deliveryID string, responseStatus *int) error
 	FindPendingDueDeliveries(ctx context.Context, limit int) ([]WebhookDelivery, error)
 	// ListByWebhook returns a page of delivery attempts for one webhook, most
-	// recent first, plus the total matching count for pagination. This backs the
-	// dashboard's webhook delivery log/history screen - the rows this writes via
-	// CreateDelivery/MarkDelivered/etc. were never previously exposed for reading.
+	// recent first, plus the total matching count for pagination.
 	ListByWebhook(ctx context.Context, webhookID string, limit, offset int) ([]WebhookDelivery, int, error)
 }
 
 // BookingLookup resolves partner bookings for dispatch event mapping and updates
-// booking status. Implemented by the infra booking repo.
+// booking status, plus the rider/vehicle snapshot on trip.started.
 type BookingLookup interface {
 	FindByDispatchBookingID(ctx context.Context, dispatchBookingID string) (*delivery.PartnerBooking, error)
 	UpdateStatus(ctx context.Context, bookingID, status string) error
+	UpdateRiderSnapshotAndStatus(ctx context.Context, bookingID string, snap delivery.RiderSnapshot, status string) error
 }

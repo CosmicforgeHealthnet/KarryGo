@@ -45,7 +45,7 @@ func validateCoord(fields *[]FieldError, latField string, lat *float64, lngField
 func validateQuote(req QuoteRequest) []FieldError {
 	fields := []FieldError{}
 	validateCoord(&fields, "pickup_lat", req.PickupLat, "pickup_lng", req.PickupLng)
-	validateCoord(&fields, "dest_lat", req.DestLat, "dest_lng", req.DestLng)
+	validateCoord(&fields, "dropoff_lat", req.DropoffLat, "dropoff_lng", req.DropoffLng)
 	if s := strings.TrimSpace(req.PackageSize); s != "" {
 		if _, ok := validPackageSizes[strings.ToLower(s)]; !ok {
 			fields = append(fields, FieldError{"package_size", "Must be one of: small, medium, large."})
@@ -65,11 +65,20 @@ func validateDelivery(req DeliveryRequest) []FieldError {
 	if strings.TrimSpace(req.PickupAddress) == "" {
 		fields = append(fields, FieldError{"pickup_address", "This field is required."})
 	}
-	if strings.TrimSpace(req.DestAddress) == "" {
-		fields = append(fields, FieldError{"dest_address", "This field is required."})
+	if strings.TrimSpace(req.DropoffAddress) == "" {
+		fields = append(fields, FieldError{"dropoff_address", "This field is required."})
 	}
 	validateCoord(&fields, "pickup_lat", req.PickupLat, "pickup_lng", req.PickupLng)
-	validateCoord(&fields, "dest_lat", req.DestLat, "dest_lng", req.DestLng)
+	validateCoord(&fields, "dropoff_lat", req.DropoffLat, "dropoff_lng", req.DropoffLng)
+
+	if strings.TrimSpace(req.PickupContactName) == "" {
+		fields = append(fields, FieldError{"pickup_contact_name", "This field is required."})
+	}
+	if phone := strings.TrimSpace(req.PickupContactPhone); phone == "" {
+		fields = append(fields, FieldError{"pickup_contact_phone", "This field is required."})
+	} else if !e164.MatchString(phone) {
+		fields = append(fields, FieldError{"pickup_contact_phone", "Must be E.164 format."})
+	}
 
 	if strings.TrimSpace(req.ReceiverName) == "" {
 		fields = append(fields, FieldError{"receiver_name", "This field is required."})
@@ -80,35 +89,35 @@ func validateDelivery(req DeliveryRequest) []FieldError {
 		fields = append(fields, FieldError{"receiver_phone", "Must be E.164 format."})
 	}
 
-	if s := strings.TrimSpace(req.PackageType); s != "" {
-		if _, ok := validPackageTypes[strings.ToLower(s)]; !ok {
-			fields = append(fields, FieldError{"package_type", "Must be one of: documents, food, electronics, clothing, medical, other."})
-		}
+	if req.PackageWeight != nil && *req.PackageWeight < 0 {
+		fields = append(fields, FieldError{"package_weight", "Must be zero or greater (kilograms)."})
 	}
-	if s := strings.TrimSpace(req.PackageSize); s != "" {
-		if _, ok := validPackageSizes[strings.ToLower(s)]; !ok {
-			fields = append(fields, FieldError{"package_size", "Must be one of: small, medium, large."})
-		}
+
+	if s := strings.TrimSpace(req.PackageType); s == "" {
+		fields = append(fields, FieldError{"package_type", "This field is required."})
+	} else if _, ok := validPackageTypes[strings.ToLower(s)]; !ok {
+		fields = append(fields, FieldError{"package_type", "Must be one of: documents, food, electronics, clothing, medical, other."})
 	}
-	if t := strings.TrimSpace(req.ServiceTier); t != "" && !isValidTier(t) {
+	if s := strings.TrimSpace(req.PackageSize); s == "" {
+		fields = append(fields, FieldError{"package_size", "This field is required."})
+	} else if _, ok := validPackageSizes[strings.ToLower(s)]; !ok {
+		fields = append(fields, FieldError{"package_size", "Must be one of: small, medium, large."})
+	}
+	if t := strings.TrimSpace(req.ServiceTier); t == "" {
+		fields = append(fields, FieldError{"service_tier", "This field is required."})
+	} else if !isValidTier(t) {
 		fields = append(fields, FieldError{"service_tier", "Must be one of: standard, express."})
 	}
 
 	switch strings.TrimSpace(req.PaymentMethod) {
 	case PaymentMethodWallet:
 	case PaymentMethodPaystack:
-		if strings.TrimSpace(req.CustomerEmail) == "" {
-			fields = append(fields, FieldError{"customer_email", "Required for card payments."})
-		}
 	case "":
 		fields = append(fields, FieldError{"payment_method", "This field is required."})
 	default:
 		fields = append(fields, FieldError{"payment_method", "Must be one of: wallet, paystack."})
 	}
 
-	if strings.TrimSpace(req.CustomerID) == "" {
-		fields = append(fields, FieldError{"customer_id", "This field is required."})
-	}
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		fields = append(fields, FieldError{"idempotency_key", "This field is required."})
 	}
@@ -126,7 +135,7 @@ func isValidTier(tier string) bool {
 }
 
 var validStatuses = map[string]struct{}{
-	StatusPending: {}, StatusDispatching: {}, StatusAccepted: {}, StatusInProgress: {},
+	StatusPending: {}, StatusDispatching: {}, StatusAccepted: {}, StatusArrived: {}, StatusInProgress: {},
 	StatusCompleted: {}, StatusCancelled: {}, StatusFailed: {}, StatusNoProvider: {},
 }
 

@@ -21,6 +21,14 @@ type BookingRepository interface {
 	UpdateStatus(ctx context.Context, bookingID, status string) error
 }
 
+// RiderSnapshotUpdater stores the rider/vehicle snapshot captured from the
+// dispatch trip.started event together with the matching status transition.
+// It is implemented by the infra booking repo and consumed by the webhooks
+// dispatch-event processor and the internal callbacks.
+type RiderSnapshotUpdater interface {
+	UpdateRiderSnapshotAndStatus(ctx context.Context, bookingID string, snap RiderSnapshot, status string) error
+}
+
 // IdempotencyRecord is a stored idempotent response for POST /deliveries.
 type IdempotencyRecord struct {
 	Key         string

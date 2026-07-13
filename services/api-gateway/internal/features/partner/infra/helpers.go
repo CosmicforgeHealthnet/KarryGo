@@ -17,3 +17,9 @@ func uuidClause(idOrRef string) string {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// isUUID reports whether s parses as a UUID (guards uuid-typed query params).
+func isUUID(s string) bool {
+	_, err := uuid.Parse(s)
+	return err == nil
+}

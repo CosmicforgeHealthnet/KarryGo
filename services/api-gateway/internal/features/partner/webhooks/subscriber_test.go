@@ -103,3 +103,81 @@ func TestProcessDispatchEventUnknownTopicIgnored(t *testing.T) {
 		t.Fatal("unknown topic must not create deliveries")
 	}
 }
+
+func TestProcessDispatchEventTripStartedStoresRiderSnapshot(t *testing.T) {
+	h := newWebhookHarness(t)
+	h.seedBookingAndWebhook(t, "disp-1", "bk1", "p1", EventDeliveryInProgress)
+	payload := []byte(`{
+		"event": "trip.started",
+		"booking_id": "disp-1",
+		"provider_id": "11111111-2222-3333-4444-555555555555",
+		"rider_name": "Taiwo Adeleke",
+		"rider_phone": "+2348033445566",
+		"rider_rating": 4.85,
+		"vehicle_color": "Red",
+		"vehicle_model": "Honda CB125",
+		"plate_number": "LAG-234-XY",
+		"occurred_at": "2026-07-05T10:08:00Z"
+	}`)
+
+	matched, err := h.svc.ProcessDispatchEventResult(context.Background(), DispatchTopicTripStarted, payload)
+	if err != nil {
+		t.Fatalf("ProcessDispatchEventResult() error = %v", err)
+	}
+	if !matched {
+		t.Fatal("matched = false, want true")
+	}
+	if got := h.book.statusUpdates["bk1"]; got != delivery.StatusInProgress {
+		t.Fatalf("booking status = %q, want in_progress", got)
+	}
+	snap, ok := h.book.riderUpdates["bk1"]
+	if !ok {
+		t.Fatal("rider snapshot not stored")
+	}
+	if snap.RiderID != "11111111-2222-3333-4444-555555555555" || snap.RiderName != "Taiwo Adeleke" ||
+		snap.RiderPhone != "+2348033445566" || snap.RiderRating == nil || *snap.RiderRating != 4.85 ||
+		snap.VehicleColor != "Red" || snap.VehicleModel != "Honda CB125" || snap.PlateNumber != "LAG-234-XY" {
+		t.Fatalf("rider snapshot = %+v", snap)
+	}
+	// Webhook still enqueued with the rider data in the payload.
+	if len(h.drepo.created) != 1 {
+		t.Fatalf("delivery records = %d, want 1", len(h.drepo.created))
+	}
+	if h.sender.lastPayload.Data["rider"] == nil {
+		t.Fatalf("webhook payload data missing rider block: %+v", h.sender.lastPayload.Data)
+	}
+}
+
+func TestProcessDispatchEventProviderArrivedUpdatesStatusOnly(t *testing.T) {
+	h := newWebhookHarness(t)
+	h.book.byDispatchID["disp-1"] = &delivery.PartnerBooking{
+		ID: "bk1", PartnerID: "p1", BookingRef: "KGP-AAAA1111",
+		ExternalRef: strptr("ORDER-1"), DispatchBookingID: strptr("disp-1"),
+	}
+	payload := []byte(`{"event":"trip.provider_arrived","booking_id":"disp-1","provider_id":"11111111-2222-3333-4444-555555555555","occurred_at":"2026-07-05T10:06:00Z"}`)
+
+	matched, err := h.svc.ProcessDispatchEventResult(context.Background(), DispatchTopicProviderArrived, payload)
+	if err != nil {
+		t.Fatalf("ProcessDispatchEventResult() error = %v", err)
+	}
+	if !matched {
+		t.Fatal("matched = false, want true")
+	}
+	if got := h.book.statusUpdates["bk1"]; got != delivery.StatusArrived {
+		t.Fatalf("booking status = %q, want arrived", got)
+	}
+	if len(h.drepo.created) != 0 || h.sender.calls != 0 {
+		t.Fatalf("provider-arrived must be status-only until webhook event is supported: deliveries=%d sends=%d", len(h.drepo.created), h.sender.calls)
+	}
+}
+func TestProcessDispatchEventResultUnmatchedReturnsFalse(t *testing.T) {
+	h := newWebhookHarness(t)
+	matched, err := h.svc.ProcessDispatchEventResult(context.Background(), DispatchTopicTripCompleted,
+		[]byte(`{"event":"trip.completed","booking_id":"disp-unknown"}`))
+	if err != nil {
+		t.Fatalf("ProcessDispatchEventResult() error = %v", err)
+	}
+	if matched {
+		t.Fatal("matched = true for unknown booking, want false")
+	}
+}

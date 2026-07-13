@@ -304,48 +304,92 @@ func formatTimePtr(t *time.Time) *string {
 // dispatchLifecycleEvent is the minimal shape decoded from dispatch topics. Every
 // dispatch lifecycle event carries booking_id (= partner dispatch_booking_id).
 // Mirrors driver-dispatch-delivery-service request/model.go and trip/model.go.
+// trip.started additionally carries the rider/vehicle snapshot fields.
 type dispatchLifecycleEvent struct {
 	Event       string    `json:"event"`
 	BookingID   string    `json:"booking_id"`
 	OccurredAt  time.Time `json:"occurred_at"`
 	CompletedAt time.Time `json:"completed_at"`
 	CancelledAt time.Time `json:"cancelled_at"`
+	CancelledBy string    `json:"cancelled_by"`
+	Reason      string    `json:"reason"`
+
+	// Rider/vehicle snapshot (trip.started).
+	ProviderID   string   `json:"provider_id"`
+	RiderName    string   `json:"rider_name"`
+	RiderPhone   string   `json:"rider_phone"`
+	RiderRating  *float64 `json:"rider_rating"`
+	VehicleColor string   `json:"vehicle_color"`
+	VehicleModel string   `json:"vehicle_model"`
+	PlateNumber  string   `json:"plate_number"`
+}
+
+func (ev dispatchLifecycleEvent) riderSnapshot() delivery.RiderSnapshot {
+	return delivery.RiderSnapshot{
+		RiderID:      strings.TrimSpace(ev.ProviderID),
+		RiderName:    strings.TrimSpace(ev.RiderName),
+		RiderPhone:   strings.TrimSpace(ev.RiderPhone),
+		RiderRating:  ev.RiderRating,
+		VehicleColor: strings.TrimSpace(ev.VehicleColor),
+		VehicleModel: strings.TrimSpace(ev.VehicleModel),
+		PlateNumber:  strings.TrimSpace(ev.PlateNumber),
+	}
 }
 
 // ProcessDispatchEvent maps a dispatch event to a partner event, updates the
 // partner booking status, and fans out webhook deliveries. Malformed or
 // unmatched events are ignored (never crash the subscriber).
 func (s *Service) ProcessDispatchEvent(ctx context.Context, topic string, raw []byte) error {
+	_, err := s.ProcessDispatchEventResult(ctx, topic, raw)
+	return err
+}
+
+// ProcessDispatchEventResult is ProcessDispatchEvent, but also reports whether a
+// partner booking matched (used by the internal HTTP callbacks to answer
+// skipped=true for non-partner bookings).
+func (s *Service) ProcessDispatchEventResult(ctx context.Context, topic string, raw []byte) (bool, error) {
 	mapping, ok := MappingForTopic(topic)
 	if !ok {
-		return nil
+		return false, nil
 	}
 	var ev dispatchLifecycleEvent
 	if err := json.Unmarshal(raw, &ev); err != nil {
 		log.Printf("webhooks: dropping malformed %s payload: %v", topic, err)
-		return nil
+		return false, nil
 	}
 	dispatchID := strings.TrimSpace(ev.BookingID)
 	if dispatchID == "" {
 		log.Printf("webhooks: %s missing booking_id - skipping", topic)
-		return nil
+		return false, nil
 	}
 
 	booking, err := s.bookings.FindByDispatchBookingID(ctx, dispatchID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if booking == nil {
-		return nil // not a partner booking; ignore
+		return false, nil // not a partner booking; ignore
 	}
 
-	if err := s.bookings.UpdateStatus(ctx, booking.ID, mapping.BookingStatus); err != nil {
+	// trip.started carries the rider/vehicle snapshot: store it together with the
+	// status transition so GET /deliveries/:id shows the rider immediately.
+	if snap := ev.riderSnapshot(); topic == DispatchTopicTripStarted && snap.HasData() {
+		if err := s.bookings.UpdateRiderSnapshotAndStatus(ctx, booking.ID, snap, mapping.BookingStatus); err != nil {
+			log.Printf("webhooks: failed to store rider snapshot for booking %s: %v", booking.ID, err)
+		}
+	} else if err := s.bookings.UpdateStatus(ctx, booking.ID, mapping.BookingStatus); err != nil {
 		log.Printf("webhooks: failed to update booking %s status: %v", booking.ID, err)
+	}
+
+	if mapping.PartnerEvent == "" {
+		// Provider-arrived is not a public partner webhook event yet; keep it as
+		// a status-only transition until the partner webhook contract adds it.
+		return true, nil
 	}
 
 	hooks, err := s.repo.FindActiveWebhooksForEvent(ctx, booking.PartnerID, mapping.PartnerEvent)
 	if err != nil {
-		return err
+		return true, err
 	}
 
 	occurred := ev.OccurredAt
@@ -375,7 +419,7 @@ func (s *Service) ProcessDispatchEvent(ctx context.Context, topic string, raw []
 		}
 		_, _ = s.deliverOnce(ctx, w, *created, payload) // immediate attempt; failures scheduled
 	}
-	return nil
+	return true, nil
 }
 
 func buildPayload(b *delivery.PartnerBooking, mapping EventMapping, ev dispatchLifecycleEvent, occurred time.Time) WebhookPayload {
@@ -385,6 +429,37 @@ func buildPayload(b *delivery.PartnerBooking, mapping EventMapping, ev dispatchL
 	}
 	if !ev.CancelledAt.IsZero() {
 		data["cancelled_at"] = ev.CancelledAt.UTC().Format(rfc3339)
+	}
+	if ev.CancelledBy != "" {
+		data["cancelled_by"] = ev.CancelledBy
+	}
+	if ev.Reason != "" {
+		data["reason"] = ev.Reason
+	}
+	if snap := ev.riderSnapshot(); snap.HasData() {
+		rider := map[string]any{}
+		if snap.RiderID != "" {
+			rider["id"] = snap.RiderID
+		}
+		if snap.RiderName != "" {
+			rider["name"] = snap.RiderName
+		}
+		if snap.RiderPhone != "" {
+			rider["phone"] = snap.RiderPhone
+		}
+		if snap.RiderRating != nil {
+			rider["rating"] = *snap.RiderRating
+		}
+		if snap.VehicleColor != "" {
+			rider["vehicle_color"] = snap.VehicleColor
+		}
+		if snap.VehicleModel != "" {
+			rider["vehicle_model"] = snap.VehicleModel
+		}
+		if snap.PlateNumber != "" {
+			rider["plate_number"] = snap.PlateNumber
+		}
+		data["rider"] = rider
 	}
 	return WebhookPayload{
 		Event:       mapping.PartnerEvent,

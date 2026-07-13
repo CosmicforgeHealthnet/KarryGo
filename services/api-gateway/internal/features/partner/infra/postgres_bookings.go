@@ -24,30 +24,29 @@ type BookingRepo struct {
 // NewBookingRepo constructs a BookingRepo.
 func NewBookingRepo(pool *pgxpool.Pool) *BookingRepo { return &BookingRepo{pool: pool} }
 
-// bookingColumns includes pickup_contact_name, pickup_contact_phone,
-// distance_km, and package_description, added by migration 003. All four are
-// nullable, matching PartnerBooking's pointer fields for them.
-const bookingColumns = `id, booking_ref, partner_id, external_ref, pickup_address, pickup_contact_name,
-	pickup_contact_phone, pickup_lat, pickup_lng, dest_address, dest_lat, dest_lng, receiver_name,
-	receiver_phone, package_type, package_size, package_description, is_fragile, service_tier,
-	distance_km, fare_amount_kobo, currency, status, payment_intent_id, dispatch_booking_id,
+const bookingColumns = `id, booking_ref, partner_id, external_ref, pickup_address, pickup_lat, pickup_lng,
+	pickup_contact_name, pickup_contact_phone,
+	dropoff_address, dropoff_lat, dropoff_lng, receiver_name, receiver_phone, package_type, package_size,
+	package_desc, package_weight, is_fragile, distance_km, service_tier, fare_amount_kobo, currency,
+	status, payment_intent_id, dispatch_booking_id,
+	rider_id, rider_name, rider_phone, rider_rating, vehicle_color, vehicle_model, plate_number,
 	idempotency_key, event_published_at, created_at, updated_at`
 
 func (r *BookingRepo) CreatePendingBooking(ctx context.Context, b *delivery.PartnerBooking) error {
 	const q = `INSERT INTO partner_bookings (
-		id, booking_ref, partner_id, external_ref, pickup_address, pickup_contact_name,
-		pickup_contact_phone, pickup_lat, pickup_lng, dest_address, dest_lat, dest_lng, receiver_name,
-		receiver_phone, package_type, package_size, package_description, is_fragile, service_tier,
-		distance_km, fare_amount_kobo, currency, status, dispatch_booking_id,
-		idempotency_key, created_at, updated_at)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`
+		id, booking_ref, partner_id, external_ref, pickup_address, pickup_lat, pickup_lng,
+		pickup_contact_name, pickup_contact_phone,
+		dropoff_address, dropoff_lat, dropoff_lng, receiver_name, receiver_phone, package_type, package_size,
+		package_desc, package_weight, is_fragile, distance_km, service_tier, fare_amount_kobo, currency,
+		status, dispatch_booking_id, idempotency_key, created_at, updated_at)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`
 
 	_, err := r.pool.Exec(ctx, q,
-		b.ID, b.BookingRef, b.PartnerID, b.ExternalRef, b.PickupAddress, b.PickupContactName,
-		b.PickupContactPhone, b.PickupLat, b.PickupLng, b.DestAddress, b.DestLat, b.DestLng, b.ReceiverName,
-		b.ReceiverPhone, b.PackageType, b.PackageSize, b.PackageDescription, b.IsFragile, b.ServiceTier,
-		b.DistanceKM, b.FareAmountKobo, b.Currency, b.Status, b.DispatchBookingID,
-		b.IdempotencyKey, b.CreatedAt, b.UpdatedAt,
+		b.ID, b.BookingRef, b.PartnerID, b.ExternalRef, b.PickupAddress, b.PickupLat, b.PickupLng,
+		b.PickupContactName, b.PickupContactPhone,
+		b.DropoffAddress, b.DropoffLat, b.DropoffLng, b.ReceiverName, b.ReceiverPhone, b.PackageType, b.PackageSize,
+		b.PackageDesc, b.PackageWeight, b.IsFragile, b.DistanceKM, b.ServiceTier, b.FareAmountKobo, b.Currency,
+		b.Status, b.DispatchBookingID, b.IdempotencyKey, b.CreatedAt, b.UpdatedAt,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -128,6 +127,31 @@ func (r *BookingRepo) UpdateStatus(ctx context.Context, bookingID, status string
 	return err
 }
 
+// UpdateRiderSnapshotAndStatus stores the rider/vehicle snapshot from a dispatch
+// trip.started event together with the status transition. Empty snapshot fields
+// are stored as NULL so a partial snapshot never writes empty strings.
+func (r *BookingRepo) UpdateRiderSnapshotAndStatus(ctx context.Context, bookingID string, snap delivery.RiderSnapshot, status string) error {
+	const q = `UPDATE partner_bookings SET
+		status = $2,
+		rider_id = COALESCE(NULLIF($3, '')::uuid, rider_id),
+		rider_name = COALESCE(NULLIF($4, ''), rider_name),
+		rider_phone = COALESCE(NULLIF($5, ''), rider_phone),
+		rider_rating = COALESCE($6, rider_rating),
+		vehicle_color = COALESCE(NULLIF($7, ''), vehicle_color),
+		vehicle_model = COALESCE(NULLIF($8, ''), vehicle_model),
+		plate_number = COALESCE(NULLIF($9, ''), plate_number),
+		updated_at = now()
+	WHERE id = $1`
+	riderID := snap.RiderID
+	if _, err := uuid.Parse(riderID); err != nil {
+		riderID = "" // non-UUID rider ids are dropped rather than failing the update
+	}
+	_, err := r.pool.Exec(ctx, q, bookingID, status,
+		riderID, snap.RiderName, snap.RiderPhone, snap.RiderRating,
+		snap.VehicleColor, snap.VehicleModel, snap.PlateNumber)
+	return err
+}
+
 // FindByDispatchBookingID resolves a partner booking by its dispatch booking id.
 // Used by the webhook dispatch-event subscribers. Returns (nil, nil) when absent
 // or when the id is not a valid UUID.
@@ -154,11 +178,13 @@ type rowScanner interface {
 func scanBooking(row rowScanner) (*delivery.PartnerBooking, error) {
 	var b delivery.PartnerBooking
 	err := row.Scan(
-		&b.ID, &b.BookingRef, &b.PartnerID, &b.ExternalRef, &b.PickupAddress, &b.PickupContactName,
-		&b.PickupContactPhone, &b.PickupLat, &b.PickupLng, &b.DestAddress, &b.DestLat, &b.DestLng, &b.ReceiverName,
-		&b.ReceiverPhone, &b.PackageType, &b.PackageSize, &b.PackageDescription, &b.IsFragile, &b.ServiceTier,
-		&b.DistanceKM, &b.FareAmountKobo, &b.Currency, &b.Status, &b.PaymentIntentID,
-		&b.DispatchBookingID, &b.IdempotencyKey, &b.EventPublishedAt, &b.CreatedAt, &b.UpdatedAt,
+		&b.ID, &b.BookingRef, &b.PartnerID, &b.ExternalRef, &b.PickupAddress, &b.PickupLat, &b.PickupLng,
+		&b.PickupContactName, &b.PickupContactPhone,
+		&b.DropoffAddress, &b.DropoffLat, &b.DropoffLng, &b.ReceiverName, &b.ReceiverPhone, &b.PackageType, &b.PackageSize,
+		&b.PackageDesc, &b.PackageWeight, &b.IsFragile, &b.DistanceKM, &b.ServiceTier, &b.FareAmountKobo, &b.Currency,
+		&b.Status, &b.PaymentIntentID, &b.DispatchBookingID,
+		&b.RiderID, &b.RiderName, &b.RiderPhone, &b.RiderRating, &b.VehicleColor, &b.VehicleModel, &b.PlateNumber,
+		&b.IdempotencyKey, &b.EventPublishedAt, &b.CreatedAt, &b.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

@@ -12,8 +12,8 @@ import (
 // registered at all (rather than registered and 500-ing), so existing wiring
 // that doesn't yet construct a billing.Service keeps working unchanged.
 type Dependencies struct {
-	Service             *Service
-	BillingService      *billing.Service
+	Service            *Service
+	BillingService     *billing.Service
 	InternalServiceKey string
 }
 

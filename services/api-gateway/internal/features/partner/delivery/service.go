@@ -72,7 +72,7 @@ func (s *Service) GetQuote(_ context.Context, req QuoteRequest) (QuoteResponse, 
 	if errs := validateQuote(req); len(errs) > 0 {
 		return QuoteResponse{}, newValidationError(errs)
 	}
-	dist := haversineKM(*req.PickupLat, *req.PickupLng, *req.DestLat, *req.DestLng)
+	dist := haversineKM(*req.PickupLat, *req.PickupLng, *req.DropoffLat, *req.DropoffLng)
 	tier := normalizeTier(req.ServiceTier)
 	fare := calculateFareKobo(dist, req.PackageSize, tier)
 	return QuoteResponse{
@@ -103,14 +103,11 @@ func (s *Service) CreateDelivery(ctx context.Context, partnerID string, req Deli
 	}
 
 	// Fare + dispatch id (generated before the payment intent, per Option A).
-	// dist is also persisted on the booking (migration 003's distance_km column)
-	// so it survives to the delivery detail response - previously it was only
-	// used transiently for the fare calculation and then discarded.
-	dist := haversineKM(*req.PickupLat, *req.PickupLng, *req.DestLat, *req.DestLng)
+	dist := haversineKM(*req.PickupLat, *req.PickupLng, *req.DropoffLat, *req.DropoffLng)
 	fare := calculateFareKobo(dist, req.PackageSize, tier)
 	dispatchID := s.newID()
 
-	booking, err := s.insertPending(ctx, partnerID, req, tier, fare, dispatchID, dist)
+	booking, err := s.insertPending(ctx, partnerID, req, tier, fare, roundKM(dist), dispatchID)
 	if err != nil {
 		return 0, nil, ErrInternal()
 	}
@@ -278,40 +275,36 @@ type envelope struct {
 	Data    any  `json:"data"`
 }
 
-// insertPending now also carries dist (from CreateDelivery's already-computed
-// haversineKM call) into the booking's DistanceKM field, and copies the new
-// optional PickupContactName/PickupContactPhone/PackageDescription request
-// fields onto the booking - all part of migration 003.
-func (s *Service) insertPending(ctx context.Context, partnerID string, req DeliveryRequest, tier string, fare int64, dispatchID string, dist float64) (*PartnerBooking, error) {
+func (s *Service) insertPending(ctx context.Context, partnerID string, req DeliveryRequest, tier string, fare int64, distanceKM float64, dispatchID string) (*PartnerBooking, error) {
 	now := s.now()
-	distKM := roundKM(dist)
 	b := &PartnerBooking{
-		ID:                  s.newID(),
-		PartnerID:           partnerID,
-		ExternalRef:         optionalStr(req.ExternalRef),
-		PickupAddress:       strings.TrimSpace(req.PickupAddress),
-		PickupContactName:   optionalStr(req.PickupContactName),
-		PickupContactPhone:  optionalStr(req.PickupContactPhone),
-		PickupLat:           *req.PickupLat,
-		PickupLng:           *req.PickupLng,
-		DestAddress:         strings.TrimSpace(req.DestAddress),
-		DestLat:             *req.DestLat,
-		DestLng:             *req.DestLng,
-		ReceiverName:        strings.TrimSpace(req.ReceiverName),
-		ReceiverPhone:       strings.TrimSpace(req.ReceiverPhone),
-		PackageType:         optionalStr(req.PackageType),
-		PackageSize:         optionalStr(req.PackageSize),
-		PackageDescription:  optionalStr(req.PackageDescription),
-		IsFragile:           req.IsFragile,
-		ServiceTier:         tier,
-		DistanceKM:          &distKM,
-		FareAmountKobo:      fare,
-		Currency:            currencyNGN,
-		Status:              StatusPending,
-		DispatchBookingID:   &dispatchID,
-		IdempotencyKey:      strings.TrimSpace(req.IdempotencyKey),
-		CreatedAt:           now,
-		UpdatedAt:           now,
+		ID:                 s.newID(),
+		PartnerID:          partnerID,
+		ExternalRef:        optionalStr(req.ExternalRef),
+		PickupAddress:      strings.TrimSpace(req.PickupAddress),
+		PickupLat:          *req.PickupLat,
+		PickupLng:          *req.PickupLng,
+		PickupContactName:  optionalStr(req.PickupContactName),
+		PickupContactPhone: optionalStr(req.PickupContactPhone),
+		DropoffAddress:     strings.TrimSpace(req.DropoffAddress),
+		DropoffLat:         *req.DropoffLat,
+		DropoffLng:         *req.DropoffLng,
+		ReceiverName:       strings.TrimSpace(req.ReceiverName),
+		ReceiverPhone:      strings.TrimSpace(req.ReceiverPhone),
+		PackageType:        optionalStr(req.PackageType),
+		PackageSize:        optionalStr(req.PackageSize),
+		PackageDesc:        optionalStr(req.PackageDesc),
+		PackageWeight:      req.PackageWeight,
+		IsFragile:          req.IsFragile,
+		DistanceKM:         &distanceKM,
+		ServiceTier:        tier,
+		FareAmountKobo:     fare,
+		Currency:           currencyNGN,
+		Status:             StatusPending,
+		DispatchBookingID:  &dispatchID,
+		IdempotencyKey:     strings.TrimSpace(req.IdempotencyKey),
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 	for attempt := 0; attempt < 5; attempt++ {
 		b.BookingRef = s.newBookingRef()

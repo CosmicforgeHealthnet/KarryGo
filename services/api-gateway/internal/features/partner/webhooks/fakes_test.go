@@ -139,15 +139,40 @@ func (r *fakeDeliveryRepo) FindPendingDueDeliveries(_ context.Context, limit int
 	return r.due, nil
 }
 
+func (r *fakeDeliveryRepo) ListByWebhook(_ context.Context, webhookID string, limit, offset int) ([]WebhookDelivery, int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var all []WebhookDelivery
+	for _, d := range r.created {
+		if d.WebhookID == webhookID {
+			all = append(all, *d)
+		}
+	}
+	total := len(all)
+	if offset > total {
+		return []WebhookDelivery{}, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
+}
+
 // fakeBookingLookup is an in-memory BookingLookup.
 type fakeBookingLookup struct {
 	mu            sync.Mutex
 	byDispatchID  map[string]*delivery.PartnerBooking
 	statusUpdates map[string]string
+	riderUpdates  map[string]delivery.RiderSnapshot
 }
 
 func newFakeBookingLookup() *fakeBookingLookup {
-	return &fakeBookingLookup{byDispatchID: map[string]*delivery.PartnerBooking{}, statusUpdates: map[string]string{}}
+	return &fakeBookingLookup{
+		byDispatchID:  map[string]*delivery.PartnerBooking{},
+		statusUpdates: map[string]string{},
+		riderUpdates:  map[string]delivery.RiderSnapshot{},
+	}
 }
 
 func (l *fakeBookingLookup) FindByDispatchBookingID(_ context.Context, dispatchBookingID string) (*delivery.PartnerBooking, error) {
@@ -164,6 +189,14 @@ func (l *fakeBookingLookup) UpdateStatus(_ context.Context, bookingID, status st
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.statusUpdates[bookingID] = status
+	return nil
+}
+
+func (l *fakeBookingLookup) UpdateRiderSnapshotAndStatus(_ context.Context, bookingID string, snap delivery.RiderSnapshot, status string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.statusUpdates[bookingID] = status
+	l.riderUpdates[bookingID] = snap
 	return nil
 }
 

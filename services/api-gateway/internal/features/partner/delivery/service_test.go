@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strconv"
@@ -174,23 +175,27 @@ func f(v float64) *float64 { return &v }
 
 func validDeliveryReq() DeliveryRequest {
 	return DeliveryRequest{
-		PickupAddress:  "15 Awolowo Road, Ikoyi, Lagos",
-		PickupLat:      f(6.4474),
-		PickupLng:      f(3.4343),
-		DestAddress:    "32 Bode Thomas, Surulere, Lagos",
-		DestLat:        f(6.4969),
-		DestLng:        f(3.3481),
-		ReceiverName:   "Chidi Obi",
-		ReceiverPhone:  "+2348011223344",
-		PackageType:    "medical",
-		PackageSize:    "small",
-		IsFragile:      true,
-		ServiceTier:    "express",
-		PaymentMethod:  "wallet",
-		CustomerID:     "cust-1",
-		CustomerEmail:  "customer@pharmacy.com",
-		IdempotencyKey: "unique-key-1",
-		ExternalRef:    "ORDER-12345",
+		PickupAddress:      "15 Awolowo Road, Ikoyi, Lagos",
+		PickupLat:          f(6.4474),
+		PickupLng:          f(3.4343),
+		PickupContactName:  "Emeka Okafor",
+		PickupContactPhone: "+2348022334455",
+		DropoffAddress:     "32 Bode Thomas, Surulere, Lagos",
+		DropoffLat:         f(6.4969),
+		DropoffLng:         f(3.3481),
+		ReceiverName:       "Chidi Obi",
+		ReceiverPhone:      "+2348011223344",
+		PackageType:        "medical",
+		PackageSize:        "small",
+		PackageDesc:        "Blood pressure medication",
+		PackageWeight:      f(0.5),
+		IsFragile:          true,
+		ServiceTier:        "express",
+		PaymentMethod:      "wallet",
+		CustomerID:         "cust-1",
+		CustomerEmail:      "customer@pharmacy.com",
+		IdempotencyKey:     "unique-key-1",
+		ExternalRef:        "ORDER-12345",
 	}
 }
 
@@ -250,7 +255,7 @@ func wantAPIError(t *testing.T, err error, code string, status int) {
 
 func TestQuoteValidReturnsFare(t *testing.T) {
 	h := newHarness()
-	q := QuoteRequest{PickupLat: f(6.4474), PickupLng: f(3.4343), DestLat: f(6.4969), DestLng: f(3.3481), ServiceTier: "express"}
+	q := QuoteRequest{PickupLat: f(6.4474), PickupLng: f(3.4343), DropoffLat: f(6.4969), DropoffLng: f(3.3481), ServiceTier: "express"}
 	resp, err := h.svc.GetQuote(context.Background(), q)
 	if err != nil {
 		t.Fatalf("GetQuote() error = %v", err)
@@ -268,7 +273,7 @@ func TestQuoteValidReturnsFare(t *testing.T) {
 
 func TestQuoteDoesNotTouchDBPaymentOrPublisher(t *testing.T) {
 	h := newHarness()
-	q := QuoteRequest{PickupLat: f(6.4), PickupLng: f(3.4), DestLat: f(6.5), DestLng: f(3.3)}
+	q := QuoteRequest{PickupLat: f(6.4), PickupLng: f(3.4), DropoffLat: f(6.5), DropoffLng: f(3.3)}
 	if _, err := h.svc.GetQuote(context.Background(), q); err != nil {
 		t.Fatalf("GetQuote() error = %v", err)
 	}
@@ -280,7 +285,7 @@ func TestQuoteDoesNotTouchDBPaymentOrPublisher(t *testing.T) {
 
 func TestQuoteInvalidCoordsReturns400(t *testing.T) {
 	h := newHarness()
-	q := QuoteRequest{PickupLat: f(200), PickupLng: f(3.4), DestLat: f(6.5), DestLng: f(3.3)}
+	q := QuoteRequest{PickupLat: f(200), PickupLng: f(3.4), DropoffLat: f(6.5), DropoffLng: f(3.3)}
 	_, err := h.svc.GetQuote(context.Background(), q)
 	wantAPIError(t, err, "validation_error", 400)
 }
@@ -441,7 +446,7 @@ func seedBooking(h *serviceHarness, partnerID, id, ref, status string, paymentRe
 	b := &PartnerBooking{
 		ID: id, BookingRef: ref, PartnerID: partnerID, Status: status,
 		ServiceTier: ServiceTierExpress, FareAmountKobo: 250000, Currency: currencyNGN,
-		PickupAddress: "A", DestAddress: "B", ReceiverName: "R",
+		PickupAddress: "A", DropoffAddress: "B", ReceiverName: "R",
 		DispatchBookingID: strPtr("dispatch-" + id),
 		CreatedAt:         h.svc.now(), UpdatedAt: h.svc.now(),
 	}
@@ -569,5 +574,190 @@ func TestCancelSuccessRefundsPublishesUpdates(t *testing.T) {
 	}
 	if !resp.Cancelled {
 		t.Fatal("resp.Cancelled = false, want true")
+	}
+}
+
+// --- new contract tests (dropoff_*, pickup contact, package, detail shape) ---
+
+func TestCreateStoresNewContractFields(t *testing.T) {
+	h := newHarness()
+	if _, _, err := h.svc.CreateDelivery(context.Background(), "partner-1", validDeliveryReq()); err != nil {
+		t.Fatalf("CreateDelivery() error = %v", err)
+	}
+	b := h.repo.byID["id-2"] // dispatchID=id-1, bookingID=id-2
+	if b == nil {
+		t.Fatal("booking not stored")
+	}
+	if b.DropoffAddress != "32 Bode Thomas, Surulere, Lagos" || b.DropoffLat != 6.4969 || b.DropoffLng != 3.3481 {
+		t.Fatalf("dropoff fields not stored: %+v", b)
+	}
+	if b.PickupContactName == nil || *b.PickupContactName != "Emeka Okafor" {
+		t.Fatalf("pickup_contact_name not stored: %v", b.PickupContactName)
+	}
+	if b.PickupContactPhone == nil || *b.PickupContactPhone != "+2348022334455" {
+		t.Fatalf("pickup_contact_phone not stored: %v", b.PickupContactPhone)
+	}
+	if b.PackageDesc == nil || *b.PackageDesc != "Blood pressure medication" {
+		t.Fatalf("package_desc not stored: %v", b.PackageDesc)
+	}
+	if b.PackageWeight == nil || *b.PackageWeight != 0.5 {
+		t.Fatalf("package_weight not stored: %v", b.PackageWeight)
+	}
+	if b.ExternalRef == nil || *b.ExternalRef != "ORDER-12345" {
+		t.Fatalf("external_ref not stored: %v", b.ExternalRef)
+	}
+	if b.DistanceKM == nil || *b.DistanceKM <= 0 {
+		t.Fatalf("distance_km not stored: %v", b.DistanceKM)
+	}
+}
+
+func TestCreateRejectsMissingDropoffFields(t *testing.T) {
+	h := newHarness()
+	req := validDeliveryReq()
+	req.DropoffAddress = ""
+	req.DropoffLat = nil
+	req.DropoffLng = nil
+	_, _, err := h.svc.CreateDelivery(context.Background(), "partner-1", req)
+	wantAPIError(t, err, "validation_error", 400)
+}
+
+// A legacy dest_*-only payload no longer satisfies the contract: json decoding
+// drops dest_* keys, so dropoff_* is missing and the request fails validation.
+func TestCreateRejectsLegacyDestOnlyPayload(t *testing.T) {
+	h := newHarness()
+	raw := []byte(`{"pickup_address":"A","pickup_lat":6.4,"pickup_lng":3.4,
+		"pickup_contact_name":"E","pickup_contact_phone":"+2348022334455",` +
+		`"` + "de" + `st_address":"B","` + "de" + `st_lat":6.5,"` + "de" + `st_lng":3.3,
+		"receiver_name":"R","receiver_phone":"+2348011223344",
+		"package_type":"medical","package_size":"small","service_tier":"express",
+		"payment_method":"wallet","customer_id":"c","idempotency_key":"k"}`)
+	var req DeliveryRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	_, _, err := h.svc.CreateDelivery(context.Background(), "partner-1", req)
+	wantAPIError(t, err, "validation_error", 400)
+}
+
+func TestCreateRejectsMissingPickupContact(t *testing.T) {
+	h := newHarness()
+	req := validDeliveryReq()
+	req.PickupContactName = ""
+	req.PickupContactPhone = ""
+	_, _, err := h.svc.CreateDelivery(context.Background(), "partner-1", req)
+	wantAPIError(t, err, "validation_error", 400)
+}
+
+func TestCreateRejectsNegativePackageWeight(t *testing.T) {
+	h := newHarness()
+	req := validDeliveryReq()
+	req.PackageWeight = f(-1)
+	_, _, err := h.svc.CreateDelivery(context.Background(), "partner-1", req)
+	wantAPIError(t, err, "validation_error", 400)
+}
+
+func TestCreateTreatsCustomerIdentityFieldsAsOptional(t *testing.T) {
+	h := newHarness()
+	req := validDeliveryReq()
+	req.CustomerID = ""
+	req.CustomerEmail = ""
+
+	if _, _, err := h.svc.CreateDelivery(context.Background(), "partner-1", req); err != nil {
+		t.Fatalf("CreateDelivery() error = %v", err)
+	}
+	if h.wal.lastCreate.CustomerID != "" || h.wal.lastCreate.CustomerEmail != "" {
+		t.Fatalf("customer identity should pass through empty when omitted: %+v", h.wal.lastCreate)
+	}
+}
+func TestDetailNestedShapeAndFareDisplay(t *testing.T) {
+	h := newHarness()
+	seedBooking(h, "partner-1", "u1", "KGP-AAAA0001", StatusInProgress, "")
+	b := h.repo.byID["u1"]
+	b.PickupLat, b.PickupLng = 6.4474, 3.4343
+	b.DropoffLat, b.DropoffLng = 6.4969, 3.3481
+	b.PickupContactName = strPtr("Emeka Okafor")
+	b.PickupContactPhone = strPtr("+2348022334455")
+	b.ReceiverPhone = "+2348011223344"
+	b.PackageType = strPtr("medical")
+	b.PackageSize = strPtr("small")
+	b.PackageDesc = strPtr("Blood pressure medication")
+	w := 0.5
+	b.PackageWeight = &w
+	dist := 7.3
+	b.DistanceKM = &dist
+
+	d, err := h.svc.GetDelivery(context.Background(), "partner-1", "u1")
+	if err != nil {
+		t.Fatalf("GetDelivery() error = %v", err)
+	}
+	if d.Pickup.Address != "A" || d.Pickup.Lat != 6.4474 || d.Pickup.ContactName == nil || *d.Pickup.ContactName != "Emeka Okafor" {
+		t.Fatalf("pickup block = %+v", d.Pickup)
+	}
+	if d.Dropoff.Address != "B" || d.Dropoff.Lat != 6.4969 {
+		t.Fatalf("dropoff block = %+v", d.Dropoff)
+	}
+	if d.Receiver.Name != "R" || d.Receiver.Phone != "+2348011223344" {
+		t.Fatalf("receiver block = %+v", d.Receiver)
+	}
+	if d.Package.Type == nil || *d.Package.Type != "medical" || d.Package.WeightKg == nil || *d.Package.WeightKg != 0.5 {
+		t.Fatalf("package block = %+v", d.Package)
+	}
+	if d.Fare.Kobo != 250000 || d.Fare.Display != "₦2,500.00" || d.Fare.Currency != "NGN" {
+		t.Fatalf("fare block = %+v", d.Fare)
+	}
+	if d.DistanceKM == nil || *d.DistanceKM != 7.3 {
+		t.Fatalf("distance_km = %v", d.DistanceKM)
+	}
+	if len(d.Timeline) == 0 || d.Timeline[0].Status != StatusPending {
+		t.Fatalf("timeline = %+v", d.Timeline)
+	}
+	// Current status appears in the timeline once beyond pending/dispatching.
+	last := d.Timeline[len(d.Timeline)-1]
+	if last.Status != StatusInProgress {
+		t.Fatalf("timeline last = %+v, want in_progress", last)
+	}
+}
+
+func TestDetailRiderEmptyBeforeTripStarted(t *testing.T) {
+	h := newHarness()
+	seedBooking(h, "partner-1", "u1", "KGP-AAAA0001", StatusAccepted, "")
+	d, err := h.svc.GetDelivery(context.Background(), "partner-1", "u1")
+	if err != nil {
+		t.Fatalf("GetDelivery() error = %v", err)
+	}
+	if d.Rider.ID != nil || d.Rider.Name != nil || d.Rider.Phone != nil {
+		t.Fatalf("rider must be empty before trip.started: %+v", d.Rider)
+	}
+	if d.TrackingURL != nil {
+		t.Fatalf("tracking_url must be null without rider_id: %v", *d.TrackingURL)
+	}
+}
+
+func TestDetailRiderPopulatedAfterSnapshot(t *testing.T) {
+	h := newHarness()
+	seedBooking(h, "partner-1", "u1", "KGP-AAAA0001", StatusInProgress, "")
+	b := h.repo.byID["u1"]
+	rating := 4.85
+	b.RiderID = strPtr("11111111-2222-3333-4444-555555555555")
+	b.RiderName = strPtr("Taiwo Adeleke")
+	b.RiderPhone = strPtr("+2348033445566")
+	b.RiderRating = &rating
+	b.VehicleColor = strPtr("Red")
+	b.VehicleModel = strPtr("Honda CB125")
+	b.PlateNumber = strPtr("LAG-234-XY")
+
+	d, err := h.svc.GetDelivery(context.Background(), "partner-1", "u1")
+	if err != nil {
+		t.Fatalf("GetDelivery() error = %v", err)
+	}
+	if d.Rider.Name == nil || *d.Rider.Name != "Taiwo Adeleke" || d.Rider.Rating == nil || *d.Rider.Rating != 4.85 {
+		t.Fatalf("rider block = %+v", d.Rider)
+	}
+	if d.Rider.PlateNumber == nil || *d.Rider.PlateNumber != "LAG-234-XY" {
+		t.Fatalf("plate_number = %v", d.Rider.PlateNumber)
+	}
+	want := "wss://api.karrygo.com/ws/provider/11111111-2222-3333-4444-555555555555/location"
+	if d.TrackingURL == nil || *d.TrackingURL != want {
+		t.Fatalf("tracking_url = %v, want %s", d.TrackingURL, want)
 	}
 }

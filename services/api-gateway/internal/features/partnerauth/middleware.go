@@ -51,7 +51,7 @@ func (e *apiKeyError) Error() string { return e.Message }
 
 var (
 	errInvalidAPIKey = &apiKeyError{http.StatusUnauthorized, "invalid_api_key", "Your API key is invalid."}
-	errAPIKeyRevoked = &apiKeyError{http.StatusForbidden, "api_key_revoked_or_inactive", "Your API key is no longer active."}
+	errAPIKeyRevoked = &apiKeyError{http.StatusForbidden, "api_key_revoked", "Your API key is no longer active."}
 	errAPIKeyExpired = &apiKeyError{http.StatusUnauthorized, "api_key_expired", "This API key has expired."}
 )
 

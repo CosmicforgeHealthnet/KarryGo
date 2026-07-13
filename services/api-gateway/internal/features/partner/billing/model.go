@@ -1,15 +1,8 @@
-// Package billing implements the partner Billing & Usage dashboard screen:
-// running usage totals (computed live from partner_bookings, not a stored
-// counter), monthly invoice generation, and saved payment methods.
-//
-// This package intentionally does NOT perform Paystack card capture or
-// charging. Payment method attachment expects the frontend to have already
-// tokenized the card via Paystack Inline/Popup and sent only the resulting
-// authorization_code - this backend never receives or stores a raw card
-// number. Actual recurring charge collection against a saved
-// authorization_code is not implemented in this pass; invoices are generated
-// as 'pending' and left for a future pass that reuses payment-wallet-service's
-// existing Paystack integration rather than duplicating it here.
+// Package billing implements the partner Billing & Usage dashboard, monthly
+// invoice generation, and invoice charging through payment-wallet-service.
+// api-gateway never holds Paystack secret keys: charge execution goes through
+// payment-wallet's internal charge-authorization endpoint using HMAC service
+// auth, and results arrive through POST /api/v1/internal/callbacks/charge-result.
 package billing
 
 import "time"
@@ -17,16 +10,33 @@ import "time"
 type InvoiceStatus string
 
 const (
-	InvoiceStatusPending InvoiceStatus = "pending"
-	InvoiceStatusPaid    InvoiceStatus = "paid"
-	InvoiceStatusFailed  InvoiceStatus = "failed"
+	InvoiceStatusPending      InvoiceStatus = "pending"
+	InvoiceStatusCharging     InvoiceStatus = "charging"
+	InvoiceStatusPaid         InvoiceStatus = "paid"
+	InvoiceStatusFailed       InvoiceStatus = "failed"
+	InvoiceStatusChargeFailed InvoiceStatus = "charge_failed"
 )
 
-// Invoice mirrors a partner_invoices row - one row per partner per billing
-// period (currently: one calendar month).
+// Charge attempt statuses.
+const (
+	AttemptStatusPending = "pending"
+	AttemptStatusSuccess = "success"
+	AttemptStatusFailed  = "failed"
+)
+
+// Charge result statuses accepted from payment-wallet-service.
+const (
+	ChargeResultSuccess = "success"
+	ChargeResultFailed  = "failed"
+)
+
+// Invoice mirrors a partner_invoices row. The monthly invoice fields come from
+// the Billing & Usage feature; the charge fields are additive columns used by
+// the payment-wallet charge loop.
 type Invoice struct {
 	ID                  string
 	PartnerID           string
+	PartnerEmail        *string
 	InvoiceNumber       string
 	PeriodStart         time.Time
 	PeriodEnd           time.Time
@@ -35,16 +45,20 @@ type Invoice struct {
 	AmountKobo          int64
 	Currency            string
 	Status              InvoiceStatus
+	DueAt               *time.Time
 	PaidAt              *time.Time
+	WalletReference     *string
+	FailureReason       *string
 	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // PaymentMethod mirrors a partner_payment_methods row. AuthorizationCode is a
-// Paystack-issued token, never a raw card number - see package doc comment.
+// Paystack-issued token, never a raw card number.
 type PaymentMethod struct {
 	ID                string
 	PartnerID         string
-	Provider          string // "paystack"
+	Provider          string
 	AuthorizationCode string
 	CardBrand         string
 	Last4             string
@@ -54,16 +68,49 @@ type PaymentMethod struct {
 	CreatedAt         time.Time
 }
 
+// Authorization mirrors a partner_billing_authorizations row. AuthorizationCode
+// must never appear in any API response.
+type Authorization struct {
+	ID                string
+	PartnerID         string
+	Email             string
+	AuthorizationCode string
+	Status            string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+// ChargeAttempt mirrors a partner_invoice_charge_attempts row.
+type ChargeAttempt struct {
+	ID              string
+	InvoiceID       string
+	PartnerID       string
+	IdempotencyKey  string
+	WalletReference *string
+	Status          string
+	AmountKobo      int64
+	FailureReason   *string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 // --- response DTOs -----------------------------------------------------------
 
+// InvoiceView is the partner-facing invoice shape. It never includes card
+// authorization data.
 type InvoiceView struct {
-	ID            string `json:"id"`
-	InvoiceNumber string `json:"invoice_number"`
-	Period        string `json:"period"`
-	AmountKobo    int64  `json:"amount_kobo"`
-	AmountDisplay string `json:"amount_display"`
-	Status        string `json:"status"`
-	CreatedAt     string `json:"created_at"`
+	ID              string  `json:"id"`
+	InvoiceNumber   string  `json:"invoice_number,omitempty"`
+	Period          string  `json:"period,omitempty"`
+	AmountKobo      int64   `json:"amount_kobo"`
+	AmountDisplay   string  `json:"amount_display,omitempty"`
+	Currency        string  `json:"currency"`
+	Status          string  `json:"status"`
+	DueAt           *string `json:"due_at,omitempty"`
+	PaidAt          *string `json:"paid_at"`
+	WalletReference *string `json:"wallet_reference,omitempty"`
+	FailureReason   *string `json:"failure_reason,omitempty"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 type PaymentMethodView struct {
@@ -77,7 +124,7 @@ type PaymentMethodView struct {
 }
 
 // UsageSummary is computed live from partner_bookings on every request, not
-// stored - "Deliveries this month" can never drift out of sync with reality.
+// stored, so "Deliveries this month" cannot drift from reality.
 type UsageSummary struct {
 	DeliveriesThisMonth    int    `json:"deliveries_this_month"`
 	BillableDeliveries     int    `json:"billable_deliveries"`
@@ -87,15 +134,30 @@ type UsageSummary struct {
 	TotalCostDisplay       string `json:"total_cost_display"`
 }
 
-// Overview is the GET /billing/overview response data - the whole
-// Billing & Usage screen in one call.
+// Overview is the GET /billing/overview response data.
 type Overview struct {
 	CurrentBalanceKobo   int64               `json:"current_balance_kobo"`
 	ThisMonthChargesKobo int64               `json:"this_month_charges_kobo"`
 	TotalBilledKobo      int64               `json:"total_billed_kobo"`
 	CurrentPlan          string              `json:"current_plan"`
 	BillingModel         string              `json:"billing_model"`
-	Status                string              `json:"status"`
+	Status               string              `json:"status"`
 	Usage                UsageSummary        `json:"usage"`
 	PaymentMethods       []PaymentMethodView `json:"payment_methods"`
+}
+
+// ChargeResultInput is the POST /api/v1/internal/callbacks/charge-result body
+// sent by payment-wallet-service.
+type ChargeResultInput struct {
+	SourceReference string `json:"source_reference"` // api-gateway invoice id
+	Status          string `json:"status"`           // success | failed
+	Reference       string `json:"reference"`        // Paystack/payment reference
+	AmountKobo      int64  `json:"amount_kobo"`
+}
+
+// ChargeResultOutcome reports what HandleChargeResult did.
+type ChargeResultOutcome struct {
+	Skipped   bool   `json:"skipped,omitempty"`
+	InvoiceID string `json:"invoice_id,omitempty"`
+	Status    string `json:"status,omitempty"`
 }

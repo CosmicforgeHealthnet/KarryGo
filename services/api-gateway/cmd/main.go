@@ -16,6 +16,7 @@ import (
 	"cosmicforge/logistics/services/api-gateway/internal/config"
 	"cosmicforge/logistics/services/api-gateway/internal/database"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/billing"
+	"cosmicforge/logistics/services/api-gateway/internal/features/partner/callbacks"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
 	partnerhttp "cosmicforge/logistics/services/api-gateway/internal/features/partner/http"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/infra"
@@ -42,6 +43,8 @@ type gatewayDeps struct {
 	pool         *pgxpool.Pool
 	redisClient  *redis.Client
 	webhookSvc   *webhooks.Service
+	billingSvc   *billing.Service
+	accountSvc   *partneraccount.Service
 	partnerReady bool
 }
 
@@ -52,8 +55,8 @@ func main() {
 	}
 
 	// Root context cancelled on SIGINT/SIGTERM. Shared by the HTTP server,
-	// dispatch subscribers, the webhook retry worker, and the monthly billing
-	// worker for graceful shutdown.
+	// dispatch subscribers, webhook retry worker, monthly invoice worker, and
+	// invoice charge worker for graceful shutdown.
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -72,6 +75,24 @@ func main() {
 		partneraccount.RegisterAccountRoutes(router, deps.accountDeps)
 		log.Printf("%s: partner API + dashboard + internal routes registered under /api/v1/partner/v1 and /api/v1/internal/partner", serviceName)
 
+		// Internal HTTP callbacks (dispatch lifecycle + wallet charge-result).
+		// Dispatch callbacks reuse the live webhooks pipeline; endpoints answer
+		// 503 when the corresponding service is not configured.
+		var dispatchProcessor callbacks.DispatchProcessor
+		if deps.webhookSvc != nil {
+			dispatchProcessor = deps.webhookSvc
+		}
+		var chargeHandler callbacks.ChargeResultHandler
+		if deps.billingSvc != nil {
+			chargeHandler = deps.billingSvc
+		}
+		callbacks.RegisterCallbackRoutes(router, callbacks.Dependencies{
+			InternalServiceKey: cfg.PartnerAuth.InternalServiceKey,
+			Dispatch:           dispatchProcessor,
+			Billing:            chargeHandler,
+		})
+		log.Printf("%s: internal callback routes registered under /api/v1/internal/callbacks", serviceName)
+
 		if deps.webhookSvc != nil {
 			webhooks.StartSubscribers(rootCtx, deps.redisClient, deps.webhookSvc)
 			go deps.webhookSvc.RunRetryWorker(rootCtx, retryWorkerEvery)
@@ -82,6 +103,11 @@ func main() {
 			go deps.accountDeps.BillingService.RunMonthlyInvoiceWorker(rootCtx, billingWorkerEvery)
 			log.Printf("%s: monthly billing invoice worker started (rate=%d kobo/delivery)",
 				serviceName, cfg.Billing.RatePerDeliveryKobo)
+		}
+
+		if deps.billingSvc != nil && cfg.Billing.ChargeInterval > 0 {
+			go deps.billingSvc.RunChargeWorker(rootCtx, cfg.Billing.ChargeInterval)
+			log.Printf("%s: billing charge worker started (every %s)", serviceName, cfg.Billing.ChargeInterval)
 		}
 	} else {
 		log.Printf("%s: partner API routes NOT registered (DB/Redis unavailable); serving health/ready/meta only", serviceName)
@@ -98,11 +124,9 @@ func main() {
 	}
 }
 
-// buildPartnerDeps wires DB-backed repos, Redis, wallet, delivery + webhook +
+// buildPartnerDeps wires DB-backed repos, Redis, wallet, delivery, webhook,
 // billing services, and the rate limiter. partnerReady is false when DB or
-// Redis is unavailable, so partner routes are never backed by nil
-// dependencies. The webhook service is only built when WEBHOOK_SIGNING_SECRET
-// is set, so webhook secrets are never handled insecurely.
+// Redis is unavailable, so partner routes are never backed by nil dependencies.
 func buildPartnerDeps(cfg config.Config) gatewayDeps {
 	if cfg.DatabaseURL == "" {
 		log.Printf("%s: API_GATEWAY_DATABASE_URL not set", serviceName)
@@ -153,22 +177,20 @@ func buildPartnerDeps(cfg config.Config) gatewayDeps {
 		JWTTTL:    cfg.PartnerAuth.JWTTTL,
 	})
 
-	// Billing (Billing & Usage dashboard screen + monthly invoice generation).
-	// See billing package doc comment: this does NOT collect payment against
-	// the saved Paystack authorization_code - invoices are generated 'pending'
-	// only. RatePerDeliveryKobo defaults to a placeholder (see config.go) until
-	// BILLING_RATE_PER_DELIVERY_KOBO is set to the real agreed price.
+	// Billing (dashboard + monthly invoice generation + charge loop).
 	billingSvc := billing.NewService(billing.Options{
 		Invoices:            infra.NewInvoiceRepo(pool),
 		PaymentMethods:      infra.NewPaymentMethodRepo(pool),
 		Usage:               infra.NewBillingUsageReader(pool),
 		Partners:            infra.NewBillingPartnerLister(pool),
 		RatePerDeliveryKobo: cfg.Billing.RatePerDeliveryKobo,
+		ChargeRepo:          infra.NewBillingRepo(pool),
+		Wallet:              infra.NewWalletChargeClient(cfg.Wallet.URL, cfg.Wallet.ServiceName, []byte(cfg.Wallet.Secret)),
 	})
 
 	// Webhook service is optional and requires a secure encryption key. Without
-	// WEBHOOK_SIGNING_SECRET we do NOT operate webhooks insecurely: the routes
-	// stay 501 and no subscribers/worker start.
+	// WEBHOOK_SIGNING_SECRET we do not operate webhooks insecurely: routes stay
+	// 501 and no subscribers/worker start.
 	var webhookSvc *webhooks.Service
 	if cryptor, err := webhooks.NewCryptor(cfg.WebhookSecret); err != nil {
 		log.Printf("%s: warning: %v; webhook endpoints disabled", serviceName, err)
@@ -205,6 +227,8 @@ func buildPartnerDeps(cfg config.Config) gatewayDeps {
 		pool:         pool,
 		redisClient:  redisClient,
 		webhookSvc:   webhookSvc,
+		billingSvc:   billingSvc,
+		accountSvc:   accountSvc,
 		partnerReady: true,
 	}
 }
@@ -215,8 +239,6 @@ func registerServiceEndpoints(router *gin.Engine, deps gatewayDeps) {
 	})
 
 	router.GET("/ready", func(c *gin.Context) {
-		// /ready must not lie: if partner routes are disabled due to a dependency
-		// failure, report not-ready rather than a misleading 200.
 		if !deps.partnerReady {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "service": serviceName, "status": "degraded: partner dependencies unavailable"})
 			return

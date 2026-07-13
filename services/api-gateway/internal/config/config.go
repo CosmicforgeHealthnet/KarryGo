@@ -25,7 +25,7 @@ type Config struct {
 	PartnerAuth PartnerAuthConfig
 	// Pricing holds the fare engine parameters.
 	Pricing PricingConfig
-	// Billing holds the partner Billing & Usage parameters.
+	// Billing holds partner Billing & Usage and charge worker parameters.
 	Billing BillingConfig
 }
 
@@ -52,13 +52,13 @@ type PricingConfig struct {
 	LargeMultiplier   float64
 }
 
-// BillingConfig holds the partner Billing & Usage parameters. RatePerDeliveryKobo
-// is a single fixed rate applied to every partner (not per-partner pricing) -
-// this is a placeholder default (100 NGN) and MUST be set to the real agreed
-// price via BILLING_RATE_PER_DELIVERY_KOBO before this is used for anything
-// real; nothing in this codebase currently validates or challenges that value.
+// BillingConfig holds monthly invoice generation and invoice charge settings.
+// RatePerDeliveryKobo is a placeholder default and must be set to the real
+// agreed price via BILLING_RATE_PER_DELIVERY_KOBO before real invoicing.
+// The charge worker only starts when ChargeInterval > 0.
 type BillingConfig struct {
 	RatePerDeliveryKobo int64
+	ChargeInterval      time.Duration
 }
 
 func Load() Config {
@@ -91,9 +91,8 @@ func Load() Config {
 			LargeMultiplier:   getEnvFloat("PRICING_LARGE_MULTIPLIER", 1.5),
 		},
 		Billing: BillingConfig{
-			// 10000 kobo (₦100.00) is a PLACEHOLDER, not a real price. Set
-			// BILLING_RATE_PER_DELIVERY_KOBO in .env before this touches real invoices.
 			RatePerDeliveryKobo: getEnvInt64("BILLING_RATE_PER_DELIVERY_KOBO", 10000),
+			ChargeInterval:      time.Duration(getEnvInt("BILLING_CHARGE_INTERVAL_SECONDS", 0)) * time.Second,
 		},
 	}
 }
