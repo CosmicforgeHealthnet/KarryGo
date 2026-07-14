@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"cosmicforge/logistics/shared/go/redisx"
@@ -23,6 +24,10 @@ type Config struct {
 	// PartnerAuth holds partner dashboard session settings (separate from any
 	// dispatch/customer/provider JWT secret).
 	PartnerAuth PartnerAuthConfig
+	// PartnerOTP holds web signup OTP settings.
+	PartnerOTP PartnerOTPConfig
+	// PartnerSMTP holds cPanel SMTP settings for partner OTP email.
+	PartnerSMTP PartnerSMTPConfig
 	// Pricing holds the fare engine parameters.
 	Pricing PricingConfig
 	// Billing holds partner Billing & Usage and charge worker parameters.
@@ -42,6 +47,24 @@ type PartnerAuthConfig struct {
 	JWTSecret          string        // PARTNER_JWT_SECRET (dashboard sessions only)
 	JWTTTL             time.Duration // derived from PARTNER_JWT_TTL_HOURS (default 24h)
 	InternalServiceKey string        // PARTNER_INTERNAL_SERVICE_KEY (internal routes only)
+}
+
+// PartnerOTPConfig holds partner web app OTP signup settings.
+type PartnerOTPConfig struct {
+	TTL            time.Duration
+	MaxAttempts    int
+	ResendCooldown time.Duration
+}
+
+// PartnerSMTPConfig holds direct SMTP settings for partner OTP email.
+type PartnerSMTPConfig struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	From     string
+	FromName string
+	TLSMode  string
 }
 
 // PricingConfig holds the fare engine parameters (all kobo except the multiplier).
@@ -84,6 +107,12 @@ func Load() Config {
 			JWTTTL:             time.Duration(getEnvInt("PARTNER_JWT_TTL_HOURS", 24)) * time.Hour,
 			InternalServiceKey: os.Getenv("PARTNER_INTERNAL_SERVICE_KEY"),
 		},
+		PartnerOTP: PartnerOTPConfig{
+			TTL:            time.Duration(getEnvInt("PARTNER_OTP_TTL_MINUTES", 10)) * time.Minute,
+			MaxAttempts:    getEnvInt("PARTNER_OTP_MAX_ATTEMPTS", 5),
+			ResendCooldown: time.Duration(getEnvInt("PARTNER_OTP_RESEND_COOLDOWN_SECONDS", 60)) * time.Second,
+		},
+		PartnerSMTP: loadPartnerSMTPConfig(),
 		Pricing: PricingConfig{
 			BaseKobo:          getEnvInt64("PRICING_BASE_KOBO", 50000),
 			StandardPerKmKobo: getEnvInt64("PRICING_STANDARD_PER_KM_KOBO", 15000),
@@ -94,6 +123,29 @@ func Load() Config {
 			RatePerDeliveryKobo: getEnvInt64("BILLING_RATE_PER_DELIVERY_KOBO", 10000),
 			ChargeInterval:      time.Duration(getEnvInt("BILLING_CHARGE_INTERVAL_SECONDS", 0)) * time.Second,
 		},
+	}
+}
+
+func loadPartnerSMTPConfig() PartnerSMTPConfig {
+	username := os.Getenv("PARTNER_SMTP_USERNAME")
+	port := getEnvInt("PARTNER_SMTP_PORT", 465)
+	tlsMode := strings.ToLower(strings.TrimSpace(os.Getenv("PARTNER_SMTP_TLS_MODE")))
+	if tlsMode == "" {
+		if port == 587 {
+			tlsMode = "starttls"
+		} else {
+			tlsMode = "tls"
+		}
+	}
+
+	return PartnerSMTPConfig{
+		Host:     os.Getenv("PARTNER_SMTP_HOST"),
+		Port:     port,
+		Username: username,
+		Password: os.Getenv("PARTNER_SMTP_PASSWORD"),
+		From:     getEnv("PARTNER_SMTP_FROM", username),
+		FromName: getEnv("PARTNER_SMTP_FROM_NAME", "KarryGo"),
+		TLSMode:  tlsMode,
 	}
 }
 

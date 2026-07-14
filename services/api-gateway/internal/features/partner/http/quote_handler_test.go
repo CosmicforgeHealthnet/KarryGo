@@ -31,8 +31,8 @@ type fakeAccountRepo struct {
 func (r *fakeAccountRepo) CreateAccount(context.Context, partneraccount.CreateAccountParams) (partneraccount.Account, error) {
 	return partneraccount.Account{}, nil
 }
-func (r *fakeAccountRepo) FindByEmail(context.Context, string) (*partneraccount.Account, string, error) {
-	return nil, "", nil
+func (r *fakeAccountRepo) FindByEmail(context.Context, string) (*partneraccount.Account, *string, error) {
+	return nil, nil, nil
 }
 func (r *fakeAccountRepo) FindByID(_ context.Context, _ string) (*partneraccount.Account, error) {
 	return r.account, nil

@@ -1,11 +1,15 @@
 package uploadhttp
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	nethttp "net/http"
 
@@ -17,19 +21,25 @@ import (
 	"cosmicforge/logistics/shared/go/httpx"
 )
 
-const callerServiceContextKey = "media_file_caller_service"
+const (
+	callerServiceContextKey = "media_file_caller_service"
+	partnerIDContextKey     = "media_file_partner_id"
+	partnerOwnerService     = "partner-service"
+)
 
 type UploadHandler struct {
-	uploads        *uploadusecases.UploadService
-	serviceTokens  map[string]string
-	maxUploadBytes int64
+	uploads          *uploadusecases.UploadService
+	serviceTokens    map[string]string
+	maxUploadBytes   int64
+	partnerJWTSecret string
 }
 
-func NewUploadHandler(uploads *uploadusecases.UploadService, serviceTokens map[string]string, maxUploadBytes int64) *UploadHandler {
+func NewUploadHandler(uploads *uploadusecases.UploadService, serviceTokens map[string]string, maxUploadBytes int64, partnerJWTSecret string) *UploadHandler {
 	return &UploadHandler{
-		uploads:        uploads,
-		serviceTokens:  serviceTokens,
-		maxUploadBytes: maxUploadBytes,
+		uploads:          uploads,
+		serviceTokens:    serviceTokens,
+		maxUploadBytes:   maxUploadBytes,
+		partnerJWTSecret: partnerJWTSecret,
 	}
 }
 
@@ -38,13 +48,20 @@ func (h *UploadHandler) AuthenticateService() gin.HandlerFunc {
 		serviceName := strings.TrimSpace(c.GetHeader("X-Karrygo-Service"))
 		token := bearerToken(c.GetHeader("Authorization"))
 		expectedToken, ok := h.serviceTokens[serviceName]
-		if serviceName == "" || token == "" || !ok || subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
-			httpx.Abort(c, apperrors.Unauthorized("Service authentication is required.", nil))
+		if serviceName != "" && token != "" && ok && subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) == 1 {
+			c.Set(callerServiceContextKey, serviceName)
+			c.Next()
 			return
 		}
 
-		c.Set(callerServiceContextKey, serviceName)
-		c.Next()
+		if partnerID, ok := verifyPartnerSessionJWT(h.partnerJWTSecret, token, time.Now()); ok {
+			c.Set(callerServiceContextKey, partnerOwnerService)
+			c.Set(partnerIDContextKey, partnerID)
+			c.Next()
+			return
+		}
+
+		httpx.Abort(c, apperrors.Unauthorized("Service authentication is required.", nil))
 	}
 }
 
@@ -66,10 +83,21 @@ func (h *UploadHandler) Upload(c *gin.Context) {
 		return
 	}
 
+	ownerService := c.PostForm("owner_service")
+	ownerID := c.PostForm("owner_id")
+	if callerService(c) == partnerOwnerService {
+		if ownerService == "" {
+			ownerService = partnerOwnerService
+		}
+		if ownerID == "" {
+			ownerID = partnerID(c)
+		}
+	}
+
 	asset, err := h.uploads.Upload(c.Request.Context(), uploadusecases.UploadInput{
 		CallerService:    callerService(c),
-		OwnerService:     c.PostForm("owner_service"),
-		OwnerID:          c.PostForm("owner_id"),
+		OwnerService:     ownerService,
+		OwnerID:          ownerID,
 		Purpose:          c.PostForm("purpose"),
 		OriginalFilename: header.Filename,
 		ContentType:      header.Header.Get("Content-Type"),
@@ -192,4 +220,49 @@ func bearerToken(header string) string {
 	}
 
 	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
+}
+
+func partnerID(c *gin.Context) string {
+	value, _ := c.Get(partnerIDContextKey)
+	id, _ := value.(string)
+	return id
+}
+
+type partnerSessionClaims struct {
+	PartnerID string `json:"partner_id"`
+	Sub       string `json:"sub"`
+	Exp       int64  `json:"exp"`
+}
+
+func verifyPartnerSessionJWT(secret string, token string, now time.Time) (string, bool) {
+	if secret == "" || token == "" {
+		return "", false
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", false
+	}
+	unsigned := parts[0] + "." + parts[1]
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(unsigned))
+	expected := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(expected), []byte(parts[2])) {
+		return "", false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", false
+	}
+	var claims partnerSessionClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", false
+	}
+	partnerID := claims.PartnerID
+	if partnerID == "" {
+		partnerID = claims.Sub
+	}
+	if partnerID == "" || claims.Exp == 0 || now.Unix() >= claims.Exp {
+		return "", false
+	}
+	return partnerID, true
 }

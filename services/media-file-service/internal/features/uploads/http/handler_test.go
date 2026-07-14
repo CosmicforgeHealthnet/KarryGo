@@ -3,7 +3,11 @@ package uploadhttp
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -52,6 +56,60 @@ func TestUploadHTTPRejectsInvalidToken(t *testing.T) {
 	}, http.StatusUnauthorized)
 }
 
+func TestUploadHTTPAcceptsPartnerJWT(t *testing.T) {
+	router := newHTTPTestRouter(1024)
+	token := signPartnerJWTForTest(t, "test-partner-secret", "partner-1", time.Now().Add(time.Hour))
+
+	response := uploadMultipart(t, router, uploadHTTPInput{
+		Token:       token,
+		Service:     partnerOwnerService,
+		OwnerID:     "partner-1",
+		Purpose:     filemetadatamodels.PurposeProfilePhoto,
+		Filename:    "logo.jpg",
+		ContentType: "image/jpeg",
+		File:        jpegPayload(),
+	}, http.StatusCreated)
+
+	data := response["data"].(map[string]interface{})
+	if data["owner_service"] != partnerOwnerService || data["owner_id"] != "partner-1" {
+		t.Fatalf("expected partner ownership, got %+v", data)
+	}
+}
+
+func TestUploadHTTPAcceptsPartnerJWTOnPartnerAlias(t *testing.T) {
+	router := newHTTPTestRouter(1024)
+	token := signPartnerJWTForTest(t, "test-partner-secret", "partner-1", time.Now().Add(time.Hour))
+
+	response := uploadMultipartToPath(t, router, "/api/v1/media/upload", uploadHTTPInput{
+		Token:       token,
+		Service:     partnerOwnerService,
+		OwnerID:     "partner-1",
+		Purpose:     filemetadatamodels.PurposeProfilePhoto,
+		Filename:    "logo.jpg",
+		ContentType: "image/jpeg",
+		File:        jpegPayload(),
+	}, http.StatusCreated)
+
+	data := response["data"].(map[string]interface{})
+	if data["owner_service"] != partnerOwnerService || data["owner_id"] != "partner-1" {
+		t.Fatalf("expected partner ownership through alias, got %+v", data)
+	}
+}
+
+func TestUploadHTTPRejectsInvalidPartnerJWT(t *testing.T) {
+	router := newHTTPTestRouter(1024)
+	token := signPartnerJWTForTest(t, "wrong-secret", "partner-1", time.Now().Add(time.Hour))
+
+	uploadMultipart(t, router, uploadHTTPInput{
+		Token:       token,
+		Service:     partnerOwnerService,
+		OwnerID:     "partner-1",
+		Purpose:     filemetadatamodels.PurposeProfilePhoto,
+		Filename:    "logo.jpg",
+		ContentType: "image/jpeg",
+		File:        jpegPayload(),
+	}, http.StatusUnauthorized)
+}
 func TestUploadHTTPRejectsMissingFile(t *testing.T) {
 	router := newHTTPTestRouter(1024)
 
@@ -125,12 +183,18 @@ func newHTTPTestRouter(maxUploadBytes int64) *gin.Engine {
 	})
 	RegisterUploadRoutes(router.Group("/api/v1/media-files"), service, map[string]string{
 		"customer-service": "test-token",
-	}, maxUploadBytes)
+	}, maxUploadBytes, "test-partner-secret")
 
 	return router
 }
 
 func uploadMultipart(t *testing.T, router *gin.Engine, input uploadHTTPInput, expectedStatus int) map[string]interface{} {
+	t.Helper()
+
+	return uploadMultipartToPath(t, router, "/api/v1/media-files/uploads", input, expectedStatus)
+}
+
+func uploadMultipartToPath(t *testing.T, router *gin.Engine, path string, input uploadHTTPInput, expectedStatus int) map[string]interface{} {
 	t.Helper()
 
 	var body bytes.Buffer
@@ -150,7 +214,7 @@ func uploadMultipart(t *testing.T, router *gin.Engine, input uploadHTTPInput, ex
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/media-files/uploads", &body)
+	request := httptest.NewRequest(http.MethodPost, path, &body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	request.Header.Set("X-Karrygo-Service", input.Service)
 	request.Header.Set("Authorization", "Bearer "+input.Token)
@@ -193,6 +257,10 @@ func (s *httpFakeStorage) Upload(ctx context.Context, input uploadclients.Upload
 		Path:   input.Path,
 		URL:    "https://storage.googleapis.com/test-bucket/" + input.Path,
 	}, nil
+}
+
+func (s *httpFakeStorage) Download(ctx context.Context, path string) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(nil)), nil
 }
 
 func (s *httpFakeStorage) Delete(ctx context.Context, path string) error {
@@ -253,4 +321,20 @@ func (r *httpFakeAssetRepository) MarkDeleted(ctx context.Context, id string) er
 	asset.DeletedAt = &now
 	r.assets[id] = asset
 	return nil
+}
+
+func signPartnerJWTForTest(t *testing.T, secret string, partnerID string, expiresAt time.Time) string {
+	t.Helper()
+	header, err := json.Marshal(map[string]string{"alg": "HS256", "typ": "JWT"})
+	if err != nil {
+		t.Fatalf("marshal header: %v", err)
+	}
+	payload, err := json.Marshal(map[string]interface{}{"partner_id": partnerID, "sub": partnerID, "exp": expiresAt.Unix()})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	unsigned := base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(payload)
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(unsigned))
+	return unsigned + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }

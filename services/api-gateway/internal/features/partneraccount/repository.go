@@ -11,23 +11,29 @@ var ErrEmailTaken = errors.New("partner email already exists")
 
 // CreateAccountParams is the input for creating a partner account.
 type CreateAccountParams struct {
-	BusinessName  string
+	BusinessName  *string
 	BusinessEmail string
-	PasswordHash  string
+	PasswordHash  *string
 	Status        string
 	Plan          string
 }
 
-// UpdateProfileParams is the input for updating the editable profile fields
-// (migration 004). Pointer fields distinguish "leave unchanged" (nil) from
-// "clear it" (non-nil pointer to ""), matching PATCH-style partial updates -
-// the Settings > Profile edit form only sends the fields the partner touched.
+// CreateOTPChallengeParams is the input for storing a hashed signup OTP.
+type CreateOTPChallengeParams struct {
+	BusinessEmail string
+	OTPCodeHash   string
+	ExpiresAt     time.Time
+}
+
+// UpdateProfileParams is the input for updating the editable profile fields.
+// Pointer fields distinguish "leave unchanged" (nil) from "set this value".
 type UpdateProfileParams struct {
 	BusinessName    *string
 	BusinessPhone   *string
 	State           *string
 	City            *string
 	BusinessLogoURL *string
+	ProfilePhotoURL *string
 }
 
 // AccountRepository persists partner accounts.
@@ -35,9 +41,9 @@ type AccountRepository interface {
 	// CreateAccount inserts a new account. It returns ErrEmailTaken on a unique
 	// business_email violation.
 	CreateAccount(ctx context.Context, params CreateAccountParams) (Account, error)
-	// FindByEmail returns the account and its bcrypt password hash, or (nil, "", nil)
-	// when no account has that email.
-	FindByEmail(ctx context.Context, email string) (*Account, string, error)
+	// FindByEmail returns the account and its nullable bcrypt password hash, or
+	// (nil, nil, nil) when no account has that email.
+	FindByEmail(ctx context.Context, email string) (*Account, *string, error)
 	// FindByID returns the account, or (nil, nil) when absent.
 	FindByID(ctx context.Context, id string) (*Account, error)
 	// UpdatePlan sets the plan; found is false when no such account exists.
@@ -48,6 +54,15 @@ type AccountRepository interface {
 	// returns the account as it is after the update. found is false when no
 	// such account exists.
 	UpdateProfile(ctx context.Context, id string, params UpdateProfileParams) (account *Account, found bool, err error)
+}
+
+// OTPChallengeRepository persists OTP signup challenges.
+type OTPChallengeRepository interface {
+	CreateOTPChallenge(ctx context.Context, params CreateOTPChallengeParams) (OTPChallenge, error)
+	FindLatestOTPChallenge(ctx context.Context, businessEmail string) (*OTPChallenge, error)
+	IncrementOTPAttempts(ctx context.Context, challengeID string) (attempts int, err error)
+	ConsumeOTPChallenge(ctx context.Context, challengeID string) error
+	DeleteOTPChallenge(ctx context.Context, challengeID string) error
 }
 
 // CreateSessionParams is the input for a new dashboard session.

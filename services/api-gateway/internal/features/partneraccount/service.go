@@ -23,36 +23,66 @@ const (
 
 // Options configures a Service.
 type Options struct {
-	Accounts  AccountRepository
-	Sessions  SessionRepository
-	Keys      APIKeyStore
-	JWTSecret string
-	JWTTTL    time.Duration
-	Now       func() time.Time
+	Accounts          AccountRepository
+	Sessions          SessionRepository
+	Keys              APIKeyStore
+	OTPs              OTPChallengeRepository
+	EmailSender       PartnerEmailSender
+	OTPGenerator      func() (string, error)
+	JWTSecret         string
+	JWTTTL            time.Duration
+	OTPTTL            time.Duration
+	OTPMaxAttempts    int
+	OTPResendCooldown time.Duration
+	Now               func() time.Time
 }
 
 // Service implements partner dashboard auth + key management + internal controls.
 type Service struct {
-	accounts  AccountRepository
-	sessions  SessionRepository
-	keys      APIKeyStore
-	jwtSecret string
-	jwtTTL    time.Duration
-	now       func() time.Time
+	accounts          AccountRepository
+	sessions          SessionRepository
+	keys              APIKeyStore
+	otps              OTPChallengeRepository
+	emailSender       PartnerEmailSender
+	otpGenerator      func() (string, error)
+	jwtSecret         string
+	jwtTTL            time.Duration
+	otpTTL            time.Duration
+	otpMaxAttempts    int
+	otpResendCooldown time.Duration
+	now               func() time.Time
 }
 
 // NewService builds a Service with sensible defaults.
 func NewService(o Options) *Service {
 	s := &Service{
-		accounts:  o.Accounts,
-		sessions:  o.Sessions,
-		keys:      o.Keys,
-		jwtSecret: o.JWTSecret,
-		jwtTTL:    o.JWTTTL,
-		now:       o.Now,
+		accounts:          o.Accounts,
+		sessions:          o.Sessions,
+		keys:              o.Keys,
+		otps:              o.OTPs,
+		emailSender:       o.EmailSender,
+		otpGenerator:      o.OTPGenerator,
+		jwtSecret:         o.JWTSecret,
+		jwtTTL:            o.JWTTTL,
+		otpTTL:            o.OTPTTL,
+		otpMaxAttempts:    o.OTPMaxAttempts,
+		otpResendCooldown: o.OTPResendCooldown,
+		now:               o.Now,
 	}
 	if s.jwtTTL <= 0 {
 		s.jwtTTL = 24 * time.Hour
+	}
+	if s.otpTTL <= 0 {
+		s.otpTTL = 10 * time.Minute
+	}
+	if s.otpMaxAttempts <= 0 {
+		s.otpMaxAttempts = 5
+	}
+	if s.otpResendCooldown <= 0 {
+		s.otpResendCooldown = time.Minute
+	}
+	if s.otpGenerator == nil {
+		s.otpGenerator = generateOTPCode
 	}
 	if s.now == nil {
 		s.now = time.Now
@@ -71,6 +101,15 @@ type RegisterInput struct {
 type LoginInput struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type SignupEmailInput struct {
+	BusinessEmail string `json:"business_email"`
+}
+
+type SignupVerifyInput struct {
+	BusinessEmail string `json:"business_email"`
+	OTPCode       string `json:"otp_code"`
 }
 
 // CreateKeyInput is the POST /keys body (the Generate API Key form).
@@ -95,6 +134,7 @@ type UpdateProfileInput struct {
 	State           *string `json:"state"`
 	City            *string `json:"city"`
 	BusinessLogoURL *string `json:"business_logo_url"`
+	ProfilePhotoURL *string `json:"profile_photo_url"`
 }
 
 // IssuedAPIKey is the one-time key creation payload (raw key shown once).
@@ -138,6 +178,10 @@ func apiErr(status int, code, message string) *delivery.APIError {
 	return delivery.NewAPIError(status, code, message, nil)
 }
 
+func apiErrWithMeta(status int, code, message string, meta map[string]any) *delivery.APIError {
+	return delivery.NewAPIErrorWithMeta(status, code, message, nil, meta)
+}
+
 func validationErr(field, message string) *delivery.APIError {
 	return delivery.ValidationError([]delivery.FieldError{{Field: field, Message: message}})
 }
@@ -170,9 +214,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput, meta RequestMe
 	}
 
 	account, err := s.accounts.CreateAccount(ctx, CreateAccountParams{
-		BusinessName:  name,
+		BusinessName:  &name,
 		BusinessEmail: email,
-		PasswordHash:  string(passwordHash),
+		PasswordHash:  ptrString(string(passwordHash)),
 		Status:        StatusActive,
 		Plan:          PlanSandbox,
 	})
@@ -216,7 +260,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput, meta RequestMeta) (*
 	if account.Status != StatusActive {
 		return nil, apiErr(http.StatusForbidden, "account_inactive", "This account is not active.")
 	}
-	if bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(in.Password)) != nil {
+	if passwordHash == nil || bcrypt.CompareHashAndPassword([]byte(*passwordHash), []byte(in.Password)) != nil {
 		return nil, apiErr(http.StatusUnauthorized, "invalid_credentials", "Email or password is incorrect.")
 	}
 
@@ -264,6 +308,7 @@ func (s *Service) UpdateProfile(ctx context.Context, partnerID string, in Update
 		State:           in.State,
 		City:            in.City,
 		BusinessLogoURL: in.BusinessLogoURL,
+		ProfilePhotoURL: in.ProfilePhotoURL,
 	})
 	if err != nil {
 		return nil, delivery.ErrInternal()
@@ -472,12 +517,14 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+func ptrString(value string) *string { return &value }
+
 func validEmail(email string) bool {
 	if email == "" {
 		return false
 	}
-	_, err := mail.ParseAddress(email)
-	return err == nil
+	addr, err := mail.ParseAddress(email)
+	return err == nil && addr.Address == email
 }
 
 // parseExpiration turns the Generate API Key form's Expiration selection into

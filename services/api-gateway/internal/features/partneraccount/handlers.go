@@ -69,6 +69,53 @@ func (h *Handlers) Login(c *gin.Context) {
 	})
 }
 
+// StartSignup handles POST /auth/signup/start (public).
+func (h *Handlers) StartSignup(c *gin.Context) {
+	var in SignupEmailInput
+	if !bindJSON(c, &in) {
+		return
+	}
+	if err := h.svc.StartSignup(c.Request.Context(), in); err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": signupSuccessMessage})
+}
+
+// VerifySignup handles POST /auth/signup/verify (public).
+func (h *Handlers) VerifySignup(c *gin.Context) {
+	var in SignupVerifyInput
+	if !bindJSON(c, &in) {
+		return
+	}
+	res, err := h.svc.VerifySignup(c.Request.Context(), in, metaFrom(c))
+	if err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"data": gin.H{
+			"token":      res.Token,
+			"expires_at": res.ExpiresAt.UTC().Format(rfc3339),
+			"account":    res.Account,
+		},
+	})
+}
+
+// ResendSignup handles POST /auth/signup/resend (public).
+func (h *Handlers) ResendSignup(c *gin.Context) {
+	var in SignupEmailInput
+	if !bindJSON(c, &in) {
+		return
+	}
+	if err := h.svc.ResendSignup(c.Request.Context(), in); err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": signupSuccessMessage})
+}
+
 // Logout handles POST /auth/logout (session required).
 func (h *Handlers) Logout(c *gin.Context) {
 	if err := h.svc.Logout(c.Request.Context(), SessionTokenHash(c)); err != nil {
@@ -198,12 +245,16 @@ func respondAPIError(c *gin.Context, err error) {
 	if fields == nil {
 		fields = []delivery.FieldError{}
 	}
+	errorBody := gin.H{
+		"code":    apiErr.Code,
+		"message": apiErr.Message,
+		"fields":  fields,
+	}
+	for key, value := range apiErr.Meta {
+		errorBody[key] = value
+	}
 	c.AbortWithStatusJSON(apiErr.Status, gin.H{
 		"success": false,
-		"error": gin.H{
-			"code":    apiErr.Code,
-			"message": apiErr.Message,
-			"fields":  fields,
-		},
+		"error":   errorBody,
 	})
 }

@@ -3,6 +3,7 @@ package uploadusecases
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -140,6 +141,10 @@ func (s *fakeStorage) Upload(ctx context.Context, input uploadclients.UploadObje
 		Path:   input.Path,
 		URL:    "https://storage.googleapis.com/test-bucket/" + input.Path,
 	}, nil
+}
+
+func (s *fakeStorage) Download(ctx context.Context, path string) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(s.uploaded[path])), nil
 }
 
 func (s *fakeStorage) Delete(ctx context.Context, path string) error {

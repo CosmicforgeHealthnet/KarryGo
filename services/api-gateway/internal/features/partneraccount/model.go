@@ -1,7 +1,8 @@
 // Package partneraccount implements the partner DASHBOARD auth system: email +
-// password login, browser session JWTs, API key management, and internal
-// service-to-service account controls. This is entirely separate from the
-// partner API KEY auth (partnerauth) used by partner backends for delivery calls.
+// password login, browser session JWTs, API key management, OTP web signup,
+// and internal service-to-service account controls. This is entirely separate
+// from the partner API KEY auth (partnerauth) used by partner backends for
+// delivery calls.
 package partneraccount
 
 import "time"
@@ -27,22 +28,32 @@ const (
 )
 
 // Account is the public partner account view. It NEVER contains password_hash.
-//
-// BusinessPhone, State, City, and BusinessLogoURL are pointers because they
-// were added by migration 004 as nullable columns (accounts created before
-// that migration - or that simply haven't filled in their profile yet - have
-// no value for them).
+// BusinessName and the profile fields are nullable because OTP-created
+// onboarding accounts may exist before the partner has filled in profile data.
 type Account struct {
 	ID              string    `json:"id"`
-	BusinessName    string    `json:"business_name"`
+	BusinessName    *string   `json:"business_name"`
 	BusinessEmail   string    `json:"business_email"`
 	BusinessPhone   *string   `json:"business_phone"`
 	State           *string   `json:"state"`
 	City            *string   `json:"city"`
 	BusinessLogoURL *string   `json:"business_logo_url"`
+	ProfilePhotoURL *string   `json:"profile_photo_url"`
 	Status          string    `json:"status"`
 	Plan            string    `json:"plan"`
 	CreatedAt       time.Time `json:"created_at"`
+}
+
+// OTPChallenge mirrors a partner_otp_challenges row. OTPCodeHash is SHA-256 hex;
+// plaintext OTP codes are never stored.
+type OTPChallenge struct {
+	ID            string
+	BusinessEmail string
+	OTPCodeHash   string
+	Attempts      int
+	ConsumedAt    *time.Time
+	ExpiresAt     time.Time
+	CreatedAt     time.Time
 }
 
 // Session mirrors a partner_sessions row.

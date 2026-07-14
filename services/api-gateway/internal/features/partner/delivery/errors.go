@@ -16,6 +16,7 @@ type APIError struct {
 	Code    string
 	Message string
 	Fields  []FieldError
+	Meta    map[string]any
 }
 
 func (e *APIError) Error() string { return e.Code + ": " + e.Message }
@@ -95,6 +96,14 @@ func NewAPIError(status int, code, message string, fields []FieldError) *APIErro
 		fields = []FieldError{}
 	}
 	return &APIError{Status: status, Code: code, Message: message, Fields: fields}
+}
+
+// NewAPIErrorWithMeta builds an arbitrary Partner API error with extra
+// machine-readable fields in the error object.
+func NewAPIErrorWithMeta(status int, code, message string, fields []FieldError, meta map[string]any) *APIError {
+	err := NewAPIError(status, code, message, fields)
+	err.Meta = meta
+	return err
 }
 
 // ValidationError builds a 400 validation_error with field details.

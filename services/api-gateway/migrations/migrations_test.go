@@ -226,3 +226,49 @@ func TestNoDestColumnsRemainInCodebaseContracts(t *testing.T) {
 		}
 	}
 }
+
+func TestOTPOnboardingMigrationAddsChallengesAndNullableProfileFields(t *testing.T) {
+	content, err := os.ReadFile("009_partner_otp_onboarding.sql")
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	sql := string(content)
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS partner_otp_challenges",
+		"otp_code_hash text NOT NULL",
+		"attempts int NOT NULL DEFAULT 0",
+		"consumed_at timestamptz",
+		"expires_at timestamptz NOT NULL",
+		"CREATE INDEX IF NOT EXISTS idx_otp_email ON partner_otp_challenges (business_email)",
+		"ALTER COLUMN password_hash DROP NOT NULL",
+		"ALTER COLUMN business_name DROP NOT NULL",
+		"ADD COLUMN IF NOT EXISTS profile_photo_url text",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("009_partner_otp_onboarding.sql missing %q", want)
+		}
+	}
+}
+
+func TestOTPOnboardingDownRevertsSafely(t *testing.T) {
+	content, err := os.ReadFile("009_partner_otp_onboarding_down.sql")
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	sql := string(content)
+	for _, want := range []string{
+		"DROP TABLE IF EXISTS partner_otp_challenges",
+		"DROP COLUMN IF EXISTS profile_photo_url",
+		"UPDATE partner_accounts SET password_hash = '' WHERE password_hash IS NULL",
+		"ALTER COLUMN password_hash SET NOT NULL",
+		"UPDATE partner_accounts SET business_name = '' WHERE business_name IS NULL",
+		"ALTER COLUMN business_name SET NOT NULL",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("009_partner_otp_onboarding_down.sql missing %q", want)
+		}
+	}
+	if !strings.Contains(sql, "Rollback note") {
+		t.Fatal("009 rollback must document nullable-field rollback limitation")
+	}
+}

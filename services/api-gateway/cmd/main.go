@@ -163,18 +163,27 @@ func buildPartnerDeps(cfg config.Config) gatewayDeps {
 
 	rateLimiter := ratelimit.NewLimiter(ratelimit.NewRedisStore(redisClient))
 
-	// Partner dashboard auth (email + password -> session JWT) + key management.
+	// Partner dashboard auth (password legacy + OTP signup -> session JWT) + key management.
 	apiKeyRepo := infra.NewAPIKeyRepo(pool)
 	accountRepo := infra.NewAccountRepo(pool)
 	if cfg.PartnerAuth.JWTSecret == "" {
 		log.Printf("%s: warning: PARTNER_JWT_SECRET not set; dashboard session tokens are insecure", serviceName)
 	}
+	if cfg.PartnerSMTP.Host == "" || cfg.PartnerSMTP.Username == "" || cfg.PartnerSMTP.Password == "" {
+		log.Printf("%s: warning: PARTNER_SMTP_* not fully configured; partner OTP signup email will fail safely", serviceName)
+	}
+	otpSender := partneraccount.NewSMTPPartnerEmailSender(cfg.PartnerSMTP)
 	accountSvc := partneraccount.NewService(partneraccount.Options{
-		Accounts:  accountRepo,
-		Sessions:  infra.NewSessionRepo(pool),
-		Keys:      apiKeyRepo,
-		JWTSecret: cfg.PartnerAuth.JWTSecret,
-		JWTTTL:    cfg.PartnerAuth.JWTTTL,
+		Accounts:          accountRepo,
+		Sessions:          infra.NewSessionRepo(pool),
+		Keys:              apiKeyRepo,
+		OTPs:              infra.NewOTPChallengeRepo(pool),
+		EmailSender:       otpSender,
+		JWTSecret:         cfg.PartnerAuth.JWTSecret,
+		JWTTTL:            cfg.PartnerAuth.JWTTTL,
+		OTPTTL:            cfg.PartnerOTP.TTL,
+		OTPMaxAttempts:    cfg.PartnerOTP.MaxAttempts,
+		OTPResendCooldown: cfg.PartnerOTP.ResendCooldown,
 	})
 
 	// Billing (dashboard + monthly invoice generation + charge loop).

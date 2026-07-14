@@ -12,13 +12,13 @@ import (
 type fakeAccountRepo struct {
 	mu        sync.Mutex
 	byID      map[string]*Account
-	pass      map[string]string // id -> bcrypt password hash
+	pass      map[string]*string // id -> nullable bcrypt password hash
 	emailToID map[string]string
 	seq       int
 }
 
 func newFakeAccountRepo() *fakeAccountRepo {
-	return &fakeAccountRepo{byID: map[string]*Account{}, pass: map[string]string{}, emailToID: map[string]string{}}
+	return &fakeAccountRepo{byID: map[string]*Account{}, pass: map[string]*string{}, emailToID: map[string]string{}}
 }
 
 func (r *fakeAccountRepo) CreateAccount(_ context.Context, p CreateAccountParams) (Account, error) {
@@ -36,12 +36,12 @@ func (r *fakeAccountRepo) CreateAccount(_ context.Context, p CreateAccountParams
 	return a, nil
 }
 
-func (r *fakeAccountRepo) FindByEmail(_ context.Context, email string) (*Account, string, error) {
+func (r *fakeAccountRepo) FindByEmail(_ context.Context, email string) (*Account, *string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	id, ok := r.emailToID[email]
 	if !ok {
-		return nil, "", nil
+		return nil, nil, nil
 	}
 	cp := *r.byID[id]
 	return &cp, r.pass[id], nil
@@ -88,7 +88,7 @@ func (r *fakeAccountRepo) UpdateProfile(_ context.Context, id string, params Upd
 		return nil, false, nil
 	}
 	if params.BusinessName != nil {
-		a.BusinessName = *params.BusinessName
+		a.BusinessName = params.BusinessName
 	}
 	if params.BusinessPhone != nil {
 		a.BusinessPhone = params.BusinessPhone
@@ -102,10 +102,13 @@ func (r *fakeAccountRepo) UpdateProfile(_ context.Context, id string, params Upd
 	if params.BusinessLogoURL != nil {
 		a.BusinessLogoURL = params.BusinessLogoURL
 	}
+	if params.ProfilePhotoURL != nil {
+		a.ProfilePhotoURL = params.ProfilePhotoURL
+	}
 	cp := *a
 	return &cp, true, nil
 }
-func (r *fakeAccountRepo) passwordHash(id string) string {
+func (r *fakeAccountRepo) passwordHash(id string) *string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.pass[id]
@@ -201,4 +204,100 @@ func (s *fakeKeyStore) RevokeByPartner(_ context.Context, partnerID, keyID strin
 		}
 	}
 	return false, nil
+}
+
+// --- fakeOTPRepo -------------------------------------------------------------
+
+type fakeOTPRepo struct {
+	mu      sync.Mutex
+	byID    map[string]*OTPChallenge
+	byEmail map[string][]string
+	seq     int
+}
+
+func newFakeOTPRepo() *fakeOTPRepo {
+	return &fakeOTPRepo{byID: map[string]*OTPChallenge{}, byEmail: map[string][]string{}}
+}
+
+func (r *fakeOTPRepo) CreateOTPChallenge(_ context.Context, p CreateOTPChallengeParams) (OTPChallenge, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.seq++
+	id := "otp-" + strconv.Itoa(r.seq)
+	c := OTPChallenge{ID: id, BusinessEmail: p.BusinessEmail, OTPCodeHash: p.OTPCodeHash, ExpiresAt: p.ExpiresAt, CreatedAt: time.Now()}
+	r.byID[id] = &c
+	r.byEmail[p.BusinessEmail] = append(r.byEmail[p.BusinessEmail], id)
+	return c, nil
+}
+
+func (r *fakeOTPRepo) FindLatestOTPChallenge(_ context.Context, email string) (*OTPChallenge, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ids := r.byEmail[email]
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	latest := r.byID[ids[len(ids)-1]]
+	cp := *latest
+	return &cp, nil
+}
+
+func (r *fakeOTPRepo) IncrementOTPAttempts(_ context.Context, id string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	c := r.byID[id]
+	c.Attempts++
+	return c.Attempts, nil
+}
+
+func (r *fakeOTPRepo) ConsumeOTPChallenge(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if c := r.byID[id]; c != nil && c.ConsumedAt == nil {
+		now := time.Now()
+		c.ConsumedAt = &now
+	}
+	return nil
+}
+
+func (r *fakeOTPRepo) DeleteOTPChallenge(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	c := r.byID[id]
+	if c == nil {
+		return nil
+	}
+	delete(r.byID, id)
+	ids := r.byEmail[c.BusinessEmail]
+	kept := ids[:0]
+	for _, existing := range ids {
+		if existing != id {
+			kept = append(kept, existing)
+		}
+	}
+	r.byEmail[c.BusinessEmail] = kept
+	return nil
+}
+
+// --- fakePartnerEmailSender --------------------------------------------------
+
+type sentOTP struct {
+	Email string
+	Code  string
+}
+
+type fakeOTPSender struct {
+	mu   sync.Mutex
+	sent []sentOTP
+	fail error
+}
+
+func (s *fakeOTPSender) SendPartnerOTP(_ context.Context, email string, code string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.fail != nil {
+		return s.fail
+	}
+	s.sent = append(s.sent, sentOTP{Email: email, Code: code})
+	return nil
 }

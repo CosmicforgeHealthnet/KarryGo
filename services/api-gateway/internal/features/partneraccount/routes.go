@@ -38,6 +38,14 @@ func RegisterAccountRoutes(r *gin.Engine, deps Dependencies) {
 		}
 	}
 
+	// Public OTP web signup flow. These routes intentionally do not use session,
+	// API-key, or active-account middleware; email ownership is proven by OTP.
+	signup := r.Group("/api/v1/partner/v1/auth/signup")
+	{
+		signup.POST("/start", h.StartSignup)
+		signup.POST("/verify", h.VerifySignup)
+		signup.POST("/resend", h.ResendSignup)
+	}
 	// 2. Dashboard key management: all require session.
 	keys := r.Group("/api/v1/partner/v1/keys")
 	keys.Use(RequirePartnerSession(deps.Service))

@@ -75,7 +75,7 @@ func main() {
 			storageClient.Check,
 		},
 		Register: func(group *gin.RouterGroup) {
-			uploadhttp.RegisterUploadRoutes(group, uploadService, cfg.ServiceTokens, cfg.MaxUploadBytes)
+			uploadhttp.RegisterUploadRoutes(group, uploadService, cfg.ServiceTokens, cfg.MaxUploadBytes, cfg.PartnerJWTSecret)
 		},
 	})
 }

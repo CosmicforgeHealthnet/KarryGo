@@ -19,13 +19,16 @@ type harness struct {
 	accounts *fakeAccountRepo
 	sessions *fakeSessionRepo
 	keys     *fakeKeyStore
+	otps     *fakeOTPRepo
+	email    *fakeOTPSender
 }
 
 func newHarness() *harness {
-	h := &harness{accounts: newFakeAccountRepo(), sessions: newFakeSessionRepo(), keys: newFakeKeyStore()}
+	h := &harness{accounts: newFakeAccountRepo(), sessions: newFakeSessionRepo(), keys: newFakeKeyStore(), otps: newFakeOTPRepo(), email: &fakeOTPSender{}}
 	h.svc = NewService(Options{
-		Accounts: h.accounts, Sessions: h.sessions, Keys: h.keys,
-		JWTSecret: testJWTSecret, JWTTTL: time.Hour,
+		Accounts: h.accounts, Sessions: h.sessions, Keys: h.keys, OTPs: h.otps, EmailSender: h.email,
+		OTPGenerator: func() (string, error) { return "042391", nil },
+		JWTSecret:    testJWTSecret, JWTTTL: time.Hour,
 	})
 	return h
 }
@@ -67,7 +70,11 @@ func TestRegisterSuccess(t *testing.T) {
 		t.Fatalf("account = %+v, want active/sandbox", res.Account)
 	}
 	// password stored as bcrypt hash, not raw
-	stored := h.accounts.passwordHash(res.Account.ID)
+	storedPtr := h.accounts.passwordHash(res.Account.ID)
+	if storedPtr == nil {
+		t.Fatal("password hash is nil")
+	}
+	stored := *storedPtr
 	if stored == "" || stored == "supersecret" {
 		t.Fatal("password not stored as a hash")
 	}
@@ -318,4 +325,211 @@ func TestUpdateStatusValidation(t *testing.T) {
 	} else {
 		wantErr(t, err, "validation_error", 400)
 	}
+}
+
+// --- OTP helpers -------------------------------------------------------------
+
+func TestGenerateOTPCodeFormat(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		code, err := generateOTPCode()
+		if err != nil {
+			t.Fatalf("generateOTPCode() error = %v", err)
+		}
+		if !validOTPCode(code) {
+			t.Fatalf("code %q is not a six-digit OTP", code)
+		}
+	}
+}
+
+func TestHashOTPCodeIsSHA256Hex(t *testing.T) {
+	got := hashOTPCode("042391")
+	want := "01a24f804a95b680412a1d1beaf88ca7e20802322d576f184d4f52900e22fb25"
+	if got != want {
+		t.Fatalf("hashOTPCode() = %q, want %q", got, want)
+	}
+	if got == "042391" {
+		t.Fatal("hash must not be plaintext OTP")
+	}
+}
+
+// --- OTP signup --------------------------------------------------------------
+
+func TestStartSignupCreatesHashedChallengeAndSendsEmail(t *testing.T) {
+	h := newHarness()
+	if err := h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: " Dev@PharmaCare.com "}); err != nil {
+		t.Fatalf("StartSignup() error = %v", err)
+	}
+	challenge := latestChallenge(t, h, "dev@pharmacare.com")
+	if challenge.OTPCodeHash != hashOTPCode("042391") {
+		t.Fatalf("stored hash = %q", challenge.OTPCodeHash)
+	}
+	if challenge.OTPCodeHash == "042391" {
+		t.Fatal("stored plaintext OTP")
+	}
+	if len(h.email.sent) != 1 || h.email.sent[0].Email != "dev@pharmacare.com" || h.email.sent[0].Code != "042391" {
+		t.Fatalf("email sender calls = %+v", h.email.sent)
+	}
+}
+
+func TestStartSignupExistingAccountReturnsEmailTaken(t *testing.T) {
+	h := newHarness()
+	h.mustRegister(t)
+	err := h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	wantErr(t, err, "email_taken", 409)
+}
+
+func TestStartSignupEmailFailureDeletesChallenge(t *testing.T) {
+	h := newHarness()
+	h.email.fail = ErrPartnerEmailDeliveryFailed
+	err := h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	wantErr(t, err, "email_delivery_failed", 502)
+	if latest, _ := h.otps.FindLatestOTPChallenge(context.Background(), "dev@pharmacare.com"); latest != nil {
+		t.Fatalf("challenge was not deleted after email failure: %+v", latest)
+	}
+}
+
+func TestStartSignupMissingEmailSenderReturnsSafeError(t *testing.T) {
+	h := newHarness()
+	h.svc.emailSender = nil
+	err := h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	wantErr(t, err, "email_not_configured", 500)
+	if latest, _ := h.otps.FindLatestOTPChallenge(context.Background(), "dev@pharmacare.com"); latest != nil {
+		t.Fatalf("challenge should not be created when email sender is missing: %+v", latest)
+	}
+}
+
+func TestStartSignupEmailNotConfiguredDeletesChallenge(t *testing.T) {
+	h := newHarness()
+	h.email.fail = ErrPartnerEmailNotConfigured
+	err := h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	wantErr(t, err, "email_not_configured", 500)
+	if latest, _ := h.otps.FindLatestOTPChallenge(context.Background(), "dev@pharmacare.com"); latest != nil {
+		t.Fatalf("challenge was not deleted after email config failure: %+v", latest)
+	}
+}
+
+func TestVerifySignupCreatesActiveSandboxAccountAndSession(t *testing.T) {
+	h := newHarness()
+	if err := h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"}); err != nil {
+		t.Fatalf("StartSignup() error = %v", err)
+	}
+	res, err := h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "042391"}, RequestMeta{})
+	if err != nil {
+		t.Fatalf("VerifySignup() error = %v", err)
+	}
+	if res.Token == "" || res.Account.BusinessEmail != "dev@pharmacare.com" {
+		t.Fatalf("bad verify result: %+v", res)
+	}
+	if res.Account.Status != StatusActive || res.Account.Plan != PlanSandbox {
+		t.Fatalf("account = %+v, want active/sandbox", res.Account)
+	}
+	if res.Account.BusinessName != nil {
+		t.Fatalf("business_name = %q, want nil", *res.Account.BusinessName)
+	}
+	if h.accounts.passwordHash(res.Account.ID) != nil {
+		t.Fatal("OTP-created account should have nil password_hash")
+	}
+	if len(h.keys.keys) != 0 {
+		t.Fatalf("OTP verify should not auto-generate API keys, got %+v", h.keys.keys)
+	}
+	if _, ok := h.sessions.byHash[hashToken(res.Token)]; !ok {
+		t.Fatal("session token hash not stored")
+	}
+	if _, _, _, err := h.svc.AuthenticateSession(context.Background(), res.Token); err != nil {
+		t.Fatalf("issued session does not authenticate: %v", err)
+	}
+}
+
+func TestVerifySignupWrongOTPIncrementsAttempts(t *testing.T) {
+	h := newHarness()
+	_ = h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	_, err := h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "000000"}, RequestMeta{})
+	api := wantAPIError(t, err, "otp_invalid", 400)
+	if api.Meta["attempts_remaining"] != 4 {
+		t.Fatalf("attempts_remaining = %#v, want 4", api.Meta["attempts_remaining"])
+	}
+	if latestChallenge(t, h, "dev@pharmacare.com").Attempts != 1 {
+		t.Fatal("attempt count was not incremented")
+	}
+}
+
+func TestVerifySignupMaxAttempts(t *testing.T) {
+	h := newHarness()
+	_ = h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	latestChallenge(t, h, "dev@pharmacare.com").Attempts = 5
+	_, err := h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "042391"}, RequestMeta{})
+	wantErr(t, err, "otp_max_attempts", 429)
+}
+
+func TestVerifySignupExpiredAndConsumedCodesFail(t *testing.T) {
+	h := newHarness()
+	_ = h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	latestChallenge(t, h, "dev@pharmacare.com").ExpiresAt = time.Now().Add(-time.Minute)
+	_, err := h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "042391"}, RequestMeta{})
+	wantErr(t, err, "otp_expired", 400)
+
+	h = newHarness()
+	_ = h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	if _, err := h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "042391"}, RequestMeta{}); err != nil {
+		t.Fatalf("first verify error = %v", err)
+	}
+	_, err = h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "042391"}, RequestMeta{})
+	wantErr(t, err, "otp_expired", 400)
+}
+
+func TestResendSignupRateLimitAndLatestCodeWins(t *testing.T) {
+	h := newHarness()
+	_ = h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	err := h.svc.ResendSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	api := wantAPIError(t, err, "resend_too_soon", 429)
+	if api.Meta["seconds_remaining"] == nil {
+		t.Fatal("seconds_remaining missing")
+	}
+
+	latestChallenge(t, h, "dev@pharmacare.com").CreatedAt = time.Now().Add(-2 * time.Minute)
+	h.svc.otpGenerator = func() (string, error) { return "111111", nil }
+	if err := h.svc.ResendSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"}); err != nil {
+		t.Fatalf("ResendSignup() error = %v", err)
+	}
+	if len(h.email.sent) != 2 || h.email.sent[1].Code != "111111" {
+		t.Fatalf("email calls = %+v", h.email.sent)
+	}
+	_, err = h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "042391"}, RequestMeta{})
+	wantErr(t, err, "otp_invalid", 400)
+	if _, err := h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "111111"}, RequestMeta{}); err != nil {
+		t.Fatalf("latest code verify error = %v", err)
+	}
+}
+
+func TestLoginOTPOnlyAccountFailsWithInvalidCredentials(t *testing.T) {
+	h := newHarness()
+	_ = h.svc.StartSignup(context.Background(), SignupEmailInput{BusinessEmail: "dev@pharmacare.com"})
+	if _, err := h.svc.VerifySignup(context.Background(), SignupVerifyInput{BusinessEmail: "dev@pharmacare.com", OTPCode: "042391"}, RequestMeta{}); err != nil {
+		t.Fatalf("VerifySignup() error = %v", err)
+	}
+	_, err := h.svc.Login(context.Background(), LoginInput{Email: "dev@pharmacare.com", Password: "supersecret"}, RequestMeta{})
+	wantErr(t, err, "invalid_credentials", 401)
+}
+
+func latestChallenge(t *testing.T, h *harness, email string) *OTPChallenge {
+	t.Helper()
+	h.otps.mu.Lock()
+	defer h.otps.mu.Unlock()
+	ids := h.otps.byEmail[email]
+	if len(ids) == 0 {
+		t.Fatalf("no challenge for %s", email)
+	}
+	return h.otps.byID[ids[len(ids)-1]]
+}
+
+func wantAPIError(t *testing.T, err error, code string, status int) *delivery.APIError {
+	t.Helper()
+	var e *delivery.APIError
+	if !errors.As(err, &e) {
+		t.Fatalf("err = %v, want *delivery.APIError", err)
+	}
+	if e.Code != code || e.Status != status {
+		t.Fatalf("err = %s/%d, want %s/%d", e.Code, e.Status, code, status)
+	}
+	return e
 }

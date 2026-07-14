@@ -7,8 +7,8 @@ import (
 )
 
 type Config struct {
-	AppEnv   string
-	HTTPAddr string
+	AppEnv    string
+	HTTPAddr  string
 	Migration bool
 
 	DatabaseURL string
@@ -18,15 +18,16 @@ type Config struct {
 	FirebaseCredentialsJSON string
 	PublicBaseURL           string
 
-	MaxUploadBytes int64
-	ServiceTokens  map[string]string
+	MaxUploadBytes   int64
+	ServiceTokens    map[string]string
+	PartnerJWTSecret string
 }
 
 func Load() Config {
 	firebaseBucket := getEnv("MEDIA_FILE_FIREBASE_BUCKET", "")
 	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8109"),
+		AppEnv:    getEnv("APP_ENV", "development"),
+		HTTPAddr:  getEnv("HTTP_ADDR", ":8109"),
 		Migration: getEnvBool("MIGRATION", false),
 
 		DatabaseURL: getEnv("MEDIA_FILE_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5441/media_file_service?sslmode=disable"),
@@ -36,8 +37,9 @@ func Load() Config {
 		FirebaseCredentialsJSON: getEnv("MEDIA_FILE_FIREBASE_CREDENTIALS_JSON", ""),
 		PublicBaseURL:           getEnv("MEDIA_FILE_PUBLIC_BASE_URL", defaultPublicBaseURL(firebaseBucket)),
 
-		MaxUploadBytes: getEnvInt64("MEDIA_FILE_MAX_UPLOAD_BYTES", 25*1024*1024),
-		ServiceTokens:  getEnvServiceTokens("MEDIA_FILE_SERVICE_TOKENS"),
+		MaxUploadBytes:   getEnvInt64("MEDIA_FILE_MAX_UPLOAD_BYTES", 25*1024*1024),
+		ServiceTokens:    getEnvServiceTokens("MEDIA_FILE_SERVICE_TOKENS"),
+		PartnerJWTSecret: getEnv("PARTNER_JWT_SECRET", ""),
 	}
 }
 
