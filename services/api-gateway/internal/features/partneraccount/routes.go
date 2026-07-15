@@ -46,6 +46,15 @@ func RegisterAccountRoutes(r *gin.Engine, deps Dependencies) {
 		signup.POST("/verify", h.VerifySignup)
 		signup.POST("/resend", h.ResendSignup)
 	}
+
+	// Public OTP web login flow. Same no-account-creation OTP proof as signup,
+	// but against an existing account instead of a new one.
+	loginOTP := r.Group("/api/v1/partner/v1/auth/login")
+	{
+		loginOTP.POST("/start", h.StartLogin)
+		loginOTP.POST("/verify", h.VerifyLogin)
+	}
+
 	// 2. Dashboard key management: all require session.
 	keys := r.Group("/api/v1/partner/v1/keys")
 	keys.Use(RequirePartnerSession(deps.Service))
@@ -60,6 +69,7 @@ func RegisterAccountRoutes(r *gin.Engine, deps Dependencies) {
 	profile.Use(RequirePartnerSession(deps.Service))
 	{
 		profile.PATCH("", h.UpdateProfile)
+		profile.DELETE("/account", h.DeleteAccount) // <-- ADD THIS LINE
 	}
 
 	// 4. Dashboard billing (Billing & Usage): requires session. Registered
@@ -70,6 +80,7 @@ func RegisterAccountRoutes(r *gin.Engine, deps Dependencies) {
 		billingGroup.Use(RequirePartnerSession(deps.Service))
 		{
 			billingGroup.GET("/overview", bh.GetOverview)
+			billingGroup.GET("/dashboard-summary", bh.GetDashboardSummary)
 			billingGroup.GET("/invoices", bh.ListInvoices)
 			billingGroup.POST("/payment-methods", bh.AttachPaymentMethod)
 		}

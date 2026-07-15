@@ -6,30 +6,62 @@ import { ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/store/onboarding-store";
+import { useAuthStore } from "@/store/auth-store";
+import { profileService } from "@/services/profile-service";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+import { ApiError } from "@/lib/api-client";
 
 export default function BusinessInfoPage() {
   const router = useRouter();
   const stored = useOnboardingStore();
   const setBusinessInfo = useOnboardingStore((s) => s.setBusinessInfo);
+  const token = useAuthStore((s) => s.token);
+  const account = useAuthStore((s) => s.account);
+  const setSession = useAuthStore((s) => s.setSession);
+  const expiresAt = useAuthStore((s) => s.expiresAt);
+
+  const businessEmail = account?.business_email ?? "";
 
   const [businessName, setBusinessName] = useState(stored.businessName);
   const [businessPhone, setBusinessPhone] = useState(stored.businessPhone);
-  const [businessEmail, setBusinessEmail] = useState(stored.businessEmail);
   const [state, setState] = useState(stored.state);
   const [city, setCity] = useState(stored.city);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const canContinue =
-    businessName.trim() &&
-    businessPhone.trim() &&
-    businessEmail.trim() &&
-    state &&
-    city.trim();
+    businessName.trim() && businessPhone.trim() && state && city.trim();
 
-  const handleContinue = () => {
-    if (!canContinue) return;
-    setBusinessInfo({ businessName, businessPhone, businessEmail, state, city });
-    router.push("/business-logo");
+  const handleContinue = async () => {
+    if (!canContinue || loading) return;
+    if (!token) {
+      setError("Your session has expired. Please sign up again.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const { account: updatedAccount } = await profileService.updateProfile(
+        {
+          business_name: businessName,
+          business_phone: businessPhone,
+          state,
+          city,
+        },
+        token
+      );
+      setSession({ token, expiresAt: expiresAt ?? "", account: updatedAccount });
+      setBusinessInfo({ businessName, businessPhone, businessEmail, state, city });
+      router.push("/business-logo");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,9 +89,8 @@ export default function BusinessInfoPage() {
           id="businessEmail"
           label="Business Email"
           type="email"
-          placeholder="Email here"
           value={businessEmail}
-          onChange={(e) => setBusinessEmail(e.target.value)}
+          disabled
         />
 
         <div>
@@ -90,11 +121,13 @@ export default function BusinessInfoPage() {
             />
           </div>
         </div>
+
+        {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
 
       <div className="mt-8">
-        <Button onClick={handleContinue} disabled={!canContinue}>
-          Continue
+        <Button onClick={handleContinue} disabled={!canContinue || loading}>
+          {loading ? "Saving..." : "Continue"}
         </Button>
       </div>
     </div>

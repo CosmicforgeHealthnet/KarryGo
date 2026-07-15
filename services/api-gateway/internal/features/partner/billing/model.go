@@ -161,3 +161,11 @@ type ChargeResultOutcome struct {
 	InvoiceID string `json:"invoice_id,omitempty"`
 	Status    string `json:"status,omitempty"`
 }
+
+
+type DashboardSummary struct {
+	TotalDeliveries    int     `json:"total_deliveries"`
+	DeliveriesToday    int     `json:"deliveries_today"`
+	SuccessRate        float64 `json:"success_rate"`
+	SuccessRateDisplay string  `json:"success_rate_display"`
+}

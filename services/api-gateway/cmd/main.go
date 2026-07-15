@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -63,11 +64,16 @@ func main() {
 	deps := buildPartnerDeps(cfg)
 
 	router := gin.New()
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
 	router.Use(httpx.RequestID())
 	router.Use(httpx.Logger())
 	router.Use(httpx.Recovery())
 	router.Use(httpx.ErrorHandler())
-
 	registerServiceEndpoints(router, deps)
 
 	if deps.partnerReady {

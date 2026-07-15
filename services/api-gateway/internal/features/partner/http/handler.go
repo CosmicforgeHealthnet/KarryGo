@@ -9,6 +9,7 @@ import (
 
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/webhooks"
+	"cosmicforge/logistics/services/api-gateway/internal/features/partneraccount"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partnerauth"
 	"cosmicforge/logistics/services/api-gateway/internal/pkg/pricing"
 )
@@ -17,15 +18,21 @@ import (
 // delivery service; the quote route uses the pricing engine; webhook routes are
 // backed by the webhook service (or return 501 when webhooks are not configured).
 type Handler struct {
-	deliveries *delivery.Service
-	webhooks   *webhooks.Service
-	pricing    pricing.Config
+	deliveries      *delivery.Service
+	webhooks        *webhooks.Service
+	accountService  *partneraccount.Service // ADD THIS
+	pricing         pricing.Config
 }
 
 // NewHandler constructs a Partner API handler. webhooks may be nil, in which case
 // the webhook routes return 501 not_implemented. pricingCfg is the fare engine config.
-func NewHandler(deliveries *delivery.Service, webhookSvc *webhooks.Service, pricingCfg pricing.Config) *Handler {
-	return &Handler{deliveries: deliveries, webhooks: webhookSvc, pricing: pricingCfg}
+func NewHandler(deliveries *delivery.Service, webhookSvc *webhooks.Service, accountSvc *partneraccount.Service, pricingCfg pricing.Config) *Handler {
+	return &Handler{
+		deliveries:     deliveries,
+		webhooks:       webhookSvc,
+		accountService: accountSvc,
+		pricing:        pricingCfg,
+	}
 }
 
 // GetQuote (POST /quotes) lives in quote_handler.go.
@@ -33,7 +40,6 @@ func NewHandler(deliveries *delivery.Service, webhookSvc *webhooks.Service, pric
 // --- delivery (implemented) -------------------------------------------------
 
 // CreateDelivery handles POST /deliveries.
-// TODO later: add idempotency middleware to POST /deliveries (currently handled in the service).
 func (h *Handler) CreateDelivery(c *gin.Context) {
 	var req delivery.DeliveryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -78,6 +84,94 @@ func (h *Handler) CancelDelivery(c *gin.Context) {
 		return
 	}
 	respondData(c, http.StatusOK, resp)
+}
+
+// --- webhook log endpoints (new) --------------------------------------------
+
+// ListWebhookLogs handles GET /webhook-logs - returns all deliveries for the partner.
+func (h *Handler) ListWebhookLogs(c *gin.Context) {
+	if h.webhooks == nil {
+		notImplemented(c)
+		return
+	}
+	page := atoiDefault(c.Query("page"), 1)
+	limit := atoiDefault(c.Query("limit"), 20)
+	resp, err := h.webhooks.ListAllDeliveries(c.Request.Context(), partnerauth.PartnerID(c), page, limit)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondData(c, http.StatusOK, resp)
+}
+
+// GetWebhookLog handles GET /webhook-logs/:id - returns a single delivery detail.
+func (h *Handler) GetWebhookLog(c *gin.Context) {
+	if h.webhooks == nil {
+		notImplemented(c)
+		return
+	}
+	detail, err := h.webhooks.GetDeliveryByID(c.Request.Context(), partnerauth.PartnerID(c), c.Param("id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondData(c, http.StatusOK, detail)
+}
+
+// --- API key management endpoints (NEW) -------------------------------------
+
+// CreateAPIKey handles POST /api-keys - generates a new API key.
+func (h *Handler) CreateAPIKey(c *gin.Context) {
+	if h.accountService == nil {
+		notImplemented(c)
+		return
+	}
+	var req partneraccount.CreateKeyInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondInvalidJSON(c)
+		return
+	}
+	partnerID := partnerauth.PartnerID(c)
+	// Get account to check plan
+	account, err := h.accountService.Me(c.Request.Context(), partnerID)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	issued, err := h.accountService.CreateKey(c.Request.Context(), partnerID, account.Plan, req)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondData(c, http.StatusCreated, issued)
+}
+
+// ListAPIKeys handles GET /api-keys - lists all API keys for the partner.
+func (h *Handler) ListAPIKeys(c *gin.Context) {
+	if h.accountService == nil {
+		notImplemented(c)
+		return
+	}
+	keys, err := h.accountService.ListKeys(c.Request.Context(), partnerauth.PartnerID(c))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondData(c, http.StatusOK, keys)
+}
+
+// RevokeAPIKey handles DELETE /api-keys/:id - revokes an API key.
+func (h *Handler) RevokeAPIKey(c *gin.Context) {
+	if h.accountService == nil {
+		notImplemented(c)
+		return
+	}
+	err := h.accountService.RevokeKey(c.Request.Context(), partnerauth.PartnerID(c), c.Param("id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondData(c, http.StatusOK, gin.H{"id": c.Param("id"), "revoked": true})
 }
 
 // Webhook handlers live in webhook_handler.go.

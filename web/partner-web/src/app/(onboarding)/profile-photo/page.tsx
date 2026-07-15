@@ -1,20 +1,54 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useOnboardingStore } from "@/store/onboarding-store";
+import { useAuthStore } from "@/store/auth-store";
+import { mediaService } from "@/services/media-service";
+import { profileService } from "@/services/profile-service";
+import { ApiError } from "@/lib/api-client";
 
 export default function ProfilePhotoPage() {
   const router = useRouter();
   const setPhotoFile = useOnboardingStore((s) => s.setPhotoFile);
+  const token = useAuthStore((s) => s.token);
+  const account = useAuthStore((s) => s.account);
+  const setSession = useAuthStore((s) => s.setSession);
+  const expiresAt = useAuthStore((s) => s.expiresAt);
   const { file, previewUrl, inputRef, openFilePicker, handleFileChange } =
     useFileUpload();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleFinalStep = () => {
-    setPhotoFile(file);
-    router.push("/success");
+  const handleFinalStep = async () => {
+    if (!file || loading) return;
+    if (!token) {
+      setError("Your session has expired. Please sign up again.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const asset = await mediaService.uploadFile(file, "profile_photo", token);
+      const { account: updatedAccount } = await profileService.updateProfile(
+        { profile_photo_url: asset.url },
+        token
+      );
+      setSession({ token, expiresAt: expiresAt ?? "", account: updatedAccount });
+      setPhotoFile(file);
+      router.push("/success");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Could not upload photo. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -58,6 +92,8 @@ export default function ProfilePhotoPage() {
         className="hidden"
       />
 
+      {error && <p className="mt-3 text-center text-xs text-red-500">{error}</p>}
+
       <div className="mt-8 flex justify-center gap-3">
         <Button
           type="button"
@@ -77,8 +113,8 @@ export default function ProfilePhotoPage() {
       </div>
 
       <div className="mt-10">
-        <Button onClick={handleFinalStep} disabled={!file}>
-          Final Step
+        <Button onClick={handleFinalStep} disabled={!file || loading}>
+          {loading ? "Uploading..." : "Final Step"}
         </Button>
       </div>
     </div>

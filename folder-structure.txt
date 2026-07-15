@@ -1,0 +1,2905 @@
+﻿|-- apps
+|   |-- admin
+|   |   |-- public
+|   |   |   |-- file.svg
+|   |   |   |-- globe.svg
+|   |   |   |-- next.svg
+|   |   |   |-- vercel.svg
+|   |   |   +-- window.svg
+|   |   |-- src
+|   |   |   |-- app
+|   |   |   |   |-- error.tsx
+|   |   |   |   |-- favicon.ico
+|   |   |   |   |-- globals.css
+|   |   |   |   |-- layout.tsx
+|   |   |   |   +-- page.tsx
+|   |   |   +-- components
+|   |   |       +-- app-error-state.tsx
+|   |   |-- .gitignore
+|   |   |-- AGENTS.md
+|   |   |-- CLAUDE.md
+|   |   |-- eslint.config.mjs
+|   |   |-- next.config.ts
+|   |   |-- package.json
+|   |   |-- postcss.config.mjs
+|   |   |-- README.md
+|   |   +-- tsconfig.json
+|   |-- customer
+|   |   |-- android
+|   |   |   |-- app
+|   |   |   |   |-- src
+|   |   |   |   |   |-- debug
+|   |   |   |   |   |   +-- AndroidManifest.xml
+|   |   |   |   |   |-- main
+|   |   |   |   |   |   |-- kotlin
+|   |   |   |   |   |   |   +-- com
+|   |   |   |   |   |   |       +-- cosmicforge
+|   |   |   |   |   |   |           +-- logistics
+|   |   |   |   |   |   |               +-- customer
+|   |   |   |   |   |   |                   +-- MainActivity.kt
+|   |   |   |   |   |   |-- res
+|   |   |   |   |   |   |   |-- drawable
+|   |   |   |   |   |   |   |   +-- launch_background.xml
+|   |   |   |   |   |   |   |-- drawable-v21
+|   |   |   |   |   |   |   |   +-- launch_background.xml
+|   |   |   |   |   |   |   |-- mipmap-hdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-mdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xxhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xxxhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- values
+|   |   |   |   |   |   |   |   +-- styles.xml
+|   |   |   |   |   |   |   +-- values-night
+|   |   |   |   |   |   |       +-- styles.xml
+|   |   |   |   |   |   +-- AndroidManifest.xml
+|   |   |   |   |   +-- profile
+|   |   |   |   |       +-- AndroidManifest.xml
+|   |   |   |   |-- build.gradle.kts
+|   |   |   |   +-- google-services.json
+|   |   |   |-- gradle
+|   |   |   |   +-- wrapper
+|   |   |   |       +-- gradle-wrapper.properties
+|   |   |   |-- .gitignore
+|   |   |   |-- build.gradle.kts
+|   |   |   |-- gradle.properties
+|   |   |   +-- settings.gradle.kts
+|   |   |-- assets
+|   |   |   +-- figma
+|   |   |       |-- all_set_people.png
+|   |   |       |-- auth_car_header.png
+|   |   |       |-- delivery truck back side view.png
+|   |   |       |-- Group 1000004752.svg
+|   |   |       |-- House_01.svg
+|   |   |       |-- location_map.png
+|   |   |       |-- notification_bell.png
+|   |   |       |-- safetyProtection32x32.png
+|   |   |       |-- updates_tag.png
+|   |   |       |-- user.svg
+|   |   |       +-- Vector.svg
+|   |   |-- ios
+|   |   |   |-- Flutter
+|   |   |   |   |-- AppFrameworkInfo.plist
+|   |   |   |   |-- Debug.xcconfig
+|   |   |   |   +-- Release.xcconfig
+|   |   |   |-- Runner
+|   |   |   |   |-- Assets.xcassets
+|   |   |   |   |   |-- AppIcon.appiconset
+|   |   |   |   |   |   |-- Contents.json
+|   |   |   |   |   |   |-- Icon-App-1024x1024@1x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@1x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@2x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@3x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@1x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@2x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@3x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@1x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@2x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@3x.png
+|   |   |   |   |   |   |-- Icon-App-60x60@2x.png
+|   |   |   |   |   |   |-- Icon-App-60x60@3x.png
+|   |   |   |   |   |   |-- Icon-App-76x76@1x.png
+|   |   |   |   |   |   |-- Icon-App-76x76@2x.png
+|   |   |   |   |   |   +-- Icon-App-83.5x83.5@2x.png
+|   |   |   |   |   +-- LaunchImage.imageset
+|   |   |   |   |       |-- Contents.json
+|   |   |   |   |       |-- LaunchImage.png
+|   |   |   |   |       |-- LaunchImage@2x.png
+|   |   |   |   |       |-- LaunchImage@3x.png
+|   |   |   |   |       +-- README.md
+|   |   |   |   |-- Base.lproj
+|   |   |   |   |   |-- LaunchScreen.storyboard
+|   |   |   |   |   +-- Main.storyboard
+|   |   |   |   |-- AppDelegate.swift
+|   |   |   |   |-- Info.plist
+|   |   |   |   |-- Runner-Bridging-Header.h
+|   |   |   |   +-- SceneDelegate.swift
+|   |   |   |-- Runner.xcodeproj
+|   |   |   |   |-- project.xcworkspace
+|   |   |   |   |   |-- xcshareddata
+|   |   |   |   |   |   |-- IDEWorkspaceChecks.plist
+|   |   |   |   |   |   +-- WorkspaceSettings.xcsettings
+|   |   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- xcschemes
+|   |   |   |   |       +-- Runner.xcscheme
+|   |   |   |   +-- project.pbxproj
+|   |   |   |-- Runner.xcworkspace
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   |-- IDEWorkspaceChecks.plist
+|   |   |   |   |   +-- WorkspaceSettings.xcsettings
+|   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |-- RunnerTests
+|   |   |   |   +-- RunnerTests.swift
+|   |   |   |-- .gitignore
+|   |   |   |-- Podfile
+|   |   |   +-- Podfile.lock
+|   |   |-- lib
+|   |   |   |-- app
+|   |   |   |   |-- app_routes.dart
+|   |   |   |   +-- customer_app.dart
+|   |   |   |-- core
+|   |   |   |   |-- config
+|   |   |   |   |   +-- customer_app_config.dart
+|   |   |   |   +-- cosmicforge_logistics_app_theme.dart
+|   |   |   |-- data
+|   |   |   |   +-- customer_api.dart
+|   |   |   |-- features
+|   |   |   |   |-- auth
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   |-- customer_auth_api.dart
+|   |   |   |   |   |   +-- customer_session_store.dart
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- customer_auth_models.dart
+|   |   |   |   |   |-- state
+|   |   |   |   |   |   +-- customer_auth_controller.dart
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- otp_verification_screen.dart
+|   |   |   |   |       |-- phone_entry_screen.dart
+|   |   |   |   |       +-- splash_screen.dart
+|   |   |   |   |-- hauling
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   |-- customer_realtime_listener.dart
+|   |   |   |   |   |   |-- hauling_api.dart
+|   |   |   |   |   |   +-- places_api.dart
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- hauling_models.dart
+|   |   |   |   |   |-- state
+|   |   |   |   |   |   +-- hauling_booking_controller.dart
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- views
+|   |   |   |   |       |   |-- hauling_active_trip_view.dart
+|   |   |   |   |       |   |-- hauling_cancelled_view.dart
+|   |   |   |   |       |   |-- hauling_completed_view.dart
+|   |   |   |   |       |   |-- hauling_details_view.dart
+|   |   |   |   |       |   |-- hauling_error_view.dart
+|   |   |   |   |       |   |-- hauling_location_entry_view.dart
+|   |   |   |   |       |   |-- hauling_package_info_view.dart
+|   |   |   |   |       |   |-- hauling_payment_processing_view.dart
+|   |   |   |   |       |   |-- hauling_payment_view.dart
+|   |   |   |   |       |   |-- hauling_review_view.dart
+|   |   |   |   |       |   |-- hauling_searching_view.dart
+|   |   |   |   |       |   |-- hauling_trip_detail_screen.dart
+|   |   |   |   |       |   +-- hauling_unavailable_view.dart
+|   |   |   |   |       |-- widgets
+|   |   |   |   |       |   |-- hauling_flow_helpers.dart
+|   |   |   |   |       |   |-- hauling_map_widget.dart
+|   |   |   |   |       |   |-- hauling_trip_sheet_widgets.dart
+|   |   |   |   |       |   +-- hauling_trip_widgets.dart
+|   |   |   |   |       +-- hauling_flow_screen.dart
+|   |   |   |   |-- home
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- tabs
+|   |   |   |   |       |   |-- customer_home_tab.dart
+|   |   |   |   |       |   |-- customer_notifications_tab.dart
+|   |   |   |   |       |   +-- customer_trips_tab.dart
+|   |   |   |   |       |-- widgets
+|   |   |   |   |       |   |-- customer_home_bottom_nav.dart
+|   |   |   |   |       |   +-- customer_home_map.dart
+|   |   |   |   |       +-- customer_home_screen.dart
+|   |   |   |   |-- media
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   |-- media_file_api.dart
+|   |   |   |   |   |   +-- media_upload_service.dart
+|   |   |   |   |   +-- models
+|   |   |   |   |       +-- media_upload_result.dart
+|   |   |   |   |-- notifications
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   |-- firebase_push.dart
+|   |   |   |   |   |   |-- notification_api.dart
+|   |   |   |   |   |   +-- push_registration_service.dart
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- app_notification.dart
+|   |   |   |   |   +-- state
+|   |   |   |   |       +-- notification_controller.dart
+|   |   |   |   |-- onboarding
+|   |   |   |   |   +-- ui
+|   |   |   |   |       +-- onboarding_screen.dart
+|   |   |   |   |-- profile
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- saved_locations
+|   |   |   |   |       |   |-- saved_location_form_screen.dart
+|   |   |   |   |       |   |-- saved_location_map_picker_screen.dart
+|   |   |   |   |       |   |-- saved_locations_header.dart
+|   |   |   |   |       |   +-- saved_locations_screen.dart
+|   |   |   |   |       |-- customer_profile_edit_screen.dart
+|   |   |   |   |       |-- customer_profile_screen.dart
+|   |   |   |   |       |-- customer_profile_tab.dart
+|   |   |   |   |       +-- emergency_contact_screen.dart
+|   |   |   |   |-- profile_setup
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- all_set_screen.dart
+|   |   |   |   |       |-- photo_upload_screen.dart
+|   |   |   |   |       |-- profile_details_screen.dart
+|   |   |   |   |       +-- service_choice_screen.dart
+|   |   |   |   |-- support
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   +-- support_api.dart
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- support_models.dart
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- complaint_detail_screen.dart
+|   |   |   |   |       |-- complaints_list_screen.dart
+|   |   |   |   |       |-- new_complaint_screen.dart
+|   |   |   |   |       +-- support_chat_screen.dart
+|   |   |   |   +-- wallet
+|   |   |   |       |-- data
+|   |   |   |       |   +-- wallet_api.dart
+|   |   |   |       |-- models
+|   |   |   |       |   +-- wallet_models.dart
+|   |   |   |       |-- state
+|   |   |   |       |   |-- wallet_funding_controller.dart
+|   |   |   |       |   +-- wallet_withdrawal_controller.dart
+|   |   |   |       +-- ui
+|   |   |   |           |-- disputes
+|   |   |   |           |   +-- wallet_dispute_flow_screen.dart
+|   |   |   |           |-- funding
+|   |   |   |           |   |-- wallet_checkout_view.dart
+|   |   |   |           |   |-- wallet_fund_amount_view.dart
+|   |   |   |           |   |-- wallet_funding_flow_screen.dart
+|   |   |   |           |   +-- wallet_funding_result_view.dart
+|   |   |   |           |-- screens
+|   |   |   |           |   |-- all_transactions_screen.dart
+|   |   |   |           |   +-- transaction_details_screen.dart
+|   |   |   |           |-- widgets
+|   |   |   |           |   |-- wallet_amount_keypad.dart
+|   |   |   |           |   |-- wallet_balance_card.dart
+|   |   |   |           |   |-- wallet_flow_scaffold.dart
+|   |   |   |           |   |-- wallet_pin_dots.dart
+|   |   |   |           |   |-- wallet_status_chip.dart
+|   |   |   |           |   |-- wallet_success_view.dart
+|   |   |   |           |   +-- wallet_transaction_tile.dart
+|   |   |   |           |-- withdrawal
+|   |   |   |           |   |-- wallet_withdraw_account_view.dart
+|   |   |   |           |   |-- wallet_withdraw_amount_view.dart
+|   |   |   |           |   |-- wallet_withdraw_authorize_view.dart
+|   |   |   |           |   |-- wallet_withdraw_result_view.dart
+|   |   |   |           |   +-- wallet_withdrawal_flow_screen.dart
+|   |   |   |           +-- customer_wallet_screen.dart
+|   |   |   |-- shared
+|   |   |   |   +-- widgets
+|   |   |   |       |-- customer_screen_frame.dart
+|   |   |   |       +-- figma_customer_widgets.dart
+|   |   |   |-- firebase_options.dart
+|   |   |   +-- main.dart
+|   |   |-- linux
+|   |   |   |-- flutter
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- generated_plugin_registrant.cc
+|   |   |   |   |-- generated_plugin_registrant.h
+|   |   |   |   +-- generated_plugins.cmake
+|   |   |   |-- runner
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- main.cc
+|   |   |   |   |-- my_application.cc
+|   |   |   |   +-- my_application.h
+|   |   |   |-- .gitignore
+|   |   |   +-- CMakeLists.txt
+|   |   |-- macos
+|   |   |   |-- Flutter
+|   |   |   |   |-- Flutter-Debug.xcconfig
+|   |   |   |   |-- Flutter-Release.xcconfig
+|   |   |   |   +-- GeneratedPluginRegistrant.swift
+|   |   |   |-- Runner
+|   |   |   |   |-- Assets.xcassets
+|   |   |   |   |   +-- AppIcon.appiconset
+|   |   |   |   |       |-- app_icon_1024.png
+|   |   |   |   |       |-- app_icon_128.png
+|   |   |   |   |       |-- app_icon_16.png
+|   |   |   |   |       |-- app_icon_256.png
+|   |   |   |   |       |-- app_icon_32.png
+|   |   |   |   |       |-- app_icon_512.png
+|   |   |   |   |       |-- app_icon_64.png
+|   |   |   |   |       +-- Contents.json
+|   |   |   |   |-- Base.lproj
+|   |   |   |   |   +-- MainMenu.xib
+|   |   |   |   |-- Configs
+|   |   |   |   |   |-- AppInfo.xcconfig
+|   |   |   |   |   |-- Debug.xcconfig
+|   |   |   |   |   |-- Release.xcconfig
+|   |   |   |   |   +-- Warnings.xcconfig
+|   |   |   |   |-- AppDelegate.swift
+|   |   |   |   |-- DebugProfile.entitlements
+|   |   |   |   |-- Info.plist
+|   |   |   |   |-- MainFlutterWindow.swift
+|   |   |   |   +-- Release.entitlements
+|   |   |   |-- Runner.xcodeproj
+|   |   |   |   |-- project.xcworkspace
+|   |   |   |   |   +-- xcshareddata
+|   |   |   |   |       +-- IDEWorkspaceChecks.plist
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- xcschemes
+|   |   |   |   |       +-- Runner.xcscheme
+|   |   |   |   +-- project.pbxproj
+|   |   |   |-- Runner.xcworkspace
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- IDEWorkspaceChecks.plist
+|   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |-- RunnerTests
+|   |   |   |   +-- RunnerTests.swift
+|   |   |   |-- .gitignore
+|   |   |   +-- Podfile
+|   |   |-- test
+|   |   |   |-- features
+|   |   |   |   |-- auth
+|   |   |   |   |   |-- customer_auth_api_test.dart
+|   |   |   |   |   |-- customer_auth_failure_test.dart
+|   |   |   |   |   +-- customer_auth_models_test.dart
+|   |   |   |   +-- wallet
+|   |   |   |       |-- wallet_models_test.dart
+|   |   |   |       +-- wallet_withdrawal_controller_test.dart
+|   |   |   +-- widget_test.dart
+|   |   |-- web
+|   |   |   |-- icons
+|   |   |   |   |-- Icon-192.png
+|   |   |   |   |-- Icon-512.png
+|   |   |   |   |-- Icon-maskable-192.png
+|   |   |   |   +-- Icon-maskable-512.png
+|   |   |   |-- favicon.png
+|   |   |   |-- index.html
+|   |   |   +-- manifest.json
+|   |   |-- windows
+|   |   |   |-- flutter
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- generated_plugin_registrant.cc
+|   |   |   |   |-- generated_plugin_registrant.h
+|   |   |   |   +-- generated_plugins.cmake
+|   |   |   |-- runner
+|   |   |   |   |-- resources
+|   |   |   |   |   +-- app_icon.ico
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- flutter_window.cpp
+|   |   |   |   |-- flutter_window.h
+|   |   |   |   |-- main.cpp
+|   |   |   |   |-- resource.h
+|   |   |   |   |-- runner.exe.manifest
+|   |   |   |   |-- Runner.rc
+|   |   |   |   |-- utils.cpp
+|   |   |   |   |-- utils.h
+|   |   |   |   |-- win32_window.cpp
+|   |   |   |   +-- win32_window.h
+|   |   |   |-- .gitignore
+|   |   |   +-- CMakeLists.txt
+|   |   |-- .gitignore
+|   |   |-- .metadata
+|   |   |-- analysis_options.yaml
+|   |   |-- pubspec.lock
+|   |   |-- pubspec.yaml
+|   |   +-- README.md
+|   |-- dispatch_provider
+|   |   |-- android
+|   |   |   |-- app
+|   |   |   |   |-- src
+|   |   |   |   |   |-- debug
+|   |   |   |   |   |   +-- AndroidManifest.xml
+|   |   |   |   |   |-- main
+|   |   |   |   |   |   |-- java
+|   |   |   |   |   |   |   +-- io
+|   |   |   |   |   |   |       +-- flutter
+|   |   |   |   |   |   |           +-- plugins
+|   |   |   |   |   |   |               +-- GeneratedPluginRegistrant.java
+|   |   |   |   |   |   |-- kotlin
+|   |   |   |   |   |   |   +-- com
+|   |   |   |   |   |   |       +-- cosmicforge
+|   |   |   |   |   |   |           +-- logistics
+|   |   |   |   |   |   |               +-- dispatch_provider
+|   |   |   |   |   |   |                   +-- MainActivity.kt
+|   |   |   |   |   |   |-- res
+|   |   |   |   |   |   |   |-- drawable
+|   |   |   |   |   |   |   |   +-- launch_background.xml
+|   |   |   |   |   |   |   |-- drawable-v21
+|   |   |   |   |   |   |   |   +-- launch_background.xml
+|   |   |   |   |   |   |   |-- mipmap-hdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-mdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xxhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xxxhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- values
+|   |   |   |   |   |   |   |   +-- styles.xml
+|   |   |   |   |   |   |   +-- values-night
+|   |   |   |   |   |   |       +-- styles.xml
+|   |   |   |   |   |   +-- AndroidManifest.xml
+|   |   |   |   |   +-- profile
+|   |   |   |   |       +-- AndroidManifest.xml
+|   |   |   |   +-- build.gradle.kts
+|   |   |   |-- gradle
+|   |   |   |   +-- wrapper
+|   |   |   |       |-- gradle-wrapper.jar
+|   |   |   |       +-- gradle-wrapper.properties
+|   |   |   |-- .gitignore
+|   |   |   |-- build.gradle.kts
+|   |   |   |-- gradle.properties
+|   |   |   |-- gradlew
+|   |   |   |-- gradlew.bat
+|   |   |   |-- local.properties
+|   |   |   +-- settings.gradle.kts
+|   |   |-- assets
+|   |   |   +-- figma
+|   |   |       |-- figma
+|   |   |       |   |-- account_customer.png
+|   |   |       |   |-- account_delivery.png
+|   |   |       |   |-- account_driver.png
+|   |   |       |   |-- auth_car_header.png
+|   |   |       |   |-- mode_fleet.png
+|   |   |       |   |-- mode_individual.png
+|   |   |       |   |-- onboarding_car.png
+|   |   |       |   |-- onboarding_rider.png
+|   |   |       |   |-- onboarding_truck.png
+|   |   |       |   |-- profile_submitted.png
+|   |   |       |   |-- service_package.png
+|   |   |       |   |-- service_taxi.png
+|   |   |       |   |-- service_truck.png
+|   |   |       |   +-- splash_logo.png
+|   |   |       |-- account_customer.png
+|   |   |       |-- account_delivery.png
+|   |   |       |-- account_driver.png
+|   |   |       |-- auth_car_header.png
+|   |   |       |-- mode_fleet.png
+|   |   |       |-- mode_individual.png
+|   |   |       |-- onboarding_car.png
+|   |   |       |-- onboarding_rider.png
+|   |   |       |-- onboarding_truck.png
+|   |   |       |-- profile_submitted.png
+|   |   |       |-- service_package.png
+|   |   |       |-- service_taxi.png
+|   |   |       |-- service_truck.png
+|   |   |       +-- splash_logo.png
+|   |   |-- ios
+|   |   |   |-- Flutter
+|   |   |   |   |-- ephemeral
+|   |   |   |   |   |-- flutter_lldb_helper.py
+|   |   |   |   |   |-- flutter_lldbinit
+|   |   |   |   |   +-- flutter_native_integration.env
+|   |   |   |   |-- AppFrameworkInfo.plist
+|   |   |   |   |-- Debug.xcconfig
+|   |   |   |   |-- flutter_export_environment.sh
+|   |   |   |   |-- Generated.xcconfig
+|   |   |   |   +-- Release.xcconfig
+|   |   |   |-- Runner
+|   |   |   |   |-- Assets.xcassets
+|   |   |   |   |   |-- AppIcon.appiconset
+|   |   |   |   |   |   |-- Contents.json
+|   |   |   |   |   |   |-- Icon-App-1024x1024@1x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@1x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@2x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@3x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@1x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@2x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@3x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@1x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@2x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@3x.png
+|   |   |   |   |   |   |-- Icon-App-60x60@2x.png
+|   |   |   |   |   |   |-- Icon-App-60x60@3x.png
+|   |   |   |   |   |   |-- Icon-App-76x76@1x.png
+|   |   |   |   |   |   |-- Icon-App-76x76@2x.png
+|   |   |   |   |   |   +-- Icon-App-83.5x83.5@2x.png
+|   |   |   |   |   +-- LaunchImage.imageset
+|   |   |   |   |       |-- Contents.json
+|   |   |   |   |       |-- LaunchImage.png
+|   |   |   |   |       |-- LaunchImage@2x.png
+|   |   |   |   |       |-- LaunchImage@3x.png
+|   |   |   |   |       +-- README.md
+|   |   |   |   |-- Base.lproj
+|   |   |   |   |   |-- LaunchScreen.storyboard
+|   |   |   |   |   +-- Main.storyboard
+|   |   |   |   |-- AppDelegate.swift
+|   |   |   |   |-- GeneratedPluginRegistrant.h
+|   |   |   |   |-- GeneratedPluginRegistrant.m
+|   |   |   |   |-- Info.plist
+|   |   |   |   |-- Runner-Bridging-Header.h
+|   |   |   |   +-- SceneDelegate.swift
+|   |   |   |-- Runner.xcodeproj
+|   |   |   |   |-- project.xcworkspace
+|   |   |   |   |   |-- xcshareddata
+|   |   |   |   |   |   |-- IDEWorkspaceChecks.plist
+|   |   |   |   |   |   +-- WorkspaceSettings.xcsettings
+|   |   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- xcschemes
+|   |   |   |   |       +-- Runner.xcscheme
+|   |   |   |   +-- project.pbxproj
+|   |   |   |-- Runner.xcworkspace
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   |-- IDEWorkspaceChecks.plist
+|   |   |   |   |   +-- WorkspaceSettings.xcsettings
+|   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |-- RunnerTests
+|   |   |   |   +-- RunnerTests.swift
+|   |   |   |-- .gitignore
+|   |   |   +-- Podfile
+|   |   |-- lib
+|   |   |   |-- app
+|   |   |   |   |-- app_routes.dart
+|   |   |   |   +-- dispatch_provider_app.dart
+|   |   |   |-- core
+|   |   |   |   |-- network
+|   |   |   |   |   |-- api_connectivity_check.dart
+|   |   |   |   |   +-- authenticated_api_client.dart
+|   |   |   |   |-- storage
+|   |   |   |   |   +-- token_storage.dart
+|   |   |   |   +-- config.dart
+|   |   |   |-- features
+|   |   |   |   |-- account_setup
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- bike_type_screen.dart
+|   |   |   |   |       |-- driver_information_screen.dart
+|   |   |   |   |       |-- operation_mode_screen.dart
+|   |   |   |   |       |-- photo_upload_screen.dart
+|   |   |   |   |       |-- profile_details_screen.dart
+|   |   |   |   |       |-- service_type_screen.dart
+|   |   |   |   |       +-- verification_pending_screen.dart
+|   |   |   |   |-- account_type
+|   |   |   |   |   +-- ui
+|   |   |   |   |       +-- account_type_screen.dart
+|   |   |   |   |-- auth
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   +-- dispatch_auth_api.dart
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- dispatch_auth_models.dart
+|   |   |   |   |   |-- state
+|   |   |   |   |   |   +-- dispatch_auth_controller.dart
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- login_screen.dart
+|   |   |   |   |       |-- otp_verification_screen.dart
+|   |   |   |   |       |-- phone_entry_screen.dart
+|   |   |   |   |       +-- splash_screen.dart
+|   |   |   |   |-- availability
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   |-- availability_api.dart
+|   |   |   |   |   |   +-- availability_models.dart
+|   |   |   |   |   +-- state
+|   |   |   |   |       +-- availability_controller.dart
+|   |   |   |   |-- home
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- widgets
+|   |   |   |   |       |   |-- incoming_request_card.dart
+|   |   |   |   |       |   |-- offline_modal.dart
+|   |   |   |   |       |   +-- trip_completed_screen.dart
+|   |   |   |   |       |-- dashboard_screen.dart
+|   |   |   |   |       +-- home_screen.dart
+|   |   |   |   |-- onboarding
+|   |   |   |   |   +-- ui
+|   |   |   |   |       +-- onboarding_screen.dart
+|   |   |   |   |-- profile
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   +-- provider_profile_api.dart
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- provider_profile_models.dart
+|   |   |   |   |   |-- state
+|   |   |   |   |   |   +-- provider_profile_controller.dart
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- widgets
+|   |   |   |   |       |   |-- change_phone_number_sheet.dart
+|   |   |   |   |       |   +-- profile_menu_item.dart
+|   |   |   |   |       |-- change_password_screen.dart
+|   |   |   |   |       |-- create_password_screen.dart
+|   |   |   |   |       |-- create_pin_screen.dart
+|   |   |   |   |       |-- email_verification_screen.dart
+|   |   |   |   |       |-- emergency_contact_screen.dart
+|   |   |   |   |       |-- face_verification_screen.dart
+|   |   |   |   |       |-- guarantor_information_screen.dart
+|   |   |   |   |       |-- live_chat_screen.dart
+|   |   |   |   |       |-- new_phone_number_screen.dart
+|   |   |   |   |       |-- otp_confirmation_screen.dart
+|   |   |   |   |       |-- password_screen.dart
+|   |   |   |   |       |-- payments_withdrawals_screen.dart
+|   |   |   |   |       |-- phone_number_changed_dialog.dart
+|   |   |   |   |       |-- privacy_screen.dart
+|   |   |   |   |       |-- profile_info_screen.dart
+|   |   |   |   |       |-- profile_screen.dart
+|   |   |   |   |       |-- safety_emergency_screen.dart
+|   |   |   |   |       |-- security_screen.dart
+|   |   |   |   |       |-- support_screen.dart
+|   |   |   |   |       |-- transaction_pin_screen.dart
+|   |   |   |   |       |-- two_step_verification_screen.dart
+|   |   |   |   |       |-- vehicle_information_screen.dart
+|   |   |   |   |       |-- verification_documents_screen.dart
+|   |   |   |   |       +-- verification_intro_screen.dart
+|   |   |   |   |-- requests
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   |-- request_model.dart
+|   |   |   |   |   |   +-- requests_api.dart
+|   |   |   |   |   |-- state
+|   |   |   |   |   |   +-- requests_controller.dart
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- request_detail_screen.dart
+|   |   |   |   |       +-- requests_screen.dart
+|   |   |   |   |-- trips
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   |-- trip_model.dart
+|   |   |   |   |   |   +-- trips_api.dart
+|   |   |   |   |   |-- state
+|   |   |   |   |   |   +-- trips_controller.dart
+|   |   |   |   |   +-- ui
+|   |   |   |   |       |-- trip_detail_screen.dart
+|   |   |   |   |       +-- trips_screen.dart
+|   |   |   |   |-- vehicle
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   +-- vehicle_api.dart
+|   |   |   |   |   +-- state
+|   |   |   |   |       +-- vehicle_controller.dart
+|   |   |   |   |-- verification
+|   |   |   |   |   |-- data
+|   |   |   |   |   |   +-- verification_api.dart
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- verification_models.dart
+|   |   |   |   |   +-- state
+|   |   |   |   |       +-- verification_controller.dart
+|   |   |   |   +-- wallet
+|   |   |   |       |-- data
+|   |   |   |       |   |-- wallet_api.dart
+|   |   |   |       |   +-- wallet_models.dart
+|   |   |   |       |-- state
+|   |   |   |       |   +-- wallet_controller.dart
+|   |   |   |       +-- ui
+|   |   |   |           |-- add_bank_account_screen.dart
+|   |   |   |           |-- dispute_detail_screen.dart
+|   |   |   |           |-- earning_summary_screen.dart
+|   |   |   |           |-- log_dispute_screen.dart
+|   |   |   |           |-- payment_processing_screen.dart
+|   |   |   |           |-- transaction_auth_screen.dart
+|   |   |   |           |-- transaction_detail_screen.dart
+|   |   |   |           |-- wallet_screen.dart
+|   |   |   |           |-- withdrawal_confirm_screen.dart
+|   |   |   |           |-- withdrawal_form_screen.dart
+|   |   |   |           +-- withdrawal_receipt_screen.dart
+|   |   |   |-- shared
+|   |   |   |   +-- widgets
+|   |   |   |       |-- dispatch_screen_frame.dart
+|   |   |   |       |-- document_upload_box.dart
+|   |   |   |       |-- numeric_keypad.dart
+|   |   |   |       +-- password_widgets.dart
+|   |   |   +-- main.dart
+|   |   |-- linux
+|   |   |   |-- flutter
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- generated_plugin_registrant.cc
+|   |   |   |   |-- generated_plugin_registrant.h
+|   |   |   |   +-- generated_plugins.cmake
+|   |   |   |-- runner
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- main.cc
+|   |   |   |   |-- my_application.cc
+|   |   |   |   +-- my_application.h
+|   |   |   |-- .gitignore
+|   |   |   +-- CMakeLists.txt
+|   |   |-- macos
+|   |   |   |-- Flutter
+|   |   |   |   |-- ephemeral
+|   |   |   |   |   |-- flutter_export_environment.sh
+|   |   |   |   |   |-- flutter_native_integration.env
+|   |   |   |   |   +-- Flutter-Generated.xcconfig
+|   |   |   |   |-- Flutter-Debug.xcconfig
+|   |   |   |   |-- Flutter-Release.xcconfig
+|   |   |   |   +-- GeneratedPluginRegistrant.swift
+|   |   |   |-- Runner
+|   |   |   |   |-- Assets.xcassets
+|   |   |   |   |   +-- AppIcon.appiconset
+|   |   |   |   |       |-- app_icon_1024.png
+|   |   |   |   |       |-- app_icon_128.png
+|   |   |   |   |       |-- app_icon_16.png
+|   |   |   |   |       |-- app_icon_256.png
+|   |   |   |   |       |-- app_icon_32.png
+|   |   |   |   |       |-- app_icon_512.png
+|   |   |   |   |       |-- app_icon_64.png
+|   |   |   |   |       +-- Contents.json
+|   |   |   |   |-- Base.lproj
+|   |   |   |   |   +-- MainMenu.xib
+|   |   |   |   |-- Configs
+|   |   |   |   |   |-- AppInfo.xcconfig
+|   |   |   |   |   |-- Debug.xcconfig
+|   |   |   |   |   |-- Release.xcconfig
+|   |   |   |   |   +-- Warnings.xcconfig
+|   |   |   |   |-- AppDelegate.swift
+|   |   |   |   |-- DebugProfile.entitlements
+|   |   |   |   |-- Info.plist
+|   |   |   |   |-- MainFlutterWindow.swift
+|   |   |   |   +-- Release.entitlements
+|   |   |   |-- Runner.xcodeproj
+|   |   |   |   |-- project.xcworkspace
+|   |   |   |   |   +-- xcshareddata
+|   |   |   |   |       +-- IDEWorkspaceChecks.plist
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- xcschemes
+|   |   |   |   |       +-- Runner.xcscheme
+|   |   |   |   +-- project.pbxproj
+|   |   |   |-- Runner.xcworkspace
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- IDEWorkspaceChecks.plist
+|   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |-- RunnerTests
+|   |   |   |   +-- RunnerTests.swift
+|   |   |   |-- .gitignore
+|   |   |   +-- Podfile
+|   |   |-- scripts
+|   |   |   +-- run_android_usb_local.ps1
+|   |   |-- test
+|   |   |   +-- widget_test.dart
+|   |   |-- web
+|   |   |   |-- icons
+|   |   |   |   |-- Icon-192.png
+|   |   |   |   |-- Icon-512.png
+|   |   |   |   |-- Icon-maskable-192.png
+|   |   |   |   +-- Icon-maskable-512.png
+|   |   |   |-- favicon.png
+|   |   |   |-- index.html
+|   |   |   +-- manifest.json
+|   |   |-- windows
+|   |   |   |-- flutter
+|   |   |   |   |-- ephemeral
+|   |   |   |   |   +-- .plugin_symlinks
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- generated_plugin_registrant.cc
+|   |   |   |   |-- generated_plugin_registrant.h
+|   |   |   |   +-- generated_plugins.cmake
+|   |   |   |-- runner
+|   |   |   |   |-- resources
+|   |   |   |   |   +-- app_icon.ico
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- flutter_window.cpp
+|   |   |   |   |-- flutter_window.h
+|   |   |   |   |-- main.cpp
+|   |   |   |   |-- resource.h
+|   |   |   |   |-- runner.exe.manifest
+|   |   |   |   |-- Runner.rc
+|   |   |   |   |-- utils.cpp
+|   |   |   |   |-- utils.h
+|   |   |   |   |-- win32_window.cpp
+|   |   |   |   +-- win32_window.h
+|   |   |   |-- .gitignore
+|   |   |   +-- CMakeLists.txt
+|   |   |-- .flutter-plugins-dependencies
+|   |   |-- .gitignore
+|   |   |-- .metadata
+|   |   |-- analysis_options.yaml
+|   |   |-- LOCAL_BACKEND_TESTING.md
+|   |   |-- pubspec.lock
+|   |   |-- pubspec.yaml
+|   |   +-- README.md
+|   |-- taxi_provider
+|   |   |-- android
+|   |   |   |-- app
+|   |   |   |   |-- src
+|   |   |   |   |   |-- debug
+|   |   |   |   |   |   +-- AndroidManifest.xml
+|   |   |   |   |   |-- main
+|   |   |   |   |   |   |-- kotlin
+|   |   |   |   |   |   |   +-- com
+|   |   |   |   |   |   |       +-- cosmicforge
+|   |   |   |   |   |   |           +-- logistics
+|   |   |   |   |   |   |               +-- taxiprovider
+|   |   |   |   |   |   |                   +-- MainActivity.kt
+|   |   |   |   |   |   |-- res
+|   |   |   |   |   |   |   |-- drawable
+|   |   |   |   |   |   |   |   +-- launch_background.xml
+|   |   |   |   |   |   |   |-- drawable-v21
+|   |   |   |   |   |   |   |   +-- launch_background.xml
+|   |   |   |   |   |   |   |-- mipmap-hdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-mdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xxhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- mipmap-xxxhdpi
+|   |   |   |   |   |   |   |   +-- ic_launcher.png
+|   |   |   |   |   |   |   |-- values
+|   |   |   |   |   |   |   |   +-- styles.xml
+|   |   |   |   |   |   |   +-- values-night
+|   |   |   |   |   |   |       +-- styles.xml
+|   |   |   |   |   |   +-- AndroidManifest.xml
+|   |   |   |   |   +-- profile
+|   |   |   |   |       +-- AndroidManifest.xml
+|   |   |   |   +-- build.gradle.kts
+|   |   |   |-- gradle
+|   |   |   |   +-- wrapper
+|   |   |   |       +-- gradle-wrapper.properties
+|   |   |   |-- .gitignore
+|   |   |   |-- build.gradle.kts
+|   |   |   |-- gradle.properties
+|   |   |   +-- settings.gradle.kts
+|   |   |-- ios
+|   |   |   |-- Flutter
+|   |   |   |   |-- AppFrameworkInfo.plist
+|   |   |   |   |-- Debug.xcconfig
+|   |   |   |   +-- Release.xcconfig
+|   |   |   |-- Runner
+|   |   |   |   |-- Assets.xcassets
+|   |   |   |   |   |-- AppIcon.appiconset
+|   |   |   |   |   |   |-- Contents.json
+|   |   |   |   |   |   |-- Icon-App-1024x1024@1x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@1x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@2x.png
+|   |   |   |   |   |   |-- Icon-App-20x20@3x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@1x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@2x.png
+|   |   |   |   |   |   |-- Icon-App-29x29@3x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@1x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@2x.png
+|   |   |   |   |   |   |-- Icon-App-40x40@3x.png
+|   |   |   |   |   |   |-- Icon-App-60x60@2x.png
+|   |   |   |   |   |   |-- Icon-App-60x60@3x.png
+|   |   |   |   |   |   |-- Icon-App-76x76@1x.png
+|   |   |   |   |   |   |-- Icon-App-76x76@2x.png
+|   |   |   |   |   |   +-- Icon-App-83.5x83.5@2x.png
+|   |   |   |   |   +-- LaunchImage.imageset
+|   |   |   |   |       |-- Contents.json
+|   |   |   |   |       |-- LaunchImage.png
+|   |   |   |   |       |-- LaunchImage@2x.png
+|   |   |   |   |       |-- LaunchImage@3x.png
+|   |   |   |   |       +-- README.md
+|   |   |   |   |-- Base.lproj
+|   |   |   |   |   |-- LaunchScreen.storyboard
+|   |   |   |   |   +-- Main.storyboard
+|   |   |   |   |-- AppDelegate.swift
+|   |   |   |   |-- Info.plist
+|   |   |   |   |-- Runner-Bridging-Header.h
+|   |   |   |   +-- SceneDelegate.swift
+|   |   |   |-- Runner.xcodeproj
+|   |   |   |   |-- project.xcworkspace
+|   |   |   |   |   |-- xcshareddata
+|   |   |   |   |   |   |-- IDEWorkspaceChecks.plist
+|   |   |   |   |   |   +-- WorkspaceSettings.xcsettings
+|   |   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- xcschemes
+|   |   |   |   |       +-- Runner.xcscheme
+|   |   |   |   +-- project.pbxproj
+|   |   |   |-- Runner.xcworkspace
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   |-- IDEWorkspaceChecks.plist
+|   |   |   |   |   +-- WorkspaceSettings.xcsettings
+|   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |-- RunnerTests
+|   |   |   |   +-- RunnerTests.swift
+|   |   |   +-- .gitignore
+|   |   |-- lib
+|   |   |   |-- core
+|   |   |   |   +-- cosmicforge_logistics_app_theme.dart
+|   |   |   |-- data
+|   |   |   |   +-- taxi_provider_api.dart
+|   |   |   +-- main.dart
+|   |   |-- linux
+|   |   |   |-- flutter
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- generated_plugin_registrant.cc
+|   |   |   |   |-- generated_plugin_registrant.h
+|   |   |   |   +-- generated_plugins.cmake
+|   |   |   |-- runner
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- main.cc
+|   |   |   |   |-- my_application.cc
+|   |   |   |   +-- my_application.h
+|   |   |   |-- .gitignore
+|   |   |   +-- CMakeLists.txt
+|   |   |-- macos
+|   |   |   |-- Flutter
+|   |   |   |   |-- Flutter-Debug.xcconfig
+|   |   |   |   |-- Flutter-Release.xcconfig
+|   |   |   |   +-- GeneratedPluginRegistrant.swift
+|   |   |   |-- Runner
+|   |   |   |   |-- Assets.xcassets
+|   |   |   |   |   +-- AppIcon.appiconset
+|   |   |   |   |       |-- app_icon_1024.png
+|   |   |   |   |       |-- app_icon_128.png
+|   |   |   |   |       |-- app_icon_16.png
+|   |   |   |   |       |-- app_icon_256.png
+|   |   |   |   |       |-- app_icon_32.png
+|   |   |   |   |       |-- app_icon_512.png
+|   |   |   |   |       |-- app_icon_64.png
+|   |   |   |   |       +-- Contents.json
+|   |   |   |   |-- Base.lproj
+|   |   |   |   |   +-- MainMenu.xib
+|   |   |   |   |-- Configs
+|   |   |   |   |   |-- AppInfo.xcconfig
+|   |   |   |   |   |-- Debug.xcconfig
+|   |   |   |   |   |-- Release.xcconfig
+|   |   |   |   |   +-- Warnings.xcconfig
+|   |   |   |   |-- AppDelegate.swift
+|   |   |   |   |-- DebugProfile.entitlements
+|   |   |   |   |-- Info.plist
+|   |   |   |   |-- MainFlutterWindow.swift
+|   |   |   |   +-- Release.entitlements
+|   |   |   |-- Runner.xcodeproj
+|   |   |   |   |-- project.xcworkspace
+|   |   |   |   |   +-- xcshareddata
+|   |   |   |   |       +-- IDEWorkspaceChecks.plist
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- xcschemes
+|   |   |   |   |       +-- Runner.xcscheme
+|   |   |   |   +-- project.pbxproj
+|   |   |   |-- Runner.xcworkspace
+|   |   |   |   |-- xcshareddata
+|   |   |   |   |   +-- IDEWorkspaceChecks.plist
+|   |   |   |   +-- contents.xcworkspacedata
+|   |   |   |-- RunnerTests
+|   |   |   |   +-- RunnerTests.swift
+|   |   |   +-- .gitignore
+|   |   |-- test
+|   |   |   +-- widget_test.dart
+|   |   |-- web
+|   |   |   |-- icons
+|   |   |   |   |-- Icon-192.png
+|   |   |   |   |-- Icon-512.png
+|   |   |   |   |-- Icon-maskable-192.png
+|   |   |   |   +-- Icon-maskable-512.png
+|   |   |   |-- favicon.png
+|   |   |   |-- index.html
+|   |   |   +-- manifest.json
+|   |   |-- windows
+|   |   |   |-- flutter
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- generated_plugin_registrant.cc
+|   |   |   |   |-- generated_plugin_registrant.h
+|   |   |   |   +-- generated_plugins.cmake
+|   |   |   |-- runner
+|   |   |   |   |-- resources
+|   |   |   |   |   +-- app_icon.ico
+|   |   |   |   |-- CMakeLists.txt
+|   |   |   |   |-- flutter_window.cpp
+|   |   |   |   |-- flutter_window.h
+|   |   |   |   |-- main.cpp
+|   |   |   |   |-- resource.h
+|   |   |   |   |-- runner.exe.manifest
+|   |   |   |   |-- Runner.rc
+|   |   |   |   |-- utils.cpp
+|   |   |   |   |-- utils.h
+|   |   |   |   |-- win32_window.cpp
+|   |   |   |   +-- win32_window.h
+|   |   |   |-- .gitignore
+|   |   |   +-- CMakeLists.txt
+|   |   |-- .gitignore
+|   |   |-- .metadata
+|   |   |-- analysis_options.yaml
+|   |   |-- pubspec.lock
+|   |   |-- pubspec.yaml
+|   |   +-- README.md
+|   +-- truck_provider
+|       |-- android
+|       |   |-- app
+|       |   |   |-- src
+|       |   |   |   |-- debug
+|       |   |   |   |   +-- AndroidManifest.xml
+|       |   |   |   |-- main
+|       |   |   |   |   |-- kotlin
+|       |   |   |   |   |   +-- com
+|       |   |   |   |   |       +-- cosmicforge
+|       |   |   |   |   |           +-- logistics
+|       |   |   |   |   |               +-- truckprovider
+|       |   |   |   |   |                   +-- MainActivity.kt
+|       |   |   |   |   |-- res
+|       |   |   |   |   |   |-- drawable
+|       |   |   |   |   |   |   +-- launch_background.xml
+|       |   |   |   |   |   |-- drawable-v21
+|       |   |   |   |   |   |   +-- launch_background.xml
+|       |   |   |   |   |   |-- mipmap-hdpi
+|       |   |   |   |   |   |   +-- ic_launcher.png
+|       |   |   |   |   |   |-- mipmap-mdpi
+|       |   |   |   |   |   |   +-- ic_launcher.png
+|       |   |   |   |   |   |-- mipmap-xhdpi
+|       |   |   |   |   |   |   +-- ic_launcher.png
+|       |   |   |   |   |   |-- mipmap-xxhdpi
+|       |   |   |   |   |   |   +-- ic_launcher.png
+|       |   |   |   |   |   |-- mipmap-xxxhdpi
+|       |   |   |   |   |   |   +-- ic_launcher.png
+|       |   |   |   |   |   |-- values
+|       |   |   |   |   |   |   +-- styles.xml
+|       |   |   |   |   |   +-- values-night
+|       |   |   |   |   |       +-- styles.xml
+|       |   |   |   |   +-- AndroidManifest.xml
+|       |   |   |   +-- profile
+|       |   |   |       +-- AndroidManifest.xml
+|       |   |   |-- build.gradle.kts
+|       |   |   +-- google-services.json
+|       |   |-- gradle
+|       |   |   +-- wrapper
+|       |   |       +-- gradle-wrapper.properties
+|       |   |-- .gitignore
+|       |   |-- build.gradle.kts
+|       |   |-- gradle.properties
+|       |   +-- settings.gradle.kts
+|       |-- assets
+|       |   +-- figma
+|       |       |-- all_set_people.png
+|       |       |-- auth_car_header.png
+|       |       |-- delivery truck back side view.png
+|       |       |-- Group 1000004752.svg
+|       |       |-- House_01.svg
+|       |       |-- location_map.png
+|       |       |-- notification_bell.png
+|       |       |-- safetyProtection32x32.png
+|       |       |-- updates_tag.png
+|       |       |-- user.svg
+|       |       |-- Vector.png
+|       |       +-- Vector.svg
+|       |-- ios
+|       |   |-- Flutter
+|       |   |   |-- AppFrameworkInfo.plist
+|       |   |   |-- Debug.xcconfig
+|       |   |   +-- Release.xcconfig
+|       |   |-- Runner
+|       |   |   |-- Assets.xcassets
+|       |   |   |   |-- AppIcon.appiconset
+|       |   |   |   |   |-- Contents.json
+|       |   |   |   |   |-- Icon-App-1024x1024@1x.png
+|       |   |   |   |   |-- Icon-App-20x20@1x.png
+|       |   |   |   |   |-- Icon-App-20x20@2x.png
+|       |   |   |   |   |-- Icon-App-20x20@3x.png
+|       |   |   |   |   |-- Icon-App-29x29@1x.png
+|       |   |   |   |   |-- Icon-App-29x29@2x.png
+|       |   |   |   |   |-- Icon-App-29x29@3x.png
+|       |   |   |   |   |-- Icon-App-40x40@1x.png
+|       |   |   |   |   |-- Icon-App-40x40@2x.png
+|       |   |   |   |   |-- Icon-App-40x40@3x.png
+|       |   |   |   |   |-- Icon-App-60x60@2x.png
+|       |   |   |   |   |-- Icon-App-60x60@3x.png
+|       |   |   |   |   |-- Icon-App-76x76@1x.png
+|       |   |   |   |   |-- Icon-App-76x76@2x.png
+|       |   |   |   |   +-- Icon-App-83.5x83.5@2x.png
+|       |   |   |   +-- LaunchImage.imageset
+|       |   |   |       |-- Contents.json
+|       |   |   |       |-- LaunchImage.png
+|       |   |   |       |-- LaunchImage@2x.png
+|       |   |   |       |-- LaunchImage@3x.png
+|       |   |   |       +-- README.md
+|       |   |   |-- Base.lproj
+|       |   |   |   |-- LaunchScreen.storyboard
+|       |   |   |   +-- Main.storyboard
+|       |   |   |-- AppDelegate.swift
+|       |   |   |-- Info.plist
+|       |   |   |-- Runner-Bridging-Header.h
+|       |   |   +-- SceneDelegate.swift
+|       |   |-- Runner.xcodeproj
+|       |   |   |-- project.xcworkspace
+|       |   |   |   |-- xcshareddata
+|       |   |   |   |   |-- IDEWorkspaceChecks.plist
+|       |   |   |   |   +-- WorkspaceSettings.xcsettings
+|       |   |   |   +-- contents.xcworkspacedata
+|       |   |   |-- xcshareddata
+|       |   |   |   +-- xcschemes
+|       |   |   |       +-- Runner.xcscheme
+|       |   |   +-- project.pbxproj
+|       |   |-- Runner.xcworkspace
+|       |   |   |-- xcshareddata
+|       |   |   |   |-- IDEWorkspaceChecks.plist
+|       |   |   |   +-- WorkspaceSettings.xcsettings
+|       |   |   +-- contents.xcworkspacedata
+|       |   |-- RunnerTests
+|       |   |   +-- RunnerTests.swift
+|       |   |-- .gitignore
+|       |   |-- Podfile
+|       |   +-- Podfile.lock
+|       |-- lib
+|       |   |-- app
+|       |   |   +-- truck_provider_app.dart
+|       |   |-- core
+|       |   |   |-- config
+|       |   |   |   +-- provider_app_config.dart
+|       |   |   |-- format
+|       |   |   |   +-- money_format.dart
+|       |   |   +-- cosmicforge_logistics_app_theme.dart
+|       |   |-- data
+|       |   |   +-- truck_provider_api.dart
+|       |   |-- features
+|       |   |   |-- auth
+|       |   |   |   |-- data
+|       |   |   |   |   |-- provider_auth_api.dart
+|       |   |   |   |   +-- provider_session_store.dart
+|       |   |   |   |-- models
+|       |   |   |   |   +-- provider_auth_models.dart
+|       |   |   |   |-- state
+|       |   |   |   |   +-- provider_auth_controller.dart
+|       |   |   |   +-- ui
+|       |   |   |       |-- auth_entry_screen.dart
+|       |   |   |       +-- otp_screen.dart
+|       |   |   |-- disputes
+|       |   |   |   |-- data
+|       |   |   |   |   +-- provider_support_api.dart
+|       |   |   |   |-- models
+|       |   |   |   |   +-- dispute_models.dart
+|       |   |   |   |-- state
+|       |   |   |   |   +-- provider_dispute_controller.dart
+|       |   |   |   +-- ui
+|       |   |   |       |-- widgets
+|       |   |   |       |   +-- dispute_widgets.dart
+|       |   |   |       |-- provider_dispute_chat_screen.dart
+|       |   |   |       |-- provider_dispute_details_screen.dart
+|       |   |   |       |-- provider_log_disputes_screen.dart
+|       |   |   |       +-- provider_select_dispute_type_screen.dart
+|       |   |   |-- earnings
+|       |   |   |   |-- models
+|       |   |   |   |   +-- earnings_models.dart
+|       |   |   |   |-- state
+|       |   |   |   |   +-- provider_earnings_controller.dart
+|       |   |   |   +-- ui
+|       |   |   |       |-- widgets
+|       |   |   |       |   |-- earnings_chart.dart
+|       |   |   |       |   +-- earnings_transaction_list.dart
+|       |   |   |       |-- provider_earning_summary_screen.dart
+|       |   |   |       |-- provider_earnings_screen.dart
+|       |   |   |       +-- provider_transaction_detail_screen.dart
+|       |   |   |-- home
+|       |   |   |   |-- data
+|       |   |   |   |   +-- provider_api.dart
+|       |   |   |   |-- state
+|       |   |   |   |   +-- provider_home_controller.dart
+|       |   |   |   +-- ui
+|       |   |   |       |-- screens
+|       |   |   |       |   |-- provider_active_trip_screen.dart
+|       |   |   |       |   |-- provider_dashboard_screen.dart
+|       |   |   |       |   |-- provider_notifications_screen.dart
+|       |   |   |       |   |-- provider_request_detail_screen.dart
+|       |   |   |       |   +-- provider_requests_screen.dart
+|       |   |   |       |-- widgets
+|       |   |   |       |   |-- provider_app_colors.dart
+|       |   |   |       |   |-- provider_home_map.dart
+|       |   |   |       |   |-- provider_request_card.dart
+|       |   |   |       |   +-- provider_shared_widgets.dart
+|       |   |   |       +-- provider_home_screen.dart
+|       |   |   |-- media
+|       |   |   |   |-- data
+|       |   |   |   |   |-- media_file_api.dart
+|       |   |   |   |   +-- media_upload_service.dart
+|       |   |   |   +-- models
+|       |   |   |       +-- media_upload_result.dart
+|       |   |   |-- notifications
+|       |   |   |   |-- data
+|       |   |   |   |   |-- firebase_push.dart
+|       |   |   |   |   |-- provider_notification_api.dart
+|       |   |   |   |   +-- provider_realtime_listener.dart
+|       |   |   |   |-- models
+|       |   |   |   |   +-- provider_notification.dart
+|       |   |   |   +-- state
+|       |   |   |       +-- provider_notification_controller.dart
+|       |   |   |-- onboarding
+|       |   |   |   +-- ui
+|       |   |   |       |-- account_type_screen.dart
+|       |   |   |       |-- driver_documents_screen.dart
+|       |   |   |       |-- onboarding_shared_widgets.dart
+|       |   |   |       |-- operation_mode_screen.dart
+|       |   |   |       |-- personal_info_screen.dart
+|       |   |   |       |-- photo_upload_screen.dart
+|       |   |   |       |-- service_type_screen.dart
+|       |   |   |       |-- truck_info_screen.dart
+|       |   |   |       +-- verification_pending_screen.dart
+|       |   |   |-- profile
+|       |   |   |   |-- data
+|       |   |   |   |   +-- provider_profile_api.dart
+|       |   |   |   |-- state
+|       |   |   |   |   +-- provider_profile_controller.dart
+|       |   |   |   +-- ui
+|       |   |   |       |-- widgets
+|       |   |   |       |   |-- provider_profile_widgets.dart
+|       |   |   |       |   +-- provider_truck_widgets.dart
+|       |   |   |       |-- provider_change_phone_screen.dart
+|       |   |   |       |-- provider_coming_soon_screen.dart
+|       |   |   |       |-- provider_face_verification_screen.dart
+|       |   |   |       |-- provider_profile_info_screen.dart
+|       |   |   |       |-- provider_profile_screen.dart
+|       |   |   |       |-- provider_support_screen.dart
+|       |   |   |       |-- provider_truck_detail_screen.dart
+|       |   |   |       |-- provider_truck_edit_screen.dart
+|       |   |   |       |-- provider_truck_info_screen.dart
+|       |   |   |       +-- provider_verification_screen.dart
+|       |   |   |-- trips
+|       |   |   |   |-- models
+|       |   |   |   |   +-- customer_review.dart
+|       |   |   |   |-- state
+|       |   |   |   |   +-- provider_trips_controller.dart
+|       |   |   |   +-- ui
+|       |   |   |       |-- widgets
+|       |   |   |       |   +-- trip_list_card.dart
+|       |   |   |       |-- provider_trip_detail_screen.dart
+|       |   |   |       +-- provider_trips_screen.dart
+|       |   |   +-- wallet
+|       |   |       |-- data
+|       |   |       |   +-- provider_wallet_api.dart
+|       |   |       |-- models
+|       |   |       |   +-- wallet_models.dart
+|       |   |       |-- state
+|       |   |       |   +-- provider_withdrawal_controller.dart
+|       |   |       +-- ui
+|       |   |           |-- widgets
+|       |   |           |   |-- wallet_keypad.dart
+|       |   |           |   +-- wallet_widgets.dart
+|       |   |           |-- provider_add_bank_account_screen.dart
+|       |   |           |-- provider_bank_accounts_screen.dart
+|       |   |           |-- provider_transaction_auth_screen.dart
+|       |   |           |-- provider_withdrawal_confirm_screen.dart
+|       |   |           |-- provider_withdrawal_form_screen.dart
+|       |   |           |-- provider_withdrawal_processing_screen.dart
+|       |   |           +-- provider_withdrawal_receipt_screen.dart
+|       |   |-- firebase_options.dart
+|       |   +-- main.dart
+|       |-- linux
+|       |   |-- flutter
+|       |   |   |-- CMakeLists.txt
+|       |   |   |-- generated_plugin_registrant.cc
+|       |   |   |-- generated_plugin_registrant.h
+|       |   |   +-- generated_plugins.cmake
+|       |   |-- runner
+|       |   |   |-- CMakeLists.txt
+|       |   |   |-- main.cc
+|       |   |   |-- my_application.cc
+|       |   |   +-- my_application.h
+|       |   |-- .gitignore
+|       |   +-- CMakeLists.txt
+|       |-- macos
+|       |   |-- Flutter
+|       |   |   |-- Flutter-Debug.xcconfig
+|       |   |   |-- Flutter-Release.xcconfig
+|       |   |   +-- GeneratedPluginRegistrant.swift
+|       |   |-- Runner
+|       |   |   |-- Assets.xcassets
+|       |   |   |   +-- AppIcon.appiconset
+|       |   |   |       |-- app_icon_1024.png
+|       |   |   |       |-- app_icon_128.png
+|       |   |   |       |-- app_icon_16.png
+|       |   |   |       |-- app_icon_256.png
+|       |   |   |       |-- app_icon_32.png
+|       |   |   |       |-- app_icon_512.png
+|       |   |   |       |-- app_icon_64.png
+|       |   |   |       +-- Contents.json
+|       |   |   |-- Base.lproj
+|       |   |   |   +-- MainMenu.xib
+|       |   |   |-- Configs
+|       |   |   |   |-- AppInfo.xcconfig
+|       |   |   |   |-- Debug.xcconfig
+|       |   |   |   |-- Release.xcconfig
+|       |   |   |   +-- Warnings.xcconfig
+|       |   |   |-- AppDelegate.swift
+|       |   |   |-- DebugProfile.entitlements
+|       |   |   |-- Info.plist
+|       |   |   |-- MainFlutterWindow.swift
+|       |   |   +-- Release.entitlements
+|       |   |-- Runner.xcodeproj
+|       |   |   |-- project.xcworkspace
+|       |   |   |   +-- xcshareddata
+|       |   |   |       +-- IDEWorkspaceChecks.plist
+|       |   |   |-- xcshareddata
+|       |   |   |   +-- xcschemes
+|       |   |   |       +-- Runner.xcscheme
+|       |   |   +-- project.pbxproj
+|       |   |-- Runner.xcworkspace
+|       |   |   |-- xcshareddata
+|       |   |   |   +-- IDEWorkspaceChecks.plist
+|       |   |   +-- contents.xcworkspacedata
+|       |   |-- RunnerTests
+|       |   |   +-- RunnerTests.swift
+|       |   |-- .gitignore
+|       |   +-- Podfile
+|       |-- test
+|       |   |-- dispute_flow_test.dart
+|       |   |-- earning_summary_test.dart
+|       |   |-- earnings_screen_test.dart
+|       |   |-- transaction_detail_test.dart
+|       |   |-- trips_screen_test.dart
+|       |   |-- widget_test.dart
+|       |   +-- withdrawal_flow_test.dart
+|       |-- web
+|       |   |-- icons
+|       |   |   |-- Icon-192.png
+|       |   |   |-- Icon-512.png
+|       |   |   |-- Icon-maskable-192.png
+|       |   |   +-- Icon-maskable-512.png
+|       |   |-- favicon.png
+|       |   |-- index.html
+|       |   +-- manifest.json
+|       |-- windows
+|       |   |-- flutter
+|       |   |   |-- CMakeLists.txt
+|       |   |   |-- generated_plugin_registrant.cc
+|       |   |   |-- generated_plugin_registrant.h
+|       |   |   +-- generated_plugins.cmake
+|       |   |-- runner
+|       |   |   |-- resources
+|       |   |   |   +-- app_icon.ico
+|       |   |   |-- CMakeLists.txt
+|       |   |   |-- flutter_window.cpp
+|       |   |   |-- flutter_window.h
+|       |   |   |-- main.cpp
+|       |   |   |-- resource.h
+|       |   |   |-- runner.exe.manifest
+|       |   |   |-- Runner.rc
+|       |   |   |-- utils.cpp
+|       |   |   |-- utils.h
+|       |   |   |-- win32_window.cpp
+|       |   |   +-- win32_window.h
+|       |   |-- .gitignore
+|       |   +-- CMakeLists.txt
+|       |-- .gitignore
+|       |-- .metadata
+|       |-- analysis_options.yaml
+|       |-- devtools_options.yaml
+|       |-- pubspec.lock
+|       |-- pubspec.yaml
+|       +-- README.md
+|-- docs
+|   |-- architecture.md
+|   |-- Cosmicforge Logistics Customer API Implementation.docx
+|   |-- Cosmicforge Logistics Customer Frontend Implementation.docx
+|   |-- Cosmicforge_Logistics_Technology_Stack.docx
+|   |-- hauling-booking-plan.md
+|   |-- microservices-architecture.md
+|   |-- notifications.md
+|   |-- partner-api-e2e.md
+|   +-- payment.md
+|-- infra
+|   +-- docker-compose.yml
+|-- packages
+|   |-- api_core
+|   |   |-- lib
+|   |   |   +-- cosmicforge_logistics_api_core.dart
+|   |   |-- test
+|   |   |   +-- cosmicforge_logistics_api_core_test.dart
+|   |   |-- .gitignore
+|   |   |-- .metadata
+|   |   |-- analysis_options.yaml
+|   |   |-- CHANGELOG.md
+|   |   |-- LICENSE
+|   |   |-- pubspec.yaml
+|   |   +-- README.md
+|   +-- ui_kit
+|       |-- lib
+|       |   +-- cosmicforge_logistics_ui_kit.dart
+|       |-- test
+|       |   +-- cosmicforge_logistics_ui_kit_test.dart
+|       |-- .gitignore
+|       |-- .metadata
+|       |-- analysis_options.yaml
+|       |-- CHANGELOG.md
+|       |-- LICENSE
+|       |-- pubspec.yaml
+|       +-- README.md
+|-- scripts
+|   |-- bootstrap_services
+|   |   |-- bootstrap-all.sh
+|   |   |-- customer-local-bootstrap.sh
+|   |   |-- hauling-local-bootstrap.sh
+|   |   |-- media-local-bootstrap.sh
+|   |   |-- notification-local-bootstrap.sh
+|   |   |-- payment-local-bootstrap.sh
+|   |   +-- support-dispute-local-bootstrap.sh
+|   |-- customer-psql.sh
+|   +-- hauling-psql.sh
+|-- services
+|   |-- admin-backoffice-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   +-- .gitkeep
+|   |   |   +-- features
+|   |   |       |-- admin_users
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- dashboards
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- moderation
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- operations
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- user_actions
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- analytics-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   +-- .gitkeep
+|   |   |   +-- features
+|   |   |       |-- metrics
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- reports
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- revenue
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- service_performance
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- api-gateway
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   |-- config.go
+|   |   |   |   +-- config_test.go
+|   |   |   |-- database
+|   |   |   |   |-- .gitkeep
+|   |   |   |   +-- postgres.go
+|   |   |   |-- features
+|   |   |   |   |-- partner
+|   |   |   |   |   |-- billing
+|   |   |   |   |   |   |-- model.go
+|   |   |   |   |   |   |-- repository.go
+|   |   |   |   |   |   |-- routes.go
+|   |   |   |   |   |   |-- service.go
+|   |   |   |   |   |   +-- service_test.go
+|   |   |   |   |   |-- callbacks
+|   |   |   |   |   |   |-- handler.go
+|   |   |   |   |   |   |-- handler_test.go
+|   |   |   |   |   |   +-- routes.go
+|   |   |   |   |   |-- delivery
+|   |   |   |   |   |   |-- errors.go
+|   |   |   |   |   |   |-- events.go
+|   |   |   |   |   |   |-- idempotency.go
+|   |   |   |   |   |   |-- model.go
+|   |   |   |   |   |   |-- pricing.go
+|   |   |   |   |   |   |-- repository.go
+|   |   |   |   |   |   |-- service.go
+|   |   |   |   |   |   |-- service_test.go
+|   |   |   |   |   |   +-- validation.go
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   |-- handler.go
+|   |   |   |   |   |   |-- handler_test.go
+|   |   |   |   |   |   |-- quote_handler.go
+|   |   |   |   |   |   |-- quote_handler_test.go
+|   |   |   |   |   |   |-- routes.go
+|   |   |   |   |   |   |-- routes_test.go
+|   |   |   |   |   |   |-- security_test.go
+|   |   |   |   |   |   |-- webhook_handler.go
+|   |   |   |   |   |   +-- webhook_handler_test.go
+|   |   |   |   |   |-- infra
+|   |   |   |   |   |   |-- helpers.go
+|   |   |   |   |   |   |-- postgres_accounts.go
+|   |   |   |   |   |   |-- postgres_apikeys.go
+|   |   |   |   |   |   |-- postgres_billing.go
+|   |   |   |   |   |   |-- postgres_bookings.go
+|   |   |   |   |   |   |-- postgres_idempotency.go
+|   |   |   |   |   |   |-- postgres_otp_challenges.go
+|   |   |   |   |   |   |-- postgres_sessions.go
+|   |   |   |   |   |   |-- postgres_webhook_deliveries.go
+|   |   |   |   |   |   |-- postgres_webhooks.go
+|   |   |   |   |   |   |-- redis_publisher.go
+|   |   |   |   |   |   |-- wallet_charge_client.go
+|   |   |   |   |   |   +-- wallet_client.go
+|   |   |   |   |   |-- ratelimit
+|   |   |   |   |   |   |-- ratelimit.go
+|   |   |   |   |   |   |-- ratelimit_test.go
+|   |   |   |   |   |   +-- redis_store.go
+|   |   |   |   |   +-- webhooks
+|   |   |   |   |       |-- crypto.go
+|   |   |   |   |       |-- crypto_test.go
+|   |   |   |   |       |-- delivery_test.go
+|   |   |   |   |       |-- fakes_test.go
+|   |   |   |   |       |-- model.go
+|   |   |   |   |       |-- repository.go
+|   |   |   |   |       |-- retry.go
+|   |   |   |   |       |-- retry_test.go
+|   |   |   |   |       |-- sender.go
+|   |   |   |   |       |-- sender_test.go
+|   |   |   |   |       |-- service.go
+|   |   |   |   |       |-- service_test.go
+|   |   |   |   |       |-- signing.go
+|   |   |   |   |       |-- signing_test.go
+|   |   |   |   |       |-- subscriber.go
+|   |   |   |   |       |-- subscriber_test.go
+|   |   |   |   |       |-- validation.go
+|   |   |   |   |       +-- validation_test.go
+|   |   |   |   |-- partneraccount
+|   |   |   |   |   |-- billing_handlers.go
+|   |   |   |   |   |-- fakes_test.go
+|   |   |   |   |   |-- handlers.go
+|   |   |   |   |   |-- jwt.go
+|   |   |   |   |   |-- keys.go
+|   |   |   |   |   |-- middleware.go
+|   |   |   |   |   |-- model.go
+|   |   |   |   |   |-- otp.go
+|   |   |   |   |   |-- repository.go
+|   |   |   |   |   |-- routes.go
+|   |   |   |   |   |-- routes_test.go
+|   |   |   |   |   |-- service.go
+|   |   |   |   |   |-- service_test.go
+|   |   |   |   |   |-- signup.go
+|   |   |   |   |   +-- smtp_otp_sender.go
+|   |   |   |   |-- partnerauth
+|   |   |   |   |   |-- context.go
+|   |   |   |   |   |-- errors.go
+|   |   |   |   |   |-- middleware.go
+|   |   |   |   |   |-- middleware_test.go
+|   |   |   |   |   |-- model.go
+|   |   |   |   |   +-- repository.go
+|   |   |   |   |-- routing
+|   |   |   |   |   |-- clients
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- repositories
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- usecases
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   +-- README.md
+|   |   |   |   |-- service_health
+|   |   |   |   |   |-- clients
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- repositories
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- usecases
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   +-- README.md
+|   |   |   |   |-- webhook_delivery
+|   |   |   |   |   |-- fakes_test.go
+|   |   |   |   |   |-- repository.go
+|   |   |   |   |   |-- subscribers.go
+|   |   |   |   |   |-- subscribers_test.go
+|   |   |   |   |   |-- tasks.go
+|   |   |   |   |   |-- worker.go
+|   |   |   |   |   +-- worker_test.go
+|   |   |   |   +-- README.md
+|   |   |   +-- pkg
+|   |   |       |-- geo
+|   |   |       |   |-- distance.go
+|   |   |       |   +-- distance_test.go
+|   |   |       |-- pricing
+|   |   |       |   |-- fare.go
+|   |   |       |   +-- fare_test.go
+|   |   |       +-- ref
+|   |   |           |-- booking_ref.go
+|   |   |           +-- booking_ref_test.go
+|   |   |-- migrations
+|   |   |   |-- 001_partner_schema.sql
+|   |   |   |-- 001_partner_schema_down.sql
+|   |   |   |-- 002_partner_auth.sql
+|   |   |   |-- 002_partner_auth_down.sql
+|   |   |   |-- 003_partner_delivery_details.sql
+|   |   |   |-- 003_partner_delivery_details_down.sql
+|   |   |   |-- 004_partner_profile_fields.sql
+|   |   |   |-- 004_partner_profile_fields_down.sql
+|   |   |   |-- 005_partner_api_key_scopes.sql
+|   |   |   |-- 005_partner_api_key_scopes_down.sql
+|   |   |   |-- 006_partner_billing.sql
+|   |   |   |-- 006_partner_billing_down.sql
+|   |   |   |-- 007_partner_booking_details.sql
+|   |   |   |-- 007_partner_booking_details_down.sql
+|   |   |   |-- 008_partner_billing.sql
+|   |   |   |-- 008_partner_billing_down.sql
+|   |   |   |-- 009_partner_otp_onboarding.sql
+|   |   |   |-- 009_partner_otp_onboarding_down.sql
+|   |   |   +-- migrations_test.go
+|   |   |-- scripts
+|   |   |   +-- smoke_partner_api.sh
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- customer-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   |-- .gitkeep
+|   |   |   |   |-- migrate.go
+|   |   |   |   +-- postgres.go
+|   |   |   +-- features
+|   |   |       |-- auth
+|   |   |       |   |-- clients
+|   |   |       |   |   |-- logging_otp_sender.go
+|   |   |       |   |   |-- notification_email_otp_sender.go
+|   |   |       |   |   +-- otp_sender.go
+|   |   |       |   |-- http
+|   |   |       |   |   |-- dto.go
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   |-- handler_test.go
+|   |   |       |   |   |-- response.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   |-- auth_identifier.go
+|   |   |       |   |   |-- otp_challenge.go
+|   |   |       |   |   |-- refresh_session.go
+|   |   |       |   |   +-- refresh_token.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   |-- postgres_session_repository.go
+|   |   |       |   |   +-- redis_otp_challenge_repository.go
+|   |   |       |   |-- usecases
+|   |   |       |   |   |-- auth_service.go
+|   |   |       |   |   +-- auth_service_test.go
+|   |   |       |   +-- README.md
+|   |   |       |-- identity
+|   |   |       |   +-- http
+|   |   |       |       |-- handler.go
+|   |   |       |       +-- routes.go
+|   |   |       |-- notifications
+|   |   |       |   +-- http
+|   |   |       |       |-- handler.go
+|   |   |       |       +-- routes.go
+|   |   |       |-- preferences
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- profile
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   +-- customer.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- postgres_customer_repository.go
+|   |   |       |   |-- usecases
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   +-- profile_service.go
+|   |   |       |   +-- README.md
+|   |   |       |-- request_history
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- saved_locations
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   +-- saved_location.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- postgres_saved_location_repository.go
+|   |   |       |   |-- usecases
+|   |   |       |   |   |-- saved_location_service.go
+|   |   |       |   |   +-- saved_location_service_test.go
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- migrations
+|   |   |   |-- 001_customer_auth.sql
+|   |   |   |-- 002_customer_email_auth.sql
+|   |   |   |-- 003_customer_profile_photo.sql
+|   |   |   |-- 004_emergency_contacts.sql
+|   |   |   |-- 005_saved_locations.sql
+|   |   |   +-- migrations_test.go
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- driver-dispatch-delivery-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- apiresponse
+|   |   |   |   +-- response.go
+|   |   |   |-- config
+|   |   |   |   |-- config.go
+|   |   |   |   +-- config_test.go
+|   |   |   |-- database
+|   |   |   |   |-- .gitkeep
+|   |   |   |   +-- postgres.go
+|   |   |   |-- features
+|   |   |   |   |-- auth
+|   |   |   |   |   |-- clients
+|   |   |   |   |   |   |-- .gitkeep
+|   |   |   |   |   |   |-- email_client.go
+|   |   |   |   |   |   |-- email_client_test.go
+|   |   |   |   |   |   |-- event_publisher.go
+|   |   |   |   |   |   |-- event_publisher_test.go
+|   |   |   |   |   |   |-- notification_client.go
+|   |   |   |   |   |   +-- notification_client_test.go
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   |-- .gitkeep
+|   |   |   |   |   |   |-- dto.go
+|   |   |   |   |   |   |-- errors.go
+|   |   |   |   |   |   |-- handler.go
+|   |   |   |   |   |   |-- handler_logout_test.go
+|   |   |   |   |   |   |-- handler_refresh_test.go
+|   |   |   |   |   |   |-- handler_signup_login_test.go
+|   |   |   |   |   |   |-- handler_start_test.go
+|   |   |   |   |   |   |-- handler_verify_test.go
+|   |   |   |   |   |   |-- middleware.go
+|   |   |   |   |   |   |-- middleware_test.go
+|   |   |   |   |   |   +-- routes.go
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   |-- .gitkeep
+|   |   |   |   |   |   |-- identity.go
+|   |   |   |   |   |   |-- otp.go
+|   |   |   |   |   |   +-- session.go
+|   |   |   |   |   |-- repositories
+|   |   |   |   |   |   |-- .gitkeep
+|   |   |   |   |   |   |-- identity_repository.go
+|   |   |   |   |   |   |-- otp_repository.go
+|   |   |   |   |   |   +-- session_repository.go
+|   |   |   |   |   |-- usecases
+|   |   |   |   |   |   |-- .gitkeep
+|   |   |   |   |   |   |-- auth_usecase.go
+|   |   |   |   |   |   |-- auth_usecase_email_otp_test.go
+|   |   |   |   |   |   |-- auth_usecase_logout_test.go
+|   |   |   |   |   |   |-- auth_usecase_refresh_test.go
+|   |   |   |   |   |   |-- auth_usecase_signup_login_test.go
+|   |   |   |   |   |   |-- auth_usecase_start_test.go
+|   |   |   |   |   |   |-- auth_usecase_verify_test.go
+|   |   |   |   |   |   |-- errors.go
+|   |   |   |   |   |   |-- otp_usecase.go
+|   |   |   |   |   |   |-- otp_usecase_test.go
+|   |   |   |   |   |   |-- session_usecase.go
+|   |   |   |   |   |   |-- token_usecase.go
+|   |   |   |   |   |   +-- token_usecase_test.go
+|   |   |   |   |   +-- README.md
+|   |   |   |   |-- availability
+|   |   |   |   |   |-- handler.go
+|   |   |   |   |   |-- handler_test.go
+|   |   |   |   |   |-- live_store_test.go
+|   |   |   |   |   |-- location_5fg_test.go
+|   |   |   |   |   |-- model.go
+|   |   |   |   |   |-- nearby_5i_test.go
+|   |   |   |   |   |-- repository.go
+|   |   |   |   |   |-- security_5k_test.go
+|   |   |   |   |   |-- service.go
+|   |   |   |   |   |-- service_test.go
+|   |   |   |   |   |-- structure_test.go
+|   |   |   |   |   |-- subscribers.go
+|   |   |   |   |   |-- subscribers_test.go
+|   |   |   |   |   |-- trips_5j_test.go
+|   |   |   |   |   +-- websocket_5h_test.go
+|   |   |   |   |-- bikes
+|   |   |   |   |   |-- clients
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- repositories
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- usecases
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   +-- README.md
+|   |   |   |   |-- deliveries
+|   |   |   |   |   |-- clients
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- repositories
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- usecases
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   +-- README.md
+|   |   |   |   |-- matching
+|   |   |   |   |   |-- clients
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- repositories
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- usecases
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   +-- README.md
+|   |   |   |   |-- profile
+|   |   |   |   |   |-- avatar_storage.go
+|   |   |   |   |   |-- event_publisher.go
+|   |   |   |   |   |-- handler.go
+|   |   |   |   |   |-- handler_test.go
+|   |   |   |   |   |-- model.go
+|   |   |   |   |   |-- profile_jkl_test.go
+|   |   |   |   |   |-- profile_mn_test.go
+|   |   |   |   |   |-- repository.go
+|   |   |   |   |   |-- service.go
+|   |   |   |   |   |-- service_test.go
+|   |   |   |   |   +-- subscriber.go
+|   |   |   |   |-- proof_of_delivery
+|   |   |   |   |   |-- clients
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- repositories
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- usecases
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   +-- README.md
+|   |   |   |   |-- request
+|   |   |   |   |   |-- events.go
+|   |   |   |   |   |-- handler.go
+|   |   |   |   |   |-- model.go
+|   |   |   |   |   |-- phase6cde_test.go
+|   |   |   |   |   |-- phase6fgh_test.go
+|   |   |   |   |   |-- phase6ijk_test.go
+|   |   |   |   |   |-- repository.go
+|   |   |   |   |   |-- repository_integration_test.go
+|   |   |   |   |   |-- service.go
+|   |   |   |   |   |-- service_test.go
+|   |   |   |   |   |-- service_tier_test.go
+|   |   |   |   |   |-- structure_test.go
+|   |   |   |   |   |-- subscribers.go
+|   |   |   |   |   |-- tasks.go
+|   |   |   |   |   |-- tasks_test.go
+|   |   |   |   |   +-- workers.go
+|   |   |   |   |-- riders
+|   |   |   |   |   |-- clients
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- http
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- models
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- repositories
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   |-- usecases
+|   |   |   |   |   |   +-- .gitkeep
+|   |   |   |   |   +-- README.md
+|   |   |   |   |-- trip
+|   |   |   |   |   |-- events.go
+|   |   |   |   |   |-- foundation_test.go
+|   |   |   |   |   |-- handler.go
+|   |   |   |   |   |-- model.go
+|   |   |   |   |   |-- phase7cde_test.go
+|   |   |   |   |   |-- phase7fgh_test.go
+|   |   |   |   |   |-- phase7ijk_test.go
+|   |   |   |   |   |-- phase7lmn_test.go
+|   |   |   |   |   |-- phase8de_test.go
+|   |   |   |   |   |-- repository.go
+|   |   |   |   |   |-- repository_integration_test.go
+|   |   |   |   |   |-- service.go
+|   |   |   |   |   |-- service_tier_test.go
+|   |   |   |   |   |-- storage.go
+|   |   |   |   |   +-- subscribers.go
+|   |   |   |   |-- vehicle
+|   |   |   |   |   |-- events.go
+|   |   |   |   |   |-- handler.go
+|   |   |   |   |   |-- handler_test.go
+|   |   |   |   |   |-- model.go
+|   |   |   |   |   |-- repository.go
+|   |   |   |   |   |-- service.go
+|   |   |   |   |   |-- storage.go
+|   |   |   |   |   |-- storage_test.go
+|   |   |   |   |   |-- structure_test.go
+|   |   |   |   |   +-- subscribers.go
+|   |   |   |   |-- verification
+|   |   |   |   |   |-- admin_review_test.go
+|   |   |   |   |   |-- events.go
+|   |   |   |   |   |-- fake_repository_test.go
+|   |   |   |   |   |-- handler.go
+|   |   |   |   |   |-- handler_test.go
+|   |   |   |   |   |-- model.go
+|   |   |   |   |   |-- phase3jkl_test.go
+|   |   |   |   |   |-- repository.go
+|   |   |   |   |   |-- service.go
+|   |   |   |   |   |-- smileidentity.go
+|   |   |   |   |   |-- status_test.go
+|   |   |   |   |   |-- storage.go
+|   |   |   |   |   |-- storage_test.go
+|   |   |   |   |   |-- structure_test.go
+|   |   |   |   |   |-- submit_test.go
+|   |   |   |   |   |-- subscribers.go
+|   |   |   |   |   |-- subscribers_test.go
+|   |   |   |   |   |-- test_jwt_test.go
+|   |   |   |   |   +-- vehicle_subscribers_test.go
+|   |   |   |   +-- README.md
+|   |   |   |-- middleware
+|   |   |   |   |-- logger.go
+|   |   |   |   +-- service_key.go
+|   |   |   +-- router
+|   |   |       |-- router.go
+|   |   |       +-- router_response_test.go
+|   |   |-- migrations
+|   |   |   |-- 000004_create_providers.down.sql
+|   |   |   |-- 000004_create_providers.up.sql
+|   |   |   |-- 000005_create_emergency_contacts.down.sql
+|   |   |   |-- 000005_create_emergency_contacts.up.sql
+|   |   |   |-- 000006_create_guarantors.down.sql
+|   |   |   |-- 000006_create_guarantors.up.sql
+|   |   |   |-- 000007_create_ratings.down.sql
+|   |   |   |-- 000007_create_ratings.up.sql
+|   |   |   |-- 000008_create_verification_steps.down.sql
+|   |   |   |-- 000008_create_verification_steps.up.sql
+|   |   |   |-- 000009_create_verification_documents.down.sql
+|   |   |   |-- 000009_create_verification_documents.up.sql
+|   |   |   |-- 000010_create_face_checks.down.sql
+|   |   |   |-- 000010_create_face_checks.up.sql
+|   |   |   |-- 000011_create_verification_audit.down.sql
+|   |   |   |-- 000011_create_verification_audit.up.sql
+|   |   |   |-- 000012_expand_verification_audit_actions.down.sql
+|   |   |   |-- 000012_expand_verification_audit_actions.up.sql
+|   |   |   |-- 000013_add_fully_approved_audit.down.sql
+|   |   |   |-- 000013_add_fully_approved_audit.up.sql
+|   |   |   |-- 000014_create_bikes.down.sql
+|   |   |   |-- 000014_create_bikes.up.sql
+|   |   |   |-- 000015_create_bike_documents.down.sql
+|   |   |   |-- 000015_create_bike_documents.up.sql
+|   |   |   |-- 000016_create_bike_audit.down.sql
+|   |   |   |-- 000016_create_bike_audit.up.sql
+|   |   |   |-- 000017_create_provider_availability.down.sql
+|   |   |   |-- 000017_create_provider_availability.up.sql
+|   |   |   |-- 000018_create_availability_sessions.down.sql
+|   |   |   |-- 000018_create_availability_sessions.up.sql
+|   |   |   |-- 000019_create_request_broadcasts.down.sql
+|   |   |   |-- 000019_create_request_broadcasts.up.sql
+|   |   |   |-- 000020_create_provider_request_inbox.down.sql
+|   |   |   |-- 000020_create_provider_request_inbox.up.sql
+|   |   |   |-- 000021_create_trips.down.sql
+|   |   |   |-- 000021_create_trips.up.sql
+|   |   |   |-- 000022_create_trip_state_log.down.sql
+|   |   |   |-- 000022_create_trip_state_log.up.sql
+|   |   |   |-- 000023_create_delivery_proofs.down.sql
+|   |   |   |-- 000023_create_delivery_proofs.up.sql
+|   |   |   |-- 000024_create_cancellations.down.sql
+|   |   |   |-- 000024_create_cancellations.up.sql
+|   |   |   |-- 000025_create_provider_settings.down.sql
+|   |   |   |-- 000025_create_provider_settings.up.sql
+|   |   |   |-- 000026_create_customer_ratings_by_provider.down.sql
+|   |   |   |-- 000026_create_customer_ratings_by_provider.up.sql
+|   |   |   |-- 000027_add_licence_expiry_to_verification_steps.down.sql
+|   |   |   |-- 000027_add_licence_expiry_to_verification_steps.up.sql
+|   |   |   |-- 000028_expand_bike_types.down.sql
+|   |   |   |-- 000028_expand_bike_types.up.sql
+|   |   |   |-- 000029_add_package_fields_to_trips.down.sql
+|   |   |   |-- 000029_add_package_fields_to_trips.up.sql
+|   |   |   |-- 000030_add_service_tier_to_trips.down.sql
+|   |   |   |-- 000030_add_service_tier_to_trips.up.sql
+|   |   |   |-- 001_dispatch_rider_auth.sql
+|   |   |   |-- 001_dispatch_rider_auth_down.sql
+|   |   |   |-- 002_dispatch_rider_auth_alter.sql
+|   |   |   |-- 002_dispatch_rider_auth_alter_down.sql
+|   |   |   |-- 003_dispatch_rider_auth_signup.sql
+|   |   |   |-- 003_dispatch_rider_auth_signup_down.sql
+|   |   |   |-- availability_migrations_test.go
+|   |   |   |-- profile_migrations_test.go
+|   |   |   |-- request_migrations_test.go
+|   |   |   |-- trip_migrations_test.go
+|   |   |   |-- vehicle_migrations_test.go
+|   |   |   +-- verification_migrations_test.go
+|   |   |-- FULL_STRUCTURE_REPORT.md
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   |-- README.md
+|   |   +-- verify_integration.go
+|   |-- driver-hauling-service
+|   |   |-- cmd
+|   |   |   |-- online
+|   |   |   |   +-- main.go
+|   |   |   |-- seed
+|   |   |   |   +-- main.go
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   |-- .gitkeep
+|   |   |   |   |-- migrate.go
+|   |   |   |   +-- postgres.go
+|   |   |   +-- features
+|   |   |       |-- auth
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- booking
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- notification_client.go
+|   |   |       |   |-- http
+|   |   |       |   |   |-- dto.go
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   |-- booking.go
+|   |   |       |   |   |-- earnings.go
+|   |   |       |   |   +-- earnings_test.go
+|   |   |       |   |-- payments
+|   |   |       |   |   +-- wallet_payment_client.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- booking_repository.go
+|   |   |       |   +-- usecases
+|   |   |       |       |-- booking_notification_test.go
+|   |   |       |       |-- booking_service.go
+|   |   |       |       |-- lifecycle_test.go
+|   |   |       |       |-- matching_test.go
+|   |   |       |       |-- recovery_test.go
+|   |   |       |       +-- review_test.go
+|   |   |       |-- cargo_workflow
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- haulage_requests
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- identity
+|   |   |       |   +-- http
+|   |   |       |       |-- handler.go
+|   |   |       |       +-- routes.go
+|   |   |       |-- matching
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- notifications
+|   |   |       |   +-- http
+|   |   |       |       |-- handler.go
+|   |   |       |       +-- routes.go
+|   |   |       |-- provider_auth
+|   |   |       |   |-- http
+|   |   |       |   |   |-- dto.go
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   |-- response.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   |-- otp_challenge.go
+|   |   |       |   |   +-- provider.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   |-- postgres_provider_repository.go
+|   |   |       |   |   +-- redis_otp_repository.go
+|   |   |       |   +-- usecases
+|   |   |       |       +-- auth_service.go
+|   |   |       |-- provider_availability
+|   |   |       |   |-- http
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- availability_store.go
+|   |   |       |   +-- usecases
+|   |   |       |       +-- availability_service.go
+|   |   |       |-- provider_profile
+|   |   |       |   |-- http
+|   |   |       |   |   |-- dto.go
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   +-- models.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- postgres_profile_repository.go
+|   |   |       |   +-- usecases
+|   |   |       |       |-- profile_service.go
+|   |   |       |       +-- profile_service_test.go
+|   |   |       |-- providers
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- trucks
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- migrations
+|   |   |   |-- 001_hauling_core.sql
+|   |   |   |-- 002_schema_updates.sql
+|   |   |   |-- 003_provider_onboarding.sql
+|   |   |   |-- 004_package_info_and_reviews.sql
+|   |   |   |-- 005_provider_profile_extras.sql
+|   |   |   |-- 006_booking_payment.sql
+|   |   |   +-- 007_proof_of_delivery.sql
+|   |   |-- seeds
+|   |   |   +-- dev_seed.sql
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   |-- README.md
+|   |   +-- seed
+|   |-- driver-taxi-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   +-- .gitkeep
+|   |   |   +-- features
+|   |   |       |-- auth
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- matching
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- providers
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- rides
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- trips
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- vehicles
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- media-file-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   |-- .gitkeep
+|   |   |   |   |-- migrate.go
+|   |   |   |   +-- postgres.go
+|   |   |   +-- features
+|   |   |       |-- document_files
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- file_metadata
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   +-- media_asset.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   +-- postgres_media_asset_repository.go
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- proof_images
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- signatures
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- uploads
+|   |   |       |   |-- clients
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   +-- firebase_storage.go
+|   |   |       |   |-- http
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   |-- handler_test.go
+|   |   |       |   |   |-- response.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- upload_service.go
+|   |   |       |   |   +-- upload_service_test.go
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- migrations
+|   |   |   |-- 001_media_assets.sql
+|   |   |   +-- migrations_test.go
+|   |   |-- .air.toml
+|   |   |-- firebase.json
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- notification-service
+|   |   |-- cmd
+|   |   |   |-- seed
+|   |   |   |   +-- main.go
+|   |   |   +-- main.go
+|   |   |-- docs
+|   |   |   |-- notification.postman_collection.json
+|   |   |   |-- notification.postman_environment.json
+|   |   |   +-- README.md
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   |-- .gitkeep
+|   |   |   |   |-- migrate.go
+|   |   |   |   +-- postgres.go
+|   |   |   +-- features
+|   |   |       |-- delivery_attempts
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- messages
+|   |   |       |   |-- clients
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- firebase_push_sender.go
+|   |   |       |   |   |-- interfaces.go
+|   |   |       |   |   |-- logging_senders.go
+|   |   |       |   |   |-- redis_queue.go
+|   |   |       |   |   |-- smtp_email_sender.go
+|   |   |       |   |   +-- websocket_hub.go
+|   |   |       |   |-- http
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- dto.go
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   |-- handler_test.go
+|   |   |       |   |   |-- response.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   +-- message.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   +-- postgres_notification_repository.go
+|   |   |       |   |-- usecases
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- notification_service.go
+|   |   |       |   |   |-- notification_service_test.go
+|   |   |       |   |   +-- realtime_token.go
+|   |   |       |   +-- README.md
+|   |   |       |-- preferences
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- templates
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- migrations
+|   |   |   |-- 001_notifications.sql
+|   |   |   +-- migrations_test.go
+|   |   |-- seeds
+|   |   |   +-- dev_templates.sql
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- payment-wallet-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- docs
+|   |   |   |-- devtoken
+|   |   |   |   +-- main.go
+|   |   |   |-- payment-wallet.postman_collection.json
+|   |   |   |-- payment-wallet.postman_environment.json
+|   |   |   +-- README.md
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   |-- .gitkeep
+|   |   |   |   +-- postgres.go
+|   |   |   +-- features
+|   |   |       |-- payments
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- provider_earnings
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- refunds
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- settlements
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- wallets
+|   |   |       |   |-- clients
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- notification_client.go
+|   |   |       |   |   |-- notification_client_test.go
+|   |   |       |   |   +-- paystack.go
+|   |   |       |   |-- http
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- auth.go
+|   |   |       |   |   |-- auth_test.go
+|   |   |       |   |   |-- dto.go
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   |-- response.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   |-- models.go
+|   |   |       |   |   +-- models_test.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   +-- postgres_wallet_repository.go
+|   |   |       |   |-- usecases
+|   |   |       |   |   |-- .gitkeep
+|   |   |       |   |   +-- wallet_service.go
+|   |   |       |   +-- README.md
+|   |   |       |-- withdrawals
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- migrations
+|   |   |   |-- 001_wallet_ledger.sql
+|   |   |   +-- migrations_test.go
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- support-dispute-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- docs
+|   |   |   |-- support-disputes.postman_collection.json
+|   |   |   +-- support-disputes.postman_environment.json
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   |-- .gitkeep
+|   |   |   |   |-- migrate.go
+|   |   |   |   +-- pool.go
+|   |   |   +-- features
+|   |   |       |-- notifications
+|   |   |       |   +-- http
+|   |   |       |       |-- handler.go
+|   |   |       |       +-- routes.go
+|   |   |       |-- support
+|   |   |       |   |-- clients
+|   |   |       |   |   |-- identity.go
+|   |   |       |   |   +-- notifier.go
+|   |   |       |   |-- http
+|   |   |       |   |   |-- handler.go
+|   |   |       |   |   |-- handler_test.go
+|   |   |       |   |   +-- routes.go
+|   |   |       |   |-- models
+|   |   |       |   |   +-- models.go
+|   |   |       |   |-- repositories
+|   |   |       |   |   |-- repository.go
+|   |   |       |   |   +-- repository_integration_test.go
+|   |   |       |   +-- usecases
+|   |   |       |       |-- support_service.go
+|   |   |       |       +-- support_service_test.go
+|   |   |       +-- README.md
+|   |   |-- migrations
+|   |   |   |-- 001_support_disputes.sql
+|   |   |   |-- 002_support_chat_messages.sql
+|   |   |   |-- 003_add_wallet_service_type.sql
+|   |   |   |-- 004_categories_and_help.sql
+|   |   |   +-- 005_identity_snapshot.sql
+|   |   |-- seeds
+|   |   |   +-- help_articles.sql
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   |-- verification-compliance-service
+|   |   |-- cmd
+|   |   |   +-- main.go
+|   |   |-- internal
+|   |   |   |-- config
+|   |   |   |   +-- config.go
+|   |   |   |-- database
+|   |   |   |   +-- .gitkeep
+|   |   |   +-- features
+|   |   |       |-- identity_checks
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- license_checks
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- provider_verification
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       |-- vehicle_documents
+|   |   |       |   |-- clients
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- http
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- models
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- repositories
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   |-- usecases
+|   |   |       |   |   +-- .gitkeep
+|   |   |       |   +-- README.md
+|   |   |       +-- README.md
+|   |   |-- .air.toml
+|   |   |-- go.mod
+|   |   |-- go.sum
+|   |   +-- README.md
+|   +-- Dockerfile
+|-- shared
+|   +-- go
+|       |-- apperrors
+|       |   +-- errors.go
+|       |-- auth
+|       |   |-- middleware.go
+|       |   |-- otp.go
+|       |   |-- otp_test.go
+|       |   |-- README.md
+|       |   |-- session.go
+|       |   |-- token.go
+|       |   +-- token_test.go
+|       |-- cache
+|       |   +-- store.go
+|       |-- events
+|       |   +-- events.go
+|       |-- httpx
+|       |   |-- errors.go
+|       |   |-- logger.go
+|       |   +-- middleware.go
+|       |-- logging
+|       |   |-- logging.go
+|       |   +-- README.md
+|       |-- mediaclient
+|       |   |-- client.go
+|       |   +-- client_test.go
+|       |-- notifications
+|       |   |-- notifications.go
+|       |   |-- notifications_test.go
+|       |   +-- proxy.go
+|       |-- pagination
+|       |   +-- pagination.go
+|       |-- phonenumber
+|       |   |-- nigerian_phone_number.go
+|       |   +-- nigerian_phone_number_test.go
+|       |-- redisx
+|       |   +-- client.go
+|       |-- serviceapp
+|       |   +-- serviceapp.go
+|       |-- serviceauth
+|       |   |-- serviceauth.go
+|       |   +-- serviceauth_test.go
+|       |-- validation
+|       |   +-- validation.go
+|       |-- walletclient
+|       |   |-- walletclient.go
+|       |   +-- walletclient_test.go
+|       |-- go.mod
+|       +-- go.sum
+|-- web
+|   +-- partner-web
+|       |-- public
+|       |   +-- images
+|       |       +-- logo.png
+|       |-- src
+|       |   |-- app
+|       |   |   |-- (auth)
+|       |   |   |   |-- login
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- login-otp-confirmation
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- otp-confirmation
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- signup
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   +-- layout.tsx
+|       |   |   |-- (dashboard)
+|       |   |   |   |-- api-documentation
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- billing
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- dashboard
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- deliveries
+|       |   |   |   |   |-- [id]
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- settings
+|       |   |   |   |   |-- api-keys
+|       |   |   |   |   |   +-- generate
+|       |   |   |   |   |       +-- page.tsx
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- webhook-logs
+|       |   |   |   |   |-- [id]
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   +-- layout.tsx
+|       |   |   |-- (onboarding)
+|       |   |   |   |-- business-info
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- business-logo
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   |-- profile-photo
+|       |   |   |   |   +-- page.tsx
+|       |   |   |   +-- layout.tsx
+|       |   |   |-- success
+|       |   |   |   +-- page.tsx
+|       |   |   |-- globals.css
+|       |   |   |-- layout.tsx
+|       |   |   +-- page.tsx
+|       |   |-- components
+|       |   |   |-- auth
+|       |   |   |   |-- otp-input.tsx
+|       |   |   |   +-- phone-input.tsx
+|       |   |   |-- dashboard
+|       |   |   |   |-- activity-feed.tsx
+|       |   |   |   +-- stat-card.tsx
+|       |   |   |-- layout
+|       |   |   |   |-- mobile-topbar.tsx
+|       |   |   |   |-- sidebar.tsx
+|       |   |   |   +-- topbar.tsx
+|       |   |   |-- onboarding
+|       |   |   |   +-- progress-bar.tsx
+|       |   |   +-- ui
+|       |   |       |-- button.tsx
+|       |   |       +-- input.tsx
+|       |   |-- hooks
+|       |   |   |-- use-file-upload.ts
+|       |   |   +-- use-otp-timer.ts
+|       |   |-- lib
+|       |   |   |-- mock
+|       |   |   |   |-- mock-activity.ts
+|       |   |   |   +-- mock-stats.ts
+|       |   |   |-- api-client.ts
+|       |   |   |-- nigerian-states.ts
+|       |   |   +-- utils.ts
+|       |   |-- services
+|       |   |   |-- auth-service.ts
+|       |   |   |-- dashboard-service.ts
+|       |   |   |-- delivery-service.ts
+|       |   |   |-- media-service.ts
+|       |   |   +-- profile-service.ts
+|       |   |-- store
+|       |   |   |-- auth-store.ts
+|       |   |   +-- onboarding-store.ts
+|       |   +-- types
+|       |       +-- index.ts
+|       |-- .gitignore
+|       |-- eslint.config.mjs
+|       |-- next.config.ts
+|       |-- next-env.d.ts
+|       |-- package.json
+|       |-- postcss.config.mjs
+|       |-- README.md
+|       +-- tsconfig.json
+|-- .gitignore
+|-- CLAUDE.md
+|-- go.work
+|-- go.work.sum
+|-- KarryGo_WorkReport_Jun19-26.docx
+|-- KarryGo_WorkReport_Jun27-Jul6.docx
+|-- model_diff.txt
++-- README.md

@@ -31,6 +31,11 @@ type WebhookDeliveryRepository interface {
 	// ListByWebhook returns a page of delivery attempts for one webhook, most
 	// recent first, plus the total matching count for pagination.
 	ListByWebhook(ctx context.Context, webhookID string, limit, offset int) ([]WebhookDelivery, int, error)
+	// ListByPartner returns a page of delivery attempts for all webhooks belonging
+	// to a partner, most recent first, plus the total matching count for pagination.
+	ListByPartner(ctx context.Context, partnerID string, limit, offset int) ([]WebhookDelivery, int, error)
+	// FindByID returns a single delivery attempt by ID, with ownership check via partnerID.
+	FindByID(ctx context.Context, partnerID, deliveryID string) (*WebhookDelivery, error)
 }
 
 // BookingLookup resolves partner bookings for dispatch event mapping and updates

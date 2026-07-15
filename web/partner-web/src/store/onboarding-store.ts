@@ -3,8 +3,7 @@ import type { OnboardingStep } from "@/types";
 
 interface OnboardingState {
   step: OnboardingStep;
-  dialCode: string;
-  phone: string;
+  email: string;
   businessName: string;
   businessPhone: string;
   businessEmail: string;
@@ -13,7 +12,7 @@ interface OnboardingState {
   logoFile: File | null;
   photoFile: File | null;
   setStep: (step: OnboardingStep) => void;
-  setPhone: (dialCode: string, phone: string) => void;
+  setEmail: (email: string) => void;
   setBusinessInfo: (info: {
     businessName: string;
     businessPhone: string;
@@ -28,8 +27,7 @@ interface OnboardingState {
 
 const initialState = {
   step: "business-info" as OnboardingStep,
-  dialCode: "+234",
-  phone: "",
+  email: "",
   businessName: "",
   businessPhone: "",
   businessEmail: "",
@@ -42,7 +40,7 @@ const initialState = {
 export const useOnboardingStore = create<OnboardingState>((set) => ({
   ...initialState,
   setStep: (step) => set({ step }),
-  setPhone: (dialCode, phone) => set({ dialCode, phone }),
+  setEmail: (email) => set({ email }),
   setBusinessInfo: (info) => set(info),
   setLogoFile: (logoFile) => set({ logoFile }),
   setPhotoFile: (photoFile) => set({ photoFile }),

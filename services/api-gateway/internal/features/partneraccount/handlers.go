@@ -69,6 +69,16 @@ func (h *Handlers) Login(c *gin.Context) {
 	})
 }
 
+// DeleteAccount handles DELETE /profile/account (session required).
+// Permanently deletes the partner account and all associated data.
+func (h *Handlers) DeleteAccount(c *gin.Context) {
+	if err := h.svc.DeleteAccount(c.Request.Context(), SessionPartnerID(c)); err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Account deleted successfully"})
+}
+
 // StartSignup handles POST /auth/signup/start (public).
 func (h *Handlers) StartSignup(c *gin.Context) {
 	var in SignupEmailInput
@@ -116,6 +126,40 @@ func (h *Handlers) ResendSignup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": signupSuccessMessage})
 }
 
+// StartLogin handles POST /auth/login/start (public).
+func (h *Handlers) StartLogin(c *gin.Context) {
+	var in SignupEmailInput
+	if !bindJSON(c, &in) {
+		return
+	}
+	if err := h.svc.StartLogin(c.Request.Context(), in); err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": loginSuccessMessage})
+}
+
+// VerifyLogin handles POST /auth/login/verify (public).
+func (h *Handlers) VerifyLogin(c *gin.Context) {
+	var in SignupVerifyInput
+	if !bindJSON(c, &in) {
+		return
+	}
+	res, err := h.svc.VerifyLogin(c.Request.Context(), in, metaFrom(c))
+	if err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"token":      res.Token,
+			"expires_at": res.ExpiresAt.UTC().Format(rfc3339),
+			"account":    res.Account,
+		},
+	})
+}
+
 // Logout handles POST /auth/logout (session required).
 func (h *Handlers) Logout(c *gin.Context) {
 	if err := h.svc.Logout(c.Request.Context(), SessionTokenHash(c)); err != nil {
@@ -135,10 +179,7 @@ func (h *Handlers) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"account": account}})
 }
 
-// UpdateProfile handles PATCH /profile (session required). This is the
-// Settings > Profile edit form: business name, phone, state, city, logo URL.
-// Only fields present in the request body are changed - omitted fields are
-// left untouched (see UpdateProfileInput / UpdateProfileParams).
+// UpdateProfile handles PATCH /profile (session required).
 func (h *Handlers) UpdateProfile(c *gin.Context) {
 	var in UpdateProfileInput
 	if !bindJSON(c, &in) {
@@ -157,7 +198,6 @@ func (h *Handlers) UpdateProfile(c *gin.Context) {
 // GenerateKey handles POST /keys (session required).
 func (h *Handlers) GenerateKey(c *gin.Context) {
 	var in CreateKeyInput
-	// Body is optional (label/environment); ignore bind errors on empty body.
 	_ = c.ShouldBindJSON(&in)
 	issued, err := h.svc.CreateKey(c.Request.Context(), SessionPartnerID(c), PartnerPlan(c), in)
 	if err != nil {

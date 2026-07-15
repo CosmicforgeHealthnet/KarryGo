@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, Menu, Search, X } from "lucide-react";
+import { useAuthStore } from "@/store/auth-store";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 const NAV_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -13,78 +16,146 @@ const NAV_TITLES: Record<string, string> = {
   "/settings": "Settings",
 };
 
-const PARTNER = {
-  name: "Kingsley Noori",
-  avatarInitial: "K",
-};
+interface MobileTopBarProps {
+  onMenuClick: () => void;
+  collapsed: boolean;
+}
 
-export function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
+export function MobileTopBar({ onMenuClick, collapsed }: MobileTopBarProps) {
   const pathname = usePathname();
+  const account = useAuthStore((s) => s.account);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const title =
     Object.entries(NAV_TITLES).find(([href]) => pathname.startsWith(href))?.[1] ??
     "Dashboard";
 
+  const partnerName = account?.business_name || "Partner";
+  const avatarInitial = partnerName.charAt(0).toUpperCase();
+
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-ink-100 bg-surface/90 px-5 py-4 backdrop-blur-sm md:px-8">
-      {/* Mobile only: logo + hamburger, since the sidebar is a hidden drawer here */}
-      <div className="flex items-center gap-2 md:hidden">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-          C
-        </div>
-        <div className="leading-tight">
-          <p className="text-xs font-bold text-brand-700">COSMICFORGE</p>
-          <p className="text-[8px] tracking-wide text-brand-600">
-            HEALTHNET LIMITED
-          </p>
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onMenuClick}
-        aria-label="Open menu"
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-900 md:hidden"
+    <>
+      <header
+        className={cn(
+          "fixed top-0 right-0 z-20 border-b border-gray-100/50 bg-white/80 backdrop-blur-xl transition-all duration-300",
+          "left-0",
+          "min-[768px]:max-[1013px]:left-[72px]",
+          collapsed ? "md:left-[72px]" : "md:left-[260px]",
+          scrolled && "shadow-sm"
+        )}
       >
-        <Menu className="h-5 w-5" />
-      </button>
+        <div className="flex h-16 items-center justify-between px-4 md:px-6">
+          <div className="flex flex-1 items-center gap-3">
+            <button
+              type="button"
+              onClick={onMenuClick}
+              aria-label="Open menu"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 md:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
 
-      {/* Tablet & desktop: sidebar already shows the logo, so the bar carries page context */}
-      <h1 className="hidden text-lg font-bold text-ink-900 md:block">
-        {title}
-      </h1>
+            <div className="flex items-center gap-2.5 md:hidden">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-brand-700 text-xs font-bold text-white shadow-sm shadow-brand-200/50">
+                C
+              </div>
+              <div className="leading-tight">
+                <p className="text-xs font-bold text-gray-900">CosmicForge</p>
+                <p className="text-[8px] font-medium text-gray-500 tracking-[0.1em]">
+                  LOGISTICS
+                </p>
+              </div>
+            </div>
 
-      <div className="hidden items-center gap-3 md:flex">
-        <label className="hidden items-center gap-2 rounded-full border border-ink-100 bg-white px-3.5 py-2 text-sm text-ink-500 content:flex">
-          <Search className="h-4 w-4 shrink-0" />
-          <input
-            type="text"
-            placeholder="Search"
-            className="w-40 bg-transparent text-ink-900 placeholder:text-ink-300 focus:outline-none lg:w-56"
-          />
-        </label>
+            <h1 className="hidden text-lg font-bold text-gray-900 md:block">
+              {title}
+            </h1>
+          </div>
 
-        <button
-          type="button"
-          aria-label="Notifications"
-          className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-700 hover:bg-ink-100"
+          <div className="flex items-center gap-1 md:gap-2">
+            <div className="hidden items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3.5 py-2 text-sm text-gray-500 transition-all duration-200 focus-within:border-brand-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100 lg:flex">
+              <Search className="h-4 w-4 shrink-0 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="w-40 bg-transparent text-gray-900 placeholder:text-gray-400 focus:outline-none lg:w-56"
+              />
+              <kbd className="hidden rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-500 lg:block">
+                ⌘K
+              </kbd>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSearchOpen(!searchOpen)}
+              aria-label="Search"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 lg:hidden"
+            >
+              {searchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+            </button>
+
+            <button
+              type="button"
+              aria-label="Notifications"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            >
+              <Bell className="h-[18px] w-[18px]" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+            </button>
+
+            <span className="hidden h-6 w-px bg-gray-200 md:block" />
+
+            <Link
+              href="/settings"
+              className="hidden items-center gap-2.5 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-gray-100 md:flex"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-sm font-semibold text-white shadow-sm shadow-brand-200/50">
+                {avatarInitial}
+              </span>
+              <span className="hidden text-sm font-medium text-gray-700 lg:inline">
+                {partnerName}
+              </span>
+            </Link>
+
+            <Link
+              href="/settings"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-sm font-semibold text-white shadow-sm shadow-brand-200/50 md:hidden"
+            >
+              {avatarInitial}
+            </Link>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-300 ease-in-out",
+            searchOpen ? "max-h-20 border-t border-gray-100/50" : "max-h-0"
+          )}
         >
-          <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
-        </button>
+          <div className="p-3">
+            <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3.5 py-2 transition-all focus-within:border-brand-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100">
+              <Search className="h-4 w-4 shrink-0 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="w-full bg-transparent text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                autoFocus
+              />
+            </div>
+          </div>
+        </div>
+      </header>
 
-        <span className="h-6 w-px bg-ink-100" aria-hidden />
-
-        <Link
-          href="/settings"
-          className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-ink-100"
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-400 text-sm font-semibold text-white">
-            {PARTNER.avatarInitial}
-          </span>
-          <span className="hidden text-sm font-semibold text-ink-900 content:inline">
-            {PARTNER.name}
-          </span>
-        </Link>
-      </div>
-    </header>
+      <div className="h-16" />
+    </>
   );
 }

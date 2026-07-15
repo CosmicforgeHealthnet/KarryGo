@@ -113,8 +113,28 @@ type WebhookDeliveryView struct {
 	CreatedAt      string          `json:"created_at"`
 }
 
+// WebhookDeliveryDetailView is the detailed view for a single delivery.
+type WebhookDeliveryDetailView struct {
+	ID             string          `json:"id"`
+	WebhookID      string          `json:"webhook_id"`
+	EventType      string          `json:"event_type"`
+	Status         string          `json:"status"`
+	ResponseStatus *int            `json:"response_status"`
+	Attempts       int             `json:"attempts"`
+	Payload        json.RawMessage `json:"payload"`
+	LastAttemptAt  *string         `json:"last_attempt_at"`
+	NextAttemptAt  *string         `json:"next_attempt_at"`
+	CreatedAt      string          `json:"created_at"`
+}
+
 // WebhookDeliveryListResponse is the GET /webhooks/:id/deliveries response data.
 type WebhookDeliveryListResponse struct {
+	Deliveries []WebhookDeliveryView `json:"deliveries"`
+	Meta       delivery.ListMeta     `json:"meta"`
+}
+
+// WebhookDeliveryListAllResponse is the GET /webhook-logs response data.
+type WebhookDeliveryListAllResponse struct {
 	Deliveries []WebhookDeliveryView `json:"deliveries"`
 	Meta       delivery.ListMeta     `json:"meta"`
 }
@@ -274,6 +294,63 @@ func (s *Service) ListDeliveries(ctx context.Context, partnerID, webhookID strin
 	return &WebhookDeliveryListResponse{
 		Deliveries: views,
 		Meta:       delivery.ListMeta{Page: page, Limit: limit, Total: total},
+	}, nil
+}
+
+
+// ListAllDeliveries returns a page of delivery attempts for all webhooks
+// belonging to a partner. This is used by the /webhook-logs endpoint.
+func (s *Service) ListAllDeliveries(ctx context.Context, partnerID string, page, limit int) (*WebhookDeliveryListAllResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = defaultDeliveryListLimit
+	}
+	if limit > maxDeliveryListLimit {
+		limit = maxDeliveryListLimit
+	}
+	offset := (page - 1) * limit
+
+	items, total, err := s.deliveries.ListByPartner(ctx, partnerID, limit, offset)
+	if err != nil {
+		// Log the actual error so we can see what's wrong
+		log.Printf("ListAllDeliveries error for partner %s: %v", partnerID, err)
+		return nil, delivery.ErrInternal()
+	}
+
+	views := make([]WebhookDeliveryView, 0, len(items))
+	for i := range items {
+		views = append(views, deliveryViewOf(&items[i]))
+	}
+	return &WebhookDeliveryListAllResponse{
+		Deliveries: views,
+		Meta:       delivery.ListMeta{Page: page, Limit: limit, Total: total},
+	}, nil
+}
+
+
+// GetDeliveryByID returns a single delivery attempt by ID, with ownership check.
+func (s *Service) GetDeliveryByID(ctx context.Context, partnerID, deliveryID string) (*WebhookDeliveryDetailView, error) {
+	item, err := s.deliveries.FindByID(ctx, partnerID, deliveryID)
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+	if item == nil {
+		return nil, delivery.WebhookNotFound()
+	}
+
+	return &WebhookDeliveryDetailView{
+		ID:             item.ID,
+		WebhookID:      item.WebhookID,
+		EventType:      item.EventType,
+		Status:         item.Status,
+		ResponseStatus: item.ResponseStatus,
+		Attempts:       item.Attempts,
+		Payload:        json.RawMessage(item.Payload),
+		LastAttemptAt:  formatTimePtr(item.LastAttemptAt),
+		NextAttemptAt:  formatTimePtr(item.NextAttemptAt),
+		CreatedAt:      item.CreatedAt.UTC().Format(rfc3339),
 	}, nil
 }
 

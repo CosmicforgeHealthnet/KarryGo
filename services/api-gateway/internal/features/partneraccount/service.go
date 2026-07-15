@@ -319,6 +319,18 @@ func (s *Service) UpdateProfile(ctx context.Context, partnerID string, in Update
 	return account, nil
 }
 
+// DeleteAccount permanently deletes a partner account and all associated data.
+func (s *Service) DeleteAccount(ctx context.Context, partnerID string) error {
+	found, err := s.accounts.DeleteAccount(ctx, partnerID)
+	if err != nil {
+		return delivery.ErrInternal()
+	}
+	if !found {
+		return apiErr(http.StatusNotFound, "partner_not_found", "Partner not found.")
+	}
+	return nil
+}
+
 // AuthenticateSession validates a raw session JWT against the DB. It returns the
 // partner id, the token hash, and the loaded account. Used by RequirePartnerSession.
 func (s *Service) AuthenticateSession(ctx context.Context, rawToken string) (partnerID, tokenHash string, account *Account, err error) {
@@ -358,14 +370,7 @@ func (s *Service) AuthenticateSession(ctx context.Context, rawToken string) (par
 // --- API key management ------------------------------------------------------
 
 // CreateKey issues a new API key for a partner. Live keys require a live plan.
-//
-// NOTE: the Generate API Key form does not mark Permissions as required (no
-// asterisk in the Figma design), so in.Permissions may legitimately be empty.
-// A key created with zero permissions will be rejected by every
-// permission-gated route (see partnerauth.RequirePermission) - this method
-// does not second-guess that and force a default, since Figma explicitly did
-// not require it. If that is not the intended behavior, the fix belongs on the
-// form (make Permissions required), not here.
+
 func (s *Service) CreateKey(ctx context.Context, partnerID, plan string, in CreateKeyInput) (*IssuedAPIKey, error) {
 	env := strings.TrimSpace(strings.ToLower(in.Environment))
 	if env == "" {

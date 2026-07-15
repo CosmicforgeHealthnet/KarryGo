@@ -22,7 +22,7 @@
   --color-danger: #d64545;
   --color-warning: #d9a12e;
 
-  --font-sans: var(--font-poppins), system-ui, sans-serif;
+  --font-sans: var(--font-geist), system-ui, sans-serif;
 
   --breakpoint-content: 1014px;
 }

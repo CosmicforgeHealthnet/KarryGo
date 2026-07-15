@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-
+    "github.com/gin-contrib/cors" 
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -41,7 +41,13 @@ func Run(opts Options) {
 		addr = ":8080"
 	}
 
-	router := gin.New()
+router := gin.New()
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
 	router.Use(httpx.RequestID())
 	router.Use(httpx.Logger())
 	router.Use(httpx.Recovery())

@@ -120,6 +120,15 @@ func (s *Service) GetOverview(ctx context.Context, partnerID, plan, status strin
 	}, nil
 }
 
+
+func (s *Service) GetDashboardSummary(ctx context.Context, partnerID string) (*DashboardSummary, error) {
+	summary, err := s.usage.GetDashboardSummary(ctx, partnerID)
+	if err != nil {
+		return nil, delivery.ErrInternal()
+	}
+	return &summary, nil
+}
+
 // ListInvoices returns a page of billing history.
 func (s *Service) ListInvoices(ctx context.Context, partnerID string, page, limit int) ([]InvoiceView, int, error) {
 	if page < 1 {

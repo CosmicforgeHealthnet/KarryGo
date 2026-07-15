@@ -1,21 +1,55 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useOnboardingStore } from "@/store/onboarding-store";
+import { useAuthStore } from "@/store/auth-store";
+import { mediaService } from "@/services/media-service";
+import { profileService } from "@/services/profile-service";
+import { ApiError } from "@/lib/api-client";
 
 export default function BusinessLogoPage() {
   const router = useRouter();
   const setLogoFile = useOnboardingStore((s) => s.setLogoFile);
+  const token = useAuthStore((s) => s.token);
+  const account = useAuthStore((s) => s.account);
+  const setSession = useAuthStore((s) => s.setSession);
+  const expiresAt = useAuthStore((s) => s.expiresAt);
   const { file, previewUrl, inputRef, openFilePicker, handleFileChange } =
     useFileUpload();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleContinue = () => {
-    setLogoFile(file);
-    router.push("/profile-photo");
+  const handleContinue = async () => {
+    if (!file || loading) return;
+    if (!token) {
+      setError("Your session has expired. Please sign up again.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const asset = await mediaService.uploadFile(file, "document_file", token);
+      const { account: updatedAccount } = await profileService.updateProfile(
+        { business_logo_url: asset.url },
+        token
+      );
+      setSession({ token, expiresAt: expiresAt ?? "", account: updatedAccount });
+      setLogoFile(file);
+      router.push("/profile-photo");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Could not upload logo. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -66,9 +100,11 @@ export default function BusinessLogoPage() {
         className="hidden"
       />
 
+      {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
+
       <div className="mt-10">
-        <Button onClick={handleContinue} disabled={!file}>
-          Continue
+        <Button onClick={handleContinue} disabled={!file || loading}>
+          {loading ? "Uploading..." : "Continue"}
         </Button>
       </div>
     </div>

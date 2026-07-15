@@ -2,19 +2,38 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PhoneInput } from "@/components/auth/phone-input";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useOnboardingStore } from "@/store/onboarding-store";
+import { authService } from "@/services/auth-service";
+import { ApiError } from "@/lib/api-client";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [dialCode, setDialCode] = useState("+234");
-  const [phone, setPhone] = useState("");
+  const setEmail = useOnboardingStore((s) => s.setEmail);
+  const [email, setLocalEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const canContinue = phone.length >= 10;
+  const canContinue = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const handleContinue = () => {
-    if (!canContinue) return;
-    router.push("/otp-confirmation");
+  const handleContinue = async () => {
+    if (!canContinue || loading) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await authService.startSignup(email);
+      setEmail(email);
+      router.push("/otp-confirmation");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -24,27 +43,27 @@ export default function SignupPage() {
         Let&apos;s get you moving.
       </p>
       <p className="mt-4 text-sm text-ink-500">
-        Enter your phone number to continue.
+        Enter your business email to continue.
       </p>
 
       <div className="mt-6">
-        <label className="mb-2 block text-sm font-medium text-ink-900">
-          Enter your Phone Number
-        </label>
-        <PhoneInput
-          value={phone}
-          onChange={setPhone}
-          dialCode={dialCode}
-          onDialCodeChange={setDialCode}
+        <Input
+          id="businessEmail"
+          label="Business Email"
+          type="email"
+          placeholder="you@business.com"
+          value={email}
+          onChange={(e) => setLocalEmail(e.target.value)}
         />
         <p className="mt-2 text-xs text-brand-500">
           We&apos;ll send you a verification code.
         </p>
+        {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
       </div>
 
       <div className="mt-8">
-        <Button onClick={handleContinue} disabled={!canContinue}>
-          Continue
+        <Button onClick={handleContinue} disabled={!canContinue || loading}>
+          {loading ? "Sending code..." : "Continue"}
         </Button>
       </div>
 
