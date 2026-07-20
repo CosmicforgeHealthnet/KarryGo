@@ -10,10 +10,12 @@ type StartRequest struct {
 
 // StartResponse is the success payload for POST /api/v1/auth/start,
 // POST /api/v1/auth/signup/start, and POST /api/v1/auth/login/start.
-// OTP is intentionally absent — it must never appear in HTTP responses.
+// DebugOTP is only ever set when DISPATCH_RIDER_DEBUG_OTP=true (dev/local
+// only) — omitted from the response entirely otherwise.
 type StartResponse struct {
 	Message          string `json:"message"`
 	ExpiresInSeconds int64  `json:"expires_in_seconds"`
+	DebugOTP         string `json:"debug_otp,omitempty"`
 }
 
 // ── Signup start ──────────────────────────────────────────────────────────────

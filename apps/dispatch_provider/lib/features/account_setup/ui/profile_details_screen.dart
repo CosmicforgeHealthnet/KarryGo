@@ -186,10 +186,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       _idNumberController.text.trim().isNotEmpty &&
       _govtIdFilePath != null;
 
-  // TODO: backend upload — when submitting, send govt ID file to:
-  //   POST /api/v1/provider/verification/identity
-  //   multipart fields: govt_id_type, govt_id_number, govt_id_file, profile_photo
-  //   Use _govtIdFilePath as the local file path.
+  // The govt ID file collected here is uploaded by the app shell's final
+  // submit step via POST /api/v1/provider/verification/identity.
 
   String _mapIdTypeToBackend(String uiType) {
     return switch (uiType) {
@@ -588,9 +586,8 @@ class ProfileDetailsData {
   final String email;
   final String governmentIdFileName;
 
-  /// Local file path for the selected govt ID document.
-  /// TODO: use this path when uploading to
-  ///   POST /api/v1/provider/verification/identity
+  /// Local file path for the selected govt ID document, uploaded by the app
+  /// shell's final submit step via POST /api/v1/provider/verification/identity.
   final String governmentIdFilePath;
   final String governmentIdType;
   final String governmentIdNumber;

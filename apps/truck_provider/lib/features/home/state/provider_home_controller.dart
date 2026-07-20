@@ -36,6 +36,8 @@ class ProviderHomeState {
     this.trucks = const [],
     this.trucksLoading = false,
     this.selectedTruckId,
+    this.currentLat,
+    this.currentLng,
   });
 
   final ProviderHomeStatus status;
@@ -49,6 +51,11 @@ class ProviderHomeState {
   final bool trucksLoading;
   final String? selectedTruckId;
 
+  /// The provider's most recent device location (refreshed by the heartbeat).
+  /// Used to show live trip progress between pickup and destination.
+  final double? currentLat;
+  final double? currentLng;
+
   ProviderHomeState copyWith({
     ProviderHomeStatus? status,
     bool? isOnline,
@@ -60,6 +67,8 @@ class ProviderHomeState {
     List<ProviderTruck>? trucks,
     bool? trucksLoading,
     String? selectedTruckId,
+    double? currentLat,
+    double? currentLng,
     bool clearError = false,
     bool clearActive = false,
     bool clearSelectedTruck = false,
@@ -75,6 +84,8 @@ class ProviderHomeState {
       trucks: trucks ?? this.trucks,
       trucksLoading: trucksLoading ?? this.trucksLoading,
       selectedTruckId: clearSelectedTruck ? null : (selectedTruckId ?? this.selectedTruckId),
+      currentLat: currentLat ?? this.currentLat,
+      currentLng: currentLng ?? this.currentLng,
     );
   }
 }
@@ -136,7 +147,12 @@ class ProviderHomeController extends ChangeNotifier {
     try {
       final pos = await _currentPosition();
       await _api.setOnline(accessToken: token, lat: pos.$1, lng: pos.$2);
-      _emit(_state.copyWith(isOnline: true, isLoading: false));
+      _emit(_state.copyWith(
+        isOnline: true,
+        isLoading: false,
+        currentLat: pos.$1,
+        currentLng: pos.$2,
+      ));
       _startHeartbeat();
       _startPolling();
       _startRealtime();
@@ -253,8 +269,11 @@ class ProviderHomeController extends ChangeNotifier {
   Future<void> _sendHeartbeat() async {
     final token = _token;
     if (token == null) return;
+    // `_currentPosition()` never throws (falls back to Lagos), so record the
+    // fix for the live trip-progress bar even if the heartbeat POST fails.
+    final pos = await _currentPosition();
+    _emit(_state.copyWith(currentLat: pos.$1, currentLng: pos.$2));
     try {
-      final pos = await _currentPosition();
       await _api.heartbeat(accessToken: token, lat: pos.$1, lng: pos.$2);
     } catch (_) {}
   }

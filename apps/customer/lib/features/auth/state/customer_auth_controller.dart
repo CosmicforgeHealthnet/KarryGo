@@ -12,7 +12,6 @@ enum CustomerAuthStatus {
   onboarding,
   phoneEntry,
   otpVerification,
-  serviceChoice,
   profileDetails,
   photoUpload,
   allSet,
@@ -33,7 +32,6 @@ class CustomerAuthState {
     this.debugOtp,
     this.session,
     this.customer,
-    this.selectedService,
     this.profileName = '',
     this.profileEmail = '',
     this.profilePhotoUrl,
@@ -54,7 +52,6 @@ class CustomerAuthState {
   final String? debugOtp;
   final CustomerSession? session;
   final CustomerProfile? customer;
-  final String? selectedService;
   final String profileName;
   final String profileEmail;
   final String? profilePhotoUrl;
@@ -81,7 +78,6 @@ class CustomerAuthState {
     String? debugOtp,
     CustomerSession? session,
     CustomerProfile? customer,
-    String? selectedService,
     String? profileName,
     String? profileEmail,
     String? profilePhotoUrl,
@@ -91,7 +87,6 @@ class CustomerAuthState {
     bool clearDebugOtp = false,
     bool clearSession = false,
     bool clearCustomer = false,
-    bool clearSelectedService = false,
     bool clearError = false,
   }) {
     return CustomerAuthState(
@@ -105,9 +100,6 @@ class CustomerAuthState {
       debugOtp: clearDebugOtp ? null : debugOtp ?? this.debugOtp,
       session: clearSession ? null : session ?? this.session,
       customer: clearCustomer ? null : customer ?? this.customer,
-      selectedService: clearSelectedService
-          ? null
-          : selectedService ?? this.selectedService,
       profileName: profileName ?? this.profileName,
       profileEmail: profileEmail ?? this.profileEmail,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
@@ -199,7 +191,6 @@ class CustomerAuthController extends ChangeNotifier {
       case CustomerAuthStatus.phoneEntry:
       case CustomerAuthStatus.otpVerification:
         return;
-      case CustomerAuthStatus.serviceChoice:
       case CustomerAuthStatus.profileDetails:
       case CustomerAuthStatus.photoUpload:
       case CustomerAuthStatus.allSet:
@@ -372,25 +363,6 @@ class CustomerAuthController extends ChangeNotifier {
     }
   }
 
-  void selectServiceChoice(String serviceId) {
-    _setState(
-      _state.copyWith(
-        status: CustomerAuthStatus.profileDetails,
-        selectedService: serviceId,
-        clearError: true,
-      ),
-    );
-  }
-
-  void goToServiceChoice() {
-    _setState(
-      _state.copyWith(
-        status: CustomerAuthStatus.serviceChoice,
-        clearError: true,
-      ),
-    );
-  }
-
   void completeProfileDetails({
     required String fullName,
     required String email,
@@ -525,7 +497,7 @@ class CustomerAuthController extends ChangeNotifier {
     _setState(
       CustomerAuthState(
         status: session.customer.requiresProfile
-            ? CustomerAuthStatus.serviceChoice
+            ? CustomerAuthStatus.profileDetails
             : CustomerAuthStatus.authenticated,
         session: session,
         customer: session.customer,

@@ -24,6 +24,11 @@ type Config struct {
 	WalletServiceURL           string
 	WalletServiceSecret        []byte
 	WalletServiceSource        string
+	CustomerTokenSecret        []byte
+	AvailabilityRadiusKM       float64
+	NotificationURL            string
+	NotificationSecret         []byte
+	ServiceSecrets             string
 
 	AccessTokenSecret  []byte
 	RefreshTokenSecret []byte
@@ -83,6 +88,16 @@ func Load() (Config, error) {
 		WalletServiceURL:           getEnv("WALLET_SERVICE_URL", "http://localhost:8105/api/v1/payment-wallet"),
 		WalletServiceSecret:        []byte(walletServiceSecret),
 		WalletServiceSource:        getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
+		CustomerTokenSecret:        []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
+		AvailabilityRadiusKM:       getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
+		// Notification-service integration is optional: when unset, lifecycle
+		// notifications no-op and the app notification proxy routes are skipped.
+		NotificationURL:    getEnv("DISPATCH_NOTIFICATION_URL", ""),
+		NotificationSecret: []byte(getEnv("DISPATCH_NOTIFICATION_SECRET", "")),
+		// HMAC secrets trusted for internal service-to-service calls
+		// (name=secret pairs). Used by the internal identity endpoint that
+		// support-dispute-service calls to resolve rider identities.
+		ServiceSecrets: getEnv("DISPATCH_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
 		AccessTokenSecret:          []byte(accessTokenSecret),
 		RefreshTokenSecret:         []byte(refreshTokenSecret),
 		OTPSecret:                  []byte(otpSecret),

@@ -311,7 +311,7 @@ func (s *Service) Accept(ctx context.Context, inboxID, providerID string) (Accep
 		_ = s.events.PublishRequestAccepted(ctx, RequestAcceptedEvent{
 			Event: TopicRequestAccepted, CorrelationID: booking.CorrelationID,
 			BookingID: inbox.BookingID, BroadcastID: inbox.BroadcastID, InboxID: inbox.ID,
-			ProviderID: providerID,
+			ProviderID: providerID, CustomerID: booking.CustomerID,
 			FareAmount: booking.FareAmount, Currency: booking.Currency,
 			PickupLat: booking.PickupLat, PickupLng: booking.PickupLng, PickupAddress: booking.PickupAddress,
 			DropoffLat: booking.DropoffLat, DropoffLng: booking.DropoffLng, DropoffAddress: booking.DropoffAddress,
@@ -472,6 +472,32 @@ func (s *Service) scheduleExpire(broadcast RequestBroadcast) error {
 	}
 	_, err = s.tasks.Enqueue(task, asynq.Queue("default"), asynq.ProcessAt(broadcast.ExpiresAt))
 	return err
+}
+
+// RecoverStrandedBroadcasts re-schedules the expire-window task for broadcasts
+// stuck in 'broadcasting' past their window. Scheduled asynq tasks survive a
+// restart, but a crash between CreateBroadcast and scheduleExpire leaves a row
+// with no task forever — this startup sweep closes that hole. Idempotent: the
+// ExpireWindow worker re-checks status, attempt number, and expiry before
+// acting, so re-enqueueing an already-covered broadcast is a no-op.
+func (s *Service) RecoverStrandedBroadcasts(ctx context.Context) error {
+	if s.tasks == nil {
+		return nil
+	}
+	stranded, err := s.repository.ListStrandedBroadcasts(ctx, s.now())
+	if err != nil {
+		return err
+	}
+	for _, broadcast := range stranded {
+		if err := s.scheduleExpire(broadcast); err != nil {
+			log.Printf("request recovery: enqueue expire failed broadcast_id=%s booking_id=%s: %v",
+				broadcast.ID, broadcast.BookingID, err)
+			continue
+		}
+		log.Printf("request recovery: re-adopted stranded broadcast broadcast_id=%s booking_id=%s attempt=%d",
+			broadcast.ID, broadcast.BookingID, broadcast.AttemptNumber)
+	}
+	return nil
 }
 
 func releaseOwnedLock(ctx context.Context, client *redis.Client, key, value string) {

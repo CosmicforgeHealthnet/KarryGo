@@ -159,6 +159,38 @@ class ProviderProfileController extends ChangeNotifier {
         ));
   }
 
+  // ─── Safety & emergency ─────────────────────────────────────────────────────
+
+  /// Phone values are stored as typed (backend only trims them), so callers must
+  /// pass the full `+234...` number.
+  Future<bool> saveEmergencyContact({
+    required String name,
+    required String phone,
+    required String relationship,
+  }) {
+    return _runUpdate(() => _api.updateProfile(
+          accessToken: _token!,
+          firstName: profile?.firstName ?? '',
+          lastName: profile?.lastName ?? '',
+          emergencyContactName: name,
+          emergencyContactPhone: phone,
+          emergencyContactRelationship: relationship,
+        ));
+  }
+
+  Future<bool> saveGuarantor({
+    required String name,
+    required String phone,
+  }) {
+    return _runUpdate(() => _api.updateProfile(
+          accessToken: _token!,
+          firstName: profile?.firstName ?? '',
+          lastName: profile?.lastName ?? '',
+          guarantorName: name,
+          guarantorPhone: phone,
+        ));
+  }
+
   // ─── Trucks ──────────────────────────────────────────────────────────────────
 
   Future<bool> saveTruck({

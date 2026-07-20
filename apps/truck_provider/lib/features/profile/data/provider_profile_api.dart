@@ -40,6 +40,11 @@ class ProviderProfileApi {
     String vehicleRegUrl = '',
     String profilePhotoUrl = '',
     String photoAssetId = '',
+    String guarantorName = '',
+    String guarantorPhone = '',
+    String emergencyContactName = '',
+    String emergencyContactPhone = '',
+    String emergencyContactRelationship = '',
     bool submitForVerification = false,
   }) async {
     final data = await _put('/provider/profile', {
@@ -57,6 +62,11 @@ class ProviderProfileApi {
       'vehicle_reg_url': vehicleRegUrl,
       'profile_photo_url': profilePhotoUrl,
       'photo_asset_id': photoAssetId,
+      'guarantor_name': guarantorName,
+      'guarantor_phone': guarantorPhone,
+      'emergency_contact_name': emergencyContactName,
+      'emergency_contact_phone': emergencyContactPhone,
+      'emergency_contact_relationship': emergencyContactRelationship,
       'submit_for_verification': submitForVerification,
     }, accessToken: accessToken);
     return TruckProvider.fromJson(data);

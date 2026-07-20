@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
@@ -26,7 +27,13 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _identifierController = TextEditingController();
+  // Prefilled with a fully go-online-ready seeded dev rider
+  // (services/driver-dispatch-delivery-service/seeds/dev_seed.sql) so local
+  // testing doesn't require typing a phone number every time. Debug-only —
+  // never present in release builds.
+  final _identifierController = TextEditingController(
+    text: kDebugMode ? '+2348077770001' : '',
+  );
   bool _isLoading = false;
 
   @override

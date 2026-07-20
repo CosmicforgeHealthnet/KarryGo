@@ -355,7 +355,13 @@ class HaulingBookingController extends ChangeNotifier {
 
   Future<void> checkAvailabilityAndProceed() async {
     final token = _accessToken();
-    if (token == null) return;
+    if (token == null) {
+      // No local session — treat as an expired/revoked session and drive the
+      // global logout (clears the session and routes back to sign in), the same
+      // way a server 401 is handled. Don't just show a dead-end error.
+      await _auth.handleAuthFailure();
+      return;
+    }
 
     _emit(_state.copyWith(
       status: HaulingFlowStatus.checkingAvailability,

@@ -20,6 +20,7 @@ type fakeProfileRepo struct {
 	updateProvider  providerauthmodels.Provider
 	updateCalled    bool
 	lastUpdatePhone string
+	lastParams      providerprofilerepositories.UpdateProfileParams
 
 	contactEmailTaken bool
 	contactPhoneTaken bool
@@ -29,6 +30,7 @@ type fakeProfileRepo struct {
 func (f *fakeProfileRepo) UpdateProfile(ctx context.Context, params providerprofilerepositories.UpdateProfileParams) (providerauthmodels.Provider, error) {
 	f.updateCalled = true
 	f.lastUpdatePhone = params.Phone
+	f.lastParams = params
 	if f.updateErr != nil {
 		return providerauthmodels.Provider{}, f.updateErr
 	}
@@ -135,6 +137,33 @@ func TestUpdateProfile_NormalizesPhoneBeforePersisting(t *testing.T) {
 	}
 	if repo.lastUpdatePhone != "+2348023456789" {
 		t.Fatalf("expected normalized phone +2348023456789, got %q", repo.lastUpdatePhone)
+	}
+}
+
+// Guarantor/emergency phones are stored as typed by the client (only trimmed,
+// never normalized), so the app must send the final +234... string itself.
+func TestUpdateProfile_SafetyFieldsTrimmedNotNormalized(t *testing.T) {
+	repo := &fakeProfileRepo{}
+	_, err := newService(repo).UpdateProfile(context.Background(), UpdateProfileInput{
+		ProviderID: "p1", FirstName: "Ada",
+		GuarantorName:                "  Adejumo Janet ",
+		GuarantorPhone:               " +2348067735987 ",
+		EmergencyContactName:         " Adejumo Jerome ",
+		EmergencyContactPhone:        " +2348067735987",
+		EmergencyContactRelationship: " Brother ",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	p := repo.lastParams
+	if p.GuarantorName != "Adejumo Janet" || p.GuarantorPhone != "+2348067735987" {
+		t.Fatalf("expected trimmed guarantor fields, got %q / %q", p.GuarantorName, p.GuarantorPhone)
+	}
+	if p.EmergencyContactName != "Adejumo Jerome" ||
+		p.EmergencyContactPhone != "+2348067735987" ||
+		p.EmergencyContactRelationship != "Brother" {
+		t.Fatalf("expected trimmed emergency fields, got %q / %q / %q",
+			p.EmergencyContactName, p.EmergencyContactPhone, p.EmergencyContactRelationship)
 	}
 }
 

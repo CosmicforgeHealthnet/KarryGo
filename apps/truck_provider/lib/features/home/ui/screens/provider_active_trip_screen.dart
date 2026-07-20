@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -64,6 +65,8 @@ class _ProviderActiveTripScreenState extends State<ProviderActiveTripScreen> {
                   booking: booking,
                   isLoading: state.isLoading,
                   error: state.error,
+                  currentLat: state.currentLat,
+                  currentLng: state.currentLng,
                   onEnRoutePickup: widget.controller.markEnRoutePickup,
                   onArrived: widget.controller.markArrived,
                   onConfirmPickup: widget.controller.confirmPickup,
@@ -87,6 +90,8 @@ class _TripSheet extends StatelessWidget {
     required this.booking,
     required this.isLoading,
     this.error,
+    this.currentLat,
+    this.currentLng,
     required this.onEnRoutePickup,
     required this.onArrived,
     required this.onConfirmPickup,
@@ -98,6 +103,8 @@ class _TripSheet extends StatelessWidget {
   final ProviderBooking booking;
   final bool isLoading;
   final String? error;
+  final double? currentLat;
+  final double? currentLng;
   final VoidCallback onEnRoutePickup;
   final VoidCallback onArrived;
   final VoidCallback onConfirmPickup;
@@ -202,7 +209,7 @@ class _TripSheet extends StatelessWidget {
 
           if (inProgress) ...[
             const SizedBox(height: 16),
-            _ProgressBar(),
+            _ProgressBar(progress: _tripProgress(status)),
           ],
 
           const SizedBox(height: 16),
@@ -277,35 +284,104 @@ class _TripSheet extends StatelessWidget {
       _ => const _TripAction(label: 'Updating trip…', onPressed: null),
     };
   }
+
+  /// Fraction (0..1) of the pickup→destination leg the truck has covered, from
+  /// the provider's live location. Falls back to a stage estimate when the
+  /// location or route geometry isn't usable (e.g. no GPS fix yet): just
+  /// picked up ≈ start of the leg, en route ≈ halfway.
+  double _tripProgress(String status) {
+    final lat = currentLat;
+    final lng = currentLng;
+    final total = _haversineKm(
+      booking.pickupLat, booking.pickupLng, booking.dropoffLat, booking.dropoffLng);
+    if (lat != null && lng != null && total > 0.05) {
+      final remaining = _haversineKm(lat, lng, booking.dropoffLat, booking.dropoffLng);
+      return ((total - remaining) / total).clamp(0.0, 1.0);
+    }
+    // Fallback: no usable fix — approximate from the trip stage.
+    return status == 'en_route_delivery' ? 0.5 : 0.0;
+  }
+
+  double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
+    const earthRadiusKm = 6371.0;
+    final dLat = _toRad(lat2 - lat1);
+    final dLng = _toRad(lng2 - lng1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRad(lat1)) *
+            math.cos(_toRad(lat2)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    return earthRadiusKm * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  double _toRad(double deg) => deg * math.pi / 180.0;
 }
 
 // ─── Progress bar (Figma 2038) ────────────────────────────────────────────────
 
 class _ProgressBar extends StatelessWidget {
+  const _ProgressBar({required this.progress});
+
+  /// 0..1 fraction of the pickup→destination leg covered.
+  final double progress;
+
   @override
   Widget build(BuildContext context) {
+    final value = progress.clamp(0.0, 1.0);
+    final arrived = value >= 0.999;
+
     return Column(
       children: [
-        Row(
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: const BoxDecoration(color: kProviderGreen, shape: BoxShape.circle),
-            ),
-            Expanded(
-              child: Container(height: 3, color: kProviderGreen),
-            ),
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: kProviderGreen, width: 2),
+        SizedBox(
+          height: 16,
+          child: Row(
+            children: [
+              // Pickup dot (done)
+              _dot(filled: true),
+              // Track with a moving marker showing current position
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    const marker = 14.0;
+                    final travel = (constraints.maxWidth - marker).clamp(0.0, double.infinity);
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Unfilled base track
+                        Container(height: 3, color: kProviderBorder),
+                        // Filled (covered) portion
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: value,
+                            child: Container(height: 3, color: kProviderGreen),
+                          ),
+                        ),
+                        // Moving position marker
+                        Positioned(
+                          left: travel * value,
+                          child: Container(
+                            width: marker,
+                            height: marker,
+                            decoration: BoxDecoration(
+                              color: kProviderGreen,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: const [
+                                BoxShadow(color: Color(0x33000000), blurRadius: 4),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+              // Destination dot (fills once arrived)
+              _dot(filled: arrived),
+            ],
+          ),
         ),
         const SizedBox(height: 6),
         const Row(
@@ -316,6 +392,18 @@ class _ProgressBar extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _dot({required bool filled}) {
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        color: filled ? kProviderGreen : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: kProviderGreen, width: 2),
+      ),
     );
   }
 }

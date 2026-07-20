@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/format/money_format.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
+import '../../wallet/models/wallet_models.dart';
 import '../models/earnings_models.dart';
 import '../state/provider_earnings_controller.dart';
 import 'provider_earning_summary_screen.dart';
@@ -40,7 +42,9 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
   void initState() {
     super.initState();
     // Load once when the shell mounts; the home shell also refreshes on tab tap.
-    WidgetsBinding.instance.addPostFrameCallback((_) => widget.controller.load());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => widget.controller.load(),
+    );
   }
 
   void _comingSoon(String label) {
@@ -56,7 +60,8 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
   void _openEarningSummary() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ProviderEarningSummaryScreen(controller: widget.controller),
+        builder: (_) =>
+            ProviderEarningSummaryScreen(controller: widget.controller),
       ),
     );
   }
@@ -64,7 +69,10 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
   void _openTransactionDetail(EarningsTransaction txn) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ProviderTransactionDetailScreen(txn: txn, controller: widget.controller),
+        builder: (_) => ProviderTransactionDetailScreen(
+          txn: txn,
+          controller: widget.controller,
+        ),
       ),
     );
   }
@@ -94,10 +102,13 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _BalanceCard(
                       earnings: earnings,
+                      walletBalance: c.walletBalance,
                       hidden: c.balanceHidden,
                       onToggleHidden: c.toggleBalanceVisibility,
-                      onWithdraw: widget.onWithdraw ?? () => _comingSoon('Withdraw'),
-                      onDispute: widget.onDispute ?? () => _comingSoon('Disputes'),
+                      onWithdraw:
+                          widget.onWithdraw ?? () => _comingSoon('Withdraw'),
+                      onDispute:
+                          widget.onDispute ?? () => _comingSoon('Disputes'),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -109,7 +120,9 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _RecentTransactionsHeader(onViewAll: () => _comingSoon('View All')),
+                  _RecentTransactionsHeader(
+                    onViewAll: () => _comingSoon('View All'),
+                  ),
                   const SizedBox(height: 12),
                   if (c.error != null && !c.hasLoaded)
                     _ErrorState(message: c.error!, onRetry: c.load)
@@ -180,7 +193,10 @@ class _Header extends StatelessWidget {
                   Container(
                     width: 20,
                     height: 20,
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
                     alignment: Alignment.center,
                     child: const Text(
                       r'$',
@@ -215,6 +231,7 @@ class _Header extends StatelessWidget {
 class _BalanceCard extends StatelessWidget {
   const _BalanceCard({
     required this.earnings,
+    required this.walletBalance,
     required this.hidden,
     required this.onToggleHidden,
     required this.onWithdraw,
@@ -222,142 +239,198 @@ class _BalanceCard extends StatelessWidget {
   });
 
   final ProviderEarnings earnings;
+
+  /// Real ledger balance from payment-wallet-service — the same figure the
+  /// withdrawal flow uses. Null when it could not be fetched, in which case
+  /// the card falls back to the hauling trip-earnings estimate.
+  final WalletBalance? walletBalance;
   final bool hidden;
   final VoidCallback onToggleHidden;
   final VoidCallback onWithdraw;
   final VoidCallback onDispute;
 
+  double get _availableNaira =>
+      walletBalance?.availableNaira ?? earnings.availableBalanceNaira;
+
+  double get _pendingNaira =>
+      walletBalance?.pendingNaira ?? earnings.pendingBalanceNaira;
+
   @override
   Widget build(BuildContext context) {
-    // Withdraw sits INSIDE the card (bottom-right, in the column flow); the
-    // Dispute badge is overlaid in the upper-right above it.
-    return Stack(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(20, 18, 18, 18),
-          decoration: BoxDecoration(
-            gradient: kProviderBalanceGradient,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0A5626).withValues(alpha: 0.32),
-                blurRadius: 22,
-                offset: const Offset(0, 12),
+    // The Dispute badge sits on the right of the sub-balance row, and the
+    // Withdraw pill straddles (overhangs) the bottom-right edge of the green
+    // card, matching the Figma. The Stack is given extra bottom margin so the
+    // overhanging pill is not clipped by the next widget.
+    return Container(
+      // Room for the half of the pill that hangs below the card.
+      margin: const EdgeInsets.only(bottom: 26),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 16, 18, 16),
+            decoration: BoxDecoration(
+              // Figma radial gradient:
+              // radial-gradient(102.19% 102.19% at 50% 46.56%, #27A747 0%, #002509 100%)
+              gradient: const RadialGradient(
+                center: Alignment(0, -0.0688), // 46.56% vertical → 2*0.4656 - 1
+                radius: 1.0219, // 102.19%
+                colors: [Color(0xFF27A747), Color(0xFF002509)],
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Available Balance',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: onToggleHidden,
-                    behavior: HitTestBehavior.opaque,
-                    child: Icon(
-                      hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                hidden ? '₦ ****' : '₦ ${formatNaira(earnings.availableBalanceNaira)}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _SubBalance(
-                      label: 'Pending Balance',
-                      value: hidden ? '****' : '₦ ${formatNaira(earnings.pendingBalanceNaira)}',
-                    ),
-                  ),
-                  Expanded(
-                    child: _SubBalance(
-                      label: "Today's Earnings",
-                      value: hidden ? '****' : '₦ ${formatNaira(earnings.todayEarningsNaira)}',
-                    ),
-                  ),
-                  // Reserve space on the right for the positioned Dispute badge.
-                  const SizedBox(width: 56),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: onWithdraw,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: kProviderGreen, width: 1.3),
-                    ),
-                    child: const Text(
-                      'Withdraw',
-                      style: TextStyle(
-                        color: kProviderGreen,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
+              borderRadius: BorderRadius.circular(20),
+            ), 
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      walletBalance == null
+                          ? 'Available Balance (estimated)'
+                          : 'Available Balance',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: onToggleHidden,
+                      behavior: HitTestBehavior.opaque,
+                      child: Icon(
+                        hidden
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  hidden ? '₦ ****' : '₦ ${formatNaira(_availableNaira)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
 
-        // Dispute badge — upper-right of the lower area, above the Withdraw pill.
-        Positioned(
-          top: 78,
-          right: 16,
-          child: GestureDetector(
-            onTap: onDispute,
-            behavior: HitTestBehavior.opaque,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFCF3DA),
-                    borderRadius: BorderRadius.circular(11),
+               
+                const SizedBox(height: 10),
+
+                SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.60, // 12% of screen width
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _SubBalance(
+                          label: 'Pending Balance',
+                          value: hidden
+                              ? '****'
+                              : '₦ ${formatNaira(_pendingNaira)}',
+                        ),
+                      ),
+                      Expanded(
+                        child: _SubBalance(
+                          label: "Today's Earnings",
+                          value: hidden
+                              ? '****'
+                              : '₦ ${formatNaira(earnings.todayEarningsNaira)}',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Dispute badge lives at the right of the sub-balance row.
+                    ],
                   ),
-                  child: const Icon(Icons.assignment_rounded, color: Color(0xFFE8A21B), size: 20),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Dispute',
-                  style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           ),
-        ),
-      ],
+
+          Positioned(
+            right: 15,
+            bottom: 45,
+            child: _DisputeBadge(onTap: onDispute),
+          ),
+
+          // Withdraw button — Figma "Small Button.svg" (opaque white pill + green
+          // border + "Withdraw" glyphs; the SVG's drop-shadow filter was stripped
+          // and its viewBox cropped tight to the pill, so it draws as a clean
+          // solid-white pill with almost no internal padding). Sits flush in the
+          // card's bottom-right corner.
+          Positioned(
+            right: -7,
+            bottom: -7,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(5, 5, 5, 5),
+              decoration: BoxDecoration(
+                color: kProviderPageBg,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(30.5),
+                  bottomRight: Radius.circular(25),
+                ),
+              ),
+
+          child:  GestureDetector(
+              onTap: onWithdraw,
+              behavior: HitTestBehavior.opaque,
+              child: SvgPicture.asset(
+                'assets/figma/Small Button.svg',
+                width: 132,
+              ),
+            ),
+          )
+          
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Gold "Dispute" badge shown on the right of the balance card's sub-row.
+class _DisputeBadge extends StatelessWidget {
+  const _DisputeBadge({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFCF3DA),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.assignment_rounded,
+              color: Color(0xFFE8A21B),
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Dispute',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -374,7 +447,11 @@ class _SubBalance extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: 5),
         Text(
@@ -407,13 +484,24 @@ class _StatsCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
-          BoxShadow(color: Color(0x14000000), blurRadius: 20, offset: Offset(0, 8)),
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
         ],
       ),
       child: Row(
         children: [
-          Expanded(child: _StatItem(label: 'Trips Completed Today', value: '$tripsToday')),
-          Expanded(child: _StatItem(label: 'Hours Online', value: '$hoursOnline')),
+          Expanded(
+            child: _StatItem(
+              label: 'Trips Completed Today',
+              value: '$tripsToday',
+            ),
+          ),
+          Expanded(
+            child: _StatItem(label: 'Hours Online', value: '$hoursOnline'),
+          ),
         ],
       ),
     );
@@ -432,12 +520,20 @@ class _StatItem extends StatelessWidget {
         Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: kProviderGreen, fontSize: 13.5, fontWeight: FontWeight.w700),
+          style: const TextStyle(
+            color: kProviderGreen,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: 8),
         Text(
           value,
-          style: const TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            color: kProviderText,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -458,7 +554,11 @@ class _RecentTransactionsHeader extends StatelessWidget {
         children: [
           const Text(
             'Recent Transactions',
-            style: TextStyle(color: kProviderText, fontSize: 19, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: kProviderText,
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const Spacer(),
           GestureDetector(
@@ -466,7 +566,11 @@ class _RecentTransactionsHeader extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             child: const Text(
               'View All',
-              style: TextStyle(color: kProviderGreen, fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: kProviderGreen,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -512,7 +616,9 @@ class _ErrorState extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               foregroundColor: kProviderGreen,
               side: const BorderSide(color: kProviderGreen),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
             ),
             child: const Text('Retry'),
           ),
@@ -542,4 +648,3 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
-

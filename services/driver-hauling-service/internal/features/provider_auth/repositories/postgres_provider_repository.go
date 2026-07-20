@@ -12,6 +12,18 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 )
 
+// providerColumns is the shared select/returning column list; scanProvider must
+// match its order exactly.
+const providerColumns = `id::text, COALESCE(phone,''), COALESCE(email,''),
+	          first_name, last_name, onboarding_status, status,
+	          profile_photo_url, photo_asset_id,
+	          COALESCE(rating,5.00), total_trips, created_at, updated_at,
+	          location_state, location_city, language, service_type, operation_mode,
+	          driver_license_number, license_expiry_year, license_expiry_date,
+	          gov_id_url, driver_license_url, vehicle_reg_url,
+	          guarantor_name, guarantor_phone,
+	          emergency_contact_name, emergency_contact_phone, emergency_contact_relationship`
+
 // ─── Provider Repository ──────────────────────────────────────────────────────
 
 type ProviderRepository interface {
@@ -38,13 +50,7 @@ func (r *PostgresProviderRepository) UpsertByPhone(ctx context.Context, phone st
 		INSERT INTO truck_providers (id, phone, onboarding_status, status)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (phone) DO UPDATE SET updated_at = now()
-		RETURNING id::text, COALESCE(phone,''), COALESCE(email,''),
-		          first_name, last_name, onboarding_status, status,
-		          profile_photo_url, photo_asset_id,
-		          COALESCE(rating,5.00), total_trips, created_at, updated_at,
-		          location_state, location_city, language, service_type, operation_mode,
-		          driver_license_number, license_expiry_year, license_expiry_date,
-		          gov_id_url, driver_license_url, vehicle_reg_url
+		RETURNING `+providerColumns+`
 	`, id, phone, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.ProviderStatusActive)
 
 	return scanProvider(row)
@@ -56,13 +62,7 @@ func (r *PostgresProviderRepository) UpsertByEmail(ctx context.Context, email st
 		INSERT INTO truck_providers (id, email, onboarding_status, status)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (email) DO UPDATE SET updated_at = now()
-		RETURNING id::text, COALESCE(phone,''), COALESCE(email,''),
-		          first_name, last_name, onboarding_status, status,
-		          profile_photo_url, photo_asset_id,
-		          COALESCE(rating,5.00), total_trips, created_at, updated_at,
-		          location_state, location_city, language, service_type, operation_mode,
-		          driver_license_number, license_expiry_year, license_expiry_date,
-		          gov_id_url, driver_license_url, vehicle_reg_url
+		RETURNING `+providerColumns+`
 	`, id, email, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.ProviderStatusActive)
 
 	return scanProvider(row)
@@ -70,13 +70,7 @@ func (r *PostgresProviderRepository) UpsertByEmail(ctx context.Context, email st
 
 func (r *PostgresProviderRepository) GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error) {
 	row := r.db.QueryRow(ctx, `
-		SELECT id::text, COALESCE(phone,''), COALESCE(email,''),
-		       first_name, last_name, onboarding_status, status,
-		       profile_photo_url, photo_asset_id,
-		       COALESCE(rating,5.00), total_trips, created_at, updated_at,
-		          location_state, location_city, language, service_type, operation_mode,
-		          driver_license_number, license_expiry_year, license_expiry_date,
-		          gov_id_url, driver_license_url, vehicle_reg_url
+		SELECT `+providerColumns+`
 		FROM truck_providers WHERE id = $1
 	`, id)
 
@@ -91,13 +85,7 @@ func (r *PostgresProviderRepository) UpdatePhone(ctx context.Context, id, phone 
 	row := r.db.QueryRow(ctx, `
 		UPDATE truck_providers SET phone = $2, updated_at = now()
 		WHERE id = $1
-		RETURNING id::text, COALESCE(phone,''), COALESCE(email,''),
-		          first_name, last_name, onboarding_status, status,
-		          profile_photo_url, photo_asset_id,
-		          COALESCE(rating,5.00), total_trips, created_at, updated_at,
-		          location_state, location_city, language, service_type, operation_mode,
-		          driver_license_number, license_expiry_year, license_expiry_date,
-		          gov_id_url, driver_license_url, vehicle_reg_url
+		RETURNING `+providerColumns+`
 	`, id, phone)
 
 	p, err := scanProvider(row)
@@ -185,6 +173,8 @@ func scanProvider(row scannable) (providerauthmodels.Provider, error) {
 		&p.LocationState, &p.LocationCity, &p.Language, &p.ServiceType, &p.OperationMode,
 		&p.DriverLicenseNumber, &p.LicenseExpiryYear, &p.LicenseExpiryDate,
 		&p.GovIDURL, &p.DriverLicenseURL, &p.VehicleRegURL,
+		&p.GuarantorName, &p.GuarantorPhone,
+		&p.EmergencyContactName, &p.EmergencyContactPhone, &p.EmergencyContactRelationship,
 	)
 	return p, err
 }

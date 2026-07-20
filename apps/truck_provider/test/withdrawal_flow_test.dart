@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:truck_provider/features/wallet/data/provider_wallet_api.dart';
 import 'package:truck_provider/features/wallet/state/provider_withdrawal_controller.dart';
+import 'package:truck_provider/features/wallet/ui/provider_transaction_auth_screen.dart';
 import 'package:truck_provider/features/wallet/ui/provider_withdrawal_confirm_screen.dart';
 import 'package:truck_provider/features/wallet/ui/provider_withdrawal_form_screen.dart';
 
@@ -28,17 +29,28 @@ Map<String, dynamic> _accounts() => {
 
 ProviderWithdrawalController _controller({
   List<String>? capturedPaths,
+  List<Map<String, dynamic>>? capturedBodies,
   Map<String, dynamic>? withdrawalResponse,
   int statusForWithdrawal = 201,
+  bool pinSet = true,
 }) {
   final mock = MockClient((req) async {
     capturedPaths?.add('${req.method} ${req.url.path}');
+    if (req.method != 'GET' && req.body.isNotEmpty) {
+      capturedBodies?.add(Map<String, dynamic>.from(jsonDecode(req.body) as Map));
+    }
     final path = req.url.path;
     if (path.endsWith('/provider/earnings')) {
       return http.Response(jsonEncode({'success': true, 'data': _balance()}), 200);
     }
     if (path.endsWith('/provider/bank-accounts') && req.method == 'GET') {
       return http.Response(jsonEncode({'success': true, 'data': _accounts()}), 200);
+    }
+    if (path.endsWith('/provider/pin/status')) {
+      return http.Response(jsonEncode({'success': true, 'data': {'pin_set': pinSet}}), 200);
+    }
+    if (path.endsWith('/provider/pin')) {
+      return http.Response(jsonEncode({'success': true, 'data': {'pin_set': true}}), 201);
     }
     if (path.endsWith('/provider/withdrawals')) {
       if (statusForWithdrawal >= 300) {
@@ -108,17 +120,33 @@ void main() {
       expect(c.selectedAccount?.accountName, 'Firepemi Adewale');
     });
 
-    test('submitWithdrawal posts to /provider/withdrawals on success', () async {
+    test('submitWithdrawal posts to /provider/withdrawals with the entered PIN', () async {
       final paths = <String>[];
-      final c = _controller(capturedPaths: paths);
+      final bodies = <Map<String, dynamic>>[];
+      final c = _controller(capturedPaths: paths, capturedBodies: bodies);
       await c.startNewWithdrawal();
       for (final d in '200000'.split('')) {
         c.appendDigit(d);
       }
+      c.setEnteredPin('1234');
       final ok = await c.submitWithdrawal();
       expect(ok, isTrue);
       expect(c.result?.reference, 'wd_abc');
       expect(paths, contains('POST /api/v1/payment-wallet/provider/withdrawals'));
+      final withdrawalBody = bodies.lastWhere((b) => b.containsKey('bank_account_id'));
+      expect(withdrawalBody['pin'], '1234');
+    });
+
+    test('loads pin status on start and setupPin posts to /provider/pin', () async {
+      final paths = <String>[];
+      final c = _controller(capturedPaths: paths, pinSet: false);
+      await c.startNewWithdrawal();
+      expect(c.pinSet, isFalse);
+
+      final ok = await c.setupPin('1234');
+      expect(ok, isTrue);
+      expect(c.pinSet, isTrue);
+      expect(paths, contains('POST /api/v1/payment-wallet/provider/pin'));
     });
 
     test('surfaces backend error on failed withdrawal', () async {
@@ -147,6 +175,54 @@ void main() {
         await tester.pump();
       }
       expect(find.text('50,000'), findsOneWidget);
+    });
+
+    testWidgets('auth screen asks to enter the PIN when one is set', (tester) async {
+      final c = _controller(pinSet: true);
+      await c.startNewWithdrawal();
+      await _pump(tester, ProviderTransactionAuthScreen(controller: c));
+
+      expect(
+        find.text('Please input your secure pin to authorize withdrawal'),
+        findsOneWidget,
+      );
+      expect(find.text('Withdraw Now'), findsOneWidget);
+      // The old visual-only password fallback is gone.
+      expect(find.text('Use Password'), findsNothing);
+    });
+
+    testWidgets('auth screen walks through create + confirm when no PIN is set', (tester) async {
+      final c = _controller(pinSet: false);
+      await c.startNewWithdrawal();
+      await _pump(tester, ProviderTransactionAuthScreen(controller: c));
+
+      expect(
+        find.text('Create a secure 4-digit pin to authorize your withdrawals'),
+        findsOneWidget,
+      );
+
+      for (final d in ['1', '2', '3', '4']) {
+        await tester.tap(find.text(d).first);
+        await tester.pump();
+      }
+      await tester.tap(find.text('Continue'));
+      await tester.pump();
+
+      expect(find.text('Re-enter your new pin to confirm'), findsOneWidget);
+
+      // Mismatched confirmation restarts the create phase with an error.
+      for (final d in ['9', '9', '9', '9']) {
+        await tester.tap(find.text(d).first);
+        await tester.pump();
+      }
+      await tester.tap(find.text('Save Pin & Withdraw'));
+      await tester.pump();
+
+      expect(find.text('Pins did not match. Try again.'), findsOneWidget);
+      expect(
+        find.text('Create a secure 4-digit pin to authorize your withdrawals'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('confirm shows amount and selected payout account', (tester) async {

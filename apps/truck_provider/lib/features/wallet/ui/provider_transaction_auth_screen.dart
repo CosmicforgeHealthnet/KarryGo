@@ -6,13 +6,13 @@ import 'provider_withdrawal_processing_screen.dart';
 import 'widgets/wallet_keypad.dart';
 import 'widgets/wallet_widgets.dart';
 
-/// Step 3 — authorize the withdrawal with a secure PIN (Figma 2285) or account
-/// password (Figma 2284).
+/// Step 3 — authorize the withdrawal with the provider's transaction PIN
+/// (Figma 2285).
 ///
-/// Visual authorization gate: the provider account is OTP-based and has no
-/// transaction PIN/password store yet, so this confirms intent and is not
-/// validated server-side. Consistent with the app's other visual-only gates
-/// (e.g. face verification). The actual withdrawal runs on the next screen.
+/// Real authorization gate: the PIN is stored (hashed) in
+/// payment-wallet-service and verified server-side with lockout when the
+/// withdrawal is submitted. First-time users create the PIN here (enter +
+/// confirm) before authorizing.
 class ProviderTransactionAuthScreen extends StatefulWidget {
   const ProviderTransactionAuthScreen({super.key, required this.controller});
 
@@ -22,23 +22,31 @@ class ProviderTransactionAuthScreen extends StatefulWidget {
   State<ProviderTransactionAuthScreen> createState() => _ProviderTransactionAuthScreenState();
 }
 
+enum _PinPhase { enter, create, confirmCreate }
+
 class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthScreen> {
-  bool _usePin = true;
   String _pin = '';
-  final _passwordController = TextEditingController();
-  bool _obscure = true;
+  String _firstPin = '';
+  String? _localError;
+  late _PinPhase _phase;
 
   static const _pinLength = 4;
 
   @override
-  void dispose() {
-    _passwordController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    // pinSet == false -> guide the provider through creating a PIN first.
+    // null (status fetch failed) is treated as set; the server rejects with
+    // pin_not_set if that guess is wrong.
+    _phase = widget.controller.pinSet == false ? _PinPhase.create : _PinPhase.enter;
   }
 
   void _appendPin(String d) {
     if (_pin.length >= _pinLength) return;
-    setState(() => _pin += d);
+    setState(() {
+      _pin += d;
+      _localError = null;
+    });
   }
 
   void _deletePin() {
@@ -46,11 +54,73 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
     setState(() => _pin = _pin.substring(0, _pin.length - 1));
   }
 
-  bool get _canConfirm =>
-      _usePin ? _pin.length == _pinLength : _passwordController.text.trim().isNotEmpty;
+  bool get _canConfirm => _pin.length == _pinLength && !widget.controller.savingPin;
 
-  void _confirm() {
-    FocusScope.of(context).unfocus();
+  String get _prompt {
+    switch (_phase) {
+      case _PinPhase.enter:
+        return 'Please input your secure pin to authorize withdrawal';
+      case _PinPhase.create:
+        return 'Create a secure 4-digit pin to authorize your withdrawals';
+      case _PinPhase.confirmCreate:
+        return 'Re-enter your new pin to confirm';
+    }
+  }
+
+  String get _buttonLabel {
+    switch (_phase) {
+      case _PinPhase.enter:
+        return 'Withdraw Now';
+      case _PinPhase.create:
+        return 'Continue';
+      case _PinPhase.confirmCreate:
+        return 'Save Pin & Withdraw';
+    }
+  }
+
+  Future<void> _confirm() async {
+    final controller = widget.controller;
+    switch (_phase) {
+      case _PinPhase.create:
+        setState(() {
+          _firstPin = _pin;
+          _pin = '';
+          _phase = _PinPhase.confirmCreate;
+        });
+        return;
+
+      case _PinPhase.confirmCreate:
+        if (_pin != _firstPin) {
+          setState(() {
+            _pin = '';
+            _firstPin = '';
+            _phase = _PinPhase.create;
+            _localError = 'Pins did not match. Try again.';
+          });
+          return;
+        }
+        final saved = await controller.setupPin(_pin);
+        if (!mounted) return;
+        if (!saved) {
+          setState(() {
+            _pin = '';
+            _firstPin = '';
+            _phase = _PinPhase.create;
+            _localError = controller.pinError ?? 'Pin could not be saved.';
+          });
+          return;
+        }
+        _authorize(_pin);
+        return;
+
+      case _PinPhase.enter:
+        _authorize(_pin);
+        return;
+    }
+  }
+
+  void _authorize(String pin) {
+    widget.controller.setEnteredPin(pin);
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ProviderWithdrawalProcessingScreen(controller: widget.controller),
@@ -63,34 +133,36 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            const WalletFlowAppBar(title: 'Transaction Authorization'),
-            const SizedBox(height: 20),
-            Expanded(child: _usePin ? _buildPin() : _buildPassword()),
-            Padding(
-              padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + MediaQuery.of(context).padding.bottom),
-              child: WalletPrimaryButton(
-                label: _usePin ? 'Withdraw Now' : 'Confirm',
-                onPressed: _canConfirm ? _confirm : null,
+        child: AnimatedBuilder(
+          animation: widget.controller,
+          builder: (context, _) => Column(
+            children: [
+              const WalletFlowAppBar(title: 'Transaction Authorization'),
+              const SizedBox(height: 20),
+              Expanded(child: _buildPin()),
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + MediaQuery.of(context).padding.bottom),
+                child: WalletPrimaryButton(
+                  label: widget.controller.savingPin ? 'Saving...' : _buttonLabel,
+                  onPressed: _canConfirm ? _confirm : null,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ─── PIN variant (Figma 2285) ───────────────────────────────────────────────
   Widget _buildPin() {
     return Column(
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Please input your secure pin to authorize withdrawal',
+            _prompt,
             textAlign: TextAlign.center,
-            style: TextStyle(color: kProviderText, fontSize: 14),
+            style: const TextStyle(color: kProviderText, fontSize: 14),
           ),
         ),
         const SizedBox(height: 22),
@@ -104,72 +176,21 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
               ),
           ],
         ),
-        const SizedBox(height: 18),
-        GestureDetector(
-          onTap: () => setState(() => _usePin = false),
-          behavior: HitTestBehavior.opaque,
-          child: const Text(
-            'Use Password',
-            style: TextStyle(color: kProviderGreen, fontSize: 14, fontWeight: FontWeight.w700),
+        if (_localError != null) ...[
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              _localError!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+            ),
           ),
-        ),
+        ],
         const Spacer(),
         WalletKeypad(onDigit: _appendPin, onDelete: _deletePin, deleteTint: kProviderGreenTint),
         const SizedBox(height: 8),
       ],
-    );
-  }
-
-  // ─── Password variant (Figma 2284) ──────────────────────────────────────────
-  Widget _buildPassword() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Please input your account password to authorize withdrawal',
-            style: TextStyle(color: kProviderText, fontSize: 14),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Confirm Password',
-            style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _passwordController,
-            obscureText: _obscure,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: 'Confirm Password',
-              hintStyle: const TextStyle(color: kProviderMuted),
-              filled: true,
-              fillColor: const Color(0xFFF1F2F4),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              suffixIcon: IconButton(
-                onPressed: () => setState(() => _obscure = !_obscure),
-                icon: Icon(
-                  _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                  color: kProviderMuted,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Center(
-            child: GestureDetector(
-              onTap: () => setState(() => _usePin = true),
-              behavior: HitTestBehavior.opaque,
-              child: const Text(
-                'Use Pin',
-                style: TextStyle(color: kProviderGreen, fontSize: 14, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

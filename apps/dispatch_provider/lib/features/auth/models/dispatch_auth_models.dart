@@ -2,12 +2,21 @@ class AuthStartResponse {
   final String message;
   final int expiresInSeconds;
 
-  AuthStartResponse({required this.message, required this.expiresInSeconds});
+  /// Only present when the backend has DISPATCH_RIDER_DEBUG_OTP=true (dev/local
+  /// only) — never present against a production backend.
+  final String? debugOtp;
+
+  AuthStartResponse({
+    required this.message,
+    required this.expiresInSeconds,
+    this.debugOtp,
+  });
 
   factory AuthStartResponse.fromJson(Map<String, dynamic> json) {
     return AuthStartResponse(
       message: json['message'] as String? ?? '',
       expiresInSeconds: (json['expires_in_seconds'] as num?)?.toInt() ?? 0,
+      debugOtp: json['debug_otp'] as String?,
     );
   }
 }

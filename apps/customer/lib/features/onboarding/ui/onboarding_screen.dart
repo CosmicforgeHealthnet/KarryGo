@@ -18,6 +18,10 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _index = 0;
 
+  // True until the initial already-granted permission check resolves the
+  // starting step, so we don't flash the location screen before skipping it.
+  bool _resolving = true;
+
   // Step indices
   static const _stepLocation = 0;
   static const _stepLocationDenied = 1;
@@ -68,7 +72,56 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _resolveStartStep();
+  }
+
+  /// Skips the location and notification permission screens when those are
+  /// already granted, landing on the first step that still needs the user.
+  Future<void> _resolveStartStep() async {
+    var start = _stepLocation;
+    // Safety net: a real status check returns in milliseconds. If the platform
+    // channel is unavailable (e.g. under widget tests) the call can hang, so
+    // bound it and fall back to showing the full flow rather than resolving
+    // forever behind the loading indicator.
+    const lookupTimeout = Duration(seconds: 3);
+
+    try {
+      final locationStatus = await Permission.locationWhenInUse.status
+          .timeout(lookupTimeout, onTimeout: () => PermissionStatus.denied);
+      final locationGranted =
+          locationStatus.isGranted || locationStatus.isLimited;
+      if (locationGranted) {
+        final notificationStatus = await Permission.notification.status
+            .timeout(lookupTimeout, onTimeout: () => PermissionStatus.denied);
+        final notificationGranted =
+            notificationStatus.isGranted || notificationStatus.isLimited;
+        start = notificationGranted ? _stepUpdates : _stepNotification;
+      }
+    } catch (_) {
+      start = _stepLocation;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _index = start;
+      _resolving = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_resolving) {
+      return const FigmaPhoneScaffold(
+        backgroundColor: CustomerFigmaColors.darkGreen,
+        padding: EdgeInsets.zero,
+        child: Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
     final step = _steps[_index];
 
     return FigmaPhoneScaffold(
@@ -123,13 +176,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   bool _busy = false;
 
+  // True when the denied step was reached because the device GPS service is
+  // off (permission granted) rather than because the permission was denied.
+  bool _serviceOff = false;
+
   Future<void> _onPrimary() async {
     if (_busy) return;
     switch (_index) {
       case _stepLocation:
         await _requestLocation();
       case _stepLocationDenied:
-        await _openLocationSettings();
+        // Re-pop the native permission modal for a plain permission denial.
+        // Only the GPS-service-off case has no modal, so fall back to the
+        // device location settings there (nothing else can toggle the switch).
+        if (_serviceOff) {
+          await _openLocationSettings();
+        } else {
+          await _requestLocation();
+        }
       case _stepLocationPermanent:
         await openAppSettings();
         // Re-check after returning from settings; advance if now granted.
@@ -167,11 +231,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         if (serviceEnabled) {
           _goTo(_stepNotification);
         } else {
+          _serviceOff = true;
           _goTo(_stepLocationDenied);
         }
       } else if (status.isPermanentlyDenied) {
         _goTo(_stepLocationPermanent);
       } else {
+        _serviceOff = false;
         _goTo(_stepLocationDenied);
       }
     } finally {

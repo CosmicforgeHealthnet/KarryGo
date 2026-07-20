@@ -3,6 +3,8 @@ import 'earning_summary_screen.dart';
 import 'log_dispute_screen.dart';
 import 'withdrawal_form_screen.dart';
 import '../state/wallet_controller.dart';
+import '../../disputes/state/rider_dispute_controller.dart';
+import '../../trips/state/trips_controller.dart';
 
 
 // ── Card clipper with bottom-right notch ──────────────────────────────────────
@@ -73,8 +75,15 @@ class _CardWithNotchClipper extends CustomClipper<Path> {
 
 class WalletScreen extends StatefulWidget {
   final WalletController walletController;
+  final RiderDisputeController? disputeController;
+  final TripsController? tripsController;
 
-  const WalletScreen({super.key, required this.walletController});
+  const WalletScreen({
+    super.key,
+    required this.walletController,
+    this.disputeController,
+    this.tripsController,
+  });
 
   @override
   State<WalletScreen> createState() => _WalletScreenState();
@@ -280,12 +289,21 @@ class _WalletScreenState extends State<WalletScreen> {
                                     ),
                                     const SizedBox(height: 12),
                                     GestureDetector(
-                                      onTap: () => Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const LogDisputeScreen(),
-                                        ),
-                                      ),
+                                      onTap:
+                                          widget.disputeController == null ||
+                                              widget.tripsController == null
+                                          ? null
+                                          : () => Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    LogDisputeScreen(
+                                                      disputeController: widget
+                                                          .disputeController!,
+                                                      tripsController: widget
+                                                          .tripsController!,
+                                                    ),
+                                              ),
+                                            ),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [

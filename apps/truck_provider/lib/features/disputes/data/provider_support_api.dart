@@ -70,6 +70,11 @@ class ProviderSupportApi {
     return DisputeMessage.fromJson(data);
   }
 
+  /// Marks the admin/agent messages on a complaint as read.
+  Future<void> markMessagesRead({required String accessToken, required String id}) async {
+    await _post('/provider/complaints/$id/messages/read', const {}, accessToken: accessToken);
+  }
+
   void close() => _client.close();
 
   // ─── HTTP helpers ─────────────────────────────────────────────────────────

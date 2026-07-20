@@ -47,6 +47,7 @@ func (h *Handler) Start(c *gin.Context) {
 		"data": StartResponse{
 			Message:          "OTP sent successfully.",
 			ExpiresInSeconds: result.ExpiresInSeconds,
+			DebugOTP:         result.DebugOTP,
 		},
 	})
 }
@@ -77,6 +78,7 @@ func (h *Handler) SignupStart(c *gin.Context) {
 		"data": StartResponse{
 			Message:          "OTP sent to your phone number and email.",
 			ExpiresInSeconds: result.ExpiresInSeconds,
+			DebugOTP:         result.DebugOTP,
 		},
 	})
 }
@@ -107,6 +109,7 @@ func (h *Handler) LoginStart(c *gin.Context) {
 		"data": StartResponse{
 			Message:          "OTP sent to the contact method associated with your account.",
 			ExpiresInSeconds: result.ExpiresInSeconds,
+			DebugOTP:         result.DebugOTP,
 		},
 	})
 }

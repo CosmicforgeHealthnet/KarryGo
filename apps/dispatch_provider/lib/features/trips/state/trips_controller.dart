@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
@@ -14,6 +16,9 @@ class TripsController extends ChangeNotifier {
   bool _isActionLoading = false;
   String? _error;
 
+  Timer? _activePollTimer;
+  bool _activePollInFlight = false;
+
   List<TripModel> get trips => List.unmodifiable(_trips);
   TripModel? get activeTrip => _activeTrip;
   bool get isLoading => _isLoading;
@@ -27,6 +32,45 @@ class TripsController extends ChangeNotifier {
   }
 
   String? _token() => getAccessToken();
+
+  // ── Active-trip polling ───────────────────────────────────────────────────
+
+  /// Refreshes the active trip every 6 seconds so an accept elsewhere (or a
+  /// customer cancel) surfaces without a manual refresh. Idempotent; the
+  /// realtime websocket / FCM pushes call [pokeRefresh] for immediacy.
+  void startActivePolling() {
+    if (_activePollTimer != null) return;
+    _activePollTimer = Timer.periodic(
+      const Duration(seconds: 6),
+      (_) => _activePollTick(),
+    );
+  }
+
+  void stopActivePolling() {
+    _activePollTimer?.cancel();
+    _activePollTimer = null;
+  }
+
+  /// Fast-path poke (realtime event or foreground FCM push).
+  void pokeRefresh() {
+    if (_activePollTimer == null) return;
+    _activePollTick();
+  }
+
+  Future<void> _activePollTick() async {
+    if (_activePollInFlight) return;
+    final token = _token();
+    if (token == null || token.isEmpty) return;
+    // Skip while a trip action (arrive/start/complete) is running to avoid
+    // clobbering the optimistic transition with a pre-action snapshot.
+    if (_isActionLoading) return;
+    _activePollInFlight = true;
+    try {
+      await loadActiveTrip();
+    } finally {
+      _activePollInFlight = false;
+    }
+  }
 
   ApiFailure<T> _unauthorized<T>() => ApiFailure(
     const ApiException(
@@ -227,5 +271,11 @@ class TripsController extends ChangeNotifier {
   void clearActiveTrip() {
     _activeTrip = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    stopActivePolling();
+    super.dispose();
   }
 }

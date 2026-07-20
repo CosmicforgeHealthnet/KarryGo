@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../../hauling/data/places_api.dart';
@@ -51,6 +53,8 @@ class _SavedLocationMapPickerScreenState
   String? _suggestionsError;
   // resolving the selected suggestion's coordinates (or a map tap's address)
   bool _resolving = false;
+  // resolving the device's current location
+  bool _locating = false;
 
   LatLng? _selected;
   String _selectedAddress = '';
@@ -146,6 +150,61 @@ class _SavedLocationMapPickerScreenState
       _resolving = false;
     });
     await _animateTo(latLng);
+  }
+
+  /// Resolves the device's current position, reverse-geocodes it, drops the
+  /// marker there, and fills the search field. Mirrors the permission /
+  /// service handling used by the hauling location entry.
+  Future<void> _useCurrentLocation() async {
+    if (_locating) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _locating = true;
+      _suggestions = [];
+      _suggestionsError = null;
+    });
+    try {
+      var permission = await Permission.locationWhenInUse.status;
+      if (!permission.isGranted && !permission.isLimited) {
+        permission = await Permission.locationWhenInUse.request();
+      }
+      if (!permission.isGranted && !permission.isLimited) {
+        _showSnack('Enable location access to use your current location.');
+        return;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _showSnack('Turn on device location to use your current location.');
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (!mounted) return;
+      final latLng = LatLng(pos.latitude, pos.longitude);
+      final address =
+          await widget.placesApi.reverseGeocode(pos.latitude, pos.longitude) ??
+              'Current location';
+      if (!mounted) return;
+      setState(() {
+        _selected = latLng;
+        _selectedAddress = address;
+        _searchCtrl.text = address;
+      });
+      await _animateTo(latLng);
+    } catch (_) {
+      _showSnack('Could not get your location. Try again.');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _animateTo(LatLng latLng) async {
@@ -257,7 +316,7 @@ class _SavedLocationMapPickerScreenState
             ),
           ),
 
-          // Bottom confirm pill
+          // Bottom actions: "Use current location" + confirm pill
           Positioned(
             left: 16,
             right: 16,
@@ -266,10 +325,21 @@ class _SavedLocationMapPickerScreenState
               top: false,
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: FigmaPrimaryButton(
-                  label: 'Confirm Location',
-                  isLoading: _resolving,
-                  onPressed: canConfirm ? _confirm : null,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _UseCurrentLocationButton(
+                      loading: _locating,
+                      onTap: _locating ? null : _useCurrentLocation,
+                    ),
+                    const SizedBox(height: 12),
+                    FigmaPrimaryButton(
+                      label: 'Confirm Location',
+                      isLoading: _resolving,
+                      onPressed: canConfirm ? _confirm : null,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -345,6 +415,57 @@ class _SearchPill extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Use current location button ──────────────────────────────────────────────
+
+class _UseCurrentLocationButton extends StatelessWidget {
+  const _UseCurrentLocationButton({required this.loading, required this.onTap});
+
+  final bool loading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(999),
+      elevation: 3,
+      shadowColor: const Color(0x22000000),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: CustomerFigmaColors.primary,
+                      ),
+                    )
+                  : const Icon(Icons.my_location,
+                      color: CustomerFigmaColors.primary, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Use my current location',
+                style: TextStyle(
+                  color: CustomerFigmaColors.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

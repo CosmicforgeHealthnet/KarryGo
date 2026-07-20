@@ -318,6 +318,16 @@ func (r *fakeRepository) ListAlreadyNotifiedProviders(_ context.Context, booking
 	return result, nil
 }
 
+func (r *fakeRepository) ListStrandedBroadcasts(_ context.Context, cutoff time.Time) ([]RequestBroadcast, error) {
+	var result []RequestBroadcast
+	for _, b := range r.broadcasts {
+		if b.Status == BroadcastStatusBroadcasting && b.ExpiresAt.Before(cutoff) {
+			result = append(result, b)
+		}
+	}
+	return result, nil
+}
+
 func (r *fakeRepository) setBroadcastStatus(id string, status BroadcastStatus) error {
 	for i := range r.broadcasts {
 		if r.broadcasts[i].ID == id {

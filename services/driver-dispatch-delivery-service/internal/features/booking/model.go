@@ -1,0 +1,234 @@
+// Package booking owns the customer-facing dispatch delivery booking:
+// persistence of the booking record, fare estimation, wallet escrow, and the
+// customer status read model derived from the request broadcast + trip rows.
+package booking
+
+import (
+	"time"
+
+	"cosmicforge/logistics/shared/go/dispatchpricing"
+)
+
+// Coarse persisted statuses on dispatch_bookings.status. The fine-grained
+// customer-facing status is always derived from the broadcast + trip rows.
+const (
+	StatusSearching = "searching"
+	StatusAccepted  = "accepted"
+	StatusCompleted = "completed"
+	StatusCancelled = "cancelled"
+	StatusUnmatched = "unmatched"
+)
+
+// Wire statuses returned to the customer app.
+const (
+	WireSearching       = "searching"
+	WireUnmatched       = "unmatched"
+	WireCancelled       = "cancelled"
+	WireAccepted        = "accepted"
+	WireEnRoutePickup   = "en_route_pickup"
+	WireArrivedAtPickup = "arrived_at_pickup"
+	WireInTransit       = "in_transit"
+	WireDelivered       = "delivered"
+	WireCompleted       = "completed"
+)
+
+const (
+	PaymentUnpaid   = "unpaid"
+	PaymentHeld     = "held"
+	PaymentPaid     = "paid"
+	PaymentRefunded = "refunded"
+	PaymentFailed   = "failed"
+)
+
+const (
+	PackageSizeSmall  = "small"
+	PackageSizeMedium = "medium"
+	PackageSizeLarge  = "large"
+
+	ServiceTierStandard = "standard"
+	ServiceTierExpress  = "express"
+
+	PaymentMethodWallet = "wallet"
+)
+
+type Booking struct {
+	ID             string     `json:"id"`
+	CustomerID     string     `json:"customer_id"`
+	Status         string     `json:"-"` // coarse persisted status; wire status is derived
+	PickupAddress  string     `json:"pickup_address"`
+	PickupLat      float64    `json:"pickup_lat"`
+	PickupLng      float64    `json:"pickup_lng"`
+	DropoffAddress string     `json:"dropoff_address"`
+	DropoffLat     float64    `json:"dropoff_lat"`
+	DropoffLng     float64    `json:"dropoff_lng"`
+	DistanceKM     float64    `json:"distance_km"`
+	FareAmount     int64      `json:"fare_amount_kobo"`
+	Currency       string     `json:"currency"`
+	PaymentMethod  string     `json:"payment_method"`
+	PaymentStatus  string     `json:"payment_status"`
+	PaymentRef     string     `json:"-"`
+	ReceiverName   string     `json:"receiver_name"`
+	ReceiverPhone  string     `json:"receiver_phone"`
+	PackageDesc    string     `json:"package_desc"`
+	PackageWeight  *float64   `json:"package_weight,omitempty"`
+	PackageType    string     `json:"package_type"`
+	PackageSize    string     `json:"package_size"`
+	IsFragile      bool       `json:"is_fragile"`
+	ServiceTier    string     `json:"service_tier"`
+	ProviderID     string     `json:"provider_id,omitempty"`
+	CancelReason   string     `json:"cancel_reason,omitempty"`
+	CancelledAt    *time.Time `json:"cancelled_at,omitempty"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+// DerivedState is the joined broadcast + trip state used to compute the
+// customer-facing wire status for a booking.
+type DerivedState struct {
+	Booking         Booking
+	BroadcastStatus string // "" when no broadcast row exists yet
+	TripID          string
+	TripStatus      string // "" when no trip row exists
+	TripProviderID  string
+}
+
+// WireStatus maps the persisted booking + broadcast + trip state onto the
+// customer-facing status. Precedence: trip > booking terminal > broadcast.
+func (d DerivedState) WireStatus() string {
+	switch d.TripStatus {
+	case "assigned":
+		return WireAccepted
+	case "en_route_pickup":
+		return WireEnRoutePickup
+	case "arrived_pickup":
+		return WireArrivedAtPickup
+	case "in_progress":
+		return WireInTransit
+	case "proof_submitted":
+		return WireDelivered
+	case "completed":
+		return WireCompleted
+	case "cancelled", "failed":
+		return WireCancelled
+	}
+	// Unmatched before cancelled: unmatched bookings also carry a cancelled_at
+	// timestamp, so the order matters.
+	if d.Booking.Status == StatusUnmatched {
+		return WireUnmatched
+	}
+	if d.Booking.CancelledAt != nil || d.Booking.Status == StatusCancelled {
+		return WireCancelled
+	}
+	switch d.BroadcastStatus {
+	case "cancelled":
+		return WireCancelled
+	case "no_provider_found", "expired":
+		return WireUnmatched
+	case "accepted":
+		// Accept landed but the trip subscriber has not created the trip yet.
+		return WireAccepted
+	}
+	return WireSearching
+}
+
+// BookingView is the wire representation returned to the customer app.
+type BookingView struct {
+	Booking
+	Status string `json:"status"`
+	TripID string `json:"trip_id,omitempty"`
+}
+
+func (d DerivedState) View() BookingView {
+	view := BookingView{Booking: d.Booking, Status: d.WireStatus(), TripID: d.TripID}
+	if view.ProviderID == "" && d.TripProviderID != "" {
+		view.ProviderID = d.TripProviderID
+	}
+	return view
+}
+
+type LatLngAddress struct {
+	Lat     float64 `json:"lat"`
+	Lng     float64 `json:"lng"`
+	Address string  `json:"address"`
+}
+
+type CreateBookingInput struct {
+	Pickup        LatLngAddress `json:"pickup"`
+	Dropoff       LatLngAddress `json:"dropoff"`
+	ReceiverName  string        `json:"receiver_name"`
+	ReceiverPhone string        `json:"receiver_phone"`
+	PackageDesc   string        `json:"package_desc"`
+	PackageWeight float64       `json:"package_weight"`
+	PackageType   string        `json:"package_type"`
+	PackageSize   string        `json:"package_size"`
+	IsFragile     bool          `json:"is_fragile"`
+	ServiceTier   string        `json:"service_tier"`
+	PaymentMethod string        `json:"payment_method"`
+}
+
+type EstimateRequest struct {
+	PickupLat   float64 `json:"pickup_lat"`
+	PickupLng   float64 `json:"pickup_lng"`
+	DropoffLat  float64 `json:"dropoff_lat"`
+	DropoffLng  float64 `json:"dropoff_lng"`
+	PackageSize string  `json:"package_size"`
+	ServiceTier string  `json:"service_tier"`
+}
+
+type FareBreakdown struct {
+	BaseFareKobo         int64 `json:"base_fare_kobo"`
+	DistanceFareKobo     int64 `json:"distance_fare_kobo"`
+	SizeSurchargeKobo    int64 `json:"size_surcharge_kobo"`
+	ExpressSurchargeKobo int64 `json:"express_surcharge_kobo"`
+}
+
+type EstimateResponse struct {
+	DistanceKM       float64       `json:"distance_km"`
+	FareEstimateKobo int64         `json:"fare_estimate_kobo"`
+	Currency         string        `json:"currency"`
+	ETA              string        `json:"eta"`
+	Breakdown        FareBreakdown `json:"breakdown"`
+}
+
+type AvailabilityResponse struct {
+	Available bool  `json:"available"`
+	Count     int64 `json:"count"`
+}
+
+type LocationResponse struct {
+	ProviderID string    `json:"provider_id"`
+	Lat        float64   `json:"lat"`
+	Lng        float64   `json:"lng"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+type ReviewInput struct {
+	Rating             int    `json:"rating"`
+	ReviewText         string `json:"review_text"`
+	RecommendsProvider *bool  `json:"recommends_provider"`
+}
+
+type Review struct {
+	ID                 string    `json:"id"`
+	BookingID          string    `json:"booking_id"`
+	ProviderID         string    `json:"provider_id"`
+	CustomerID         string    `json:"customer_id"`
+	Rating             int       `json:"rating"`
+	ReviewText         string    `json:"review_text,omitempty"`
+	RecommendsProvider *bool     `json:"recommends_provider,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type ListBookingsOptions struct {
+	Limit  int
+	Offset int
+}
+
+func NormalizePackageSize(size string) string {
+	return dispatchpricing.NormalizeSize(size)
+}
+
+func NormalizeServiceTier(tier string) string {
+	return dispatchpricing.NormalizeTier(tier)
+}

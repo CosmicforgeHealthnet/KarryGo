@@ -11,7 +11,6 @@ enum ProviderAuthStatus {
   checking,
   phoneEntry,
   otpVerification,
-  accountTypeSelection,
   serviceTypeSelection,
   operationMode,
   personalInfo,
@@ -25,7 +24,6 @@ enum ProviderAuthStatus {
 @immutable
 class OnboardingFormData {
   const OnboardingFormData({
-    this.accountType = '',
     this.serviceType = '',
     this.operationMode = '',
     this.firstName = '',
@@ -57,7 +55,6 @@ class OnboardingFormData {
     this.truckHasInsurance = false,
   });
 
-  final String accountType;
   final String serviceType;
   final String operationMode;
   final String firstName;
@@ -89,7 +86,6 @@ class OnboardingFormData {
   final bool truckHasInsurance;
 
   OnboardingFormData copyWith({
-    String? accountType,
     String? serviceType,
     String? operationMode,
     String? firstName,
@@ -121,7 +117,6 @@ class OnboardingFormData {
     bool? truckHasInsurance,
   }) {
     return OnboardingFormData(
-      accountType: accountType ?? this.accountType,
       serviceType: serviceType ?? this.serviceType,
       operationMode: operationMode ?? this.operationMode,
       firstName: firstName ?? this.firstName,
@@ -254,7 +249,7 @@ class ProviderAuthController extends ChangeNotifier {
           refreshed.provider.onboardingStatus == 'profile_required';
       _emit(_state.copyWith(
         status: needsOnboarding
-            ? ProviderAuthStatus.accountTypeSelection
+            ? ProviderAuthStatus.serviceTypeSelection
             : ProviderAuthStatus.authenticated,
         session: refreshed,
       ));
@@ -304,7 +299,7 @@ class ProviderAuthController extends ChangeNotifier {
       final needsOnboarding = session.provider.onboardingStatus == 'profile_required';
       _emit(_state.copyWith(
         status: needsOnboarding
-            ? ProviderAuthStatus.accountTypeSelection
+            ? ProviderAuthStatus.serviceTypeSelection
             : ProviderAuthStatus.authenticated,
         isLoading: false,
         session: session,
@@ -319,17 +314,6 @@ class ProviderAuthController extends ChangeNotifier {
   }
 
   // ─── Onboarding steps ────────────────────────────────────────────────────────
-
-  void selectAccountType(String accountType) {
-    _emit(_state.copyWith(onboarding: _state.onboarding.copyWith(accountType: accountType)));
-  }
-
-  void proceedToServiceType() {
-    _emit(_state.copyWith(
-      status: ProviderAuthStatus.serviceTypeSelection,
-      clearError: true,
-    ));
-  }
 
   void selectServiceType(String serviceType) {
     _emit(_state.copyWith(onboarding: _state.onboarding.copyWith(serviceType: serviceType)));

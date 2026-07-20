@@ -49,6 +49,14 @@ class AppConfig {
     'DISPATCH_PROVIDER_WALLET_BASE_URL',
   );
 
+  static const _configuredNotificationWsUrl = String.fromEnvironment(
+    'NOTIFICATION_WS_URL',
+  );
+
+  static const _configuredSupportBaseUrl = String.fromEnvironment(
+    'SUPPORT_API_BASE_URL',
+  );
+
   /// Fallback when no dart-define is supplied.
   /// Uses 127.0.0.1 (explicit IPv4) so adb-reverse tunnels work on Android
   /// without needing --dart-define. Chrome/Windows also accepts 127.0.0.1.
@@ -56,6 +64,16 @@ class AppConfig {
 
   static const developmentDefaultWalletBaseUrl =
       'http://127.0.0.1:8105/api/v1/payment-wallet';
+
+  /// Notification-service websocket for realtime pushes. Requires
+  /// `adb reverse tcp:8106 tcp:8106` on a physical Android phone.
+  static const developmentDefaultNotificationWsUrl =
+      'ws://127.0.0.1:8106/api/v1/notifications/ws';
+
+  /// support-dispute-service (disputes + live chat). Requires
+  /// `adb reverse tcp:8107 tcp:8107` on a physical Android phone.
+  static const developmentDefaultSupportBaseUrl =
+      'http://127.0.0.1:8107/api/v1/support-disputes';
 
   /// The resolved backend base URL.  dart-define always wins; falls back to
   /// [developmentDefaultApiBaseUrl] when not set.
@@ -72,6 +90,20 @@ class AppConfig {
     final configured = _configuredWalletBaseUrl.trim();
     if (configured.isNotEmpty) return _stripTrailingSlashes(configured);
     return developmentDefaultWalletBaseUrl;
+  }
+
+  /// The resolved notification websocket URL (realtime fast path).
+  static String get notificationWsUrl {
+    final configured = _configuredNotificationWsUrl.trim();
+    if (configured.isNotEmpty) return _stripTrailingSlashes(configured);
+    return developmentDefaultNotificationWsUrl;
+  }
+
+  /// The resolved support-dispute-service base URL.
+  static String get supportBaseUrl {
+    final configured = _configuredSupportBaseUrl.trim();
+    if (configured.isNotEmpty) return _stripTrailingSlashes(configured);
+    return developmentDefaultSupportBaseUrl;
   }
 
   /// Short human-readable label describing which backend mode is active.

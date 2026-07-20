@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
+import '../../../dispatch/models/dispatch_models.dart' as dispatch;
+import '../../../dispatch/state/dispatch_booking_controller.dart';
+import '../../../dispatch/ui/dispatch_flow_screen.dart';
+import '../../../dispatch/ui/views/dispatch_trip_detail_screen.dart';
+import '../../../dispatch/ui/widgets/dispatch_trip_widgets.dart';
 import '../../../hauling/data/places_api.dart';
 import '../../../hauling/models/hauling_models.dart';
 import '../../../hauling/state/hauling_booking_controller.dart';
@@ -8,21 +13,43 @@ import '../../../hauling/ui/hauling_flow_screen.dart';
 import '../../../hauling/ui/views/hauling_trip_detail_screen.dart';
 import '../../../hauling/ui/widgets/hauling_trip_widgets.dart';
 
-/// "My Trips" — lists the customer's truck bookings split across four tabs
-/// (Past / Ongoing / Upcoming / Cancelled), matching the Figma design. Backed by
-/// the hauling controller's `loadHistory()` / `bookingHistory`.
+/// "My Trips" — lists the customer's truck bookings AND bike deliveries in a
+/// single feed split across four tabs (Past / Ongoing / Upcoming / Cancelled).
+/// Backed by both controllers' `loadHistory()` / `bookingHistory`.
 class CustomerTripsTab extends StatefulWidget {
   const CustomerTripsTab({
     super.key,
     required this.controller,
+    required this.dispatchController,
     required this.placesApi,
   });
 
   final HaulingBookingController controller;
+  final DispatchBookingController dispatchController;
   final PlacesApi placesApi;
 
   @override
   State<CustomerTripsTab> createState() => _CustomerTripsTabState();
+}
+
+// ─── Merged trip entry (service discriminator) ────────────────────────────────
+
+sealed class _TripEntry {
+  DateTime get sortDate;
+}
+
+class _HaulingEntry extends _TripEntry {
+  _HaulingEntry(this.booking);
+  final HaulageBooking booking;
+  @override
+  DateTime get sortDate => booking.createdAt;
+}
+
+class _DispatchEntry extends _TripEntry {
+  _DispatchEntry(this.booking);
+  final dispatch.DispatchBooking booking;
+  @override
+  DateTime get sortDate => booking.createdAt;
 }
 
 class _CustomerTripsTabState extends State<CustomerTripsTab>
@@ -31,10 +58,12 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
   bool _loadedOnce = false;
 
   // Lazily-loaded provider snapshots, keyed by provider id, so trip cards can
-  // show the driver's name / tenure / trip count without an N+1 fetch blocking
-  // the first render.
+  // show the driver/rider name without an N+1 fetch blocking the first render.
+  // Hauling and dispatch providers live in different services, so two caches.
   final Map<String, ProviderSnapshot> _providers = {};
   final Set<String> _providerInFlight = {};
+  final Map<String, ProviderSnapshot> _riders = {};
+  final Set<String> _riderInFlight = {};
 
   @override
   void initState() {
@@ -50,10 +79,14 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
   }
 
   Future<void> _load() async {
-    await widget.controller.loadHistory();
+    await Future.wait([
+      widget.controller.loadHistory(),
+      widget.dispatchController.loadHistory(),
+    ]);
     if (!mounted) return;
     setState(() => _loadedOnce = true);
     _prefetchProviders();
+    _prefetchRiders();
   }
 
   void _prefetchProviders() {
@@ -78,7 +111,29 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
     }
   }
 
-  void _onTripTap(HaulageBooking booking) {
+  void _prefetchRiders() {
+    final token = widget.dispatchController.accessTokenForWallet;
+    if (token == null) return;
+    for (final b in widget.dispatchController.state.bookingHistory) {
+      final id = b.providerId;
+      if (id == null || id.isEmpty) continue;
+      if (_riders.containsKey(id) || _riderInFlight.contains(id)) continue;
+      _riderInFlight.add(id);
+      widget.dispatchController.api
+          .getProvider(accessToken: token, providerId: id)
+          .then((p) {
+        if (!mounted) return;
+        setState(() {
+          _riders[id] = p;
+          _riderInFlight.remove(id);
+        });
+      }).catchError((_) {
+        _riderInFlight.remove(id);
+      });
+    }
+  }
+
+  void _onHaulingTap(HaulageBooking booking) {
     final status = booking.status;
     if (status.isActive || status.isSearching) {
       widget.controller.openActiveBooking(booking);
@@ -98,6 +153,36 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
               builder: (_) => HaulingTripDetailScreen(
                 booking: booking,
                 controller: widget.controller,
+                placesApi: widget.placesApi,
+              ),
+            ),
+          )
+          .then((_) => _load());
+    }
+  }
+
+  void _onDispatchTap(dispatch.DispatchBooking booking) {
+    final status = booking.status;
+    if (status.isActive ||
+        status.isSearching ||
+        status == dispatch.DispatchBookingStatus.delivered) {
+      widget.dispatchController.openActiveBooking(booking);
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => DispatchFlowScreen(
+            controller: widget.dispatchController,
+            placesApi: widget.placesApi,
+          ),
+        ),
+      );
+    } else {
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (_) => DispatchTripDetailScreen(
+                booking: booking,
+                controller: widget.dispatchController,
                 placesApi: widget.placesApi,
               ),
             ),
@@ -186,30 +271,60 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
         ),
       ),
       body: AnimatedBuilder(
-        animation: widget.controller,
+        animation: Listenable.merge([
+          widget.controller,
+          widget.dispatchController,
+        ]),
         builder: (context, _) {
-          final all = widget.controller.state.bookingHistory;
+          final hauling = widget.controller.state.bookingHistory;
+          final dispatchAll =
+              widget.dispatchController.state.bookingHistory;
 
-          // A delivered trip is treated as completed here, matching the
-          // provider app: the driver has dropped off the cargo; it only awaits
-          // the customer review (or a 30-min auto-complete) to flip to
-          // `completed` server-side.
-          final past = all
-              .where((b) =>
-                  b.status == HaulingBookingStatus.completed ||
-                  b.status == HaulingBookingStatus.delivered)
-              .toList();
-          final ongoing = all
-              .where((b) =>
-                  !b.isUpcoming &&
-                  (b.status.isSearching || b.status.isActive))
-              .toList();
-          final upcoming = all.where((b) => b.isUpcoming).toList();
-          final cancelled = all
-              .where((b) =>
-                  b.status == HaulingBookingStatus.cancelled ||
-                  b.status == HaulingBookingStatus.unmatched)
-              .toList();
+          // A delivered trip is treated as completed here: the driver/rider has
+          // dropped off the cargo; it only awaits the customer review (or the
+          // provider-side completion) to flip to `completed` server-side.
+          final past = <_TripEntry>[
+            ...hauling
+                .where((b) =>
+                    b.status == HaulingBookingStatus.completed ||
+                    b.status == HaulingBookingStatus.delivered)
+                .map(_HaulingEntry.new),
+            ...dispatchAll
+                .where((b) =>
+                    b.status == dispatch.DispatchBookingStatus.completed ||
+                    b.status == dispatch.DispatchBookingStatus.delivered)
+                .map(_DispatchEntry.new),
+          ];
+          final ongoing = <_TripEntry>[
+            ...hauling
+                .where((b) =>
+                    !b.isUpcoming &&
+                    (b.status.isSearching || b.status.isActive))
+                .map(_HaulingEntry.new),
+            ...dispatchAll
+                .where((b) => b.status.isSearching || b.status.isActive)
+                .map(_DispatchEntry.new),
+          ];
+          // Dispatch deliveries have no scheduling, so only hauling can be
+          // "Upcoming".
+          final upcoming = <_TripEntry>[
+            ...hauling.where((b) => b.isUpcoming).map(_HaulingEntry.new),
+          ];
+          final cancelled = <_TripEntry>[
+            ...hauling
+                .where((b) =>
+                    b.status == HaulingBookingStatus.cancelled ||
+                    b.status == HaulingBookingStatus.unmatched)
+                .map(_HaulingEntry.new),
+            ...dispatchAll
+                .where((b) =>
+                    b.status == dispatch.DispatchBookingStatus.cancelled ||
+                    b.status == dispatch.DispatchBookingStatus.unmatched)
+                .map(_DispatchEntry.new),
+          ];
+          for (final list in [past, ongoing, upcoming, cancelled]) {
+            list.sort((a, b) => b.sortDate.compareTo(a.sortDate));
+          }
 
           return TabBarView(
             controller: _tabController,
@@ -225,22 +340,29 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
     );
   }
 
-  Widget _tripList(List<HaulageBooking> bookings, String emptyText) {
+  Widget _tripList(List<_TripEntry> entries, String emptyText) {
     return RefreshIndicator(
       color: CustomerFigmaColors.primary,
       onRefresh: _load,
-      child: bookings.isEmpty
+      child: entries.isEmpty
           ? _EmptyOrLoading(loaded: _loadedOnce, message: emptyText)
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              itemCount: bookings.length,
+              itemCount: entries.length,
               itemBuilder: (context, i) {
-                final b = bookings[i];
-                return TripCard(
-                  booking: b,
-                  provider: b.providerId == null ? null : _providers[b.providerId],
-                  onTap: () => _onTripTap(b),
-                );
+                return switch (entries[i]) {
+                  _HaulingEntry(booking: final b) => TripCard(
+                      booking: b,
+                      provider:
+                          b.providerId == null ? null : _providers[b.providerId],
+                      onTap: () => _onHaulingTap(b),
+                    ),
+                  _DispatchEntry(booking: final b) => DispatchTripCard(
+                      booking: b,
+                      rider: b.providerId == null ? null : _riders[b.providerId],
+                      onTap: () => _onDispatchTap(b),
+                    ),
+                };
               },
             ),
     );
