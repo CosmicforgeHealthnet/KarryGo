@@ -83,9 +83,6 @@ class EarningsTransactionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(color: Color(0x12000000), blurRadius: 16, offset: Offset(0, 6)),
-        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

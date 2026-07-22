@@ -152,6 +152,25 @@ func (h *Handler) RegisterBankAccount(c *gin.Context) {
 	respond(c, nethttp.StatusCreated, result)
 }
 
+func (h *Handler) DeleteBankAccount(c *gin.Context) {
+	providerType, providerID := providerIdentity(c)
+	if err := h.service.DeleteBankAccount(c.Request.Context(), providerType, providerID, c.Param("id")); err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, gin.H{"deleted": true})
+}
+
+func (h *Handler) SetDefaultBankAccount(c *gin.Context) {
+	providerType, providerID := providerIdentity(c)
+	result, err := h.service.SetDefaultBankAccount(c.Request.Context(), providerType, providerID, c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, result)
+}
+
 func (h *Handler) RequestWithdrawal(c *gin.Context) {
 	providerType, providerID := providerIdentity(c)
 	var request withdrawalRequest
@@ -166,12 +185,51 @@ func (h *Handler) RequestWithdrawal(c *gin.Context) {
 		AmountKobo:     request.AmountKobo,
 		Currency:       request.Currency,
 		IdempotencyKey: request.IdempotencyKey,
+		Pin:            request.Pin,
 	})
 	if err != nil {
 		httpx.Abort(c, err)
 		return
 	}
 	respond(c, nethttp.StatusCreated, result)
+}
+
+func (h *Handler) TransactionPinStatus(c *gin.Context) {
+	providerType, providerID := providerIdentity(c)
+	pinSet, err := h.service.TransactionPinStatus(c.Request.Context(), providerType, providerID)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, gin.H{"pin_set": pinSet})
+}
+
+func (h *Handler) SetTransactionPin(c *gin.Context) {
+	providerType, providerID := providerIdentity(c)
+	var request setPinRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	if err := h.service.SetTransactionPin(c.Request.Context(), providerType, providerID, request.Pin); err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respond(c, nethttp.StatusCreated, gin.H{"pin_set": true})
+}
+
+func (h *Handler) ChangeTransactionPin(c *gin.Context) {
+	providerType, providerID := providerIdentity(c)
+	var request changePinRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	if err := h.service.ChangeTransactionPin(c.Request.Context(), providerType, providerID, request.CurrentPin, request.NewPin); err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, gin.H{"pin_set": true})
 }
 
 func (h *Handler) CreatePaymentIntent(c *gin.Context) {
@@ -223,6 +281,20 @@ func (h *Handler) CompleteJob(c *gin.Context) {
 	respondOK(c, result)
 }
 
+func (h *Handler) AssignPaymentProvider(c *gin.Context) {
+	var request assignProviderRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	result, err := h.service.AssignPaymentProvider(c.Request.Context(), c.Param("reference"), request.ProviderType, request.ProviderID)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, result)
+}
+
 func (h *Handler) RequestRefund(c *gin.Context) {
 	var request refundRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -231,6 +303,8 @@ func (h *Handler) RequestRefund(c *gin.Context) {
 	}
 	result, err := h.service.RequestRefund(c.Request.Context(), walletusecases.RefundInput{
 		PaymentReference: request.PaymentReference,
+		SourceService:    request.SourceService,
+		SourceReference:  request.SourceReference,
 		AmountKobo:       request.AmountKobo,
 		Currency:         request.Currency,
 		Reason:           request.Reason,

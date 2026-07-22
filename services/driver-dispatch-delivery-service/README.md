@@ -19,11 +19,14 @@ KarryGo microservice for dispatch delivery rider flows. Dispatch rider auth is o
 | Area | Location |
 | --- | --- |
 | Auth | `internal/features/auth` |
-| Rider profile | `internal/features/riders` |
-| Bike management | `internal/features/bikes` |
-| Delivery lifecycle | `internal/features/deliveries` |
-| Matching | `internal/features/matching` |
-| Proof of delivery | `internal/features/proof_of_delivery` |
+| Rider profile | `internal/features/profile` |
+| Bike management | `internal/features/vehicle` |
+| Request broadcast/accept | `internal/features/request` |
+| Trip lifecycle + proof of delivery | `internal/features/trip` |
+| Customer bookings | `internal/features/booking` |
+| Availability | `internal/features/availability` |
+| Notifications proxy | `internal/features/notifications` |
+| Internal identity lookup | `internal/features/identity` |
 
 ## Endpoints
 

@@ -132,6 +132,8 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
               ProviderProfileScreen(
                 authController: widget.authController,
                 profileController: widget.profileController,
+                disputeController: widget.disputeController,
+                withdrawalController: widget.withdrawalController,
               ),
             ],
           ),

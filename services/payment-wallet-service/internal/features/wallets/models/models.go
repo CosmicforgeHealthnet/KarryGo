@@ -110,12 +110,12 @@ type PaymentIntent struct {
 }
 
 type WalletSummary struct {
-	OwnerType      string `json:"owner_type"`
-	OwnerID        string `json:"owner_id"`
-	Currency       string `json:"currency"`
+	OwnerType     string `json:"owner_type"`
+	OwnerID       string `json:"owner_id"`
+	Currency      string `json:"currency"`
 	AvailableKobo int64  `json:"available_kobo"`
-	EscrowKobo     int64  `json:"escrow_kobo"`
-	PendingKobo    int64  `json:"pending_kobo"`
+	EscrowKobo    int64  `json:"escrow_kobo"`
+	PendingKobo   int64  `json:"pending_kobo"`
 }
 
 type WalletTransaction struct {
@@ -139,8 +139,23 @@ type ProviderBankAccount struct {
 	RecipientCode string    `json:"recipient_code"`
 	Currency      string    `json:"currency"`
 	Status        string    `json:"status"`
+	IsDefault     bool      `json:"is_default"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// TransactionPin is the provider's withdrawal authorization PIN. The hash is
+// never serialized; lockout state guards the low-entropy PIN against brute
+// force (verification is refused while LockedUntil is in the future).
+type TransactionPin struct {
+	ID             string     `json:"id"`
+	ProviderType   string     `json:"provider_type"`
+	ProviderID     string     `json:"provider_id"`
+	PinHash        string     `json:"-"`
+	FailedAttempts int        `json:"failed_attempts"`
+	LockedUntil    *time.Time `json:"locked_until,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type Withdrawal struct {
@@ -159,16 +174,16 @@ type Withdrawal struct {
 }
 
 type Refund struct {
-	ID                    string    `json:"id"`
-	Reference             string    `json:"reference"`
-	PaymentIntentID       string    `json:"payment_intent_id"`
-	AmountKobo            int64     `json:"amount_kobo"`
-	Currency              string    `json:"currency"`
-	Reason                string    `json:"reason,omitempty"`
-	Status                string    `json:"status"`
-	PaystackRefundRef     string    `json:"paystack_refund_reference,omitempty"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	ID                string    `json:"id"`
+	Reference         string    `json:"reference"`
+	PaymentIntentID   string    `json:"payment_intent_id"`
+	AmountKobo        int64     `json:"amount_kobo"`
+	Currency          string    `json:"currency"`
+	Reason            string    `json:"reason,omitempty"`
+	Status            string    `json:"status"`
+	PaystackRefundRef string    `json:"paystack_refund_reference,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 func DefaultCurrency(value string) string {

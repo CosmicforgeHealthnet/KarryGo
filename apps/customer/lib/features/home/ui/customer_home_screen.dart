@@ -4,6 +4,7 @@ import '../../../app/app_routes.dart';
 import '../../../shared/widgets/figma_customer_widgets.dart';
 import '../../auth/data/customer_auth_api.dart';
 import '../../auth/state/customer_auth_controller.dart';
+import '../../dispatch/state/dispatch_booking_controller.dart';
 import '../../hauling/data/places_api.dart';
 import '../../hauling/state/hauling_booking_controller.dart';
 import '../../media/data/media_upload_service.dart';
@@ -26,6 +27,7 @@ class CustomerHomeScreen extends StatefulWidget {
     required this.walletApi,
     required this.mediaUploadService,
     required this.haulingController,
+    required this.dispatchController,
     required this.placesApi,
     required this.notificationController,
   });
@@ -37,6 +39,7 @@ class CustomerHomeScreen extends StatefulWidget {
   final WalletApi walletApi;
   final MediaUploadService mediaUploadService;
   final HaulingBookingController haulingController;
+  final DispatchBookingController dispatchController;
   final PlacesApi placesApi;
   final NotificationController notificationController;
 
@@ -61,10 +64,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             state: widget.state,
             controller: widget.controller,
             haulingController: widget.haulingController,
+            dispatchController: widget.dispatchController,
             placesApi: widget.placesApi,
           ),
           CustomerTripsTab(
             controller: widget.haulingController,
+            dispatchController: widget.dispatchController,
             placesApi: widget.placesApi,
           ),
           CustomerNotificationsTab(controller: widget.notificationController),
@@ -90,11 +95,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           onTap: (i) {
             setState(() => _selectedIndex = i);
             // Refresh the bookings list each time the Trips tab is opened.
-            if (i == 1) widget.haulingController.loadHistory();
-            // Opening Alerts clears the unread badge and refreshes the feed.
+            if (i == 1) {
+              widget.haulingController.loadHistory();
+              widget.dispatchController.loadHistory();
+            }
+            // Opening Alerts advances the read marker, clears the unread
+            // badge, and refreshes the feed.
             if (i == 2) {
-              widget.notificationController.markAllRead();
-              widget.notificationController.loadFeed();
+              widget.notificationController.openFeed();
             }
           },
         ),

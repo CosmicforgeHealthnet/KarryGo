@@ -77,9 +77,11 @@ type StartInput struct {
 }
 
 // StartResult contains only what the HTTP response needs.
-// OTP is never included in StartResult; it must not appear in API responses.
+// DebugOTP is only ever populated when otpDebug is enabled (dev/local only)
+// — never populate or serialize it in production.
 type StartResult struct {
-	ExpiresInSeconds int64 `json:"expires_in_seconds"`
+	ExpiresInSeconds int64  `json:"expires_in_seconds"`
+	DebugOTP         string `json:"-"`
 }
 
 // ── SignupStart ────────────────────────────────────────────────────────────────
@@ -335,6 +337,12 @@ func (u *AuthUsecase) Start(ctx context.Context, input StartInput) (StartResult,
 		return StartResult{}, err
 	}
 
+	// Dev-only: log OTP and return it in the result for on-screen display.
+	// Never in production.
+	if u.otpDebug {
+		log.Printf("development dispatch rider start otp phone_number=%s otp=%s", phoneNumber, code)
+	}
+
 	if u.publisher != nil {
 		event := authclients.OTPRequestedEvent{
 			Event:         authclients.TopicOTPRequested,
@@ -350,7 +358,11 @@ func (u *AuthUsecase) Start(ctx context.Context, input StartInput) (StartResult,
 		}
 	}
 
-	return StartResult{ExpiresInSeconds: u.otp.TTLSeconds()}, nil
+	result := StartResult{ExpiresInSeconds: u.otp.TTLSeconds()}
+	if u.otpDebug {
+		result.DebugOTP = code
+	}
+	return result, nil
 }
 
 // SignupStart handles POST /api/v1/auth/signup/start.
@@ -418,7 +430,11 @@ func (u *AuthUsecase) SignupStart(ctx context.Context, input SignupStartInput) (
 		}
 	}
 
-	return StartResult{ExpiresInSeconds: u.otp.TTLSeconds()}, nil
+	result := StartResult{ExpiresInSeconds: u.otp.TTLSeconds()}
+	if u.otpDebug {
+		result.DebugOTP = code
+	}
+	return result, nil
 }
 
 // LoginStart handles POST /api/v1/auth/login/start.
@@ -505,7 +521,11 @@ func (u *AuthUsecase) LoginStart(ctx context.Context, input LoginStartInput) (St
 		}
 	}
 
-	return StartResult{ExpiresInSeconds: u.otp.TTLSeconds()}, nil
+	result := StartResult{ExpiresInSeconds: u.otp.TTLSeconds()}
+	if u.otpDebug {
+		result.DebugOTP = code
+	}
+	return result, nil
 }
 
 // Verify validates the OTP, resolves/creates the identity based on purpose, creates

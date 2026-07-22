@@ -39,6 +39,16 @@ type TripEventPublisher interface {
 
 const MaxReasonTextLength = 500
 
+// CustomerNotifier sends trip-progress notifications to the customer app via
+// notification-service. Satisfied by *bookingclients.BookingNotifier; all
+// methods are fire-and-forget.
+type CustomerNotifier interface {
+	NotifyCustomerEnRoutePickup(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerArrivedPickup(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerPickedUp(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerDelivered(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+}
+
 // ProofSubmitInput carries parsed multipart form data for the SubmitProof service method.
 type ProofSubmitInput struct {
 	TripID        string
@@ -61,6 +71,7 @@ type Service struct {
 	storage    ProofStorage
 	events     TripEventPublisher
 	wallet     WalletSettlementClient
+	notifier   CustomerNotifier
 	now        func() time.Time
 }
 
@@ -82,6 +93,26 @@ func (s *Service) WithEventPublisher(publisher TripEventPublisher) *Service {
 func (s *Service) WithWalletClient(client WalletSettlementClient) *Service {
 	s.wallet = client
 	return s
+}
+
+// WithNotifier wires the customer notification client (call after NewService).
+// A nil notifier disables notifications (local dev without notification-service).
+func (s *Service) WithNotifier(notifier CustomerNotifier) *Service {
+	s.notifier = notifier
+	return s
+}
+
+// tripNotifyData builds the standard template payload for trip notifications.
+func tripNotifyData(trip *Trip) map[string]interface{} {
+	return map[string]interface{}{
+		"booking_id":      trip.BookingID,
+		"trip_id":         trip.ID,
+		"service":         "dispatch",
+		"pickup_address":  trip.PickupAddress,
+		"dropoff_address": trip.DropoffAddress,
+		"fare_kobo":       trip.FareAmount,
+		"currency":        trip.Currency,
+	}
 }
 
 func (s *Service) HandleRequestAccepted(ctx context.Context, event RequestAcceptedEvent) (*Trip, error) {
@@ -180,11 +211,17 @@ func (s *Service) HandleProviderLocationUpdated(ctx context.Context, event Provi
 	if err := ValidateTransition(assigned.Status, StatusEnRoutePickup); err != nil {
 		return err
 	}
-	_, err = s.repository.TransitionTripStatus(ctx, TransitionTripInput{
+	updated, err := s.repository.TransitionTripStatus(ctx, TransitionTripInput{
 		TripID: assigned.ID, FromStatus: StatusAssigned, ToStatus: StatusEnRoutePickup,
 		ChangedBy: CancelledBySystem, Notes: "auto_started_from_location_update", ChangedAt: s.now(),
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if updated && s.notifier != nil {
+		s.notifier.NotifyCustomerEnRoutePickup(ctx, assigned.CustomerID, assigned.BookingID, tripNotifyData(assigned))
+	}
+	return nil
 }
 
 func (s *Service) ListProviderTrips(ctx context.Context, providerID string, options ListTripsOptions) (TripListResponse, error) {
@@ -315,6 +352,9 @@ func (s *Service) MarkArrived(ctx context.Context, tripID, providerID string) (A
 	if updated.ArrivedAt != nil {
 		arrivedAt = *updated.ArrivedAt
 	}
+	if s.notifier != nil {
+		s.notifier.NotifyCustomerArrivedPickup(ctx, trip.CustomerID, trip.BookingID, tripNotifyData(trip))
+	}
 	if s.events != nil {
 		_ = s.events.PublishProviderArrived(ctx, TripProviderArrivedEvent{
 			Event: TopicTripProviderArrived, TripID: trip.ID, BookingID: trip.BookingID,
@@ -357,6 +397,9 @@ func (s *Service) StartTrip(ctx context.Context, tripID, providerID string) (Sta
 	startedAt := now
 	if updated.StartedAt != nil {
 		startedAt = *updated.StartedAt
+	}
+	if s.notifier != nil {
+		s.notifier.NotifyCustomerPickedUp(ctx, trip.CustomerID, trip.BookingID, tripNotifyData(trip))
 	}
 	if s.events != nil {
 		_ = s.events.PublishTripStarted(ctx, TripStartedEvent{
@@ -467,6 +510,9 @@ func (s *Service) SubmitProof(ctx context.Context, input ProofSubmitInput) (*Pro
 		return nil, err
 	}
 
+	if s.notifier != nil {
+		s.notifier.NotifyCustomerDelivered(ctx, trip.CustomerID, trip.BookingID, tripNotifyData(trip))
+	}
 	if s.events != nil {
 		_ = s.events.PublishProofSubmitted(ctx, TripProofSubmittedEvent{
 			Event: TopicTripProofSubmitted, TripID: trip.ID, BookingID: trip.BookingID,

@@ -13,7 +13,7 @@ class ProviderAuthEntryScreen extends StatefulWidget {
 }
 
 class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
-  final _phoneCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController(text: '08011111001');
   final _emailCtrl = TextEditingController();
   bool _useEmail = false;
 
@@ -270,36 +270,11 @@ class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
 class _Illustration extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 180,
-      decoration: BoxDecoration(
-        color: kProviderGreenTint,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            bottom: 20,
-            child: Icon(Icons.local_shipping_rounded, size: 80, color: kProviderGreen.withValues(alpha: 0.2)),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.local_shipping_rounded, size: 56, color: kProviderGreen),
-              const SizedBox(height: 8),
-              Text(
-                'Karry Go Provider',
-                style: TextStyle(
-                  color: kProviderGreen,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return Image.asset(
+      'assets/figma/auth_car_header.png',
+      height: 92,
+      fit: BoxFit.contain,
+      alignment: Alignment.centerLeft,
     );
   }
 }

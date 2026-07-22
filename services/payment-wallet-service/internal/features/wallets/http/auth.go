@@ -13,6 +13,30 @@ const (
 	providerTypeKey = "provider_type"
 )
 
+// canonicalProviderTypes maps a provider service (the token map key) to the
+// provider_type used as the ledger owner-id prefix ("<type>:<providerID>").
+//
+// This MUST match the provider_type each service stamps on its payment intents
+// when it settles earnings, or credited funds land under one owner key while the
+// earnings/withdrawal endpoints read another (an always-empty account).
+//
+// Hauling signs its provider tokens under the service key "hauling" but settles
+// under provider_type "truck_provider" (see driver-hauling-service .../payments/
+// wallet_payment_client.go). Dispatch settles under "dispatch", which already
+// equals its service key, so it (and any service not listed) passes through
+// unchanged.
+var canonicalProviderTypes = map[string]string{
+	"hauling": "truck_provider",
+}
+
+// canonicalProviderType returns the ledger owner-id provider_type for a service.
+func canonicalProviderType(service string) string {
+	if mapped, ok := canonicalProviderTypes[service]; ok {
+		return mapped
+	}
+	return service
+}
+
 func providerBearerMiddleware(secrets map[string][]byte) gin.HandlerFunc {
 	signers := map[string]*sharedauth.TokenSigner{}
 	for service, secret := range secrets {
@@ -42,7 +66,11 @@ func providerBearerMiddleware(secrets map[string][]byte) gin.HandlerFunc {
 			// than a single hardcoded role value.
 			if claims.Type == sharedauth.TokenTypeAccess && claims.Role != "" && claims.Service == service {
 				c.Set(providerIDKey, claims.Subject)
-				c.Set(providerTypeKey, service)
+				// Key the ledger owner by the canonical provider_type the owning
+				// service settles under, not the raw service key — otherwise
+				// hauling earnings (credited under "truck_provider") are read
+				// under "hauling" and always show 0.
+				c.Set(providerTypeKey, canonicalProviderType(service))
 				c.Next()
 				return
 			}

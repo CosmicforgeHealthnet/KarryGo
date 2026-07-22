@@ -303,8 +303,8 @@ export default function BillingPage() {
               <div className="rounded-xl bg-ink-100/60 p-4">
                 {paymentMethods.map((method) => (
                   <div key={method.id} className="flex items-center justify-between">
-                    <p className="text-sm font-bold text-ink-900">{method.card_brand}</p>
-                    <p className="text-sm tracking-wider text-ink-700">****{method.last4}</p>
+                    <p className="text-sm font-bold capitalize text-ink-900">{method.type}</p>
+                    <p className="text-sm tracking-wider text-ink-700">****{method.last_four}</p>
                   </div>
                 ))}
                 <p className="mt-3 text-xs text-ink-500">Last Updated</p>

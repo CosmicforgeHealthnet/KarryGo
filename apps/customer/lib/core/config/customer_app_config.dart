@@ -6,18 +6,20 @@ class CustomerAppConfig {
     required this.supportApiBaseUrl,
     required this.walletApiBaseUrl,
     required this.haulingApiBaseUrl,
+    required this.dispatchApiBaseUrl,
     required this.notificationWsUrl,
     required this.googleMapsApiKey,
   });
 
-  static const defaultCustomerApiBaseUrl = 'http://192.168.1.138:8101/api/v1/customer';
-  static const defaultMediaFileApiBaseUrl = 'http://192.168.1.138:8109/api/v1/media-files';
+  static const defaultCustomerApiBaseUrl = 'http://192.168.1.112:8101/api/v1/customer';
+  static const defaultMediaFileApiBaseUrl = 'http://192.168.1.112:8109/api/v1/media-files';
   static const defaultMediaFileServiceToken = 'development-media-token';
-  static const defaultSupportApiBaseUrl = 'http://192.168.1.138:8107/api/v1/support-disputes';
-  static const defaultWalletApiBaseUrl = 'http://192.168.1.138:8105/api/v1/payment-wallet';
-  static const defaultHaulingApiBaseUrl = 'http://192.168.1.138:8104/api/v1/hauling';
+  static const defaultSupportApiBaseUrl = 'http://192.168.1.112:8107/api/v1/support-disputes';
+  static const defaultWalletApiBaseUrl = 'http://192.168.1.112:8105/api/v1/payment-wallet';
+  static const defaultHaulingApiBaseUrl = 'http://192.168.1.112:8104/api/v1/hauling';
+  static const defaultDispatchApiBaseUrl = 'http://192.168.1.112:8103/api/v1/customer/dispatch';
   // Realtime websocket endpoint on notification-service (ws:// upgrade, token-gated).
-  static const defaultNotificationWsUrl = 'ws://192.168.1.138:8106/api/v1/notifications/ws';
+  static const defaultNotificationWsUrl = 'ws://192.168.1.112:8106/api/v1/notifications/ws';
   static const defaultGoogleMapsApiKey = 'AIzaSyAW-L1mC7We7M41u148dBCLFAklBjfNeZ8';
 
   factory CustomerAppConfig.fromEnvironment() {
@@ -46,6 +48,10 @@ class CustomerAppConfig {
         'HAULING_API_BASE_URL',
         defaultValue: defaultHaulingApiBaseUrl,
       ),
+      dispatchApiBaseUrl: String.fromEnvironment(
+        'DISPATCH_API_BASE_URL',
+        defaultValue: defaultDispatchApiBaseUrl,
+      ),
       notificationWsUrl: String.fromEnvironment(
         'NOTIFICATION_WS_URL',
         defaultValue: defaultNotificationWsUrl,
@@ -63,6 +69,7 @@ class CustomerAppConfig {
   final String supportApiBaseUrl;
   final String walletApiBaseUrl;
   final String haulingApiBaseUrl;
+  final String dispatchApiBaseUrl;
   final String notificationWsUrl;
   final String googleMapsApiKey;
 }

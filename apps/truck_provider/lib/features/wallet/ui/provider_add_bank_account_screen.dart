@@ -7,8 +7,10 @@ import '../state/provider_withdrawal_controller.dart';
 import 'widgets/wallet_keypad.dart';
 import 'widgets/wallet_widgets.dart';
 
-/// Add a payout bank account: pick a bank, enter the account number, verify the
-/// account name (Paystack resolve), then save it (Paystack transfer recipient).
+/// Add a payout bank account (Figma "Enter New Bank Details"): pick a bank,
+/// enter the account number — the account name resolves automatically
+/// (Paystack lookup) into the read-only Account Name field — then Save
+/// (Paystack transfer recipient).
 class ProviderAddBankAccountScreen extends StatefulWidget {
   const ProviderAddBankAccountScreen({super.key, required this.controller});
 
@@ -37,11 +39,18 @@ class _ProviderAddBankAccountScreenState extends State<ProviderAddBankAccountScr
   bool get _canVerify => _bank != null && _accountController.text.trim().length == 10;
 
   Future<void> _verify() async {
-    FocusScope.of(context).unfocus();
     await widget.controller.resolveBank(accountNumber: _accountController.text.trim(), bank: _bank!);
   }
 
+  /// Resolves the account name as soon as a bank + 10-digit number are set.
+  void _maybeAutoVerify() {
+    if (_canVerify && !widget.controller.resolving && widget.controller.resolved == null) {
+      _verify();
+    }
+  }
+
   Future<void> _save() async {
+    FocusScope.of(context).unfocus();
     final ok = await widget.controller.registerBank(
       accountNumber: _accountController.text.trim(),
       bank: _bank!,
@@ -61,6 +70,7 @@ class _ProviderAddBankAccountScreenState extends State<ProviderAddBankAccountScr
     if (selected != null) {
       setState(() => _bank = selected);
       widget.controller.clearBankError();
+      _maybeAutoVerify();
     }
   }
 
@@ -76,12 +86,20 @@ class _ProviderAddBankAccountScreenState extends State<ProviderAddBankAccountScr
           return SafeArea(
             child: Column(
               children: [
-                const WalletFlowAppBar(title: 'Add Bank Account'),
-                const SizedBox(height: 12),
+                const WalletFlowAppBar(
+                  title: 'Payments & Withdrawals',
+                  subtitle: 'Manage your payment Information here.',
+                ),
+                const SizedBox(height: 18),
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     children: [
+                      const Text(
+                        'Enter New Bank Details',
+                        style: TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 18),
                       const _FieldLabel('Bank'),
                       const SizedBox(height: 8),
                       _BankSelector(bank: _bank, onTap: _pickBank),
@@ -93,12 +111,16 @@ class _ProviderAddBankAccountScreenState extends State<ProviderAddBankAccountScr
                         onChanged: (_) {
                           c.clearBankError();
                           setState(() {});
+                          _maybeAutoVerify();
                         },
                       ),
-                      if (resolved != null) ...[
-                        const SizedBox(height: 16),
-                        _ResolvedAccountBox(name: resolved.accountName),
-                      ],
+                      const SizedBox(height: 20),
+                      const _FieldLabel('Account Name'),
+                      const SizedBox(height: 8),
+                      _AccountNameField(
+                        name: resolved?.accountName,
+                        resolving: c.resolving,
+                      ),
                       if (c.bankError != null) ...[
                         const SizedBox(height: 16),
                         _ErrorBox(message: c.bankError!),
@@ -108,17 +130,11 @@ class _ProviderAddBankAccountScreenState extends State<ProviderAddBankAccountScr
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                  child: resolved == null
-                      ? WalletPrimaryButton(
-                          label: 'Verify Account',
-                          loading: c.resolving,
-                          onPressed: _canVerify ? _verify : null,
-                        )
-                      : WalletPrimaryButton(
-                          label: 'Save Account',
-                          loading: c.registering,
-                          onPressed: _save,
-                        ),
+                  child: WalletPrimaryButton(
+                    label: 'Save',
+                    loading: c.registering,
+                    onPressed: resolved != null ? _save : null,
+                  ),
                 ),
               ],
             ),
@@ -161,7 +177,7 @@ class _BankSelector extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                bank?.name ?? 'Select bank',
+                bank?.name ?? 'Select Bank',
                 style: TextStyle(
                   color: bank == null ? kProviderMuted : kProviderText,
                   fontSize: 15,
@@ -193,7 +209,7 @@ class _AccountNumberField extends StatelessWidget {
       style: const TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         counterText: '',
-        hintText: '0123456789',
+        hintText: 'Enter Acct No',
         hintStyle: const TextStyle(color: kProviderMuted),
         filled: true,
         fillColor: const Color(0xFFF1F2F4),
@@ -204,29 +220,41 @@ class _AccountNumberField extends StatelessWidget {
   }
 }
 
-class _ResolvedAccountBox extends StatelessWidget {
-  const _ResolvedAccountBox({required this.name});
-  final String name;
+/// Read-only account-name field: hint until the Paystack lookup fills it in;
+/// a small spinner while resolving.
+class _AccountNameField extends StatelessWidget {
+  const _AccountNameField({required this.name, required this.resolving});
+  final String? name;
+  final bool resolving;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: kProviderGreenTint,
+        color: const Color(0xFFF1F2F4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kProviderGreenPale),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, color: kProviderGreen, size: 22),
-          const SizedBox(width: 12),
           Expanded(
             child: Text(
-              name,
-              style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w700),
+              name ?? 'Enter Acct Name',
+              style: TextStyle(
+                color: name == null ? kProviderMuted : kProviderText,
+                fontSize: 15,
+                fontWeight: name == null ? FontWeight.w500 : FontWeight.w700,
+              ),
             ),
           ),
+          if (resolving)
+            const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: kProviderGreen),
+            )
+          else if (name != null)
+            const Icon(Icons.check_circle, color: kProviderGreen, size: 20),
         ],
       ),
     );

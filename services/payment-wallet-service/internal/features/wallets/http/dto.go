@@ -42,10 +42,27 @@ type withdrawalRequest struct {
 	AmountKobo     int64  `json:"amount_kobo"`
 	Currency       string `json:"currency"`
 	IdempotencyKey string `json:"idempotency_key"`
+	Pin            string `json:"pin"`
+}
+
+type setPinRequest struct {
+	Pin string `json:"pin"`
+}
+
+type changePinRequest struct {
+	CurrentPin string `json:"current_pin"`
+	NewPin     string `json:"new_pin"`
+}
+
+type assignProviderRequest struct {
+	ProviderType string `json:"provider_type"`
+	ProviderID   string `json:"provider_id"`
 }
 
 type refundRequest struct {
 	PaymentReference string `json:"payment_reference"`
+	SourceService    string `json:"source_service"`
+	SourceReference  string `json:"source_reference"`
 	AmountKobo       int64  `json:"amount_kobo"`
 	Currency         string `json:"currency"`
 	Reason           string `json:"reason"`

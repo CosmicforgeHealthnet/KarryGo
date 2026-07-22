@@ -18,6 +18,7 @@ SERVICES=(
   notification
   payment
   hauling
+  dispatch
   customer
   support-dispute
 )

@@ -192,10 +192,9 @@ class _BikeTypeScreenState extends State<BikeTypeScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Driver Licence Expiry Date — single picker (DD/MM/YYYY)
-                    // No separate year dropdown — the date picker captures year.
-                    // TODO backend: use licenceExpiryDate.year → expiry_year,
-                    //               licenceExpiryDate.month → expiry_month
+                    // Driver Licence Expiry Date — single picker (DD/MM/YYYY).
+                    // The app shell's submit step maps licenceExpiryDate.year/
+                    // .month to the licence upload's expiry_year/expiry_month.
                     const _FieldLabel(label: 'Driver Licence Expiry Date'),
                     const SizedBox(height: 8),
                     GestureDetector(

@@ -1,16 +1,16 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AuthAccount } from "@/types";
+import type { AuthAccount, AuthSession } from "@/types";
 
 interface AuthState {
   token: string | null;
   expiresAt: string | null;
   account: AuthAccount | null;
   isAuthenticated: boolean;
-  _hasHydrated: boolean; // ADD THIS
-  setSession: (session: { token: string; expiresAt: string; account: AuthAccount }) => void;
+  _hasHydrated: boolean;
+  setSession: (session: AuthSession) => void;
   clearSession: () => void;
-  setHasHydrated: (state: boolean) => void; // ADD THIS
+  setHasHydrated: (state: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -20,12 +20,12 @@ export const useAuthStore = create<AuthState>()(
       expiresAt: null,
       account: null,
       isAuthenticated: false,
-      _hasHydrated: false, // ADD THIS
-      setSession: ({ token, expiresAt, account }) =>
-        set({ token, expiresAt, account, isAuthenticated: true }),
+      _hasHydrated: false,
+      setSession: ({ token, expires_at, account }) =>
+        set({ token, expiresAt: expires_at, account, isAuthenticated: true }),
       clearSession: () =>
         set({ token: null, expiresAt: null, account: null, isAuthenticated: false }),
-      setHasHydrated: (state) => set({ _hasHydrated: state }), // ADD THIS
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
     {
       name: "karrygo-partner-auth",

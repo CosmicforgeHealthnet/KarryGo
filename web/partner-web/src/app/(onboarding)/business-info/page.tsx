@@ -50,7 +50,7 @@ export default function BusinessInfoPage() {
         },
         token
       );
-      setSession({ token, expiresAt: expiresAt ?? "", account: updatedAccount });
+      setSession({ token, expires_at: expiresAt ?? "", account: updatedAccount });
       setBusinessInfo({ businessName, businessPhone, businessEmail, state, city });
       router.push("/business-logo");
     } catch (err) {

@@ -15,6 +15,7 @@ import '../../profile/state/provider_profile_controller.dart';
 import '../../verification/state/verification_controller.dart';
 import '../../vehicle/state/vehicle_controller.dart';
 import '../../availability/state/availability_controller.dart';
+import '../../disputes/state/rider_dispute_controller.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProviderProfileController profileController;
@@ -24,8 +25,10 @@ class DashboardScreen extends StatefulWidget {
   final RequestsController requestsController;
   final TripsController tripsController;
   final WalletController walletController;
+  final RiderDisputeController? disputeController;
   final VoidCallback? onLogout;
   final VoidCallback? onAccountDeleted;
+  final VoidCallback? onOpenNotifications;
 
   const DashboardScreen({
     super.key,
@@ -36,8 +39,10 @@ class DashboardScreen extends StatefulWidget {
     required this.requestsController,
     required this.tripsController,
     required this.walletController,
+    this.disputeController,
     this.onLogout,
     this.onAccountDeleted,
+    this.onOpenNotifications,
   });
 
   @override
@@ -62,23 +67,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         tripStateNotifier: _tripStateNotifier,
         activeRequestNotifier: _activeRequestNotifier,
         availabilityController: widget.availabilityController,
+        onOpenNotifications: widget.onOpenNotifications,
       ),
       RequestsScreen(requestsController: widget.requestsController),
       TripsScreen(tripsController: widget.tripsController),
-      WalletScreen(walletController: widget.walletController),
+      WalletScreen(
+        walletController: widget.walletController,
+        disputeController: widget.disputeController,
+        tripsController: widget.tripsController,
+      ),
       ProfileScreen(
         profileController: widget.profileController,
         verificationController: widget.verificationController,
         vehicleController: widget.vehicleController,
+        disputeController: widget.disputeController,
+        walletController: widget.walletController,
         onLogout: widget.onLogout,
         onAccountDeleted: widget.onAccountDeleted,
       ),
     ];
     _loadActiveTrip();
+    // Requests + active trip refresh continuously while the dashboard is
+    // mounted; realtime/FCM pokes make updates immediate, the polls are the
+    // safety net.
+    widget.requestsController.startPolling();
+    widget.tripsController.startActivePolling();
   }
 
   @override
   void dispose() {
+    widget.requestsController.stopPolling();
+    widget.tripsController.stopActivePolling();
     _tripStateNotifier.dispose();
     _activeRequestNotifier.dispose();
     super.dispose();

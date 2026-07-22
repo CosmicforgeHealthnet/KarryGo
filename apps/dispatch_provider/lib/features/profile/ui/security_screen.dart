@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'password_screen.dart';
 import 'transaction_pin_screen.dart';
 import 'two_step_verification_screen.dart';
+import '../../wallet/state/wallet_controller.dart';
 
 class SecurityScreen extends StatelessWidget {
-  const SecurityScreen({super.key});
+  const SecurityScreen({super.key, required this.walletController});
+
+  final WalletController walletController;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +54,9 @@ class SecurityScreen extends StatelessWidget {
               subtitle: 'Manage Transaction Pin and access to your earnings',
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                    builder: (_) => const TransactionPinScreen()),
+                  builder: (_) =>
+                      TransactionPinScreen(walletController: walletController),
+                ),
               ),
             ),
             const SizedBox(height: 10),

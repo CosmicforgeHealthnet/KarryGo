@@ -52,6 +52,21 @@ class ProviderWithdrawalController extends ChangeNotifier {
   String? _bankError;
   String? get bankError => _bankError;
 
+  // ─── Transaction PIN ────────────────────────────────────────────────────────
+  /// Null until the status has been fetched; then whether a PIN exists.
+  bool? _pinSet;
+  bool? get pinSet => _pinSet;
+
+  /// The PIN typed on the authorization screen; sent with the withdrawal so
+  /// payment-wallet verifies it server-side (with lockout).
+  String _enteredPin = '';
+  String get enteredPin => _enteredPin;
+
+  bool _savingPin = false;
+  bool get savingPin => _savingPin;
+  String? _pinError;
+  String? get pinError => _pinError;
+
   // ─── Withdrawal submission ──────────────────────────────────────────────────
   bool _submitting = false;
   bool get submitting => _submitting;
@@ -74,6 +89,8 @@ class ProviderWithdrawalController extends ChangeNotifier {
     _idempotencyKey = null;
     _resolved = null;
     _bankError = null;
+    _enteredPin = '';
+    _pinError = null;
     await loadBalanceAndAccounts();
   }
 
@@ -88,12 +105,126 @@ class ProviderWithdrawalController extends ChangeNotifier {
       final accounts = await _api.listBankAccounts(accessToken: token);
       _balance = balance;
       _bankAccounts = accounts;
-      // Default selection: first saved account.
-      _selectedAccount ??= accounts.isNotEmpty ? accounts.first : null;
+      _selectedAccount ??= _defaultAccount(accounts);
+      // PIN status decides whether the auth screen shows "create" or "enter";
+      // failure is non-fatal (the auth screen re-checks before submitting).
+      try {
+        _pinSet = await _api.getPinStatus(accessToken: token);
+      } catch (_) {}
     } catch (e) {
       _loadError = _msg(e);
     } finally {
       _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// The provider's persisted default account, falling back to the first
+  /// listed account (the backend lists default-first anyway).
+  ProviderBankAccount? _defaultAccount(List<ProviderBankAccount> accounts) {
+    if (accounts.isEmpty) return null;
+    for (final account in accounts) {
+      if (account.isDefault) return account;
+    }
+    return accounts.first;
+  }
+
+  /// Accounts-only refresh for the Payments & Withdrawals screen.
+  Future<void> loadAccounts() async {
+    final token = _token;
+    if (token == null) return;
+    _loading = true;
+    _loadError = null;
+    notifyListeners();
+    try {
+      _bankAccounts = await _api.listBankAccounts(accessToken: token);
+    } catch (e) {
+      _loadError = _msg(e);
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Removes a saved payout account. Returns true on success; failures land in
+  /// [bankError].
+  Future<bool> deleteAccount(ProviderBankAccount account) async {
+    final token = _token;
+    if (token == null) return false;
+    _bankError = null;
+    notifyListeners();
+    try {
+      await _api.deleteBankAccount(accessToken: token, accountId: account.id);
+      if (_selectedAccount?.id == account.id) _selectedAccount = null;
+      // Re-fetch so a promoted default (server-side) is reflected.
+      _bankAccounts = await _api.listBankAccounts(accessToken: token);
+      _selectedAccount ??= _defaultAccount(_bankAccounts);
+      return true;
+    } catch (e) {
+      _bankError = _msg(e);
+      return false;
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  /// Persists the account as the provider's default withdrawal account.
+  Future<bool> makeDefault(ProviderBankAccount account) async {
+    final token = _token;
+    if (token == null) return false;
+    _bankError = null;
+    // Optimistic flip so the radio responds instantly.
+    _bankAccounts = [
+      for (final a in _bankAccounts)
+        ProviderBankAccount(
+          id: a.id,
+          bankCode: a.bankCode,
+          bankName: a.bankName,
+          accountNumber: a.accountNumber,
+          accountName: a.accountName,
+          status: a.status,
+          isDefault: a.id == account.id,
+        ),
+    ];
+    notifyListeners();
+    try {
+      await _api.setDefaultBankAccount(accessToken: token, accountId: account.id);
+      return true;
+    } catch (e) {
+      _bankError = _msg(e);
+      // Roll back to the server's truth.
+      try {
+        _bankAccounts = await _api.listBankAccounts(accessToken: token);
+      } catch (_) {}
+      return false;
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  // ─── Transaction PIN ────────────────────────────────────────────────────────
+
+  // ignore: use_setters_to_change_properties
+  void setEnteredPin(String pin) {
+    _enteredPin = pin;
+  }
+
+  /// Creates the provider's transaction PIN. Returns true on success.
+  Future<bool> setupPin(String pin) async {
+    final token = _token;
+    if (token == null) return false;
+    _savingPin = true;
+    _pinError = null;
+    notifyListeners();
+    try {
+      await _api.setPin(accessToken: token, pin: pin);
+      _pinSet = true;
+      return true;
+    } catch (e) {
+      _pinError = _msg(e);
+      return false;
+    } finally {
+      _savingPin = false;
       notifyListeners();
     }
   }
@@ -200,6 +331,7 @@ class ProviderWithdrawalController extends ChangeNotifier {
         bankAccountId: account.id,
         amountKobo: amountKobo,
         idempotencyKey: _idempotencyKey!,
+        pin: _enteredPin,
       );
       return true;
     } catch (e) {

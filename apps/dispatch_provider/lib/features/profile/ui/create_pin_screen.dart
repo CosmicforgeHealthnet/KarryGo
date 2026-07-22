@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/widgets/numeric_keypad.dart';
+import '../../wallet/state/wallet_controller.dart';
 
 class CreatePinScreen extends StatefulWidget {
-  const CreatePinScreen({super.key, this.currentPin});
+  const CreatePinScreen({
+    super.key,
+    required this.walletController,
+    this.currentPin,
+  });
+
+  final WalletController walletController;
+
+  /// When set, this is a PIN change (the current PIN is verified server-side);
+  /// otherwise a first-time setup.
   final String? currentPin;
 
   @override
@@ -13,6 +23,8 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
   String _newPin = '';
   String _confirmPin = '';
   bool _isConfirming = false;
+  bool _submitting = false;
+  String? _error;
 
   void _onKey(String key) {
     setState(() {
@@ -42,9 +54,44 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
 
   bool get _pinsMatch => _confirmPin == _newPin && _confirmPin.length == 4;
 
-  void _submit() {
-    // TODO: wire to API
-    Navigator.of(context).pop();
+  Future<void> _submit() async {
+    if (_submitting) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    final result = widget.currentPin != null
+        ? await widget.walletController.changePin(
+            currentPin: widget.currentPin!,
+            newPin: _newPin,
+          )
+        : await widget.walletController.setupPin(_newPin);
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.currentPin != null
+                  ? 'Transaction PIN changed.'
+                  : 'Transaction PIN set.',
+            ),
+          ),
+        );
+        Navigator.of(context).pop(true);
+      },
+      failure: (err) {
+        setState(() {
+          _submitting = false;
+          _newPin = '';
+          _confirmPin = '';
+          _isConfirming = false;
+          _error = err.message.isNotEmpty
+              ? err.message
+              : 'Could not save your PIN. Try again.';
+        });
+      },
+    );
   }
 
   @override
@@ -107,6 +154,20 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
             ),
             const SizedBox(height: 24),
             _PinDots(pin: pin),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFFE53935),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 32),
             NumericKeypad(onKeyTap: _onKey),
             const Spacer(),
@@ -116,7 +177,9 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
                 height: 52,
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _isConfirming && _pinsMatch ? _submit : null,
+                  onPressed: _isConfirming && _pinsMatch && !_submitting
+                      ? _submit
+                      : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
                     disabledBackgroundColor:
@@ -125,14 +188,25 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                  child: const Text(
-                    'Create Pin',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          widget.currentPin != null
+                              ? 'Change Pin'
+                              : 'Create Pin',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ),

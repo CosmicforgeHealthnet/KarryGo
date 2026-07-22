@@ -261,8 +261,10 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
     if (coords != null) {
       _ctrl.setPickupLocation(suggestion.description, coords.lat, coords.lng);
     } else {
-      // fallback: store description with zero coords — user can still proceed
+      // Couldn't resolve coordinates: store (0,0) so the "Find Truck" gate
+      // stays closed, and tell the user why rather than leaving a dead button.
       _ctrl.setPickupLocation(suggestion.description, 0, 0);
+      _showSnack("Couldn't pinpoint that pickup address. Pick another or tap it on the map.");
     }
     setState(() {
       _pickupLoading = false;
@@ -282,6 +284,7 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
       _ctrl.setDropoffLocation(suggestion.description, coords.lat, coords.lng);
     } else {
       _ctrl.setDropoffLocation(suggestion.description, 0, 0);
+      _showSnack("Couldn't pinpoint that drop off address. Pick another or tap it on the map.");
     }
     setState(() {
       _dropoffLoading = false;
@@ -809,7 +812,7 @@ class _LocationInputCard extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(0, 10, 14, 0),
                     child: Text(
-                      'Drop off (optional)',
+                      'Drop off',
                       style: TextStyle(
                         color: Colors.grey[500],
                         fontSize: 11,

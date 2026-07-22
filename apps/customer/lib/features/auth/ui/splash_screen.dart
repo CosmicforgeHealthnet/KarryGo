@@ -1,33 +1,37 @@
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/material.dart';
-
-import '../../../shared/widgets/customer_screen_frame.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const CustomerScreenFrame(
-      scrollable: false,
-      child: Expanded(
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(-0.3, -0.3),
+            radius: 1.2,
+            colors: [Color(0xFF4CAF50), Color(0xFF1B5E20), Color(0xFF0D2818)],
+            stops: [0.0, 0.5, 1.0],
+          ),
+        ),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              BrandMark(size: 72),
-              SizedBox(height: CosmicforgeLogisticsSpacing.lg),
-              Text(
+              Image.asset('assets/figma/splash_logo.png', width: 180),
+              const SizedBox(height: 12),
+              const Text(
                 'Cosmicforge Logistics',
-                textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: CosmicforgeLogisticsColors.text,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
                 ),
               ),
-              SizedBox(height: CosmicforgeLogisticsSpacing.lg),
-              CircularProgressIndicator(),
             ],
           ),
         ),

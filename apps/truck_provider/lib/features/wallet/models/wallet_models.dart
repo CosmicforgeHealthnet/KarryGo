@@ -44,6 +44,7 @@ class ProviderBankAccount {
     required this.accountNumber,
     required this.accountName,
     required this.status,
+    this.isDefault = false,
   });
 
   final String id;
@@ -52,6 +53,7 @@ class ProviderBankAccount {
   final String accountNumber;
   final String accountName;
   final String status;
+  final bool isDefault;
 
   factory ProviderBankAccount.fromJson(Map<String, dynamic> j) => ProviderBankAccount(
         id: j['id'] as String? ?? '',
@@ -60,6 +62,7 @@ class ProviderBankAccount {
         accountNumber: j['account_number'] as String? ?? '',
         accountName: j['account_name'] as String? ?? '',
         status: j['status'] as String? ?? '',
+        isDefault: j['is_default'] == true,
       );
 }
 

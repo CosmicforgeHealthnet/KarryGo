@@ -38,7 +38,7 @@ export default function BusinessLogoPage() {
         { business_logo_url: asset.url },
         token
       );
-      setSession({ token, expiresAt: expiresAt ?? "", account: updatedAccount });
+      setSession({ token, expires_at: expiresAt ?? "", account: updatedAccount });
       setLogoFile(file);
       router.push("/profile-photo");
     } catch (err) {

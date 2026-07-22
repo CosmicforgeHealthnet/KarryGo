@@ -31,6 +31,10 @@ type Repository interface {
 	MarkPendingInboxExpired(ctx context.Context, broadcastID string) error
 	MarkFCMSent(ctx context.Context, inboxID string, sentAt time.Time) error
 	ListAlreadyNotifiedProviders(ctx context.Context, bookingID string) ([]string, error)
+	// ListStrandedBroadcasts returns broadcasts still 'broadcasting' whose
+	// window expired before cutoff — rows whose ExpireWindow task was never
+	// scheduled (crash between CreateBroadcast and scheduleExpire).
+	ListStrandedBroadcasts(ctx context.Context, cutoff time.Time) ([]RequestBroadcast, error)
 }
 
 type PostgresRepository struct {
@@ -239,6 +243,26 @@ func (r *PostgresRepository) ListAlreadyNotifiedProviders(ctx context.Context, b
 			return nil, err
 		}
 		result = append(result, id)
+	}
+	return result, rows.Err()
+}
+
+func (r *PostgresRepository) ListStrandedBroadcasts(ctx context.Context, cutoff time.Time) ([]RequestBroadcast, error) {
+	rows, err := r.db.Query(ctx, broadcastSelect+`
+		WHERE status = 'broadcasting' AND expires_at < $1
+		ORDER BY expires_at ASC
+		LIMIT 100`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []RequestBroadcast
+	for rows.Next() {
+		broadcast, err := scanBroadcast(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, broadcast)
 	}
 	return result, rows.Err()
 }

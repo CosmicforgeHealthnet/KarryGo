@@ -172,6 +172,12 @@ var _ authrepositories.SessionRepository = (*slSessionRepo)(nil)
 // ── Router builder for signup/login tests ─────────────────────────────────────
 
 func buildSLRouter(identityRepo authrepositories.IdentityRepository, otpRepo authrepositories.OTPRepository) (*gin.Engine, *authusecases.OTPUsecase) {
+	return buildSLRouterWithDebug(identityRepo, otpRepo, true) // enable for test visibility
+}
+
+// buildSLRouterWithDebug lets tests exercise both the DISPATCH_RIDER_DEBUG_OTP=true
+// (debug_otp present in the response) and =false (never present) code paths.
+func buildSLRouterWithDebug(identityRepo authrepositories.IdentityRepository, otpRepo authrepositories.OTPRepository, otpDebug bool) (*gin.Engine, *authusecases.OTPUsecase) {
 	otpUC := authusecases.NewOTPUsecase(authusecases.OTPOptions{
 		Repository:  otpRepo,
 		Secret:      []byte("test-otp-secret"),
@@ -191,7 +197,7 @@ func buildSLRouter(identityRepo authrepositories.IdentityRepository, otpRepo aut
 		RefreshTokenSecret: []byte("refresh-secret-32-bytes-long-xxx"),
 		AccessTokenTTL:     15 * time.Minute,
 		RefreshTokenTTL:    30 * 24 * time.Hour,
-		OTPDebug:           true, // enable for test visibility
+		OTPDebug:           otpDebug,
 	})
 
 	r := gin.New()
@@ -285,8 +291,10 @@ func TestHandlerSignupStart_Success(t *testing.T) {
 	}
 }
 
-func TestHandlerSignupStart_OTPNotInResponse(t *testing.T) {
-	r, _ := buildSLRouter(newSLIdentityRepo(), newHandlerFakeOTPRepo())
+// When DISPATCH_RIDER_DEBUG_OTP is disabled, the OTP must never appear in the
+// response in any form.
+func TestHandlerSignupStart_OTPNotInResponseWhenDebugDisabled(t *testing.T) {
+	r, _ := buildSLRouterWithDebug(newSLIdentityRepo(), newHandlerFakeOTPRepo(), false)
 
 	body := `{"phone_number":"+2348012345678","email":"newuser@example.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup/start", bytes.NewBufferString(body))
@@ -302,6 +310,29 @@ func TestHandlerSignupStart_OTPNotInResponse(t *testing.T) {
 		if containsCI(raw, suspect) {
 			t.Errorf("response body contains OTP key %q: %s", suspect, raw)
 		}
+	}
+}
+
+// When DISPATCH_RIDER_DEBUG_OTP is enabled (dev/local only), the OTP is
+// returned in the response so it can be shown on screen for easy testing.
+func TestHandlerSignupStart_DebugOTPInResponseWhenEnabled(t *testing.T) {
+	r, _ := buildSLRouter(newSLIdentityRepo(), newHandlerFakeOTPRepo())
+
+	body := `{"phone_number":"+2348012345678","email":"newuser@example.com"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup/start", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d; body = %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data, _ := resp["data"].(map[string]any)
+	debugOTP, _ := data["debug_otp"].(string)
+	if len(debugOTP) != 6 {
+		t.Errorf("debug_otp = %q, want a 6-digit code; body = %s", debugOTP, w.Body.String())
 	}
 }
 
@@ -463,11 +494,13 @@ func TestHandlerLoginStart_EmptyIdentifier(t *testing.T) {
 	}
 }
 
-func TestHandlerLoginStart_OTPNotInResponse(t *testing.T) {
+// When DISPATCH_RIDER_DEBUG_OTP is disabled, the OTP must never appear in the
+// response in any form.
+func TestHandlerLoginStart_OTPNotInResponseWhenDebugDisabled(t *testing.T) {
 	idRepo := newSLIdentityRepo()
 	idRepo.seed("+2348012345678", "user@example.com")
 
-	r, _ := buildSLRouter(idRepo, newHandlerFakeOTPRepo())
+	r, _ := buildSLRouterWithDebug(idRepo, newHandlerFakeOTPRepo(), false)
 
 	body := `{"identifier":"+2348012345678"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login/start", bytes.NewBufferString(body))
@@ -483,6 +516,32 @@ func TestHandlerLoginStart_OTPNotInResponse(t *testing.T) {
 		if containsCI(raw, suspect) {
 			t.Errorf("response body contains OTP key %q: %s", suspect, raw)
 		}
+	}
+}
+
+// When DISPATCH_RIDER_DEBUG_OTP is enabled (dev/local only), the OTP is
+// returned in the response so it can be shown on screen for easy testing.
+func TestHandlerLoginStart_DebugOTPInResponseWhenEnabled(t *testing.T) {
+	idRepo := newSLIdentityRepo()
+	idRepo.seed("+2348012345678", "user@example.com")
+
+	r, _ := buildSLRouter(idRepo, newHandlerFakeOTPRepo())
+
+	body := `{"identifier":"+2348012345678"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login/start", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d; body = %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data, _ := resp["data"].(map[string]any)
+	debugOTP, _ := data["debug_otp"].(string)
+	if len(debugOTP) != 6 {
+		t.Errorf("debug_otp = %q, want a 6-digit code; body = %s", debugOTP, w.Body.String())
 	}
 }
 

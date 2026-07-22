@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../../auth/state/customer_auth_controller.dart';
+import '../../../dispatch/state/dispatch_booking_controller.dart';
+import '../../../dispatch/ui/dispatch_flow_screen.dart';
 import '../../../hauling/data/places_api.dart';
 import '../../../hauling/state/hauling_booking_controller.dart';
 import '../../../hauling/ui/hauling_flow_screen.dart';
@@ -13,16 +15,29 @@ class CustomerHomeTab extends StatelessWidget {
     required this.state,
     required this.controller,
     required this.haulingController,
+    required this.dispatchController,
     required this.placesApi,
   });
 
   final CustomerAuthState state;
   final CustomerAuthController controller;
   final HaulingBookingController haulingController;
+  final DispatchBookingController dispatchController;
   final PlacesApi placesApi;
 
   void _onServiceTap(BuildContext context, int index) {
     switch (index) {
+      case 1:
+        dispatchController.reset();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => DispatchFlowScreen(
+              controller: dispatchController,
+              placesApi: placesApi,
+            ),
+          ),
+        );
       case 2:
         haulingController.reset();
         Navigator.of(context).push(

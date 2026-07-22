@@ -39,6 +39,12 @@ class DispatchAuthController extends ChangeNotifier {
   String? _currentPhoneNumber;
   String? get currentPhoneNumber => _currentPhoneNumber;
 
+  /// The OTP code, only populated when the backend has
+  /// DISPATCH_RIDER_DEBUG_OTP=true (dev/local only) — shown on the OTP screen
+  /// for easy testing, mirroring the customer app's debug OTP display.
+  String? _debugOtp;
+  String? get debugOtp => _debugOtp;
+
   /// The email collected during the most recent signup start.
   /// Available after a successful [signupStart] so it can be passed to the
   /// "Tell us about you" screen for prefill.
@@ -91,6 +97,7 @@ class DispatchAuthController extends ChangeNotifier {
           _currentPhoneNumber = phoneNumber;
           _currentSignupEmail = email;
           _currentPurpose = 'signup';
+          _debugOtp = data.debugOtp;
           _status = AuthStatus.unauthenticated;
           _errorMessage = null;
           notifyListeners();
@@ -136,6 +143,7 @@ class DispatchAuthController extends ChangeNotifier {
           _currentPhoneNumber = identifier.contains('@') ? null : identifier;
           _currentSignupEmail = null;
           _currentPurpose = 'login';
+          _debugOtp = data.debugOtp;
           _status = AuthStatus.unauthenticated;
           _errorMessage = null;
           notifyListeners();
@@ -407,6 +415,7 @@ class DispatchAuthController extends ChangeNotifier {
     _currentPhoneNumber = null;
     _currentSignupEmail = null;
     _currentPurpose = '';
+    _debugOtp = null;
     _status = AuthStatus.unauthenticated;
     _errorMessage = null;
     notifyListeners();

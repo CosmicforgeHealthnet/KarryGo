@@ -48,8 +48,13 @@ func TestProviderBearerMiddleware(t *testing.T) {
 	taxiSecret := []byte("development-taxi-access-token-secret")
 	secrets := map[string][]byte{"hauling": haulingSecret, "taxi": taxiSecret}
 
-	t.Run("accepts hauling provider token with truck_provider role", func(t *testing.T) {
-		// Regression for M1: hauling mints role="truck_provider", not "provider".
+	t.Run("hauling token resolves to the truck_provider ledger owner", func(t *testing.T) {
+		// Regression: the ledger owner-id must be keyed by the canonical
+		// provider_type the hauling service settles under ("truck_provider"),
+		// NOT the service key ("hauling"). Otherwise CompleteJob credits
+		// "truck_provider:<id>" while earnings/withdrawals read "hauling:<id>"
+		// (an always-empty account) — the provider never sees completed-trip
+		// earnings.
 		token := providerToken(t, haulingSecret, "prov-1", "truck_provider", "hauling")
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/provider/earnings", nil)
@@ -59,7 +64,7 @@ func TestProviderBearerMiddleware(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 		}
-		if got := rec.Body.String(); !contains(got, `"provider_type":"hauling"`) || !contains(got, `"provider_id":"prov-1"`) {
+		if got := rec.Body.String(); !contains(got, `"provider_type":"truck_provider"`) || !contains(got, `"provider_id":"prov-1"`) {
 			t.Fatalf("unexpected identity in body: %s", got)
 		}
 	})
@@ -116,6 +121,22 @@ func TestProviderBearerMiddleware(t *testing.T) {
 			t.Fatalf("expected 401, got %d", rec.Code)
 		}
 	})
+}
+
+func TestCanonicalProviderType(t *testing.T) {
+	cases := map[string]string{
+		// Hauling settles under "truck_provider" though its token key is "hauling".
+		"hauling": "truck_provider",
+		// Dispatch settles under its own service key — must pass through unchanged,
+		// or dispatch earnings would break the same way hauling did.
+		"dispatch": "dispatch",
+		"taxi":     "taxi",
+	}
+	for service, want := range cases {
+		if got := canonicalProviderType(service); got != want {
+			t.Errorf("canonicalProviderType(%q) = %q, want %q", service, got, want)
+		}
+	}
 }
 
 func contains(haystack, needle string) bool {

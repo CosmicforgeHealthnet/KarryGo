@@ -73,7 +73,10 @@ ensure_role_and_db() {
 apply_migrations() {
   log "applying payment-wallet migrations"
   local dsn="postgres://${ROLE_NAME}:${ROLE_PASSWORD}@localhost:${PG_PORT}/${DB_NAME}?sslmode=disable"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/payment-wallet-service/migrations/001_wallet_ledger.sql"
+  local migration
+  for migration in "$ROOT_DIR"/services/payment-wallet-service/migrations/*.sql; do
+    "$PSQL_BIN" "$dsn" -f "$migration"
+  done
 }
 
 main() {

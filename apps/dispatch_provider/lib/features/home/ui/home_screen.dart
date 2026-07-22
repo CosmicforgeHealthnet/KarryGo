@@ -23,11 +23,15 @@ class HomeScreen extends StatefulWidget {
     required this.tripStateNotifier,
     required this.activeRequestNotifier,
     required this.availabilityController,
+    this.onOpenNotifications,
   });
 
   final ValueNotifier<TripState> tripStateNotifier;
   final ValueNotifier<RequestModel?> activeRequestNotifier;
   final AvailabilityController availabilityController;
+
+  /// Opens the notification feed screen (bell icon). Optional for tests.
+  final VoidCallback? onOpenNotifications;
 
   @override
   HomeScreenState createState() => HomeScreenState();
@@ -263,24 +267,27 @@ class HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.notifications_outlined,
-                        size: 22,
-                        color: Color(0xFF1A1A1A),
+                    GestureDetector(
+                      onTap: widget.onOpenNotifications,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.notifications_outlined,
+                          size: 22,
+                          color: Color(0xFF1A1A1A),
+                        ),
                       ),
                     ),
                   ],

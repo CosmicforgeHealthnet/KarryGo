@@ -37,7 +37,7 @@ export default function ProfilePhotoPage() {
         { profile_photo_url: asset.url },
         token
       );
-      setSession({ token, expiresAt: expiresAt ?? "", account: updatedAccount });
+      setSession({ token, expires_at: expiresAt ?? "", account: updatedAccount });
       setPhotoFile(file);
       router.push("/success");
     } catch (err) {
