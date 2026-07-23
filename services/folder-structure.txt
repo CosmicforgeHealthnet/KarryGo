@@ -139,12 +139,23 @@
 │   │   └── main.go
 │   ├── internal
 │   │   ├── config
-│   │   │   └── config.go
+│   │   │   ├── config.go
+│   │   │   └── config_test.go
 │   │   ├── database
 │   │   │   ├── .gitkeep
 │   │   │   └── postgres.go
 │   │   ├── features
 │   │   │   ├── partner
+│   │   │   │   ├── billing
+│   │   │   │   │   ├── model.go
+│   │   │   │   │   ├── repository.go
+│   │   │   │   │   ├── routes.go
+│   │   │   │   │   ├── service.go
+│   │   │   │   │   └── service_test.go
+│   │   │   │   ├── callbacks
+│   │   │   │   │   ├── handler.go
+│   │   │   │   │   ├── handler_test.go
+│   │   │   │   │   └── routes.go
 │   │   │   │   ├── delivery
 │   │   │   │   │   ├── errors.go
 │   │   │   │   │   ├── events.go
@@ -169,12 +180,15 @@
 │   │   │   │   │   ├── helpers.go
 │   │   │   │   │   ├── postgres_accounts.go
 │   │   │   │   │   ├── postgres_apikeys.go
+│   │   │   │   │   ├── postgres_billing.go
 │   │   │   │   │   ├── postgres_bookings.go
 │   │   │   │   │   ├── postgres_idempotency.go
+│   │   │   │   │   ├── postgres_otp_challenges.go
 │   │   │   │   │   ├── postgres_sessions.go
 │   │   │   │   │   ├── postgres_webhook_deliveries.go
 │   │   │   │   │   ├── postgres_webhooks.go
 │   │   │   │   │   ├── redis_publisher.go
+│   │   │   │   │   ├── wallet_charge_client.go
 │   │   │   │   │   └── wallet_client.go
 │   │   │   │   ├── ratelimit
 │   │   │   │   │   ├── ratelimit.go
@@ -200,17 +214,21 @@
 │   │   │   │       ├── validation.go
 │   │   │   │       └── validation_test.go
 │   │   │   ├── partneraccount
+│   │   │   │   ├── billing_handlers.go
 │   │   │   │   ├── fakes_test.go
 │   │   │   │   ├── handlers.go
 │   │   │   │   ├── jwt.go
 │   │   │   │   ├── keys.go
 │   │   │   │   ├── middleware.go
 │   │   │   │   ├── model.go
+│   │   │   │   ├── otp.go
 │   │   │   │   ├── repository.go
 │   │   │   │   ├── routes.go
 │   │   │   │   ├── routes_test.go
 │   │   │   │   ├── service.go
-│   │   │   │   └── service_test.go
+│   │   │   │   ├── service_test.go
+│   │   │   │   ├── signup.go
+│   │   │   │   └── smtp_otp_sender.go
 │   │   │   ├── partnerauth
 │   │   │   │   ├── context.go
 │   │   │   │   ├── errors.go
@@ -266,6 +284,20 @@
 │   │   ├── 001_partner_schema_down.sql
 │   │   ├── 002_partner_auth.sql
 │   │   ├── 002_partner_auth_down.sql
+│   │   ├── 003_partner_delivery_details.sql
+│   │   ├── 003_partner_delivery_details_down.sql
+│   │   ├── 004_partner_profile_fields.sql
+│   │   ├── 004_partner_profile_fields_down.sql
+│   │   ├── 005_partner_api_key_scopes.sql
+│   │   ├── 005_partner_api_key_scopes_down.sql
+│   │   ├── 006_partner_billing.sql
+│   │   ├── 006_partner_billing_down.sql
+│   │   ├── 007_partner_booking_details.sql
+│   │   ├── 007_partner_booking_details_down.sql
+│   │   ├── 008_partner_billing.sql
+│   │   ├── 008_partner_billing_down.sql
+│   │   ├── 009_partner_otp_onboarding.sql
+│   │   ├── 009_partner_otp_onboarding_down.sql
 │   │   └── migrations_test.go
 │   ├── scripts
 │   │   └── smoke_partner_api.sh
@@ -384,6 +416,10 @@
 │   └── README.md
 ├── driver-dispatch-delivery-service
 │   ├── cmd
+│   │   ├── online
+│   │   │   └── main.go
+│   │   ├── seed
+│   │   │   └── main.go
 │   │   └── main.go
 │   ├── internal
 │   │   ├── apiresponse
@@ -459,30 +495,24 @@
 │   │   │   │   ├── subscribers_test.go
 │   │   │   │   ├── trips_5j_test.go
 │   │   │   │   └── websocket_5h_test.go
-│   │   │   ├── bikes
+│   │   │   ├── booking
 │   │   │   │   ├── clients
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── http
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── models
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── repositories
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── usecases
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   └── README.md
-│   │   │   ├── deliveries
-│   │   │   │   ├── clients
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── http
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── models
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── repositories
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── usecases
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   └── README.md
+│   │   │   │   │   ├── notification_client.go
+│   │   │   │   │   └── notification_client_test.go
+│   │   │   │   ├── events.go
+│   │   │   │   ├── handler.go
+│   │   │   │   ├── model.go
+│   │   │   │   ├── payments.go
+│   │   │   │   ├── pricing.go
+│   │   │   │   ├── repository.go
+│   │   │   │   ├── service.go
+│   │   │   │   ├── service_test.go
+│   │   │   │   ├── subscribers.go
+│   │   │   │   └── trip_adapter.go
+│   │   │   ├── identity
+│   │   │   │   └── http
+│   │   │   │       ├── handler.go
+│   │   │   │       └── routes.go
 │   │   │   ├── matching
 │   │   │   │   ├── clients
 │   │   │   │   │   └── .gitkeep
@@ -495,6 +525,10 @@
 │   │   │   │   ├── usecases
 │   │   │   │   │   └── .gitkeep
 │   │   │   │   └── README.md
+│   │   │   ├── notifications
+│   │   │   │   └── http
+│   │   │   │       ├── handler.go
+│   │   │   │       └── routes.go
 │   │   │   ├── profile
 │   │   │   │   ├── avatar_storage.go
 │   │   │   │   ├── event_publisher.go
@@ -507,22 +541,12 @@
 │   │   │   │   ├── service.go
 │   │   │   │   ├── service_test.go
 │   │   │   │   └── subscriber.go
-│   │   │   ├── proof_of_delivery
-│   │   │   │   ├── clients
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── http
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── models
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── repositories
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── usecases
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   └── README.md
 │   │   │   ├── request
 │   │   │   │   ├── events.go
 │   │   │   │   ├── handler.go
 │   │   │   │   ├── model.go
+│   │   │   │   ├── notification_client.go
+│   │   │   │   ├── notification_client_test.go
 │   │   │   │   ├── phase6cde_test.go
 │   │   │   │   ├── phase6fgh_test.go
 │   │   │   │   ├── phase6ijk_test.go
@@ -536,18 +560,6 @@
 │   │   │   │   ├── tasks.go
 │   │   │   │   ├── tasks_test.go
 │   │   │   │   └── workers.go
-│   │   │   ├── riders
-│   │   │   │   ├── clients
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── http
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── models
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── repositories
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   ├── usecases
-│   │   │   │   │   └── .gitkeep
-│   │   │   │   └── README.md
 │   │   │   ├── trip
 │   │   │   │   ├── events.go
 │   │   │   │   ├── foundation_test.go
@@ -657,6 +669,10 @@
 │   │   ├── 000029_add_package_fields_to_trips.up.sql
 │   │   ├── 000030_add_service_tier_to_trips.down.sql
 │   │   ├── 000030_add_service_tier_to_trips.up.sql
+│   │   ├── 000031_create_dispatch_bookings.down.sql
+│   │   ├── 000031_create_dispatch_bookings.up.sql
+│   │   ├── 000032_add_review_fields_to_ratings.down.sql
+│   │   ├── 000032_add_review_fields_to_ratings.up.sql
 │   │   ├── 001_dispatch_rider_auth.sql
 │   │   ├── 001_dispatch_rider_auth_down.sql
 │   │   ├── 002_dispatch_rider_auth_alter.sql
@@ -664,17 +680,22 @@
 │   │   ├── 003_dispatch_rider_auth_signup.sql
 │   │   ├── 003_dispatch_rider_auth_signup_down.sql
 │   │   ├── availability_migrations_test.go
+│   │   ├── booking_migrations_test.go
 │   │   ├── profile_migrations_test.go
 │   │   ├── request_migrations_test.go
 │   │   ├── trip_migrations_test.go
 │   │   ├── vehicle_migrations_test.go
 │   │   └── verification_migrations_test.go
+│   ├── seeds
+│   │   └── dev_seed.sql
+│   ├── .air.toml
 │   ├── .env.example
+│   ├── CUSTOMER_BOOKING_README.md
 │   ├── FULL_STRUCTURE_REPORT.md
 │   ├── go.mod
 │   ├── go.sum
-│   ├── README.md
-│   └── verify_integration.go
+│   ├── online
+│   └── README.md
 ├── driver-hauling-service
 │   ├── cmd
 │   │   ├── online
@@ -1015,6 +1036,7 @@
 │   │   └── migrations_test.go
 │   ├── .air.toml
 │   ├── .env.example
+│   ├── firebase.json
 │   ├── go.mod
 │   ├── go.sum
 │   └── README.md
@@ -1198,6 +1220,11 @@
 │   │       │   │   └── postgres_wallet_repository.go
 │   │       │   ├── usecases
 │   │       │   │   ├── .gitkeep
+│   │       │   │   ├── assign_provider_test.go
+│   │       │   │   ├── bank_accounts.go
+│   │       │   │   ├── bank_accounts_test.go
+│   │       │   │   ├── transaction_pin.go
+│   │       │   │   ├── transaction_pin_test.go
 │   │       │   │   └── wallet_service.go
 │   │       │   └── README.md
 │   │       ├── withdrawals
@@ -1215,6 +1242,8 @@
 │   │       └── README.md
 │   ├── migrations
 │   │   ├── 001_wallet_ledger.sql
+│   │   ├── 002_provider_transaction_pins.sql
+│   │   ├── 003_bank_account_default.sql
 │   │   └── migrations_test.go
 │   ├── .air.toml
 │   ├── .env.example
