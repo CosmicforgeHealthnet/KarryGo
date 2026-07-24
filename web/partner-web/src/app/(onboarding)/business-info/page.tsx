@@ -30,7 +30,10 @@ export default function BusinessInfoPage() {
   const [loading, setLoading] = useState(false);
 
   const canContinue =
-    businessName.trim() && businessPhone.trim() && state && city.trim();
+    !!businessName.trim() &&
+    !!businessPhone.trim() &&
+    !!state &&
+    !!city.trim();
 
   const handleContinue = async () => {
     if (!canContinue || loading) return;
@@ -39,28 +42,30 @@ export default function BusinessInfoPage() {
       return;
     }
     setError(null);
-    setLoading(true);
+    setLoading(true); // stays true through navigation — only cleared on error
     try {
       const { account: updatedAccount } = await profileService.updateProfile(
         {
-          business_name: businessName,
-          business_phone: businessPhone,
+          business_name: businessName.trim(),
+          business_phone: businessPhone.trim(),
           state,
-          city,
+          city: city.trim(),
         },
         token
       );
       setSession({ token, expires_at: expiresAt ?? "", account: updatedAccount });
       setBusinessInfo({ businessName, businessPhone, businessEmail, state, city });
       router.push("/business-logo");
+      // no finally/setLoading(false) here on purpose — button stays disabled
+      // until this page unmounts on route change, so it can never flash
+      // back to "enabled" between success and the next screen.
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError("Something went wrong. Please try again.");
       }
-    } finally {
-      setLoading(false);
+      setLoading(false); // only re-enable on failure
     }
   };
 
@@ -76,6 +81,7 @@ export default function BusinessInfoPage() {
           placeholder="Demai UI"
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
+          disabled={loading}
         />
         <Input
           id="businessPhone"
@@ -84,6 +90,7 @@ export default function BusinessInfoPage() {
           placeholder="13456781234"
           value={businessPhone}
           onChange={(e) => setBusinessPhone(e.target.value)}
+          disabled={loading}
         />
         <Input
           id="businessEmail"
@@ -102,7 +109,8 @@ export default function BusinessInfoPage() {
               <select
                 value={state}
                 onChange={(e) => setState(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                disabled={loading}
+                className="w-full appearance-none rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 focus:border-brand-500 focus:outline-none disabled:opacity-60"
               >
                 <option value="">State</option>
                 {NIGERIAN_STATES.map((s) => (
@@ -118,6 +126,7 @@ export default function BusinessInfoPage() {
               placeholder="City"
               value={city}
               onChange={(e) => setCity(e.target.value)}
+              disabled={loading}
             />
           </div>
         </div>
