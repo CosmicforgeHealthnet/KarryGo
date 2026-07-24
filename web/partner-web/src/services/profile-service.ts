@@ -6,8 +6,8 @@ interface UpdateProfileInput {
   business_phone?: string;
   state?: string;
   city?: string;
-  business_logo_url?: string;
-  profile_photo_url?: string;
+  business_logo_url?: string | null;
+  profile_photo_url?: string | null;
 }
 
 export const profileService = {
