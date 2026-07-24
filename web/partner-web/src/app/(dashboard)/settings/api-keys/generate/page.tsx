@@ -1,5 +1,5 @@
 "use client";
-
+import { ApiError } from "@/lib/api-client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Copy, Check } from "lucide-react";
