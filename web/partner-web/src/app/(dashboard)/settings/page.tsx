@@ -14,7 +14,7 @@ import type { APIKey, AuthAccount } from "@/types";
 
 type Tab = "profile" | "api-keys" | "webhooks";
 
-const STATES = ["Abuja (FCT)", "Lagos", "Rivers", "Kano", "Oyo", "Kaduna", "Enugu"];
+const STATES = ["Abuja (FCT)", "Lagos", "Rivers", "Kano", "Oyo", "Kaduna", "Enugu", "Kogi"];
 
 const getFullImageUrl = (url: string | null) => {
   if (!url) return '';
