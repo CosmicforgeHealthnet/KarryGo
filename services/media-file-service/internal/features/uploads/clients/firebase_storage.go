@@ -111,31 +111,27 @@ func (c *FirebaseStorageClient) Upload(ctx context.Context, input UploadObjectIn
 		return StorageObject{}, err
 	}
 
-	var signedURL string
-	if c.useSignedURLs && len(c.credentialsJSON) > 0 {
-		url, err := c.generateSignedURL(ctx, input.Path)
-		if err != nil {
-			return StorageObject{}, fmt.Errorf("generate signed url: %w", err)
-		}
-		signedURL = url
-	} else {
-		signedURL = c.publicURL(input.Path)
-	}
-
+	// NOTE: files are served to clients via this service's own /{id}/download
+	// proxy route (see uploads/http/handler.go Download()), which streams the
+	// object through storage.Download() and enforces ownsAsset() access
+	// control. The URL returned here is not used by callers for direct file
+	// access, so we no longer generate a GCS signed URL (which has a hard
+	// 7-day expiry cap and was previously being requested with a 365-day
+	// expiry, causing every upload to fail).
 	return StorageObject{
 		Bucket: c.bucketName,
 		Path:   input.Path,
-		URL:    signedURL,
+		URL:    c.publicURL(input.Path),
 	}, nil
 }
 
 func (c *FirebaseStorageClient) generateSignedURL(ctx context.Context, path string) (string, error) {
 	type serviceAccount struct {
-		Type        string `json:"type"`
-		ProjectID   string `json:"project_id"`
+		Type         string `json:"type"`
+		ProjectID    string `json:"project_id"`
 		PrivateKeyID string `json:"private_key_id"`
-		PrivateKey  string `json:"private_key"`
-		ClientEmail string `json:"client_email"`
+		PrivateKey   string `json:"private_key"`
+		ClientEmail  string `json:"client_email"`
 	}
 
 	var sa serviceAccount
@@ -150,7 +146,7 @@ func (c *FirebaseStorageClient) generateSignedURL(ctx context.Context, path stri
 	opts := &gcs.SignedURLOptions{
 		Scheme:         gcs.SigningSchemeV4,
 		Method:         "GET",
-		Expires:        time.Now().Add(24 * time.Hour * 365),
+		Expires:        time.Now().Add(6 * 24 * time.Hour),
 		GoogleAccessID: sa.ClientEmail,
 		PrivateKey:     []byte(sa.PrivateKey),
 	}
