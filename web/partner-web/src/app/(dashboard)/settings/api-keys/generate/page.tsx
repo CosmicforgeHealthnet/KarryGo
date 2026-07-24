@@ -83,7 +83,7 @@ export default function GenerateApiKeyPage() {
     label.trim().length > 0 &&
     permissions.length > 0;
 
-  const handleGenerate = async () => {
+ const handleGenerate = async () => {
     setAttemptedSubmit(true);
     if (!canGenerate || !token) return;
 
@@ -102,7 +102,11 @@ export default function GenerateApiKeyPage() {
       const result = await apiKeyService.create(token, input);
       setGeneratedKey(result);
     } catch (err) {
-      setError("Failed to generate API key. Please try again.");
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Failed to generate API key. Please try again.");
+      }
       console.error(err);
     } finally {
       setLoading(false);
