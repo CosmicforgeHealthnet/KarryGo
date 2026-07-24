@@ -3,36 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { User, KeyRound, Webhook as WebhookIcon, X, LogOut, ChevronRight, Key, Copy, Check, Trash2, Plus, Upload, Loader2 } from "lucide-react";
+import { User, KeyRound, Webhook as WebhookIcon, LogOut, ChevronRight, Key, Copy, Check, Trash2, Plus, Upload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
 import { apiKeyService } from "@/services/api-key-service";
 import { authService } from "@/services/auth-service";
 import { profileService } from "@/services/profile-service";
 import { webhookService } from "@/services/webhook-service";
+import { mediaService } from "@/services/media-service";
+import { ApiError } from "@/lib/api-client";
 import type { APIKey, AuthAccount } from "@/types";
 
 type Tab = "profile" | "api-keys" | "webhooks";
 
 const STATES = ["Abuja (FCT)", "Lagos", "Rivers", "Kano", "Oyo", "Kaduna", "Enugu", "Kogi"];
-
-const getFullImageUrl = (url: string | null) => {
-  if (!url) return '';
-  
-  // Extract the ID from any URL or just use the string
-  let id = '';
-  
-  // Try to extract ID from URL
-  const match = url.match(/([a-f0-9-]{8,}-[a-f0-9-]{4,}-[a-f0-9-]{4,}-[a-f0-9-]{4,}-[a-f0-9-]{12,})/);
-  if (match) {
-    id = match[1];
-  } else {
-    // If no ID found, return empty
-    return '';
-  }
-  
-  return `http://localhost:8109/api/v1/media-files/${id}/download`;
-};
 
 function Checkerboard() {
   return (
@@ -67,6 +51,7 @@ function ProfileTab() {
   useEffect(() => {
     if (!token) return;
     loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const loadProfile = async () => {
@@ -95,7 +80,7 @@ function ProfileTab() {
     setSaveLoading(true);
     setError(null);
     try {
-      const payload: any = {};
+      const payload: Partial<AuthAccount> = {};
       if (draft.business_name !== profile?.business_name) {
         payload.business_name = draft.business_name;
       }
@@ -119,11 +104,21 @@ function ProfileTab() {
       setProfile(response.account);
       setEditing(false);
     } catch (err) {
-      setError("Failed to save profile");
+      setError(err instanceof ApiError ? err.message : "Failed to save profile");
       console.error(err);
     } finally {
       setSaveLoading(false);
     }
+  };
+
+  const validateImageFile = (file: File): string | null => {
+    if (!file.type.startsWith("image/")) {
+      return "Please upload an image file";
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return "Image must be less than 5MB";
+    }
+    return null;
   };
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,52 +128,24 @@ function ProfileTab() {
       return;
     }
 
-    if (!file.type.startsWith('image/')) {
-      setError("Please upload an image file");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image must be less than 5MB");
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setError(validationError);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
     setUploadLoading(true);
     setError(null);
-
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("purpose", "profile_photo");
-      formData.append("owner_service", "partner-service");
-
-      const response = await fetch(`http://localhost:8109/api/v1/media-files/uploads`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
-      const result = await response.json();
-      const uploadedUrl = result.data.url || `http://localhost:8109/${result.data.id}/download`;
-      
-      setDraft((d) => d ? { ...d, profile_photo_url: uploadedUrl } : null);
-      
+      const asset = await mediaService.uploadFile(file, "profile_photo", token);
+      setDraft((d) => (d ? { ...d, profile_photo_url: asset.url } : null));
     } catch (err) {
-      setError("Failed to upload photo");
+      setError(err instanceof ApiError ? err.message : "Failed to upload photo");
       console.error(err);
     } finally {
       setUploadLoading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -189,52 +156,27 @@ function ProfileTab() {
       return;
     }
 
-    if (!file.type.startsWith('image/')) {
-      setError("Please upload an image file");
-      if (logoInputRef.current) logoInputRef.current.value = "";
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image must be less than 5MB");
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setError(validationError);
       if (logoInputRef.current) logoInputRef.current.value = "";
       return;
     }
 
     setLogoUploadLoading(true);
     setError(null);
-
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("purpose", "business_logo");
-      formData.append("owner_service", "partner-service");
-
-      const response = await fetch(`http://localhost:8109/api/v1/media-files/uploads`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
-      const result = await response.json();
-      const uploadedUrl = result.data.url || `http://localhost:8109/${result.data.id}/download`;
-      
-      setDraft((d) => d ? { ...d, business_logo_url: uploadedUrl } : null);
-      
+      // purpose must be "document_file" — the media service's isAllowedPurpose
+      // only accepts profile_photo, document_file, proof_image, signature.
+      // "business_logo" is not a recognized purpose and gets rejected server-side.
+      const asset = await mediaService.uploadFile(file, "document_file", token);
+      setDraft((d) => (d ? { ...d, business_logo_url: asset.url } : null));
     } catch (err) {
-      setError("Failed to upload logo");
+      setError(err instanceof ApiError ? err.message : "Failed to upload logo");
       console.error(err);
     } finally {
       setLogoUploadLoading(false);
-      if (logoInputRef.current) {
-        logoInputRef.current.value = "";
-      }
+      if (logoInputRef.current) logoInputRef.current.value = "";
     }
   };
 
@@ -255,7 +197,11 @@ function ProfileTab() {
 
   const handleDeleteAccount = async () => {
     if (!token) return;
-    if (!confirm("Are you sure you want to delete your account? This action cannot be undone. All your data will be permanently removed.")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete your account? This action cannot be undone. All your data will be permanently removed."
+      )
+    ) {
       return;
     }
     setError(null);
@@ -264,7 +210,7 @@ function ProfileTab() {
       clearSession();
       router.push("/login");
     } catch (err) {
-      setError("Failed to delete account");
+      setError(err instanceof ApiError ? err.message : "Failed to delete account");
       console.error(err);
     }
   };
@@ -277,13 +223,13 @@ function ProfileTab() {
           <p className="mt-1 text-sm text-ink-500">Loading your profile...</p>
         </div>
         <div className="flex items-center justify-center min-h-[200px]">
-          <div className="text-ink-500">Loading...</div>
+          <Loader2 className="h-5 w-5 animate-spin text-ink-400" />
         </div>
       </div>
     );
   }
 
-  if (error || !profile) {
+  if (error && !profile) {
     return (
       <div className="space-y-6">
         <div>
@@ -291,7 +237,24 @@ function ProfileTab() {
           <p className="mt-1 text-sm text-ink-500">Update your account details.</p>
         </div>
         <div className="rounded-xl bg-danger/10 p-4 text-sm text-danger">
-          {error || "No profile data found"}
+          {error}
+          <button onClick={loadProfile} className="ml-3 font-semibold underline">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-lg font-bold text-ink-900">Profile Information</h1>
+          <p className="mt-1 text-sm text-ink-500">Update your account details.</p>
+        </div>
+        <div className="rounded-xl bg-danger/10 p-4 text-sm text-danger">
+          No profile data found
           <button onClick={loadProfile} className="ml-3 font-semibold underline">
             Retry
           </button>
@@ -310,12 +273,16 @@ function ProfileTab() {
 
         {profile.profile_photo_url ? (
           <img
-            src={getFullImageUrl(profile.profile_photo_url)!}
+            src={profile.profile_photo_url}
             alt="Profile"
             className="mx-auto h-28 w-28 shrink-0 rounded-full object-cover"
           />
         ) : (
           <Checkerboard />
+        )}
+
+        {error && (
+          <div className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</div>
         )}
 
         <div className="space-y-4">
@@ -350,10 +317,10 @@ function ProfileTab() {
             <div>
               <p className="text-sm font-bold text-ink-900">Business Logo</p>
               <div className="mt-2 flex items-center gap-3">
-                <img 
-                  src={getFullImageUrl(profile.business_logo_url)!} 
-                  alt="Logo" 
-                  className="h-9 w-9 shrink-0 rounded-full object-cover" 
+                <img
+                  src={profile.business_logo_url}
+                  alt="Logo"
+                  className="h-9 w-9 shrink-0 rounded-full object-cover"
                 />
                 <p className="text-sm text-ink-700">Logo uploaded</p>
               </div>
@@ -411,29 +378,30 @@ function ProfileTab() {
       <div className="flex flex-col items-center">
         {draft?.profile_photo_url ? (
           <img
-            src={getFullImageUrl(draft.profile_photo_url)!}
+            src={draft.profile_photo_url}
             alt="Profile"
             className="mx-auto h-28 w-28 shrink-0 rounded-full object-cover border-2 border-ink-100"
           />
         ) : (
           <Checkerboard />
         )}
-        
+
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           onChange={handlePhotoUpload}
           className="hidden"
           id="profile-photo-upload"
+          disabled={uploadLoading}
         />
-        
+
         <div className="mt-3 flex items-center gap-3">
           <label
             htmlFor="profile-photo-upload"
             className={cn(
               "cursor-pointer rounded-xl border border-brand-300 bg-brand-100 px-5 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-200 inline-flex items-center gap-2 transition-colors",
-              uploadLoading && "opacity-50 cursor-not-allowed"
+              uploadLoading && "opacity-50 cursor-not-allowed pointer-events-none"
             )}
           >
             {uploadLoading ? (
@@ -450,8 +418,9 @@ function ProfileTab() {
           </label>
           <button
             type="button"
-            onClick={() => setDraft((d) => d ? { ...d, profile_photo_url: null } : null)}
-            className="rounded-xl bg-danger/10 px-5 py-2.5 text-sm font-semibold text-danger hover:bg-danger/20 transition-colors"
+            onClick={() => setDraft((d) => (d ? { ...d, profile_photo_url: null } : null))}
+            disabled={uploadLoading}
+            className="rounded-xl bg-danger/10 px-5 py-2.5 text-sm font-semibold text-danger hover:bg-danger/20 transition-colors disabled:opacity-50"
           >
             Remove Photo
           </button>
@@ -459,18 +428,17 @@ function ProfileTab() {
       </div>
 
       {error && (
-        <div className="rounded-xl bg-danger/10 p-3 text-sm text-danger">
-          {error}
-        </div>
+        <div className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</div>
       )}
 
       <div>
         <label className="mb-2 block text-sm font-medium text-ink-900">Business Name</label>
         <input
           value={draft?.business_name || ""}
-          onChange={(e) => setDraft((d) => d ? { ...d, business_name: e.target.value } : null)}
+          onChange={(e) => setDraft((d) => (d ? { ...d, business_name: e.target.value } : null))}
           placeholder="Business name"
-          className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none"
+          disabled={saveLoading}
+          className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none disabled:opacity-60"
         />
       </div>
 
@@ -478,9 +446,10 @@ function ProfileTab() {
         <label className="mb-2 block text-sm font-medium text-ink-900">Business Phone Number</label>
         <input
           value={draft?.business_phone || ""}
-          onChange={(e) => setDraft((d) => d ? { ...d, business_phone: e.target.value } : null)}
+          onChange={(e) => setDraft((d) => (d ? { ...d, business_phone: e.target.value } : null))}
           placeholder="Phone number"
-          className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none"
+          disabled={saveLoading}
+          className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none disabled:opacity-60"
         />
       </div>
 
@@ -498,8 +467,9 @@ function ProfileTab() {
         <label className="block text-sm font-medium text-ink-900">Location</label>
         <select
           value={draft?.state || ""}
-          onChange={(e) => setDraft((d) => d ? { ...d, state: e.target.value } : null)}
-          className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+          onChange={(e) => setDraft((d) => (d ? { ...d, state: e.target.value } : null))}
+          disabled={saveLoading}
+          className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 focus:border-brand-500 focus:outline-none disabled:opacity-60"
         >
           <option value="">Select state</option>
           {STATES.map((s) => (
@@ -510,32 +480,34 @@ function ProfileTab() {
         </select>
         <input
           value={draft?.city || ""}
-          onChange={(e) => setDraft((d) => d ? { ...d, city: e.target.value } : null)}
+          onChange={(e) => setDraft((d) => (d ? { ...d, city: e.target.value } : null))}
           placeholder="City"
-          className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none"
+          disabled={saveLoading}
+          className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none disabled:opacity-60"
         />
       </div>
 
       {/* Business Logo Upload Section */}
       <div>
         <label className="mb-2 block text-sm font-medium text-ink-900">Business Logo</label>
-        
+
         <input
           ref={logoInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           onChange={handleLogoUpload}
           className="hidden"
           id="business-logo-upload"
+          disabled={logoUploadLoading}
         />
-        
+
         {draft?.business_logo_url ? (
           <div className="flex items-center justify-between rounded-xl border border-ink-100 px-4 py-3">
             <div className="flex items-center gap-3">
-              <img 
-                src={getFullImageUrl(draft.business_logo_url)!} 
-                alt="Logo" 
-                className="h-8 w-8 shrink-0 rounded-full object-cover" 
+              <img
+                src={draft.business_logo_url}
+                alt="Logo"
+                className="h-8 w-8 shrink-0 rounded-full object-cover"
               />
               <p className="text-sm text-ink-700">Logo uploaded</p>
             </div>
@@ -544,15 +516,16 @@ function ProfileTab() {
                 htmlFor="business-logo-upload"
                 className={cn(
                   "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors",
-                  logoUploadLoading && "opacity-50 cursor-not-allowed"
+                  logoUploadLoading && "opacity-50 cursor-not-allowed pointer-events-none"
                 )}
               >
                 {logoUploadLoading ? "Uploading..." : "Change"}
               </label>
               <button
                 type="button"
-                onClick={() => setDraft((d) => d ? { ...d, business_logo_url: null } : null)}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 transition-colors"
+                onClick={() => setDraft((d) => (d ? { ...d, business_logo_url: null } : null))}
+                disabled={logoUploadLoading}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
               >
                 Remove
               </button>
@@ -563,7 +536,7 @@ function ProfileTab() {
             htmlFor="business-logo-upload"
             className={cn(
               "flex w-full cursor-pointer items-center justify-center rounded-xl border border-dashed border-ink-200 px-4 py-6 text-sm text-ink-500 hover:bg-ink-50 transition-colors",
-              logoUploadLoading && "opacity-50 cursor-not-allowed"
+              logoUploadLoading && "opacity-50 cursor-not-allowed pointer-events-none"
             )}
           >
             {logoUploadLoading ? (
@@ -581,21 +554,35 @@ function ProfileTab() {
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saveLoading}
-        className="w-full rounded-xl bg-brand-500 px-6 py-4 text-base font-semibold text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
-      >
-        {saveLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 inline mr-2 animate-spin" />
-            Saving...
-          </>
-        ) : (
-          "Save Changes"
-        )}
-      </button>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(profile);
+            setEditing(false);
+            setError(null);
+          }}
+          disabled={saveLoading}
+          className="flex-1 rounded-xl border border-ink-200 px-6 py-4 text-base font-semibold text-ink-700 hover:bg-ink-50 transition-colors disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saveLoading || uploadLoading || logoUploadLoading}
+          className="flex-1 rounded-xl bg-brand-500 px-6 py-4 text-base font-semibold text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
+        >
+          {saveLoading ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </span>
+          ) : (
+            "Save Changes"
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -611,22 +598,24 @@ function ApiKeysTab() {
   useEffect(() => {
     if (!token) return;
     fetchKeys();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-const fetchKeys = async () => {
-  setLoading(true);
-  setError(null);
-  try {
-    const data = await apiKeyService.list(token!);
-    setKeys(data || []);
-  } catch (err) {
-    setError("Failed to load API keys");
-    console.error(err);
-    setKeys([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  const fetchKeys = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiKeyService.list(token!);
+      setKeys(data || []);
+    } catch (err) {
+      setError("Failed to load API keys");
+      console.error(err);
+      setKeys([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRevoke = async (id: string) => {
     if (!confirm("Are you sure you want to revoke this API key? This action cannot be undone.")) {
       return;
@@ -635,7 +624,7 @@ const fetchKeys = async () => {
     setError(null);
     try {
       await apiKeyService.revoke(token!, id);
-      setKeys(keys.filter(k => k.id !== id));
+      setKeys(keys.filter((k) => k.id !== id));
     } catch (err) {
       setError("Failed to revoke API key");
       console.error(err);
@@ -658,7 +647,7 @@ const fetchKeys = async () => {
           <p className="mt-1 text-sm text-ink-500">Loading your API keys...</p>
         </div>
         <div className="flex items-center justify-center min-h-[200px]">
-          <div className="text-ink-500">Loading...</div>
+          <Loader2 className="h-5 w-5 animate-spin text-ink-400" />
         </div>
       </div>
     );
@@ -796,6 +785,7 @@ function WebhooksTab() {
   useEffect(() => {
     if (!token) return;
     fetchWebhooks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const fetchWebhooks = async () => {
@@ -843,10 +833,8 @@ function WebhooksTab() {
   };
 
   const toggleEvent = (event: string) => {
-    setEvents(prev =>
-      prev.includes(event)
-        ? prev.filter(e => e !== event)
-        : [...prev, event]
+    setEvents((prev) =>
+      prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event]
     );
   };
 
@@ -858,7 +846,7 @@ function WebhooksTab() {
           <p className="mt-1 text-sm text-ink-500">Loading your webhooks...</p>
         </div>
         <div className="flex items-center justify-center min-h-[200px]">
-          <div className="text-ink-500">Loading...</div>
+          <Loader2 className="h-5 w-5 animate-spin text-ink-400" />
         </div>
       </div>
     );
@@ -956,7 +944,8 @@ function WebhooksTab() {
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-ink-900">{webhook.url}</p>
                   <p className="mt-0.5 text-xs text-ink-500">
-                    Status: {webhook.status} &middot; Created: {new Date(webhook.created_at).toLocaleDateString()}
+                    Status: {webhook.status} &middot; Created:{" "}
+                    {new Date(webhook.created_at).toLocaleDateString()}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {webhook.events.map((event: string) => (
