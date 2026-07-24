@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
 import { apiKeyService } from "@/services/api-key-service";
 import { authService } from "@/services/auth-service";
-import { profileService } from "@/services/profile-service";
+import { profileService, type UpdateProfileInput } from "@/services/profile-service";
 import { webhookService } from "@/services/webhook-service";
 import { mediaService } from "@/services/media-service";
 import { ApiError } from "@/lib/api-client";
@@ -75,41 +75,41 @@ function ProfileTab() {
     setError(null);
   };
 
-  const handleSave = async () => {
-    if (!token || !draft) return;
-    setSaveLoading(true);
-    setError(null);
-    try {
-      const payload: Partial<AuthAccount> = {};
-      if (draft.business_name !== profile?.business_name) {
-        payload.business_name = draft.business_name;
-      }
-      if (draft.business_phone !== profile?.business_phone) {
-        payload.business_phone = draft.business_phone;
-      }
-      if (draft.state !== profile?.state) {
-        payload.state = draft.state;
-      }
-      if (draft.city !== profile?.city) {
-        payload.city = draft.city;
-      }
-      if (draft.business_logo_url !== profile?.business_logo_url) {
-        payload.business_logo_url = draft.business_logo_url;
-      }
-      if (draft.profile_photo_url !== profile?.profile_photo_url) {
-        payload.profile_photo_url = draft.profile_photo_url;
-      }
-
-      const response = await profileService.updateProfile(payload, token);
-      setProfile(response.account);
-      setEditing(false);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to save profile");
-      console.error(err);
-    } finally {
-      setSaveLoading(false);
+ const handleSave = async () => {
+  if (!token || !draft) return;
+  setSaveLoading(true);
+  setError(null);
+  try {
+    const payload: UpdateProfileInput = {};
+    if (draft.business_name !== profile?.business_name) {
+      payload.business_name = draft.business_name ?? undefined;
     }
-  };
+    if (draft.business_phone !== profile?.business_phone) {
+      payload.business_phone = draft.business_phone ?? undefined;
+    }
+    if (draft.state !== profile?.state) {
+      payload.state = draft.state ?? undefined;
+    }
+    if (draft.city !== profile?.city) {
+      payload.city = draft.city ?? undefined;
+    }
+    if (draft.business_logo_url !== profile?.business_logo_url) {
+      payload.business_logo_url = draft.business_logo_url;
+    }
+    if (draft.profile_photo_url !== profile?.profile_photo_url) {
+      payload.profile_photo_url = draft.profile_photo_url;
+    }
+
+    const response = await profileService.updateProfile(payload, token);
+    setProfile(response.account);
+    setEditing(false);
+  } catch (err) {
+    setError(err instanceof ApiError ? err.message : "Failed to save profile");
+    console.error(err);
+  } finally {
+    setSaveLoading(false);
+  }
+};
 
   const validateImageFile = (file: File): string | null => {
     if (!file.type.startsWith("image/")) {
