@@ -1,0 +1,1 @@
+ALTER TABLE ratings ADD COLUMN IF NOT EXISTS recommends_provider BOOLEAN NULL;

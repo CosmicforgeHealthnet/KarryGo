@@ -1,20 +1,28 @@
 "use client";
-
+import { ApiError } from "@/lib/api-client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/auth-store";
+import { apiKeyService } from "@/services/api-key-service";
+import type { CreateAPIKeyInput, IssuedAPIKey } from "@/types";
 
-type Environment = "Sandbox" | "Live";
+type Environment = "sandbox" | "live";
 
 const PERMISSIONS = [
-  "Create Deliveries",
-  "Read Deliveries",
-  "Track Deliveries",
-  "Manage Webhooks",
+  { value: "create_deliveries", label: "Create Deliveries" },
+  { value: "read_deliveries", label: "Read Deliveries" },
+  { value: "track_deliveries", label: "Track Deliveries" },
+  { value: "manage_webhooks", label: "Manage Webhooks" },
 ] as const;
 
-const EXPIRATION_OPTIONS = ["30 days", "90 days", "1 year", "No expiration"];
+const EXPIRATION_OPTIONS = [
+  { value: "30 days", label: "30 days" },
+  { value: "90 days", label: "90 days" },
+  { value: "1 year", label: "1 year" },
+  { value: "No expiration", label: "No expiration" },
+];
 
 function CheckboxRow({
   checked,
@@ -50,13 +58,17 @@ function CheckboxRow({
 
 export default function GenerateApiKeyPage() {
   const router = useRouter();
+  const token = useAuthStore((s) => s.token);
   const [environment, setEnvironment] = useState<Environment | null>(null);
   const [label, setLabel] = useState("");
-  const [placeholder, setPlaceholder] = useState("");
   const [description, setDescription] = useState("");
   const [expiration, setExpiration] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [generatedKey, setGeneratedKey] = useState<IssuedAPIKey | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const togglePermission = (permission: string) => {
     setPermissions((prev) =>
@@ -66,21 +78,138 @@ export default function GenerateApiKeyPage() {
     );
   };
 
-  // Permissions must be non-empty: a key generated with zero permissions gets
-  // rejected by every permission-gated backend route (403 insufficient_scope),
-  // so it would be created but instantly useless. Requiring at least one here
-  // stops that trap before it happens instead of letting someone discover it
-  // only when their key mysteriously fails every request.
   const canGenerate =
-    environment !== null && label.trim().length > 0 && permissions.length > 0;
+    environment !== null &&
+    label.trim().length > 0 &&
+    permissions.length > 0;
 
-  const handleGenerate = () => {
+ const handleGenerate = async () => {
     setAttemptedSubmit(true);
-    if (!canGenerate) return;
-    // Mock only - no backend call yet.
-    router.push("/settings?tab=api-keys");
+    if (!canGenerate || !token) return;
+
+    setLoading(true);
+    setError(null);
+
+    const input: CreateAPIKeyInput = {
+      label: label.trim(),
+      environment: environment,
+      description: description.trim(),
+      expiration: expiration || "No expiration",
+      permissions: permissions,
+    };
+
+    try {
+      const result = await apiKeyService.create(token, input);
+      setGeneratedKey(result);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Failed to generate API key. Please try again.");
+      }
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  };
+
+  // If key is generated, show the key display
+  if (generatedKey) {
+    return (
+      <div className="space-y-6 pb-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/settings?tab=api-keys")}
+            aria-label="Go back"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-ink-900"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="rounded-2xl bg-white p-5">
+          <h1 className="text-lg font-bold text-ink-900">API Key Generated</h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Copy your new API key. It will not be shown again.
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-5 space-y-4">
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
+            <p className="text-sm font-semibold text-amber-800">⚠️ {generatedKey.warning}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-900">API Key</label>
+            <div className="mt-2 flex items-center gap-3 rounded-xl border border-ink-100 bg-ink-50 p-4">
+              <code className="flex-1 break-all text-sm font-mono text-ink-900">
+                {generatedKey.key}
+              </code>
+              <button
+                onClick={() => copyToClipboard(generatedKey.key)}
+                className="rounded-lg p-2 text-ink-500 hover:bg-ink-100"
+              >
+                {copied ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />}
+              </button>
+            </div>
+            {copied && <p className="mt-1 text-sm text-green-600">Copied to clipboard!</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-ink-500">Environment</p>
+              <p className="font-medium text-ink-900 capitalize">{generatedKey.environment}</p>
+            </div>
+            <div>
+              <p className="text-ink-500">Prefix</p>
+              <p className="font-medium text-ink-900">{generatedKey.prefix}</p>
+            </div>
+            {generatedKey.expires_at && (
+              <div className="col-span-2">
+                <p className="text-ink-500">Expires</p>
+                <p className="font-medium text-ink-900">
+                  {new Date(generatedKey.expires_at).toLocaleDateString()}
+                </p>
+              </div>
+            )}
+            <div className="col-span-2">
+              <p className="text-ink-500">Permissions</p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {generatedKey.permissions.map((p) => (
+                  <span key={p} className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-700">
+                    {p.replace(/_/g, " ")}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {generatedKey.description && (
+              <div className="col-span-2">
+                <p className="text-ink-500">Description</p>
+                <p className="font-medium text-ink-900">{generatedKey.description}</p>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push("/settings?tab=api-keys")}
+            className="w-full rounded-xl bg-brand-500 px-6 py-4 text-base font-semibold text-white hover:bg-brand-600"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Generate form
   return (
     <div className="space-y-6 pb-4">
       <div className="flex items-center gap-3">
@@ -97,10 +226,15 @@ export default function GenerateApiKeyPage() {
       <div className="rounded-2xl bg-white p-5">
         <h1 className="text-lg font-bold text-ink-900">Generate API Key</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Generate a new API key for authenticating requests to the cosmicforge Logistics
-          API
+          Generate a new API key for authenticating requests to the Cosmicforge Logistics API
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-xl bg-danger/10 p-4 text-sm text-danger">
+          {error}
+        </div>
+      )}
 
       <div className="space-y-6 rounded-2xl bg-white p-5">
         <div>
@@ -110,16 +244,21 @@ export default function GenerateApiKeyPage() {
           <p className="mt-1 text-sm text-ink-500">Choose which environment the key is for.</p>
           <div className="mt-3 space-y-1">
             <CheckboxRow
-              checked={environment === "Sandbox"}
-              onChange={() => setEnvironment("Sandbox")}
+              checked={environment === "sandbox"}
+              onChange={() => setEnvironment("sandbox")}
               label="Sandbox"
             />
             <CheckboxRow
-              checked={environment === "Live"}
-              onChange={() => setEnvironment("Live")}
+              checked={environment === "live"}
+              onChange={() => setEnvironment("live")}
               label="Live"
             />
           </div>
+          {attemptedSubmit && !environment && (
+            <p className="mt-2 text-sm font-medium text-danger">
+              Select an environment.
+            </p>
+          )}
           <div className="mt-4 rounded-xl bg-ink-100/60 p-3">
             <p className="text-sm font-bold text-ink-900">Note:</p>
             <p className="mt-1 text-xs text-ink-500">
@@ -145,22 +284,16 @@ export default function GenerateApiKeyPage() {
                 placeholder="API Key name"
                 className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none"
               />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-ink-900">Placeholder</label>
-              <input
-                value={placeholder}
-                onChange={(e) => setPlaceholder(e.target.value)}
-                placeholder="Website"
-                className="w-full rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none"
-              />
+              {attemptedSubmit && !label.trim() && (
+                <p className="mt-1 text-sm font-medium text-danger">Label is required.</p>
+              )}
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-ink-900">Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description"
+                placeholder="Description (optional)"
                 rows={3}
                 className="w-full resize-none rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 placeholder:text-ink-300 focus:border-brand-500 focus:outline-none"
               />
@@ -177,8 +310,8 @@ export default function GenerateApiKeyPage() {
           >
             <option value="">Select Option</option>
             {EXPIRATION_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
               </option>
             ))}
           </select>
@@ -193,12 +326,12 @@ export default function GenerateApiKeyPage() {
             permissions can&apos;t be used for anything.
           </p>
           <div className="mt-3 space-y-1">
-            {PERMISSIONS.map((permission) => (
+            {PERMISSIONS.map(({ value, label }) => (
               <CheckboxRow
-                key={permission}
-                checked={permissions.includes(permission)}
-                onChange={() => togglePermission(permission)}
-                label={permission}
+                key={value}
+                checked={permissions.includes(value)}
+                onChange={() => togglePermission(value)}
+                label={label}
               />
             ))}
           </div>
@@ -213,14 +346,15 @@ export default function GenerateApiKeyPage() {
       <button
         type="button"
         onClick={handleGenerate}
+        disabled={loading}
         className={cn(
           "w-full rounded-xl px-6 py-4 text-base font-semibold transition-colors",
-          canGenerate
+          canGenerate && !loading
             ? "bg-brand-500 text-white hover:bg-brand-600"
             : "cursor-not-allowed bg-brand-200 text-white"
         )}
       >
-        Generate API Key
+        {loading ? "Generating..." : "Generate API Key"}
       </button>
     </div>
   );

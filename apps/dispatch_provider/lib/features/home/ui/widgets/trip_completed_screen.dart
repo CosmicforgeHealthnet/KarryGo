@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -28,13 +30,16 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
   int _rating = 2;
   File? _proofFile;
   String? _proofFileName;
+  final List<Offset> _signaturePoints = [];
+  final GlobalKey _signaturePadKey = GlobalKey();
   bool _isSubmitting = false;
   String? _submitError;
 
+  // Backend requires an actual image (JPEG/PNG) for the delivery photo.
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      allowedExtensions: ['jpg', 'jpeg', 'png'],
     );
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
@@ -44,6 +49,24 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
       _proofFileName = file.name;
       _submitError = null;
     });
+  }
+
+  /// Rasterizes the drawn signature strokes to a PNG (white background),
+  /// sized to the on-screen pad so coordinates match what was drawn.
+  Future<Uint8List?> _renderSignaturePng() async {
+    if (_signaturePoints.isEmpty) return null;
+    final box =
+        _signaturePadKey.currentContext?.findRenderObject() as RenderBox?;
+    final size = box?.size ?? const Size(320, 140);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    _SignaturePainter(points: _signaturePoints).paint(canvas, size);
+    final image = await recorder
+        .endRecording()
+        .toImage(size.width.ceil(), size.height.ceil());
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List();
   }
 
   Future<void> _confirm() async {
@@ -58,6 +81,22 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
         );
         return;
       }
+      final signaturePng = await _renderSignaturePng();
+      if (signaturePng == null) {
+        setState(
+          () => _submitError =
+              'Please have the receiver sign before confirming.',
+        );
+        return;
+      }
+      if (widget.request.receiverName.isEmpty ||
+          widget.request.receiverPhone.isEmpty) {
+        setState(
+          () => _submitError =
+              'Receiver details are missing for this trip. Contact support.',
+        );
+        return;
+      }
 
       setState(() {
         _isSubmitting = true;
@@ -66,7 +105,10 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
 
       final proofResult = await controller.submitProof(
         id: tripId,
-        filePath: _proofFile!.path,
+        photoPath: _proofFile!.path,
+        signaturePng: signaturePng,
+        receiverName: widget.request.receiverName,
+        receiverPhone: widget.request.receiverPhone,
       );
 
       if (!mounted) return;
@@ -331,7 +373,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                               Text(
                                 _proofFile != null
                                     ? _proofFileName ?? 'File selected'
-                                    : 'Tap to upload photo or PDF',
+                                    : 'Tap to upload a photo (JPEG/PNG)',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -357,6 +399,59 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Receiver signature',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'For confirmation and security purposes, the receiver is '
+                  'required to sign below.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  height: 140,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE0E0E0)),
+                  ),
+                  child: GestureDetector(
+                    onPanStart: (d) =>
+                        setState(() => _signaturePoints.add(d.localPosition)),
+                    onPanUpdate: (d) =>
+                        setState(() => _signaturePoints.add(d.localPosition)),
+                    onPanEnd: (_) => setState(
+                      () => _signaturePoints.add(const Offset(-1, -1)),
+                    ),
+                    child: CustomPaint(
+                      key: _signaturePadKey,
+                      painter: _SignaturePainter(points: _signaturePoints),
+                      size: Size.infinite,
+                    ),
+                  ),
+                ),
+                if (_signaturePoints.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () =>
+                          setState(() => _signaturePoints.clear()),
+                      child: const Text(
+                        'Clear signature',
+                        style: TextStyle(
+                          color: Color(0xFF888888),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_submitError != null) ...[
                   const SizedBox(height: 10),
                   Text(
@@ -427,6 +522,29 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
     return '${dt.day.toString().padLeft(2, '0')} '
         '${months[dt.month - 1]} ${dt.year}';
   }
+}
+
+class _SignaturePainter extends CustomPainter {
+  _SignaturePainter({required this.points});
+  final List<Offset> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF1A1A1A)
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    for (var i = 0; i < points.length - 1; i++) {
+      final a = points[i];
+      final b = points[i + 1];
+      if (a == const Offset(-1, -1) || b == const Offset(-1, -1)) continue;
+      canvas.drawLine(a, b, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SignaturePainter oldDelegate) => true;
 }
 
 class _MetaRow extends StatelessWidget {

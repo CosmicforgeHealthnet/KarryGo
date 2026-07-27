@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -166,6 +167,38 @@ func (r *BillingUsageReader) CountCompletedInRange(ctx context.Context, partnerI
 	var n int
 	err := r.pool.QueryRow(ctx, q, partnerID, from, to).Scan(&n)
 	return n, err
+}
+
+// GetDashboardSummary returns all-time delivery count, today's count (using
+// the database's own clock/day boundary, not app-server local time), and the
+// completed/total success rate for the Dashboard home screen, in one query.
+func (r *BillingUsageReader) GetDashboardSummary(ctx context.Context, partnerID string) (billing.DashboardSummary, error) {
+	const q = `SELECT
+		count(*) AS total,
+		count(*) FILTER (
+			WHERE created_at >= date_trunc('day', now())
+			  AND created_at < date_trunc('day', now()) + interval '1 day'
+		) AS today,
+		count(*) FILTER (WHERE status = 'completed') AS completed
+		FROM partner_bookings
+		WHERE partner_id = $1`
+
+	var total, today, completed int
+	if err := r.pool.QueryRow(ctx, q, partnerID).Scan(&total, &today, &completed); err != nil {
+		return billing.DashboardSummary{}, err
+	}
+
+	var successRate float64
+	if total > 0 {
+		successRate = float64(completed) / float64(total) * 100
+	}
+
+	return billing.DashboardSummary{
+		TotalDeliveries:    total,
+		DeliveriesToday:    today,
+		SuccessRate:        successRate,
+		SuccessRateDisplay: fmt.Sprintf("%.1f%%", successRate),
+	}, nil
 }
 
 // --- partner lister ----------------------------------------------------------

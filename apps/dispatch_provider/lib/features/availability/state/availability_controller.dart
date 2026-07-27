@@ -22,6 +22,16 @@ class AvailabilityController extends ChangeNotifier {
 
   StreamSubscription<Position>? _positionSub;
 
+  /// Periodic re-post of the last known position. The GPS stream only fires
+  /// when the device moves (distanceFilter), so a stationary rider would stop
+  /// pinging and let the server-side live keys expire (location TTL 30s,
+  /// status TTL 90s), dropping the rider from the customer availability check.
+  /// This heartbeat keeps those keys warm regardless of movement.
+  Timer? _heartbeatTimer;
+  Position? _lastPosition;
+
+  static const Duration _heartbeatInterval = Duration(seconds: 15);
+
   ProviderAvailability? get availability => _availability;
   AvailabilitySession? get currentSession => _currentSession;
   ProviderLocation? get lastLocation => _lastLocation;
@@ -84,17 +94,47 @@ class AvailabilityController extends ChangeNotifier {
           cancelOnError: false,
         );
 
+    // Heartbeat: re-post the last known position on a fixed interval so a
+    // stationary rider keeps refreshing the server-side live keys and stays
+    // visible to customers even when the GPS stream is silent.
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) => _heartbeat());
+
     _debugLog('[LOCATION] GPS stream started');
   }
 
   void _stopLocationUpdates() {
     _positionSub?.cancel();
     _positionSub = null;
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    _lastPosition = null;
     _debugLog('[LOCATION] GPS stream stopped');
+  }
+
+  Future<void> _heartbeat() async {
+    if (!isOnline) return;
+    if (_isSendingLocation) return;
+    final pos = _lastPosition;
+    if (pos == null) return;
+
+    _isSendingLocation = true;
+    try {
+      await sendLocation(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        heading: pos.heading,
+        speed: pos.speed,
+        accuracy: pos.accuracy,
+      );
+    } finally {
+      _isSendingLocation = false;
+    }
   }
 
   Future<void> _onPosition(Position pos) async {
     if (!isOnline) return;
+    _lastPosition = pos;
     if (_isSendingLocation) return;
 
     _isSendingLocation = true;

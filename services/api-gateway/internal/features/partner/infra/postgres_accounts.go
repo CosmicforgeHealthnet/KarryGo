@@ -43,7 +43,15 @@ func (r *AccountRepo) CreateAccount(ctx context.Context, params partneraccount.C
 	}
 	return a, nil
 }
-
+// DeleteAccount permanently deletes a partner account by ID.
+func (r *AccountRepo) DeleteAccount(ctx context.Context, partnerID string) (bool, error) {
+	const q = `DELETE FROM partner_accounts WHERE id = $1`
+	ct, err := r.pool.Exec(ctx, q, partnerID)
+	if err != nil {
+		return false, err
+	}
+	return ct.RowsAffected() > 0, nil
+}
 func (r *AccountRepo) FindByEmail(ctx context.Context, email string) (*partneraccount.Account, *string, error) {
 	const q = `SELECT ` + accountColumns + `, password_hash
 		FROM partner_accounts WHERE business_email = $1`

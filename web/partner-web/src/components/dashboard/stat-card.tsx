@@ -1,26 +1,26 @@
 import { Package, TrendingUp, CalendarCheck2 } from "lucide-react";
-import type { DeliveryStats } from "@/types";
+import type { DashboardSummary } from "@/types";
 import { cn } from "@/lib/utils";
 
-export function StatCardRow({ stats }: { stats: DeliveryStats }) {
+export function StatCardRow({ summary }: { summary: DashboardSummary }) {
   const items = [
     {
       label: "Total Deliveries",
-      value: stats.totalDeliveries,
+      value: summary.total_deliveries.toLocaleString(),
       icon: Package,
       iconBg: "bg-brand-100",
       iconColor: "text-brand-600",
     },
     {
       label: "Success Rate",
-      value: stats.successRate,
+      value: summary.success_rate_display,
       icon: TrendingUp,
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
     },
     {
       label: "Deliveries Today",
-      value: stats.deliveriesToday,
+      value: summary.deliveries_today.toLocaleString(),
       icon: CalendarCheck2,
       iconBg: "bg-amber-50",
       iconColor: "text-amber-600",

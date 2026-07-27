@@ -9,6 +9,8 @@ import '../features/auth/data/customer_auth_api.dart';
 import '../features/auth/data/customer_session_store.dart';
 import '../features/auth/models/customer_auth_models.dart';
 import '../features/auth/state/customer_auth_controller.dart';
+import '../features/dispatch/data/dispatch_api.dart';
+import '../features/dispatch/state/dispatch_booking_controller.dart';
 import '../features/hauling/data/customer_realtime_listener.dart';
 import '../features/hauling/data/hauling_api.dart';
 import '../features/hauling/data/places_api.dart';
@@ -29,7 +31,6 @@ import '../features/onboarding/ui/onboarding_screen.dart';
 import '../features/profile_setup/ui/all_set_screen.dart';
 import '../features/profile_setup/ui/photo_upload_screen.dart';
 import '../features/profile_setup/ui/profile_details_screen.dart';
-import '../features/profile_setup/ui/service_choice_screen.dart';
 
 class CustomerApp extends StatefulWidget {
   const CustomerApp({super.key, this.controller, this.autoInitialize = true});
@@ -42,6 +43,11 @@ class CustomerApp extends StatefulWidget {
 }
 
 class _CustomerAppState extends State<CustomerApp> {
+  // Root navigator key so a session-end (logout / 401 expiry) can pop any
+  // pushed screens (booking flow, profile edit, …) and reveal the login screen
+  // underneath, instead of leaving the cleared session hidden behind them.
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
   late final CustomerAuthController _controller;
   late final bool _ownsController;
   late final SupportApi _supportApi;
@@ -49,6 +55,7 @@ class _CustomerAppState extends State<CustomerApp> {
   late final CustomerAuthApi _authApi;
   late final MediaUploadService _mediaUploadService;
   late final HaulingBookingController _haulingController;
+  late final DispatchBookingController _dispatchController;
   late final PlacesApi _placesApi;
   late final NotificationApi _notificationApi;
   late final NotificationController _notificationController;
@@ -84,6 +91,7 @@ class _CustomerAppState extends State<CustomerApp> {
     _fcmForegroundSub?.cancel();
     if (_ownsController) _controller.dispose();
     _haulingController.dispose();
+    _dispatchController.dispose();
     _notificationController.dispose();
     _notificationApi.close();
     _supportApi.close();
@@ -97,6 +105,7 @@ class _CustomerAppState extends State<CustomerApp> {
       title: 'Cosmicforge Logistics',
       debugShowCheckedModeBanner: false,
       theme: buildCosmicforgeLogisticsAppTheme(),
+      navigatorKey: _navigatorKey,
       home: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
@@ -104,8 +113,18 @@ class _CustomerAppState extends State<CustomerApp> {
           // Open the realtime feed once authenticated; tear it down otherwise.
           if (state.status == CustomerAuthStatus.authenticated) {
             _notificationController.start();
+            // Resume a booking left in progress if the app was closed mid-trip
+            // (both calls are idempotent — see restoreActiveBookingIfAny).
+            _haulingController.restoreActiveBookingIfAny();
+            _dispatchController.restoreActiveBookingIfAny();
           } else {
             _notificationController.stop();
+            // Session ended (logout or expired-token 401): drop any pushed
+            // routes so the pre-auth screen this builder now returns is
+            // actually visible rather than hidden behind a stale screen.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+            });
           }
           return switch (state.status) {
             CustomerAuthStatus.checking => const SplashScreen(),
@@ -117,10 +136,6 @@ class _CustomerAppState extends State<CustomerApp> {
               state: state,
             ),
             CustomerAuthStatus.otpVerification => OtpVerificationScreen(
-              controller: _controller,
-              state: state,
-            ),
-            CustomerAuthStatus.serviceChoice => ServiceChoiceScreen(
               controller: _controller,
               state: state,
             ),
@@ -144,6 +159,7 @@ class _CustomerAppState extends State<CustomerApp> {
               walletApi: _walletApi,
               mediaUploadService: _mediaUploadService,
               haulingController: _haulingController,
+              dispatchController: _dispatchController,
               placesApi: _placesApi,
               notificationController: _notificationController,
             ),
@@ -207,6 +223,30 @@ class _CustomerAppState extends State<CustomerApp> {
       },
     );
 
+    // Bike delivery (dispatch) flow. Realtime mirrors hauling: the token is
+    // minted by the dispatch-service notification proxy, the websocket connects
+    // directly to notification-service; polling remains the fallback.
+    final dispatchApi = DispatchApi(
+      config: ApiCoreConfig(baseUrl: config.dispatchApiBaseUrl),
+      onAuthFailure: _onAuthFailure,
+    );
+    _dispatchController = DispatchBookingController(
+      api: dispatchApi,
+      authController: _controller,
+      walletApi: _walletApi,
+      realtimeListenerFactory: (accessToken, onEvent) => CustomerRealtimeListener(
+        fetchToken: (token) => dispatchApi.fetchRealtimeToken(accessToken: token),
+        wsUrl: config.notificationWsUrl,
+        accessToken: accessToken,
+        onEvent: onEvent,
+      ),
+      savedLocationsLoader: () async {
+        final session = _controller.state.session;
+        if (session == null) return const <SavedLocation>[];
+        return _authApi.getSavedLocations(accessToken: session.accessToken);
+      },
+    );
+
     // Notifications proxy lives on the customer API base; the websocket connects
     // directly to notification-service.
     _notificationApi = NotificationApi(
@@ -236,6 +276,7 @@ class _CustomerAppState extends State<CustomerApp> {
     _fcmForegroundSub = FirebasePush.foregroundMessages().listen((_) {
       _notificationController.loadFeed();
       _haulingController.pokeRefresh();
+      _dispatchController.pokeRefresh();
     });
   }
 

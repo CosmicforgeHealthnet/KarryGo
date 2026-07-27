@@ -24,6 +24,11 @@ type Config struct {
 	WalletServiceURL           string
 	WalletServiceSecret        []byte
 	WalletServiceSource        string
+	CustomerTokenSecret        []byte
+	AvailabilityRadiusKM       float64
+	NotificationURL            string
+	NotificationSecret         []byte
+	ServiceSecrets             string
 
 	// Fleet internal API. Used by the marketplace relay to deliver provider
 	// decisions and to verify provider acceptance. When the secret is empty
@@ -148,6 +153,16 @@ func Load() (Config, error) {
 		SMTPUser:                getEnv("SMTP_USER", ""),
 		SMTPPassword:            os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:                getEnv("SMTP_FROM", ""),
+		CustomerTokenSecret:     []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
+		AvailabilityRadiusKM:    getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
+		// Notification-service integration is optional: when unset, lifecycle
+		// notifications no-op and the app notification proxy routes are skipped.
+		NotificationURL:    getEnv("DISPATCH_NOTIFICATION_URL", ""),
+		NotificationSecret: []byte(getEnv("DISPATCH_NOTIFICATION_SECRET", "")),
+		// HMAC secrets trusted for internal service-to-service calls
+		// (name=secret pairs). Used by the internal identity endpoint that
+		// support-dispute-service calls to resolve rider identities.
+		ServiceSecrets: getEnv("DISPATCH_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
 	}, nil
 }
 

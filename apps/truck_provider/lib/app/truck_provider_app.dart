@@ -28,7 +28,6 @@ import '../features/disputes/data/provider_support_api.dart';
 import '../features/disputes/state/provider_dispute_controller.dart';
 import '../features/wallet/data/provider_wallet_api.dart';
 import '../features/wallet/state/provider_withdrawal_controller.dart';
-import '../features/onboarding/ui/account_type_screen.dart';
 import '../features/onboarding/ui/driver_documents_screen.dart';
 import '../features/onboarding/ui/operation_mode_screen.dart';
 import '../features/onboarding/ui/personal_info_screen.dart';
@@ -127,6 +126,7 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
 
     _earningsController = ProviderEarningsController(
       api: _providerApi,
+      walletApi: _walletApi,
       accessToken: () => _authController.state.session?.accessToken,
     );
 
@@ -226,12 +226,12 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Karry Go Provider',
+      title: 'Truck Provider',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF22A84A),
         useMaterial3: true,
-        fontFamily: 'Inter',
+        fontFamily: 'Poppins',
       ),
       home: AnimatedBuilder(
         animation: _authController,
@@ -245,10 +245,6 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
             ),
 
             ProviderAuthStatus.otpVerification => ProviderOtpScreen(
-              controller: _authController,
-            ),
-
-            ProviderAuthStatus.accountTypeSelection => AccountTypeScreen(
               controller: _authController,
             ),
 
@@ -302,32 +298,35 @@ class _SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFFF7F8F7),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.local_shipping_rounded,
-              size: 72,
-              color: Color(0xFF22A84A),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Karry Go',
-              style: TextStyle(
-                color: Color(0xFF22A84A),
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(-0.3, -0.3),
+            radius: 1.2,
+            colors: [Color(0xFF4CAF50), Color(0xFF1B5E20), Color(0xFF0D2818)],
+            stops: [0.0, 0.5, 1.0],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset('assets/figma/splash_logo.png', width: 180),
+              const SizedBox(height: 12),
+              const Text(
+                'Cosmicforge Logistics',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
               ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Provider',
-              style: TextStyle(color: Color(0xFF7B827C), fontSize: 14),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

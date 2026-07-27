@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../../auth/state/customer_auth_controller.dart';
+import '../../../dispatch/state/dispatch_booking_controller.dart';
+import '../../../dispatch/ui/dispatch_flow_screen.dart';
 import '../../../hauling/data/places_api.dart';
 import '../../../hauling/state/hauling_booking_controller.dart';
 import '../../../hauling/ui/hauling_flow_screen.dart';
@@ -13,27 +15,54 @@ class CustomerHomeTab extends StatelessWidget {
     required this.state,
     required this.controller,
     required this.haulingController,
+    required this.dispatchController,
     required this.placesApi,
   });
 
   final CustomerAuthState state;
   final CustomerAuthController controller;
   final HaulingBookingController haulingController;
+  final DispatchBookingController dispatchController;
   final PlacesApi placesApi;
+
+  void _openDispatchFlow(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => DispatchFlowScreen(
+          controller: dispatchController,
+          placesApi: placesApi,
+        ),
+      ),
+    );
+  }
+
+  void _openHaulingFlow(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => HaulingFlowScreen(
+          controller: haulingController,
+          placesApi: placesApi,
+        ),
+      ),
+    );
+  }
 
   void _onServiceTap(BuildContext context, int index) {
     switch (index) {
+      case 1:
+        // Don't wipe a booking restored/in-progress from a previous session —
+        // resume it instead of starting a fresh one.
+        if (dispatchController.state.status == DispatchFlowStatus.idle) {
+          dispatchController.reset();
+        }
+        _openDispatchFlow(context);
       case 2:
-        haulingController.reset();
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            fullscreenDialog: true,
-            builder: (_) => HaulingFlowScreen(
-              controller: haulingController,
-              placesApi: placesApi,
-            ),
-          ),
-        );
+        if (haulingController.state.status == HaulingFlowStatus.idle) {
+          haulingController.reset();
+        }
+        _openHaulingFlow(context);
       default:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -90,6 +119,52 @@ class CustomerHomeTab extends StatelessWidget {
           ),
         ),
 
+        // Ongoing-trip banner: surfaces a booking that's still active/searching
+        // (freshly created, or resumed on app restart via
+        // restoreActiveBookingIfAny) so it's never stranded off-screen.
+        Positioned(
+          left: 16,
+          right: 16,
+          // Clears the locate-me FAB, which floats at the same 372 inset on
+          // the right edge (see CustomerHomeMap's locateButtonBottomInset).
+          bottom: 372 + 60,
+          child: ListenableBuilder(
+            listenable: Listenable.merge([haulingController, dispatchController]),
+            builder: (context, _) {
+              final haulingActive =
+                  haulingController.state.status != HaulingFlowStatus.idle &&
+                  haulingController.state.activeBooking != null;
+              final dispatchActive =
+                  dispatchController.state.status != DispatchFlowStatus.idle &&
+                  dispatchController.state.activeBooking != null;
+
+              if (haulingActive) {
+                final booking = haulingController.state.activeBooking!;
+                return _OngoingTripBanner(
+                  emoji: '🚛',
+                  title: booking.status.displayLabel,
+                  subtitle: booking.dropoffAddress.isNotEmpty
+                      ? 'To ${booking.dropoffAddress}'
+                      : 'Truck / Hauling trip',
+                  onTap: () => _openHaulingFlow(context),
+                );
+              }
+              if (dispatchActive) {
+                final booking = dispatchController.state.activeBooking!;
+                return _OngoingTripBanner(
+                  emoji: '🛵',
+                  title: booking.status.displayLabel,
+                  subtitle: booking.dropoffAddress.isNotEmpty
+                      ? 'To ${booking.dropoffAddress}'
+                      : 'Bike delivery',
+                  onTap: () => _openDispatchFlow(context),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+
         // Bottom service panel
         Positioned(
           left: 0,
@@ -98,6 +173,96 @@ class CustomerHomeTab extends StatelessWidget {
           child: _ServicePanel(onServiceTap: (i) => _onServiceTap(context, i)),
         ),
       ],
+    );
+  }
+}
+
+// ─── Ongoing trip banner ──────────────────────────────────────────────────────
+
+class _OngoingTripBanner extends StatelessWidget {
+  const _OngoingTripBanner({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: CustomerFigmaColors.primary,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 16,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(child: Text(emoji, style: const TextStyle(fontSize: 20))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Continue',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 12),
+          ],
+        ),
+      ),
     );
   }
 }

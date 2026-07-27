@@ -185,6 +185,83 @@ class WalletApi {
     }
   }
 
+  // ── Transaction PIN ─────────────────────────────────────────────────────────
+
+  /// GET /provider/pin/status → whether a withdrawal PIN has been set.
+  Future<ApiResult<bool>> getPinStatus({required String accessToken}) async {
+    final uri = config.uri('/provider/pin/status');
+    try {
+      final response = await _client
+          .get(uri, headers: _getHeaders(accessToken))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final body = _tryDecode(response.body);
+        if (body != null && body['success'] == true) {
+          final data = body['data'];
+          if (data is Map<String, dynamic>) {
+            return ApiSuccess(data['pin_set'] == true);
+          }
+        }
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      return _networkFailure(e);
+    }
+  }
+
+  /// POST /provider/pin — sets the withdrawal PIN (4-6 digits) for the first time.
+  Future<ApiResult<bool>> setPin({
+    required String accessToken,
+    required String pin,
+  }) async {
+    final uri = config.uri('/provider/pin');
+    try {
+      final response = await _client
+          .post(
+            uri,
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode({'pin': pin}),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final body = _tryDecode(response.body);
+        if (body != null && body['success'] == true) {
+          return const ApiSuccess(true);
+        }
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      return _networkFailure(e);
+    }
+  }
+
+  /// PUT /provider/pin — changes an existing withdrawal PIN.
+  Future<ApiResult<bool>> changePin({
+    required String accessToken,
+    required String currentPin,
+    required String newPin,
+  }) async {
+    final uri = config.uri('/provider/pin');
+    try {
+      final response = await _client
+          .put(
+            uri,
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode({'current_pin': currentPin, 'new_pin': newPin}),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final body = _tryDecode(response.body);
+        if (body != null && body['success'] == true) {
+          return const ApiSuccess(true);
+        }
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      return _networkFailure(e);
+    }
+  }
+
   // ── POST /provider/withdrawals ────────────────────────────────────────────────
 
   Future<ApiResult<Withdrawal>> requestWithdrawal({
@@ -193,6 +270,7 @@ class WalletApi {
     required int amountKobo,
     String currency = 'NGN',
     required String idempotencyKey,
+    required String pin,
   }) async {
     final uri = config.uri('/provider/withdrawals');
     _debugLog('[WALLET] POST $uri amountKobo=$amountKobo');
@@ -206,6 +284,7 @@ class WalletApi {
               'amount_kobo': amountKobo,
               'currency': currency,
               'idempotency_key': idempotencyKey,
+              'pin': pin,
             }),
           )
           .timeout(const Duration(seconds: 20));

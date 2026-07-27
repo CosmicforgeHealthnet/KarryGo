@@ -43,6 +43,13 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
   // one-tap saved locations (Home, Office, ...) — empty when unavailable
   List<SavedLocation> _savedLocations = const [];
 
+  static const _savedLocationsQuickPickLimit = 3;
+
+  /// Most-recently-added saved locations, capped for the inline quick-pick
+  /// list. The API returns oldest-first, so this reverses before capping.
+  List<SavedLocation> get _recentSavedLocations =>
+      _savedLocations.reversed.take(_savedLocationsQuickPickLimit).toList();
+
   HaulingBookingController get _ctrl => widget.controller;
   HaulingBookingState get _state => _ctrl.state;
 
@@ -98,6 +105,115 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
         _activeField = null;
       });
     }
+  }
+
+  /// Shared row markup for a saved location — used by both the capped
+  /// inline quick-pick list and the "view all" sheet below. [onTap] defaults
+  /// to selecting the location directly; the sheet overrides it to close
+  /// itself first.
+  Widget _savedLocationRow(SavedLocation location, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap ?? () => _selectSavedLocation(location),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            const Icon(Icons.bookmark_rounded,
+                color: CustomerFigmaColors.primary, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    location.title,
+                    style: const TextStyle(
+                      color: CustomerFigmaColors.text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    location.address,
+                    style: const TextStyle(
+                      color: CustomerFigmaColors.muted,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Opens a bottom sheet listing every saved location (newest first) so the
+  /// rest remain reachable once the inline quick-pick list is capped.
+  void _showAllSavedLocations() {
+    final allNewestFirst = _savedLocations.reversed.toList();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Text(
+                    'Saved locations',
+                    style: TextStyle(
+                      color: CustomerFigmaColors.text,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: allNewestFirst.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, i) => _savedLocationRow(
+                      allNewestFirst[i],
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _selectSavedLocation(allNewestFirst[i]);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -261,8 +377,10 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
     if (coords != null) {
       _ctrl.setPickupLocation(suggestion.description, coords.lat, coords.lng);
     } else {
-      // fallback: store description with zero coords — user can still proceed
+      // Couldn't resolve coordinates: store (0,0) so the "Find Truck" gate
+      // stays closed, and tell the user why rather than leaving a dead button.
       _ctrl.setPickupLocation(suggestion.description, 0, 0);
+      _showSnack("Couldn't pinpoint that pickup address. Pick another or tap it on the map.");
     }
     setState(() {
       _pickupLoading = false;
@@ -282,6 +400,7 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
       _ctrl.setDropoffLocation(suggestion.description, coords.lat, coords.lng);
     } else {
       _ctrl.setDropoffLocation(suggestion.description, 0, 0);
+      _showSnack("Couldn't pinpoint that drop off address. Pick another or tap it on the map.");
     }
     setState(() {
       _dropoffLoading = false;
@@ -500,7 +619,6 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
                   if (showSavedLocations) ...[
                     const SizedBox(height: 8),
                     Container(
-                      constraints: const BoxConstraints(maxHeight: 180),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
@@ -521,60 +639,36 @@ class _HaulingLocationEntryViewState extends State<HaulingLocationEntryView> {
                               ),
                             ),
                           ),
-                          Flexible(
-                            child: ListView.separated(
-                              shrinkWrap: true,
-                              padding: EdgeInsets.zero,
-                              itemCount: _savedLocations.length,
-                              separatorBuilder: (_, _) => const Divider(height: 1),
-                              itemBuilder: (context, i) {
-                                final location = _savedLocations[i];
-                                return InkWell(
-                                  onTap: () => _selectSavedLocation(location),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.bookmark_rounded,
-                                            color: CustomerFigmaColors.primary,
-                                            size: 16),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                location.title,
-                                                style: const TextStyle(
-                                                  color: CustomerFigmaColors.text,
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                location.address,
-                                                style: const TextStyle(
-                                                  color: CustomerFigmaColors.muted,
-                                                  fontSize: 12,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
+                          for (var i = 0; i < _recentSavedLocations.length; i++) ...[
+                            if (i > 0) const Divider(height: 1),
+                            _savedLocationRow(_recentSavedLocations[i]),
+                          ],
+                          if (_savedLocations.length > _savedLocationsQuickPickLimit) ...[
+                            const Divider(height: 1),
+                            InkWell(
+                              onTap: _showAllSavedLocations,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'View all (${_savedLocations.length})',
+                                        style: const TextStyle(
+                                          color: CustomerFigmaColors.primary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
+                                    const Icon(Icons.chevron_right,
+                                        color: CustomerFigmaColors.primary, size: 16),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -809,7 +903,7 @@ class _LocationInputCard extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(0, 10, 14, 0),
                     child: Text(
-                      'Drop off (optional)',
+                      'Drop off',
                       style: TextStyle(
                         color: Colors.grey[500],
                         fontSize: 11,

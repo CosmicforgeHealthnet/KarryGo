@@ -54,6 +54,7 @@ type AccountRepository interface {
 	// returns the account as it is after the update. found is false when no
 	// such account exists.
 	UpdateProfile(ctx context.Context, id string, params UpdateProfileParams) (account *Account, found bool, err error)
+	DeleteAccount(ctx context.Context, partnerID string) (bool, error)
 }
 
 // OTPChallengeRepository persists OTP signup challenges.

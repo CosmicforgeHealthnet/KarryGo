@@ -1,54 +1,79 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface WebhookLog {
-  id: string;
-  timestamp: string;
-  endpoint: string;
-  event: string;
-  deliveryId: string;
-  status: "success" | "failed" | "pending";
-  httpResponse: number;
-}
-
-const MOCK_LOGS: WebhookLog[] = [
-  { id: "wh_1001", timestamp: "06 Mar 2026, 11:42", endpoint: "/webhooks/delivery-status", event: "delivery.created", deliveryId: "#1234445", status: "success", httpResponse: 200 },
-  { id: "wh_1002", timestamp: "06 Mar 2026, 11:38", endpoint: "/webhooks/driver-assigned", event: "driver.assigned", deliveryId: "#1234446", status: "success", httpResponse: 200 },
-  { id: "wh_1003", timestamp: "06 Mar 2026, 11:20", endpoint: "/webhooks/delivery-status", event: "delivery.failed", deliveryId: "#1234447", status: "failed", httpResponse: 500 },
-  { id: "wh_1004", timestamp: "06 Mar 2026, 10:58", endpoint: "/webhooks/payment", event: "payment.captured", deliveryId: "#1234448", status: "success", httpResponse: 200 },
-  { id: "wh_1005", timestamp: "06 Mar 2026, 10:41", endpoint: "/webhooks/delivery-status", event: "delivery.retrying", deliveryId: "#1234449", status: "pending", httpResponse: 408 },
-  { id: "wh_1006", timestamp: "06 Mar 2026, 10:15", endpoint: "/webhooks/driver-assigned", event: "driver.reassigned", deliveryId: "#1234450", status: "failed", httpResponse: 404 },
-  { id: "wh_1007", timestamp: "06 Mar 2026, 09:52", endpoint: "/webhooks/delivery-status", event: "delivery.completed", deliveryId: "#1234451", status: "success", httpResponse: 200 },
-  { id: "wh_1008", timestamp: "06 Mar 2026, 09:30", endpoint: "/webhooks/payment", event: "payment.failed", deliveryId: "#1234452", status: "failed", httpResponse: 402 },
-];
+import { useAuthStore } from "@/store/auth-store";
+import { webhookService } from "@/services/webhook-service";
+import type { WebhookLog } from "@/types";
 
 function StatusPill({ status }: { status: WebhookLog["status"] }) {
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize",
-        status === "success" && "bg-brand-100 text-brand-700",
-        status === "failed" && "bg-red-100 text-danger",
+        status === "delivered" && "bg-brand-100 text-brand-700",
+        status === "failed_permanent" && "bg-red-100 text-danger",
         status === "pending" && "bg-amber-100 text-warning"
       )}
     >
-      {status}
+      {status === "failed_permanent" ? "failed" : status}
     </span>
   );
 }
 
 export default function WebhookLogsPage() {
+  const token = useAuthStore((s) => s.token);
+  const [logs, setLogs] = useState<WebhookLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 20;
 
-  const filtered = MOCK_LOGS.filter((log) =>
-    [log.event, log.deliveryId, log.endpoint].some((field) =>
+  useEffect(() => {
+    if (!token) return;
+    fetchLogs();
+  }, [token, page]);
+
+  const fetchLogs = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await webhookService.list(token!, { page, limit });
+      setLogs(response.deliveries);
+      setTotal(response.meta.total);
+    } catch (err) {
+      setError("Failed to load webhook logs");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = logs.filter((log) =>
+    [log.event_type, log.id].some((field) =>
       field.toLowerCase().includes(query.toLowerCase())
     )
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-ink-500">Loading webhook logs...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-danger">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -86,23 +111,25 @@ export default function WebhookLogsPage() {
             <thead>
               <tr className="border-b border-ink-100 text-xs font-semibold uppercase tracking-wide text-ink-500">
                 <th className="px-5 py-4">Time Stamp</th>
-                <th className="px-5 py-4">Endpoint</th>
                 <th className="px-5 py-4">Event</th>
                 <th className="px-5 py-4">Delivery ID</th>
                 <th className="px-5 py-4">Status</th>
                 <th className="px-5 py-4">HTTP Response</th>
+                <th className="px-5 py-4">Attempts</th>
                 <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((log) => (
                 <tr key={log.id} className="border-b border-ink-100 last:border-0">
-                  <td className="px-5 py-4 text-ink-700">{log.timestamp}</td>
-                  <td className="px-5 py-4 text-ink-700">{log.endpoint}</td>
-                  <td className="px-5 py-4 text-ink-700">{log.event}</td>
-                  <td className="px-5 py-4 font-medium text-ink-900">{log.deliveryId}</td>
+                  <td className="px-5 py-4 text-ink-700">
+                    {new Date(log.created_at).toLocaleString()}
+                  </td>
+                  <td className="px-5 py-4 text-ink-700">{log.event_type}</td>
+                  <td className="px-5 py-4 font-medium text-ink-900">{log.id.slice(0, 8)}</td>
                   <td className="px-5 py-4"><StatusPill status={log.status} /></td>
-                  <td className="px-5 py-4 text-ink-700">{log.httpResponse}</td>
+                  <td className="px-5 py-4 text-ink-700">{log.response_status ?? "—"}</td>
+                  <td className="px-5 py-4 text-ink-700">{log.attempts}</td>
                   <td className="px-5 py-4 text-right">
                     <Link href={`/webhook-logs/${log.id}`} className="font-semibold text-brand-600 hover:text-brand-700">
                       View
@@ -127,23 +154,31 @@ export default function WebhookLogsPage() {
             <div key={log.id} className="rounded-2xl bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-ink-900">{log.event}</p>
-                  <p className="mt-0.5 text-xs text-ink-500">{log.timestamp}</p>
+                  <p className="text-sm font-semibold text-ink-900">{log.event_type}</p>
+                  <p className="mt-0.5 text-xs text-ink-500">
+                    {new Date(log.created_at).toLocaleString()}
+                  </p>
                 </div>
                 <StatusPill status={log.status} />
               </div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <p className="text-ink-500">Delivery ID</p>
-                  <p className="font-medium text-ink-900">{log.deliveryId}</p>
+                  <p className="font-medium text-ink-900">{log.id.slice(0, 8)}</p>
                 </div>
                 <div>
                   <p className="text-ink-500">HTTP Response</p>
-                  <p className="font-medium text-ink-900">{log.httpResponse}</p>
+                  <p className="font-medium text-ink-900">{log.response_status ?? "—"}</p>
                 </div>
-                <div className="col-span-2">
-                  <p className="text-ink-500">Endpoint</p>
-                  <p className="font-medium text-ink-900">{log.endpoint}</p>
+                <div>
+                  <p className="text-ink-500">Attempts</p>
+                  <p className="font-medium text-ink-900">{log.attempts}</p>
+                </div>
+                <div>
+                  <p className="text-ink-500">Last Attempt</p>
+                  <p className="font-medium text-ink-900">
+                    {log.last_attempt_at ? new Date(log.last_attempt_at).toLocaleString() : "—"}
+                  </p>
                 </div>
               </div>
               <Link
@@ -160,6 +195,31 @@ export default function WebhookLogsPage() {
             </p>
           )}
         </div>
+
+        {/* Pagination */}
+        {total > limit && (
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-sm text-ink-500">
+              Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="rounded-lg border border-ink-200 px-4 py-2 text-sm disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page * limit >= total}
+                className="rounded-lg border border-ink-200 px-4 py-2 text-sm disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

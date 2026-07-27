@@ -166,16 +166,6 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    expect(
-      find.text('How do you want to use Cosmicforge Logistics?'),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.text('Send, Ride or Request'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Continue').first);
-    await tester.pumpAndSettle();
-
     expect(find.text('Tell us about you'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField).at(0), 'Ada Okafor');

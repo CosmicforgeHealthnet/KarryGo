@@ -244,6 +244,7 @@ class _CustomerProfileEditScreenState extends State<CustomerProfileEditScreen> {
                   controller: _nameCtrl,
                   label: 'Full Name',
                   hintText: 'e.g. Emeka Okafor',
+                  variant: FigmaTextFieldVariant.grey,
                 ),
                 const SizedBox(height: 16),
                 Column(
@@ -313,6 +314,7 @@ class _CustomerProfileEditScreenState extends State<CustomerProfileEditScreen> {
                     controller: TextEditingController(text: widget.profile.email),
                     label: 'Email Address',
                     readOnly: true,
+                    variant: FigmaTextFieldVariant.grey,
                   ),
                 ],
                 const SizedBox(height: 16),

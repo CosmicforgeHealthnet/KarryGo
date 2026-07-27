@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../state/dispatch_auth_controller.dart';
@@ -132,7 +133,47 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   height: 1.5,
                 ),
               ),
-              const SizedBox(height: 36),
+              const SizedBox(height: 28),
+              if (kDebugMode && widget.controller.debugOtp != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF4CAF50),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Your OTP code',
+                        style: TextStyle(
+                          color: Color(0xFF888888),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.controller.debugOtp!,
+                        style: const TextStyle(
+                          color: Color(0xFF4CAF50),
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
               const Text(
                 'Enter OTP',
                 style: TextStyle(

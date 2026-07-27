@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
 import 'trip_model.dart';
@@ -91,10 +92,17 @@ class TripsApi {
       if (response.statusCode == 200) {
         final body = _tryDecode(response.body);
         if (body != null && body['success'] == true) {
+          // Backend wraps the list as {"trips": [...], "total":..., "page":...,
+          // "limit":...} (TripListResponse) rather than returning a bare array.
           final data = body['data'];
-          if (data is List) {
+          final rawList = data is List
+              ? data
+              : data is Map<String, dynamic>
+              ? data['trips']
+              : null;
+          if (rawList is List) {
             return ApiSuccess(
-              data
+              rawList
                   .whereType<Map<String, dynamic>>()
                   .map(TripModel.fromJson)
                   .toList(),
@@ -227,17 +235,43 @@ class TripsApi {
 
   // ── POST /api/v1/provider/trips/:id/proof ────────────────────────────────
 
+  /// Backend requires two separate image files — `delivery_photo` (JPEG/PNG,
+  /// <=5MB) and `signature` (JPEG/PNG, <=3MB) — plus `receiver_name` and
+  /// `receiver_phone` (must E.164-match the trip's expected receiver phone).
   Future<ApiResult<bool>> submitProof({
     required String accessToken,
     required String id,
-    required String filePath,
+    required String photoPath,
+    required Uint8List signaturePng,
+    required String receiverName,
+    required String receiverPhone,
   }) async {
     final uri = config.uri('/api/v1/provider/trips/$id/proof');
-    _debugLog('[TRIPS] POST proof $uri path=$filePath');
+    _debugLog('[TRIPS] POST proof $uri path=$photoPath');
     try {
+      final photoExt = photoPath.split('.').last.toLowerCase();
+      final photoType = photoExt == 'png'
+          ? MediaType('image', 'png')
+          : MediaType('image', 'jpeg');
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(_getHeaders(accessToken));
-      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+      request.fields['receiver_name'] = receiverName;
+      request.fields['receiver_phone'] = receiverPhone;
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'delivery_photo',
+          photoPath,
+          contentType: photoType,
+        ),
+      );
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'signature',
+          signaturePng,
+          filename: 'signature.png',
+          contentType: MediaType('image', 'png'),
+        ),
+      );
       final streamed = await _client
           .send(request)
           .timeout(const Duration(seconds: 60));
@@ -313,15 +347,26 @@ class TripsApi {
 
   // ── POST /api/v1/provider/trips/:id/cancel ───────────────────────────────
 
+  /// Backend requires a non-empty `reason_code` from a fixed set (see
+  /// [tripCancelReasons]) — an empty body always fails with a 400.
   Future<ApiResult<bool>> cancelTrip({
     required String accessToken,
     required String id,
+    required String reasonCode,
+    String reasonText = '',
   }) async {
     final uri = config.uri('/api/v1/provider/trips/$id/cancel');
-    _debugLog('[TRIPS] POST cancel $uri');
+    _debugLog('[TRIPS] POST cancel $uri reason=$reasonCode');
     try {
       final response = await _client
-          .post(uri, headers: _jsonHeaders(accessToken), body: jsonEncode({}))
+          .post(
+            uri,
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode({
+              'reason_code': reasonCode,
+              'reason_text': reasonText,
+            }),
+          )
           .timeout(const Duration(seconds: 15));
       _debugLog('[TRIPS] POST cancel status=${response.statusCode}');
       if (response.statusCode == 200 || response.statusCode == 201) {

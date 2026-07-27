@@ -53,10 +53,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            FigmaProgressHeader(
-              progress: 0.5,
-              onBack: widget.controller.goToServiceChoice,
-            ),
+            const FigmaProgressHeader(progress: 0.5),
             const SizedBox(height: 34),
             const Text(
               'Tell us about you',

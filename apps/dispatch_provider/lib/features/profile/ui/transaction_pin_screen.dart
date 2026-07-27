@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/widgets/numeric_keypad.dart';
+import '../../wallet/state/wallet_controller.dart';
 import 'create_pin_screen.dart';
 
 class TransactionPinScreen extends StatefulWidget {
-  const TransactionPinScreen({super.key});
+  const TransactionPinScreen({super.key, required this.walletController});
+
+  final WalletController walletController;
 
   @override
   State<TransactionPinScreen> createState() => _TransactionPinScreenState();
@@ -14,11 +17,28 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
   bool _enabled = false;
   String _pin = '';
 
+  @override
+  void initState() {
+    super.initState();
+    widget.walletController.loadPinStatus().then((result) {
+      if (!mounted) return;
+      result.when(
+        success: (isSet) => setState(() {
+          _hasPin = isSet;
+          _enabled = isSet;
+        }),
+        failure: (_) {},
+      );
+    });
+  }
+
   void _onToggle(bool value) {
     setState(() {
       _enabled = value;
       _pin = '';
     });
+    // Turning the pin on without one set goes straight to creation.
+    if (value && !_hasPin) _goToCreatePin();
   }
 
   void _onKey(String key) {
@@ -33,33 +53,49 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
 
     if (_pin.length == 4) {
       if (_hasPin) {
-        _showChangeConfirmation();
+        // The typed digits are the CURRENT pin, verified server-side when the
+        // change is submitted from the create screen.
+        _showChangeConfirmation(currentPin: _pin);
       } else {
         _goToCreatePin();
       }
     }
   }
 
-  void _goToCreatePin() {
-    Navigator.of(context).push(
+  Future<void> _goToCreatePin() async {
+    setState(() => _pin = '');
+    final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => CreatePinScreen(currentPin: _pin),
+        builder: (_) => CreatePinScreen(
+          walletController: widget.walletController,
+        ),
       ),
     );
-    setState(() => _pin = '');
+    if (!mounted) return;
+    if (created == true) {
+      setState(() {
+        _hasPin = true;
+        _enabled = true;
+      });
+    }
   }
 
-  void _showChangeConfirmation() {
+  void _showChangeConfirmation({required String currentPin}) {
     showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => const _ChangePinDialog(),
-    ).then((confirmed) {
+    ).then((confirmed) async {
       if (!mounted) return;
       setState(() => _pin = '');
       if (confirmed == true) {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CreatePinScreen()),
+        await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => CreatePinScreen(
+              walletController: widget.walletController,
+              currentPin: currentPin,
+            ),
+          ),
         );
       }
     });
@@ -160,7 +196,9 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
               NumericKeypad(onKeyTap: _onKey),
               const Spacer(),
               GestureDetector(
-                onTap: _hasPin ? _showChangeConfirmation : null,
+                onTap: _hasPin && _pin.length == 4
+                    ? () => _showChangeConfirmation(currentPin: _pin)
+                    : null,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(

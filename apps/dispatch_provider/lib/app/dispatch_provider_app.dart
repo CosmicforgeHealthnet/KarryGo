@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
@@ -30,6 +32,13 @@ import '../features/verification/data/verification_api.dart';
 import '../features/verification/state/verification_controller.dart';
 import '../features/availability/data/availability_api.dart';
 import '../features/availability/state/availability_controller.dart';
+import '../features/disputes/data/rider_support_api.dart';
+import '../features/disputes/state/rider_dispute_controller.dart';
+import '../features/notifications/data/firebase_push.dart';
+import '../features/notifications/data/rider_notification_api.dart';
+import '../features/notifications/data/rider_realtime_listener.dart';
+import '../features/notifications/state/rider_notification_controller.dart';
+import '../features/notifications/ui/notifications_screen.dart';
 import '../features/requests/data/requests_api.dart';
 import '../features/requests/state/requests_controller.dart';
 import '../features/trips/data/trips_api.dart';
@@ -82,6 +91,13 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   late final RequestsController _requestsController;
   late final TripsController _tripsController;
   late final WalletController _walletController;
+  late final RiderNotificationApi _notificationApi;
+  late final RiderNotificationController _notificationController;
+  late final RiderDisputeController _disputeController;
+  RiderRealtimeListener? _realtimeListener;
+  StreamSubscription<String>? _fcmTokenRefreshSub;
+  StreamSubscription<dynamic>? _fcmForegroundSub;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   ProfileDetailsData? _profileDetailsData;
   BikeTypeData? _bikeTypeData;
@@ -134,6 +150,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     _requestsController = RequestsController(
       api: RequestsApi(apiConfig, client: authenticatedClient),
       getAccessToken: () => _authController.accessToken,
+      shouldPoll: () => _availabilityController.isOnline,
     );
     _tripsController = TripsController(
       api: TripsApi(apiConfig, client: authenticatedClient),
@@ -143,7 +160,85 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       api: WalletApi(walletApiConfig, client: authenticatedClient),
       getAccessToken: () => _authController.accessToken,
     );
+    _notificationApi = RiderNotificationApi(
+      config: apiConfig,
+      client: authenticatedClient,
+    );
+    _notificationController = RiderNotificationController(
+      api: _notificationApi,
+      accessToken: () => _authController.accessToken,
+    );
+    _disputeController = RiderDisputeController(
+      api: RiderSupportApi(
+        config: ApiCoreConfig(baseUrl: AppConfig.supportBaseUrl),
+        client: authenticatedClient,
+      ),
+      accessToken: () => _authController.accessToken,
+    );
     _logBackendHealth();
+  }
+
+  // ── Realtime + push (started when the rider reaches the dashboard) ────────
+
+  void _startRealtimeAndPush() {
+    // Websocket fast path: every pushed event pokes the request/trip polls and
+    // the notification feed. Falls back silently to polling when the dispatch
+    // service has no notification-service configured (token endpoint 404s).
+    _realtimeListener ??= RiderRealtimeListener(
+      api: _notificationApi,
+      wsUrl: AppConfig.notificationWsUrl,
+      accessToken: () => _authController.accessToken,
+      onEvent: _onRealtimeEvent,
+    );
+    _realtimeListener!.start();
+
+    // FCM: register this device so background pushes reach the system tray.
+    // No-ops when Firebase is unavailable on this platform.
+    _registerPushDevice();
+    _fcmTokenRefreshSub ??= FirebasePush.tokenRefresh().listen((_) {
+      _registerPushDevice();
+    });
+    _fcmForegroundSub ??= FirebasePush.foregroundMessages().listen((_) {
+      _onRealtimeEvent('fcm.foreground');
+    });
+  }
+
+  void _stopRealtimeAndPush() {
+    _realtimeListener?.stop();
+    _notificationController.clear();
+  }
+
+  void _onRealtimeEvent(String eventType) {
+    _requestsController.pokeRefresh();
+    _tripsController.pokeRefresh();
+    _notificationController.onRealtimeEvent(eventType);
+  }
+
+  Future<void> _registerPushDevice() async {
+    final accessToken = _authController.accessToken;
+    if (accessToken == null || accessToken.isEmpty) return;
+    final token = await FirebasePush.deviceToken();
+    if (token == null) return;
+    try {
+      await _notificationApi.registerDevice(
+        accessToken: accessToken,
+        token: token,
+        platform: defaultTargetPlatform == TargetPlatform.iOS
+            ? 'ios'
+            : 'android',
+      );
+      debugPrint('[PUSH] device registered');
+    } catch (error) {
+      debugPrint('[PUSH] device registration failed: $error');
+    }
+  }
+
+  void _openNotifications() {
+    _navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => NotificationsScreen(controller: _notificationController),
+      ),
+    );
   }
 
   void _logBackendHealth() {
@@ -222,6 +317,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Cosmicforge Logistics Driver',
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF4CAF50),
@@ -504,8 +600,10 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         requestsController: _requestsController,
         tripsController: _tripsController,
         walletController: _walletController,
+        disputeController: _disputeController,
         onLogout: _handleLogout,
         onAccountDeleted: _handleAccountDeleted,
+        onOpenNotifications: _openNotifications,
       ),
     };
   }
@@ -803,5 +901,22 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     return rawMessage;
   }
 
-  void _go(_DispatchScreen screen) => setState(() => _screen = screen);
+  void _go(_DispatchScreen screen) {
+    setState(() => _screen = screen);
+    // Realtime + push follow the authenticated dashboard: start when the rider
+    // lands on it, stop on any route back to login.
+    if (screen == _DispatchScreen.home) {
+      _startRealtimeAndPush();
+    } else if (screen == _DispatchScreen.login) {
+      _stopRealtimeAndPush();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fcmTokenRefreshSub?.cancel();
+    _fcmForegroundSub?.cancel();
+    _realtimeListener?.stop();
+    super.dispose();
+  }
 }

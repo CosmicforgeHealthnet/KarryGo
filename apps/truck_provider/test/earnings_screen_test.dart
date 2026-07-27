@@ -8,13 +8,19 @@ import 'package:http/testing.dart';
 import 'package:truck_provider/features/earnings/state/provider_earnings_controller.dart';
 import 'package:truck_provider/features/earnings/ui/provider_earnings_screen.dart';
 import 'package:truck_provider/features/home/data/provider_api.dart';
+import 'package:truck_provider/features/wallet/data/provider_wallet_api.dart';
 
 String _iso(DateTime d) => d.toUtc().toIso8601String();
 
 void main() {
   late String requestedPath;
 
-  ProviderEarningsController makeController(Map<String, dynamic> data) {
+  /// [walletData] simulates payment-wallet's /provider/earnings; null makes the
+  /// wallet call fail so the card falls back to the hauling estimate.
+  ProviderEarningsController makeController(
+    Map<String, dynamic> data, {
+    Map<String, dynamic>? walletData,
+  }) {
     final mock = MockClient((req) async {
       requestedPath = req.url.path;
       return http.Response(jsonEncode({'success': true, 'data': data}), 200);
@@ -23,7 +29,27 @@ void main() {
       config: const ApiCoreConfig(baseUrl: 'http://test/api/v1/hauling'),
       client: mock,
     );
-    return ProviderEarningsController(api: api, accessToken: () => 'token');
+    final walletMock = MockClient((req) async {
+      if (walletData == null) {
+        return http.Response(
+          jsonEncode({
+            'success': false,
+            'error': {'code': 'internal_error', 'message': 'wallet down'},
+          }),
+          500,
+        );
+      }
+      return http.Response(jsonEncode({'success': true, 'data': walletData}), 200);
+    });
+    final walletApi = ProviderWalletApi(
+      config: const ApiCoreConfig(baseUrl: 'http://test/api/v1/payment-wallet'),
+      client: walletMock,
+    );
+    return ProviderEarningsController(
+      api: api,
+      walletApi: walletApi,
+      accessToken: () => 'token',
+    );
   }
 
   Map<String, dynamic> sampleData() {
@@ -76,6 +102,34 @@ void main() {
     expect(find.text('Anthonia Dipson'), findsOneWidget);
     expect(find.text('+₦24,000.00'), findsOneWidget);
     expect(find.text('Go to Trips'), findsWidgets);
+  });
+
+  testWidgets('balance card shows the payment-wallet ledger balance when available', (tester) async {
+    final controller = makeController(
+      sampleData(),
+      walletData: {
+        'available_kobo': 15000000,
+        'escrow_kobo': 0,
+        'pending_kobo': 2000000,
+        'currency': 'NGN',
+      },
+    );
+    await pump(tester, controller);
+
+    // The wallet ledger figure wins over the hauling booking-derived estimate.
+    expect(find.text('₦ 150,000.00'), findsOneWidget);
+    expect(find.text('₦ 204,000.00'), findsNothing);
+    expect(find.text('₦ 20,000.00'), findsOneWidget); // pending from wallet
+    expect(find.text('Available Balance'), findsOneWidget);
+    expect(find.text('Available Balance (estimated)'), findsNothing);
+  });
+
+  testWidgets('falls back to the hauling estimate when the wallet call fails', (tester) async {
+    final controller = makeController(sampleData());
+    await pump(tester, controller);
+
+    expect(find.text('₦ 204,000.00'), findsOneWidget);
+    expect(find.text('Available Balance (estimated)'), findsOneWidget);
   });
 
   testWidgets('eye toggle hides and shows the balance', (tester) async {

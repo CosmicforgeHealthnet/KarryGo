@@ -11,6 +11,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
@@ -18,6 +19,9 @@ import (
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
+	bookingfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking"
+	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
@@ -25,6 +29,9 @@ import (
 )
 
 func main() {
+	// Best-effort .env load for local development (same pattern as hauling).
+	_ = godotenv.Load()
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -98,20 +105,37 @@ func main() {
 	asynqClient := asynq.NewClient(asynqRedis)
 	defer asynqClient.Close()
 
+	// Lifecycle notifier: sends customer/rider notifications via
+	// notification-service. No-op when DISPATCH_NOTIFICATION_URL/SECRET unset.
+	bookingNotifier := bookingclients.NewBookingNotifier(cfg.NotificationURL, cfg.NotificationSecret)
+	if cfg.NotificationURL != "" {
+		log.Printf("notification-service integration enabled url=%s", cfg.NotificationURL)
+	} else {
+		log.Printf("notification-service integration disabled (DISPATCH_NOTIFICATION_URL unset); apps fall back to polling")
+	}
+
 	proofStorage, err := tripfeature.NewProofStorageFromEnv(cfg.AppEnv)
 	if err != nil {
 		log.Fatalf("configure trip proof storage: %v", err)
 	}
 	tripService := tripfeature.NewService(tripfeature.NewPostgresRepository(db), proofStorage).
 		WithEventPublisher(tripfeature.NewRedisEventPublisher(redisClient)).
-		WithWalletClient(walletClient)
+		WithWalletClient(walletClient).
+		WithNotifier(bookingNotifier)
 	tripfeature.StartSubscribers(ctx, redisClient, tripService)
+
+	// Rider request push: real notification-service sender when configured,
+	// logging stub otherwise (asynq send_push task retries on hard errors).
+	var requestSender requestfeature.NotificationSender = requestfeature.LoggingNotificationSender{}
+	if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+		requestSender = requestfeature.NewNotificationServiceSender(cfg.NotificationURL, cfg.NotificationSecret)
+	}
 
 	requestService := requestfeature.NewService(
 		requestfeature.NewPostgresRepository(db),
 		redisClient,
 		requestfeature.NewHTTPNearbyClient(cfg.AvailabilityServiceURL, cfg.InternalServiceKey),
-		requestfeature.LoggingNotificationSender{},
+		requestSender,
 		requestfeature.NewRedisEventPublisher(redisClient),
 		asynqClient,
 		requestfeature.Config{
@@ -122,6 +146,17 @@ func main() {
 		},
 	)
 	requestfeature.StartSubscribers(ctx, redisClient, requestService)
+
+	bookingService := bookingfeature.NewService(
+		bookingfeature.NewPostgresRepository(db),
+		requestService,
+		bookingfeature.TripCancelAdapter{Trips: tripService},
+		availability.NewRedisLiveStore(redisClient),
+		bookingfeature.NewWalletPaymentClient(walletClient),
+		bookingfeature.NewRedisEventPublisher(redisClient),
+		cfg.AvailabilityRadiusKM,
+	).WithNotifier(bookingNotifier)
+	bookingfeature.StartSubscribers(ctx, redisClient, bookingService)
 
 	asynqServer := asynq.NewServer(asynqRedis, asynq.Config{
 		Concurrency: 10,
@@ -138,10 +173,17 @@ func main() {
 	// Organization marketplace relay worker. Returns a no-op stopper when the
 	// feature flag is off or the fleet client is unconfigured.
 	stopMarketplaceWorkers := router.StartMarketplaceWorkers(ctx, cfg, db)
+	// Re-adopt broadcasts stranded mid-window by a crash before their expire
+	// task was scheduled (idempotent — the worker re-checks state).
+	go func() {
+		if err := requestService.RecoverStrandedBroadcasts(ctx); err != nil {
+			log.Printf("request stranded-broadcast recovery failed: %v", err)
+		}
+	}()
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           router.New(cfg, db, redisClient, authService, requestService, tripService),
+		Handler:           router.New(cfg, db, redisClient, authService, requestService, tripService, bookingService),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
@@ -14,6 +16,9 @@ class TripsController extends ChangeNotifier {
   bool _isActionLoading = false;
   String? _error;
 
+  Timer? _activePollTimer;
+  bool _activePollInFlight = false;
+
   List<TripModel> get trips => List.unmodifiable(_trips);
   TripModel? get activeTrip => _activeTrip;
   bool get isLoading => _isLoading;
@@ -27,6 +32,45 @@ class TripsController extends ChangeNotifier {
   }
 
   String? _token() => getAccessToken();
+
+  // ── Active-trip polling ───────────────────────────────────────────────────
+
+  /// Refreshes the active trip every 6 seconds so an accept elsewhere (or a
+  /// customer cancel) surfaces without a manual refresh. Idempotent; the
+  /// realtime websocket / FCM pushes call [pokeRefresh] for immediacy.
+  void startActivePolling() {
+    if (_activePollTimer != null) return;
+    _activePollTimer = Timer.periodic(
+      const Duration(seconds: 6),
+      (_) => _activePollTick(),
+    );
+  }
+
+  void stopActivePolling() {
+    _activePollTimer?.cancel();
+    _activePollTimer = null;
+  }
+
+  /// Fast-path poke (realtime event or foreground FCM push).
+  void pokeRefresh() {
+    if (_activePollTimer == null) return;
+    _activePollTick();
+  }
+
+  Future<void> _activePollTick() async {
+    if (_activePollInFlight) return;
+    final token = _token();
+    if (token == null || token.isEmpty) return;
+    // Skip while a trip action (arrive/start/complete) is running to avoid
+    // clobbering the optimistic transition with a pre-action snapshot.
+    if (_isActionLoading) return;
+    _activePollInFlight = true;
+    try {
+      await loadActiveTrip();
+    } finally {
+      _activePollInFlight = false;
+    }
+  }
 
   ApiFailure<T> _unauthorized<T>() => ApiFailure(
     const ApiException(
@@ -153,7 +197,10 @@ class TripsController extends ChangeNotifier {
 
   Future<ApiResult<bool>> submitProof({
     required String id,
-    required String filePath,
+    required String photoPath,
+    required Uint8List signaturePng,
+    required String receiverName,
+    required String receiverPhone,
   }) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
@@ -164,7 +211,10 @@ class TripsController extends ChangeNotifier {
     final result = await api.submitProof(
       accessToken: token,
       id: id,
-      filePath: filePath,
+      photoPath: photoPath,
+      signaturePng: signaturePng,
+      receiverName: receiverName,
+      receiverPhone: receiverPhone,
     );
     result.when(
       success: (_) => _debugLog('[TRIPS] submitProof $id ok'),
@@ -202,14 +252,23 @@ class TripsController extends ChangeNotifier {
 
   // ── Cancel trip ───────────────────────────────────────────────────────────
 
-  Future<ApiResult<bool>> cancelTrip(String id) async {
+  Future<ApiResult<bool>> cancelTrip(
+    String id, {
+    required String reasonCode,
+    String reasonText = '',
+  }) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
     _isActionLoading = true;
     notifyListeners();
 
-    final result = await api.cancelTrip(accessToken: token, id: id);
+    final result = await api.cancelTrip(
+      accessToken: token,
+      id: id,
+      reasonCode: reasonCode,
+      reasonText: reasonText,
+    );
     result.when(
       success: (_) {
         _activeTrip = null;
@@ -227,5 +286,11 @@ class TripsController extends ChangeNotifier {
   void clearActiveTrip() {
     _activeTrip = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    stopActivePolling();
+    super.dispose();
   }
 }

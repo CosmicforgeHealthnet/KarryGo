@@ -65,7 +65,7 @@ type Dependencies struct {
 // currently enforced inside the delivery service).
 func RegisterPartnerRoutes(r *gin.Engine, deps Dependencies) {
 	partner := r.Group(PartnerAPIBasePath)
-	handler := NewHandler(deps.Deliveries, deps.Webhooks, deps.Pricing)
+	handler := NewHandler(deps.Deliveries, deps.Webhooks, deps.AccountService, deps.Pricing)
 
 	// --- 1. API-key-only: writes + quote ------------------------------------
 	writes := partner.Group("")
@@ -92,6 +92,8 @@ func RegisterPartnerRoutes(r *gin.Engine, deps Dependencies) {
 	// --- 2. Session-or-API-key: dashboard + integrator reads ----------------
 	readPerm := partnerauth.RequirePermission(partnerauth.PermissionReadDeliveries, partnerauth.PermissionTrackDeliveries)
 	webhookPerm := partnerauth.RequirePermission(partnerauth.PermissionManageWebhooks)
+	// API key management permissions - requires manage_webhooks scope
+	keyPerm := partnerauth.RequirePermission(partnerauth.PermissionManageWebhooks)
 
 	if deps.AccountService != nil {
 		reads := partner.Group("")
@@ -107,6 +109,15 @@ func RegisterPartnerRoutes(r *gin.Engine, deps Dependencies) {
 		reads.GET("/deliveries/:id", readPerm, handler.GetDelivery)
 		reads.GET("/webhooks", webhookPerm, handler.ListWebhooks)
 		reads.GET("/webhooks/:id/deliveries", webhookPerm, handler.ListWebhookDeliveries)
+
+		// Webhook log endpoints for dashboard
+		reads.GET("/webhook-logs", webhookPerm, handler.ListWebhookLogs)
+		reads.GET("/webhook-logs/:id", webhookPerm, handler.GetWebhookLog)
+
+		// NEW: API key management endpoints (requires manage_webhooks scope)
+		reads.POST("/api-keys", keyPerm, handler.CreateAPIKey)
+		reads.GET("/api-keys", keyPerm, handler.ListAPIKeys)
+		reads.DELETE("/api-keys/:id", keyPerm, handler.RevokeAPIKey)
 	} else {
 		// AccountService not wired (e.g. existing unit tests that only build
 		// Dependencies with KeyRepo/Deliveries/Webhooks) - keep the old
@@ -115,5 +126,14 @@ func RegisterPartnerRoutes(r *gin.Engine, deps Dependencies) {
 		writes.GET("/deliveries/:id", readPerm, handler.GetDelivery)
 		writes.GET("/webhooks", webhookPerm, handler.ListWebhooks)
 		writes.GET("/webhooks/:id/deliveries", webhookPerm, handler.ListWebhookDeliveries)
+
+		// Webhook log endpoints for API-key users
+		writes.GET("/webhook-logs", webhookPerm, handler.ListWebhookLogs)
+		writes.GET("/webhook-logs/:id", webhookPerm, handler.GetWebhookLog)
+
+		// NEW: API key management endpoints for API-key users
+		writes.POST("/api-keys", keyPerm, handler.CreateAPIKey)
+		writes.GET("/api-keys", keyPerm, handler.ListAPIKeys)
+		writes.DELETE("/api-keys/:id", keyPerm, handler.RevokeAPIKey)
 	}
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
   Car,
@@ -14,22 +14,24 @@ import {
   ChevronRight,
   LogOut,
   X,
+  User,
+  ChevronDown,
+  LayoutDashboard,
+  Truck,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { authService } from "@/services/auth-service";
+import { useAuthStore } from "@/store/auth-store";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", href: "/dashboard", icon: Home },
-  { label: "Deliveries", href: "/deliveries", icon: Car },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Deliveries", href: "/deliveries", icon: Truck },
   { label: "Webhook Logs", href: "/webhook-logs", icon: Webhook },
   { label: "API Documentation", href: "/api-documentation", icon: FileText },
   { label: "Billing", href: "/billing", icon: CreditCard },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
-
-const PARTNER = {
-  name: "Kingsley Noori",
-  avatarInitial: "K",
-};
 
 interface SidebarProps {
   mobileOpen: boolean;
@@ -45,13 +47,66 @@ export function Sidebar({
   onToggleCollapsed,
 }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [isMediumScreen, setIsMediumScreen] = useState(false);
+
+  const token = useAuthStore((s) => s.token);
+  const account = useAuthStore((s) => s.account);
+  const clearSession = useAuthStore((s) => s.clearSession);
+
+  const partnerName = account?.business_name || "Partner";
+  const avatarInitial = partnerName.charAt(0).toUpperCase();
+
+  // Auto-collapse on medium screens (768px - 1013px)
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      setIsMediumScreen(width >= 768 && width <= 1013);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Auto-collapse when on medium screen
+  useEffect(() => {
+    if (isMediumScreen && !collapsed) {
+      onToggleCollapsed();
+    }
+  }, [isMediumScreen]);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      if (token) {
+        await authService.logout(token);
+      }
+    } catch {
+      // Best-effort logout
+    } finally {
+      clearSession();
+      setLoggingOut(false);
+      setProfileOpen(false);
+      router.push("/login");
+    }
+  }
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") {
+      return pathname === href;
+    }
+    return pathname.startsWith(href);
+  };
 
   return (
     <>
+      {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 content:hidden"
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
           onClick={onMobileClose}
           aria-hidden
         />
@@ -59,29 +114,26 @@ export function Sidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex h-full flex-col overflow-y-auto bg-brand-200 py-6 transition-[transform,width] duration-200",
-          "w-[240px] px-4",
+          "fixed inset-y-0 left-0 z-40 flex h-full flex-col bg-white transition-all duration-300 ease-in-out",
+          "border-r border-gray-100 shadow-sm",
+          // Mobile
+          "w-[280px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
-          "min-[768px]:max-[1013px]:translate-x-0 min-[768px]:max-[1013px]:w-[88px] min-[768px]:max-[1013px]:items-center min-[768px]:max-[1013px]:px-0",
-          collapsed
-            ? "content:translate-x-0 content:w-[88px] content:items-center content:px-0"
-            : "content:translate-x-0 content:w-[264px] content:items-stretch content:px-5"
+          // Desktop
+          "md:translate-x-0",
+          collapsed ? "md:w-[72px]" : "md:w-[260px]"
         )}
       >
-        <button
-          type="button"
-          onClick={onMobileClose}
-          aria-label="Close menu"
-          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg text-ink-900 md:hidden"
-        >
-          <X className="h-5 w-5" />
-        </button>
-
+        {/* Toggle collapse button - desktop only */}
         <button
           type="button"
           onClick={onToggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="absolute -right-3 top-8 hidden h-6 w-6 items-center justify-center rounded-full border border-ink-100 bg-white text-ink-700 shadow-sm content:flex"
+          className={cn(
+            "absolute -right-3 top-8 z-10 hidden h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-md hover:bg-gray-50 hover:text-gray-900 transition-all duration-200",
+            "md:flex",
+            isMediumScreen && "hidden"
+          )}
         >
           {collapsed ? (
             <ChevronRight className="h-3.5 w-3.5" />
@@ -90,109 +142,158 @@ export function Sidebar({
           )}
         </button>
 
-        {/* Width/gap collapse to the icon's own size when the wordmark is
-            hidden, so there's no leftover gap space pushing it off-center. */}
+        {/* Mobile close button */}
+        <button
+          type="button"
+          onClick={onMobileClose}
+          aria-label="Close menu"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 md:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        {/* Logo - with proper spacing */}
         <div
           className={cn(
-            "flex h-9 shrink-0 items-center gap-2.5",
-            "min-[768px]:max-[1013px]:w-9 min-[768px]:max-[1013px]:justify-center min-[768px]:max-[1013px]:gap-0",
-            collapsed
-              ? "content:w-9 content:justify-center content:gap-0"
-              : "content:w-auto content:justify-start"
+            "flex h-20 shrink-0 items-center gap-3 border-b border-gray-100/50 transition-all duration-300",
+            collapsed ? "md:justify-center md:px-2" : "md:px-6",
+            "px-4"
           )}
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-base font-bold text-white shadow-lg shadow-brand-200/50">
             C
           </div>
           <div
             className={cn(
-              "leading-tight",
-              "min-[768px]:max-[1013px]:hidden",
-              collapsed ? "content:hidden" : "content:block"
+              "transition-all duration-300 overflow-hidden",
+              collapsed ? "md:w-0 md:opacity-0" : "md:w-auto md:opacity-100"
             )}
           >
-            <p className="text-sm font-bold text-brand-700">COSMICFORGE</p>
-            <p className="text-[10px] tracking-wide text-brand-600">
-              HEALTHNET LIMITED
+            <p className="text-sm font-bold text-gray-900 leading-tight tracking-tight">
+              CosmicForge
+            </p>
+            <p className="text-[10px] font-medium text-gray-500 tracking-[0.15em] uppercase">
+              Logistics
             </p>
           </div>
         </div>
 
-        <nav className="mt-10 flex flex-1 flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
-            const active = pathname.startsWith(item.href);
-            const Icon = item.icon;
-            const showLabel = !collapsed;
-            return (
-              <div key={item.href} className="relative">
+        {/* Navigation - with consistent spacing */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <div className="space-y-1">
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(item.href);
+              const Icon = item.icon;
+              return (
                 <Link
+                  key={item.href}
                   href={item.href}
                   onClick={onMobileClose}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg py-2.5 text-sm font-semibold text-ink-900 transition-colors hover:bg-white/40",
-                    "px-3",
-                    "min-[768px]:max-[1013px]:justify-center min-[768px]:max-[1013px]:px-0",
-                    showLabel
-                      ? "content:justify-start content:px-3"
-                      : "content:justify-center content:px-0"
+                    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                    active
+                      ? "bg-brand-50 text-brand-700 shadow-sm"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                    collapsed
+                      ? "md:justify-center md:px-2"
+                      : "md:px-4"
                   )}
                 >
-                  <Icon className="h-5 w-5 shrink-0" />
+                  <Icon
+                    className={cn(
+                      "h-5 w-5 shrink-0 transition-colors",
+                      active ? "text-brand-600" : "text-gray-400 group-hover:text-gray-600"
+                    )}
+                  />
                   <span
                     className={cn(
-                      "min-[768px]:max-[1013px]:hidden",
-                      showLabel ? "content:inline" : "content:hidden"
+                      "transition-all duration-200",
+                      collapsed ? "md:hidden" : "md:inline"
                     )}
                   >
                     {item.label}
                   </span>
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-brand-600" />
+                  )}
                 </Link>
-                {active && (
-                  <span className="absolute right-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-l-full bg-brand-600 min-[768px]:max-[1013px]:right-[-1px] content:right-[-21px]" />
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </nav>
 
-        <div className="relative mt-auto shrink-0">
-          {profileOpen && (
-            <div className="absolute bottom-14 left-0 w-56 rounded-xl border border-ink-100 bg-white p-4 shadow-lg">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-200 text-sm font-semibold text-brand-700">
-                  {PARTNER.avatarInitial}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-ink-900">
-                    {PARTNER.name}
-                  </p>
-                  <Link
-                    href="/settings"
-                    className="text-xs font-medium text-brand-600"
-                  >
-                    Profile
-                  </Link>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="mt-4 flex items-center gap-2 text-sm font-semibold text-danger"
-                onClick={() => setProfileOpen(false)}
-              >
-                <LogOut className="h-4 w-4" />
-                Log Out
-              </button>
-            </div>
-          )}
-
+        {/* Bottom section */}
+        <div className="shrink-0 border-t border-gray-100 p-3">
+          {/* Help */}
           <button
             type="button"
-            onClick={() => setProfileOpen((o) => !o)}
-            aria-label="Account menu"
-            className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-brand-400 text-sm font-semibold text-white"
+            className={cn(
+              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-500 transition-all hover:bg-gray-50 hover:text-gray-700",
+              collapsed ? "md:justify-center md:px-2" : "md:px-4"
+            )}
           >
-            {PARTNER.avatarInitial}
+            <HelpCircle className="h-5 w-5 shrink-0" />
+            <span className={cn(collapsed ? "md:hidden" : "md:inline")}>
+              Help & Support
+            </span>
           </button>
+
+          {/* Profile */}
+          <div className="relative mt-1">
+            <button
+              type="button"
+              onClick={() => setProfileOpen((o) => !o)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all hover:bg-gray-50",
+                collapsed ? "md:justify-center md:px-2" : "md:px-4"
+              )}
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-sm font-semibold text-white shadow-md shadow-brand-200/50">
+                {avatarInitial}
+              </div>
+              <div
+                className={cn(
+                  "flex-1 text-left transition-all duration-200",
+                  collapsed ? "md:hidden" : "md:block"
+                )}
+              >
+                <p className="text-sm font-semibold text-gray-900 truncate">
+                  {partnerName}
+                </p>
+                <p className="text-xs text-gray-500">Partner Account</p>
+              </div>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-gray-400 transition-transform duration-200",
+                  profileOpen && "rotate-180",
+                  collapsed ? "md:hidden" : "md:block"
+                )}
+              />
+            </button>
+
+            {/* Dropdown */}
+            {profileOpen && (
+              <div className="absolute bottom-full left-0 mb-2 w-full rounded-xl border border-gray-100 bg-white p-2 shadow-lg shadow-gray-200/50">
+                <Link
+                  href="/settings"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  <User className="h-4 w-4" />
+                  My Profile
+                </Link>
+                <button
+                  type="button"
+                  disabled={loggingOut}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="h-4 w-4" />
+                  {loggingOut ? "Logging out..." : "Log Out"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
     </>

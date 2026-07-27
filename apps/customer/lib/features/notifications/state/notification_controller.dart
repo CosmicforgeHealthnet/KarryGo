@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../auth/state/customer_auth_controller.dart';
@@ -52,6 +53,18 @@ class NotificationController extends ChangeNotifier {
 
   int _unread = 0;
   int get unreadCount => _unread;
+
+  static const _lastSeenKey = 'customer.notifications.last_seen';
+  static const _storage = FlutterSecureStorage();
+
+  DateTime? _unreadCutoff;
+
+  /// Whether [item] should render with unread styling: it arrived after the
+  /// previous Alerts-tab visit (see [openFeed]).
+  bool isUnread(AppNotification item) {
+    final cutoff = _unreadCutoff;
+    return cutoff == null || item.createdAt.isAfter(cutoff);
+  }
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _socketSub;
@@ -131,6 +144,28 @@ class NotificationController extends ChangeNotifier {
     if (_unread == 0) return;
     _unread = 0;
     notifyListeners();
+  }
+
+  /// Handles an Alerts-tab visit: items newer than the previous visit render
+  /// as unread for the whole visit, the persisted last-seen marker advances,
+  /// the live-push badge clears, and the feed reloads.
+  ///
+  /// Persistence is best-effort — when secure storage is unavailable (e.g.
+  /// widget tests without the plugin) everything simply renders as unread.
+  Future<void> openFeed() async {
+    try {
+      final stored = await _storage.read(key: _lastSeenKey);
+      final millis = stored == null ? null : int.tryParse(stored);
+      _unreadCutoff = DateTime.fromMillisecondsSinceEpoch(millis ?? 0);
+      await _storage.write(
+        key: _lastSeenKey,
+        value: DateTime.now().millisecondsSinceEpoch.toString(),
+      );
+    } catch (error) {
+      if (kDebugMode) debugPrint('notification last-seen storage error: $error');
+    }
+    markAllRead();
+    await loadFeed();
   }
 
   // ─── Realtime ────────────────────────────────────────────────────────────

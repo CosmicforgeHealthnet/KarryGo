@@ -16,14 +16,19 @@ import (
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
+	bookingfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking"
+	identityhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/identity/http"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
+	notificationhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/notifications/http"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/profile"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vehicle"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware"
+	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -37,7 +42,7 @@ func (a *dispatchSessionRevokerAdapter) RevokeAllByProviderID(ctx context.Contex
 	return a.repo.RevokeAllByDispatchRiderID(ctx, providerID)
 }
 
-func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authService *authusecases.AuthUsecase, requestService *requestfeature.Service, tripService *tripfeature.Service) *gin.Engine {
+func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authService *authusecases.AuthUsecase, requestService *requestfeature.Service, tripService *tripfeature.Service, bookingService *bookingfeature.Service) *gin.Engine {
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -117,6 +122,36 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	if tripService != nil {
 		tripfeature.RegisterRoutes(engine, authService.TokenUsecase(), tripfeature.NewHandler(tripService))
 	}
+	if bookingService != nil {
+		bookingfeature.RegisterRoutes(
+			engine,
+			sharedauth.NewTokenSigner(cfg.CustomerTokenSecret),
+			bookingfeature.NewHandler(bookingService, profileService),
+		)
+	}
+
+	// Internal identity lookup for support-dispute-service (HMAC service auth).
+	// Skipped when no service secrets are configured.
+	if secrets := serviceauth.ParseSecrets(cfg.ServiceSecrets); len(secrets) > 0 {
+		identityhttp.RegisterIdentityRoutes(
+			engine,
+			profileRepository,
+			serviceauth.NewVerifier(secrets, 5*time.Minute),
+		)
+	}
+
+	// Notification proxy (feed / realtime token / device registration) for the
+	// rider and customer apps. Skipped when DISPATCH_NOTIFICATION_URL is unset.
+	notificationhttp.RegisterNotificationRoutes(
+		engine,
+		notifications.Client{
+			BaseURL:     cfg.NotificationURL,
+			ServiceName: "driver-dispatch-delivery-service",
+			Secret:      cfg.NotificationSecret,
+		},
+		sharedauth.NewTokenSigner(cfg.AccessTokenSecret),
+		sharedauth.NewTokenSigner(cfg.CustomerTokenSecret),
+	)
 
 	registerMarketplaceRoutes(engine, cfg, db, authService)
 

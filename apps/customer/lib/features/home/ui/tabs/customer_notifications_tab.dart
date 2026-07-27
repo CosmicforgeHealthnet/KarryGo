@@ -4,6 +4,7 @@ import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../../notifications/models/app_notification.dart';
 import '../../../notifications/state/notification_controller.dart';
 
+/// Alerts tab — notification feed grouped by day (Figma design).
 class CustomerNotificationsTab extends StatefulWidget {
   const CustomerNotificationsTab({super.key, required this.controller});
 
@@ -17,115 +18,159 @@ class _CustomerNotificationsTabState extends State<CustomerNotificationsTab> {
   @override
   void initState() {
     super.initState();
-    // Opening the tab marks the live-push badge as seen.
-    WidgetsBinding.instance.addPostFrameCallback((_) => widget.controller.markAllRead());
+    // Opening the tab loads the unread cutoff, clears the badge, reloads.
+    WidgetsBinding.instance.addPostFrameCallback((_) => widget.controller.openFeed());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CustomerFigmaColors.surface,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-        title: const Text(
-          'Notifications',
-          style: TextStyle(
-            color: CustomerFigmaColors.text,
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-          ),
-        ),
-      ),
-      body: AnimatedBuilder(
-        animation: widget.controller,
-        builder: (context, _) {
-          final controller = widget.controller;
-          final items = controller.notifications;
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: AnimatedBuilder(
+          animation: widget.controller,
+          builder: (context, _) {
+            final controller = widget.controller;
+            final items = controller.notifications;
 
-          if (items.isEmpty) {
             return RefreshIndicator(
+              color: CustomerFigmaColors.primary,
               onRefresh: controller.loadFeed,
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                 children: [
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.18),
-                  _EmptyState(loading: controller.isLoading, error: controller.error),
+                  const Text(
+                    'Notifications',
+                    style: TextStyle(
+                      color: CustomerFigmaColors.text,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Manage your Notifications and Activities here.',
+                    style: TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
+                  ),
+                  if (items.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(top: MediaQuery.of(context).size.height * 0.16),
+                      child: _EmptyState(loading: controller.isLoading, error: controller.error),
+                    )
+                  else
+                    for (final entry in _groupByDay(items).entries) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20, bottom: 10),
+                        child: Text(
+                          entry.key,
+                          style: const TextStyle(
+                            color: CustomerFigmaColors.text,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      for (final item in entry.value)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _NotificationCard(
+                            item: item,
+                            isUnread: controller.isUnread(item),
+                          ),
+                        ),
+                    ],
                 ],
               ),
             );
-          }
-
-          return RefreshIndicator(
-            onRefresh: controller.loadFeed,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
-              itemBuilder: (context, index) => _NotificationTile(item: items[index]),
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
+  }
+
+  /// Groups notifications (already newest-first) into day buckets, preserving order.
+  Map<String, List<AppNotification>> _groupByDay(List<AppNotification> items) {
+    final groups = <String, List<AppNotification>>{};
+    for (final item in items) {
+      groups.putIfAbsent(_dayLabel(item.createdAt), () => []).add(item);
+    }
+    return groups;
+  }
+
+  String _dayLabel(DateTime time) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(time.year, time.month, time.day);
+    final diff = today.difference(day).inDays;
+    if (diff <= 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    if (diff < 7) return '$diff days ago';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${day.day} ${months[day.month - 1]}${day.year == now.year ? '' : ' ${day.year}'}';
   }
 }
 
-class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.item});
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({required this.item, required this.isUnread});
 
   final AppNotification item;
+  final bool isUnread;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: const BoxDecoration(
-          color: CustomerFigmaColors.primaryPale,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(_iconFor(item.eventType), color: CustomerFigmaColors.primary, size: 22),
-      ),
-      title: Text(
-        item.title.isEmpty ? 'Notification' : item.title,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: CustomerFigmaColors.text),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (item.body.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(item.body, style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 13)),
-          ],
-          const SizedBox(height: 4),
-          Text(_relativeTime(item.createdAt),
-              style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 11)),
+    final message = item.body.isNotEmpty ? item.body : item.title;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
-      isThreeLine: item.body.isNotEmpty,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: isUnread ? CustomerFigmaColors.primary : CustomerFigmaColors.primarySoft,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message.isEmpty ? 'Notification' : message,
+              style: TextStyle(
+                color: isUnread ? CustomerFigmaColors.text : CustomerFigmaColors.muted,
+                fontSize: 13,
+                fontWeight: isUnread ? FontWeight.w600 : FontWeight.w400,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            _formatTime(item.createdAt),
+            style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 
-  IconData _iconFor(String eventType) {
-    if (eventType.startsWith('payment') || eventType.startsWith('withdrawal') || eventType.startsWith('refund')) {
-      return Icons.account_balance_wallet_rounded;
-    }
-    if (eventType.startsWith('cargo') || eventType.startsWith('booking')) {
-      return Icons.local_shipping_rounded;
-    }
-    return Icons.notifications_rounded;
-  }
-
-  String _relativeTime(DateTime time) {
-    final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${time.day}/${time.month}/${time.year}';
+  String _formatTime(DateTime time) {
+    final hour12 = time.hour % 12 == 0 ? 12 : time.hour % 12;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.hour < 12 ? 'AM' : 'PM';
+    return '$hour12:$minute $period';
   }
 }
 

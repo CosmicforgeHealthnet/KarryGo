@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../disputes/models/dispute_models.dart';
+import '../../disputes/state/provider_dispute_controller.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import 'widgets/provider_profile_widgets.dart';
 
 /// Contact Support (Account option-4). "Start Chat" opens the Live Chat screen.
 class ProviderSupportScreen extends StatelessWidget {
-  const ProviderSupportScreen({super.key});
+  const ProviderSupportScreen({super.key, required this.disputeController});
+
+  final ProviderDisputeController disputeController;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +50,9 @@ class ProviderSupportScreen extends StatelessWidget {
                 height: 54,
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const ProviderLiveChatScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => ProviderLiveChatScreen(controller: disputeController),
+                    ),
                   ),
                   icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 20),
                   label: const Text('Start Chat',
@@ -65,15 +73,13 @@ class ProviderSupportScreen extends StatelessWidget {
 
 // ─── Live Chat (Account option-5) ─────────────────────────────────────────────
 
-class _ChatMessage {
-  const _ChatMessage({required this.text, required this.time, required this.isAgent});
-  final String text;
-  final String time;
-  final bool isAgent;
-}
-
+/// Real support chat: messages live on a support-dispute-service complaint
+/// (subject "Live chat support"), agent replies come from the admin surface,
+/// and the thread refreshes on a short poll while the screen is open.
 class ProviderLiveChatScreen extends StatefulWidget {
-  const ProviderLiveChatScreen({super.key});
+  const ProviderLiveChatScreen({super.key, required this.controller});
+
+  final ProviderDisputeController controller;
 
   @override
   State<ProviderLiveChatScreen> createState() => _ProviderLiveChatScreenState();
@@ -82,46 +88,57 @@ class ProviderLiveChatScreen extends StatefulWidget {
 class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  Timer? _pollTimer;
+  String? _complaintId;
+  int _lastCount = 0;
 
-  final List<_ChatMessage> _messages = [
-    const _ChatMessage(text: 'Hello, how can i help you today?', time: '12:15 PM', isAgent: true),
-    const _ChatMessage(text: 'Hello, I have repeatedly tried booking a ride with add stop but its failing.', time: '12:12 PM', isAgent: false),
-    const _ChatMessage(text: 'Hello, when did you book the ride?', time: '12:15 PM', isAgent: true),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openChat());
+  }
+
+  Future<void> _openChat() async {
+    final complaint = await widget.controller.openSupportChat();
+    if (!mounted || complaint == null) return;
+    _complaintId = complaint.id;
+    await widget.controller.loadMessages(complaint.id);
+    if (!mounted) return;
+    unawaited(widget.controller.markMessagesRead(complaint.id));
+    _scrollToEnd();
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
+  }
+
+  Future<void> _refresh() async {
+    final id = _complaintId;
+    if (id == null) return;
+    await widget.controller.loadMessages(id);
+    if (!mounted) return;
+    final count = widget.controller.messages.length;
+    if (count != _lastCount) {
+      _lastCount = count;
+      unawaited(widget.controller.markMessagesRead(id));
+      _scrollToEnd();
+    }
+  }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
+    final id = _complaintId;
     final text = _inputCtrl.text.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      _messages.add(_ChatMessage(text: text, time: _now(), isAgent: false));
-      _inputCtrl.clear();
-    });
+    if (id == null || text.isEmpty || widget.controller.sending) return;
+    _inputCtrl.clear();
+    await widget.controller.sendMessage(id, text);
+    if (!mounted) return;
+    _lastCount = widget.controller.messages.length;
     _scrollToEnd();
-    // Local canned agent acknowledgement (real-time chat requires the
-    // support-dispute service; this mirrors the Figma conversation UI).
-    Future.delayed(const Duration(seconds: 1), () {
-      if (!mounted) return;
-      setState(() => _messages.add(_ChatMessage(
-            text: 'Thanks for the details, an agent will be with you shortly.',
-            time: _now(),
-            isAgent: true,
-          )));
-      _scrollToEnd();
-    });
-  }
-
-  String _now() {
-    final t = TimeOfDay.now();
-    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
-    final m = t.minute.toString().padLeft(2, '0');
-    return '$h:$m ${t.period == DayPeriod.am ? 'AM' : 'PM'}';
   }
 
   void _scrollToEnd() {
@@ -133,42 +150,100 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
     });
   }
 
+  String _time(DateTime dt) {
+    final t = TimeOfDay.fromDateTime(dt);
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m ${t.period == DayPeriod.am ? 'AM' : 'PM'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: ProviderProfileHeader(title: 'Live Chat'),
-            ),
-            const SizedBox(height: 8),
-            const Text('Sunday at 4:20 PM', style: TextStyle(color: kProviderMuted, fontSize: 12)),
-            const SizedBox(height: 8),
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                itemCount: _messages.length,
-                itemBuilder: (context, i) => _bubble(_messages[i]),
-              ),
-            ),
-            _composer(),
-          ],
+        child: AnimatedBuilder(
+          animation: widget.controller,
+          builder: (context, _) {
+            final c = widget.controller;
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: ProviderProfileHeader(title: 'Live Chat'),
+                ),
+                const SizedBox(height: 8),
+                Expanded(child: _body(c)),
+                _composer(enabled: _complaintId != null && !c.sending),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _bubble(_ChatMessage m) {
-    final bubbleColor = m.isAgent ? kProviderGreen : kProviderGreenTint;
-    final textColor = m.isAgent ? Colors.white : kProviderText;
+  Widget _body(ProviderDisputeController c) {
+    if (c.openingSupportChat || (c.loadingMessages && c.messages.isEmpty && _complaintId != null)) {
+      return const Center(child: CircularProgressIndicator(color: kProviderGreen));
+    }
+    if (c.supportChatError != null && _complaintId == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.cloud_off_rounded, color: kProviderMuted, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                c.supportChatError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: kProviderMuted, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: _openChat,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kProviderGreen,
+                  side: const BorderSide(color: kProviderGreen),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (c.messages.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Start the conversation - our support team will reply here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
+          ),
+        ),
+      );
+    }
+    return ListView.builder(
+      controller: _scrollCtrl,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      itemCount: c.messages.length,
+      itemBuilder: (context, i) => _bubble(c.messages[i]),
+    );
+  }
+
+  Widget _bubble(DisputeMessage m) {
+    final isAgent = !m.isMine;
+    final bubbleColor = isAgent ? kProviderGreen : kProviderGreenTint;
+    final textColor = isAgent ? Colors.white : kProviderText;
     final avatar = CircleAvatar(
       radius: 16,
       backgroundColor: kProviderGreenTint,
-      child: Icon(m.isAgent ? Icons.support_agent_rounded : Icons.person_rounded, size: 18, color: kProviderGreen),
+      child: Icon(isAgent ? Icons.support_agent_rounded : Icons.person_rounded, size: 18, color: kProviderGreen),
     );
 
     final bubble = Flexible(
@@ -180,18 +255,18 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(m.isAgent ? 4 : 16),
-            bottomRight: Radius.circular(m.isAgent ? 16 : 4),
+            bottomLeft: Radius.circular(isAgent ? 4 : 16),
+            bottomRight: Radius.circular(isAgent ? 16 : 4),
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(m.text, style: TextStyle(color: textColor, fontSize: 13, height: 1.4)),
+            Text(m.content, style: TextStyle(color: textColor, fontSize: 13, height: 1.4)),
             const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerRight,
-              child: Text(m.time, style: TextStyle(color: textColor.withValues(alpha: 0.7), fontSize: 10)),
+              child: Text(_time(m.createdAt), style: TextStyle(color: textColor.withValues(alpha: 0.7), fontSize: 10)),
             ),
           ],
         ),
@@ -201,14 +276,14 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        mainAxisAlignment: m.isAgent ? MainAxisAlignment.start : MainAxisAlignment.end,
+        mainAxisAlignment: isAgent ? MainAxisAlignment.start : MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: m.isAgent ? [avatar, bubble] : [bubble, avatar],
+        children: isAgent ? [avatar, bubble] : [bubble, avatar],
       ),
     );
   }
 
-  Widget _composer() {
+  Widget _composer({required bool enabled}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Row(
@@ -224,6 +299,7 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _inputCtrl,
+                      enabled: enabled,
                       onSubmitted: (_) => _send(),
                       decoration: const InputDecoration(
                         hintText: 'Write a message...',
@@ -241,11 +317,14 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
           ),
           const SizedBox(width: 10),
           GestureDetector(
-            onTap: _send,
+            onTap: enabled ? _send : null,
             child: Container(
               width: 50,
               height: 50,
-              decoration: const BoxDecoration(color: kProviderGreen, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: enabled ? kProviderGreen : kProviderMuted,
+                shape: BoxShape.circle,
+              ),
               child: const Icon(Icons.send_rounded, color: Colors.white, size: 22),
             ),
           ),

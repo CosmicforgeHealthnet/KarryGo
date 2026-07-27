@@ -42,18 +42,26 @@ class RequestModel {
   String get distanceDisplay => '${distanceKm.toStringAsFixed(1)} km';
 
   factory RequestModel.fromJson(Map<String, dynamic> json) {
+    // The backend request-inbox list item serializes the row id as `inbox_id`
+    // (and the fare as `fare_amount`, the timestamp as `received_at`). Read the
+    // real backend keys first, falling back to the alternates so this keeps
+    // working if the contract is ever aligned or the object comes from a trip.
+    final createdRaw =
+        (json['received_at'] as String?) ?? (json['created_at'] as String?);
     return RequestModel(
-      id: (json['id'] as String?) ?? '',
+      id: (json['inbox_id'] as String?) ?? (json['id'] as String?) ?? '',
       bookingId: (json['booking_id'] as String?) ?? '',
       pickupAddress: (json['pickup_address'] as String?) ?? '',
       dropoffAddress: (json['dropoff_address'] as String?) ?? '',
       receiverName: (json['receiver_name'] as String?) ?? '',
       receiverPhone: (json['receiver_phone'] as String?) ?? '',
       distanceKm: ((json['distance_km'] as num?) ?? 0).toDouble(),
-      estimatedFareKobo: (json['estimated_fare_kobo'] as int?) ?? 0,
+      estimatedFareKobo: (json['fare_amount'] as num?)?.toInt() ??
+          (json['estimated_fare_kobo'] as num?)?.toInt() ??
+          0,
       status: (json['status'] as String?) ?? '',
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
+      createdAt: createdRaw != null
+          ? DateTime.tryParse(createdRaw) ?? DateTime.now()
           : DateTime.now(),
       customerName: (json['customer_name'] as String?) ?? '',
       expiresAt: json['expires_at'] != null

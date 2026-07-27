@@ -39,12 +39,12 @@ type CreatePaymentIntentInput struct {
 }
 
 type CreateWithdrawalInput struct {
-	Reference     string
-	ProviderType  string
-	ProviderID    string
-	BankAccountID string
-	AmountKobo    int64
-	Currency      string
+	Reference      string
+	ProviderType   string
+	ProviderID     string
+	BankAccountID  string
+	AmountKobo     int64
+	Currency       string
 	IdempotencyKey string
 }
 
@@ -77,11 +77,11 @@ func (r *PostgresWalletRepository) GetWalletSummary(ctx context.Context, ownerTy
 	}
 
 	return walletmodels.WalletSummary{
-		OwnerType:      ownerType,
-		OwnerID:        ownerID,
-		Currency:       currency,
+		OwnerType:     ownerType,
+		OwnerID:       ownerID,
+		Currency:      currency,
 		AvailableKobo: available,
-		PendingKobo:    pending,
+		PendingKobo:   pending,
 	}, nil
 }
 
@@ -208,6 +208,38 @@ func (r *PostgresWalletRepository) GetPaymentIntentByPaystackReference(ctx conte
 func (r *PostgresWalletRepository) GetPaymentIntentBySource(ctx context.Context, service string, reference string) (walletmodels.PaymentIntent, error) {
 	row := r.db.QueryRow(ctx, selectPaymentIntentSQL()+` WHERE source_service = $1 AND source_reference = $2`, service, reference)
 	return scanPaymentIntent(row)
+}
+
+// AssignPaymentIntentProvider attaches the matched provider to a payment
+// intent after the hold was created, so CompleteJob can settle escrow to the
+// provider payable account. Idempotent: re-assigning the same provider is a
+// no-op; assigning a different provider to an already-assigned intent, or
+// assigning on a refunded/failed intent, is a conflict.
+func (r *PostgresWalletRepository) AssignPaymentIntentProvider(ctx context.Context, reference string, providerType string, providerID string) (walletmodels.PaymentIntent, error) {
+	intent, err := r.GetPaymentIntentByReference(ctx, reference)
+	if err != nil {
+		return walletmodels.PaymentIntent{}, err
+	}
+	if intent.ProviderID == providerID && intent.ProviderType == providerType {
+		return intent, nil
+	}
+	if intent.ProviderID != "" && intent.ProviderID != providerID {
+		return walletmodels.PaymentIntent{}, apperrors.Conflict("Payment is already assigned to another provider.", nil)
+	}
+	switch intent.Status {
+	case walletmodels.PaymentStatusRefunded, walletmodels.PaymentStatusPartRefunded, walletmodels.PaymentStatusFailed:
+		return walletmodels.PaymentIntent{}, apperrors.Conflict("Payment can no longer be assigned to a provider.", nil)
+	}
+	if _, err := r.db.Exec(ctx, `
+		UPDATE payment_intents
+		SET provider_id = $2,
+			provider_type = $3,
+			updated_at = now()
+		WHERE reference = $1
+	`, reference, providerID, providerType); err != nil {
+		return walletmodels.PaymentIntent{}, err
+	}
+	return r.GetPaymentIntentByReference(ctx, reference)
 }
 
 func (r *PostgresWalletRepository) HoldPaymentFromWallet(ctx context.Context, intentID string, idempotencyKey string) (walletmodels.PaymentIntent, error) {
@@ -419,20 +451,16 @@ func (r *PostgresWalletRepository) CreateProviderBankAccount(ctx context.Context
 }
 
 func (r *PostgresWalletRepository) GetProviderBankAccount(ctx context.Context, providerType string, providerID string, accountID string) (walletmodels.ProviderBankAccount, error) {
-	row := r.db.QueryRow(ctx, `
-		SELECT id::text, provider_type, provider_id, bank_code, bank_name, account_number, account_name, recipient_code, currency, status, created_at, updated_at
-		FROM provider_bank_accounts
-		WHERE id = $1 AND provider_type = $2 AND provider_id = $3
+	row := r.db.QueryRow(ctx, selectBankAccountSQL()+`
+		WHERE id = $1 AND provider_type = $2 AND provider_id = $3 AND status = 'active'
 	`, accountID, providerType, providerID)
 	return scanProviderBankAccount(row)
 }
 
 func (r *PostgresWalletRepository) ListProviderBankAccounts(ctx context.Context, providerType string, providerID string) ([]walletmodels.ProviderBankAccount, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT id::text, provider_type, provider_id, bank_code, bank_name, account_number, account_name, recipient_code, currency, status, created_at, updated_at
-		FROM provider_bank_accounts
-		WHERE provider_type = $1 AND provider_id = $2
-		ORDER BY created_at DESC
+	rows, err := r.db.Query(ctx, selectBankAccountSQL()+`
+		WHERE provider_type = $1 AND provider_id = $2 AND status = 'active'
+		ORDER BY is_default DESC, created_at DESC
 	`, providerType, providerID)
 	if err != nil {
 		return nil, err
@@ -451,12 +479,67 @@ func (r *PostgresWalletRepository) ListProviderBankAccounts(ctx context.Context,
 }
 
 func (r *PostgresWalletRepository) GetProviderBankAccountByRecipient(ctx context.Context, recipientCode string) (walletmodels.ProviderBankAccount, error) {
-	row := r.db.QueryRow(ctx, `
-		SELECT id::text, provider_type, provider_id, bank_code, bank_name, account_number, account_name, recipient_code, currency, status, created_at, updated_at
-		FROM provider_bank_accounts
+	row := r.db.QueryRow(ctx, selectBankAccountSQL()+`
 		WHERE recipient_code = $1
 	`, recipientCode)
 	return scanProviderBankAccount(row)
+}
+
+// SetDefaultProviderBankAccount makes the given active account the provider's
+// single default payout account.
+func (r *PostgresWalletRepository) SetDefaultProviderBankAccount(ctx context.Context, providerType string, providerID string, accountID string) (walletmodels.ProviderBankAccount, error) {
+	var account walletmodels.ProviderBankAccount
+	err := r.withTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+			UPDATE provider_bank_accounts
+			SET is_default = false, updated_at = now()
+			WHERE provider_type = $1 AND provider_id = $2 AND is_default
+		`, providerType, providerID); err != nil {
+			return err
+		}
+		tag, err := tx.Exec(ctx, `
+			UPDATE provider_bank_accounts
+			SET is_default = true, updated_at = now()
+			WHERE id = $1 AND provider_type = $2 AND provider_id = $3 AND status = 'active'
+		`, accountID, providerType, providerID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return apperrors.NotFound("Bank account could not be found.", nil)
+		}
+		row := tx.QueryRow(ctx, selectBankAccountSQL()+` WHERE id = $1`, accountID)
+		account, err = scanProviderBankAccount(row)
+		return err
+	})
+	if err != nil {
+		return walletmodels.ProviderBankAccount{}, err
+	}
+	return account, nil
+}
+
+// RemoveProviderBankAccount soft-removes an account (withdrawals keep a NOT
+// NULL foreign key to it, so the row is never deleted).
+func (r *PostgresWalletRepository) RemoveProviderBankAccount(ctx context.Context, providerType string, providerID string, accountID string) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE provider_bank_accounts
+		SET status = 'removed', is_default = false, updated_at = now()
+		WHERE id = $1 AND provider_type = $2 AND provider_id = $3 AND status = 'active'
+	`, accountID, providerType, providerID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return apperrors.NotFound("Bank account could not be found.", nil)
+	}
+	return nil
+}
+
+func selectBankAccountSQL() string {
+	return `
+		SELECT id::text, provider_type, provider_id, bank_code, bank_name, account_number, account_name, recipient_code, currency, status, is_default, created_at, updated_at
+		FROM provider_bank_accounts
+	`
 }
 
 func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input CreateWithdrawalInput) (walletmodels.Withdrawal, error) {
@@ -1087,10 +1170,8 @@ func (r *PostgresWalletRepository) getPaymentIntentBySourceForUpdate(ctx context
 }
 
 func (r *PostgresWalletRepository) getBankAccountForUpdate(ctx context.Context, tx pgx.Tx, providerType string, providerID string, accountID string) (walletmodels.ProviderBankAccount, error) {
-	row := tx.QueryRow(ctx, `
-		SELECT id::text, provider_type, provider_id, bank_code, bank_name, account_number, account_name, recipient_code, currency, status, created_at, updated_at
-		FROM provider_bank_accounts
-		WHERE id = $1 AND provider_type = $2 AND provider_id = $3
+	row := tx.QueryRow(ctx, selectBankAccountSQL()+`
+		WHERE id = $1 AND provider_type = $2 AND provider_id = $3 AND status = 'active'
 		FOR UPDATE
 	`, accountID, providerType, providerID)
 	return scanProviderBankAccount(row)
@@ -1256,6 +1337,7 @@ func scanProviderBankAccount(row pgx.Row) (walletmodels.ProviderBankAccount, err
 		&account.RecipientCode,
 		&account.Currency,
 		&account.Status,
+		&account.IsDefault,
 		&account.CreatedAt,
 		&account.UpdatedAt,
 	)
@@ -1305,6 +1387,56 @@ func scanRefund(row pgx.Row) (walletmodels.Refund, error) {
 		return walletmodels.Refund{}, mapNotFound(err, "Refund could not be found.")
 	}
 	return refund, nil
+}
+
+func (r *PostgresWalletRepository) GetTransactionPin(ctx context.Context, providerType string, providerID string) (walletmodels.TransactionPin, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id::text, provider_type, provider_id, pin_hash, failed_attempts, locked_until, created_at, updated_at
+		FROM provider_transaction_pins
+		WHERE provider_type = $1 AND provider_id = $2
+	`, providerType, providerID)
+	return scanTransactionPin(row)
+}
+
+func (r *PostgresWalletRepository) CreateTransactionPin(ctx context.Context, providerType string, providerID string, pinHash string) (walletmodels.TransactionPin, error) {
+	row := r.db.QueryRow(ctx, `
+		INSERT INTO provider_transaction_pins (id, provider_type, provider_id, pin_hash)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id::text, provider_type, provider_id, pin_hash, failed_attempts, locked_until, created_at, updated_at
+	`, uuid.NewString(), providerType, providerID, pinHash)
+	pin, err := scanTransactionPin(row)
+	if err != nil && isUniqueViolation(err) {
+		return walletmodels.TransactionPin{}, apperrors.Conflict("A transaction PIN is already set.", err)
+	}
+	return pin, err
+}
+
+func (r *PostgresWalletRepository) UpdateTransactionPin(ctx context.Context, providerType string, providerID string, pinHash string, failedAttempts int, lockedUntil *time.Time) (walletmodels.TransactionPin, error) {
+	row := r.db.QueryRow(ctx, `
+		UPDATE provider_transaction_pins
+		SET pin_hash = $3, failed_attempts = $4, locked_until = $5, updated_at = now()
+		WHERE provider_type = $1 AND provider_id = $2
+		RETURNING id::text, provider_type, provider_id, pin_hash, failed_attempts, locked_until, created_at, updated_at
+	`, providerType, providerID, pinHash, failedAttempts, lockedUntil)
+	return scanTransactionPin(row)
+}
+
+func scanTransactionPin(row pgx.Row) (walletmodels.TransactionPin, error) {
+	var pin walletmodels.TransactionPin
+	err := row.Scan(
+		&pin.ID,
+		&pin.ProviderType,
+		&pin.ProviderID,
+		&pin.PinHash,
+		&pin.FailedAttempts,
+		&pin.LockedUntil,
+		&pin.CreatedAt,
+		&pin.UpdatedAt,
+	)
+	if err != nil {
+		return walletmodels.TransactionPin{}, mapNotFound(err, "Transaction PIN is not set.")
+	}
+	return pin, nil
 }
 
 func mapNotFound(err error, message string) error {

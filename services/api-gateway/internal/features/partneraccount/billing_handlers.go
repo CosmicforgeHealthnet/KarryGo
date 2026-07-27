@@ -76,3 +76,12 @@ func billingAtoiDefault(s string, def int) int {
 	}
 	return n
 }
+
+func (h *BillingHandlers) GetDashboardSummary(c *gin.Context) {
+	summary, err := h.svc.GetDashboardSummary(c.Request.Context(), SessionPartnerID(c))
+	if err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": summary})
+}

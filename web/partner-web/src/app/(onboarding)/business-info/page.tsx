@@ -6,30 +6,67 @@ import { ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/store/onboarding-store";
+import { useAuthStore } from "@/store/auth-store";
+import { profileService } from "@/services/profile-service";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+import { ApiError } from "@/lib/api-client";
 
 export default function BusinessInfoPage() {
   const router = useRouter();
   const stored = useOnboardingStore();
   const setBusinessInfo = useOnboardingStore((s) => s.setBusinessInfo);
+  const token = useAuthStore((s) => s.token);
+  const account = useAuthStore((s) => s.account);
+  const setSession = useAuthStore((s) => s.setSession);
+  const expiresAt = useAuthStore((s) => s.expiresAt);
+
+  const businessEmail = account?.business_email ?? "";
 
   const [businessName, setBusinessName] = useState(stored.businessName);
   const [businessPhone, setBusinessPhone] = useState(stored.businessPhone);
-  const [businessEmail, setBusinessEmail] = useState(stored.businessEmail);
   const [state, setState] = useState(stored.state);
   const [city, setCity] = useState(stored.city);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const canContinue =
-    businessName.trim() &&
-    businessPhone.trim() &&
-    businessEmail.trim() &&
-    state &&
-    city.trim();
+    !!businessName.trim() &&
+    !!businessPhone.trim() &&
+    !!state &&
+    !!city.trim();
 
-  const handleContinue = () => {
-    if (!canContinue) return;
-    setBusinessInfo({ businessName, businessPhone, businessEmail, state, city });
-    router.push("/business-logo");
+  const handleContinue = async () => {
+    if (!canContinue || loading) return;
+    if (!token) {
+      setError("Your session has expired. Please sign up again.");
+      return;
+    }
+    setError(null);
+    setLoading(true); // stays true through navigation — only cleared on error
+    try {
+      const { account: updatedAccount } = await profileService.updateProfile(
+        {
+          business_name: businessName.trim(),
+          business_phone: businessPhone.trim(),
+          state,
+          city: city.trim(),
+        },
+        token
+      );
+      setSession({ token, expires_at: expiresAt ?? "", account: updatedAccount });
+      setBusinessInfo({ businessName, businessPhone, businessEmail, state, city });
+      router.push("/business-logo");
+      // no finally/setLoading(false) here on purpose — button stays disabled
+      // until this page unmounts on route change, so it can never flash
+      // back to "enabled" between success and the next screen.
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+      setLoading(false); // only re-enable on failure
+    }
   };
 
   return (
@@ -44,6 +81,7 @@ export default function BusinessInfoPage() {
           placeholder="Demai UI"
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
+          disabled={loading}
         />
         <Input
           id="businessPhone"
@@ -52,14 +90,14 @@ export default function BusinessInfoPage() {
           placeholder="13456781234"
           value={businessPhone}
           onChange={(e) => setBusinessPhone(e.target.value)}
+          disabled={loading}
         />
         <Input
           id="businessEmail"
           label="Business Email"
           type="email"
-          placeholder="Email here"
           value={businessEmail}
-          onChange={(e) => setBusinessEmail(e.target.value)}
+          disabled
         />
 
         <div>
@@ -71,7 +109,8 @@ export default function BusinessInfoPage() {
               <select
                 value={state}
                 onChange={(e) => setState(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                disabled={loading}
+                className="w-full appearance-none rounded-xl border border-ink-100 px-4 py-4 text-sm text-ink-900 focus:border-brand-500 focus:outline-none disabled:opacity-60"
               >
                 <option value="">State</option>
                 {NIGERIAN_STATES.map((s) => (
@@ -87,14 +126,17 @@ export default function BusinessInfoPage() {
               placeholder="City"
               value={city}
               onChange={(e) => setCity(e.target.value)}
+              disabled={loading}
             />
           </div>
         </div>
+
+        {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
 
       <div className="mt-8">
-        <Button onClick={handleContinue} disabled={!canContinue}>
-          Continue
+        <Button onClick={handleContinue} disabled={!canContinue || loading}>
+          {loading ? "Saving..." : "Continue"}
         </Button>
       </div>
     </div>

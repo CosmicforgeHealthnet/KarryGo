@@ -3,7 +3,6 @@ class CustomerAppRoutes {
   static const onboarding = 'onboarding';
   static const phoneEntry = 'phone-entry';
   static const otpVerification = 'otp-verification';
-  static const serviceChoice = 'service-choice';
   static const profileDetails = 'profile-details';
   static const photoUpload = 'photo-upload';
   static const allSet = 'all-set';

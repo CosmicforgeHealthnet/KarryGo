@@ -14,6 +14,8 @@ import (
 
 type WalletService struct {
 	repository        *walletrepositories.PostgresWalletRepository
+	pinStore          TransactionPinStore
+	bankStore         BankAccountStore
 	paystack          walletclients.PaystackClient
 	notifier          *walletclients.WalletNotifier
 	defaultCurrency   string
@@ -24,7 +26,11 @@ type WalletService struct {
 }
 
 type Options struct {
-	Repository        *walletrepositories.PostgresWalletRepository
+	Repository *walletrepositories.PostgresWalletRepository
+	// PinStore defaults to Repository; overridable for unit tests.
+	PinStore TransactionPinStore
+	// BankStore defaults to Repository; overridable for unit tests.
+	BankStore         BankAccountStore
 	Paystack          walletclients.PaystackClient
 	Notifier          *walletclients.WalletNotifier
 	DefaultCurrency   string
@@ -83,10 +89,13 @@ type RequestWithdrawalInput struct {
 	AmountKobo     int64
 	Currency       string
 	IdempotencyKey string
+	Pin            string
 }
 
 type RefundInput struct {
 	PaymentReference string
+	SourceService    string
+	SourceReference  string
 	AmountKobo       int64
 	Currency         string
 	Reason           string
@@ -98,8 +107,18 @@ func NewWalletService(opts Options) *WalletService {
 	if notifier == nil {
 		notifier = walletclients.NewWalletNotifier("", nil)
 	}
+	pinStore := opts.PinStore
+	if pinStore == nil && opts.Repository != nil {
+		pinStore = opts.Repository
+	}
+	bankStore := opts.BankStore
+	if bankStore == nil && opts.Repository != nil {
+		bankStore = opts.Repository
+	}
 	return &WalletService{
 		repository:        opts.Repository,
+		pinStore:          pinStore,
+		bankStore:         bankStore,
 		paystack:          opts.Paystack,
 		notifier:          notifier,
 		defaultCurrency:   walletmodels.DefaultCurrency(opts.DefaultCurrency),
@@ -302,6 +321,26 @@ func (s *WalletService) PayFromWallet(ctx context.Context, paymentIntentID strin
 	return s.repository.HoldPaymentFromWallet(ctx, paymentIntentID, idempotencyKey)
 }
 
+// AssignPaymentProvider binds the matched provider to a held payment intent so
+// a later CompleteJob can settle escrow into the provider payable ledger.
+// Called by source services (e.g. dispatch) once matching assigns a provider.
+func (s *WalletService) AssignPaymentProvider(ctx context.Context, reference string, providerType string, providerID string) (walletmodels.PaymentIntent, error) {
+	var fields []apperrors.FieldViolation
+	if strings.TrimSpace(reference) == "" {
+		fields = append(fields, apperrors.FieldViolation{Field: "reference", Message: "Payment reference is required."})
+	}
+	if strings.TrimSpace(providerType) == "" {
+		fields = append(fields, apperrors.FieldViolation{Field: "provider_type", Message: "Provider type is required."})
+	}
+	if strings.TrimSpace(providerID) == "" {
+		fields = append(fields, apperrors.FieldViolation{Field: "provider_id", Message: "Provider id is required."})
+	}
+	if len(fields) > 0 {
+		return walletmodels.PaymentIntent{}, apperrors.Validation("Check your provider assignment.", fields)
+	}
+	return s.repository.AssignPaymentIntentProvider(ctx, strings.TrimSpace(reference), strings.TrimSpace(providerType), strings.TrimSpace(providerID))
+}
+
 func (s *WalletService) CompleteJob(ctx context.Context, sourceService string, sourceReference string) (walletmodels.PaymentIntent, error) {
 	if sourceService == "" || sourceReference == "" {
 		return walletmodels.PaymentIntent{}, apperrors.BadRequest("Source service and reference are required.", nil)
@@ -342,7 +381,7 @@ func (s *WalletService) RegisterBankAccount(ctx context.Context, input RegisterB
 	if err != nil {
 		return walletmodels.ProviderBankAccount{}, apperrors.Unavailable("Transfer recipient could not be created.", err)
 	}
-	return s.repository.CreateProviderBankAccount(ctx, walletmodels.ProviderBankAccount{
+	account, err := s.bankStore.CreateProviderBankAccount(ctx, walletmodels.ProviderBankAccount{
 		ProviderType:  input.ProviderType,
 		ProviderID:    input.ProviderID,
 		BankCode:      input.BankCode,
@@ -352,10 +391,14 @@ func (s *WalletService) RegisterBankAccount(ctx context.Context, input RegisterB
 		RecipientCode: recipient.RecipientCode,
 		Currency:      walletmodels.DefaultCurrency(input.Currency),
 	})
+	if err != nil {
+		return walletmodels.ProviderBankAccount{}, err
+	}
+	return s.ensureDefaultBankAccount(ctx, account), nil
 }
 
 func (s *WalletService) ListBankAccounts(ctx context.Context, providerType string, providerID string) ([]walletmodels.ProviderBankAccount, error) {
-	return s.repository.ListProviderBankAccounts(ctx, providerType, providerID)
+	return s.bankStore.ListProviderBankAccounts(ctx, providerType, providerID)
 }
 
 func (s *WalletService) ResolveBankAccount(ctx context.Context, input ResolveBankAccountInput) (ResolvedBankAccount, error) {
@@ -394,8 +437,14 @@ func (s *WalletService) RequestWithdrawal(ctx context.Context, input RequestWith
 	if input.BankAccountID == "" {
 		fields = append(fields, apperrors.FieldViolation{Field: "bank_account_id", Message: "Bank account is required."})
 	}
+	if input.Pin == "" {
+		fields = append(fields, apperrors.FieldViolation{Field: "pin", Message: "Transaction PIN is required."})
+	}
 	if len(fields) > 0 {
 		return walletmodels.Withdrawal{}, apperrors.Validation("Check your withdrawal request.", fields)
+	}
+	if err := s.VerifyTransactionPin(ctx, input.ProviderType, input.ProviderID, input.Pin); err != nil {
+		return walletmodels.Withdrawal{}, err
 	}
 	account, err := s.repository.GetProviderBankAccount(ctx, input.ProviderType, input.ProviderID, input.BankAccountID)
 	if err != nil {
@@ -443,7 +492,17 @@ func (s *WalletService) RequestRefund(ctx context.Context, input RefundInput) (w
 	}
 	intent, err := s.repository.GetPaymentIntentByReference(ctx, input.PaymentReference)
 	if err != nil {
-		return walletmodels.Refund{}, err
+		// Callers such as the dispatch trip service key refunds by booking id
+		// (source reference), not the intent reference — fall back to the
+		// source pair before giving up.
+		if input.SourceService != "" && input.SourceReference != "" {
+			if appErr := apperrors.From(err); appErr != nil && appErr.Code == apperrors.CodeNotFound {
+				intent, err = s.repository.GetPaymentIntentBySource(ctx, input.SourceService, input.SourceReference)
+			}
+		}
+		if err != nil {
+			return walletmodels.Refund{}, err
+		}
 	}
 	refund, err := s.repository.CreateRefundReservation(ctx, walletrepositories.CreateRefundInput{
 		Reference:       walletrepositories.Reference("rf"),

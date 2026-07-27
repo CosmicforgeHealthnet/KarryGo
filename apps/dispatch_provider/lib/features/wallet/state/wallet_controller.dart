@@ -111,6 +111,59 @@ class WalletController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Transaction PIN ───────────────────────────────────────────────────────
+
+  bool? _pinSet;
+
+  /// Whether the rider has set a withdrawal PIN. Null until loaded.
+  bool? get pinSet => _pinSet;
+
+  Future<ApiResult<bool>> loadPinStatus() async {
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    final result = await api.getPinStatus(accessToken: token);
+    result.when(
+      success: (isSet) {
+        _pinSet = isSet;
+        notifyListeners();
+      },
+      failure: (err) {
+        _debugLog('[WALLET] pin status failed: ${err.message}');
+      },
+    );
+    return result;
+  }
+
+  /// First-time PIN setup. Marks [pinSet] true on success.
+  Future<ApiResult<bool>> setupPin(String pin) async {
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    final result = await api.setPin(accessToken: token, pin: pin);
+    result.when(
+      success: (_) {
+        _pinSet = true;
+        notifyListeners();
+      },
+      failure: (err) {
+        _debugLog('[WALLET] set pin failed: ${err.message}');
+      },
+    );
+    return result;
+  }
+
+  Future<ApiResult<bool>> changePin({
+    required String currentPin,
+    required String newPin,
+  }) async {
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    return api.changePin(
+      accessToken: token,
+      currentPin: currentPin,
+      newPin: newPin,
+    );
+  }
+
   // ── Request withdrawal ────────────────────────────────────────────────────
 
   Future<ApiResult<Withdrawal>> requestWithdrawal({
@@ -118,6 +171,7 @@ class WalletController extends ChangeNotifier {
     required int amountKobo,
     String currency = 'NGN',
     required String idempotencyKey,
+    required String pin,
   }) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
@@ -127,6 +181,7 @@ class WalletController extends ChangeNotifier {
       amountKobo: amountKobo,
       currency: currency,
       idempotencyKey: idempotencyKey,
+      pin: pin,
     );
   }
 }

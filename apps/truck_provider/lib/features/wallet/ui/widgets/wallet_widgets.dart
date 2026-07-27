@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../../core/format/money_format.dart';
 import '../../../home/ui/widgets/provider_app_colors.dart';
 
-/// Circular back button + bold title used across the withdrawal flow screens.
+/// Circular back button + bold title (with optional subtitle) used across the
+/// withdrawal / payments flow screens.
 class WalletFlowAppBar extends StatelessWidget {
-  const WalletFlowAppBar({super.key, required this.title, this.trailing});
+  const WalletFlowAppBar({super.key, required this.title, this.subtitle, this.trailing});
 
   final String title;
+  final String? subtitle;
   final Widget? trailing;
 
   @override
@@ -31,9 +33,19 @@ class WalletFlowAppBar extends StatelessWidget {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(color: kProviderText, fontSize: 21, fontWeight: FontWeight.w800),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(color: kProviderText, fontSize: 21, fontWeight: FontWeight.w800),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(color: kProviderMuted, fontSize: 12.5),
+                  ),
+              ],
             ),
           ),
           ?trailing,

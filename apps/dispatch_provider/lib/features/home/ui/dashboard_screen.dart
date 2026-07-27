@@ -15,6 +15,7 @@ import '../../profile/state/provider_profile_controller.dart';
 import '../../verification/state/verification_controller.dart';
 import '../../vehicle/state/vehicle_controller.dart';
 import '../../availability/state/availability_controller.dart';
+import '../../disputes/state/rider_dispute_controller.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProviderProfileController profileController;
@@ -24,8 +25,10 @@ class DashboardScreen extends StatefulWidget {
   final RequestsController requestsController;
   final TripsController tripsController;
   final WalletController walletController;
+  final RiderDisputeController? disputeController;
   final VoidCallback? onLogout;
   final VoidCallback? onAccountDeleted;
+  final VoidCallback? onOpenNotifications;
 
   const DashboardScreen({
     super.key,
@@ -36,8 +39,10 @@ class DashboardScreen extends StatefulWidget {
     required this.requestsController,
     required this.tripsController,
     required this.walletController,
+    this.disputeController,
     this.onLogout,
     this.onAccountDeleted,
+    this.onOpenNotifications,
   });
 
   @override
@@ -62,23 +67,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         tripStateNotifier: _tripStateNotifier,
         activeRequestNotifier: _activeRequestNotifier,
         availabilityController: widget.availabilityController,
+        onOpenNotifications: widget.onOpenNotifications,
       ),
       RequestsScreen(requestsController: widget.requestsController),
       TripsScreen(tripsController: widget.tripsController),
-      WalletScreen(walletController: widget.walletController),
+      WalletScreen(
+        walletController: widget.walletController,
+        disputeController: widget.disputeController,
+        tripsController: widget.tripsController,
+      ),
       ProfileScreen(
         profileController: widget.profileController,
         verificationController: widget.verificationController,
         vehicleController: widget.vehicleController,
+        disputeController: widget.disputeController,
+        walletController: widget.walletController,
         onLogout: widget.onLogout,
         onAccountDeleted: widget.onAccountDeleted,
       ),
     ];
     _loadActiveTrip();
+    // Requests + active trip refresh continuously while the dashboard is
+    // mounted; realtime/FCM pokes make updates immediate, the polls are the
+    // safety net.
+    widget.requestsController.startPolling();
+    widget.tripsController.startActivePolling();
   }
 
   @override
   void dispose() {
+    widget.requestsController.stopPolling();
+    widget.tripsController.stopActivePolling();
     _tripStateNotifier.dispose();
     _activeRequestNotifier.dispose();
     super.dispose();
@@ -223,12 +242,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ── Resolve the active trip id ────────────────────────────────────────────
+
+  /// The trip row is created asynchronously (pub/sub) right after accept, so
+  /// `_activeTripId` can still be null the instant the rider taps an action.
+  /// Re-fetch once before giving up — never fake a transition locally, since
+  /// that leaves the backend status stale and the next poll snaps the UI back.
+  Future<String?> _resolveActiveTripId() async {
+    if (_activeTripId != null) return _activeTripId;
+    await _loadActiveTrip();
+    return _activeTripId;
+  }
+
+  void _showTripNotReadySnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Trip is still being set up. Please try again.'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
+
   // ── Mark arrived ──────────────────────────────────────────────────────────
 
   Future<void> _handleMarkArrived() async {
-    final id = _activeTripId;
+    final id = await _resolveActiveTripId();
+    if (!mounted) return;
     if (id == null) {
-      _tripStateNotifier.value = TripState.arrivedAtPickup;
+      _showTripNotReadySnackBar();
       return;
     }
     final result = await widget.tripsController.markArrived(id);
@@ -250,9 +292,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ── Start trip ────────────────────────────────────────────────────────────
 
   Future<void> _handleStartTrip() async {
-    final id = _activeTripId;
+    final id = await _resolveActiveTripId();
+    if (!mounted) return;
     if (id == null) {
-      _tripStateNotifier.value = TripState.tripStarted;
+      _showTripNotReadySnackBar();
       return;
     }
     final result = await widget.tripsController.startTrip(id);
@@ -273,16 +316,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ── Cancel trip ───────────────────────────────────────────────────────────
 
+  Future<String?> _pickCancelReason() {
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text(
+                'Why are you cancelling?',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+            ),
+            for (final entry in tripCancelReasons.entries)
+              ListTile(
+                title: Text(entry.value),
+                onTap: () => Navigator.of(context).pop(entry.key),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleCancelTrip() async {
-    final id = _activeTripId;
-    if (id != null) {
-      await widget.tripsController.cancelTrip(id);
-    }
+    final id = await _resolveActiveTripId();
     if (!mounted) return;
-    _activeTripId = null;
-    _activeRequestNotifier.value = null;
-    widget.requestsController.clearActiveRequest();
-    _tripStateNotifier.value = TripState.online;
+    if (id == null) {
+      _showTripNotReadySnackBar();
+      return;
+    }
+    final reasonCode = await _pickCancelReason();
+    if (!mounted || reasonCode == null) return;
+
+    final result = await widget.tripsController.cancelTrip(
+      id,
+      reasonCode: reasonCode,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        _activeTripId = null;
+        _activeRequestNotifier.value = null;
+        widget.requestsController.clearActiveRequest();
+        _tripStateNotifier.value = TripState.online;
+      },
+      failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            err.message.isNotEmpty ? err.message : 'Failed to cancel trip.',
+          ),
+          backgroundColor: Colors.red.shade800,
+          duration: const Duration(seconds: 4),
+        ),
+      ),
+    );
   }
 
   // ── Sheet builder ─────────────────────────────────────────────────────────
@@ -306,12 +402,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           title: 'Arriving at pick up',
           subtitle: 'You are on your way to pick up the package.',
           showCall: true,
-          primaryLabel: 'Start Trip',
-          primaryEnabled: false,
+          primaryLabel: "I've Arrived",
+          primaryEnabled: true,
           secondaryLabel: 'Cancel Trip',
-          onPrimary: () {},
+          onPrimary: _handleMarkArrived,
           onSecondary: _handleCancelTrip,
-          onSimulate: _handleMarkArrived,
         ),
         TripState.arrivedAtPickup => TripSheet(
           request: activeRequest!,

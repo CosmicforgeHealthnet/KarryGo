@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,8 +21,8 @@ func NewWebhookDeliveryRepo(pool *pgxpool.Pool) *WebhookDeliveryRepo {
 	return &WebhookDeliveryRepo{pool: pool}
 }
 
-const webhookDeliveryColumns = `id, webhook_id, booking_id, event_type, payload, attempts,
-	last_attempt_at, next_attempt_at, status, response_status, created_at`
+const webhookDeliveryColumns = `d.id, d.webhook_id, d.booking_id, d.event_type, d.payload, d.attempts,
+	d.last_attempt_at, d.next_attempt_at, d.status, d.response_status, d.created_at`
 
 func (r *WebhookDeliveryRepo) CreateDelivery(ctx context.Context, d *webhooks.WebhookDelivery) (*webhooks.WebhookDelivery, error) {
 	const q = `INSERT INTO partner_webhook_deliveries
@@ -60,9 +61,9 @@ func (r *WebhookDeliveryRepo) MarkFailedPermanent(ctx context.Context, deliveryI
 }
 
 func (r *WebhookDeliveryRepo) FindPendingDueDeliveries(ctx context.Context, limit int) ([]webhooks.WebhookDelivery, error) {
-	const q = `SELECT ` + webhookDeliveryColumns + ` FROM partner_webhook_deliveries
-		WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= now())
-		ORDER BY created_at ASC LIMIT $1`
+	const q = `SELECT ` + webhookDeliveryColumns + ` FROM partner_webhook_deliveries d
+		WHERE d.status = 'pending' AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= now())
+		ORDER BY d.created_at ASC LIMIT $1`
 	rows, err := r.pool.Query(ctx, q, limit)
 	if err != nil {
 		return nil, err
@@ -84,10 +85,7 @@ func (r *WebhookDeliveryRepo) FindPendingDueDeliveries(ctx context.Context, limi
 }
 
 // ListByWebhook returns a page of delivery attempts for one webhook, most
-// recent first, plus the total matching count for pagination. This is new: it's
-// what actually powers the dashboard's webhook delivery log/history screen -
-// every other method on this repo only writes rows, this is the first one that
-// reads them back for display.
+// recent first, plus the total matching count for pagination.
 func (r *WebhookDeliveryRepo) ListByWebhook(ctx context.Context, webhookID string, limit, offset int) ([]webhooks.WebhookDelivery, int, error) {
 	var total int
 	const countQ = `SELECT count(*) FROM partner_webhook_deliveries WHERE webhook_id = $1`
@@ -95,8 +93,8 @@ func (r *WebhookDeliveryRepo) ListByWebhook(ctx context.Context, webhookID strin
 		return nil, 0, err
 	}
 
-	const q = `SELECT ` + webhookDeliveryColumns + ` FROM partner_webhook_deliveries
-		WHERE webhook_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+	const q = `SELECT ` + webhookDeliveryColumns + ` FROM partner_webhook_deliveries d
+		WHERE d.webhook_id = $1 ORDER BY d.created_at DESC LIMIT $2 OFFSET $3`
 	rows, err := r.pool.Query(ctx, q, webhookID, limit, offset)
 	if err != nil {
 		return nil, 0, err
@@ -115,4 +113,65 @@ func (r *WebhookDeliveryRepo) ListByWebhook(ctx context.Context, webhookID strin
 		out = append(out, d)
 	}
 	return out, total, rows.Err()
+}
+
+// ListByPartner returns a page of delivery attempts for all webhooks belonging
+// to a partner, most recent first, plus the total matching count for pagination.
+func (r *WebhookDeliveryRepo) ListByPartner(ctx context.Context, partnerID string, limit, offset int) ([]webhooks.WebhookDelivery, int, error) {
+	var total int
+	const countQ = `SELECT count(*) FROM partner_webhook_deliveries d
+		JOIN partner_webhooks w ON w.id = d.webhook_id
+		WHERE w.partner_id = $1`
+	if err := r.pool.QueryRow(ctx, countQ, partnerID).Scan(&total); err != nil {
+		log.Printf("ListByPartner count error for partner %s: %v", partnerID, err)
+		return nil, 0, err
+	}
+
+	const q = `SELECT ` + webhookDeliveryColumns + ` FROM partner_webhook_deliveries d
+		JOIN partner_webhooks w ON w.id = d.webhook_id
+		WHERE w.partner_id = $1
+		ORDER BY d.created_at DESC LIMIT $2 OFFSET $3`
+	rows, err := r.pool.Query(ctx, q, partnerID, limit, offset)
+	if err != nil {
+		log.Printf("ListByPartner query error for partner %s: %v", partnerID, err)
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var out []webhooks.WebhookDelivery
+	for rows.Next() {
+		var d webhooks.WebhookDelivery
+		if err := rows.Scan(
+			&d.ID, &d.WebhookID, &d.BookingID, &d.EventType, &d.Payload, &d.Attempts,
+			&d.LastAttemptAt, &d.NextAttemptAt, &d.Status, &d.ResponseStatus, &d.CreatedAt,
+		); err != nil {
+			log.Printf("ListByPartner scan error: %v", err)
+			return nil, 0, err
+		}
+		out = append(out, d)
+	}
+	return out, total, rows.Err()
+}
+
+// FindByID returns a single delivery attempt by ID, with ownership check via partnerID.
+// Returns nil if not found or if the delivery doesn't belong to the partner.
+func (r *WebhookDeliveryRepo) FindByID(ctx context.Context, partnerID, deliveryID string) (*webhooks.WebhookDelivery, error) {
+	const q = `SELECT ` + webhookDeliveryColumns + ` FROM partner_webhook_deliveries d
+		JOIN partner_webhooks w ON w.id = d.webhook_id
+		WHERE d.id = $1 AND w.partner_id = $2`
+	row := r.pool.QueryRow(ctx, q, deliveryID, partnerID)
+
+	var d webhooks.WebhookDelivery
+	err := row.Scan(
+		&d.ID, &d.WebhookID, &d.BookingID, &d.EventType, &d.Payload, &d.Attempts,
+		&d.LastAttemptAt, &d.NextAttemptAt, &d.Status, &d.ResponseStatus, &d.CreatedAt,
+	)
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, nil
+		}
+		log.Printf("FindByID error: %v", err)
+		return nil, err
+	}
+	return &d, nil
 }

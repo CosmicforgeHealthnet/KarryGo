@@ -224,6 +224,7 @@ type RequestAcceptedEvent struct {
 	BroadcastID    string  `json:"broadcast_id"`
 	InboxID        string  `json:"inbox_id"`
 	ProviderID     string  `json:"provider_id"`
+	CustomerID     string  `json:"customer_id,omitempty"`
 	FareAmount     int64   `json:"fare_amount"`
 	Currency       string  `json:"currency"`
 	PickupLat      float64 `json:"pickup_lat"`

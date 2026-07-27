@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+
+import '../../disputes/state/rider_dispute_controller.dart';
 import 'live_chat_screen.dart';
 
 class SupportScreen extends StatelessWidget {
-  const SupportScreen({super.key});
+  const SupportScreen({super.key, required this.disputeController});
+
+  final RiderDisputeController disputeController;
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +67,10 @@ class SupportScreen extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const LiveChatScreen()),
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          LiveChatScreen(disputeController: disputeController),
+                    ),
                   ),
                   icon: const Icon(Icons.chat_bubble_outline,
                       size: 18, color: Colors.white),

@@ -147,7 +147,7 @@ func newDispatchThroughCompositionRoot(t *testing.T, fleetURL string) (*httptest
 		Redis:              redisClient,
 	})
 
-	engine := router.New(cfg, nil, redisClient, authService, nil, nil)
+	engine := router.New(cfg, nil, redisClient, authService, nil, nil, nil)
 	server := httptest.NewServer(engine)
 	t.Cleanup(server.Close)
 	return server, authService

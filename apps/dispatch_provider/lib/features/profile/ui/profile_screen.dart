@@ -4,16 +4,22 @@ import '../models/provider_profile_models.dart';
 import '../state/provider_profile_controller.dart';
 import '../../verification/state/verification_controller.dart';
 import '../../vehicle/state/vehicle_controller.dart';
+import '../../disputes/state/rider_dispute_controller.dart';
+import '../../wallet/state/wallet_controller.dart';
 import 'widgets/profile_menu_item.dart';
+import 'security_screen.dart';
 import 'profile_info_screen.dart';
 import 'verification_intro_screen.dart';
 import 'vehicle_information_screen.dart';
 import 'safety_emergency_screen.dart';
+import 'support_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final ProviderProfileController profileController;
   final VerificationController verificationController;
   final VehicleController vehicleController;
+  final RiderDisputeController? disputeController;
+  final WalletController? walletController;
   final VoidCallback? onLogout;
   final VoidCallback? onAccountDeleted;
 
@@ -22,6 +28,8 @@ class ProfileScreen extends StatefulWidget {
     required this.profileController,
     required this.verificationController,
     required this.vehicleController,
+    this.disputeController,
+    this.walletController,
     this.onLogout,
     this.onAccountDeleted,
   });
@@ -370,7 +378,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ProfileMenuItem(
                     icon: Icons.block_outlined,
                     label: 'Security',
-                    onTap: () {},
+                    onTap: widget.walletController == null
+                        ? () {}
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => SecurityScreen(
+                                walletController: widget.walletController!,
+                              ),
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 10),
                   ProfileMenuItem(
@@ -388,7 +404,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ProfileMenuItem(
                     icon: Icons.support_agent_outlined,
                     label: 'Support',
-                    onTap: () {},
+                    onTap: widget.disputeController == null
+                        ? () {}
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => SupportScreen(
+                                disputeController: widget.disputeController!,
+                              ),
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 10),
                   if (widget.onLogout != null)

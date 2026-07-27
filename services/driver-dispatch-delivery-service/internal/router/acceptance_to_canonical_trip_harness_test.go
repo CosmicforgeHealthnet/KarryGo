@@ -115,7 +115,7 @@ func TestAcceptanceToCanonicalTripDispatchHarness(t *testing.T) {
 		RefreshTokenTTL:                       time.Hour,
 	}
 
-	engine := router.New(cfg, pool, redisClient, authService, nil, nil)
+	engine := router.New(cfg, pool, redisClient, authService, nil, nil, nil)
 	stopRequested := make(chan struct{}, 1)
 	engine.POST("/__cross_service_stop", func(c *gin.Context) {
 		c.Status(http.StatusNoContent)

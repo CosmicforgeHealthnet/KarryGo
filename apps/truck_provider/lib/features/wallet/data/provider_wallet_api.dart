@@ -63,11 +63,33 @@ class ProviderWalletApi {
     return ProviderBankAccount.fromJson(data);
   }
 
+  /// Soft-removes a saved payout account.
+  Future<void> deleteBankAccount({
+    required String accessToken,
+    required String accountId,
+  }) async {
+    await _delete('/provider/bank-accounts/$accountId', accessToken: accessToken);
+  }
+
+  /// Marks the account as the provider's default withdrawal account.
+  Future<ProviderBankAccount> setDefaultBankAccount({
+    required String accessToken,
+    required String accountId,
+  }) async {
+    final data = await _put(
+      '/provider/bank-accounts/$accountId/default',
+      const {},
+      accessToken: accessToken,
+    );
+    return ProviderBankAccount.fromJson(data);
+  }
+
   Future<WithdrawalResult> requestWithdrawal({
     required String accessToken,
     required String bankAccountId,
     required int amountKobo,
     required String idempotencyKey,
+    required String pin,
   }) async {
     final data = await _post(
       '/provider/withdrawals',
@@ -76,10 +98,33 @@ class ProviderWalletApi {
         'amount_kobo': amountKobo,
         'currency': 'NGN',
         'idempotency_key': idempotencyKey,
+        'pin': pin,
       },
       accessToken: accessToken,
     );
     return WithdrawalResult.fromJson(data);
+  }
+
+  /// Whether the provider already has a transaction PIN set.
+  Future<bool> getPinStatus({required String accessToken}) async {
+    final data = await _get('/provider/pin/status', accessToken: accessToken);
+    return data['pin_set'] == true;
+  }
+
+  Future<void> setPin({required String accessToken, required String pin}) async {
+    await _post('/provider/pin', {'pin': pin}, accessToken: accessToken);
+  }
+
+  Future<void> changePin({
+    required String accessToken,
+    required String currentPin,
+    required String newPin,
+  }) async {
+    await _put(
+      '/provider/pin',
+      {'current_pin': currentPin, 'new_pin': newPin},
+      accessToken: accessToken,
+    );
   }
 
   void close() => _client.close();
@@ -108,6 +153,36 @@ class ProviderWalletApi {
         headers: _headers(accessToken),
         body: jsonEncode(body),
       );
+      return _unwrap(response);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException.network(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> _put(
+    String path,
+    Map<String, dynamic> body, {
+    required String accessToken,
+  }) async {
+    try {
+      final response = await _client.put(
+        _config.uri(path),
+        headers: _headers(accessToken),
+        body: jsonEncode(body),
+      );
+      return _unwrap(response);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException.network(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> _delete(String path, {required String accessToken}) async {
+    try {
+      final response = await _client.delete(_config.uri(path), headers: _headers(accessToken));
       return _unwrap(response);
     } on ApiException {
       rethrow;

@@ -23,10 +23,13 @@ type PaymentMethodRepository interface {
 	SetDefault(ctx context.Context, partnerID, id string) error
 }
 
-// DeliveryUsageReader counts completed deliveries in a time range. It is
-// intentionally narrow since billing only needs counts, not booking rows.
+// DeliveryUsageReader counts completed deliveries in a time range, and
+// assembles the Dashboard home screen stat cards.
 type DeliveryUsageReader interface {
 	CountCompletedInRange(ctx context.Context, partnerID string, from, to time.Time) (int, error)
+	// GetDashboardSummary returns all-time delivery count, today's count, and
+	// the completed/total success rate for a partner, in one round trip.
+	GetDashboardSummary(ctx context.Context, partnerID string) (DashboardSummary, error)
 }
 
 // PartnerLister resolves which partners to bill during monthly invoice runs.

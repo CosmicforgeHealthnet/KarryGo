@@ -2,68 +2,35 @@ package delivery
 
 import (
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
-	"cosmicforge/logistics/services/api-gateway/internal/pkg/geo"
+	"cosmicforge/logistics/shared/go/dispatchpricing"
 )
 
-// Deterministic local pricing. No external maps API is called.
-const (
-	baseFareKobo    int64 = 80000  // NGN 800
-	perKmKobo       int64 = 18000  // NGN 180 / km
-	expressMult           = 1.35   // express multiplier
-	mediumAddonKobo int64 = 30000  // NGN 300
-	largeAddonKobo  int64 = 70000  // NGN 700
-	minFareKobo     int64 = 100000 // NGN 1000
-	fareRoundKobo   int64 = 50     // round to nearest 50 kobo
-
-	avgCitySpeedKMH  = 18.0 // average city speed
-	pickupBufferMins = 10   // fixed pickup buffer
-	minETAMins       = 15
-)
+// Fare math lives in shared/go/dispatchpricing — the single source of truth
+// shared with dispatch-delivery-service's customer booking API, so the partner
+// and customer surfaces can never quote different fares for the same route.
+// No external maps API is called.
 
 // haversineKM returns the great-circle distance between two lat/lng points in km.
-// It delegates to the shared pricing-engine geo helper.
 func haversineKM(lat1, lng1, lat2, lng2 float64) float64 {
-	return geo.HaversineKm(lat1, lng1, lat2, lng2)
+	return dispatchpricing.HaversineKm(lat1, lng1, lat2, lng2)
 }
 
 // calculateFareKobo returns the fare in kobo for a distance, package size, and tier.
 func calculateFareKobo(distanceKM float64, packageSize, serviceTier string) int64 {
-	fare := float64(baseFareKobo) + float64(perKmKobo)*distanceKM
-
-	switch strings.ToLower(strings.TrimSpace(packageSize)) {
-	case "medium":
-		fare += float64(mediumAddonKobo)
-	case "large":
-		fare += float64(largeAddonKobo)
-	}
-
-	if strings.EqualFold(strings.TrimSpace(serviceTier), ServiceTierExpress) {
-		fare *= expressMult
-	}
-
-	rounded := int64(math.Round(fare/float64(fareRoundKobo))) * fareRoundKobo
-	if rounded < minFareKobo {
-		rounded = minFareKobo
-	}
-	return rounded
+	return dispatchpricing.FareKobo(distanceKM, packageSize, serviceTier)
 }
 
 // estimateETA returns a human ETA string like "25 mins" for a distance.
 func estimateETA(distanceKM float64) string {
-	mins := int(math.Ceil(distanceKM/avgCitySpeedKMH*60)) + pickupBufferMins
-	if mins < minETAMins {
-		mins = minETAMins
-	}
-	return fmt.Sprintf("%d mins", mins)
+	return dispatchpricing.ETALabel(distanceKM)
 }
 
 // roundKM rounds a distance to one decimal place for display.
 func roundKM(distanceKM float64) float64 {
-	return math.Round(distanceKM*10) / 10
+	return dispatchpricing.RoundKM(distanceKM)
 }
 
 // nairaSign is the Naira currency symbol (U+20A6), required in fare display

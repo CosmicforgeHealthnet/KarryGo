@@ -64,7 +64,9 @@ const providerColumns = `id::text, COALESCE(phone,''), COALESCE(email,''),
 		          COALESCE(rating,5.00), total_trips, created_at, updated_at,
 		          location_state, location_city, language, service_type, operation_mode,
 		          driver_license_number, license_expiry_year, license_expiry_date,
-		          gov_id_url, driver_license_url, vehicle_reg_url`
+		          gov_id_url, driver_license_url, vehicle_reg_url,
+		          guarantor_name, guarantor_phone,
+		          emergency_contact_name, emergency_contact_phone, emergency_contact_relationship`
 
 func (r *PostgresProfileRepository) UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error) {
 	return providerauthrepositories.NewPostgresProviderRepository(r.db).UpsertByPhone(ctx, phone)
@@ -302,6 +304,8 @@ func scanProvider(row scannable) (providerauthmodels.Provider, error) {
 		&p.LocationState, &p.LocationCity, &p.Language, &p.ServiceType, &p.OperationMode,
 		&p.DriverLicenseNumber, &p.LicenseExpiryYear, &p.LicenseExpiryDate,
 		&p.GovIDURL, &p.DriverLicenseURL, &p.VehicleRegURL,
+		&p.GuarantorName, &p.GuarantorPhone,
+		&p.EmergencyContactName, &p.EmergencyContactPhone, &p.EmergencyContactRelationship,
 	)
 	return p, err
 }

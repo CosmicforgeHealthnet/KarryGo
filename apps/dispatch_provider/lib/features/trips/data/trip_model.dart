@@ -23,6 +23,18 @@ enum TripStatusCode {
       this == proofSubmitted;
 }
 
+/// Trip cancel reason codes accepted by the backend
+/// (`internal/features/trip/model.go` `ValidCancelReasons`). A cancel request
+/// without one of these codes is rejected with a 400.
+const Map<String, String> tripCancelReasons = {
+  'rider_unavailable': 'I am no longer able to complete this trip',
+  'package_not_ready': 'Package was not ready at pickup',
+  'wrong_address': 'Pickup or drop-off address is wrong',
+  'customer_unreachable': 'Customer is unreachable',
+  'safety_concern': 'Safety concern',
+  'other': 'Other',
+};
+
 class TripModel {
   const TripModel({
     required this.id,
@@ -83,7 +95,11 @@ class TripModel {
       receiverName: (json['receiver_name'] as String?) ?? '',
       receiverPhone: (json['receiver_phone'] as String?) ?? '',
       distanceKm: ((json['distance_km'] as num?) ?? 0).toDouble(),
-      estimatedFareKobo: (json['estimated_fare_kobo'] as int?) ?? 0,
+      // Backend `Trip` DTO emits the fare as `fare_amount`; keep the legacy
+      // `estimated_fare_kobo` as a fallback.
+      estimatedFareKobo: (json['fare_amount'] as num?)?.toInt() ??
+          (json['estimated_fare_kobo'] as num?)?.toInt() ??
+          0,
       notes: json['notes'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()

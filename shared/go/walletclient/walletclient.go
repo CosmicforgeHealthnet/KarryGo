@@ -109,6 +109,21 @@ func (c Client) RequestRefund(ctx context.Context, request RefundRequest) (Refun
 	return response, err
 }
 
+type AssignProviderRequest struct {
+	ProviderType string `json:"provider_type"`
+	ProviderID   string `json:"provider_id"`
+}
+
+// AssignProvider attaches the matched provider to an existing payment intent
+// (looked up by reference) so a later CompleteJob can settle escrow to the
+// provider. Idempotent for the same provider.
+func (c Client) AssignProvider(ctx context.Context, reference string, providerType string, providerID string) (PaymentIntent, error) {
+	var response PaymentIntent
+	path := "/api/v1/payment-wallet/internal/payments/" + url.PathEscape(reference) + "/provider"
+	err := c.put(ctx, path, AssignProviderRequest{ProviderType: providerType, ProviderID: providerID}, &response)
+	return response, err
+}
+
 func (c Client) GetPayment(ctx context.Context, reference string) (PaymentIntent, error) {
 	var response PaymentIntent
 	err := c.get(ctx, "/api/v1/payment-wallet/internal/payments/"+url.PathEscape(reference), &response)
@@ -129,6 +144,19 @@ func (c Client) post(ctx context.Context, path string, payload interface{}, data
 		return err
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url(path), bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	return c.do(request, body, data)
+}
+
+func (c Client) put(ctx context.Context, path string, payload interface{}, data interface{}) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, c.url(path), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

@@ -42,6 +42,11 @@ class TruckProvider {
     this.govIdUrl = '',
     this.driverLicenseUrl = '',
     this.vehicleRegUrl = '',
+    this.guarantorName = '',
+    this.guarantorPhone = '',
+    this.emergencyContactName = '',
+    this.emergencyContactPhone = '',
+    this.emergencyContactRelationship = '',
     this.createdAt,
   });
 
@@ -65,7 +70,15 @@ class TruckProvider {
   final String govIdUrl;
   final String driverLicenseUrl;
   final String vehicleRegUrl;
+  final String guarantorName;
+  final String guarantorPhone;
+  final String emergencyContactName;
+  final String emergencyContactPhone;
+  final String emergencyContactRelationship;
   final DateTime? createdAt;
+
+  bool get hasEmergencyContact => emergencyContactName.trim().isNotEmpty;
+  bool get hasGuarantor => guarantorName.trim().isNotEmpty;
 
   String get displayName {
     final name = '$firstName $lastName'.trim();
@@ -126,6 +139,11 @@ class TruckProvider {
     String? govIdUrl,
     String? driverLicenseUrl,
     String? vehicleRegUrl,
+    String? guarantorName,
+    String? guarantorPhone,
+    String? emergencyContactName,
+    String? emergencyContactPhone,
+    String? emergencyContactRelationship,
     DateTime? createdAt,
   }) {
     return TruckProvider(
@@ -149,6 +167,11 @@ class TruckProvider {
       govIdUrl: govIdUrl ?? this.govIdUrl,
       driverLicenseUrl: driverLicenseUrl ?? this.driverLicenseUrl,
       vehicleRegUrl: vehicleRegUrl ?? this.vehicleRegUrl,
+      guarantorName: guarantorName ?? this.guarantorName,
+      guarantorPhone: guarantorPhone ?? this.guarantorPhone,
+      emergencyContactName: emergencyContactName ?? this.emergencyContactName,
+      emergencyContactPhone: emergencyContactPhone ?? this.emergencyContactPhone,
+      emergencyContactRelationship: emergencyContactRelationship ?? this.emergencyContactRelationship,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -174,6 +197,11 @@ class TruckProvider {
         govIdUrl: j['gov_id_url'] as String? ?? '',
         driverLicenseUrl: j['driver_license_url'] as String? ?? '',
         vehicleRegUrl: j['vehicle_reg_url'] as String? ?? '',
+        guarantorName: j['guarantor_name'] as String? ?? '',
+        guarantorPhone: j['guarantor_phone'] as String? ?? '',
+        emergencyContactName: j['emergency_contact_name'] as String? ?? '',
+        emergencyContactPhone: j['emergency_contact_phone'] as String? ?? '',
+        emergencyContactRelationship: j['emergency_contact_relationship'] as String? ?? '',
         createdAt: j['created_at'] != null ? DateTime.tryParse(j['created_at'] as String) : null,
       );
 }

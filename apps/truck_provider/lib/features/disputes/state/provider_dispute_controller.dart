@@ -103,6 +103,64 @@ class ProviderDisputeController extends ChangeNotifier {
     }
   }
 
+  // ─── Support live chat (profile > Support) ─────────────────────────────────
+  //
+  // The live chat is a regular complaint on support-dispute-service with a
+  // well-known subject, so agent replies arrive through the same admin surface
+  // as dispute chats. One open support complaint is reused per provider.
+  static const supportChatSubject = 'Live chat support';
+
+  Complaint? _supportComplaint;
+  Complaint? get supportComplaint => _supportComplaint;
+  bool _openingSupportChat = false;
+  bool get openingSupportChat => _openingSupportChat;
+  String? _supportChatError;
+  String? get supportChatError => _supportChatError;
+
+  /// Finds the provider's open support-chat complaint or creates one.
+  /// Returns null on failure (error in [supportChatError]).
+  Future<Complaint?> openSupportChat() async {
+    final token = _token;
+    if (token == null) return null;
+    _openingSupportChat = true;
+    _supportChatError = null;
+    notifyListeners();
+    try {
+      final complaints = await _api.listComplaints(accessToken: token);
+      Complaint? existing;
+      for (final c in complaints) {
+        final closed = c.status == 'resolved' || c.status == 'closed';
+        if (c.subject == supportChatSubject && !closed) {
+          existing = c;
+          break;
+        }
+      }
+      _supportComplaint = existing ??
+          await _api.createComplaint(
+            accessToken: token,
+            subject: supportChatSubject,
+            description: 'Live chat conversation with support.',
+            bookingReference: '',
+          );
+      return _supportComplaint;
+    } catch (e) {
+      _supportChatError = _msg(e);
+      return null;
+    } finally {
+      _openingSupportChat = false;
+      notifyListeners();
+    }
+  }
+
+  /// Marks agent messages on a complaint as read. Failure-silent.
+  Future<void> markMessagesRead(String complaintId) async {
+    final token = _token;
+    if (token == null) return;
+    try {
+      await _api.markMessagesRead(accessToken: token, id: complaintId);
+    } catch (_) {}
+  }
+
   // ─── Live chat ──────────────────────────────────────────────────────────────
   List<DisputeMessage> _messages = const [];
   List<DisputeMessage> get messages => _messages;

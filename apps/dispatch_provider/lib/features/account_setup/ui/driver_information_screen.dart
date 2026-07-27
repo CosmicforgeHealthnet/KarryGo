@@ -20,15 +20,13 @@ class DriverInformationData {
 
   final String licenseFileName;
 
-  /// Local file path.
-  /// TODO: POST /api/v1/provider/verification/licence
-  ///   fields: licence_number, expiry_year, expiry_month, licence_file
+  /// Local file path, uploaded by the app shell's final submit step via
+  /// POST /api/v1/provider/verification/licence.
   final String licenseFilePath;
   final String vehicleRegFileName;
 
-  /// Local file path.
-  /// TODO: POST /api/v1/provider/vehicle/:id/documents
-  ///   fields: document_type, expiry_date (optional), document_file
+  /// Local file path, uploaded by the app shell's final submit step via
+  /// POST /api/v1/provider/vehicle/:id/documents.
   final String vehicleRegFilePath;
   final String guarantorName;
   final String guarantorPhone;
@@ -156,15 +154,8 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
       _emergencyPhoneController.text.trim().isNotEmpty &&
       _relationshipType != null;
 
-  // TODO: backend upload — when submitting, send licence file to:
-  //   POST /api/v1/provider/verification/licence
-  //   fields: licence_number, expiry_year, expiry_month, licence_file
-  //   Use _licenseFilePath as the local file path.
-
-  // TODO: backend upload — when submitting, send vehicle reg to:
-  //   POST /api/v1/provider/vehicle/:id/documents
-  //   fields: document_type, expiry_date (optional), document_file
-  //   Use _vehicleRegFilePath as the local file path.
+  // The licence and vehicle-reg files collected here are uploaded by the app
+  // shell's onSubmit handler (verification/licence + vehicle/:id/documents).
 
   void _submit() async {
     // ── Validate guarantor full name (at least two parts) ─────────────────
