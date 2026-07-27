@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -22,8 +22,14 @@ export default function OtpConfirmationPage() {
   const [resending, setResending] = useState(false);
   const { formatted, canResend, reset } = useOtpTimer();
 
+  useEffect(() => {
+    if (!email) {
+      router.replace("/signup");
+    }
+  }, [email, router]);
+
   const code = otp.join("");
-  const canContinue = code.length === 6;
+  const canContinue = code.length === 6 && !!email;
 
   const handleContinue = async () => {
     if (!canContinue || loading) return;
@@ -62,6 +68,10 @@ export default function OtpConfirmationPage() {
       setResending(false);
     }
   };
+
+  if (!email) {
+    return null;
+  }
 
   return (
     <div>

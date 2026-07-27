@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { useFileUpload } from "@/hooks/use-file-upload";
 import { useOnboardingStore } from "@/store/onboarding-store";
 import { useAuthStore } from "@/store/auth-store";
 import { mediaService } from "@/services/media-service";
@@ -15,13 +14,24 @@ export default function ProfilePhotoPage() {
   const router = useRouter();
   const setPhotoFile = useOnboardingStore((s) => s.setPhotoFile);
   const token = useAuthStore((s) => s.token);
-  const account = useAuthStore((s) => s.account);
   const setSession = useAuthStore((s) => s.setSession);
   const expiresAt = useAuthStore((s) => s.expiresAt);
-  const { file, previewUrl, inputRef, openFilePicker, handleFileChange } =
-    useFileUpload();
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setPreviewUrl(URL.createObjectURL(f));
+    e.target.value = "";
+  };
 
   const handleFinalStep = async () => {
     if (!file || loading) return;
@@ -37,16 +47,16 @@ export default function ProfilePhotoPage() {
         { profile_photo_url: asset.url },
         token
       );
-      setSession({ token, expiresAt: expiresAt ?? "", account: updatedAccount });
+      setSession({ token, expires_at: expiresAt ?? "", account: updatedAccount });
       setPhotoFile(file);
       router.push("/success");
+      // stays "loading" through the transition on purpose — see business-info.tsx
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError("Could not upload photo. Please try again.");
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -84,11 +94,18 @@ export default function ProfilePhotoPage() {
       </div>
 
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/jpeg,image/png"
         capture="user"
-        onChange={handleFileChange}
+        onChange={onFileChange}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/jpeg,image/png"
+        onChange={onFileChange}
         className="hidden"
       />
 
@@ -99,14 +116,16 @@ export default function ProfilePhotoPage() {
           type="button"
           variant="social"
           className="w-auto rounded-full border-brand-200 bg-brand-100 px-6 py-3 text-brand-700 hover:bg-brand-200"
-          onClick={openFilePicker}
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={loading}
         >
           Take Photo
         </Button>
         <Button
           type="button"
           className="w-auto rounded-full px-6 py-3"
-          onClick={openFilePicker}
+          onClick={() => galleryInputRef.current?.click()}
+          disabled={loading}
         >
           Upload Photo
         </Button>

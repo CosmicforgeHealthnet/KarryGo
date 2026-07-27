@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { OnboardingStep } from "@/types";
 
 interface OnboardingState {
@@ -37,12 +38,28 @@ const initialState = {
   photoFile: null,
 };
 
-export const useOnboardingStore = create<OnboardingState>((set) => ({
-  ...initialState,
-  setStep: (step) => set({ step }),
-  setEmail: (email) => set({ email }),
-  setBusinessInfo: (info) => set(info),
-  setLogoFile: (logoFile) => set({ logoFile }),
-  setPhotoFile: (photoFile) => set({ photoFile }),
-  reset: () => set(initialState),
-}));
+export const useOnboardingStore = create<OnboardingState>()(
+  persist(
+    (set) => ({
+      ...initialState,
+      setStep: (step) => set({ step }),
+      setEmail: (email) => set({ email }),
+      setBusinessInfo: (info) => set(info),
+      setLogoFile: (logoFile) => set({ logoFile }),
+      setPhotoFile: (photoFile) => set({ photoFile }),
+      reset: () => set(initialState),
+    }),
+    {
+      name: "karrygo-onboarding",
+      partialize: (state) => ({
+        step: state.step,
+        email: state.email,
+        businessName: state.businessName,
+        businessPhone: state.businessPhone,
+        businessEmail: state.businessEmail,
+        state: state.state,
+        city: state.city,
+      }),
+    }
+  )
+);

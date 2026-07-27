@@ -1,13 +1,13 @@
 import { apiClient } from "@/lib/api-client";
 import type { AuthAccount } from "@/types";
 
-interface UpdateProfileInput {
+export interface UpdateProfileInput {
   business_name?: string;
   business_phone?: string;
   state?: string;
   city?: string;
-  business_logo_url?: string;
-  profile_photo_url?: string;
+  business_logo_url?: string | null;
+  profile_photo_url?: string | null;
 }
 
 export const profileService = {
