@@ -1,0 +1,6 @@
+DROP TRIGGER IF EXISTS trg_fleet_partner_org_status_history_append_only ON fleet_partner_organization_status_history;
+DROP TABLE IF EXISTS fleet_partner_organization_status_history;
+DROP TABLE IF EXISTS fleet_partner_organization_settings;
+DROP TABLE IF EXISTS fleet_partner_departments;
+DROP TABLE IF EXISTS fleet_partner_branches;
+DROP TABLE IF EXISTS fleet_partner_organizations;

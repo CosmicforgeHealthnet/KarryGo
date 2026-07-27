@@ -3,24 +3,28 @@ package router
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 	authhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/http"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/profile"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vehicle"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware"
+	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
 // dispatchSessionRevokerAdapter bridges the auth session repository to the
@@ -114,7 +118,110 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		tripfeature.RegisterRoutes(engine, authService.TokenUsecase(), tripfeature.NewHandler(tripService))
 	}
 
+	registerMarketplaceRoutes(engine, cfg, db, authService)
+
 	return engine
+}
+
+// registerMarketplaceRoutes wires the organization marketplace surface.
+//
+// Every cross-service client is built from configuration and falls back to its
+// fail-closed variant when that configuration is incomplete. A deployment
+// missing the fleet secret therefore refuses provider actions and reads rather
+// than half-working — it never fabricates success or an empty list.
+func registerMarketplaceRoutes(engine *gin.Engine, cfg config.Config, db *pgxpool.Pool,
+	authService *authusecases.AuthUsecase) {
+	flags := marketplace.Flags{
+		InternalAPIEnabled:         cfg.MarketplaceInternalAPIEnabled,
+		ReservationEnabled:         cfg.MarketplaceReservationEnabled,
+		ExecutionEnabled:           cfg.MarketplaceExecutionEnabled,
+		OutboxEnabled:              cfg.MarketplaceOutboxEnabled,
+		ProviderEligibilityEnabled: cfg.MarketplaceProviderEligibilityEnabled,
+		VehicleEligibilityEnabled:  cfg.MarketplaceVehicleEligibilityEnabled,
+		ProviderOffersEnabled:      cfg.ProviderOrganizationOffersEnabled,
+		CompanyAssignEnabled:       cfg.ProviderCompanyAssignmentsEnabled,
+		FleetRelayEnabled:          cfg.FleetRelayEnabled,
+	}
+
+	fleetClientConfig := marketplace.ResponderConfig{
+		BaseURL:     cfg.FleetServiceURL,
+		ServiceName: cfg.FleetServiceCaller,
+		Secret:      cfg.FleetServiceSecret,
+		Timeout:     cfg.FleetServiceTimeout,
+	}
+	responder, responderReady := marketplace.NewHTTPFleetResponder(fleetClientConfig)
+	reader, readerReady := marketplace.NewHTTPProviderReader(fleetClientConfig)
+	verifier, verifierReady := marketplace.NewHTTPAcceptanceVerifier(marketplace.VerifierConfig{
+		BaseURL:     cfg.FleetServiceURL,
+		ServiceName: cfg.FleetServiceCaller,
+		Secret:      cfg.FleetServiceSecret,
+		Timeout:     cfg.FleetServiceTimeout,
+	})
+	if !responderReady || !readerReady || !verifierReady {
+		log.Printf("marketplace: fleet client configuration incomplete; provider actions and reads fail closed")
+	}
+
+	repository := marketplace.NewRepository(db)
+	service := marketplace.NewService(repository, flags, verifier).
+		WithResponder(responder, cfg.FleetRelayRetryLimit).
+		WithProviderReader(reader)
+	internalVerifier := serviceauth.NewVerifier(serviceauth.Secrets{
+		"fleet-partner-service": cfg.FleetServiceSecret,
+	}, 5*time.Minute)
+	marketplace.RegisterInternalRoutes(engine.Group("/api/v1/internal/marketplace"),
+		marketplace.NewHandler(service, flags), internalVerifier, []string{"fleet-partner-service"})
+
+	marketplace.RegisterProviderRoutes(engine, authService.TokenUsecase(),
+		marketplace.NewProviderHandler(service, flags))
+}
+
+// StartMarketplaceWorkers launches the relay worker and returns a stop
+// function. It starts nothing when the feature flag is off or the fleet client
+// is unconfigured, so an incomplete deployment does not spin a worker that can
+// only fail.
+func StartMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+	if !cfg.FleetRelayEnabled {
+		log.Printf("marketplace: relay worker disabled by DISPATCH_FLEET_RELAY_ENABLED")
+		return func() {}
+	}
+	responder, ready := marketplace.NewHTTPFleetResponder(marketplace.ResponderConfig{
+		BaseURL:     cfg.FleetServiceURL,
+		ServiceName: cfg.FleetServiceCaller,
+		Secret:      cfg.FleetServiceSecret,
+		Timeout:     cfg.FleetServiceTimeout,
+	})
+	if !ready {
+		// Provider decisions are still recorded durably by the HTTP layer and
+		// will be delivered once configuration is corrected and the worker
+		// starts; nothing is lost by not running it now.
+		log.Printf("marketplace: relay worker not started; fleet client configuration incomplete")
+		return func() {}
+	}
+
+	worker := marketplace.NewRelayWorker(marketplace.NewRepository(db), responder,
+		marketplace.RelayWorkerConfig{
+			Owner:       cfg.ServiceName,
+			Lease:       cfg.FleetRelayLeaseDuration,
+			BatchSize:   cfg.FleetRelayBatchSize,
+			MaxAttempts: cfg.FleetRelayRetryLimit,
+			BaseBackoff: cfg.FleetRelayBackoffBase,
+		})
+
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// Run returns on cancellation; lease recovery runs at the top of each
+		// pass, so a previous process's abandoned work is picked up here.
+		_ = worker.Run(workerCtx, cfg.FleetRelayInterval)
+	}()
+
+	log.Printf("marketplace: relay worker started")
+	return func() {
+		cancel()
+		<-done
+		log.Printf("marketplace: relay worker stopped")
+	}
 }
 
 func registerHealthRoutes(engine *gin.Engine, cfg config.Config, ready func(context.Context) error) {

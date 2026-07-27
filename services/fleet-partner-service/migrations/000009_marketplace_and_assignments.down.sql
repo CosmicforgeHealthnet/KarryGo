@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS fleet_partner_marketplace_command_operations;
+DROP TABLE IF EXISTS fleet_partner_decline_followup_actions;
+DROP TABLE IF EXISTS fleet_partner_reassignment_cases;
+DROP TABLE IF EXISTS fleet_partner_assignment_reservations;
+DROP TRIGGER IF EXISTS trg_fleet_partner_assignment_history_append_only ON fleet_partner_assignment_state_history;
+DROP TABLE IF EXISTS fleet_partner_assignment_state_history;
+DROP TRIGGER IF EXISTS trg_fleet_partner_response_evidence_append_only ON fleet_partner_assignment_response_evidence;
+DROP TABLE IF EXISTS fleet_partner_assignment_response_evidence;
+DROP TRIGGER IF EXISTS trg_fleet_partner_assignment_responses_append_only ON fleet_partner_assignment_responses;
+DROP TABLE IF EXISTS fleet_partner_assignment_responses;
+DROP TABLE IF EXISTS fleet_partner_provider_assignments;
+DROP TRIGGER IF EXISTS trg_fleet_partner_acceptances_append_only ON fleet_partner_organization_acceptances;
+DROP TABLE IF EXISTS fleet_partner_organization_acceptances;
+DROP TABLE IF EXISTS fleet_partner_provider_offer_recipients;
+DROP TABLE IF EXISTS fleet_partner_organization_request_offers;
+DROP TABLE IF EXISTS fleet_partner_marketplace_request_projections;

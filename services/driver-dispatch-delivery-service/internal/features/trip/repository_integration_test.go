@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -45,18 +46,38 @@ func TestPostgresRepositoryTripFoundation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	for _, name := range []string{
-		"000004_create_providers.up.sql", "000019_create_request_broadcasts.up.sql",
-		"000021_create_trips.up.sql", "000022_create_trip_state_log.up.sql",
-		"000023_create_delivery_proofs.up.sql", "000024_create_cancellations.up.sql",
-	} {
-		sql, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", name))
+	// Apply the REAL migration chain in order rather than a hand-picked
+	// subset. The previous subset omitted 000029, so trips.package_type did
+	// not exist here even though production has it — the test was asserting
+	// against a schema that no deployment ever runs. Deriving the list means a
+	// future migration is covered the moment it lands.
+	migrationDir := filepath.Join("..", "..", "..", "migrations")
+	entries, err := filepath.Glob(filepath.Join(migrationDir, "*.up.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(entries)
+	for _, path := range entries {
+		sql, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if _, err := pool.Exec(ctx, string(sql)); err != nil {
-			t.Fatalf("apply %s: %v", name, err)
+			t.Fatalf("apply %s: %v", filepath.Base(path), err)
 		}
+	}
+
+	// The column the repository selects must actually exist here.
+	var hasPackageType bool
+	if err := pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = $1 AND table_name = 'trips' AND column_name = 'package_type'
+		)`, schema).Scan(&hasPackageType); err != nil {
+		t.Fatal(err)
+	}
+	if !hasPackageType {
+		t.Fatal("trips.package_type missing after applying the migration chain")
 	}
 
 	providerA, providerB, customerID, bookingID := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()

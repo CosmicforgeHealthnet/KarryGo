@@ -1,0 +1,8 @@
+DROP TABLE IF EXISTS fleet_partner_provider_subwallet_links;
+DROP TABLE IF EXISTS fleet_partner_provider_provisioning_sagas;
+DROP TRIGGER IF EXISTS trg_fleet_partner_provider_history_append_only ON fleet_partner_provider_membership_history;
+DROP TABLE IF EXISTS fleet_partner_provider_membership_history;
+DROP TABLE IF EXISTS fleet_partner_provider_policies;
+DROP TABLE IF EXISTS fleet_partner_provider_capabilities;
+DROP TABLE IF EXISTS fleet_partner_provider_invitations;
+DROP TABLE IF EXISTS fleet_partner_organization_provider_memberships;

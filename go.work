@@ -8,6 +8,7 @@ use (
 	./services/driver-dispatch-delivery-service
 	./services/driver-hauling-service
 	./services/driver-taxi-service
+	./services/fleet-partner-service
 	./services/media-file-service
 	./services/notification-service
 	./services/payment-wallet-service

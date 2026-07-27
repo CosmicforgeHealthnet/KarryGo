@@ -135,6 +135,10 @@ func main() {
 		}
 	}()
 
+	// Organization marketplace relay worker. Returns a no-op stopper when the
+	// feature flag is off or the fleet client is unconfigured.
+	stopMarketplaceWorkers := router.StartMarketplaceWorkers(ctx, cfg, db)
+
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           router.New(cfg, db, redisClient, authService, requestService, tripService),
@@ -157,6 +161,9 @@ func main() {
 		log.Printf("%s shutdown: %v", cfg.ServiceName, err)
 	}
 	asynqServer.Shutdown()
+	// Stop after the HTTP server so an in-flight provider decision finishes
+	// being recorded before the worker that delivers it goes away.
+	stopMarketplaceWorkers()
 }
 
 func connectPostgresWithRetry(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {

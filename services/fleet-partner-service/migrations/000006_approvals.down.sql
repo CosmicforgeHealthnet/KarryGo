@@ -1,0 +1,8 @@
+DROP TRIGGER IF EXISTS trg_fleet_partner_approval_history_append_only ON fleet_partner_approval_state_history;
+DROP TABLE IF EXISTS fleet_partner_approval_state_history;
+DROP TABLE IF EXISTS fleet_partner_approval_delegations;
+DROP TRIGGER IF EXISTS trg_fleet_partner_approval_decisions_append_only ON fleet_partner_approval_decisions;
+DROP TABLE IF EXISTS fleet_partner_approval_decisions;
+DROP TABLE IF EXISTS fleet_partner_approval_steps;
+DROP TABLE IF EXISTS fleet_partner_approval_requests;
+DROP TABLE IF EXISTS fleet_partner_approval_policies;
