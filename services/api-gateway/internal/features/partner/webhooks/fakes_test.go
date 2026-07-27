@@ -159,6 +159,42 @@ func (r *fakeDeliveryRepo) ListByWebhook(_ context.Context, webhookID string, li
 	return all[offset:end], total, nil
 }
 
+func (r *fakeDeliveryRepo) ListByPartner(_ context.Context, _ string, limit, offset int) ([]WebhookDelivery, int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	total := len(r.created)
+
+	if offset >= total {
+		return []WebhookDelivery{}, total, nil
+	}
+
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+
+	out := make([]WebhookDelivery, 0, end-offset)
+	for _, delivery := range r.created[offset:end] {
+		out = append(out, *delivery)
+	}
+
+	return out, total, nil
+}
+func (r *fakeDeliveryRepo) FindByID(_ context.Context, _ string, deliveryID string) (*WebhookDelivery, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, delivery := range r.created {
+		if delivery.ID == deliveryID {
+			copy := *delivery
+			return &copy, nil
+		}
+	}
+
+	return nil, nil
+}
+
 // fakeBookingLookup is an in-memory BookingLookup.
 type fakeBookingLookup struct {
 	mu            sync.Mutex
