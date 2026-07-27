@@ -48,6 +48,7 @@ class CosmicforgeLogisticsTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: CosmicforgeLogisticsColors.surface,
       useMaterial3: true,
+      fontFamily: 'Poppins',
       appBarTheme: const AppBarTheme(
         backgroundColor: CosmicforgeLogisticsColors.surface,
         foregroundColor: CosmicforgeLogisticsColors.text,

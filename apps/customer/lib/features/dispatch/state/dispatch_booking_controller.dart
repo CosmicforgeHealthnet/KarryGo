@@ -255,6 +255,11 @@ class DispatchBookingController extends ChangeNotifier {
   bool _pollInFlight = false;
   int _stateGeneration = 0;
 
+  /// Guards [restoreActiveBookingIfAny] so it only ever runs once per app
+  /// session — it's called from a widget rebuild (post session-restore), not a
+  /// one-shot lifecycle hook, so it needs its own idempotency flag.
+  bool _restoreAttempted = false;
+
   void _bumpGeneration() => _stateGeneration++;
 
   void _emit(DispatchBookingState next) {
@@ -284,6 +289,28 @@ class DispatchBookingController extends ChangeNotifier {
     ));
     _startPolling();
     _applyBookingUpdate(booking);
+  }
+
+  /// Resumes a delivery left in progress when the app was closed. See
+  /// [HaulingBookingController.restoreActiveBookingIfAny] for context — same
+  /// gap, same fix, mirrored here for bike deliveries. `delivered` is included
+  /// because that status still has a pending review step in this flow.
+  Future<void> restoreActiveBookingIfAny() async {
+    if (_restoreAttempted) return;
+    _restoreAttempted = true;
+    if (_state.status != DispatchFlowStatus.idle) return;
+    await loadHistory();
+    if (_state.status != DispatchFlowStatus.idle) return;
+    DispatchBooking? match;
+    for (final b in _state.bookingHistory) {
+      if (b.status.isActive ||
+          b.status.isSearching ||
+          b.status == DispatchBookingStatus.delivered) {
+        match = b;
+        break;
+      }
+    }
+    if (match != null) openActiveBooking(match);
   }
 
   /// Prefills the booking form from a previous delivery and starts the flow at
@@ -728,10 +755,11 @@ class DispatchBookingController extends ChangeNotifier {
   }
 
   /// How long to wait for a rider before giving up. Slightly longer than the
-  /// backend's full broadcast window (3 attempts x 30s) so the server-side
-  /// no-provider-found path (which also refunds) usually lands first. On expiry
-  /// the booking is cancelled server-side and the wallet hold refunded.
-  static const searchTimeout = Duration(seconds: 100);
+  /// backend's full broadcast window (3 attempts x 60s = 180s) so the
+  /// server-side no-provider-found path (which also refunds) usually lands
+  /// first. On expiry the booking is cancelled server-side and the wallet hold
+  /// refunded. Keep this above BROADCAST_MAX_ATTEMPTS x BROADCAST_WINDOW_SECONDS.
+  static const searchTimeout = Duration(seconds: 190);
 
   void _startSearchTimeout() {
     _searchTimeoutTimer?.cancel();

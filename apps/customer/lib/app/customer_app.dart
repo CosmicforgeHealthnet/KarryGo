@@ -113,6 +113,10 @@ class _CustomerAppState extends State<CustomerApp> {
           // Open the realtime feed once authenticated; tear it down otherwise.
           if (state.status == CustomerAuthStatus.authenticated) {
             _notificationController.start();
+            // Resume a booking left in progress if the app was closed mid-trip
+            // (both calls are idempotent — see restoreActiveBookingIfAny).
+            _haulingController.restoreActiveBookingIfAny();
+            _dispatchController.restoreActiveBookingIfAny();
           } else {
             _notificationController.stop();
             // Session ended (logout or expired-token 401): drop any pushed

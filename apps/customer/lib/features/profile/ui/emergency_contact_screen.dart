@@ -364,6 +364,7 @@ class _EmergencyContactFormScreenState
                   controller: _nameCtrl,
                   label: 'Full Name',
                   hintText: 'Enter name',
+                  variant: FigmaTextFieldVariant.grey,
                 ),
                 const SizedBox(height: 20),
                 const Text(

@@ -647,7 +647,6 @@ class TripSheet extends StatelessWidget {
     required this.secondaryLabel,
     required this.onPrimary,
     required this.onSecondary,
-    this.onSimulate,
   });
   final RequestModel request;
   final String title;
@@ -658,7 +657,6 @@ class TripSheet extends StatelessWidget {
   final String secondaryLabel;
   final VoidCallback onPrimary;
   final VoidCallback onSecondary;
-  final VoidCallback? onSimulate;
 
   @override
   Widget build(BuildContext context) {
@@ -812,16 +810,6 @@ class TripSheet extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (onSimulate != null) ...[
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: onSimulate,
-                    child: const Text(
-                      'Simulate arrival (dev only)',
-                      style: TextStyle(fontSize: 11),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

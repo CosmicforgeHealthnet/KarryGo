@@ -11,6 +11,7 @@ class CustomerFigmaColors {
   static const muted = Color(0xFF7B827C);
   static const surface = Color(0xFFF7F8F7);
   static const field = Color(0xFFFFFFFF);
+  static const fieldMuted = Color(0xFFF5F6F8);
   static const border = Color(0xFFE5E9E5);
   static const primaryTint = Color(0xFFEAF8EE);
 
@@ -196,6 +197,13 @@ class FigmaProgressHeader extends StatelessWidget {
   }
 }
 
+/// Visual style for [FigmaTextField].
+///
+/// - [standard]: white fill, 10px radius, green focus outline (default).
+/// - [grey]: light-grey fill, 12px radius, borderless in every state —
+///   matches the dispatch provider app's Emergency Contact field look.
+enum FigmaTextFieldVariant { standard, grey }
+
 class FigmaTextField extends StatelessWidget {
   const FigmaTextField({
     super.key,
@@ -206,6 +214,7 @@ class FigmaTextField extends StatelessWidget {
     this.readOnly = false,
     this.inputFormatters,
     this.onSubmitted,
+    this.variant = FigmaTextFieldVariant.standard,
   });
 
   final TextEditingController controller;
@@ -215,9 +224,25 @@ class FigmaTextField extends StatelessWidget {
   final bool readOnly;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onSubmitted;
+  final FigmaTextFieldVariant variant;
 
   @override
   Widget build(BuildContext context) {
+    final isGrey = variant == FigmaTextFieldVariant.grey;
+    final radius = isGrey ? 12.0 : 10.0;
+    final fillColor = isGrey
+        ? CustomerFigmaColors.fieldMuted
+        : CustomerFigmaColors.field;
+    final focusedBorder = isGrey
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(radius),
+            borderSide: BorderSide.none,
+          )
+        : OutlineInputBorder(
+            borderRadius: BorderRadius.circular(radius),
+            borderSide: const BorderSide(color: CustomerFigmaColors.primary),
+          );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -240,23 +265,20 @@ class FigmaTextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hintText,
             filled: true,
-            fillColor: CustomerFigmaColors.field,
+            fillColor: fillColor,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 14,
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(radius),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(radius),
               borderSide: BorderSide.none,
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: CustomerFigmaColors.primary),
-            ),
+            focusedBorder: focusedBorder,
           ),
         ),
       ],

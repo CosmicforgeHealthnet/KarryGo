@@ -231,7 +231,7 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF22A84A),
         useMaterial3: true,
-        fontFamily: 'Inter',
+        fontFamily: 'Poppins',
       ),
       home: AnimatedBuilder(
         animation: _authController,

@@ -7,9 +7,10 @@
 -- Idempotent: fixed UUIDs + ON CONFLICT DO NOTHING; safe to re-run.
 --
 -- Login: use the phone numbers below with POST /api/v1/auth/login/start.
--- NOTE (differs from hauling): with DISPATCH_RIDER_DEBUG_OTP=true the OTP is
--- printed in the SERVICE LOGS ("development dispatch rider login otp ...").
--- It is NOT returned in the HTTP response.
+-- With DISPATCH_RIDER_DEBUG_OTP=true the OTP is both printed in the SERVICE
+-- LOGS ("development dispatch rider login otp ...") AND returned as
+-- `debug_otp` in the HTTP response (shown on-screen by the app in debug
+-- builds) — never in a production build/backend.
 --
 -- Riders:
 --   +2348077770001  Emeka Dispatch    fully verified, ready to go online (motorcycle, LAG-101-DR)
@@ -24,6 +25,15 @@
 -- Only +2348077770001 / +2348077770002 belong in cmd/online's seededRiders
 -- list — the other three are deliberately NOT go-online-ready, so they need
 -- to keep failing that gate to stay useful as test fixtures.
+--
+-- "Fully verified" for riders 1/2 means BOTH: providers.verification_status
+-- ='verified' AND all 5 REQUIRED verification_steps (identity, vehicle,
+-- face, guarantor, emergency) are 'approved' (licence is optional and
+-- excluded). The app's verification badge / GET /provider/verification/status
+-- computes its own overall_status from verification_steps and ignores
+-- providers.verification_status entirely, so seeding only the flat column
+-- (as an earlier version of this seed did) left the app showing "Unverified"
+-- despite the DB looking fully verified.
 --
 -- Booking/trip history (synthetic customer_id e0000000-0000-4000-8000-000000000001,
 -- NOT a real customer-service account — it won't show up if you log into the
@@ -121,8 +131,21 @@ INSERT INTO bikes (
 )
 ON CONFLICT DO NOTHING;
 
-INSERT INTO verification_steps (provider_id, step, status, submitted_at, reviewed_at, licence_expiry_date)
-VALUES ('d1000000-0000-4000-8000-000000000001', 'licence', 'approved', now(), now(), (now() + interval '2 years')::date)
+INSERT INTO verification_steps (provider_id, step, is_optional, status, submitted_at, reviewed_at, licence_expiry_date)
+VALUES ('d1000000-0000-4000-8000-000000000001', 'licence', true, 'approved', now(), now(), (now() + interval '2 years')::date)
+ON CONFLICT DO NOTHING;
+
+-- The go-online gate (checkOnlineGate) only reads providers/provider_availability/bikes,
+-- but the app's verification badge (GET /provider/verification/status) computes its own
+-- "overall status" from these five REQUIRED steps and ignores providers.verification_status
+-- entirely — a provider with verification_status='verified' still shows "Unverified" in the
+-- app until identity/vehicle/face/guarantor/emergency are all approved here too.
+INSERT INTO verification_steps (provider_id, step, is_optional, is_auto_confirmed, confirm_method, status, submitted_at, reviewed_at) VALUES
+    ('d1000000-0000-4000-8000-000000000001', 'identity',   false, false, NULL,    'approved', now(), now()),
+    ('d1000000-0000-4000-8000-000000000001', 'vehicle',    false, false, NULL,    'approved', now(), now()),
+    ('d1000000-0000-4000-8000-000000000001', 'face',       false, false, NULL,    'approved', now(), now()),
+    ('d1000000-0000-4000-8000-000000000001', 'guarantor',  false, true,  'auto',  'approved', now(), now()),
+    ('d1000000-0000-4000-8000-000000000001', 'emergency',  false, true,  'auto',  'approved', now(), now())
 ON CONFLICT DO NOTHING;
 
 -- ── Rider 2 ──────────────────────────────────────────────────────────────────
@@ -155,8 +178,16 @@ INSERT INTO bikes (
 )
 ON CONFLICT DO NOTHING;
 
-INSERT INTO verification_steps (provider_id, step, status, submitted_at, reviewed_at, licence_expiry_date)
-VALUES ('d2000000-0000-4000-8000-000000000002', 'licence', 'approved', now(), now(), (now() + interval '2 years')::date)
+INSERT INTO verification_steps (provider_id, step, is_optional, status, submitted_at, reviewed_at, licence_expiry_date)
+VALUES ('d2000000-0000-4000-8000-000000000002', 'licence', true, 'approved', now(), now(), (now() + interval '2 years')::date)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO verification_steps (provider_id, step, is_optional, is_auto_confirmed, confirm_method, status, submitted_at, reviewed_at) VALUES
+    ('d2000000-0000-4000-8000-000000000002', 'identity',   false, false, NULL,    'approved', now(), now()),
+    ('d2000000-0000-4000-8000-000000000002', 'vehicle',    false, false, NULL,    'approved', now(), now()),
+    ('d2000000-0000-4000-8000-000000000002', 'face',       false, false, NULL,    'approved', now(), now()),
+    ('d2000000-0000-4000-8000-000000000002', 'guarantor',  false, true,  'auto',  'approved', now(), now()),
+    ('d2000000-0000-4000-8000-000000000002', 'emergency',  false, true,  'auto',  'approved', now(), now())
 ON CONFLICT DO NOTHING;
 
 -- ── Rider 3 — mid-onboarding, cannot go online yet ──────────────────────────

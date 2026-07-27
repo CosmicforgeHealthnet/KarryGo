@@ -271,6 +271,11 @@ class HaulingBookingController extends ChangeNotifier {
   bool _pollInFlight = false;
   int _stateGeneration = 0;
 
+  /// Guards [restoreActiveBookingIfAny] so it only ever runs once per app
+  /// session — it's called from a widget rebuild (post session-restore), not a
+  /// one-shot lifecycle hook, so it needs its own idempotency flag.
+  bool _restoreAttempted = false;
+
   void _bumpGeneration() => _stateGeneration++;
 
   void _emit(HaulingBookingState next) {
@@ -302,6 +307,28 @@ class HaulingBookingController extends ChangeNotifier {
     ));
     _startPolling();
     _applyBookingUpdate(booking);
+  }
+
+  /// Resumes a booking left in progress when the app was closed. The customer
+  /// app previously had no cold-start recovery at all: closing the app during
+  /// an active/searching booking left it invisible on reopen even though it
+  /// was still live server-side. Called once after the session is confirmed
+  /// authenticated; a no-op if a flow is already underway (e.g. the customer
+  /// just started one) or nothing active/searching is found in history.
+  Future<void> restoreActiveBookingIfAny() async {
+    if (_restoreAttempted) return;
+    _restoreAttempted = true;
+    if (_state.status != HaulingFlowStatus.idle) return;
+    await loadHistory();
+    if (_state.status != HaulingFlowStatus.idle) return;
+    HaulageBooking? match;
+    for (final b in _state.bookingHistory) {
+      if (b.status.isActive || b.status.isSearching) {
+        match = b;
+        break;
+      }
+    }
+    if (match != null) openActiveBooking(match);
   }
 
   /// Prefills the booking form from a previous trip and starts the normal flow

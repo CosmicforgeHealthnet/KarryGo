@@ -197,7 +197,10 @@ class TripsController extends ChangeNotifier {
 
   Future<ApiResult<bool>> submitProof({
     required String id,
-    required String filePath,
+    required String photoPath,
+    required Uint8List signaturePng,
+    required String receiverName,
+    required String receiverPhone,
   }) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
@@ -208,7 +211,10 @@ class TripsController extends ChangeNotifier {
     final result = await api.submitProof(
       accessToken: token,
       id: id,
-      filePath: filePath,
+      photoPath: photoPath,
+      signaturePng: signaturePng,
+      receiverName: receiverName,
+      receiverPhone: receiverPhone,
     );
     result.when(
       success: (_) => _debugLog('[TRIPS] submitProof $id ok'),
@@ -246,14 +252,23 @@ class TripsController extends ChangeNotifier {
 
   // ── Cancel trip ───────────────────────────────────────────────────────────
 
-  Future<ApiResult<bool>> cancelTrip(String id) async {
+  Future<ApiResult<bool>> cancelTrip(
+    String id, {
+    required String reasonCode,
+    String reasonText = '',
+  }) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
     _isActionLoading = true;
     notifyListeners();
 
-    final result = await api.cancelTrip(accessToken: token, id: id);
+    final result = await api.cancelTrip(
+      accessToken: token,
+      id: id,
+      reasonCode: reasonCode,
+      reasonText: reasonText,
+    );
     result.when(
       success: (_) {
         _activeTrip = null;
