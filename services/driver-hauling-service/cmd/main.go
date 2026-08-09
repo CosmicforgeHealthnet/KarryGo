@@ -134,6 +134,7 @@ func main() {
 		MatchTimeoutSeconds: cfg.BookingMatchTimeout,
 		SearchWindowSeconds: cfg.BookingSearchWindow,
 		MaxRadiusKm:         cfg.MatchMaxRadiusKm,
+		HandoverSecret:      cfg.HandoverSecret,
 	})
 
 	// notificationClient brokers provider-app notification access to

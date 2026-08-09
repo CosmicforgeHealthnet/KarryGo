@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
 )
 
 type Repository interface {
@@ -21,6 +22,12 @@ type Repository interface {
 	GetProviderActiveTrip(ctx context.Context, providerID string) (*Trip, error)
 	GetProviderTripByID(ctx context.Context, tripID, providerID string) (*Trip, error)
 	GetAssignedTripForProvider(ctx context.Context, providerID string) (*Trip, error)
+	// ListStaleProofSubmittedTrips returns trips stuck in 'proof_submitted'
+	// (rider submitted proof but the app never called complete — killed,
+	// crashed, or lost network) whose last update is older than cutoff. Used
+	// by RunAutoCompleteWorker to settle escrow that would otherwise be held
+	// forever.
+	ListStaleProofSubmittedTrips(ctx context.Context, cutoff time.Time) ([]Trip, error)
 	TransitionTripStatus(ctx context.Context, input TransitionTripInput) (bool, error)
 	InsertStateLog(ctx context.Context, input StateLogInput) error
 	ListTripStateLog(ctx context.Context, tripID string) ([]TripStateLog, error)
@@ -28,9 +35,15 @@ type Repository interface {
 	GetDeliveryProofByTripID(ctx context.Context, tripID string) (*DeliveryProof, error)
 	CreateCancellation(ctx context.Context, input CreateCancellationInput) (*Cancellation, error)
 	// Phase 7F–7H state-change methods.
-	MarkArrived(ctx context.Context, tripID, providerID string, fromStatus TripStatus, now time.Time) (*Trip, error)
-	MarkTripStarted(ctx context.Context, tripID, providerID string, now time.Time) (*Trip, error)
+	MarkArrived(ctx context.Context, tripID, providerID string, fromStatus TripStatus, now time.Time, pickup handover.CodeRecord) (*Trip, error)
+	MarkTripStarted(ctx context.Context, tripID, providerID string, now time.Time, delivery handover.CodeRecord) (*Trip, error)
 	SubmitProofTx(ctx context.Context, input SubmitProofDBInput) (*DeliveryProof, error)
+	// Handover verification (QR/OTP pickup + delivery confirmation).
+	IncrementPickupCodeAttempt(ctx context.Context, tripID string) error
+	IncrementDeliveryCodeAttempt(ctx context.Context, tripID string) error
+	MarkPickupVerified(ctx context.Context, tripID string) error
+	ResendPickupCode(ctx context.Context, tripID string, rec handover.CodeRecord) error
+	ResendDeliveryCode(ctx context.Context, tripID string, rec handover.CodeRecord) error
 	// Phase 7J–7K state-change methods.
 	CompleteTripTx(ctx context.Context, input CompleteTripInput) (*Trip, *DeliveryProof, error)
 	CountProviderCancellationsLast30Days(ctx context.Context, providerID string) (int, error)
@@ -163,6 +176,30 @@ func (r *PostgresRepository) GetAssignedTripForProvider(ctx context.Context, pro
 		ORDER BY created_at DESC
 		LIMIT 1
 	`, providerID))
+}
+
+func (r *PostgresRepository) ListStaleProofSubmittedTrips(ctx context.Context, cutoff time.Time) ([]Trip, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT `+tripColumns+`
+		FROM trips
+		WHERE status = 'proof_submitted' AND updated_at < $1
+		ORDER BY updated_at ASC
+		LIMIT 100
+	`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	trips := []Trip{}
+	for rows.Next() {
+		item, err := scanTrip(rows)
+		if err != nil {
+			return nil, err
+		}
+		trips = append(trips, *item)
+	}
+	return trips, rows.Err()
 }
 
 func (r *PostgresRepository) TransitionTripStatus(ctx context.Context, input TransitionTripInput) (bool, error) {
@@ -415,9 +452,11 @@ func (r *PostgresRepository) CancelTripByCustomerTx(ctx context.Context, input C
 	return trip, cancellation, tx.Commit(ctx)
 }
 
-// MarkArrived transitions the trip to arrived_pickup and sets arrived_at in one DB transaction (Phase 7F).
+// MarkArrived transitions the trip to arrived_pickup, sets arrived_at, and
+// stores a freshly generated pickup credential (the rider's own code, later
+// verified by the customer) in one DB transaction (Phase 7F).
 // Returns nil (*Trip, nil) when no rows matched (race condition); caller returns 409.
-func (r *PostgresRepository) MarkArrived(ctx context.Context, tripID, providerID string, fromStatus TripStatus, now time.Time) (*Trip, error) {
+func (r *PostgresRepository) MarkArrived(ctx context.Context, tripID, providerID string, fromStatus TripStatus, now time.Time, pickup handover.CodeRecord) (*Trip, error) {
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, err
@@ -425,10 +464,14 @@ func (r *PostgresRepository) MarkArrived(ctx context.Context, tripID, providerID
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	row := tx.QueryRow(ctx, `
-		UPDATE trips SET status='arrived_pickup', arrived_at=$3, updated_at=$3
+		UPDATE trips
+		SET status='arrived_pickup', arrived_at=$3, updated_at=$3,
+		    pickup_code=$4, pickup_code_hash=$5, pickup_code_expires_at=$6,
+		    pickup_code_attempts=0, pickup_code_resend_count=0,
+		    pickup_code_last_sent_at=$3, pickup_code_verified_at=NULL
 		WHERE id=$1 AND provider_id=$2 AND status IN ('assigned','en_route_pickup')
 		RETURNING `+tripColumns,
-		tripID, providerID, now)
+		tripID, providerID, now, pickup.Code, pickup.Hash, pickup.ExpiresAt)
 	trip, err := scanTrip(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -445,9 +488,13 @@ func (r *PostgresRepository) MarkArrived(ctx context.Context, tripID, providerID
 	return trip, tx.Commit(ctx)
 }
 
-// MarkTripStarted transitions the trip to in_progress and sets started_at in one DB transaction (Phase 7G).
+// MarkTripStarted transitions the trip to in_progress, sets started_at, and
+// stores a freshly generated delivery credential (the customer's own code,
+// later verified by the rider) in one DB transaction (Phase 7G). Called only
+// after the rider's pickup credential has already been verified by the
+// customer.
 // Returns nil (*Trip, nil) when no rows matched (race condition); caller returns 409.
-func (r *PostgresRepository) MarkTripStarted(ctx context.Context, tripID, providerID string, now time.Time) (*Trip, error) {
+func (r *PostgresRepository) MarkTripStarted(ctx context.Context, tripID, providerID string, now time.Time, delivery handover.CodeRecord) (*Trip, error) {
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, err
@@ -455,10 +502,14 @@ func (r *PostgresRepository) MarkTripStarted(ctx context.Context, tripID, provid
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	row := tx.QueryRow(ctx, `
-		UPDATE trips SET status='in_progress', started_at=$3, updated_at=$3
+		UPDATE trips
+		SET status='in_progress', started_at=$3, updated_at=$3,
+		    delivery_code=$4, delivery_code_hash=$5, delivery_code_expires_at=$6,
+		    delivery_code_attempts=0, delivery_code_resend_count=0,
+		    delivery_code_last_sent_at=$3, delivery_code_verified_at=NULL
 		WHERE id=$1 AND provider_id=$2 AND status='arrived_pickup'
 		RETURNING `+tripColumns,
-		tripID, providerID, now)
+		tripID, providerID, now, delivery.Code, delivery.Hash, delivery.ExpiresAt)
 	trip, err := scanTrip(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -473,6 +524,51 @@ func (r *PostgresRepository) MarkTripStarted(ctx context.Context, tripID, provid
 		return nil, err
 	}
 	return trip, tx.Commit(ctx)
+}
+
+// IncrementPickupCodeAttempt bumps the customer's failed-verification-attempt
+// counter for the rider's pickup credential.
+func (r *PostgresRepository) IncrementPickupCodeAttempt(ctx context.Context, tripID string) error {
+	_, err := r.db.Exec(ctx, `UPDATE trips SET pickup_code_attempts = pickup_code_attempts + 1, updated_at=now() WHERE id=$1`, tripID)
+	return err
+}
+
+// IncrementDeliveryCodeAttempt bumps the rider's failed-verification-attempt
+// counter for the customer's delivery credential.
+func (r *PostgresRepository) IncrementDeliveryCodeAttempt(ctx context.Context, tripID string) error {
+	_, err := r.db.Exec(ctx, `UPDATE trips SET delivery_code_attempts = delivery_code_attempts + 1, updated_at=now() WHERE id=$1`, tripID)
+	return err
+}
+
+// MarkPickupVerified records that the customer successfully verified the
+// rider's pickup credential, unblocking StartTrip.
+func (r *PostgresRepository) MarkPickupVerified(ctx context.Context, tripID string) error {
+	_, err := r.db.Exec(ctx, `UPDATE trips SET pickup_code_verified_at = now(), updated_at=now() WHERE id=$1`, tripID)
+	return err
+}
+
+// ResendPickupCode regenerates the rider's pickup credential.
+func (r *PostgresRepository) ResendPickupCode(ctx context.Context, tripID string, rec handover.CodeRecord) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE trips
+		SET pickup_code=$2, pickup_code_hash=$3, pickup_code_expires_at=$4,
+		    pickup_code_attempts=0, pickup_code_resend_count=pickup_code_resend_count+1,
+		    pickup_code_last_sent_at=now(), pickup_code_verified_at=NULL, updated_at=now()
+		WHERE id=$1`,
+		tripID, rec.Code, rec.Hash, rec.ExpiresAt)
+	return err
+}
+
+// ResendDeliveryCode regenerates the customer's delivery credential.
+func (r *PostgresRepository) ResendDeliveryCode(ctx context.Context, tripID string, rec handover.CodeRecord) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE trips
+		SET delivery_code=$2, delivery_code_hash=$3, delivery_code_expires_at=$4,
+		    delivery_code_attempts=0, delivery_code_resend_count=delivery_code_resend_count+1,
+		    delivery_code_last_sent_at=now(), delivery_code_verified_at=NULL, updated_at=now()
+		WHERE id=$1`,
+		tripID, rec.Code, rec.Hash, rec.ExpiresAt)
+	return err
 }
 
 // SubmitProofTx inserts delivery_proofs, updates trip status, and inserts state log atomically (Phase 7H).
@@ -525,7 +621,11 @@ const tripColumns = `
 	distance_km::float8, fare_amount, currency, receiver_name, receiver_phone,
 	package_desc, package_weight::float8, package_type, package_size, is_fragile, service_tier,
 	started_at, arrived_at, completed_at,
-	cancelled_at, created_at, updated_at`
+	cancelled_at, created_at, updated_at,
+	pickup_code, pickup_code_hash, pickup_code_expires_at, pickup_code_attempts,
+	pickup_code_resend_count, pickup_code_last_sent_at, pickup_code_verified_at,
+	delivery_code, delivery_code_hash, delivery_code_expires_at, delivery_code_attempts,
+	delivery_code_resend_count, delivery_code_last_sent_at, delivery_code_verified_at`
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -545,6 +645,8 @@ func scanTrip(row rowScanner) (*Trip, error) {
 	var packageDesc, packageType, packageSize, serviceTier pgtype.Text
 	var packageWeight pgtype.Float8
 	var startedAt, arrivedAt, completedAt, cancelledAt pgtype.Timestamptz
+	var pickupCodeExpiresAt, pickupCodeLastSentAt, pickupCodeVerifiedAt pgtype.Timestamptz
+	var deliveryCodeExpiresAt, deliveryCodeLastSentAt, deliveryCodeVerifiedAt pgtype.Timestamptz
 	if err := row.Scan(
 		&result.ID, &result.BookingID, &result.ProviderID, &result.CustomerID, &status,
 		&result.PickupAddress, &result.PickupLat, &result.PickupLng,
@@ -552,10 +654,20 @@ func scanTrip(row rowScanner) (*Trip, error) {
 		&result.DistanceKM, &result.FareAmount, &result.Currency, &result.ReceiverName,
 		&result.ReceiverPhone, &packageDesc, &packageWeight, &packageType, &packageSize, &result.IsFragile, &serviceTier,
 		&startedAt, &arrivedAt, &completedAt, &cancelledAt, &result.CreatedAt, &result.UpdatedAt,
+		&result.PickupCode, &result.PickupCodeHash, &pickupCodeExpiresAt, &result.PickupCodeAttempts,
+		&result.PickupCodeResendCount, &pickupCodeLastSentAt, &pickupCodeVerifiedAt,
+		&result.DeliveryCode, &result.DeliveryCodeHash, &deliveryCodeExpiresAt, &result.DeliveryCodeAttempts,
+		&result.DeliveryCodeResendCount, &deliveryCodeLastSentAt, &deliveryCodeVerifiedAt,
 	); err != nil {
 		return nil, err
 	}
 	result.Status = TripStatus(status)
+	setTripTime(&result.PickupCodeExpiresAt, pickupCodeExpiresAt)
+	setTripTime(&result.PickupCodeLastSentAt, pickupCodeLastSentAt)
+	setTripTime(&result.PickupCodeVerifiedAt, pickupCodeVerifiedAt)
+	setTripTime(&result.DeliveryCodeExpiresAt, deliveryCodeExpiresAt)
+	setTripTime(&result.DeliveryCodeLastSentAt, deliveryCodeLastSentAt)
+	setTripTime(&result.DeliveryCodeVerifiedAt, deliveryCodeVerifiedAt)
 	if packageDesc.Valid {
 		result.PackageDesc = &packageDesc.String
 	}

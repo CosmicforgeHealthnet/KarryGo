@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -67,9 +68,12 @@ class _ProviderActiveTripScreenState extends State<ProviderActiveTripScreen> {
                   error: state.error,
                   currentLat: state.currentLat,
                   currentLng: state.currentLng,
+                  pickupCredential: state.pickupCredential,
+                  isResendingPickupCredential: state.isResendingPickupCredential,
                   onEnRoutePickup: widget.controller.markEnRoutePickup,
                   onArrived: widget.controller.markArrived,
                   onConfirmPickup: widget.controller.confirmPickup,
+                  onResendPickupCredential: widget.controller.resendPickupCredential,
                   onEnRouteDelivery: widget.controller.markEnRouteDelivery,
                   onEndTrip: () => setState(() => _showCompletion = true),
                   onCancel: () => widget.controller.cancelActiveTrip(),
@@ -92,9 +96,12 @@ class _TripSheet extends StatelessWidget {
     this.error,
     this.currentLat,
     this.currentLng,
+    this.pickupCredential,
+    required this.isResendingPickupCredential,
     required this.onEnRoutePickup,
     required this.onArrived,
     required this.onConfirmPickup,
+    required this.onResendPickupCredential,
     required this.onEnRouteDelivery,
     required this.onEndTrip,
     required this.onCancel,
@@ -105,9 +112,12 @@ class _TripSheet extends StatelessWidget {
   final String? error;
   final double? currentLat;
   final double? currentLng;
+  final PickupCredential? pickupCredential;
+  final bool isResendingPickupCredential;
   final VoidCallback onEnRoutePickup;
   final VoidCallback onArrived;
   final VoidCallback onConfirmPickup;
+  final VoidCallback onResendPickupCredential;
   final VoidCallback onEnRouteDelivery;
   final VoidCallback onEndTrip;
   final VoidCallback onCancel;
@@ -210,6 +220,18 @@ class _TripSheet extends StatelessWidget {
           if (inProgress) ...[
             const SizedBox(height: 16),
             _ProgressBar(progress: _tripProgress(status)),
+          ],
+
+          if (status == 'arrived_at_pickup') ...[
+            const SizedBox(height: 16),
+            CosmicforgeLogisticsVerificationCodeCard(
+              title: 'Show this code to the customer',
+              subtitle: 'They will scan or enter it to verify you before pickup.',
+              code: pickupCredential?.code,
+              expiresAt: pickupCredential?.expiresAt,
+              onResend: onResendPickupCredential,
+              canResend: !isResendingPickupCredential,
+            ),
           ],
 
           const SizedBox(height: 16),
@@ -495,11 +517,25 @@ class _CompletionScreenState extends State<_CompletionScreen> {
     }
   }
 
-  /// Confirms delivery, sending the captured proof photo and signature (as a
-  /// rendered PNG) along so they are uploaded and stored on the booking.
+  /// Confirms delivery: gathers the captured proof photo/signature, then
+  /// requires the customer's delivery verification code (scanned or typed)
+  /// as the final step before submitting.
   Future<void> _confirm() async {
+    final code = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const CosmicforgeLogisticsCodeEntrySheet(
+        title: 'Verify the customer',
+        subtitle: 'Scan the QR code on the customer\'s screen, or enter the code they read out.',
+      ),
+    );
+    if (code == null || code.isEmpty || !mounted) return;
     final signature = await _renderSignaturePng();
     await widget.controller.confirmDelivery(
+      code: code,
       proofPhoto: _photo,
       signaturePng: signature,
     );

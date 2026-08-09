@@ -80,6 +80,7 @@ apply_migrations() {
   "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/005_provider_profile_extras.sql"
   "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/006_booking_payment.sql"
   "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/007_proof_of_delivery.sql"
+  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/008_handover_verification.sql"
 }
 
 seed_dev_providers() {

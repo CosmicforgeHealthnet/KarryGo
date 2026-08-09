@@ -12,6 +12,8 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/phonenumber"
 )
 
 // BroadcastControl is the request-feature surface the booking usecase drives.
@@ -30,12 +32,17 @@ type LiveStore interface {
 	GetLocation(ctx context.Context, providerID string) (availability.Location, bool, error)
 }
 
-// TripControl cancels an assigned trip on the customer's behalf. Calling the
-// trip feature in-process (instead of pub/sub) lets the cancel endpoint verify
-// the trip really cancelled before refunding — the trip-side guard no-ops for
-// in_progress trips, closing the refund-while-delivering race.
+// TripControl cancels an assigned trip on the customer's behalf, and handles
+// the customer-facing side of pickup/delivery handover verification. Calling
+// the trip feature in-process (instead of pub/sub) lets these endpoints
+// verify the outcome synchronously and keeps the handover secret + stored
+// hashes inside the trip feature, which owns pickup/delivery execution.
 type TripControl interface {
 	CancelForCustomer(ctx context.Context, bookingID, reason string) error
+	// VerifyPickupCode lets the customer confirm the rider's pickup credential.
+	VerifyPickupCode(ctx context.Context, bookingID, code string) error
+	// ResendDeliveryCode regenerates the customer's own delivery credential.
+	ResendDeliveryCode(ctx context.Context, bookingID string) (handover.CodeRecord, error)
 }
 
 // LifecycleNotifier sends booking-lifecycle notifications to the customer and
@@ -137,7 +144,8 @@ func (s *Service) Estimate(ctx context.Context, in EstimateRequest) (EstimateRes
 }
 
 func (s *Service) CreateBooking(ctx context.Context, customerID string, in CreateBookingInput) (BookingView, error) {
-	if err := validateCreateInput(in); err != nil {
+	normalizedReceiverPhone, err := validateCreateInput(in)
+	if err != nil {
 		return BookingView{}, err
 	}
 	distance := haversineKM(in.Pickup.Lat, in.Pickup.Lng, in.Dropoff.Lat, in.Dropoff.Lng)
@@ -158,7 +166,7 @@ func (s *Service) CreateBooking(ctx context.Context, customerID string, in Creat
 		PaymentMethod:  PaymentMethodWallet,
 		PaymentStatus:  PaymentUnpaid,
 		ReceiverName:   strings.TrimSpace(in.ReceiverName),
-		ReceiverPhone:  strings.TrimSpace(in.ReceiverPhone),
+		ReceiverPhone:  normalizedReceiverPhone,
 		PackageDesc:    strings.TrimSpace(in.PackageDesc),
 		PackageType:    strings.TrimSpace(in.PackageType),
 		PackageSize:    NormalizePackageSize(in.PackageSize),
@@ -358,7 +366,8 @@ func (s *Service) SubmitReview(ctx context.Context, customerID, id string, in Re
 	if providerID == "" {
 		return Review{}, apperrors.Conflict("No rider is linked to this delivery yet.", nil)
 	}
-	return s.repository.InsertReview(ctx, Review{
+	wasDelivered := state.WireStatus() == WireDelivered
+	review, err := s.repository.InsertReview(ctx, Review{
 		BookingID:          state.Booking.ID,
 		ProviderID:         providerID,
 		CustomerID:         customerID,
@@ -366,6 +375,19 @@ func (s *Service) SubmitReview(ctx context.Context, customerID, id string, in Re
 		ReviewText:         strings.TrimSpace(in.ReviewText),
 		RecommendsProvider: in.RecommendsProvider,
 	})
+	if err != nil {
+		return Review{}, err
+	}
+	// Best-effort: a review always saves even if this settlement step fails —
+	// the auto-complete worker in the trip feature is the safety net for a
+	// booking left held after a successful review. The review itself must
+	// never be lost because of a downstream settlement hiccup.
+	if wasDelivered {
+		if cerr := s.HandleTripCompleted(ctx, state.Booking.ID, s.now()); cerr != nil {
+			log.Printf("booking review-triggered completion failed booking_id=%s: %v", state.Booking.ID, cerr)
+		}
+	}
+	return review, nil
 }
 
 func (s *Service) GetReview(ctx context.Context, customerID, id string) (Review, error) {
@@ -410,6 +432,99 @@ func (s *Service) GetLiveLocation(ctx context.Context, customerID, id string) (L
 		Lng:        location.Lng,
 		UpdatedAt:  location.UpdatedAt,
 	}, nil
+}
+
+// VerifyDriverAtPickup lets the customer confirm the rider's identity using
+// the pickup credential displayed on the rider's app (entered manually or
+// scanned as a QR). On success, the rider's StartTrip becomes unblocked.
+func (s *Service) VerifyDriverAtPickup(ctx context.Context, customerID, id, code string) (BookingView, error) {
+	state, err := s.getOwnedBooking(ctx, customerID, id)
+	if err != nil {
+		return BookingView{}, err
+	}
+	if s.trips == nil {
+		return BookingView{}, apperrors.Unavailable("Driver verification is temporarily unavailable.", nil)
+	}
+	if err := s.trips.VerifyPickupCode(ctx, state.Booking.ID, code); err != nil {
+		return BookingView{}, err
+	}
+	refreshed, ok, err := s.repository.GetWithDerivedState(ctx, state.Booking.ID)
+	if err != nil {
+		return BookingView{}, err
+	}
+	if !ok {
+		return state.View(), nil
+	}
+	return refreshed.View(), nil
+}
+
+// GetVerificationCode returns the customer's own delivery credential for
+// redisplay. Only the delivery step is readable by the customer — the
+// pickup credential belongs to the rider and is never exposed here.
+func (s *Service) GetVerificationCode(ctx context.Context, customerID, id, step string) (VerificationCodeView, error) {
+	if step == string(handover.StepPickup) {
+		return VerificationCodeView{}, apperrors.Forbidden("You cannot view this code.", nil)
+	}
+	if step != string(handover.StepDelivery) {
+		return VerificationCodeView{}, apperrors.BadRequest("Invalid verification step.", nil)
+	}
+	state, err := s.getOwnedBooking(ctx, customerID, id)
+	if err != nil {
+		return VerificationCodeView{}, err
+	}
+	if state.DeliveryCode == "" {
+		return VerificationCodeView{}, apperrors.NotFound("No delivery code has been generated yet.", nil)
+	}
+	remaining := handover.MaxVerifyAttempts - state.DeliveryCodeAttempts
+	if remaining < 0 {
+		remaining = 0
+	}
+	view := VerificationCodeView{Code: state.DeliveryCode, AttemptsRemaining: remaining}
+	if state.DeliveryCodeExpiresAt != nil {
+		view.ExpiresAt = state.DeliveryCodeExpiresAt
+	}
+	return view, nil
+}
+
+// ResendVerificationCode regenerates the customer's delivery credential.
+// Only the delivery step may be resent by the customer.
+func (s *Service) ResendVerificationCode(ctx context.Context, customerID, id, step string) (VerificationCodeView, error) {
+	if step == string(handover.StepPickup) {
+		return VerificationCodeView{}, apperrors.Forbidden("You cannot resend this code.", nil)
+	}
+	if step != string(handover.StepDelivery) {
+		return VerificationCodeView{}, apperrors.BadRequest("Invalid verification step.", nil)
+	}
+	state, err := s.getOwnedBooking(ctx, customerID, id)
+	if err != nil {
+		return VerificationCodeView{}, err
+	}
+	if s.trips == nil {
+		return VerificationCodeView{}, apperrors.Unavailable("Verification codes are temporarily unavailable.", nil)
+	}
+	rec, err := s.trips.ResendDeliveryCode(ctx, state.Booking.ID)
+	if err != nil {
+		return VerificationCodeView{}, err
+	}
+	remaining := handover.MaxVerifyAttempts - rec.Attempts
+	if remaining < 0 {
+		remaining = 0
+	}
+	view := VerificationCodeView{Code: rec.Code, AttemptsRemaining: remaining}
+	if !rec.ExpiresAt.IsZero() {
+		expires := rec.ExpiresAt
+		view.ExpiresAt = &expires
+	}
+	return view, nil
+}
+
+// VerificationCodeView is the customer-facing view of the delivery
+// credential — never exposed for the pickup step (the rider's credential is
+// not readable by the customer through this surface).
+type VerificationCodeView struct {
+	Code              string     `json:"code,omitempty"`
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	AttemptsRemaining int        `json:"attempts_remaining"`
 }
 
 // --- event subscriber handlers ---
@@ -560,12 +675,16 @@ func (s *Service) currentPaymentStatus(ctx context.Context, id, fallback string)
 	return state.Booking.PaymentStatus
 }
 
-func validateCreateInput(in CreateBookingInput) error {
+// validateCreateInput validates the booking creation payload and returns the
+// receiver phone normalized to +234 E.164 form. Normalizing here (rather than
+// a bare non-empty check) is what keeps the number in a format the trip
+// service's proof-of-delivery match can actually compare against later.
+func validateCreateInput(in CreateBookingInput) (string, error) {
 	if err := validateCoords(in.Pickup.Lat, in.Pickup.Lng, "pickup"); err != nil {
-		return err
+		return "", err
 	}
 	if err := validateCoords(in.Dropoff.Lat, in.Dropoff.Lng, "dropoff"); err != nil {
-		return err
+		return "", err
 	}
 	var fields []apperrors.FieldViolation
 	if strings.TrimSpace(in.Pickup.Address) == "" {
@@ -577,8 +696,13 @@ func validateCreateInput(in CreateBookingInput) error {
 	if strings.TrimSpace(in.ReceiverName) == "" {
 		fields = append(fields, apperrors.FieldViolation{Field: "receiver_name", Message: "Receiver name is required."})
 	}
+	normalizedPhone := ""
 	if strings.TrimSpace(in.ReceiverPhone) == "" {
 		fields = append(fields, apperrors.FieldViolation{Field: "receiver_phone", Message: "Receiver phone is required."})
+	} else if normalized, err := phonenumber.NormalizeNigerianPhoneNumber(in.ReceiverPhone); err != nil {
+		fields = append(fields, apperrors.FieldViolation{Field: "receiver_phone", Message: "Enter a valid Nigerian phone number."})
+	} else {
+		normalizedPhone = normalized
 	}
 	if strings.TrimSpace(in.PackageDesc) == "" {
 		fields = append(fields, apperrors.FieldViolation{Field: "package_desc", Message: "Describe the package you are sending."})
@@ -593,9 +717,9 @@ func validateCreateInput(in CreateBookingInput) error {
 		err := apperrors.BadRequest("Check your details.", nil)
 		err.Fields = fields
 		err.Code = apperrors.CodeValidationFailed
-		return err
+		return "", err
 	}
-	return nil
+	return normalizedPhone, nil
 }
 
 func validateCoords(lat, lng float64, field string) error {

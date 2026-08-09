@@ -11,6 +11,7 @@ import (
 
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
 )
 
 type BookingRepository interface {
@@ -23,11 +24,16 @@ type BookingRepository interface {
 	MarkMatched(ctx context.Context, id, providerID, truckID string) (bookingmodels.Booking, error)
 	MarkAccepted(ctx context.Context, id, providerID string) (bookingmodels.Booking, error)
 	MarkEnRoutePickup(ctx context.Context, id string) (bookingmodels.Booking, error)
-	MarkArrivedAtPickup(ctx context.Context, id string) (bookingmodels.Booking, error)
+	MarkArrivedAtPickup(ctx context.Context, id string, pickup handover.CodeRecord) (bookingmodels.Booking, error)
 	MarkPickedUp(ctx context.Context, id string) (bookingmodels.Booking, error)
-	MarkEnRouteDelivery(ctx context.Context, id string) (bookingmodels.Booking, error)
+	MarkEnRouteDelivery(ctx context.Context, id string, delivery handover.CodeRecord) (bookingmodels.Booking, error)
 	MarkDelivered(ctx context.Context, id, proofPhotoURL, signatureURL string) (bookingmodels.Booking, error)
 	MarkCompleted(ctx context.Context, id string) (bookingmodels.Booking, error)
+	IncrementPickupCodeAttempt(ctx context.Context, id string) error
+	IncrementDeliveryCodeAttempt(ctx context.Context, id string) error
+	MarkPickupVerified(ctx context.Context, id string) error
+	ResendPickupCode(ctx context.Context, id string, rec handover.CodeRecord) error
+	ResendDeliveryCode(ctx context.Context, id string, rec handover.CodeRecord) error
 	MarkUnmatched(ctx context.Context, id string) (bookingmodels.Booking, error)
 	CancelByCustomer(ctx context.Context, id, customerID, reason string) (bookingmodels.Booking, error)
 	CancelByProvider(ctx context.Context, id, providerID, reason string) (bookingmodels.Booking, error)
@@ -178,11 +184,19 @@ func (r *PostgresBookingRepository) MarkEnRoutePickup(ctx context.Context, id st
 	return scanBookingNotFound(row)
 }
 
-func (r *PostgresBookingRepository) MarkArrivedAtPickup(ctx context.Context, id string) (bookingmodels.Booking, error) {
+// MarkArrivedAtPickup moves the booking to arrived_at_pickup and stores a
+// freshly generated pickup credential (the driver's own code, later verified
+// by the customer), resetting its attempt/resend counters.
+func (r *PostgresBookingRepository) MarkArrivedAtPickup(ctx context.Context, id string, pickup handover.CodeRecord) (bookingmodels.Booking, error) {
 	row := r.db.QueryRow(ctx, `
-		UPDATE haulage_bookings SET status=$2, updated_at=now()
+		UPDATE haulage_bookings
+		SET status=$2, updated_at=now(),
+		    pickup_code=$4, pickup_code_hash=$5, pickup_code_expires_at=$6,
+		    pickup_code_attempts=0, pickup_code_resend_count=0,
+		    pickup_code_last_sent_at=now(), pickup_code_verified_at=NULL
 		WHERE id=$1 AND status=$3 RETURNING `+bookingSelectCols,
-		id, bookingmodels.StatusArrivedAtPickup, bookingmodels.StatusEnRoutePickup)
+		id, bookingmodels.StatusArrivedAtPickup, bookingmodels.StatusEnRoutePickup,
+		pickup.Code, pickup.Hash, pickup.ExpiresAt)
 	return scanBookingNotFound(row)
 }
 
@@ -195,12 +209,67 @@ func (r *PostgresBookingRepository) MarkPickedUp(ctx context.Context, id string)
 	return scanBookingNotFound(row)
 }
 
-func (r *PostgresBookingRepository) MarkEnRouteDelivery(ctx context.Context, id string) (bookingmodels.Booking, error) {
+// MarkEnRouteDelivery moves the booking to en_route_delivery and stores a
+// freshly generated delivery credential (the customer's own code, later
+// verified by the driver), resetting its attempt/resend counters.
+func (r *PostgresBookingRepository) MarkEnRouteDelivery(ctx context.Context, id string, delivery handover.CodeRecord) (bookingmodels.Booking, error) {
 	row := r.db.QueryRow(ctx, `
-		UPDATE haulage_bookings SET status=$2, updated_at=now()
+		UPDATE haulage_bookings
+		SET status=$2, updated_at=now(),
+		    delivery_code=$4, delivery_code_hash=$5, delivery_code_expires_at=$6,
+		    delivery_code_attempts=0, delivery_code_resend_count=0,
+		    delivery_code_last_sent_at=now(), delivery_code_verified_at=NULL
 		WHERE id=$1 AND status=$3 RETURNING `+bookingSelectCols,
-		id, bookingmodels.StatusEnRouteDelivery, bookingmodels.StatusPickedUp)
+		id, bookingmodels.StatusEnRouteDelivery, bookingmodels.StatusPickedUp,
+		delivery.Code, delivery.Hash, delivery.ExpiresAt)
 	return scanBookingNotFound(row)
+}
+
+// IncrementPickupCodeAttempt bumps the customer's failed-verification-attempt
+// counter for the driver's pickup credential.
+func (r *PostgresBookingRepository) IncrementPickupCodeAttempt(ctx context.Context, id string) error {
+	_, err := r.db.Exec(ctx, `UPDATE haulage_bookings SET pickup_code_attempts = pickup_code_attempts + 1, updated_at=now() WHERE id=$1`, id)
+	return err
+}
+
+// IncrementDeliveryCodeAttempt bumps the driver's failed-verification-attempt
+// counter for the customer's delivery credential.
+func (r *PostgresBookingRepository) IncrementDeliveryCodeAttempt(ctx context.Context, id string) error {
+	_, err := r.db.Exec(ctx, `UPDATE haulage_bookings SET delivery_code_attempts = delivery_code_attempts + 1, updated_at=now() WHERE id=$1`, id)
+	return err
+}
+
+// MarkPickupVerified records that the customer successfully verified the
+// driver's pickup credential, unblocking the driver's confirm-pickup action.
+func (r *PostgresBookingRepository) MarkPickupVerified(ctx context.Context, id string) error {
+	_, err := r.db.Exec(ctx, `UPDATE haulage_bookings SET pickup_code_verified_at = now(), updated_at=now() WHERE id=$1`, id)
+	return err
+}
+
+// ResendPickupCode regenerates the driver's pickup credential (called by the
+// provider when their displayed code expired or was lost).
+func (r *PostgresBookingRepository) ResendPickupCode(ctx context.Context, id string, rec handover.CodeRecord) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE haulage_bookings
+		SET pickup_code=$2, pickup_code_hash=$3, pickup_code_expires_at=$4,
+		    pickup_code_attempts=0, pickup_code_resend_count=pickup_code_resend_count+1,
+		    pickup_code_last_sent_at=now(), pickup_code_verified_at=NULL, updated_at=now()
+		WHERE id=$1`,
+		id, rec.Code, rec.Hash, rec.ExpiresAt)
+	return err
+}
+
+// ResendDeliveryCode regenerates the customer's delivery credential (called
+// by the customer when their displayed code expired or was lost).
+func (r *PostgresBookingRepository) ResendDeliveryCode(ctx context.Context, id string, rec handover.CodeRecord) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE haulage_bookings
+		SET delivery_code=$2, delivery_code_hash=$3, delivery_code_expires_at=$4,
+		    delivery_code_attempts=0, delivery_code_resend_count=delivery_code_resend_count+1,
+		    delivery_code_last_sent_at=now(), delivery_code_verified_at=NULL, updated_at=now()
+		WHERE id=$1`,
+		id, rec.Code, rec.Hash, rec.ExpiresAt)
+	return err
 }
 
 // MarkDelivered moves the booking to delivered, storing the proof-of-delivery
@@ -330,6 +399,10 @@ const bookingSelectCols = `
 	distance_km, fare_estimate_kobo, fare_final_kobo,
 	payment_method, payment_status, payment_intent_id, status, cancel_reason, cancelled_by,
 	proof_photo_url, signature_url,
+	pickup_code, pickup_code_hash, pickup_code_expires_at, pickup_code_attempts,
+	pickup_code_resend_count, pickup_code_last_sent_at, pickup_code_verified_at,
+	delivery_code, delivery_code_hash, delivery_code_expires_at, delivery_code_attempts,
+	delivery_code_resend_count, delivery_code_last_sent_at, delivery_code_verified_at,
 	matched_at, accepted_at, picked_up_at, delivered_at, completed_at, cancelled_at,
 	scheduled_at, created_at, updated_at
 `
@@ -349,6 +422,10 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 		&b.DistanceKm, &b.FareEstimateKobo, &b.FareFinalKobo,
 		&b.PaymentMethod, &b.PaymentStatus, &b.PaymentIntentID, &b.Status, &b.CancelReason, &b.CancelledBy,
 		&b.ProofPhotoURL, &b.SignatureURL,
+		&b.PickupCode, &b.PickupCodeHash, &b.PickupCodeExpiresAt, &b.PickupCodeAttempts,
+		&b.PickupCodeResendCount, &b.PickupCodeLastSentAt, &b.PickupCodeVerifiedAt,
+		&b.DeliveryCode, &b.DeliveryCodeHash, &b.DeliveryCodeExpiresAt, &b.DeliveryCodeAttempts,
+		&b.DeliveryCodeResendCount, &b.DeliveryCodeLastSentAt, &b.DeliveryCodeVerifiedAt,
 		&b.MatchedAt, &b.AcceptedAt, &b.PickedUpAt, &b.DeliveredAt, &b.CompletedAt, &b.CancelledAt,
 		&b.ScheduledAt, &b.CreatedAt, &b.UpdatedAt,
 	)

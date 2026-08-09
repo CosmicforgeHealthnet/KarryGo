@@ -11,6 +11,7 @@ import (
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
 )
 
 var errNotFound = errorString("not found")
@@ -376,14 +377,83 @@ func (r *trackingRepo) MarkAccepted(_ context.Context, id, providerID string) (b
 func (r *trackingRepo) MarkEnRoutePickup(_ context.Context, id string) (bookingmodels.Booking, error) {
 	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusEnRoutePickup)
 }
-func (r *trackingRepo) MarkArrivedAtPickup(_ context.Context, id string) (bookingmodels.Booking, error) {
-	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusArrivedAtPickup)
+func (r *trackingRepo) MarkArrivedAtPickup(_ context.Context, id string, rec handover.CodeRecord) (bookingmodels.Booking, error) {
+	r.mu.Lock()
+	b := r.bookings[id]
+	b.Status = bookingmodels.StatusArrivedAtPickup
+	b.PickupCode = rec.Code
+	b.PickupCodeHash = rec.Hash
+	b.PickupCodeExpiresAt = &rec.ExpiresAt
+	b.PickupCodeAttempts = 0
+	b.PickupCodeVerifiedAt = nil
+	r.bookings[id] = b
+	r.mu.Unlock()
+	return b, nil
 }
 func (r *trackingRepo) MarkPickedUp(_ context.Context, id string) (bookingmodels.Booking, error) {
 	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusPickedUp)
 }
-func (r *trackingRepo) MarkEnRouteDelivery(_ context.Context, id string) (bookingmodels.Booking, error) {
-	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusEnRouteDelivery)
+func (r *trackingRepo) MarkEnRouteDelivery(_ context.Context, id string, rec handover.CodeRecord) (bookingmodels.Booking, error) {
+	r.mu.Lock()
+	b := r.bookings[id]
+	b.Status = bookingmodels.StatusEnRouteDelivery
+	b.DeliveryCode = rec.Code
+	b.DeliveryCodeHash = rec.Hash
+	b.DeliveryCodeExpiresAt = &rec.ExpiresAt
+	b.DeliveryCodeAttempts = 0
+	b.DeliveryCodeVerifiedAt = nil
+	r.bookings[id] = b
+	r.mu.Unlock()
+	return b, nil
+}
+func (r *trackingRepo) IncrementPickupCodeAttempt(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	b.PickupCodeAttempts++
+	r.bookings[id] = b
+	return nil
+}
+func (r *trackingRepo) IncrementDeliveryCodeAttempt(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	b.DeliveryCodeAttempts++
+	r.bookings[id] = b
+	return nil
+}
+func (r *trackingRepo) MarkPickupVerified(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	now := time.Now()
+	b.PickupCodeVerifiedAt = &now
+	r.bookings[id] = b
+	return nil
+}
+func (r *trackingRepo) ResendPickupCode(_ context.Context, id string, rec handover.CodeRecord) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	b.PickupCode = rec.Code
+	b.PickupCodeHash = rec.Hash
+	b.PickupCodeExpiresAt = &rec.ExpiresAt
+	b.PickupCodeAttempts = 0
+	b.PickupCodeVerifiedAt = nil
+	r.bookings[id] = b
+	return nil
+}
+func (r *trackingRepo) ResendDeliveryCode(_ context.Context, id string, rec handover.CodeRecord) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	b.DeliveryCode = rec.Code
+	b.DeliveryCodeHash = rec.Hash
+	b.DeliveryCodeExpiresAt = &rec.ExpiresAt
+	b.DeliveryCodeAttempts = 0
+	b.DeliveryCodeVerifiedAt = nil
+	r.bookings[id] = b
+	return nil
 }
 func (r *trackingRepo) MarkDelivered(_ context.Context, id, _, _ string) (bookingmodels.Booking, error) {
 	return r.UpdateStatus(context.Background(), id, bookingmodels.StatusDelivered)

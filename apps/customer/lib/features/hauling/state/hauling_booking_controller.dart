@@ -79,6 +79,11 @@ class HaulingBookingState {
     this.truckSnapshot,
     // live provider location (driver map marker during the trip)
     this.providerLocation,
+    // handover verification (pickup: customer verifies driver; delivery:
+    // driver verifies customer)
+    this.deliveryVerification,
+    this.pickupVerifiedLocally = false,
+    this.isResendingCode = false,
   });
 
   const HaulingBookingState.idle() : this(status: HaulingFlowStatus.idle);
@@ -127,6 +132,10 @@ class HaulingBookingState {
   final TruckSnapshot? truckSnapshot;
   final ProviderLocation? providerLocation;
 
+  final VerificationCodeResult? deliveryVerification;
+  final bool pickupVerifiedLocally;
+  final bool isResendingCode;
+
   double get walletBalanceNaira => (walletBalanceKobo ?? 0) / 100;
   bool get locationsReady => pickupAddress.isNotEmpty && dropoffAddress.isNotEmpty;
   bool get detailsReady =>
@@ -172,6 +181,9 @@ class HaulingBookingState {
     ProviderSnapshot? providerSnapshot,
     TruckSnapshot? truckSnapshot,
     ProviderLocation? providerLocation,
+    VerificationCodeResult? deliveryVerification,
+    bool? pickupVerifiedLocally,
+    bool? isResendingCode,
     bool clearError = false,
     bool clearFare = false,
     bool clearBooking = false,
@@ -215,6 +227,9 @@ class HaulingBookingState {
       providerSnapshot: clearProviderSnapshot ? null : (providerSnapshot ?? this.providerSnapshot),
       truckSnapshot: clearProviderSnapshot ? null : (truckSnapshot ?? this.truckSnapshot),
       providerLocation: clearProviderSnapshot ? null : (providerLocation ?? this.providerLocation),
+      deliveryVerification: deliveryVerification ?? this.deliveryVerification,
+      pickupVerifiedLocally: pickupVerifiedLocally ?? this.pickupVerifiedLocally,
+      isResendingCode: isResendingCode ?? this.isResendingCode,
     );
   }
 }
@@ -996,6 +1011,12 @@ class HaulingBookingController extends ChangeNotifier {
       ));
       // Load the assigned provider/truck snapshot if not yet loaded.
       _maybeFetchProviderAndTruckInfo(booking);
+      // The delivery code is generated once the driver starts hauling —
+      // fetch it once so the customer can display it to the driver later.
+      if (status == HaulingBookingStatus.enRouteDelivery &&
+          _state.deliveryVerification == null) {
+        unawaited(_fetchDeliveryCode());
+      }
       return;
     }
 
@@ -1033,6 +1054,57 @@ class HaulingBookingController extends ChangeNotifier {
       _api.getTruck(accessToken: token, truckId: truckId).then((t) {
         _emit(_state.copyWith(truckSnapshot: t));
       }).catchError((_) {});
+    }
+  }
+
+  // ─── Handover verification ─────────────────────────────────────────────────
+
+  /// Submits the driver's pickup credential (scanned or typed) for the
+  /// customer to verify. On success, the driver's own "confirm pickup"
+  /// action becomes unblocked server-side.
+  Future<bool> verifyDriver(String code) async {
+    final token = _accessToken();
+    final bookingId = _state.activeBooking?.id;
+    if (token == null || bookingId == null) return false;
+    _emit(_state.copyWith(isLoading: true, clearError: true));
+    try {
+      await _api.verifyDriver(accessToken: token, bookingId: bookingId, code: code);
+      _emit(_state.copyWith(isLoading: false, pickupVerifiedLocally: true, clearError: true));
+      return true;
+    } catch (e) {
+      _emit(_state.copyWith(isLoading: false, error: _errorMessage(e)));
+      return false;
+    }
+  }
+
+  Future<void> _fetchDeliveryCode() async {
+    final token = _accessToken();
+    final bookingId = _state.activeBooking?.id;
+    if (token == null || bookingId == null) return;
+    try {
+      final result = await _api.getVerificationCode(
+        accessToken: token,
+        bookingId: bookingId,
+      );
+      _emit(_state.copyWith(deliveryVerification: result));
+    } catch (_) {
+      // Missed/failed fetch — the resend button lets the customer retry.
+    }
+  }
+
+  Future<void> resendDeliveryCode() async {
+    final token = _accessToken();
+    final bookingId = _state.activeBooking?.id;
+    if (token == null || bookingId == null) return;
+    _emit(_state.copyWith(isResendingCode: true, clearError: true));
+    try {
+      final result = await _api.resendVerificationCode(
+        accessToken: token,
+        bookingId: bookingId,
+      );
+      _emit(_state.copyWith(deliveryVerification: result, isResendingCode: false));
+    } catch (e) {
+      _emit(_state.copyWith(isResendingCode: false, error: _errorMessage(e)));
     }
   }
 

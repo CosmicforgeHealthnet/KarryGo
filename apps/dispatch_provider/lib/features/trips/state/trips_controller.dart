@@ -19,11 +19,18 @@ class TripsController extends ChangeNotifier {
   Timer? _activePollTimer;
   bool _activePollInFlight = false;
 
+  /// The rider's own pickup credential — shown once arrived at pickup,
+  /// cleared once the trip advances past pickup.
+  PickupCredential? _pickupCredential;
+  bool _isResendingPickupCredential = false;
+
   List<TripModel> get trips => List.unmodifiable(_trips);
   TripModel? get activeTrip => _activeTrip;
   bool get isLoading => _isLoading;
   bool get isActionLoading => _isActionLoading;
   String? get error => _error;
+  PickupCredential? get pickupCredential => _pickupCredential;
+  bool get isResendingPickupCredential => _isResendingPickupCredential;
 
   TripsController({required this.api, required this.getAccessToken});
 
@@ -155,7 +162,7 @@ class TripsController extends ChangeNotifier {
 
   // ── Mark arrived ──────────────────────────────────────────────────────────
 
-  Future<ApiResult<bool>> markArrived(String id) async {
+  Future<ApiResult<PickupCredential>> markArrived(String id) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
@@ -164,13 +171,47 @@ class TripsController extends ChangeNotifier {
 
     final result = await api.markArrived(accessToken: token, id: id);
     result.when(
-      success: (_) => _debugLog('[TRIPS] markArrived $id ok'),
+      success: (credential) {
+        _pickupCredential = credential;
+        _debugLog('[TRIPS] markArrived $id ok');
+      },
       failure: (err) =>
           _debugLog('[TRIPS] markArrived $id failed: ${err.message}'),
     );
     _isActionLoading = false;
     notifyListeners();
     return result;
+  }
+
+  /// Refetches the rider's own pickup credential (e.g. after navigating away
+  /// from the arrived-at-pickup screen and back).
+  Future<void> fetchPickupCredential(String id) async {
+    final token = _token();
+    if (token == null || token.isEmpty) return;
+    final result = await api.getPickupCredential(accessToken: token, id: id);
+    result.when(
+      success: (credential) {
+        _pickupCredential = credential;
+        notifyListeners();
+      },
+      failure: (_) {},
+    );
+  }
+
+  /// Regenerates the rider's own pickup credential (e.g. it expired before
+  /// the customer could verify it).
+  Future<void> resendPickupCredential(String id) async {
+    final token = _token();
+    if (token == null || token.isEmpty) return;
+    _isResendingPickupCredential = true;
+    notifyListeners();
+    final result = await api.resendPickupCredential(accessToken: token, id: id);
+    result.when(
+      success: (credential) => _pickupCredential = credential,
+      failure: (err) => _error = err.message,
+    );
+    _isResendingPickupCredential = false;
+    notifyListeners();
   }
 
   // ── Start trip ────────────────────────────────────────────────────────────
@@ -184,7 +225,10 @@ class TripsController extends ChangeNotifier {
 
     final result = await api.startTrip(accessToken: token, id: id);
     result.when(
-      success: (_) => _debugLog('[TRIPS] startTrip $id ok'),
+      success: (_) {
+        _pickupCredential = null;
+        _debugLog('[TRIPS] startTrip $id ok');
+      },
       failure: (err) =>
           _debugLog('[TRIPS] startTrip $id failed: ${err.message}'),
     );
@@ -201,6 +245,7 @@ class TripsController extends ChangeNotifier {
     required Uint8List signaturePng,
     required String receiverName,
     required String receiverPhone,
+    required String code,
   }) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
@@ -215,6 +260,7 @@ class TripsController extends ChangeNotifier {
       signaturePng: signaturePng,
       receiverName: receiverName,
       receiverPhone: receiverPhone,
+      code: code,
     );
     result.when(
       success: (_) => _debugLog('[TRIPS] submitProof $id ok'),

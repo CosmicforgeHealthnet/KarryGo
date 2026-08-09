@@ -714,16 +714,23 @@ func Test7_ArrivedStartProofGetProofComplete(t *testing.T) {
 	tr := seedTrip(env, providerID, StatusAssigned)
 	tok := env.token(t, providerID)
 
-	// arrived
+	// arrived — generates the rider's pickup credential.
 	w := env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/arrived", tok)
 	checkStatus(t, w, http.StatusOK)
 
-	// start
+	// The customer verifies the rider's pickup credential (in-process — the
+	// customer-facing route lives in the booking package, not mounted here).
+	if err := env.svc.VerifyPickupCodeForCustomer(context.Background(), tr.BookingID, currentTripCode(env, tr.ID).PickupCode); err != nil {
+		t.Fatalf("VerifyPickupCodeForCustomer() error = %v", err)
+	}
+
+	// start — generates the customer's delivery credential.
 	w = env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/start", tok)
 	checkStatus(t, w, http.StatusOK)
 
 	// submit proof (using existing HTTP helper)
-	w = submitProof(t, env, tr.ID, tok, nil, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
+	deliveryCode := currentTripCode(env, tr.ID).DeliveryCode
+	w = submitProof(t, env, tr.ID, tok, map[string]string{"code": deliveryCode}, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
 	checkStatus(t, w, http.StatusCreated)
 
 	// get proof

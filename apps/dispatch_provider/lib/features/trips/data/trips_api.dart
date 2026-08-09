@@ -181,7 +181,7 @@ class TripsApi {
 
   // ── POST /api/v1/provider/trips/:id/arrived ──────────────────────────────
 
-  Future<ApiResult<bool>> markArrived({
+  Future<ApiResult<PickupCredential>> markArrived({
     required String accessToken,
     required String id,
   }) async {
@@ -195,13 +195,70 @@ class TripsApi {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final body = _tryDecode(response.body);
         if (body != null && body['success'] == true) {
-          return const ApiSuccess(true);
+          final data = body['data'] as Map<String, dynamic>? ?? {};
+          final credential = data['pickup_credential'] as Map<String, dynamic>?;
+          return ApiSuccess(
+            credential != null
+                ? PickupCredential.fromJson(credential)
+                : PickupCredential.empty,
+          );
         }
         return _failureFromResponse(response);
       }
       return _failureFromResponse(response);
     } catch (e) {
       _debugLog('[TRIPS] POST arrived error: $e');
+      return _networkFailure(e);
+    }
+  }
+
+  // ── GET/POST /api/v1/provider/trips/:id/pickup-credential ───────────────
+
+  /// Fetches the rider's own pickup credential for redisplay (e.g. after
+  /// navigating away from the arrived-at-pickup screen).
+  Future<ApiResult<PickupCredential>> getPickupCredential({
+    required String accessToken,
+    required String id,
+  }) async {
+    final uri = config.uri('/api/v1/provider/trips/$id/pickup-credential');
+    try {
+      final response = await _client
+          .get(uri, headers: _getHeaders(accessToken))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final body = _tryDecode(response.body);
+        if (body != null && body['success'] == true) {
+          final data = body['data'] as Map<String, dynamic>? ?? {};
+          return ApiSuccess(PickupCredential.fromJson(data));
+        }
+        return _failureFromResponse(response);
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      return _networkFailure(e);
+    }
+  }
+
+  /// Regenerates the rider's own pickup credential.
+  Future<ApiResult<PickupCredential>> resendPickupCredential({
+    required String accessToken,
+    required String id,
+  }) async {
+    final uri = config.uri('/api/v1/provider/trips/$id/pickup-credential/resend');
+    try {
+      final response = await _client
+          .post(uri, headers: _jsonHeaders(accessToken), body: jsonEncode({}))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final body = _tryDecode(response.body);
+        if (body != null && body['success'] == true) {
+          final data = body['data'] as Map<String, dynamic>? ?? {};
+          return ApiSuccess(PickupCredential.fromJson(data));
+        }
+        return _failureFromResponse(response);
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
       return _networkFailure(e);
     }
   }
@@ -245,6 +302,7 @@ class TripsApi {
     required Uint8List signaturePng,
     required String receiverName,
     required String receiverPhone,
+    required String code,
   }) async {
     final uri = config.uri('/api/v1/provider/trips/$id/proof');
     _debugLog('[TRIPS] POST proof $uri path=$photoPath');
@@ -257,6 +315,7 @@ class TripsApi {
       request.headers.addAll(_getHeaders(accessToken));
       request.fields['receiver_name'] = receiverName;
       request.fields['receiver_phone'] = receiverPhone;
+      request.fields['code'] = code;
       request.files.add(
         await http.MultipartFile.fromPath(
           'delivery_photo',

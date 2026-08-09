@@ -53,14 +53,14 @@ func (s *NotificationServiceSender) SendRequestBroadcast(ctx context.Context, pr
 		"service":         "dispatch",
 	}
 	_, err := s.notifier.Send(ctx, notifications.Request{
-		IDempotencyKey: notifications.IdempotencyKey(notificationSourceService, notifications.EventBookingMatched, payload.InboxID),
+		IDempotencyKey: notifications.IdempotencyKey(notificationSourceService, notifications.EventDeliveryMatched, payload.InboxID),
 		SourceService:  notificationSourceService,
-		EventType:      notifications.EventBookingMatched,
+		EventType:      notifications.EventDeliveryMatched,
 		Recipient: notifications.Recipient{
 			Type: notifications.RecipientProvider,
 			ID:   providerID,
 		},
-		TemplateKey:  notifications.EventBookingMatched,
+		TemplateKey:  notifications.EventDeliveryMatched,
 		Priority:     notifications.PriorityHigh,
 		Data:         data,
 		TemplateData: data,

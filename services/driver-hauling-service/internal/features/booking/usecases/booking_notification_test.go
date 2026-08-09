@@ -9,6 +9,7 @@ import (
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
 	"cosmicforge/logistics/shared/go/notifications"
 )
 
@@ -22,6 +23,8 @@ func (r *recordingNotifier) Send(_ context.Context, request notifications.Reques
 	return notifications.SendResponse{MessageID: "test", Status: "queued"}, nil
 }
 
+var testHandoverSecret = []byte("test-handover-secret")
+
 func newServiceWithNotifier(repo *fakeBookingRepo) (*BookingService, *recordingNotifier) {
 	rec := &recordingNotifier{}
 	notifier := bookingclients.NewBookingNotifierWith(rec)
@@ -30,6 +33,7 @@ func newServiceWithNotifier(repo *fakeBookingRepo) (*BookingService, *recordingN
 		Availability:        noopAvailabilityStore{},
 		Notifier:            notifier,
 		MatchTimeoutSeconds: 30,
+		HandoverSecret:      testHandoverSecret,
 	})
 	return svc, rec
 }
@@ -53,11 +57,13 @@ func TestAcceptBookingNotifiesCustomer(t *testing.T) {
 
 func TestConfirmPickupNotifiesCustomer(t *testing.T) {
 	providerID := "provider-1"
+	verifiedAt := time.Now()
 	repo := &fakeBookingRepo{booking: bookingmodels.Booking{
-		ID:         "booking-1",
-		CustomerID: "customer-1",
-		ProviderID: &providerID,
-		Status:     bookingmodels.StatusAccepted,
+		ID:                   "booking-1",
+		CustomerID:           "customer-1",
+		ProviderID:           &providerID,
+		Status:               bookingmodels.StatusAccepted,
+		PickupCodeVerifiedAt: &verifiedAt,
 	}}
 	svc, rec := newServiceWithNotifier(repo)
 
@@ -68,21 +74,68 @@ func TestConfirmPickupNotifiesCustomer(t *testing.T) {
 	assertNotified(t, rec, notifications.EventCargoPickedUp, notifications.RecipientCustomer, "customer-1")
 }
 
-func TestConfirmDeliveryNotifiesCustomer(t *testing.T) {
+func TestConfirmPickupBlockedWithoutCustomerVerification(t *testing.T) {
 	providerID := "provider-1"
 	repo := &fakeBookingRepo{booking: bookingmodels.Booking{
 		ID:         "booking-1",
 		CustomerID: "customer-1",
 		ProviderID: &providerID,
-		Status:     bookingmodels.StatusPickedUp,
+		Status:     bookingmodels.StatusAccepted,
+	}}
+	svc, _ := newServiceWithNotifier(repo)
+
+	if _, err := svc.ConfirmPickup(context.Background(), "booking-1", providerID); err == nil {
+		t.Fatalf("expected ConfirmPickup() to fail when the customer has not verified the driver")
+	}
+}
+
+func TestConfirmDeliveryNotifiesCustomer(t *testing.T) {
+	providerID := "provider-1"
+	deliveryRec, err := handover.NewCodeRecord(testHandoverSecret, handover.BuildChallengeID("hauling", handover.StepDelivery, "booking-1"), time.Now())
+	if err != nil {
+		t.Fatalf("NewCodeRecord() error = %v", err)
+	}
+	repo := &fakeBookingRepo{booking: bookingmodels.Booking{
+		ID:                    "booking-1",
+		CustomerID:            "customer-1",
+		ProviderID:            &providerID,
+		Status:                bookingmodels.StatusPickedUp,
+		DeliveryCode:          deliveryRec.Code,
+		DeliveryCodeHash:      deliveryRec.Hash,
+		DeliveryCodeExpiresAt: &deliveryRec.ExpiresAt,
 	}}
 	svc, rec := newServiceWithNotifier(repo)
 
-	if _, err := svc.ConfirmDelivery(context.Background(), "booking-1", providerID, "", ""); err != nil {
+	if _, err := svc.ConfirmDelivery(context.Background(), "booking-1", providerID, deliveryRec.Code, "", ""); err != nil {
 		t.Fatalf("ConfirmDelivery() error = %v", err)
 	}
 
 	assertNotified(t, rec, notifications.EventCargoDelivered, notifications.RecipientCustomer, "customer-1")
+}
+
+func TestConfirmDeliveryBlockedWithWrongCode(t *testing.T) {
+	providerID := "provider-1"
+	deliveryRec, err := handover.NewCodeRecord(testHandoverSecret, handover.BuildChallengeID("hauling", handover.StepDelivery, "booking-1"), time.Now())
+	if err != nil {
+		t.Fatalf("NewCodeRecord() error = %v", err)
+	}
+	repo := &fakeBookingRepo{booking: bookingmodels.Booking{
+		ID:                    "booking-1",
+		CustomerID:            "customer-1",
+		ProviderID:            &providerID,
+		Status:                bookingmodels.StatusPickedUp,
+		DeliveryCode:          deliveryRec.Code,
+		DeliveryCodeHash:      deliveryRec.Hash,
+		DeliveryCodeExpiresAt: &deliveryRec.ExpiresAt,
+	}}
+	svc, _ := newServiceWithNotifier(repo)
+
+	if _, err := svc.ConfirmDelivery(context.Background(), "booking-1", providerID, "000000", "", ""); err == nil {
+		t.Fatalf("expected ConfirmDelivery() to fail with an incorrect code")
+	}
+	if repo.booking.DeliveryCodeAttempts != 1 {
+		t.Fatalf("expected a failed attempt to be recorded, got %d", repo.booking.DeliveryCodeAttempts)
+	}
 }
 
 func TestCancelByProviderNotifiesCustomer(t *testing.T) {
@@ -161,14 +214,53 @@ func (f *fakeBookingRepo) MarkAccepted(_ context.Context, _, _ string) (bookingm
 func (f *fakeBookingRepo) MarkEnRoutePickup(_ context.Context, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
-func (f *fakeBookingRepo) MarkArrivedAtPickup(_ context.Context, _ string) (bookingmodels.Booking, error) {
+func (f *fakeBookingRepo) MarkArrivedAtPickup(_ context.Context, _ string, rec handover.CodeRecord) (bookingmodels.Booking, error) {
+	f.booking.PickupCode = rec.Code
+	f.booking.PickupCodeHash = rec.Hash
+	f.booking.PickupCodeExpiresAt = &rec.ExpiresAt
+	f.booking.PickupCodeAttempts = 0
+	f.booking.PickupCodeVerifiedAt = nil
 	return f.booking, nil
 }
 func (f *fakeBookingRepo) MarkPickedUp(_ context.Context, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil
 }
-func (f *fakeBookingRepo) MarkEnRouteDelivery(_ context.Context, _ string) (bookingmodels.Booking, error) {
+func (f *fakeBookingRepo) MarkEnRouteDelivery(_ context.Context, _ string, rec handover.CodeRecord) (bookingmodels.Booking, error) {
+	f.booking.DeliveryCode = rec.Code
+	f.booking.DeliveryCodeHash = rec.Hash
+	f.booking.DeliveryCodeExpiresAt = &rec.ExpiresAt
+	f.booking.DeliveryCodeAttempts = 0
+	f.booking.DeliveryCodeVerifiedAt = nil
 	return f.booking, nil
+}
+func (f *fakeBookingRepo) IncrementPickupCodeAttempt(_ context.Context, _ string) error {
+	f.booking.PickupCodeAttempts++
+	return nil
+}
+func (f *fakeBookingRepo) IncrementDeliveryCodeAttempt(_ context.Context, _ string) error {
+	f.booking.DeliveryCodeAttempts++
+	return nil
+}
+func (f *fakeBookingRepo) MarkPickupVerified(_ context.Context, _ string) error {
+	now := time.Now()
+	f.booking.PickupCodeVerifiedAt = &now
+	return nil
+}
+func (f *fakeBookingRepo) ResendPickupCode(_ context.Context, _ string, rec handover.CodeRecord) error {
+	f.booking.PickupCode = rec.Code
+	f.booking.PickupCodeHash = rec.Hash
+	f.booking.PickupCodeExpiresAt = &rec.ExpiresAt
+	f.booking.PickupCodeAttempts = 0
+	f.booking.PickupCodeVerifiedAt = nil
+	return nil
+}
+func (f *fakeBookingRepo) ResendDeliveryCode(_ context.Context, _ string, rec handover.CodeRecord) error {
+	f.booking.DeliveryCode = rec.Code
+	f.booking.DeliveryCodeHash = rec.Hash
+	f.booking.DeliveryCodeExpiresAt = &rec.ExpiresAt
+	f.booking.DeliveryCodeAttempts = 0
+	f.booking.DeliveryCodeVerifiedAt = nil
+	return nil
 }
 func (f *fakeBookingRepo) MarkDelivered(_ context.Context, _, _, _ string) (bookingmodels.Booking, error) {
 	return f.booking, nil

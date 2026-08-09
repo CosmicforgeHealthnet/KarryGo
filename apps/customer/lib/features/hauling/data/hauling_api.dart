@@ -248,6 +248,50 @@ class HaulingApi {
     }
   }
 
+  /// Submits the driver's pickup credential (entered manually or scanned as
+  /// a QR) for the customer to verify before the driver can proceed.
+  Future<HaulageBooking> verifyDriver({
+    required String accessToken,
+    required String bookingId,
+    required String code,
+  }) async {
+    final data = await _sendJson(
+      'POST',
+      '/customer/bookings/$bookingId/verify-driver',
+      accessToken: accessToken,
+      body: {'code': code},
+    );
+    return HaulageBooking.fromJson(data);
+  }
+
+  /// Fetches the customer's own delivery verification code for redisplay.
+  Future<VerificationCodeResult> getVerificationCode({
+    required String accessToken,
+    required String bookingId,
+    String step = 'delivery',
+  }) async {
+    final data = await _sendJson(
+      'GET',
+      '/customer/bookings/$bookingId/verification-code?step=$step',
+      accessToken: accessToken,
+    );
+    return VerificationCodeResult.fromJson(data);
+  }
+
+  /// Regenerates the customer's own delivery verification code.
+  Future<VerificationCodeResult> resendVerificationCode({
+    required String accessToken,
+    required String bookingId,
+    String step = 'delivery',
+  }) async {
+    final data = await _sendJson(
+      'POST',
+      '/customer/bookings/$bookingId/verification-code/resend?step=$step',
+      accessToken: accessToken,
+    );
+    return VerificationCodeResult.fromJson(data);
+  }
+
   Future<HaulageBooking> cancelBooking({
     required String accessToken,
     required String bookingId,

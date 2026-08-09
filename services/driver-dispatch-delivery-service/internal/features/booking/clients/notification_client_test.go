@@ -28,14 +28,14 @@ func TestNotifier_RecipientAwareIdempotencyKey(t *testing.T) {
 		t.Fatalf("expected 1 request, got %d", len(capture.requests))
 	}
 	got := capture.requests[0]
-	want := notifications.IdempotencyKey(sourceService, notifications.EventBookingAccepted, "book-1:cust-1")
+	want := notifications.IdempotencyKey(sourceService, notifications.EventDeliveryAccepted, "book-1:cust-1")
 	if got.IDempotencyKey != want {
 		t.Fatalf("idempotency key = %q, want %q", got.IDempotencyKey, want)
 	}
 	if got.Recipient.Type != notifications.RecipientCustomer || got.Recipient.ID != "cust-1" {
 		t.Fatalf("unexpected recipient %+v", got.Recipient)
 	}
-	if got.TemplateKey != notifications.EventBookingAccepted {
+	if got.TemplateKey != notifications.EventDeliveryAccepted {
 		t.Fatalf("template key = %q", got.TemplateKey)
 	}
 }

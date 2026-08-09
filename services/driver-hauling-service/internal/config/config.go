@@ -24,6 +24,9 @@ type Config struct {
 	// Customer token verification (mirrors customer-service secret)
 	CustomerTokenSecret []byte
 
+	// HandoverSecret signs/verifies pickup & delivery handover codes (QR/OTP).
+	HandoverSecret []byte
+
 	// Token TTLs
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
@@ -68,6 +71,7 @@ func Load() Config {
 		ProviderRefreshSecret: []byte(getEnv("HAULING_PROVIDER_REFRESH_SECRET", "development-hauling-provider-refresh-secret")),
 		ProviderOTPSecret:     []byte(getEnv("HAULING_PROVIDER_OTP_SECRET", "development-hauling-provider-otp-secret")),
 		CustomerTokenSecret:   []byte(getEnv("HAULING_CUSTOMER_TOKEN_SECRET", "development-customer-token-secret")),
+		HandoverSecret:        []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
 
 		AccessTokenTTL:  time.Duration(getEnvInt("HAULING_ACCESS_TOKEN_TTL_SECONDS", 3600)) * time.Second,
 		RefreshTokenTTL: time.Duration(getEnvInt("HAULING_REFRESH_TOKEN_TTL_DAYS", 30)) * 24 * time.Hour,
@@ -86,7 +90,7 @@ func Load() Config {
 
 		BookingMatchTimeout: getEnvInt("HAULING_BOOKING_MATCH_TIMEOUT", 30),
 		BookingSearchWindow: getEnvInt("HAULING_BOOKING_SEARCH_WINDOW", 60),
-		ProviderOnlineTTL:   getEnvInt("HAULING_PROVIDER_ONLINE_TTL", 7200),
+		ProviderOnlineTTL:   getEnvInt("HAULING_PROVIDER_ONLINE_TTL", 90),
 		MatchMaxRadiusKm:    getEnvFloat("HAULING_MATCH_MAX_RADIUS_KM", 25),
 	}
 }

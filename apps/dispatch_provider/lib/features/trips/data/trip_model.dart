@@ -23,6 +23,31 @@ enum TripStatusCode {
       this == proofSubmitted;
 }
 
+/// The rider's own pickup handover credential — displayed on this app and
+/// verified by the customer. Never visible to the customer through the API.
+class PickupCredential {
+  const PickupCredential({
+    required this.code,
+    this.expiresAt,
+    this.verified = false,
+  });
+
+  final String code;
+  final DateTime? expiresAt;
+  final bool verified;
+
+  factory PickupCredential.fromJson(Map<String, dynamic> j) {
+    final expiresRaw = j['expires_at'] as String?;
+    return PickupCredential(
+      code: j['code'] as String? ?? '',
+      expiresAt: expiresRaw != null ? DateTime.tryParse(expiresRaw) : null,
+      verified: j['verified'] as bool? ?? false,
+    );
+  }
+
+  static const empty = PickupCredential(code: '');
+}
+
 /// Trip cancel reason codes accepted by the backend
 /// (`internal/features/trip/model.go` `ValidCancelReasons`). A cancel request
 /// without one of these codes is rejected with a 400.

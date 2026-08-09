@@ -70,6 +70,27 @@ func (n *BookingNotifier) NotifyCustomerEnRouteDelivery(ctx context.Context, cus
 	n.send(ctx, notifications.EventDriverEnRouteDelivery, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
+// NotifyCustomerPickupVerificationRequired tells the customer their driver
+// has arrived and must be verified before pickup can proceed. The driver's
+// code is intentionally NOT included in this payload — only the driver's own
+// app displays it.
+func (n *BookingNotifier) NotifyCustomerPickupVerificationRequired(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	n.send(ctx, notifications.EventBookingPickupVerificationRequired, notifications.RecipientCustomer, customerID, bookingID, data)
+}
+
+// NotifyCustomerDeliveryCodeReady tells the customer their delivery
+// verification code is ready to share with the driver. The code is included
+// in data so it can be surfaced in the notification body.
+func (n *BookingNotifier) NotifyCustomerDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	n.send(ctx, notifications.EventBookingDeliveryCodeReady, notifications.RecipientCustomer, customerID, bookingID, data)
+}
+
+// NotifyProviderPickupVerified tells the driver the customer has verified
+// their pickup credential, so confirm-pickup is now unblocked.
+func (n *BookingNotifier) NotifyProviderPickupVerified(ctx context.Context, providerID, bookingID string, data map[string]interface{}) {
+	n.send(ctx, notifications.EventBookingPickupVerified, notifications.RecipientProvider, providerID, bookingID, data)
+}
+
 // NotifyCustomerPickedUp tells the customer their cargo was picked up.
 func (n *BookingNotifier) NotifyCustomerPickedUp(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
 	n.send(ctx, notifications.EventCargoPickedUp, notifications.RecipientCustomer, customerID, bookingID, data)

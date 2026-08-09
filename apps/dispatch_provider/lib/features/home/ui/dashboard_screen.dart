@@ -1,3 +1,4 @@
+import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
@@ -408,16 +409,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onPrimary: _handleMarkArrived,
           onSecondary: _handleCancelTrip,
         ),
-        TripState.arrivedAtPickup => TripSheet(
-          request: activeRequest!,
-          title: 'Arrived at Pickup',
-          subtitle: 'You have gotten to the pickup point.',
-          showCall: true,
-          primaryLabel: 'Start Trip',
-          primaryEnabled: true,
-          secondaryLabel: 'Cancel Trip',
-          onPrimary: _handleStartTrip,
-          onSecondary: _handleCancelTrip,
+        TripState.arrivedAtPickup => ListenableBuilder(
+          listenable: widget.tripsController,
+          builder: (context, _) => TripSheet(
+            request: activeRequest!,
+            title: 'Arrived at Pickup',
+            subtitle: 'You have gotten to the pickup point.',
+            showCall: true,
+            primaryLabel: 'Start Trip',
+            primaryEnabled: true,
+            secondaryLabel: 'Cancel Trip',
+            onPrimary: _handleStartTrip,
+            onSecondary: _handleCancelTrip,
+            extra: CosmicforgeLogisticsVerificationCodeCard(
+              title: 'Show this code to the customer',
+              subtitle: 'They will scan or enter it to verify you before pickup.',
+              code: widget.tripsController.pickupCredential?.code,
+              expiresAt: widget.tripsController.pickupCredential?.expiresAt,
+              onResend: () {
+                final id = _activeTripId;
+                if (id != null) widget.tripsController.resendPickupCredential(id);
+              },
+              canResend: !widget.tripsController.isResendingPickupCredential,
+            ),
+          ),
         ),
         TripState.tripStarted => TripStartedSheet(
           request: activeRequest!,

@@ -38,6 +38,8 @@ class ProviderHomeState {
     this.selectedTruckId,
     this.currentLat,
     this.currentLng,
+    this.pickupCredential,
+    this.isResendingPickupCredential = false,
   });
 
   final ProviderHomeStatus status;
@@ -50,6 +52,11 @@ class ProviderHomeState {
   final List<ProviderTruck> trucks;
   final bool trucksLoading;
   final String? selectedTruckId;
+
+  /// The driver's own pickup credential — shown once arrived at pickup,
+  /// cleared once the customer verifies and the trip advances past pickup.
+  final PickupCredential? pickupCredential;
+  final bool isResendingPickupCredential;
 
   /// The provider's most recent device location (refreshed by the heartbeat).
   /// Used to show live trip progress between pickup and destination.
@@ -69,9 +76,12 @@ class ProviderHomeState {
     String? selectedTruckId,
     double? currentLat,
     double? currentLng,
+    PickupCredential? pickupCredential,
+    bool? isResendingPickupCredential,
     bool clearError = false,
     bool clearActive = false,
     bool clearSelectedTruck = false,
+    bool clearPickupCredential = false,
   }) {
     return ProviderHomeState(
       status: status ?? this.status,
@@ -86,6 +96,10 @@ class ProviderHomeState {
       selectedTruckId: clearSelectedTruck ? null : (selectedTruckId ?? this.selectedTruckId),
       currentLat: currentLat ?? this.currentLat,
       currentLng: currentLng ?? this.currentLng,
+      pickupCredential: (clearActive || clearPickupCredential)
+          ? null
+          : (pickupCredential ?? this.pickupCredential),
+      isResendingPickupCredential: isResendingPickupCredential ?? this.isResendingPickupCredential,
     );
   }
 }
@@ -473,10 +487,43 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      final updated = await _api.markArrived(accessToken: token, bookingId: booking.id);
-      _emit(_state.copyWith(isLoading: false, activeBooking: updated));
+      final result = await _api.markArrived(accessToken: token, bookingId: booking.id);
+      _emit(_state.copyWith(
+        isLoading: false,
+        activeBooking: result.booking,
+        pickupCredential: result.pickupCredential,
+      ));
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+    }
+  }
+
+  /// Refetches the driver's own pickup credential (e.g. after navigating
+  /// away from the arrived-at-pickup screen and back).
+  Future<void> fetchPickupCredential() async {
+    final token = _token;
+    final booking = _state.activeBooking;
+    if (token == null || booking == null) return;
+    try {
+      final credential = await _api.getPickupCredential(accessToken: token, bookingId: booking.id);
+      _emit(_state.copyWith(pickupCredential: credential));
+    } catch (_) {
+      // Not fatal — the resend button lets the driver retry.
+    }
+  }
+
+  /// Regenerates the driver's own pickup credential (e.g. it expired before
+  /// the customer could verify it).
+  Future<void> resendPickupCredential() async {
+    final token = _token;
+    final booking = _state.activeBooking;
+    if (token == null || booking == null) return;
+    _emit(_state.copyWith(isResendingPickupCredential: true, clearError: true));
+    try {
+      final credential = await _api.resendPickupCredential(accessToken: token, bookingId: booking.id);
+      _emit(_state.copyWith(pickupCredential: credential, isResendingPickupCredential: false));
+    } catch (e) {
+      _emit(_state.copyWith(isResendingPickupCredential: false, error: _msg(e)));
     }
   }
 
@@ -488,7 +535,7 @@ class ProviderHomeController extends ChangeNotifier {
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
       final updated = await _api.confirmPickup(accessToken: token, bookingId: booking.id);
-      _emit(_state.copyWith(isLoading: false, activeBooking: updated));
+      _emit(_state.copyWith(isLoading: false, activeBooking: updated, clearPickupCredential: true));
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
     }
@@ -512,7 +559,7 @@ class ProviderHomeController extends ChangeNotifier {
   /// media-file-service first. Proof uploads are best-effort: a media outage
   /// must never block completing the trip, so failures fall back to confirming
   /// without the URLs.
-  Future<void> confirmDelivery({XFile? proofPhoto, Uint8List? signaturePng}) async {
+  Future<void> confirmDelivery({required String code, XFile? proofPhoto, Uint8List? signaturePng}) async {
     final token = _token;
     final booking = _state.activeBooking;
     if (token == null || booking == null) return;
@@ -555,6 +602,7 @@ class ProviderHomeController extends ChangeNotifier {
       final updated = await _api.confirmDelivery(
         accessToken: token,
         bookingId: booking.id,
+        code: code,
         proofPhotoUrl: proofUrl,
         signatureUrl: signatureUrl,
       );

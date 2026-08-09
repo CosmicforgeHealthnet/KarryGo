@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
 )
 
 type TripStatus string
@@ -119,6 +120,64 @@ type Trip struct {
 	CancelledAt    *time.Time `json:"cancelled_at,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+
+	// PickupCode* is the rider's own pickup credential: generated when the
+	// rider marks arrived-at-pickup, displayed on the rider's app, and
+	// verified by the customer. Never serialized on the generic Trip view —
+	// only the dedicated pickup-credential/verify-driver endpoints expose it,
+	// each scoped to the correct role.
+	PickupCode            string     `json:"-"`
+	PickupCodeHash        string     `json:"-"`
+	PickupCodeExpiresAt   *time.Time `json:"-"`
+	PickupCodeAttempts    int        `json:"-"`
+	PickupCodeResendCount int        `json:"-"`
+	PickupCodeLastSentAt  *time.Time `json:"-"`
+	PickupCodeVerifiedAt  *time.Time `json:"-"`
+
+	// DeliveryCode* is the customer's delivery credential: generated when the
+	// rider starts the trip, displayed on the customer's app, and verified
+	// by the rider.
+	DeliveryCode            string     `json:"-"`
+	DeliveryCodeHash        string     `json:"-"`
+	DeliveryCodeExpiresAt   *time.Time `json:"-"`
+	DeliveryCodeAttempts    int        `json:"-"`
+	DeliveryCodeResendCount int        `json:"-"`
+	DeliveryCodeLastSentAt  *time.Time `json:"-"`
+	DeliveryCodeVerifiedAt  *time.Time `json:"-"`
+}
+
+// PickupCodeRecord returns the rider's pickup credential state as a
+// handover.CodeRecord for use with the shared verification helpers.
+func (t Trip) PickupCodeRecord() handover.CodeRecord {
+	rec := handover.CodeRecord{
+		Code:        t.PickupCode,
+		Hash:        t.PickupCodeHash,
+		Attempts:    t.PickupCodeAttempts,
+		ResendCount: t.PickupCodeResendCount,
+		LastSentAt:  t.PickupCodeLastSentAt,
+		VerifiedAt:  t.PickupCodeVerifiedAt,
+	}
+	if t.PickupCodeExpiresAt != nil {
+		rec.ExpiresAt = *t.PickupCodeExpiresAt
+	}
+	return rec
+}
+
+// DeliveryCodeRecord returns the customer's delivery credential state as a
+// handover.CodeRecord for use with the shared verification helpers.
+func (t Trip) DeliveryCodeRecord() handover.CodeRecord {
+	rec := handover.CodeRecord{
+		Code:        t.DeliveryCode,
+		Hash:        t.DeliveryCodeHash,
+		Attempts:    t.DeliveryCodeAttempts,
+		ResendCount: t.DeliveryCodeResendCount,
+		LastSentAt:  t.DeliveryCodeLastSentAt,
+		VerifiedAt:  t.DeliveryCodeVerifiedAt,
+	}
+	if t.DeliveryCodeExpiresAt != nil {
+		rec.ExpiresAt = *t.DeliveryCodeExpiresAt
+	}
+	return rec
 }
 
 type TripStateLog struct {
@@ -520,6 +579,55 @@ type ArrivedResponse struct {
 	Status    TripStatus `json:"status"`
 	ArrivedAt time.Time  `json:"arrived_at"`
 	Message   string     `json:"message"`
+
+	// PickupCredential is the rider's freshly generated pickup credential —
+	// shown on the rider's own app and verified by the customer. Never
+	// returned from any customer-facing endpoint.
+	PickupCredential PickupCredentialView `json:"pickup_credential"`
+}
+
+// PickupCredentialView is the rider-facing view of their own pickup
+// credential — never exposed to the customer.
+type PickupCredentialView struct {
+	Code      string     `json:"code,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Verified  bool       `json:"verified"`
+}
+
+// VerificationCodeView is the customer-facing view of the delivery
+// credential — never exposed to the rider directly (the rider only submits
+// an attempt via SubmitProof).
+type VerificationCodeView struct {
+	Code              string     `json:"code,omitempty"`
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	AttemptsRemaining int        `json:"attempts_remaining"`
+}
+
+func PickupCredentialViewFrom(t Trip) PickupCredentialView {
+	view := PickupCredentialView{
+		Code:     t.PickupCode,
+		Verified: t.PickupCodeVerifiedAt != nil,
+	}
+	if t.PickupCodeExpiresAt != nil {
+		view.ExpiresAt = t.PickupCodeExpiresAt
+	}
+	return view
+}
+
+func VerificationCodeViewFrom(rec handover.CodeRecord) VerificationCodeView {
+	remaining := handover.MaxVerifyAttempts - rec.Attempts
+	if remaining < 0 {
+		remaining = 0
+	}
+	view := VerificationCodeView{
+		Code:              rec.Code,
+		AttemptsRemaining: remaining,
+	}
+	if !rec.ExpiresAt.IsZero() {
+		expires := rec.ExpiresAt
+		view.ExpiresAt = &expires
+	}
+	return view
 }
 
 type StartTripResponse struct {

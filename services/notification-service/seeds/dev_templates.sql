@@ -35,9 +35,25 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
      'Your driver has arrived at the pickup location.',
      '["push", "websocket", "in_app"]'),
 
+    -- Pickup handover verification: the driver's app displays a credential;
+    -- this notification tells the customer to open the app and verify it
+    -- before handing the package over. Deliberately carries no code — only
+    -- the driver's own app ever displays it.
+    ('booking.pickup_verification_required', 'en-NG',
+     'Verify your driver',
+     'Your driver has arrived. Open the app to verify their identity before handing over your package.',
+     '["push", "websocket", "in_app"]'),
+
     ('booking.en_route_delivery', 'en-NG',
      'Cargo on the way',
      'Your cargo is on its way to the destination.',
+     '["push", "websocket", "in_app"]'),
+
+    -- Delivery handover verification: the customer's app displays this code;
+    -- the driver enters/scans it to confirm delivery.
+    ('booking.delivery_code_ready', 'en-NG',
+     'Delivery verification code',
+     'Share this code with your driver to confirm delivery: {{code}}. It expires shortly.',
      '["push", "websocket", "in_app"]'),
 
     ('cargo.picked_up', 'en-NG',
@@ -62,7 +78,78 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
 
     ('booking.cancelled_by_provider', 'en-NG',
      'Booking cancelled',
-     'Your driver had to cancel this booking. We are finding you another option.',
+     'Your driver had to cancel this booking. Please book again to find another driver.',
+     '["push", "websocket", "in_app"]'),
+
+    -- ── Dispatch bike-delivery lifecycle ────────────────────────────────────
+    -- Kept as separate keys/copy from the hauling block above — they used to
+    -- share event_type strings with hauling, so bike-delivery customers and
+    -- riders got haulage-flavoured copy ("cargo delivered", "new haulage
+    -- request") for a package delivery.
+    ('delivery.matched', 'en-NG',
+     'New delivery request',
+     'You have a new delivery request to accept. Open the app to review and respond.',
+     '["push", "websocket", "in_app"]'),
+
+    ('delivery.accepted', 'en-NG',
+     'Rider on the way',
+     'A rider has accepted your delivery and is preparing for pickup.',
+     '["push", "websocket", "in_app"]'),
+
+    ('delivery.unmatched', 'en-NG',
+     'No riders available',
+     'We could not match a rider for your delivery right now. Please try again shortly.',
+     '["push", "websocket", "in_app"]'),
+
+    ('delivery.en_route_pickup', 'en-NG',
+     'Rider on the way to pickup',
+     'Your rider is heading to the pickup location now.',
+     '["push", "websocket", "in_app"]'),
+
+    ('delivery.arrived_at_pickup', 'en-NG',
+     'Rider has arrived',
+     'Your rider has arrived at the pickup location.',
+     '["push", "websocket", "in_app"]'),
+
+    -- Pickup handover verification: the rider's app displays a credential;
+    -- this notification tells the customer to open the app and verify it
+    -- before handing the package over. Deliberately carries no code — only
+    -- the rider's own app ever displays it.
+    ('delivery.pickup_verification_required', 'en-NG',
+     'Verify your rider',
+     'Your rider has arrived. Open the app to verify their identity before handing over your package.',
+     '["push", "websocket", "in_app"]'),
+
+    ('package.picked_up', 'en-NG',
+     'Package picked up',
+     'Your package has been picked up and is on its way to the destination.',
+     '["push", "websocket", "in_app"]'),
+
+    -- Delivery handover verification: the customer's app displays this code;
+    -- the rider enters/scans it to confirm delivery.
+    ('package.delivery_code_ready', 'en-NG',
+     'Delivery verification code',
+     'Share this code with your rider to confirm delivery: {{code}}. It expires shortly.',
+     '["push", "websocket", "in_app"]'),
+
+    ('package.delivered', 'en-NG',
+     'Package delivered',
+     'Your package has been delivered. Please confirm and leave a review.',
+     '["push", "websocket", "in_app"]'),
+
+    ('delivery.completed', 'en-NG',
+     'Delivery completed',
+     'Your delivery is now complete. Thank you for using Cosmicforge Logistics.',
+     '["push", "websocket", "in_app"]'),
+
+    ('delivery.cancelled', 'en-NG',
+     'Delivery cancelled',
+     'The customer cancelled this delivery. You are free to take new requests.',
+     '["push", "websocket", "in_app"]'),
+
+    ('delivery.cancelled_by_provider', 'en-NG',
+     'Delivery cancelled',
+     'Your rider had to cancel this delivery. Please book again to find another rider.',
      '["push", "websocket", "in_app"]'),
 
     -- ── Payments & wallet ──────────────────────────────────────────────────

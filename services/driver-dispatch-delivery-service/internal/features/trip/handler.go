@@ -30,6 +30,8 @@ func RegisterRoutes(engine *gin.Engine, tokens *authusecases.TokenUsecase, handl
 	trips.GET("/active", handler.GetActiveTrip)
 	trips.GET("/:id", handler.GetTrip)
 	trips.POST("/:id/arrived", handler.MarkArrived)
+	trips.GET("/:id/pickup-credential", handler.GetPickupCredential)
+	trips.POST("/:id/pickup-credential/resend", handler.ResendPickupCredential)
 	trips.POST("/:id/start", handler.StartTrip)
 	trips.POST("/:id/proof", handler.SubmitProof)
 	trips.GET("/:id/proof", handler.GetProof)
@@ -112,6 +114,27 @@ func (h *Handler) MarkArrived(c *gin.Context) {
 	apiresponse.RespondSuccess(c, http.StatusOK, result.Message, result)
 }
 
+// GetPickupCredential returns the rider's own pickup credential for
+// redisplay (e.g. after navigating away from the arrived-at-pickup screen).
+func (h *Handler) GetPickupCredential(c *gin.Context) {
+	view, err := h.service.GetPickupCredential(c.Request.Context(), authhttp.DispatchRiderID(c), c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	apiresponse.RespondSuccess(c, http.StatusOK, "Pickup credential loaded.", view)
+}
+
+// ResendPickupCredential regenerates the rider's own pickup credential.
+func (h *Handler) ResendPickupCredential(c *gin.Context) {
+	view, err := h.service.ResendPickupCredential(c.Request.Context(), authhttp.DispatchRiderID(c), c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	apiresponse.RespondSuccess(c, http.StatusOK, "A new pickup code was generated.", view)
+}
+
 // StartTrip — Phase 7G: provider has collected the package and is heading to destination.
 func (h *Handler) StartTrip(c *gin.Context) {
 	result, err := h.service.StartTrip(c.Request.Context(), c.Param("id"), authhttp.DispatchRiderID(c))
@@ -155,6 +178,7 @@ func (h *Handler) SubmitProof(c *gin.Context) {
 		ProviderID:    authhttp.DispatchRiderID(c),
 		ReceiverName:  c.Request.FormValue("receiver_name"),
 		ReceiverPhone: c.Request.FormValue("receiver_phone"),
+		Code:          c.Request.FormValue("code"),
 		PhotoFile:     photoFile,
 		PhotoHeader:   photoHeader,
 		SigFile:       sigFile,

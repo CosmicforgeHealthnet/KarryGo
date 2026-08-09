@@ -17,8 +17,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"cosmicforge/logistics/shared/go/httpx"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 func TestTripFeatureFilesExist(t *testing.T) {
@@ -306,6 +306,17 @@ func (r *fakeRepository) GetAssignedTripForProvider(_ context.Context, providerI
 		}
 	}
 	return nil, nil
+}
+
+func (r *fakeRepository) ListStaleProofSubmittedTrips(_ context.Context, cutoff time.Time) ([]Trip, error) {
+	result := []Trip{}
+	for _, trip := range r.trips {
+		if trip.Status == StatusProofSubmitted && trip.UpdatedAt.Before(cutoff) {
+			result = append(result, trip)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].UpdatedAt.Before(result[j].UpdatedAt) })
+	return result, nil
 }
 
 func (r *fakeRepository) TransitionTripStatus(_ context.Context, input TransitionTripInput) (bool, error) {

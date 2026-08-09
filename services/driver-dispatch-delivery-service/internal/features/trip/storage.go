@@ -12,6 +12,8 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+
+	"cosmicforge/logistics/shared/go/mediaclient"
 )
 
 const MaxProofFileSize = 5 << 20
@@ -40,7 +42,11 @@ func NewLocalProofStorage(rootDir, baseURL string) *LocalProofStorage {
 	return &LocalProofStorage{rootDir: rootDir, baseURL: baseURL}
 }
 
-func NewProofStorageFromEnv(appEnv string) (ProofStorage, error) {
+// NewProofStorageFromEnv builds the trip-proof storage backend from
+// TRIP_PROOF_STORAGE_MODE (falling back to VERIFICATION_STORAGE_MODE, then
+// "local_private" in non-production). mediaClient is only used for mode
+// "media" — pass nil when only local/firebase modes are needed (e.g. tests).
+func NewProofStorageFromEnv(appEnv string, mediaClient *mediaclient.Client) (ProofStorage, error) {
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("TRIP_PROOF_STORAGE_MODE")))
 	if mode == "" {
 		mode = strings.ToLower(strings.TrimSpace(os.Getenv("VERIFICATION_STORAGE_MODE")))
@@ -56,11 +62,61 @@ func NewProofStorageFromEnv(appEnv string) (ProofStorage, error) {
 		root := firstNonEmpty(os.Getenv("TRIP_PROOF_UPLOAD_ROOT"), os.Getenv("VERIFICATION_UPLOAD_ROOT"))
 		baseURL := firstNonEmpty(os.Getenv("TRIP_PROOF_STORAGE_BASE_URL"), os.Getenv("VERIFICATION_STORAGE_BASE_URL"))
 		return NewLocalProofStorage(root, baseURL), nil
+	case "media":
+		if mediaClient == nil {
+			return nil, fmt.Errorf("trip proof storage mode is %q but media-file-service is not configured (set MEDIA_FILE_BASE_URL)", mode)
+		}
+		return NewMediaProofStorage(mediaClient), nil
 	case "firebase":
 		return nil, ErrFirebaseProofStorageNotConfigured
 	default:
 		return nil, fmt.Errorf("trip proof storage mode %q is not supported", mode)
 	}
+}
+
+// MediaProofStorage stores trip proof photos and signatures in
+// media-file-service under the "proof_image" / "signature" purposes. This is
+// the production-ready backend — local_private only works on a single host
+// and firebase mode was never implemented for this service.
+type MediaProofStorage struct {
+	client *mediaclient.Client
+}
+
+func NewMediaProofStorage(client *mediaclient.Client) *MediaProofStorage {
+	return &MediaProofStorage{client: client}
+}
+
+func (s *MediaProofStorage) SaveProofFile(ctx context.Context, providerID, tripID string, file multipart.File, header *multipart.FileHeader, kind string) (string, error) {
+	if header == nil || header.Size <= 0 || header.Size > MaxProofFileSize {
+		return "", fmt.Errorf("proof file size is invalid")
+	}
+	contentType := strings.ToLower(strings.TrimSpace(header.Header.Get("Content-Type")))
+	if contentType != "image/jpeg" && contentType != "image/png" && !(kind == "signature" && contentType == "application/pdf") {
+		return "", fmt.Errorf("proof file type is not supported")
+	}
+	purpose := "proof_image"
+	if kind == "signature" {
+		purpose = "signature"
+	} else if kind != "photo" {
+		return "", fmt.Errorf("proof kind is invalid")
+	}
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+	asset, err := s.client.Upload(ctx, mediaclient.UploadRequest{
+		OwnerID:     tripID,
+		Purpose:     purpose,
+		Filename:    sanitizeProofFilename(header.Filename),
+		ContentType: contentType,
+		Body:        file,
+		Metadata:    map[string]interface{}{"provider_id": providerID, "kind": kind},
+	})
+	if err != nil {
+		return "", err
+	}
+	return asset.PublicURL, nil
 }
 
 func (s *LocalProofStorage) SaveProofFile(ctx context.Context, providerID, tripID string, file multipart.File, header *multipart.FileHeader, kind string) (string, error) {

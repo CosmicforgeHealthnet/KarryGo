@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/phonenumber"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
 
@@ -47,6 +49,8 @@ type CustomerNotifier interface {
 	NotifyCustomerArrivedPickup(ctx context.Context, customerID, bookingID string, data map[string]interface{})
 	NotifyCustomerPickedUp(ctx context.Context, customerID, bookingID string, data map[string]interface{})
 	NotifyCustomerDelivered(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerPickupVerificationRequired(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{})
 }
 
 // ProofSubmitInput carries parsed multipart form data for the SubmitProof service method.
@@ -55,6 +59,7 @@ type ProofSubmitInput struct {
 	ProviderID    string
 	ReceiverName  string
 	ReceiverPhone string
+	Code          string
 	PhotoFile     multipart.File
 	PhotoHeader   *multipart.FileHeader
 	SigFile       multipart.File
@@ -67,12 +72,13 @@ const (
 )
 
 type Service struct {
-	repository Repository
-	storage    ProofStorage
-	events     TripEventPublisher
-	wallet     WalletSettlementClient
-	notifier   CustomerNotifier
-	now        func() time.Time
+	repository     Repository
+	storage        ProofStorage
+	events         TripEventPublisher
+	wallet         WalletSettlementClient
+	notifier       CustomerNotifier
+	now            func() time.Time
+	handoverSecret []byte
 }
 
 func NewService(repository Repository, storage ProofStorage) *Service {
@@ -99,6 +105,13 @@ func (s *Service) WithWalletClient(client WalletSettlementClient) *Service {
 // A nil notifier disables notifications (local dev without notification-service).
 func (s *Service) WithNotifier(notifier CustomerNotifier) *Service {
 	s.notifier = notifier
+	return s
+}
+
+// WithHandoverSecret wires the secret used to sign/verify pickup & delivery
+// handover codes (call after NewService).
+func (s *Service) WithHandoverSecret(secret []byte) *Service {
+	s.handoverSecret = secret
 	return s
 }
 
@@ -341,7 +354,11 @@ func (s *Service) MarkArrived(ctx context.Context, tripID, providerID string) (A
 		return ArrivedResponse{}, err
 	}
 	now := s.now()
-	updated, err := s.repository.MarkArrived(ctx, tripID, providerID, trip.Status, now)
+	pickup, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, tripID), now)
+	if err != nil {
+		return ArrivedResponse{}, apperrors.Internal("Could not generate a pickup code.", err)
+	}
+	updated, err := s.repository.MarkArrived(ctx, tripID, providerID, trip.Status, now, pickup)
 	if err != nil {
 		return ArrivedResponse{}, err
 	}
@@ -354,6 +371,7 @@ func (s *Service) MarkArrived(ctx context.Context, tripID, providerID string) (A
 	}
 	if s.notifier != nil {
 		s.notifier.NotifyCustomerArrivedPickup(ctx, trip.CustomerID, trip.BookingID, tripNotifyData(trip))
+		s.notifier.NotifyCustomerPickupVerificationRequired(ctx, trip.CustomerID, trip.BookingID, tripNotifyData(trip))
 	}
 	if s.events != nil {
 		_ = s.events.PublishProviderArrived(ctx, TripProviderArrivedEvent{
@@ -366,6 +384,7 @@ func (s *Service) MarkArrived(ctx context.Context, tripID, providerID string) (A
 	return ArrivedResponse{
 		ID: trip.ID, BookingID: trip.BookingID, Status: StatusArrivedPickup,
 		ArrivedAt: arrivedAt, Message: "Customer has been notified you have arrived.",
+		PickupCredential: PickupCredentialViewFrom(*updated),
 	}, nil
 }
 
@@ -386,8 +405,17 @@ func (s *Service) StartTrip(ctx context.Context, tripID, providerID string) (Sta
 	if err := ValidateTransition(trip.Status, StatusInProgress); err != nil {
 		return StartTripResponse{}, err
 	}
+	// The rider cannot start the trip until the customer has verified the
+	// rider's pickup credential (mirrors hauling's ConfirmPickup gate).
+	if trip.PickupCodeVerifiedAt == nil {
+		return StartTripResponse{}, apperrors.Conflict("The customer has not verified you yet.", nil)
+	}
 	now := s.now()
-	updated, err := s.repository.MarkTripStarted(ctx, tripID, providerID, now)
+	delivery, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, tripID), now)
+	if err != nil {
+		return StartTripResponse{}, apperrors.Internal("Could not generate a delivery code.", err)
+	}
+	updated, err := s.repository.MarkTripStarted(ctx, tripID, providerID, now, delivery)
 	if err != nil {
 		return StartTripResponse{}, err
 	}
@@ -400,6 +428,9 @@ func (s *Service) StartTrip(ctx context.Context, tripID, providerID string) (Sta
 	}
 	if s.notifier != nil {
 		s.notifier.NotifyCustomerPickedUp(ctx, trip.CustomerID, trip.BookingID, tripNotifyData(trip))
+		deliveryData := tripNotifyData(trip)
+		deliveryData["code"] = updated.DeliveryCode
+		s.notifier.NotifyCustomerDeliveryCodeReady(ctx, trip.CustomerID, trip.BookingID, deliveryData)
 	}
 	if s.events != nil {
 		_ = s.events.PublishTripStarted(ctx, TripStartedEvent{
@@ -443,6 +474,13 @@ func (s *Service) SubmitProof(ctx context.Context, input ProofSubmitInput) (*Pro
 		return nil, apperrors.Conflict("Proof has already been submitted for this trip.", nil)
 	}
 
+	// The customer's delivery code must be verified before any file I/O —
+	// cheaper failure path, and it never uploads proof for a submission that
+	// would be rejected anyway.
+	if err := s.verifyDeliveryCode(ctx, trip, input.Code); err != nil {
+		return nil, err
+	}
+
 	// Validate file presence.
 	if input.PhotoHeader == nil {
 		return nil, validationError("delivery_photo", "Delivery photo is required.")
@@ -476,10 +514,17 @@ func (s *Service) SubmitProof(ctx context.Context, input ProofSubmitInput) (*Pro
 	if receiverName == "" {
 		return nil, validationError("receiver_name", "Receiver name is required.")
 	}
-	if err := validateE164Phone(input.ReceiverPhone, "receiver_phone"); err != nil {
-		return nil, err
+	// Normalize both sides through the shared Nigerian-phone helper before
+	// comparing. This also rescues bookings created before receiver phones
+	// were normalized at booking-creation time (e.g. a trip stored as
+	// "08012345678" now matches a rider submitting the same local-format
+	// number, since both sides normalize to "+2348012345678").
+	submittedPhone, err := phonenumber.NormalizeNigerianPhoneNumber(input.ReceiverPhone)
+	if err != nil {
+		return nil, validationError("receiver_phone", "Enter a valid Nigerian phone number.")
 	}
-	if normalizePhone(input.ReceiverPhone) != normalizePhone(trip.ReceiverPhone) {
+	expectedPhone, err := phonenumber.NormalizeNigerianPhoneNumber(trip.ReceiverPhone)
+	if err != nil || submittedPhone != expectedPhone {
 		return nil, validationError("receiver_phone", "Phone number does not match the expected receiver.")
 	}
 
@@ -498,7 +543,7 @@ func (s *Service) SubmitProof(ctx context.Context, input ProofSubmitInput) (*Pro
 	}
 
 	// Atomic DB transaction: insert proof + update trip + insert state log.
-	normalizedPhone := normalizePhone(input.ReceiverPhone)
+	normalizedPhone := submittedPhone
 	now := s.now()
 	proof, err := s.repository.SubmitProofTx(ctx, SubmitProofDBInput{
 		TripID: input.TripID, ProviderID: input.ProviderID,
@@ -597,6 +642,55 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 		CompletedAt: completedAt,
 		Message:     "Delivery completed. Your earnings have been updated.",
 	}, nil
+}
+
+const (
+	// autoCompleteGracePeriod is how long a trip may sit in 'proof_submitted'
+	// before the worker settles it on the rider's behalf. Mirrors hauling's
+	// RunAutoCompleteWorker grace period.
+	autoCompleteGracePeriod = 30 * time.Minute
+	// autoCompleteCheckInterval is how often the worker sweeps for stale trips.
+	autoCompleteCheckInterval = 5 * time.Minute
+)
+
+// RunAutoCompleteWorker settles trips whose rider submitted proof of delivery
+// but never called complete (app killed, crashed, or lost network before the
+// final tap). Without this, dispatch has no path back from 'proof_submitted'
+// to 'completed' — unlike hauling, which has both an auto-complete worker and
+// review-driven completion — so the customer's escrowed fare would stay held
+// and the rider would never be paid. Runs one immediate sweep to clear any
+// backlog from before this restart, then ticks on autoCompleteCheckInterval
+// until ctx is cancelled.
+func (s *Service) RunAutoCompleteWorker(ctx context.Context) {
+	s.autoCompleteProofSubmitted(ctx)
+	ticker := time.NewTicker(autoCompleteCheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.autoCompleteProofSubmitted(ctx)
+		}
+	}
+}
+
+func (s *Service) autoCompleteProofSubmitted(ctx context.Context) {
+	trips, err := s.repository.ListStaleProofSubmittedTrips(ctx, s.now().Add(-autoCompleteGracePeriod))
+	if err != nil {
+		log.Printf("trip auto-complete: list stale trips failed: %v", err)
+		return
+	}
+	for _, t := range trips {
+		// CompleteTrip re-validates the status transition and proof row, so
+		// this is safe even if the trip was completed by the rider or another
+		// worker tick between the list query and this call.
+		if _, err := s.CompleteTrip(ctx, t.ID, t.ProviderID); err != nil {
+			log.Printf("trip auto-complete: complete failed trip_id=%s booking_id=%s: %v", t.ID, t.BookingID, err)
+			continue
+		}
+		log.Printf("trip auto-complete: settled stale trip trip_id=%s booking_id=%s", t.ID, t.BookingID)
+	}
 }
 
 // shouldAutoRefundTrip returns true when a cancelled trip is eligible for an
@@ -765,33 +859,6 @@ func validateProofMagicBytes(file multipart.File, fieldName string) error {
 		return nil
 	}
 	return validationError(fieldName, "File must be a valid JPEG or PNG image.")
-}
-
-func validateE164Phone(phone, field string) error {
-	normalized := normalizePhone(phone)
-	if normalized == "" {
-		return validationError(field, "Phone number is required.")
-	}
-	if !strings.HasPrefix(normalized, "+") {
-		return validationError(field, "Phone must be in E.164 format (e.g., +2348011223344).")
-	}
-	digits := normalized[1:]
-	if len(digits) < 7 || len(digits) > 15 {
-		return validationError(field, "Phone number length is invalid.")
-	}
-	for _, ch := range digits {
-		if ch < '0' || ch > '9' {
-			return validationError(field, "Phone number contains invalid characters.")
-		}
-	}
-	return nil
-}
-
-func normalizePhone(phone string) string {
-	phone = strings.TrimSpace(phone)
-	phone = strings.ReplaceAll(phone, " ", "")
-	phone = strings.ReplaceAll(phone, "-", "")
-	return phone
 }
 
 func validateAcceptedEvent(event RequestAcceptedEvent) error {

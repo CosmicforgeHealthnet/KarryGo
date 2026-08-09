@@ -15,6 +15,7 @@ import (
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
 )
 
 const (
@@ -70,15 +71,16 @@ type PaymentHoldInput struct {
 }
 
 type BookingService struct {
-	bookings      bookingrepo.BookingRepository
-	availability  availabilityrepositories.AvailabilityStore
-	trucks        TruckLookup
-	payments      PaymentClient
-	notifier      *bookingclients.BookingNotifier
-	matchTimeout  time.Duration // per-provider acceptance window
-	searchWindow  time.Duration // total time to keep searching before unmatched
-	maxRadiusKm   float64
-	activeMatches sync.Map // map[bookingID]*matchHandle
+	bookings       bookingrepo.BookingRepository
+	availability   availabilityrepositories.AvailabilityStore
+	trucks         TruckLookup
+	payments       PaymentClient
+	notifier       *bookingclients.BookingNotifier
+	matchTimeout   time.Duration // per-provider acceptance window
+	searchWindow   time.Duration // total time to keep searching before unmatched
+	maxRadiusKm    float64
+	activeMatches  sync.Map // map[bookingID]*matchHandle
+	handoverSecret []byte
 }
 
 // matchHandle wraps a context.CancelFunc so it can be stored in sync.Map and
@@ -97,6 +99,7 @@ type Options struct {
 	MatchTimeoutSeconds int
 	SearchWindowSeconds int
 	MaxRadiusKm         float64
+	HandoverSecret      []byte // signs/verifies pickup & delivery handover codes
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -115,14 +118,15 @@ func NewBookingService(opts Options) *BookingService {
 		searchWindow = matchTimeout
 	}
 	return &BookingService{
-		bookings:     opts.Bookings,
-		availability: opts.Availability,
-		trucks:       opts.Trucks,
-		payments:     opts.Payments,
-		notifier:     opts.Notifier,
-		matchTimeout: matchTimeout,
-		searchWindow: searchWindow,
-		maxRadiusKm:  radius,
+		bookings:       opts.Bookings,
+		availability:   opts.Availability,
+		trucks:         opts.Trucks,
+		payments:       opts.Payments,
+		notifier:       opts.Notifier,
+		matchTimeout:   matchTimeout,
+		searchWindow:   searchWindow,
+		maxRadiusKm:    radius,
+		handoverSecret: opts.HandoverSecret,
 	}
 }
 
@@ -938,21 +942,34 @@ func (s *BookingService) MarkEnRoutePickup(ctx context.Context, id, providerID s
 	return updated.Public(), nil
 }
 
-func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, id, providerID string) (bookingmodels.PublicBooking, error) {
+// MarkArrivedAtPickup transitions the booking to arrived_at_pickup and
+// generates the driver's pickup credential (shown on the driver's own app and
+// verified by the customer). The credential is returned to the caller (the
+// driver) — it must never be exposed through PublicBooking / customer-facing
+// endpoints.
+func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, id, providerID string) (ArrivedAtPickupResult, error) {
 	b, err := s.bookings.GetByID(ctx, id)
 	if err != nil {
-		return bookingmodels.PublicBooking{}, err
+		return ArrivedAtPickupResult{}, err
 	}
 	if b.ProviderID == nil || *b.ProviderID != providerID {
-		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
+		return ArrivedAtPickupResult{}, apperrors.Forbidden("You cannot update this booking.", nil)
 	}
-	updated, err := s.bookings.MarkArrivedAtPickup(ctx, id)
+	rec, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepPickup, id), time.Now())
 	if err != nil {
-		return bookingmodels.PublicBooking{}, err
+		return ArrivedAtPickupResult{}, apperrors.Internal("Could not generate a pickup code.", err)
+	}
+	updated, err := s.bookings.MarkArrivedAtPickup(ctx, id, rec)
+	if err != nil {
+		return ArrivedAtPickupResult{}, err
 	}
 	_ = s.addEvent(ctx, id, "driver_arrived_pickup", bookingmodels.ActorProvider, providerID)
 	s.notifier.NotifyCustomerArrivedPickup(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
-	return updated.Public(), nil
+	s.notifier.NotifyCustomerPickupVerificationRequired(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
+	return ArrivedAtPickupResult{
+		Booking:          updated.Public(),
+		PickupCredential: pickupCredentialViewFrom(updated),
+	}, nil
 }
 
 func (s *BookingService) MarkEnRouteDelivery(ctx context.Context, id, providerID string) (bookingmodels.PublicBooking, error) {
@@ -963,15 +980,23 @@ func (s *BookingService) MarkEnRouteDelivery(ctx context.Context, id, providerID
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
 	}
-	updated, err := s.bookings.MarkEnRouteDelivery(ctx, id)
+	rec, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepDelivery, id), time.Now())
+	if err != nil {
+		return bookingmodels.PublicBooking{}, apperrors.Internal("Could not generate a delivery code.", err)
+	}
+	updated, err := s.bookings.MarkEnRouteDelivery(ctx, id, rec)
 	if err != nil {
 		return bookingmodels.PublicBooking{}, err
 	}
 	_ = s.addEvent(ctx, id, "driver_en_route_delivery", bookingmodels.ActorProvider, providerID)
 	s.notifier.NotifyCustomerEnRouteDelivery(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
+	s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id, "code": updated.DeliveryCode})
 	return updated.Public(), nil
 }
 
+// ConfirmPickup marks the cargo picked up. The driver submits no code here —
+// the actual gate is server-side: the customer must already have verified
+// the driver's pickup credential via VerifyDriverAtPickup.
 func (s *BookingService) ConfirmPickup(ctx context.Context, id, providerID string) (bookingmodels.PublicBooking, error) {
 	b, err := s.bookings.GetByID(ctx, id)
 	if err != nil {
@@ -979,6 +1004,9 @@ func (s *BookingService) ConfirmPickup(ctx context.Context, id, providerID strin
 	}
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
+	}
+	if b.PickupCodeVerifiedAt == nil {
+		return bookingmodels.PublicBooking{}, apperrors.Conflict("The customer has not verified your identity yet.", nil)
 	}
 	updated, err := s.bookings.MarkPickedUp(ctx, id)
 	if err != nil {
@@ -991,14 +1019,19 @@ func (s *BookingService) ConfirmPickup(ctx context.Context, id, providerID strin
 
 // ConfirmDelivery marks the cargo delivered, recording the proof-of-delivery
 // photo and receiver-signature URLs (media-file-service uploads; either may be
-// empty when skipped or when the upload failed — proof is best-effort).
-func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID, proofPhotoURL, signatureURL string) (bookingmodels.PublicBooking, error) {
+// empty when skipped or when the upload failed — proof is best-effort). The
+// driver must submit the customer's delivery code; it is validated before the
+// status transition is allowed.
+func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID, code, proofPhotoURL, signatureURL string) (bookingmodels.PublicBooking, error) {
 	b, err := s.bookings.GetByID(ctx, id)
 	if err != nil {
 		return bookingmodels.PublicBooking{}, err
 	}
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
+	}
+	if err := s.verifyDeliveryCode(ctx, id, b, code); err != nil {
+		return bookingmodels.PublicBooking{}, err
 	}
 	updated, err := s.bookings.MarkDelivered(ctx, id, strings.TrimSpace(proofPhotoURL), strings.TrimSpace(signatureURL))
 	if err != nil {

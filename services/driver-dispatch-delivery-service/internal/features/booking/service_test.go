@@ -13,6 +13,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
 )
 
 // --- fakes ---
@@ -260,6 +261,17 @@ type fakeTrips struct {
 	cancelled []string
 	// afterCancel lets tests set the resulting trip status (e.g. still in_progress).
 	afterCancel func(bookingID string)
+
+	// verifyPickupErr, when set, is returned by every VerifyPickupCode call.
+	// Otherwise a call succeeds only when the submitted code matches validPickupCode.
+	verifyPickupErr  error
+	validPickupCode  string
+	verifiedBookings []string
+
+	// resendDeliveryErr, when set, is returned by every ResendDeliveryCode call.
+	resendDeliveryErr  error
+	resendDeliveryCode handover.CodeRecord
+	resentBookings     []string
 }
 
 func (t *fakeTrips) CancelForCustomer(_ context.Context, bookingID, _ string) error {
@@ -270,6 +282,29 @@ func (t *fakeTrips) CancelForCustomer(_ context.Context, bookingID, _ string) er
 		t.afterCancel(bookingID)
 	}
 	return nil
+}
+
+func (t *fakeTrips) VerifyPickupCode(_ context.Context, bookingID, code string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.verifyPickupErr != nil {
+		return t.verifyPickupErr
+	}
+	if t.validPickupCode != "" && code != t.validPickupCode {
+		return apperrors.Unauthorized("Incorrect code. Please try again.", nil)
+	}
+	t.verifiedBookings = append(t.verifiedBookings, bookingID)
+	return nil
+}
+
+func (t *fakeTrips) ResendDeliveryCode(_ context.Context, bookingID string) (handover.CodeRecord, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.resendDeliveryErr != nil {
+		return handover.CodeRecord{}, t.resendDeliveryErr
+	}
+	t.resentBookings = append(t.resentBookings, bookingID)
+	return t.resendDeliveryCode, nil
 }
 
 type fakeLive struct {
@@ -483,6 +518,48 @@ func TestCreateBookingValidation(t *testing.T) {
 			tc.mutate(&input)
 			if _, err := service.CreateBooking(context.Background(), testCustomer, input); err == nil {
 				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
+// TestCreateBookingReceiverPhoneNormalization is the regression guard for the
+// bug where a locally-formatted receiver phone ("0801...") was persisted
+// as-is and could never be matched later at proof-of-delivery time (which
+// requires strict E.164). CreateBooking must normalize through the shared
+// Nigerian-phone helper before the row is inserted.
+func TestCreateBookingReceiverPhoneNormalization(t *testing.T) {
+	cases := []struct {
+		name    string
+		phone   string
+		want    string
+		wantErr bool
+	}{
+		{name: "local 0-prefixed", phone: "0801 234 5678", want: "+2348012345678"},
+		{name: "already E.164", phone: "+2348012345678", want: "+2348012345678"},
+		{name: "234-prefixed no plus", phone: "2348012345678", want: "+2348012345678"},
+		{name: "junk", phone: "not-a-phone", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			broadcast := &fakeBroadcast{repo: repo}
+			service := newTestService(repo, broadcast, &fakeTrips{}, &fakeLive{}, &fakePayments{})
+
+			input := validCreateInput()
+			input.ReceiverPhone = tc.phone
+			view, err := service.CreateBooking(context.Background(), testCustomer, input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected validation error for malformed phone")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CreateBooking: %v", err)
+			}
+			if got := repo.bookings[view.ID].ReceiverPhone; got != tc.want {
+				t.Fatalf("persisted receiver_phone = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -776,6 +853,76 @@ func TestSubmitReviewFlow(t *testing.T) {
 	fetched, err := service.GetReview(context.Background(), testCustomer, view.ID)
 	if err != nil || fetched.Rating != 5 {
 		t.Fatalf("GetReview = %+v, %v", fetched, err)
+	}
+}
+
+// TestSubmitReviewSettlesDeliveredBooking is the regression guard for the bug
+// where dispatch had no path from 'delivered' back to 'completed' other than
+// the rider tapping Complete — a review on a booking whose escrow was still
+// held left the fare stuck forever even though the customer had confirmed
+// delivery. SubmitReview must now settle the booking itself when it finds the
+// booking still delivered (mirrors hauling's review-driven completion).
+func TestSubmitReviewSettlesDeliveredBooking(t *testing.T) {
+	repo := newFakeRepo()
+	broadcast := &fakeBroadcast{repo: repo}
+	service := newTestService(repo, broadcast, &fakeTrips{}, &fakeLive{}, &fakePayments{})
+	view := createSearchingBooking(t, service)
+
+	repo.mu.Lock()
+	repo.broadcast[view.ID] = "accepted"
+	repo.tripID[view.ID] = uuid.NewString()
+	repo.tripState[view.ID] = "proof_submitted" // WireDelivered
+	repo.tripProv[view.ID] = "provider-1"
+	repo.mu.Unlock()
+
+	if repo.bookings[view.ID].PaymentStatus != PaymentHeld {
+		t.Fatalf("precondition: expected escrow held before review, got %s", repo.bookings[view.ID].PaymentStatus)
+	}
+
+	if _, err := service.SubmitReview(context.Background(), testCustomer, view.ID, ReviewInput{Rating: 5}); err != nil {
+		t.Fatalf("SubmitReview: %v", err)
+	}
+
+	booking := repo.bookings[view.ID]
+	if booking.Status != StatusCompleted {
+		t.Fatalf("booking status = %s, want completed", booking.Status)
+	}
+	if booking.PaymentStatus != PaymentPaid {
+		t.Fatalf("payment status = %s, want paid", booking.PaymentStatus)
+	}
+	if booking.CompletedAt == nil {
+		t.Fatal("expected completed_at to be set")
+	}
+}
+
+// TestSubmitReviewOnAlreadyCompletedBookingStillSavesReview covers the review
+// path when the rider already completed the trip before the customer got to
+// reviewing it: the review must still save, and the redundant completion
+// attempt must be a safe no-op rather than an error surfaced to the customer.
+func TestSubmitReviewOnAlreadyCompletedBookingStillSavesReview(t *testing.T) {
+	repo := newFakeRepo()
+	broadcast := &fakeBroadcast{repo: repo}
+	service := newTestService(repo, broadcast, &fakeTrips{}, &fakeLive{}, &fakePayments{})
+	view := createSearchingBooking(t, service)
+
+	repo.mu.Lock()
+	repo.broadcast[view.ID] = "accepted"
+	repo.tripID[view.ID] = uuid.NewString()
+	repo.tripState[view.ID] = "completed" // WireCompleted — rider already completed it
+	repo.tripProv[view.ID] = "provider-1"
+	repo.bookings[view.ID].Status = StatusCompleted
+	repo.bookings[view.ID].PaymentStatus = PaymentPaid
+	repo.mu.Unlock()
+
+	review, err := service.SubmitReview(context.Background(), testCustomer, view.ID, ReviewInput{Rating: 4})
+	if err != nil {
+		t.Fatalf("SubmitReview on already-completed booking: %v", err)
+	}
+	if review.Rating != 4 {
+		t.Fatalf("review = %+v", review)
+	}
+	if repo.bookings[view.ID].PaymentStatus != PaymentPaid {
+		t.Fatalf("payment status changed unexpectedly: %s", repo.bookings[view.ID].PaymentStatus)
 	}
 }
 

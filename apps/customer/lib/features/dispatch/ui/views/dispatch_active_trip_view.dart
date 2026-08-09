@@ -1,3 +1,4 @@
+import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -108,6 +109,27 @@ class DispatchActiveTripView extends StatelessWidget {
                       showTruck: _tripStarted,
                     ),
                     const SizedBox(height: 20),
+
+                    if (booking.status == DispatchBookingStatus.arrivedAtPickup) ...[
+                      _PickupVerificationSection(
+                        controller: controller,
+                        verified: state.pickupVerifiedLocally,
+                        isLoading: state.isLoading,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    if (booking.status == DispatchBookingStatus.inTransit) ...[
+                      CosmicforgeLogisticsVerificationCodeCard(
+                        title: 'Delivery verification code',
+                        subtitle: 'Share this code with your rider to confirm delivery.',
+                        code: state.deliveryVerification?.code,
+                        expiresAt: state.deliveryVerification?.expiresAt,
+                        onResend: controller.resendDeliveryCode,
+                        canResend: !state.isResendingCode,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
 
                     if (state.error != null) ...[
                       Text(
@@ -287,6 +309,71 @@ class DispatchActiveTripView extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ─── Pickup handover verification (customer verifies the rider) ──────────────
+
+class _PickupVerificationSection extends StatelessWidget {
+  const _PickupVerificationSection({
+    required this.controller,
+    required this.verified,
+    required this.isLoading,
+  });
+
+  final DispatchBookingController controller;
+  final bool verified;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    if (verified) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: CustomerFigmaColors.primaryTint,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.check_circle, color: CustomerFigmaColors.primary),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Rider verified. Waiting for them to start the trip.',
+                style: TextStyle(color: CustomerFigmaColors.text, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return HaulingPillButton(
+      label: 'Verify your rider',
+      isLoading: isLoading,
+      onPressed: () => _openVerifySheet(context),
+    );
+  }
+
+  Future<void> _openVerifySheet(BuildContext context) async {
+    final code = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const CosmicforgeLogisticsCodeEntrySheet(
+        title: 'Verify your rider',
+        subtitle: 'Scan the QR code on your rider\'s screen, or enter the code they read out.',
+      ),
+    );
+    if (code == null || code.isEmpty) return;
+    final ok = await controller.verifyDriver(code);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(controller.state.error ?? 'Incorrect code. Please try again.')),
+      );
+    }
   }
 }
 

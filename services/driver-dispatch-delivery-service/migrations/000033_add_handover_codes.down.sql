@@ -1,0 +1,15 @@
+ALTER TABLE trips
+    DROP COLUMN IF EXISTS pickup_code,
+    DROP COLUMN IF EXISTS pickup_code_hash,
+    DROP COLUMN IF EXISTS pickup_code_expires_at,
+    DROP COLUMN IF EXISTS pickup_code_attempts,
+    DROP COLUMN IF EXISTS pickup_code_resend_count,
+    DROP COLUMN IF EXISTS pickup_code_last_sent_at,
+    DROP COLUMN IF EXISTS pickup_code_verified_at,
+    DROP COLUMN IF EXISTS delivery_code,
+    DROP COLUMN IF EXISTS delivery_code_hash,
+    DROP COLUMN IF EXISTS delivery_code_expires_at,
+    DROP COLUMN IF EXISTS delivery_code_attempts,
+    DROP COLUMN IF EXISTS delivery_code_resend_count,
+    DROP COLUMN IF EXISTS delivery_code_last_sent_at,
+    DROP COLUMN IF EXISTS delivery_code_verified_at;

@@ -18,7 +18,7 @@ func (c *captureNotifier) Send(_ context.Context, request notifications.Request)
 	return notifications.SendResponse{}, c.err
 }
 
-func TestNotificationServiceSender_SendsBookingMatched(t *testing.T) {
+func TestNotificationServiceSender_SendsDeliveryMatched(t *testing.T) {
 	capture := &captureNotifier{}
 	sender := NewNotificationServiceSenderWith(capture)
 
@@ -34,14 +34,14 @@ func TestNotificationServiceSender_SendsBookingMatched(t *testing.T) {
 		t.Fatalf("expected 1 request, got %d", len(capture.requests))
 	}
 	got := capture.requests[0]
-	if got.EventType != notifications.EventBookingMatched {
+	if got.EventType != notifications.EventDeliveryMatched {
 		t.Fatalf("event type = %q", got.EventType)
 	}
 	if got.Recipient.Type != notifications.RecipientProvider || got.Recipient.ID != "rider-1" {
 		t.Fatalf("unexpected recipient %+v", got.Recipient)
 	}
 	// Inbox id keys the idempotency (unique per rider per broadcast attempt).
-	want := notifications.IdempotencyKey(notificationSourceService, notifications.EventBookingMatched, "inbox-1")
+	want := notifications.IdempotencyKey(notificationSourceService, notifications.EventDeliveryMatched, "inbox-1")
 	if got.IDempotencyKey != want {
 		t.Fatalf("idempotency key = %q, want %q", got.IDempotencyKey, want)
 	}

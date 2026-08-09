@@ -46,6 +46,9 @@ func RegisterRoutes(engine *gin.Engine, customerSigner *sharedauth.TokenSigner, 
 	authed.POST("/bookings/:id/review", handler.SubmitReview)
 	authed.GET("/bookings/:id/review", handler.GetReview)
 	authed.GET("/bookings/:id/location", handler.GetLocation)
+	authed.POST("/bookings/:id/verify-driver", handler.VerifyDriverAtPickup)
+	authed.GET("/bookings/:id/verification-code", handler.GetVerificationCode)
+	authed.POST("/bookings/:id/verification-code/resend", handler.ResendVerificationCode)
 	authed.GET("/providers/:id", handler.GetRider)
 }
 
@@ -197,6 +200,61 @@ func (h *Handler) GetLocation(c *gin.Context) {
 		return
 	}
 	apiresponse.RespondSuccess(c, http.StatusOK, "Rider location fetched.", result)
+}
+
+type verifyDriverRequest struct {
+	Code string `json:"code"`
+}
+
+// VerifyDriverAtPickup lets the customer confirm the rider's pickup
+// credential (entered manually or scanned as a QR).
+func (h *Handler) VerifyDriverAtPickup(c *gin.Context) {
+	customer, ok := customerID(c)
+	if !ok {
+		return
+	}
+	var request verifyDriverRequest
+	if err := c.ShouldBindJSON(&request); err != nil || request.Code == "" {
+		httpx.Abort(c, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "code", Message: "Verification code is required."}}))
+		return
+	}
+	result, err := h.service.VerifyDriverAtPickup(c.Request.Context(), customer, c.Param("id"), request.Code)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	apiresponse.RespondSuccess(c, http.StatusOK, "Driver verified.", result)
+}
+
+// GetVerificationCode returns the customer's own delivery verification code
+// for redisplay (?step=delivery — the rider's pickup credential belongs to
+// the rider and is not readable here).
+func (h *Handler) GetVerificationCode(c *gin.Context) {
+	customer, ok := customerID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.GetVerificationCode(c.Request.Context(), customer, c.Param("id"), c.Query("step"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	apiresponse.RespondSuccess(c, http.StatusOK, "Verification code fetched.", result)
+}
+
+// ResendVerificationCode regenerates the customer's own delivery
+// verification code (?step=delivery).
+func (h *Handler) ResendVerificationCode(c *gin.Context) {
+	customer, ok := customerID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ResendVerificationCode(c.Request.Context(), customer, c.Param("id"), c.Query("step"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	apiresponse.RespondSuccess(c, http.StatusOK, "A new verification code was generated.", result)
 }
 
 func (h *Handler) GetRider(c *gin.Context) {

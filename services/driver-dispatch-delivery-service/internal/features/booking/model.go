@@ -91,6 +91,14 @@ type DerivedState struct {
 	TripID          string
 	TripStatus      string // "" when no trip row exists
 	TripProviderID  string
+
+	// Delivery handover credential (customer's own code, verified by the
+	// rider). Read-only here — resend/generation is owned by the trip
+	// feature via TripControl. The rider's pickup credential is never
+	// exposed to the customer, so it is not part of this state.
+	DeliveryCode          string
+	DeliveryCodeExpiresAt *time.Time
+	DeliveryCodeAttempts  int
 }
 
 // WireStatus maps the persisted booking + broadcast + trip state onto the

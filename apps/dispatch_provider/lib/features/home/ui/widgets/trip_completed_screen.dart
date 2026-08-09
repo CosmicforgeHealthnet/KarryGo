@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -82,6 +83,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
         return;
       }
       final signaturePng = await _renderSignaturePng();
+      if (!mounted) return;
       if (signaturePng == null) {
         setState(
           () => _submitError =
@@ -98,6 +100,19 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
         return;
       }
 
+      final code = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (_) => const CosmicforgeLogisticsCodeEntrySheet(
+          title: 'Verify the customer',
+          subtitle: 'Scan the QR code on the customer\'s screen, or enter the code they read out.',
+        ),
+      );
+      if (code == null || code.isEmpty || !mounted) return;
+
       setState(() {
         _isSubmitting = true;
         _submitError = null;
@@ -109,6 +124,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
         signaturePng: signaturePng,
         receiverName: widget.request.receiverName,
         receiverPhone: widget.request.receiverPhone,
+        code: code,
       );
 
       if (!mounted) return;

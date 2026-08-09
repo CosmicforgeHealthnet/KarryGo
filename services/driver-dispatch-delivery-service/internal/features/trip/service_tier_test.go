@@ -46,7 +46,7 @@ func expressAcceptedEvent() RequestAcceptedEvent {
 		PickupAddress:  "15 Awolowo Road, Ikoyi",
 		DropoffAddress: "32 Bode Thomas, Surulere",
 		PickupLat:      6.4474, PickupLng: 3.4343,
-		DropoffLat:    6.4969, DropoffLng: 3.3481,
+		DropoffLat: 6.4969, DropoffLng: 3.3481,
 		FareAmount:    150000,
 		Currency:      "NGN",
 		ReceiverName:  "Chidi Obi",

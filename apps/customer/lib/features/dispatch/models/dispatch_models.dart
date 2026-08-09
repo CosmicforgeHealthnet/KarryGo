@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../hauling/models/hauling_models.dart' show ProviderSnapshot;
 
 export '../../hauling/models/hauling_models.dart'
-    show ProviderSnapshot, ProviderLocation, RealtimeToken;
+    show ProviderSnapshot, ProviderLocation, RealtimeToken, VerificationCodeResult;
 
 // ─── Booking status ──────────────────────────────────────────────────────────
 

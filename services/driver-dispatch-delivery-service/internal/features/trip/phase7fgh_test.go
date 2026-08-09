@@ -19,13 +19,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"cosmicforge/logistics/shared/go/httpx"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/httpx"
 )
+
+// fghHandoverSecret/fghDeliveryCode are the fixed test handover secret and a
+// known delivery code seeded on every trip by seedTrip, so most tests (which
+// are not about the verification gate itself) can call the existing HTTP
+// endpoints unchanged.
+var fghHandoverSecret = []byte("trip-fgh-handover-secret")
+
+const fghDeliveryCode = "778899"
 
 // ── fakeRepository extensions (Phase 7F–7H) ──────────────────────────────────
 
-func (r *fakeRepository) MarkArrived(_ context.Context, tripID, providerID string, fromStatus TripStatus, now time.Time) (*Trip, error) {
+func (r *fakeRepository) MarkArrived(_ context.Context, tripID, providerID string, fromStatus TripStatus, now time.Time, pickup handover.CodeRecord) (*Trip, error) {
 	for i := range r.trips {
 		t := &r.trips[i]
 		if t.ID == tripID && t.ProviderID == providerID &&
@@ -33,6 +42,12 @@ func (r *fakeRepository) MarkArrived(_ context.Context, tripID, providerID strin
 			t.Status = StatusArrivedPickup
 			t.ArrivedAt = &now
 			t.UpdatedAt = now
+			t.PickupCode = pickup.Code
+			t.PickupCodeHash = pickup.Hash
+			expires := pickup.ExpiresAt
+			t.PickupCodeExpiresAt = &expires
+			t.PickupCodeAttempts = 0
+			t.PickupCodeVerifiedAt = nil
 			notes := "provider_arrived_pickup"
 			r.stateLogs = append(r.stateLogs, TripStateLog{
 				ID: uuid.NewString(), TripID: tripID, FromStatus: string(fromStatus),
@@ -44,13 +59,19 @@ func (r *fakeRepository) MarkArrived(_ context.Context, tripID, providerID strin
 	return nil, nil
 }
 
-func (r *fakeRepository) MarkTripStarted(_ context.Context, tripID, providerID string, now time.Time) (*Trip, error) {
+func (r *fakeRepository) MarkTripStarted(_ context.Context, tripID, providerID string, now time.Time, delivery handover.CodeRecord) (*Trip, error) {
 	for i := range r.trips {
 		t := &r.trips[i]
 		if t.ID == tripID && t.ProviderID == providerID && t.Status == StatusArrivedPickup {
 			t.Status = StatusInProgress
 			t.StartedAt = &now
 			t.UpdatedAt = now
+			t.DeliveryCode = delivery.Code
+			t.DeliveryCodeHash = delivery.Hash
+			expires := delivery.ExpiresAt
+			t.DeliveryCodeExpiresAt = &expires
+			t.DeliveryCodeAttempts = 0
+			t.DeliveryCodeVerifiedAt = nil
 			notes := "provider_started_delivery"
 			r.stateLogs = append(r.stateLogs, TripStateLog{
 				ID: uuid.NewString(), TripID: tripID, FromStatus: string(StatusArrivedPickup),
@@ -60,6 +81,67 @@ func (r *fakeRepository) MarkTripStarted(_ context.Context, tripID, providerID s
 		}
 	}
 	return nil, nil
+}
+
+func (r *fakeRepository) IncrementPickupCodeAttempt(_ context.Context, tripID string) error {
+	for i := range r.trips {
+		if r.trips[i].ID == tripID {
+			r.trips[i].PickupCodeAttempts++
+			return nil
+		}
+	}
+	return nil
+}
+
+func (r *fakeRepository) IncrementDeliveryCodeAttempt(_ context.Context, tripID string) error {
+	for i := range r.trips {
+		if r.trips[i].ID == tripID {
+			r.trips[i].DeliveryCodeAttempts++
+			return nil
+		}
+	}
+	return nil
+}
+
+func (r *fakeRepository) MarkPickupVerified(_ context.Context, tripID string) error {
+	for i := range r.trips {
+		if r.trips[i].ID == tripID {
+			now := time.Now().UTC()
+			r.trips[i].PickupCodeVerifiedAt = &now
+			return nil
+		}
+	}
+	return nil
+}
+
+func (r *fakeRepository) ResendPickupCode(_ context.Context, tripID string, rec handover.CodeRecord) error {
+	for i := range r.trips {
+		if r.trips[i].ID == tripID {
+			r.trips[i].PickupCode = rec.Code
+			r.trips[i].PickupCodeHash = rec.Hash
+			expires := rec.ExpiresAt
+			r.trips[i].PickupCodeExpiresAt = &expires
+			r.trips[i].PickupCodeAttempts = 0
+			r.trips[i].PickupCodeVerifiedAt = nil
+			return nil
+		}
+	}
+	return nil
+}
+
+func (r *fakeRepository) ResendDeliveryCode(_ context.Context, tripID string, rec handover.CodeRecord) error {
+	for i := range r.trips {
+		if r.trips[i].ID == tripID {
+			r.trips[i].DeliveryCode = rec.Code
+			r.trips[i].DeliveryCodeHash = rec.Hash
+			expires := rec.ExpiresAt
+			r.trips[i].DeliveryCodeExpiresAt = &expires
+			r.trips[i].DeliveryCodeAttempts = 0
+			r.trips[i].DeliveryCodeVerifiedAt = nil
+			return nil
+		}
+	}
+	return nil
 }
 
 func (r *fakeRepository) SubmitProofTx(_ context.Context, input SubmitProofDBInput) (*DeliveryProof, error) {
@@ -150,7 +232,7 @@ func newTripFGHEnv(t *testing.T) *tripFGHEnv {
 	pub := &fakeTripEventPublisher{}
 	store := &fakeProofStorage{}
 	tokens := authusecases.NewTokenUsecase([]byte("trip-fgh-secret"), time.Hour, time.Hour)
-	svc := NewService(repo, store).WithEventPublisher(pub)
+	svc := NewService(repo, store).WithEventPublisher(pub).WithHandoverSecret(fghHandoverSecret)
 	engine := gin.New()
 	engine.Use(httpx.ErrorHandler())
 	RegisterRoutes(engine, tokens, NewHandler(svc))
@@ -188,6 +270,13 @@ func (e *tripFGHEnv) doJSON(t *testing.T, method, path, token string) *httptest.
 	return e.do(t, method, path, token, nil, "")
 }
 
+// seedTrip seeds a trip already past the handover-verification gates: the
+// pickup credential is pre-marked verified (as if the customer already
+// confirmed the rider), and a known delivery code is pre-seeded (matching
+// fghDeliveryCode, which submitProof sends by default) — since most tests
+// here are about transition/ownership/event-publishing behavior, not the
+// verification gate itself. Tests that exercise the gate directly (see the
+// "handover verification" section below) seed their own trip state instead.
 func seedTrip(env *tripFGHEnv, providerID string, status TripStatus) Trip {
 	tr := Trip{
 		ID: uuid.NewString(), BookingID: uuid.NewString(), ProviderID: providerID,
@@ -198,6 +287,12 @@ func seedTrip(env *tripFGHEnv, providerID string, status TripStatus) Trip {
 		ReceiverName: "Chidi Obi", ReceiverPhone: "+2348011223344",
 		CreatedAt: time.Now().UTC(),
 	}
+	verifiedAt := time.Now().UTC().Add(-time.Minute)
+	tr.PickupCodeVerifiedAt = &verifiedAt
+	deliveryExpiresAt := time.Now().UTC().Add(time.Hour)
+	tr.DeliveryCode = fghDeliveryCode
+	tr.DeliveryCodeHash = handover.HashCode(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, tr.ID), fghDeliveryCode)
+	tr.DeliveryCodeExpiresAt = &deliveryExpiresAt
 	env.repo.trips = append(env.repo.trips, tr)
 	return tr
 }
@@ -554,6 +649,7 @@ func submitProof(t *testing.T, env *tripFGHEnv, tripID, tok string, extraFields 
 	fields := map[string]string{
 		"receiver_name":  "Chidi Obi",
 		"receiver_phone": "+2348011223344",
+		"code":           fghDeliveryCode,
 	}
 	for k, v := range extraFields {
 		fields[k] = v
@@ -832,13 +928,26 @@ func Test7H_EmptyReceiverNameReturns400(t *testing.T) {
 	checkErrorCode(t, w, "validation_failed")
 }
 
-func Test7H_InvalidReceiverPhoneReturns400(t *testing.T) {
+func Test7H_LocalFormatReceiverPhoneNormalizesAndMatches(t *testing.T) {
 	env := newTripFGHEnv(t)
 	providerID := uuid.NewString()
 	tr := seedTrip(env, providerID, StatusInProgress)
 	tok := env.token(t, providerID)
-	// No + prefix — invalid E.164
+	// No + prefix, local 0-leading format. Trip's stored receiver_phone is
+	// +2348011223344 (see seedTrip); both sides now normalize through the
+	// shared Nigerian-phone helper, so a locally-formatted submission still
+	// matches a booking created (or stuck) before phones were normalized.
 	w := submitProof(t, env, tr.ID, tok, map[string]string{"receiver_phone": "08011223344"}, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
+	checkStatus(t, w, http.StatusCreated)
+}
+
+func Test7H_MalformedReceiverPhoneReturns400(t *testing.T) {
+	env := newTripFGHEnv(t)
+	providerID := uuid.NewString()
+	tr := seedTrip(env, providerID, StatusInProgress)
+	tok := env.token(t, providerID)
+	// Not a valid Nigerian number in any recognized form.
+	w := submitProof(t, env, tr.ID, tok, map[string]string{"receiver_phone": "not-a-phone"}, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
 	checkStatus(t, w, http.StatusBadRequest)
 	checkErrorCode(t, w, "validation_failed")
 }
@@ -909,16 +1018,23 @@ func Test7_ArrivedStartProofHappyPath(t *testing.T) {
 	tr := seedTrip(env, providerID, StatusAssigned)
 	tok := env.token(t, providerID)
 
-	// Step 1: arrived
+	// Step 1: arrived — generates the rider's pickup credential.
 	w := env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/arrived", tok)
 	checkStatus(t, w, http.StatusOK)
 
-	// Step 2: start
+	// The customer verifies the rider's pickup credential (in-process — the
+	// customer-facing route lives in the booking package, not mounted here).
+	if err := env.svc.VerifyPickupCodeForCustomer(context.Background(), tr.BookingID, currentTripCode(env, tr.ID).PickupCode); err != nil {
+		t.Fatalf("VerifyPickupCodeForCustomer() error = %v", err)
+	}
+
+	// Step 2: start — generates the customer's delivery credential.
 	w = env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/start", tok)
 	checkStatus(t, w, http.StatusOK)
 
 	// Step 3: proof
-	w = submitProof(t, env, tr.ID, tok, nil, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
+	deliveryCode := currentTripCode(env, tr.ID).DeliveryCode
+	w = submitProof(t, env, tr.ID, tok, map[string]string{"code": deliveryCode}, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
 	checkStatus(t, w, http.StatusCreated)
 
 	// Final state must be proof_submitted.
@@ -941,8 +1057,11 @@ func Test7_StateLogRecordsTransitions(t *testing.T) {
 	tok := env.token(t, providerID)
 
 	env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/arrived", tok)
+	if err := env.svc.VerifyPickupCodeForCustomer(context.Background(), tr.BookingID, currentTripCode(env, tr.ID).PickupCode); err != nil {
+		t.Fatalf("VerifyPickupCodeForCustomer() error = %v", err)
+	}
 	env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/start", tok)
-	submitProof(t, env, tr.ID, tok, nil, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
+	submitProof(t, env, tr.ID, tok, map[string]string{"code": currentTripCode(env, tr.ID).DeliveryCode}, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
 
 	// State logs for this trip (created log is in repo.stateLogs from seed).
 	toStatuses := map[TripStatus]bool{}
@@ -956,6 +1075,134 @@ func Test7_StateLogRecordsTransitions(t *testing.T) {
 			t.Fatalf("state log missing transition to %s; logs=%+v", expected, env.repo.stateLogs)
 		}
 	}
+}
+
+// ── Handover verification (pickup: customer verifies rider; delivery: rider verifies customer) ──
+
+// currentTripCode returns the current in-memory copy of a seeded trip, so
+// tests can read the plaintext codes the fake repository generated.
+func currentTripCode(env *tripFGHEnv, tripID string) Trip {
+	for _, tr := range env.repo.trips {
+		if tr.ID == tripID {
+			return tr
+		}
+	}
+	return Trip{}
+}
+
+func Test7F_ArrivedResponseIncludesPickupCredential(t *testing.T) {
+	env := newTripFGHEnv(t)
+	providerID := uuid.NewString()
+	tr := seedTrip(env, providerID, StatusAssigned)
+	tok := env.token(t, providerID)
+	w := env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/arrived", tok)
+	checkStatus(t, w, http.StatusOK)
+	var resp struct {
+		Data struct {
+			PickupCredential struct {
+				Code     string `json:"code"`
+				Verified bool   `json:"verified"`
+			} `json:"pickup_credential"`
+		} `json:"data"`
+	}
+	if err := parseBody(w, &resp); err != nil {
+		t.Fatalf("parse: %v body=%s", err, w.Body.String())
+	}
+	if resp.Data.PickupCredential.Code == "" {
+		t.Fatal("expected a pickup credential code in the arrived response")
+	}
+	if resp.Data.PickupCredential.Verified {
+		t.Fatal("expected the pickup credential to be unverified immediately after generation")
+	}
+}
+
+func Test7G_BlockedWithoutCustomerVerification(t *testing.T) {
+	env := newTripFGHEnv(t)
+	providerID := uuid.NewString()
+	tr := seedTrip(env, providerID, StatusArrivedPickup)
+	// Override seedTrip's default pre-verified state for this test.
+	for i := range env.repo.trips {
+		if env.repo.trips[i].ID == tr.ID {
+			env.repo.trips[i].PickupCodeVerifiedAt = nil
+		}
+	}
+	tok := env.token(t, providerID)
+	w := env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/start", tok)
+	checkStatus(t, w, http.StatusConflict)
+}
+
+func Test7G_SucceedsAfterCustomerVerifiesGeneratedCode(t *testing.T) {
+	env := newTripFGHEnv(t)
+	providerID := uuid.NewString()
+	tr := seedTrip(env, providerID, StatusEnRoutePickup)
+	tok := env.token(t, providerID)
+
+	w := env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/arrived", tok)
+	checkStatus(t, w, http.StatusOK)
+
+	// Wrong code is rejected and does not unblock start.
+	if err := env.svc.VerifyPickupCodeForCustomer(context.Background(), tr.BookingID, "000000"); err == nil {
+		t.Fatal("expected VerifyPickupCodeForCustomer() to fail with an incorrect code")
+	}
+	w = env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/start", tok)
+	checkStatus(t, w, http.StatusConflict)
+
+	// Correct code unblocks start.
+	if err := env.svc.VerifyPickupCodeForCustomer(context.Background(), tr.BookingID, currentTripCode(env, tr.ID).PickupCode); err != nil {
+		t.Fatalf("VerifyPickupCodeForCustomer() error = %v", err)
+	}
+	w = env.doJSON(t, http.MethodPost, "/api/v1/provider/trips/"+tr.ID+"/start", tok)
+	checkStatus(t, w, http.StatusOK)
+}
+
+func Test7H_RejectsMissingCode(t *testing.T) {
+	env := newTripFGHEnv(t)
+	providerID := uuid.NewString()
+	tr := seedTrip(env, providerID, StatusInProgress)
+	tok := env.token(t, providerID)
+	w := submitProof(t, env, tr.ID, tok, map[string]string{"code": ""}, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
+	checkStatus(t, w, http.StatusUnauthorized)
+}
+
+func Test7H_RejectsWrongCode(t *testing.T) {
+	env := newTripFGHEnv(t)
+	providerID := uuid.NewString()
+	tr := seedTrip(env, providerID, StatusInProgress)
+	tok := env.token(t, providerID)
+	w := submitProof(t, env, tr.ID, tok, map[string]string{"code": "000000"}, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
+	checkStatus(t, w, http.StatusUnauthorized)
+	if currentTripCode(env, tr.ID).DeliveryCodeAttempts != 1 {
+		t.Fatalf("expected a failed attempt to be recorded, got %d", currentTripCode(env, tr.ID).DeliveryCodeAttempts)
+	}
+}
+
+func Test7H_RejectsExpiredCode(t *testing.T) {
+	env := newTripFGHEnv(t)
+	providerID := uuid.NewString()
+	tr := seedTrip(env, providerID, StatusInProgress)
+	expired := time.Now().UTC().Add(-time.Minute)
+	for i := range env.repo.trips {
+		if env.repo.trips[i].ID == tr.ID {
+			env.repo.trips[i].DeliveryCodeExpiresAt = &expired
+		}
+	}
+	tok := env.token(t, providerID)
+	w := submitProof(t, env, tr.ID, tok, nil, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
+	checkStatus(t, w, http.StatusUnauthorized)
+}
+
+func Test7H_RejectsAfterMaxAttempts(t *testing.T) {
+	env := newTripFGHEnv(t)
+	providerID := uuid.NewString()
+	tr := seedTrip(env, providerID, StatusInProgress)
+	for i := range env.repo.trips {
+		if env.repo.trips[i].ID == tr.ID {
+			env.repo.trips[i].DeliveryCodeAttempts = handover.MaxVerifyAttempts
+		}
+	}
+	tok := env.token(t, providerID)
+	w := submitProof(t, env, tr.ID, tok, nil, validJPEGFile("photo.jpg"), validJPEGFile("sig.jpg"))
+	checkStatus(t, w, http.StatusUnauthorized)
 }
 
 // ── IDOR / provider-scoping guard ─────────────────────────────────────────────

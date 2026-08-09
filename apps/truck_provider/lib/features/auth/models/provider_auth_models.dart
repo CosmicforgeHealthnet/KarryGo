@@ -404,3 +404,47 @@ class ProviderBooking {
         createdAt: DateTime.parse(j['created_at'] as String),
       );
 }
+
+/// The driver's own pickup handover credential — displayed on this app and
+/// verified by the customer. Never visible to the customer through the API.
+class PickupCredential {
+  const PickupCredential({
+    required this.code,
+    this.expiresAt,
+    this.verified = false,
+  });
+
+  final String code;
+  final DateTime? expiresAt;
+  final bool verified;
+
+  factory PickupCredential.fromJson(Map<String, dynamic> j) {
+    final expiresRaw = j['expires_at'] as String?;
+    return PickupCredential(
+      code: j['code'] as String? ?? '',
+      expiresAt: expiresRaw != null ? DateTime.tryParse(expiresRaw) : null,
+      verified: j['verified'] as bool? ?? false,
+    );
+  }
+}
+
+/// Response from marking arrived at pickup: the updated booking plus the
+/// freshly generated pickup credential.
+class ArrivedAtPickupResult {
+  const ArrivedAtPickupResult({
+    required this.booking,
+    required this.pickupCredential,
+  });
+
+  final ProviderBooking booking;
+  final PickupCredential pickupCredential;
+
+  factory ArrivedAtPickupResult.fromJson(Map<String, dynamic> j) {
+    return ArrivedAtPickupResult(
+      booking: ProviderBooking.fromJson(Map<String, dynamic>.from(j['booking'] as Map)),
+      pickupCredential: PickupCredential.fromJson(
+        Map<String, dynamic>.from(j['pickup_credential'] as Map? ?? const {}),
+      ),
+    );
+  }
+}

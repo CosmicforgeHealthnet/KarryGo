@@ -50,7 +50,10 @@ const derivedStateSelect = `
 		COALESCE(rb.status, ''),
 		COALESCE(t.id::text, ''),
 		COALESCE(t.status, ''),
-		COALESCE(t.provider_id::text, '')
+		COALESCE(t.provider_id::text, ''),
+		COALESCE(t.delivery_code, ''),
+		t.delivery_code_expires_at,
+		COALESCE(t.delivery_code_attempts, 0)
 	FROM dispatch_bookings b
 	LEFT JOIN request_broadcasts rb ON rb.booking_id = b.id
 	LEFT JOIN trips t ON t.booking_id = b.id`
@@ -258,6 +261,7 @@ func scanDerivedState(row rowScanner) (DerivedState, error) {
 	var providerID pgtype.Text
 	var packageWeight pgtype.Float8
 	var cancelledAt, completedAt pgtype.Timestamptz
+	var deliveryCodeExpiresAt pgtype.Timestamptz
 	err := row.Scan(
 		&state.Booking.ID, &state.Booking.CustomerID, &state.Booking.Status,
 		&state.Booking.PickupAddress, &state.Booking.PickupLat, &state.Booking.PickupLng,
@@ -269,9 +273,14 @@ func scanDerivedState(row rowScanner) (DerivedState, error) {
 		&state.Booking.ServiceTier, &providerID, &state.Booking.CancelReason,
 		&cancelledAt, &completedAt, &state.Booking.CreatedAt, &state.Booking.UpdatedAt,
 		&state.BroadcastStatus, &state.TripID, &state.TripStatus, &state.TripProviderID,
+		&state.DeliveryCode, &deliveryCodeExpiresAt, &state.DeliveryCodeAttempts,
 	)
 	if err != nil {
 		return DerivedState{}, err
+	}
+	if deliveryCodeExpiresAt.Valid {
+		expires := deliveryCodeExpiresAt.Time
+		state.DeliveryCodeExpiresAt = &expires
 	}
 	if providerID.Valid {
 		state.Booking.ProviderID = providerID.String

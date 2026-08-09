@@ -647,6 +647,7 @@ class TripSheet extends StatelessWidget {
     required this.secondaryLabel,
     required this.onPrimary,
     required this.onSecondary,
+    this.extra,
   });
   final RequestModel request;
   final String title;
@@ -657,6 +658,10 @@ class TripSheet extends StatelessWidget {
   final String secondaryLabel;
   final VoidCallback onPrimary;
   final VoidCallback onSecondary;
+
+  /// Optional content rendered between the route info and the action
+  /// buttons (used for the pickup handover-verification card).
+  final Widget? extra;
 
   @override
   Widget build(BuildContext context) {
@@ -763,6 +768,10 @@ class TripSheet extends StatelessWidget {
                   pickup: request.pickupAddress,
                   dropoff: request.dropoffAddress,
                 ),
+                if (extra != null) ...[
+                  const SizedBox(height: 16),
+                  extra!,
+                ],
                 const SizedBox(height: 16),
                 Row(
                   children: [

@@ -10,6 +10,8 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+
+	"cosmicforge/logistics/shared/go/mediaclient"
 )
 
 // ── Storage interfaces ────────────────────────────────────────────────────────
@@ -67,8 +69,9 @@ func NewLocalVehicleUploader(rootDir, baseURL string) *LocalVehicleUploader {
 
 // NewVehicleUploaderFromEnv builds a FileUploader from environment variables.
 // Reads VERIFICATION_UPLOAD_ROOT (reuses the same mounted volume) and falls
-// back to a temp dir. Never returns an AWS/S3 uploader.
-func NewVehicleUploaderFromEnv(appEnv string) (FileUploader, error) {
+// back to a temp dir. mediaClient is only used for mode "media" — pass nil
+// when only the local mode is needed (e.g. tests).
+func NewVehicleUploaderFromEnv(appEnv string, mediaClient *mediaclient.Client) (FileUploader, error) {
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("VERIFICATION_STORAGE_MODE")))
 	if mode == "" {
 		if strings.EqualFold(strings.TrimSpace(appEnv), "production") {
@@ -82,9 +85,54 @@ func NewVehicleUploaderFromEnv(appEnv string) (FileUploader, error) {
 		root := os.Getenv("VERIFICATION_UPLOAD_ROOT")
 		baseURL := os.Getenv("VERIFICATION_STORAGE_BASE_URL")
 		return NewLocalVehicleUploader(root, baseURL), nil
+	case "media":
+		if mediaClient == nil {
+			return nil, fmt.Errorf("vehicle storage mode is %q but media-file-service is not configured (set MEDIA_FILE_BASE_URL)", mode)
+		}
+		return NewMediaVehicleUploader(mediaClient), nil
 	default:
 		return nil, fmt.Errorf("vehicle storage mode %q is not supported", mode)
 	}
+}
+
+// MediaVehicleUploader stores vehicle documents in media-file-service under
+// the "document_file" purpose — the production-ready backend.
+type MediaVehicleUploader struct {
+	client *mediaclient.Client
+}
+
+func NewMediaVehicleUploader(client *mediaclient.Client) *MediaVehicleUploader {
+	return &MediaVehicleUploader{client: client}
+}
+
+func (u *MediaVehicleUploader) Upload(ctx context.Context, objectPath string, file File, header FileHeader) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+	asset, err := u.client.Upload(ctx, mediaclient.UploadRequest{
+		OwnerID:     ownerIDFromVehicleObjectPath(objectPath),
+		Purpose:     "document_file",
+		Filename:    sanitizeVehicleFilename(header.GetFilename()),
+		ContentType: header.GetHeaderValue("Content-Type"),
+		Body:        file,
+		Metadata:    map[string]interface{}{"object_path": objectPath},
+	})
+	if err != nil {
+		return "", err
+	}
+	return asset.PublicURL, nil
+}
+
+// ownerIDFromVehicleObjectPath extracts the provider ID from paths shaped
+// "vehicles/{providerID}/...", matching buildVehicleObjectPath.
+func ownerIDFromVehicleObjectPath(objectPath string) string {
+	parts := strings.Split(objectPath, "/")
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+	return ""
 }
 
 // Upload stores the file and returns a local-private:// URL.

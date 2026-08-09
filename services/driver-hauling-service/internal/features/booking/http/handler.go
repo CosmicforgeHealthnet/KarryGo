@@ -3,6 +3,7 @@ package bookinghttp
 import (
 	nethttp "net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -216,6 +217,60 @@ func (h *BookingHandler) CancelBooking(c *gin.Context) {
 	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
 }
 
+// VerifyDriverAtPickup lets the customer confirm the driver's pickup
+// credential (entered manually or scanned as a QR).
+func (h *BookingHandler) VerifyDriverAtPickup(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	var req verifyDriverRequest
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Code) == "" {
+		httpx.Abort(c, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "code", Message: "Verification code is required."}}))
+		return
+	}
+	booking, err := h.svc.VerifyDriverAtPickup(c.Request.Context(), claims.Subject, c.Param("id"), req.Code)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
+}
+
+// GetVerificationCode returns the customer's own delivery verification code
+// for redisplay (?step=delivery — the pickup credential belongs to the
+// driver and is not readable here).
+func (h *BookingHandler) GetVerificationCode(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	view, err := h.svc.GetVerificationCode(c.Request.Context(), claims.Subject, c.Param("id"), c.Query("step"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": view})
+}
+
+// ResendVerificationCode regenerates the customer's own delivery
+// verification code (?step=delivery).
+func (h *BookingHandler) ResendVerificationCode(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	view, err := h.svc.ResendVerificationCode(c.Request.Context(), claims.Subject, c.Param("id"), c.Query("step"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": view})
+}
+
 // GetPublicProvider returns a safe public view of a provider for display in the customer app.
 func (h *BookingHandler) GetPublicProvider(c *gin.Context) {
 	_, ok := sharedauth.ClaimsFromContext(c)
@@ -415,15 +470,50 @@ func (h *BookingHandler) ConfirmDelivery(c *gin.Context) {
 		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
 		return
 	}
-	// Proof of delivery is optional (the body may be empty `{}` from older apps).
 	var req confirmDeliveryRequest
 	_ = c.ShouldBindJSON(&req)
-	booking, err := h.svc.ConfirmDelivery(c.Request.Context(), c.Param("id"), claims.Subject, req.ProofPhotoURL, req.SignatureURL)
+	if strings.TrimSpace(req.Code) == "" {
+		httpx.Abort(c, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "code", Message: "Delivery verification code is required."}}))
+		return
+	}
+	booking, err := h.svc.ConfirmDelivery(c.Request.Context(), c.Param("id"), claims.Subject, req.Code, req.ProofPhotoURL, req.SignatureURL)
 	if err != nil {
 		httpx.Abort(c, err)
 		return
 	}
 	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
+}
+
+// GetPickupCredential returns the authenticated driver's own pickup
+// credential for redisplay.
+func (h *BookingHandler) GetPickupCredential(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	view, err := h.svc.GetPickupCredential(c.Request.Context(), claims.Subject, c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": view})
+}
+
+// ResendPickupCredential regenerates the authenticated driver's own pickup
+// credential.
+func (h *BookingHandler) ResendPickupCredential(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	view, err := h.svc.ResendPickupCredential(c.Request.Context(), claims.Subject, c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": view})
 }
 
 func (h *BookingHandler) CancelByProvider(c *gin.Context) {

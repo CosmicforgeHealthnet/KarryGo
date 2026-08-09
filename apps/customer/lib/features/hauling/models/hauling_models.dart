@@ -528,3 +528,26 @@ class ProviderLocation {
 
   bool get hasFix => available && !(lat == 0 && lng == 0);
 }
+
+/// Customer-facing view of the delivery verification code (the driver's
+/// pickup credential is never exposed to the customer through the API).
+class VerificationCodeResult {
+  const VerificationCodeResult({
+    required this.code,
+    this.expiresAt,
+    this.attemptsRemaining = 0,
+  });
+
+  final String code;
+  final DateTime? expiresAt;
+  final int attemptsRemaining;
+
+  factory VerificationCodeResult.fromJson(Map<String, dynamic> json) {
+    final expiresRaw = json['expires_at'] as String?;
+    return VerificationCodeResult(
+      code: (json['code'] as String?) ?? '',
+      expiresAt: expiresRaw != null ? DateTime.tryParse(expiresRaw) : null,
+      attemptsRemaining: (json['attempts_remaining'] as num?)?.toInt() ?? 0,
+    );
+  }
+}

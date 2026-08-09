@@ -65,6 +65,39 @@ const (
 	EventBookingCancelled           = "booking.cancelled"
 	EventBookingCancelledByProvider = "booking.cancelled_by_provider"
 
+	// driver-hauling-service handover verification (QR/OTP pickup + delivery
+	// confirmation). Pickup verification is checked by the customer against a
+	// credential the driver's app displays, so this event never carries a
+	// code. Delivery verification is checked by the driver against a code the
+	// customer's app displays, so that one does.
+	EventBookingPickupVerificationRequired = "booking.pickup_verification_required"
+	EventBookingPickupVerified             = "booking.pickup_verified"
+	EventBookingDeliveryCodeReady          = "booking.delivery_code_ready"
+
+	// driver-dispatch-delivery-service booking lifecycle. Kept distinct from
+	// the hauling keys above — sharing event_type strings across services
+	// meant a bike-delivery customer received hauling's "cargo delivered"
+	// copy and a rider got "New haulage request" for a bike job.
+	EventDeliveryMatched             = "delivery.matched"
+	EventDeliveryAccepted            = "delivery.accepted"
+	EventDeliveryUnmatched           = "delivery.unmatched"
+	EventDeliveryEnRoutePickup       = "delivery.en_route_pickup"
+	EventDeliveryArrivedPickup       = "delivery.arrived_at_pickup"
+	EventPackagePickedUp             = "package.picked_up"
+	EventPackageDelivered            = "package.delivered"
+	EventDeliveryCompleted           = "delivery.completed"
+	EventDeliveryCancelled           = "delivery.cancelled"
+	EventDeliveryCancelledByProvider = "delivery.cancelled_by_provider"
+
+	// driver-dispatch-delivery-service handover verification (QR/OTP pickup +
+	// delivery confirmation) — mirrors hauling's pair, kept in this service's
+	// own namespace. Pickup verification is checked by the customer against
+	// a credential the rider's app displays, so this event never carries a
+	// code. Delivery verification is checked by the rider against a code the
+	// customer's app displays, so that one does.
+	EventDeliveryPickupVerificationRequired = "delivery.pickup_verification_required"
+	EventPackageDeliveryCodeReady           = "package.delivery_code_ready"
+
 	// payment-wallet-service
 	EventPaymentTopupSuccess = "payment.topup_success"
 	EventPaymentSuccess      = "payment.success"

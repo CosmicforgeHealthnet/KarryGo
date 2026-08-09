@@ -42,47 +42,62 @@ func NewBookingNotifierWith(notifier notifications.Notifier) *BookingNotifier {
 
 // NotifyCustomerAccepted tells the customer a rider accepted their delivery.
 func (n *BookingNotifier) NotifyCustomerAccepted(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventBookingAccepted, notifications.RecipientCustomer, customerID, bookingID, data)
+	n.send(ctx, notifications.EventDeliveryAccepted, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
 // NotifyCustomerUnmatched tells the customer no rider could be found.
 func (n *BookingNotifier) NotifyCustomerUnmatched(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventBookingUnmatched, notifications.RecipientCustomer, customerID, bookingID, data)
+	n.send(ctx, notifications.EventDeliveryUnmatched, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
 // NotifyCustomerEnRoutePickup tells the customer the rider is heading to pickup.
 func (n *BookingNotifier) NotifyCustomerEnRoutePickup(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventDriverEnRoutePickup, notifications.RecipientCustomer, customerID, bookingID, data)
+	n.send(ctx, notifications.EventDeliveryEnRoutePickup, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
 // NotifyCustomerArrivedPickup tells the customer the rider arrived at pickup.
 func (n *BookingNotifier) NotifyCustomerArrivedPickup(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventDriverArrivedPickup, notifications.RecipientCustomer, customerID, bookingID, data)
+	n.send(ctx, notifications.EventDeliveryArrivedPickup, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
 // NotifyCustomerPickedUp tells the customer their package is in transit.
 func (n *BookingNotifier) NotifyCustomerPickedUp(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventCargoPickedUp, notifications.RecipientCustomer, customerID, bookingID, data)
+	n.send(ctx, notifications.EventPackagePickedUp, notifications.RecipientCustomer, customerID, bookingID, data)
+}
+
+// NotifyCustomerPickupVerificationRequired tells the customer their rider
+// has arrived and must be verified before pickup can proceed. The rider's
+// code is intentionally NOT included in this payload — only the rider's own
+// app displays it.
+func (n *BookingNotifier) NotifyCustomerPickupVerificationRequired(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	n.send(ctx, notifications.EventDeliveryPickupVerificationRequired, notifications.RecipientCustomer, customerID, bookingID, data)
+}
+
+// NotifyCustomerDeliveryCodeReady tells the customer their delivery
+// verification code is ready to share with the rider. The code is included
+// in data so it can be surfaced in the notification body.
+func (n *BookingNotifier) NotifyCustomerDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	n.send(ctx, notifications.EventPackageDeliveryCodeReady, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
 // NotifyCustomerDelivered tells the customer their package was delivered.
 func (n *BookingNotifier) NotifyCustomerDelivered(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventCargoDelivered, notifications.RecipientCustomer, customerID, bookingID, data)
+	n.send(ctx, notifications.EventPackageDelivered, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
 // NotifyCustomerCompleted tells the customer their delivery is complete.
 func (n *BookingNotifier) NotifyCustomerCompleted(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventBookingCompleted, notifications.RecipientCustomer, customerID, bookingID, data)
+	n.send(ctx, notifications.EventDeliveryCompleted, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
 // NotifyProviderCancelled tells a rider the customer cancelled the delivery.
 func (n *BookingNotifier) NotifyProviderCancelled(ctx context.Context, providerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventBookingCancelled, notifications.RecipientProvider, providerID, bookingID, data)
+	n.send(ctx, notifications.EventDeliveryCancelled, notifications.RecipientProvider, providerID, bookingID, data)
 }
 
 // NotifyCustomerCancelledByProvider tells the customer the rider cancelled.
 func (n *BookingNotifier) NotifyCustomerCancelledByProvider(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
-	n.send(ctx, notifications.EventBookingCancelledByProvider, notifications.RecipientCustomer, customerID, bookingID, data)
+	n.send(ctx, notifications.EventDeliveryCancelledByProvider, notifications.RecipientCustomer, customerID, bookingID, data)
 }
 
 // send builds and dispatches a notification request. It is fire-and-forget:

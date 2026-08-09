@@ -3,10 +3,15 @@ package vehicle
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"cosmicforge/logistics/shared/go/mediaclient"
 )
 
 func TestNewVehicleUploaderFromEnvUsesLocalPrivateRoot(t *testing.T) {
@@ -15,7 +20,7 @@ func TestNewVehicleUploaderFromEnvUsesLocalPrivateRoot(t *testing.T) {
 	t.Setenv("VERIFICATION_UPLOAD_ROOT", root)
 	t.Setenv("VERIFICATION_STORAGE_BASE_URL", "")
 
-	uploader, err := NewVehicleUploaderFromEnv("development")
+	uploader, err := NewVehicleUploaderFromEnv("development", nil)
 	if err != nil {
 		t.Fatalf("NewVehicleUploaderFromEnv() error = %v", err)
 	}
@@ -118,11 +123,59 @@ func TestVehicleObjectPathNoAWSNoS3(t *testing.T) {
 
 func TestVehicleUploaderFromEnvDefaultsToLocalPrivate(t *testing.T) {
 	t.Setenv("VERIFICATION_STORAGE_MODE", "")
-	uploader, err := NewVehicleUploaderFromEnv("development")
+	uploader, err := NewVehicleUploaderFromEnv("development", nil)
 	if err != nil {
 		t.Fatalf("NewVehicleUploaderFromEnv() error = %v", err)
 	}
 	if uploader == nil {
 		t.Fatal("expected non-nil uploader for development mode")
+	}
+}
+
+// TestMediaVehicleUploaderUploadsToMediaFileService is the regression guard
+// for dispatch's production storage gap: vehicle document uploads previously
+// had no backend that worked outside local dev. Mode "media" now routes
+// through media-file-service.
+func TestMediaVehicleUploaderUploadsToMediaFileService(t *testing.T) {
+	var gotOwnerID, gotPurpose string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatalf("ParseMultipartForm: %v", err)
+		}
+		gotOwnerID = r.FormValue("owner_id")
+		gotPurpose = r.FormValue("purpose")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"data": map[string]interface{}{
+				"id":  "asset-1",
+				"url": "https://storage.googleapis.com/bucket/vehicles/p-1/b-1/registration/asset-1_reg.pdf",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := mediaclient.New(mediaclient.Config{BaseURL: server.URL, ServiceName: "dispatch-delivery-service", Token: "development-media-token"})
+	uploader := NewMediaVehicleUploader(client)
+
+	header := &stubFileHeader{filename: "reg.pdf", contentType: "application/pdf", content: []byte("%PDF vehicle test")}
+	file, err := header.Open()
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer file.Close()
+
+	fileURL, err := uploader.Upload(context.Background(), "vehicles/p-1/b-1/registration/uuid_reg.pdf", file, header)
+	if err != nil {
+		t.Fatalf("Upload() error = %v", err)
+	}
+	if fileURL != "https://storage.googleapis.com/bucket/vehicles/p-1/b-1/registration/asset-1_reg.pdf" {
+		t.Fatalf("fileURL = %q, want the media-file-service asset URL", fileURL)
+	}
+	if gotOwnerID != "p-1" {
+		t.Fatalf("owner_id = %q, want provider ID extracted from the object path", gotOwnerID)
+	}
+	if gotPurpose != "document_file" {
+		t.Fatalf("purpose = %q, want document_file", gotPurpose)
 	}
 }

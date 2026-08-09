@@ -169,7 +169,7 @@ class _DispatchPackageInfoViewState extends State<DispatchPackageInfoView> {
               controller: _receiverPhoneCtrl,
               keyboardType: TextInputType.phone,
               onChanged: (v) { setState(() {}); _ctrl.setReceiverPhone(v); },
-              decoration: _inputDecoration('e.g. 080 1234 5678'),
+              decoration: _inputDecoration('e.g. +234 801 234 5678'),
             ),
             const SizedBox(height: 8),
           ],

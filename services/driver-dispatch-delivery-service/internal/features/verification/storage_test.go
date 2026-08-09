@@ -3,11 +3,16 @@ package verification
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"cosmicforge/logistics/shared/go/mediaclient"
 )
 
 func TestNewUploaderFromEnvUsesGenericLocalPrivateRoot(t *testing.T) {
@@ -16,7 +21,7 @@ func TestNewUploaderFromEnvUsesGenericLocalPrivateRoot(t *testing.T) {
 	t.Setenv("VERIFICATION_UPLOAD_ROOT", root)
 	t.Setenv("VERIFICATION_STORAGE_BASE_URL", "")
 
-	uploader, err := NewUploaderFromEnv("development")
+	uploader, err := NewUploaderFromEnv("development", nil)
 	if err != nil {
 		t.Fatalf("NewUploaderFromEnv() error = %v", err)
 	}
@@ -70,7 +75,7 @@ func TestNewUploaderFromEnvFailsClearlyForMissingNonLocalConfig(t *testing.T) {
 	t.Run("firebase mode selected", func(t *testing.T) {
 		t.Setenv("VERIFICATION_STORAGE_MODE", "firebase")
 
-		uploader, err := NewUploaderFromEnv("development")
+		uploader, err := NewUploaderFromEnv("development", nil)
 		if uploader != nil {
 			t.Fatalf("uploader = %#v, want nil", uploader)
 		}
@@ -82,7 +87,7 @@ func TestNewUploaderFromEnvFailsClearlyForMissingNonLocalConfig(t *testing.T) {
 	t.Run("production mode omitted", func(t *testing.T) {
 		t.Setenv("VERIFICATION_STORAGE_MODE", "")
 
-		uploader, err := NewUploaderFromEnv("production")
+		uploader, err := NewUploaderFromEnv("production", nil)
 		if uploader != nil {
 			t.Fatalf("uploader = %#v, want nil", uploader)
 		}
@@ -90,6 +95,77 @@ func TestNewUploaderFromEnvFailsClearlyForMissingNonLocalConfig(t *testing.T) {
 			t.Fatalf("err = %v, want ErrStorageNotConfigured", err)
 		}
 	})
+
+	// Regression guard for the "dispatch cannot boot in production" bug: mode
+	// "media" without a configured client must fail with a clear error, not a
+	// nil-pointer panic at upload time.
+	t.Run("media mode without client configured", func(t *testing.T) {
+		t.Setenv("VERIFICATION_STORAGE_MODE", "media")
+
+		uploader, err := NewUploaderFromEnv("production", nil)
+		if uploader != nil {
+			t.Fatalf("uploader = %#v, want nil", uploader)
+		}
+		if err == nil {
+			t.Fatal("expected an error when media mode has no client configured")
+		}
+	})
+}
+
+// TestMediaFileUploaderUploadsToMediaFileService is the regression guard for
+// dispatch's production storage gap: previously every *_STORAGE_MODE=firebase
+// (and unset-in-production) uploader returned a hard error and cmd/main.go
+// fataled on boot. Mode "media" now routes through media-file-service, which
+// is what actually works in production.
+func TestMediaFileUploaderUploadsToMediaFileService(t *testing.T) {
+	var gotOwnerService, gotOwnerID, gotPurpose string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Karrygo-Service") != "dispatch-delivery-service" {
+			t.Fatalf("missing/wrong service header: %s", r.Header.Get("X-Karrygo-Service"))
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatalf("ParseMultipartForm: %v", err)
+		}
+		gotOwnerService = r.FormValue("owner_service")
+		gotOwnerID = r.FormValue("owner_id")
+		gotPurpose = r.FormValue("purpose")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"data": map[string]interface{}{
+				"id":  "asset-1",
+				"url": "https://storage.googleapis.com/bucket/verifications/provider-123/identity/asset-1_govt-id.pdf",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := mediaclient.New(mediaclient.Config{BaseURL: server.URL, ServiceName: "dispatch-delivery-service", Token: "development-media-token"})
+	uploader := NewMediaFileUploader(client)
+
+	header := stubFileHeader{filename: "govt-id.pdf", contentType: "application/pdf", content: []byte("%PDF test")}
+	file, err := header.Open()
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer file.Close()
+
+	fileURL, err := uploader.Upload(context.Background(), "verifications/provider-123/identity/uuid_govt-id.pdf", file, header)
+	if err != nil {
+		t.Fatalf("Upload() error = %v", err)
+	}
+	if fileURL != "https://storage.googleapis.com/bucket/verifications/provider-123/identity/asset-1_govt-id.pdf" {
+		t.Fatalf("fileURL = %q, want the media-file-service asset URL", fileURL)
+	}
+	if gotOwnerService != "dispatch-delivery-service" {
+		t.Fatalf("owner_service = %q", gotOwnerService)
+	}
+	if gotOwnerID != "provider-123" {
+		t.Fatalf("owner_id = %q, want provider ID extracted from the object path", gotOwnerID)
+	}
+	if gotPurpose != "document_file" {
+		t.Fatalf("purpose = %q, want document_file", gotPurpose)
+	}
 }
 
 type stubFileHeader struct {

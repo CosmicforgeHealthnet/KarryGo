@@ -25,6 +25,7 @@ import (
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
+	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
 
@@ -58,6 +59,18 @@ func main() {
 		ServiceName: cfg.WalletServiceSource,
 		Secret:      cfg.WalletServiceSecret,
 	}
+
+	// media-file-service client for *_STORAGE_MODE=media (production-ready
+	// upload backend for trip proof, verification, vehicle, and avatar
+	// uploads). ServiceName must be "dispatch-delivery-service" to match
+	// media-file-service's MEDIA_FILE_SERVICE_TOKENS entry for this caller —
+	// note this differs from the "driver-dispatch-delivery-service" identity
+	// used with notification-service.
+	mediaClient := mediaclient.New(mediaclient.Config{
+		BaseURL:     cfg.MediaFileBaseURL,
+		ServiceName: "dispatch-delivery-service",
+		Token:       cfg.MediaFileServiceToken,
+	})
 
 	var emailClient authclients.EmailClient
 	if cfg.SMTPHost != "" && cfg.SMTPUser != "" && cfg.SMTPPassword != "" && cfg.SMTPFrom != "" {
@@ -114,14 +127,15 @@ func main() {
 		log.Printf("notification-service integration disabled (DISPATCH_NOTIFICATION_URL unset); apps fall back to polling")
 	}
 
-	proofStorage, err := tripfeature.NewProofStorageFromEnv(cfg.AppEnv)
+	proofStorage, err := tripfeature.NewProofStorageFromEnv(cfg.AppEnv, mediaClient)
 	if err != nil {
 		log.Fatalf("configure trip proof storage: %v", err)
 	}
 	tripService := tripfeature.NewService(tripfeature.NewPostgresRepository(db), proofStorage).
 		WithEventPublisher(tripfeature.NewRedisEventPublisher(redisClient)).
 		WithWalletClient(walletClient).
-		WithNotifier(bookingNotifier)
+		WithNotifier(bookingNotifier).
+		WithHandoverSecret(cfg.HandoverSecret)
 	tripfeature.StartSubscribers(ctx, redisClient, tripService)
 
 	// Rider request push: real notification-service sender when configured,
@@ -178,9 +192,14 @@ func main() {
 		}
 	}()
 
+	// Settle trips left stuck in 'proof_submitted' when the rider's app never
+	// called complete (killed, crashed, lost network). Without this the
+	// customer's escrowed fare stays held and the rider is never paid.
+	go tripService.RunAutoCompleteWorker(ctx)
+
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           router.New(cfg, db, redisClient, authService, requestService, tripService, bookingService),
+		Handler:           router.New(cfg, db, redisClient, authService, requestService, tripService, bookingService, mediaClient),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

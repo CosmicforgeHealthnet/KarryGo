@@ -25,10 +25,19 @@ type Config struct {
 	WalletServiceSecret        []byte
 	WalletServiceSource        string
 	CustomerTokenSecret        []byte
-	AvailabilityRadiusKM       float64
-	NotificationURL            string
-	NotificationSecret         []byte
-	ServiceSecrets             string
+	// HandoverSecret signs/verifies pickup & delivery handover codes (QR/OTP).
+	// Service-local — no other service needs to match this value.
+	HandoverSecret       []byte
+	AvailabilityRadiusKM float64
+	NotificationURL      string
+	NotificationSecret   []byte
+	ServiceSecrets       string
+	// media-file-service integration, used by *_STORAGE_MODE=media (trip
+	// proof, verification documents, vehicle documents, avatars) instead of
+	// the local_private mode that only works on a single host. Bare origin —
+	// mediaclient appends the full API path itself.
+	MediaFileBaseURL      string
+	MediaFileServiceToken string
 
 	AccessTokenSecret  []byte
 	RefreshTokenSecret []byte
@@ -89,6 +98,7 @@ func Load() (Config, error) {
 		WalletServiceSecret:        []byte(walletServiceSecret),
 		WalletServiceSource:        getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
 		CustomerTokenSecret:        []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
+		HandoverSecret:             []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
 		AvailabilityRadiusKM:       getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
 		// Notification-service integration is optional: when unset, lifecycle
 		// notifications no-op and the app notification proxy routes are skipped.
@@ -97,24 +107,26 @@ func Load() (Config, error) {
 		// HMAC secrets trusted for internal service-to-service calls
 		// (name=secret pairs). Used by the internal identity endpoint that
 		// support-dispute-service calls to resolve rider identities.
-		ServiceSecrets: getEnv("DISPATCH_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
-		AccessTokenSecret:          []byte(accessTokenSecret),
-		RefreshTokenSecret:         []byte(refreshTokenSecret),
-		OTPSecret:                  []byte(otpSecret),
-		AccessTokenTTL:             time.Duration(getEnvInt("DISPATCH_RIDER_JWT_ACCESS_TTL_MINUTES", 15)) * time.Minute,
-		RefreshTokenTTL:            time.Duration(getEnvInt("DISPATCH_RIDER_JWT_REFRESH_TTL_DAYS", 30)) * 24 * time.Hour,
-		OTPTTL:                     time.Duration(getEnvInt("DISPATCH_RIDER_OTP_TTL_MINUTES", 10)) * time.Minute,
-		OTPRateWindow:              time.Duration(getEnvInt("DISPATCH_RIDER_OTP_RATE_LIMIT_WINDOW_MINUTES", 10)) * time.Minute,
-		OTPMaxRequests:             getEnvInt("DISPATCH_RIDER_OTP_RATE_LIMIT_MAX", 3),
-		OTPMaxAttempts:             getEnvInt("DISPATCH_RIDER_OTP_MAX_ATTEMPTS", 3),
-		OTPLockoutTTL:              time.Duration(getEnvInt("DISPATCH_RIDER_OTP_LOCKOUT_MINUTES", 30)) * time.Minute,
-		OTPDebug:                   getEnvBool("DISPATCH_RIDER_DEBUG_OTP", false),
-		SMTPHost:                   getEnv("SMTP_HOST", ""),
-		SMTPPort:                   getEnvInt("SMTP_PORT", 465),
-		SMTPTLSMode:                getEnv("SMTP_TLS_MODE", ""),
-		SMTPUser:                   getEnv("SMTP_USER", ""),
-		SMTPPassword:               os.Getenv("SMTP_PASSWORD"),
-		SMTPFrom:                   getEnv("SMTP_FROM", ""),
+		ServiceSecrets:        getEnv("DISPATCH_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
+		MediaFileBaseURL:      getEnv("MEDIA_FILE_BASE_URL", "http://localhost:8109"),
+		MediaFileServiceToken: getEnv("MEDIA_FILE_SERVICE_TOKEN", "development-media-token"),
+		AccessTokenSecret:     []byte(accessTokenSecret),
+		RefreshTokenSecret:    []byte(refreshTokenSecret),
+		OTPSecret:             []byte(otpSecret),
+		AccessTokenTTL:        time.Duration(getEnvInt("DISPATCH_RIDER_JWT_ACCESS_TTL_MINUTES", 15)) * time.Minute,
+		RefreshTokenTTL:       time.Duration(getEnvInt("DISPATCH_RIDER_JWT_REFRESH_TTL_DAYS", 30)) * 24 * time.Hour,
+		OTPTTL:                time.Duration(getEnvInt("DISPATCH_RIDER_OTP_TTL_MINUTES", 10)) * time.Minute,
+		OTPRateWindow:         time.Duration(getEnvInt("DISPATCH_RIDER_OTP_RATE_LIMIT_WINDOW_MINUTES", 10)) * time.Minute,
+		OTPMaxRequests:        getEnvInt("DISPATCH_RIDER_OTP_RATE_LIMIT_MAX", 3),
+		OTPMaxAttempts:        getEnvInt("DISPATCH_RIDER_OTP_MAX_ATTEMPTS", 3),
+		OTPLockoutTTL:         time.Duration(getEnvInt("DISPATCH_RIDER_OTP_LOCKOUT_MINUTES", 30)) * time.Minute,
+		OTPDebug:              getEnvBool("DISPATCH_RIDER_DEBUG_OTP", false),
+		SMTPHost:              getEnv("SMTP_HOST", ""),
+		SMTPPort:              getEnvInt("SMTP_PORT", 465),
+		SMTPTLSMode:           getEnv("SMTP_TLS_MODE", ""),
+		SMTPUser:              getEnv("SMTP_USER", ""),
+		SMTPPassword:          os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:              getEnv("SMTP_FROM", ""),
 	}, nil
 }
 

@@ -26,6 +26,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -40,7 +41,7 @@ func (a *dispatchSessionRevokerAdapter) RevokeAllByProviderID(ctx context.Contex
 	return a.repo.RevokeAllByDispatchRiderID(ctx, providerID)
 }
 
-func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authService *authusecases.AuthUsecase, requestService *requestfeature.Service, tripService *tripfeature.Service, bookingService *bookingfeature.Service) *gin.Engine {
+func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authService *authusecases.AuthUsecase, requestService *requestfeature.Service, tripService *tripfeature.Service, bookingService *bookingfeature.Service, mediaClient *mediaclient.Client) *gin.Engine {
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -69,7 +70,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		profileEventPublisher,
 		&dispatchSessionRevokerAdapter{repo: authrepositories.NewPostgresSessionRepository(db)},
 	)
-	avatarUploader, err := profile.NewAvatarUploaderFromEnv(cfg.AppEnv)
+	avatarUploader, err := profile.NewAvatarUploaderFromEnv(cfg.AppEnv, mediaClient)
 	if err != nil {
 		panic(fmt.Errorf("configure avatar storage: %w", err))
 	}
@@ -77,7 +78,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	profile.StartSubscribers(context.Background(), redisClient, profileRepository)
 
 	verificationRepository := verification.NewPostgresRepository(db)
-	verificationUploader, err := verification.NewUploaderFromEnv(cfg.AppEnv)
+	verificationUploader, err := verification.NewUploaderFromEnv(cfg.AppEnv, mediaClient)
 	if err != nil {
 		panic(fmt.Errorf("configure verification storage: %w", err))
 	}
@@ -92,7 +93,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	verification.RegisterRoutes(engine, authService.TokenUsecase(), verificationHandler)
 	verification.StartSubscribers(context.Background(), redisClient, verificationRepository)
 
-	vehicleUploader, err := vehicle.NewVehicleUploaderFromEnv(cfg.AppEnv)
+	vehicleUploader, err := vehicle.NewVehicleUploaderFromEnv(cfg.AppEnv, mediaClient)
 	if err != nil {
 		panic(fmt.Errorf("configure vehicle storage: %w", err))
 	}

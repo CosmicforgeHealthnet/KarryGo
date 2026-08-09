@@ -97,9 +97,22 @@ class ProviderApi {
     return ProviderBooking.fromJson(data);
   }
 
-  Future<ProviderBooking> markArrived({required String accessToken, required String bookingId}) async {
+  Future<ArrivedAtPickupResult> markArrived({required String accessToken, required String bookingId}) async {
     final data = await _put('/provider/bookings/$bookingId/arrived', {}, accessToken: accessToken);
-    return ProviderBooking.fromJson(data);
+    return ArrivedAtPickupResult.fromJson(data);
+  }
+
+  /// Fetches the driver's own pickup credential for redisplay (e.g. after
+  /// navigating away from the arrived-at-pickup screen).
+  Future<PickupCredential> getPickupCredential({required String accessToken, required String bookingId}) async {
+    final data = await _get('/provider/bookings/$bookingId/pickup-credential', accessToken: accessToken);
+    return PickupCredential.fromJson(data);
+  }
+
+  /// Regenerates the driver's own pickup credential.
+  Future<PickupCredential> resendPickupCredential({required String accessToken, required String bookingId}) async {
+    final data = await _post('/provider/bookings/$bookingId/pickup-credential/resend', {}, accessToken: accessToken);
+    return PickupCredential.fromJson(data);
   }
 
   Future<ProviderBooking> confirmPickup({required String accessToken, required String bookingId}) async {
@@ -115,12 +128,14 @@ class ProviderApi {
   Future<ProviderBooking> confirmDelivery({
     required String accessToken,
     required String bookingId,
+    required String code,
     String proofPhotoUrl = '',
     String signatureUrl = '',
   }) async {
     final data = await _put(
       '/provider/bookings/$bookingId/delivered',
       {
+        'code': code,
         if (proofPhotoUrl.isNotEmpty) 'proof_photo_url': proofPhotoUrl,
         if (signatureUrl.isNotEmpty) 'signature_url': signatureUrl,
       },

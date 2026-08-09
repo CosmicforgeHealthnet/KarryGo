@@ -40,7 +40,7 @@ type initiateCardPaymentRequest struct {
 }
 
 type submitReviewRequest struct {
-	Rating           int   `json:"rating"`
+	Rating           int    `json:"rating"`
 	ReviewText       string `json:"review_text"`
 	RecommendsDriver *bool  `json:"recommends_driver"`
 }
@@ -49,9 +49,17 @@ type cancelBookingRequest struct {
 	Reason string `json:"reason"`
 }
 
-// confirmDeliveryRequest carries the optional proof-of-delivery URLs uploaded
-// to media-file-service by the provider app before confirming.
+// confirmDeliveryRequest carries the customer's delivery verification code
+// (required) plus the optional proof-of-delivery URLs uploaded to
+// media-file-service by the provider app before confirming.
 type confirmDeliveryRequest struct {
+	Code          string `json:"code"`
 	ProofPhotoURL string `json:"proof_photo_url"`
 	SignatureURL  string `json:"signature_url"`
+}
+
+// verifyDriverRequest carries the driver's pickup credential as entered or
+// scanned by the customer.
+type verifyDriverRequest struct {
+	Code string `json:"code"`
 }

@@ -235,6 +235,50 @@ class DispatchApi {
     return DispatchBooking.fromJson(data);
   }
 
+  /// Submits the rider's pickup credential (entered manually or scanned as a
+  /// QR) for the customer to verify before the rider can proceed.
+  Future<DispatchBooking> verifyDriver({
+    required String accessToken,
+    required String bookingId,
+    required String code,
+  }) async {
+    final data = await _sendJson(
+      'POST',
+      '/bookings/$bookingId/verify-driver',
+      accessToken: accessToken,
+      body: {'code': code},
+    );
+    return DispatchBooking.fromJson(data);
+  }
+
+  /// Fetches the customer's own delivery verification code for redisplay.
+  Future<VerificationCodeResult> getVerificationCode({
+    required String accessToken,
+    required String bookingId,
+    String step = 'delivery',
+  }) async {
+    final data = await _sendJson(
+      'GET',
+      '/bookings/$bookingId/verification-code?step=$step',
+      accessToken: accessToken,
+    );
+    return VerificationCodeResult.fromJson(data);
+  }
+
+  /// Regenerates the customer's own delivery verification code.
+  Future<VerificationCodeResult> resendVerificationCode({
+    required String accessToken,
+    required String bookingId,
+    String step = 'delivery',
+  }) async {
+    final data = await _sendJson(
+      'POST',
+      '/bookings/$bookingId/verification-code/resend?step=$step',
+      accessToken: accessToken,
+    );
+    return VerificationCodeResult.fromJson(data);
+  }
+
   // ─── Realtime ──────────────────────────────────────────────────────────────
 
   /// Mints a short-lived websocket token from the dispatch-service notification

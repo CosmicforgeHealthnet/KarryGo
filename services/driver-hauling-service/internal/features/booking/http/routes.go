@@ -34,6 +34,9 @@ func RegisterBookingRoutes(
 	customerGroup.PUT("/bookings/:id/cancel", handler.CancelBooking)
 	customerGroup.POST("/bookings/:id/review", handler.SubmitReview)
 	customerGroup.GET("/bookings/:id/review", handler.GetCustomerBookingReview)
+	customerGroup.POST("/bookings/:id/verify-driver", handler.VerifyDriverAtPickup)
+	customerGroup.GET("/bookings/:id/verification-code", handler.GetVerificationCode)
+	customerGroup.POST("/bookings/:id/verification-code/resend", handler.ResendVerificationCode)
 	customerGroup.GET("/providers/:id", handler.GetPublicProvider)
 	customerGroup.GET("/trucks/:id", handler.GetPublicTruck)
 
@@ -48,6 +51,8 @@ func RegisterBookingRoutes(
 	providerGroup.PUT("/bookings/:id/reject", handler.RejectBooking)
 	providerGroup.PUT("/bookings/:id/en-route-pickup", handler.MarkEnRoutePickup)
 	providerGroup.PUT("/bookings/:id/arrived", handler.MarkArrivedAtPickup)
+	providerGroup.GET("/bookings/:id/pickup-credential", handler.GetPickupCredential)
+	providerGroup.POST("/bookings/:id/pickup-credential/resend", handler.ResendPickupCredential)
 	providerGroup.PUT("/bookings/:id/pickup-confirmed", handler.ConfirmPickup)
 	providerGroup.PUT("/bookings/:id/en-route-delivery", handler.MarkEnRouteDelivery)
 	providerGroup.PUT("/bookings/:id/delivered", handler.ConfirmDelivery)
