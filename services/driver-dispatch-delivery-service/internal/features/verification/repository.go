@@ -2,6 +2,9 @@ package verification
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -38,6 +41,66 @@ type Repository interface {
 
 type PostgresRepository struct {
 	db *pgxpool.Pool
+}
+
+type SuspensionInput struct {
+	ProviderID      string
+	ExpectedVersion int64
+	ReasonCode      string
+	ActorID         string
+	CorrelationID   string
+}
+
+type SuspensionOutcome struct {
+	ProviderID    string `json:"provider_id"`
+	Status        string `json:"status"`
+	SourceVersion int64  `json:"source_version"`
+	ReasonCode    string `json:"reason_code"`
+}
+
+type SuspensionRepository interface {
+	SuspendProvider(context.Context, SuspensionInput) (SuspensionOutcome, error)
+}
+
+var ErrVerificationVersionConflict = errors.New("verification source version conflict")
+
+func (r *PostgresRepository) SuspendProvider(ctx context.Context, input SuspensionInput) (SuspensionOutcome, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return SuspensionOutcome{}, err
+	}
+	defer tx.Rollback(ctx)
+	var currentVersion int64
+	var currentStatus, currentReason string
+	err = tx.QueryRow(ctx, `SELECT verification_source_version,verification_status,verification_suspension_reason FROM providers WHERE id=$1 FOR UPDATE`, input.ProviderID).Scan(&currentVersion, &currentStatus, &currentReason)
+	if err != nil {
+		return SuspensionOutcome{}, err
+	}
+	if currentStatus == string(OverallStatusSuspended) && currentReason == input.ReasonCode {
+		return SuspensionOutcome{ProviderID: input.ProviderID, Status: currentStatus, SourceVersion: currentVersion, ReasonCode: currentReason}, tx.Commit(ctx)
+	}
+	if currentVersion != input.ExpectedVersion {
+		return SuspensionOutcome{}, ErrVerificationVersionConflict
+	}
+	var out SuspensionOutcome
+	err = tx.QueryRow(ctx, `UPDATE providers SET verification_status='suspended',verification_suspension_reason=$2,verification_source_version=verification_source_version+1,updated_at=now() WHERE id=$1 RETURNING id::text,verification_status,verification_source_version,verification_suspension_reason`, input.ProviderID, input.ReasonCode).Scan(&out.ProviderID, &out.Status, &out.SourceVersion, &out.ReasonCode)
+	if err != nil {
+		return SuspensionOutcome{}, err
+	}
+	payload := VerificationSuspendedPayload{Event: TopicVerificationSuspended, EventVersion: 1, CorrelationID: input.CorrelationID, ProviderID: out.ProviderID, SourceVersion: out.SourceVersion, ReasonCode: out.ReasonCode, CreatedAt: time.Now().UTC()}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return SuspensionOutcome{}, err
+	}
+	sum := sha256.Sum256(encoded)
+	_, err = tx.Exec(ctx, `INSERT INTO dispatch_marketplace_outbox(event_type,schema_version,aggregate_type,aggregate_id,aggregate_version,payload,payload_hash,correlation_id,causation_id,status) VALUES($1,1,'PROVIDER',$2,$3,$4,$5,$6,$7,'PENDING') ON CONFLICT(aggregate_type,aggregate_id,aggregate_version,event_type) DO NOTHING`, TopicVerificationSuspended, out.ProviderID, out.SourceVersion, encoded, hex.EncodeToString(sum[:]), input.CorrelationID, input.ActorID)
+	if err != nil {
+		return SuspensionOutcome{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return SuspensionOutcome{}, err
+	}
+	return out, nil
 }
 
 func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {

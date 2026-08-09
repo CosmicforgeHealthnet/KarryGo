@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
-	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 )
 
 type Handler struct {
@@ -192,6 +192,8 @@ func (h *Handler) Logout(c *gin.Context) {
 		Role:            Role(c),
 		RefreshToken:    req.RefreshToken,
 		CorrelationID:   httpx.GetRequestID(c),
+		AccessTokenJTI:  AccessTokenJTI(c),
+		AccessExpiresAt: AccessExpiresAt(c),
 	})
 	if err != nil {
 		httpx.Abort(c, err)

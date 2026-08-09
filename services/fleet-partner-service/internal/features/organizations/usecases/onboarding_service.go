@@ -12,6 +12,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/enforcement"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
 	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
@@ -41,10 +42,14 @@ type Options struct {
 	Settings      *orgrepos.SettingsRepository
 	Memberships   MembershipCreator
 	Contracts     platformclients.ContractSet
-	Events        EventPublisher
-	Audit         *audit.Recorder
-	Metrics       *observability.Metrics
-	Now           func() time.Time
+	// Eligibility gates activation. Activation is the moment an organization
+	// becomes able to take real work, so it is gated on a durable decision
+	// rather than only on the local assessment.
+	Eligibility enforcement.Gate
+	Events      EventPublisher
+	Audit       *audit.Recorder
+	Metrics     *observability.Metrics
+	Now         func() time.Time
 }
 
 // Service implements organization onboarding and lifecycle.
@@ -78,6 +83,26 @@ func (s *Service) OrganizationStatus(ctx context.Context, organizationID string)
 		name = organization.LegalName
 	}
 	return name, organization.Status, nil
+}
+
+func (s *Service) OrganizationCurrency(ctx context.Context, organizationID string) (string, error) {
+	organization, err := s.opts.Organizations.GetByID(ctx, organizationID)
+	if err != nil {
+		return "", err
+	}
+	return organization.DefaultCurrency, nil
+}
+
+// BranchName returns a branch's safe display name and type. It backs the
+// providers feature's OrganizationReader port (Section 30's membership
+// summary), the same narrow "safe projection only" shape as
+// OrganizationStatus above -- never the branch's address or coordinates.
+func (s *Service) BranchName(ctx context.Context, organizationID string, branchID string) (string, string, error) {
+	branch, err := s.opts.Branches.GetByID(ctx, organizationID, branchID)
+	if err != nil {
+		return "", "", err
+	}
+	return branch.Name, branch.Type, nil
 }
 
 // CreateDraftInput creates an organization draft.

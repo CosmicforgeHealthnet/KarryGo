@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS fleet_partner_safety_decline_inbox;
+DROP TABLE IF EXISTS fleet_partner_breakdowns;
+DROP TABLE IF EXISTS fleet_partner_return_to_service_decisions;
+DROP TABLE IF EXISTS fleet_partner_work_order_history;
+DROP TABLE IF EXISTS fleet_partner_work_orders;
+DROP TABLE IF EXISTS fleet_partner_maintenance_schedules;
+DROP TABLE IF EXISTS fleet_partner_asset_safety_blocks;
+DROP TABLE IF EXISTS fleet_partner_inspection_results;
+DROP TABLE IF EXISTS fleet_partner_inspections;
+DROP TABLE IF EXISTS fleet_partner_inspection_templates;

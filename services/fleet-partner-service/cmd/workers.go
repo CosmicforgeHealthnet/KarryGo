@@ -23,20 +23,8 @@ func (s providerInvitationSweep) ExpireDue(ctx context.Context, limit int) (int6
 }
 
 // runProviderReconciler re-drives incomplete provider provisioning sagas.
-// Unknown outcomes are resolved by read-back inside Reconcile.
+// Delegates to the shared internal/app implementation so both this binary
+// and the dedicated worker binary run the identical loop.
 func runProviderReconciler(ctx context.Context, components *app.Components, interval time.Duration) {
-	if interval <= 0 {
-		interval = 30 * time.Second
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			_, _ = components.Providers.Reconcile(ctx, 25)
-		}
-	}
+	app.RunProviderReconciler(ctx, components, interval)
 }

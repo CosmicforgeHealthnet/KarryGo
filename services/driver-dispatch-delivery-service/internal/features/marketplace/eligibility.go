@@ -27,6 +27,7 @@ const (
 	ReasonVehicleNotEligible      = "vehicle_not_eligible"
 	ReasonVehicleSafetyBlocked    = "vehicle_safety_blocked"
 	ReasonVehicleConflict         = "vehicle_conflict"
+	ReasonAuthorityRestricted     = "authority_restricted"
 )
 
 // EligibilityStatus values.
@@ -60,6 +61,11 @@ type ProviderEligibilityInput struct {
 	ProviderID               string
 	OrganizationMembershipID string
 	ExpectedRequestVersion   int64
+	// RequireAvailability is used by private execution creation. Marketplace
+	// eligibility reads historically answered structural authority only; a new
+	// private trip must additionally prove the provider is online and verified
+	// to work at the commit point.
+	RequireAvailability bool
 	// SkipReservationCheck is set by the DELEGATED path only.
 	//
 	// The centralized path requires a live organization reservation to already
@@ -102,6 +108,17 @@ func (s *Service) ValidateProvider(ctx context.Context, input ProviderEligibilit
 	if input.ProviderID == "" || input.RequestID == "" || input.OrganizationID == "" {
 		return nil, errCoded(400, "validation_error",
 			"requestId, organizationId and providerId are required.")
+	}
+	if s.restrictions != nil {
+		for _, subject := range [][2]string{{"ORGANIZATION", input.OrganizationID}, {"PROVIDER", input.ProviderID}} {
+			restricted, err := s.restrictions.Restricted(ctx, input.OrganizationID, subject[0], subject[1])
+			if err != nil {
+				return nil, fmt.Errorf("marketplace: restriction authority: %w", err)
+			}
+			if restricted {
+				return ineligibleResult(0, ReasonAuthorityRestricted), nil
+			}
+		}
 	}
 
 	broadcast, err := s.repo.GetBroadcast(ctx, nil, input.RequestID)
@@ -151,6 +168,15 @@ func (s *Service) ValidateProvider(ctx context.Context, input ProviderEligibilit
 	if !provider.OnboardingComplete {
 		reasons = append(reasons, ReasonProviderNotEligible)
 	}
+	if input.RequireAvailability {
+		available, availabilityErr := s.repo.ProviderIsAvailable(ctx, nil, input.ProviderID)
+		if availabilityErr != nil {
+			return nil, availabilityErr
+		}
+		if !available {
+			reasons = append(reasons, ReasonProviderNotAvailable)
+		}
+	}
 
 	// A provider already on a live canonical trip cannot take another.
 	conflicting, err := s.repo.ProviderHasLiveTrip(ctx, nil, input.ProviderID)
@@ -188,6 +214,20 @@ func (s *Service) ValidateVehicle(ctx context.Context, input VehicleEligibilityI
 	if !s.flags.VehicleEligibilityEnabled {
 		return nil, errCoded(503, "source_service_unavailable",
 			"Vehicle eligibility checking is not enabled.")
+	}
+	if s.restrictions != nil {
+		for _, subject := range [][2]string{{"ORGANIZATION", input.OrganizationID}, {"PROVIDER", input.ProviderID}, {"ASSET", input.VehicleID}} {
+			if subject[1] == "" {
+				continue
+			}
+			restricted, err := s.restrictions.Restricted(ctx, input.OrganizationID, subject[0], subject[1])
+			if err != nil {
+				return nil, fmt.Errorf("marketplace: restriction authority: %w", err)
+			}
+			if restricted {
+				return ineligibleResult(0, ReasonAuthorityRestricted), nil
+			}
+		}
 	}
 
 	broadcast, err := s.repo.GetBroadcast(ctx, nil, input.RequestID)
@@ -276,6 +316,21 @@ func (r *Repository) GetVehicle(ctx context.Context, q Querier, vehicleID string
 		return nil, fmt.Errorf("marketplace: get vehicle: %w", err)
 	}
 	return &record, nil
+}
+
+// ProviderIsAvailable reads the durable availability authority. A missing row
+// is deliberately unavailable; private execution never infers availability.
+func (r *Repository) ProviderIsAvailable(ctx context.Context, q Querier, providerID string) (bool, error) {
+	if q == nil {
+		q = r.db
+	}
+	var available bool
+	err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM provider_availability
+		WHERE provider_id=$1 AND status='online' AND verified_to_go_online=true)`, providerID).Scan(&available)
+	if err != nil {
+		return false, fmt.Errorf("marketplace: get provider availability: %w", err)
+	}
+	return available, nil
 }
 
 // ProviderHasLiveTrip reports whether the provider is already on a trip.

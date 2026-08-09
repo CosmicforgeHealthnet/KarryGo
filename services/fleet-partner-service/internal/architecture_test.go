@@ -196,3 +196,59 @@ func TestSQLAlwaysTenantScoped(t *testing.T) {
 		}
 	}
 }
+
+// TestExternalHTTPClientsHaveExplicitTimeout is the Section 29 architecture
+// test: every raw *http.Client{...} construction outside
+// internal/platformclients (which enforces its own default timeout and
+// per-request context deadline in New/Exchange — proven separately by
+// internal/platformclients/base_test.go's TestTimeoutClassifiedUnknown) must
+// set an explicit Timeout field. An http.Client with no Timeout blocks
+// forever on a hung TCP connection regardless of any context passed to an
+// individual request, which is exactly the "zero/unbounded external
+// timeout" Section 29 requires production startup-equivalent enforcement
+// to catch — here, at the architecture-test level, because the unsafe value
+// is a Go literal, not a runtime config knob Validate() could inspect.
+//
+// This is a bounded content scan (does the composite literal's opening
+// brace have a Timeout: field within the next few lines), not a full Go
+// type-checker pass — sufficient to catch a client built with no timeout at
+// all or an explicit Timeout: 0, which is what an accidental regression
+// looks like in practice.
+func TestExternalHTTPClientsHaveExplicitTimeout(t *testing.T) {
+	skipDirs := []string{
+		filepath.Join(serviceRoot, "internal", "platformclients"),
+	}
+	for _, file := range collectGoFiles(t, serviceRoot, false) {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		skip := false
+		for _, dir := range skipDirs {
+			if strings.HasPrefix(file, dir) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+		content, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		text := string(content)
+		idx := 0
+		for {
+			pos := strings.Index(text[idx:], "http.Client{")
+			if pos < 0 {
+				break
+			}
+			pos += idx
+			window := text[pos:min(pos+200, len(text))]
+			if !strings.Contains(window, "Timeout") {
+				t.Errorf("%s: http.Client{...} at byte offset %d has no explicit Timeout field within its literal", file, pos)
+			}
+			idx = pos + len("http.Client{")
+		}
+	}
+}

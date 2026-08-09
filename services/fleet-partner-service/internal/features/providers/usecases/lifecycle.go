@@ -86,15 +86,17 @@ func (s *Service) RecordAssociationOutcome(ctx context.Context, organizationID s
 // credited here — this only records the account identity projection.
 func (s *Service) EnsureSubWallet(ctx context.Context, organizationID string, membershipID string, correlationID string) {
 	idempotencyKey := "provider-subwallet:" + membershipID
+	currency, _ := s.opts.Organizations.OrganizationCurrency(ctx, organizationID)
 	_ = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 		return s.opts.Providers.EnsureSubWalletLink(ctx, tx, organizationID, membershipID, idempotencyKey)
 	})
 
 	account, err := s.opts.Contracts.Wallet.EnsureProviderSubWallet(ctx,
-		platformclients.CallMeta{CorrelationID: correlationID},
+		platformclients.CallMeta{OrganizationID: organizationID, CorrelationID: correlationID, IdempotencyKey: idempotencyKey},
 		platformclients.WalletProvisionRequest{
 			OrganizationID:       organizationID,
 			ProviderMembershipID: membershipID,
+			Currency:             currency,
 			IdempotencyKey:       idempotencyKey,
 		})
 	if err != nil {

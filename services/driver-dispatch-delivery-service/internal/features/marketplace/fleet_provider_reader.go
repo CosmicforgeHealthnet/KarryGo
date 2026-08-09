@@ -206,6 +206,10 @@ func (r *HTTPProviderReader) GetAssignment(ctx context.Context, meta CallMeta,
 	var one fleetAssignmentOne
 	path := fmt.Sprintf("/internal/fleet-partner/v1/providers/%s/assignments/%s",
 		url.PathEscape(providerID), url.PathEscape(assignmentID))
+	if privateAssignmentID(assignmentID) {
+		path = fmt.Sprintf("/internal/fleet-partner/v1/private-assignments/%s?providerId=%s",
+			url.PathEscape(assignmentID), url.QueryEscape(providerID))
+	}
 	if err := r.get(ctx, meta, path, &one); err != nil {
 		return nil, err
 	}

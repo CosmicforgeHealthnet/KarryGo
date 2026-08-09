@@ -1,8 +1,4 @@
-// Package warehouse is the reserved feature boundary for warehouse operations.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package warehouse owns tenant-scoped warehouses, customer stock,
+// fulfilment, dock, yard, terminal and return operations. Maintenance parts
+// remain owned by Section 18 and canonical trips remain external.
 package warehouse

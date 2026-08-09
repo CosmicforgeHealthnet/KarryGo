@@ -30,6 +30,19 @@ type MembershipReader interface {
 	GetMembership(ctx context.Context, organizationID string, membershipID string) (*providermodels.Membership, error)
 }
 
+// MembershipHistoryReader is the marketplace feature's port onto a
+// provider's own membership history across organizations and time --
+// distinct from MembershipReader above, which looks up exactly one
+// already-known membership by ID rather than listing every membership a
+// provider identity has ever held.
+//
+// Marketplace must not reach into the providers feature's repository
+// package. The composition root supplies an adapter that satisfies this
+// interface.
+type MembershipHistoryReader interface {
+	ListByProvider(ctx context.Context, providerService string, providerID string) ([]providermodels.Membership, error)
+}
+
 // EligibilityDecision is the outcome of a full eligibility recheck.
 type EligibilityDecision struct {
 	Eligible   bool

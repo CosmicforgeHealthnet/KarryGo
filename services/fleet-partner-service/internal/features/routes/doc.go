@@ -1,8 +1,5 @@
-// Package routes is the reserved feature boundary for route planning references.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package routes documents the Section 16 route-planning boundary. Runtime
+// orchestration lives in the dispatch feature so publication, assignments and
+// control-tower updates share one transaction boundary; canonical trips remain
+// owned by Dispatch and Hauling.
 package routes

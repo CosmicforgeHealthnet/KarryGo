@@ -1,0 +1,12 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code LIKE 'compliance.%';
+DELETE FROM fleet_partner_permissions WHERE code LIKE 'compliance.%';
+DROP TRIGGER IF EXISTS trg_fleet_restriction_attempts_append_only ON fleet_partner_restriction_attempts;
+DROP TABLE IF EXISTS fleet_partner_restriction_attempts;
+DROP TABLE IF EXISTS fleet_partner_restriction_operations;
+DROP TRIGGER IF EXISTS trg_fleet_restriction_history_append_only ON fleet_partner_restriction_history;
+DROP TABLE IF EXISTS fleet_partner_restriction_history;
+DROP TABLE IF EXISTS fleet_partner_restrictions;
+DROP TRIGGER IF EXISTS trg_fleet_compliance_history_append_only ON fleet_partner_compliance_status_history;
+DROP TABLE IF EXISTS fleet_partner_compliance_status_history;
+DROP TABLE IF EXISTS fleet_partner_compliance_statuses;
+DROP TABLE IF EXISTS fleet_partner_compliance_requirements;

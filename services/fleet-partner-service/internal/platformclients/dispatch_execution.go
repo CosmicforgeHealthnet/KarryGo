@@ -23,20 +23,22 @@ import (
 //	GET  /api/v1/internal/marketplace/trips/{sourceTripId}
 //	POST /api/v1/internal/marketplace/trips/{sourceTripId}/cancel
 type DispatchExecution struct {
-	client *Client
+	client   *Client
+	apiBase  string
+	category string
 }
 
 // NewDispatchExecution builds the dispatch adapter over the shared signed
 // HTTP client (timeouts, tracing headers, error classification, metrics).
 func NewDispatchExecution(client *Client) *DispatchExecution {
-	return &DispatchExecution{client: client}
+	return &DispatchExecution{client: client, apiBase: dispatchInternalBase, category: CategoryDispatch}
 }
 
 // Configured reports whether the dispatch base URL and secret are present.
 func (d *DispatchExecution) Configured() bool { return d.client.Configured() }
 
 // ServiceCategory identifies this adapter.
-func (d *DispatchExecution) ServiceCategory() string { return CategoryDispatch }
+func (d *DispatchExecution) ServiceCategory() string { return d.category }
 
 const dispatchInternalBase = "/api/v1/internal/marketplace"
 
@@ -56,6 +58,7 @@ type dispatchReservationBody struct {
 // organization. Dispatch decides the single winner atomically; this adapter
 // only reports what it decided.
 func (d *DispatchExecution) ReserveForOrganization(ctx context.Context, meta CallMeta, request ReserveRequest) (ReservationOutcome, error) {
+	meta.IdempotencyKey = request.IdempotencyKey
 	body := map[string]any{
 		"source_request_id":          request.SourceRequestID,
 		"expected_source_version":    request.ExpectedSourceVersion,
@@ -66,7 +69,7 @@ func (d *DispatchExecution) ReserveForOrganization(ctx context.Context, meta Cal
 		"idempotency_key":            request.IdempotencyKey,
 	}
 	var response dispatchEnvelope[dispatchReservationBody]
-	if err := d.client.Do(ctx, meta, http.MethodPost, dispatchInternalBase+"/reservations", body, &response); err != nil {
+	if err := d.client.Do(ctx, meta, http.MethodPost, d.apiBase+"/reservations", body, &response); err != nil {
 		return ReservationOutcome{}, classifyReservationError(err)
 	}
 	return ReservationOutcome{
@@ -92,7 +95,7 @@ func classifyReservationError(err error) error {
 // happened, keyed by the same idempotency key.
 func (d *DispatchExecution) ReadReservation(ctx context.Context, meta CallMeta, sourceRequestID string, idempotencyKey string) (ReservationOutcome, error) {
 	var response dispatchEnvelope[dispatchReservationBody]
-	path := dispatchInternalBase + "/reservations/" + sourceRequestID + "?idempotency_key=" + idempotencyKey
+	path := d.apiBase + "/reservations/" + sourceRequestID + "?idempotency_key=" + idempotencyKey
 	if err := d.client.Do(ctx, meta, http.MethodGet, path, nil, &response); err != nil {
 		return ReservationOutcome{}, err
 	}
@@ -106,13 +109,14 @@ func (d *DispatchExecution) ReadReservation(ctx context.Context, meta CallMeta, 
 
 // ReleaseReservation returns a reserved request to the marketplace.
 func (d *DispatchExecution) ReleaseReservation(ctx context.Context, meta CallMeta, sourceRequestID string, organizationID string, reason string, idempotencyKey string) error {
+	meta.IdempotencyKey = idempotencyKey
 	body := map[string]any{
 		"organization_id": organizationID,
 		"reason":          reason,
 		"idempotency_key": idempotencyKey,
 	}
 	return d.client.Do(ctx, meta, http.MethodPost,
-		dispatchInternalBase+"/reservations/"+sourceRequestID+"/release", body, nil)
+		d.apiBase+"/reservations/"+sourceRequestID+"/release", body, nil)
 }
 
 type dispatchEligibilityBody struct {
@@ -127,7 +131,7 @@ type dispatchEligibilityBody struct {
 // may take this work. Vehicle verification stays owned by dispatch: this
 // service never builds a competing vehicle source of truth.
 func (d *DispatchExecution) ValidateProviderEligibility(ctx context.Context, meta CallMeta, sourceRequestID string, providerID string, vehicleReference string) (ProviderEligibility, error) {
-	path := dispatchInternalBase + "/eligibility?source_request_id=" + sourceRequestID +
+	path := d.apiBase + "/eligibility?source_request_id=" + sourceRequestID +
 		"&provider_id=" + providerID + "&vehicle_reference=" + vehicleReference
 	var response dispatchEnvelope[dispatchEligibilityBody]
 	if err := d.client.Do(ctx, meta, http.MethodGet, path, nil, &response); err != nil {
@@ -170,7 +174,13 @@ func (d *DispatchExecution) ConfirmProviderAndCreateExecution(ctx context.Contex
 	}
 	meta.IdempotencyKey = request.IdempotencyKey
 	var response dispatchEnvelope[dispatchExecutionBody]
-	if err := d.client.Do(ctx, meta, http.MethodPost, dispatchInternalBase+"/executions", body, &response); err != nil {
+	if err := d.client.Exchange(ctx, meta, Exchange{
+		Method:         http.MethodPost,
+		Path:           d.apiBase + "/executions",
+		JSONBody:       body,
+		Out:            &response,
+		DisableRetries: true,
+	}); err != nil {
 		return ExecutionOutcome{}, err
 	}
 	return ExecutionOutcome{
@@ -186,7 +196,7 @@ func (d *DispatchExecution) ConfirmProviderAndCreateExecution(ctx context.Contex
 // This is what makes a timed-out trip creation safe: the answer comes from
 // dispatch, never from an assumption or a blind retry.
 func (d *DispatchExecution) ReadExecutionOutcome(ctx context.Context, meta CallMeta, sourceRequestID string, idempotencyKey string) (ExecutionOutcome, error) {
-	path := dispatchInternalBase + "/executions/by-idempotency/" + url.PathEscape(idempotencyKey)
+	path := d.apiBase + "/executions/by-idempotency/" + url.PathEscape(idempotencyKey)
 	var response dispatchEnvelope[dispatchExecutionBody]
 	if err := d.client.Do(ctx, meta, http.MethodGet, path, nil, &response); err != nil {
 		return ExecutionOutcome{}, err
@@ -215,7 +225,7 @@ type dispatchRequestBody struct {
 func (d *DispatchExecution) ReadRequest(ctx context.Context, meta CallMeta, sourceRequestID string) (SourceRequestView, error) {
 	var response dispatchEnvelope[dispatchRequestBody]
 	if err := d.client.Do(ctx, meta, http.MethodGet,
-		dispatchInternalBase+"/requests/"+sourceRequestID, nil, &response); err != nil {
+		d.apiBase+"/requests/"+sourceRequestID, nil, &response); err != nil {
 		return SourceRequestView{}, err
 	}
 	view := SourceRequestView{
@@ -249,7 +259,7 @@ type dispatchTripBody struct {
 func (d *DispatchExecution) ReadTrip(ctx context.Context, meta CallMeta, sourceTripID string) (SourceTripView, error) {
 	var response dispatchEnvelope[dispatchTripBody]
 	if err := d.client.Do(ctx, meta, http.MethodGet,
-		dispatchInternalBase+"/trips/"+sourceTripID, nil, &response); err != nil {
+		d.apiBase+"/trips/"+sourceTripID, nil, &response); err != nil {
 		return SourceTripView{}, err
 	}
 	view := SourceTripView{
@@ -276,7 +286,8 @@ func (d *DispatchExecution) ReadTrip(ctx context.Context, meta CallMeta, sourceT
 // CancelExecution cancels a canonical trip through dispatch's own contract.
 // A live trip is never cancelled locally without source confirmation.
 func (d *DispatchExecution) CancelExecution(ctx context.Context, meta CallMeta, sourceTripID string, reason string, idempotencyKey string) error {
+	meta.IdempotencyKey = idempotencyKey
 	body := map[string]any{"reason": reason, "idempotency_key": idempotencyKey}
 	return d.client.Do(ctx, meta, http.MethodPost,
-		dispatchInternalBase+"/trips/"+sourceTripID+"/cancel", body, nil)
+		d.apiBase+"/trips/"+sourceTripID+"/cancel", body, nil)
 }

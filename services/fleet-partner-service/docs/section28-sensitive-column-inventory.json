@@ -1,0 +1,857 @@
+[
+  {
+    "table": "fleet_partner_approval_policies",
+    "column": "threshold_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000006_approvals.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_auth_otp_challenges",
+    "column": "email_hash",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_auth_otp_challenges",
+    "column": "email_normalized",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_auth_otp_challenges",
+    "column": "phone_e164",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_auth_otp_challenges",
+    "column": "phone_hash",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_auth_security_events",
+    "column": "email_hash",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_auth_security_events",
+    "column": "phone_hash",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_branches",
+    "column": "latitude",
+    "category": "LOCATION",
+    "sourceFile": "000002_organizations_foundation.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_branches",
+    "column": "longitude",
+    "category": "LOCATION",
+    "sourceFile": "000002_organizations_foundation.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_budgets",
+    "column": "actual_amount_projection",
+    "category": "FINANCIAL",
+    "sourceFile": "000049_expenses_budgets_claims.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_budgets",
+    "column": "approved_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000049_expenses_budgets_claims.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_budgets",
+    "column": "committed_amount_projection",
+    "category": "FINANCIAL",
+    "sourceFile": "000049_expenses_budgets_claims.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_cargo_items",
+    "column": "declared_value_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000027_shipments_and_cargo.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_claims",
+    "column": "amount_reference_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000049_expenses_budgets_claims.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
+    "table": "fleet_partner_claims",
+    "column": "approved_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000049_expenses_budgets_claims.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_claims",
+    "column": "settlement_reference",
+    "category": "FINANCIAL",
+    "sourceFile": "000049_expenses_budgets_claims.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
+    "table": "fleet_partner_company_customers",
+    "column": "registration_number",
+    "category": "GOVERNMENT_ID",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "a business/company registration number (e.g. Nigerian CAC number) -- routinely disclosed on invoices, letterheads and public company registries; not a secret, and not an individual's personal government ID (NIN/BVN/passport, none of which this schema currently stores)."
+  },
+  {
+    "table": "fleet_partner_corporate_identities",
+    "column": "email_display",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_corporate_identities",
+    "column": "email_normalized",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_corporate_identities",
+    "column": "email_verified_at",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_corporate_identities",
+    "column": "phone_bound_at",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_corporate_identities",
+    "column": "phone_display",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_corporate_identities",
+    "column": "phone_e164",
+    "category": "CONTACT_PII",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_corporate_sessions",
+    "column": "refresh_token_hash",
+    "category": "CREDENTIAL",
+    "sourceFile": "000003_corporate_authentication.up.sql",
+    "auditRedacted": true,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_credit_notes",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_customer_contacts",
+    "column": "full_name",
+    "category": "CONTACT_PII",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_customer_contacts",
+    "column": "normalized_email",
+    "category": "CONTACT_PII",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_customer_contacts",
+    "column": "normalized_phone",
+    "category": "CONTACT_PII",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_customer_credit_profiles",
+    "column": "credit_limit_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_customer_locations",
+    "column": "latitude",
+    "category": "LOCATION",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_customer_locations",
+    "column": "longitude",
+    "category": "LOCATION",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_expense_reversals",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000049_expenses_budgets_claims.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_expenses",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000049_expenses_budgets_claims.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_finance_operations",
+    "column": "wallet_reference",
+    "category": "FINANCIAL",
+    "sourceFile": "000016_wallet_finance_integration.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
+    "table": "fleet_partner_finance_projections",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000016_wallet_finance_integration.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_finance_projections",
+    "column": "wallet_reference",
+    "category": "FINANCIAL",
+    "sourceFile": "000016_wallet_finance_integration.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
+    "table": "fleet_partner_invoice_lines",
+    "column": "tax_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_invoice_lines",
+    "column": "unit_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_order_stops",
+    "column": "latitude",
+    "category": "LOCATION",
+    "sourceFile": "000026_private_orders_and_stops.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_order_stops",
+    "column": "longitude",
+    "category": "LOCATION",
+    "sourceFile": "000026_private_orders_and_stops.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_organization_api_clients",
+    "column": "previous_secret_hash",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_organization_api_clients",
+    "column": "previous_secret_valid_until",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "REMOVE_AND_MIGRATE",
+    "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  },
+  {
+    "table": "fleet_partner_organization_api_clients",
+    "column": "previous_secret_version",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "REMOVE_AND_MIGRATE",
+    "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  },
+  {
+    "table": "fleet_partner_organization_api_clients",
+    "column": "secret_hash",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_organization_api_clients",
+    "column": "secret_version",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "REMOVE_AND_MIGRATE",
+    "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  },
+  {
+    "table": "fleet_partner_organization_authorized_representatives",
+    "column": "email",
+    "category": "CONTACT_PII",
+    "sourceFile": "000004_organization_onboarding.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext while the organization is open (email/phone used to actually contact the representative; full_name displayed on documents). Unlike every other CONTACT_PII column in this inventory, this one already has a REAL, IMPLEMENTED AND TESTED post-closure remediation path: internal/platform/retentionexec's OrgContactExecutor anonymizes exactly these fields once the organization is CLOSED and its effective OPERATIONAL retention window has elapsed (TestRetentionExecution_ExecuteAnonymizesThroughJobHandler) -- this is not a bare policy statement."
+  },
+  {
+    "table": "fleet_partner_organization_authorized_representatives",
+    "column": "full_name",
+    "category": "CONTACT_PII",
+    "sourceFile": "000004_organization_onboarding.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext while the organization is open (email/phone used to actually contact the representative; full_name displayed on documents). Unlike every other CONTACT_PII column in this inventory, this one already has a REAL, IMPLEMENTED AND TESTED post-closure remediation path: internal/platform/retentionexec's OrgContactExecutor anonymizes exactly these fields once the organization is CLOSED and its effective OPERATIONAL retention window has elapsed (TestRetentionExecution_ExecuteAnonymizesThroughJobHandler) -- this is not a bare policy statement."
+  },
+  {
+    "table": "fleet_partner_organization_authorized_representatives",
+    "column": "phone",
+    "category": "CONTACT_PII",
+    "sourceFile": "000004_organization_onboarding.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext while the organization is open (email/phone used to actually contact the representative; full_name displayed on documents). Unlike every other CONTACT_PII column in this inventory, this one already has a REAL, IMPLEMENTED AND TESTED post-closure remediation path: internal/platform/retentionexec's OrgContactExecutor anonymizes exactly these fields once the organization is CLOSED and its effective OPERATIONAL retention window has elapsed (TestRetentionExecution_ExecuteAnonymizesThroughJobHandler) -- this is not a bare policy statement."
+  },
+  {
+    "table": "fleet_partner_organization_profiles",
+    "column": "business_email",
+    "category": "CONTACT_PII",
+    "sourceFile": "000004_organization_onboarding.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_organization_profiles",
+    "column": "business_phone",
+    "category": "CONTACT_PII",
+    "sourceFile": "000004_organization_onboarding.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_organization_profiles",
+    "column": "operating_address",
+    "category": "CONTACT_PII",
+    "sourceFile": "000004_organization_onboarding.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_organization_profiles",
+    "column": "registered_address",
+    "category": "CONTACT_PII",
+    "sourceFile": "000004_organization_onboarding.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_organization_staff_invitations",
+    "column": "email_normalized",
+    "category": "CONTACT_PII",
+    "sourceFile": "000005_staff_and_iam.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_organization_staff_invitations",
+    "column": "full_name",
+    "category": "CONTACT_PII",
+    "sourceFile": "000005_staff_and_iam.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_organization_staff_invitations",
+    "column": "invitation_token_hash",
+    "category": "CREDENTIAL",
+    "sourceFile": "000005_staff_and_iam.up.sql",
+    "auditRedacted": true,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_organization_staff_invitations",
+    "column": "phone_e164",
+    "category": "CONTACT_PII",
+    "sourceFile": "000005_staff_and_iam.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_organization_users",
+    "column": "full_name",
+    "category": "CONTACT_PII",
+    "sourceFile": "000005_staff_and_iam.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_organization_withdrawal_policies",
+    "column": "minimum_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000022_company_wallets_and_provider_operations.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_organizations",
+    "column": "registration_number",
+    "category": "GOVERNMENT_ID",
+    "sourceFile": "000002_organizations_foundation.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "a business/company registration number (e.g. Nigerian CAC number) -- routinely disclosed on invoices, letterheads and public company registries; not a secret, and not an individual's personal government ID (NIN/BVN/passport, none of which this schema currently stores)."
+  },
+  {
+    "table": "fleet_partner_packages",
+    "column": "declared_value_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000028_packages_scans_custody.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_proof_records",
+    "column": "latitude",
+    "category": "LOCATION",
+    "sourceFile": "000044_safety_incidents_proof.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_proof_records",
+    "column": "longitude",
+    "category": "LOCATION",
+    "sourceFile": "000044_safety_incidents_proof.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_provider_allocation_instructions",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000022_company_wallets_and_provider_operations.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_provider_compensation_items",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000050_compensation_payroll_settlements.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_provider_invitations",
+    "column": "email_normalized",
+    "category": "CONTACT_PII",
+    "sourceFile": "000007_managed_providers.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_provider_invitations",
+    "column": "invitation_token_hash",
+    "category": "CREDENTIAL",
+    "sourceFile": "000007_managed_providers.up.sql",
+    "auditRedacted": true,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_provider_invitations",
+    "column": "phone_e164",
+    "category": "CONTACT_PII",
+    "sourceFile": "000007_managed_providers.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "operationally required in plaintext to actually contact the customer/staff member or display their name on documents/UI -- encrypting it would make every read path (search, display, outbound email/SMS) a decryption client. No executable anonymization path exists yet for this specific table (unlike the organization-representative case above); real, disclosed remaining work, not silently accepted as permanent plaintext with no plan."
+  },
+  {
+    "table": "fleet_partner_provider_withdrawal_requests",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000022_company_wallets_and_provider_operations.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_quotation_access_tokens",
+    "column": "token_hash",
+    "category": "CREDENTIAL",
+    "sourceFile": "000024_crm_history_documents_tokens.up.sql",
+    "auditRedacted": true,
+    "disposition": "HASHED",
+    "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
+  },
+  {
+    "table": "fleet_partner_quotation_line_items",
+    "column": "line_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_quotation_line_items",
+    "column": "unit_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_quotation_versions",
+    "column": "total_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_quotations",
+    "column": "total_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_receivable_entries",
+    "column": "original_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_receivable_entries",
+    "column": "outstanding_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_receivable_entries",
+    "column": "paid_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_receivable_entries",
+    "column": "payment_reference",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
+    "table": "fleet_partner_receivable_payment_history",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_receivable_payment_history",
+    "column": "payment_reference",
+    "category": "FINANCIAL",
+    "sourceFile": "000048_invoices_receivables.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
+    "table": "fleet_partner_route_stops",
+    "column": "latitude",
+    "category": "LOCATION",
+    "sourceFile": "000034_dispatch_routes_candidates.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_route_stops",
+    "column": "longitude",
+    "category": "LOCATION",
+    "sourceFile": "000034_dispatch_routes_candidates.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_sales_opportunities",
+    "column": "expected_value_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000023_company_crm.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_security_settings",
+    "column": "sensitive_export_threshold_kobo",
+    "category": "FINANCIAL",
+    "sourceFile": "000067_section28_security_settings.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_shipments",
+    "column": "declared_value_amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000027_shipments_and_cargo.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_subcontractor_settlements",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000050_compensation_payroll_settlements.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_subcontractor_settlements",
+    "column": "payment_reference",
+    "category": "FINANCIAL",
+    "sourceFile": "000050_compensation_payroll_settlements.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
+    "table": "fleet_partner_tracking_projections",
+    "column": "latitude",
+    "category": "LOCATION",
+    "sourceFile": "000035_tracking_projections.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_tracking_projections",
+    "column": "longitude",
+    "category": "LOCATION",
+    "sourceFile": "000035_tracking_projections.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_wallet_transaction_projections",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000022_company_wallets_and_provider_operations.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_wallet_transaction_projections",
+    "column": "wallet_reference",
+    "category": "FINANCIAL",
+    "sourceFile": "000022_company_wallets_and_provider_operations.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
+    "table": "fleet_partner_webhook_subscriptions",
+    "column": "previous_secret_ciphertext",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "REMOVE_AND_MIGRATE",
+    "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  },
+  {
+    "table": "fleet_partner_webhook_subscriptions",
+    "column": "previous_secret_valid_until",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "REMOVE_AND_MIGRATE",
+    "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  },
+  {
+    "table": "fleet_partner_webhook_subscriptions",
+    "column": "previous_secret_version",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "REMOVE_AND_MIGRATE",
+    "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  },
+  {
+    "table": "fleet_partner_webhook_subscriptions",
+    "column": "secret_ciphertext",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "REMOVE_AND_MIGRATE",
+    "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  },
+  {
+    "table": "fleet_partner_webhook_subscriptions",
+    "column": "secret_version",
+    "category": "CREDENTIAL",
+    "sourceFile": "000074_section55_company_integrations.up.sql",
+    "auditRedacted": true,
+    "disposition": "REMOVE_AND_MIGRATE",
+    "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  }
+]

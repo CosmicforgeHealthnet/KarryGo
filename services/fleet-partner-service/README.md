@@ -6,23 +6,52 @@ departments, settings, memberships-to-come, corporate read models, audit,
 outbox/inbox and durable jobs — and integrates with the existing KarryGo
 microservices **without creating competing sources of truth**.
 
-Current state: **foundation only** (Sections 3–7 of the Corporate Logistics
-Backend Implementation Specification). No onboarding, staff IAM, provider
-provisioning, assignments, wallets, orders, warehouse or finance features are
-implemented yet.
+Current state: the corporate logistics foundation, organization onboarding,
+staff IAM, managed-provider integration, marketplace execution foundations,
+company wallets and provider sub-wallets, Section 14 CRM, and the local
+Section 15 private-operations aggregates and Section 16 dispatch planning,
+routes, control-tower/tracking projections, geofences and alerts are
+implemented. Production writes, workers and external providers remain disabled
+until their explicit feature flags and authority configurations are enabled.
 
 ## What this service owns
 
 Organizations and their profile/settings, branches, departments, organization
-staff references (future), private company operations (future), corporate
-read models, audit records, outbox/inbox records, durable jobs.
+staff references, corporate read models, audit records, outbox/inbox records,
+durable jobs.
+
+Section 13: organization wallet references, provider sub-wallet links,
+allocation instructions, withdrawal policy.
+
+Section 14: CRM customers, contacts and locations, sales opportunities,
+quotations and their immutable issued versions, contracts and their immutable
+activated versions, service level agreements and their append-only observations,
+and customer credit **policy**.
+
+Section 15: service catalogue, private orders and stops, shipments and cargo,
+packages, scans and custody, manifests and immutable close snapshots,
+recurring templates and occurrences, asynchronous bulk imports, private
+provider assignments, and a durable private-execution operation ledger.
+
+Section 16: dispatch plans and board, explainable assignment candidates, route
+plans and stops, provider-neutral optimization jobs, Section 15 assignment
+publication, control-tower/tracking projections, geofences and operational
+alerts. Dispatch and Hauling still own every canonical execution and provider
+location event.
 
 ## What it never owns
 
 Canonical customer identity, provider identity, trip lifecycle, wallet
 ledgers, settlements, verification decisions, platform support truth,
 platform analytics truth, KarryGo internal-admin accounts, Partner API
-credentials. See [docs/platform-boundaries.md](docs/platform-boundaries.md).
+credentials.
+
+It also owns **no accounts receivable**: no debt calculation, no invoice ageing,
+no derived available credit. A CRM customer is a commercial relationship record,
+never a marketplace identity. Document bytes belong to media-file-service and
+delivery belongs to notification-service.
+
+See [docs/platform-boundaries.md](docs/platform-boundaries.md).
 
 ## Layout
 
@@ -65,10 +94,40 @@ and [docs/provider-authentication-boundary.md](docs/provider-authentication-boun
 | --- | --- | --- |
 | Corporate authentication | `/fleet-partner/v1/auth/{start,verify,resend,refresh}` | none (passwordless OTP flow) |
 | Corporate web API | `/fleet-partner/v1/*` | Bearer access token (organization users) |
+| Customer secure link | `/fleet-partner/public/v1/quotations/*` | hashed, expiring, single-quotation token; rate limited |
 | Internal service API | `/internal/fleet-partner/v1/*` | HMAC service signature |
 | Health (liveness only) | `/health` | none |
 | Readiness | `/ready` | none |
 | Metrics | `/metrics` | Bearer metrics token |
+
+### Section 14, Section 15 and Section 16 OpenAPI contracts
+
+The Section 14 CRM API has a machine-readable OpenAPI 3.1 contract at
+[docs/openapi/section14-crm.openapi.json](docs/openapi/section14-crm.openapi.json).
+It covers Section 14 only. Section 15 has a separate OpenAPI 3.0 contract at
+[docs/openapi/section15-private-operations.openapi.json](docs/openapi/section15-private-operations.openapi.json),
+covering 40 paths and 54 operations, including the HMAC-authenticated provider
+decision surface. Section 13 is documented separately.
+Section 16 has an independent OpenAPI 3.1 contract at
+[docs/openapi/section16-dispatch-routes-control.openapi.json](docs/openapi/section16-dispatch-routes-control.openapi.json),
+covering 30 paths and 38 operations.
+
+Validate JSON structure, references, path parameters, bidirectional route
+parity, permissions, feature flags, idempotency, expected versions, security
+classes and data minimization with:
+
+```bash
+go test -count=1 -v ./services/fleet-partner-service/internal/features/crm/http -run OpenAPI
+go test -count=1 -v ./services/fleet-partner-service/internal/section15contract
+go test -count=1 -v ./services/fleet-partner-service/internal/section16contract
+```
+
+The test mounts the production registrars and compares Gin's registered route
+list with the shared route manifest and the specification in both directions.
+To render locally without adding a production documentation route or committing
+viewer assets, open the JSON in an OpenAPI 3.1-compatible editor, or run a
+temporary viewer such as `npx @redocly/cli preview-docs
+services/fleet-partner-service/docs/openapi/section14-crm.openapi.json`.
 
 ## Run locally
 
@@ -148,3 +207,44 @@ Sections 8–10:
   [provider reconciliation](docs/runbooks/provider-provisioning-reconciliation.md),
   [activation](docs/runbooks/organization-activation.md),
   [closure](docs/runbooks/organization-closure.md)
+
+Section 13 — company wallets:
+
+- [docs/company-wallets.md](docs/company-wallets.md) — ownership, link states, sub-wallets
+- [docs/provider-allocations.md](docs/provider-allocations.md)
+- [docs/provider-withdrawals.md](docs/provider-withdrawals.md)
+
+Section 14 — company CRM, sales, quotations, contracts, SLAs and credit policy:
+
+- [docs/company-crm.md](docs/company-crm.md) — customers, state machines, risk, duplicate detection
+- [docs/customer-contacts-and-locations.md](docs/customer-contacts-and-locations.md) — normalization, consent, masking
+- [docs/sales-opportunities.md](docs/sales-opportunities.md) — stage matrix, why winning creates nothing
+- [docs/quotations.md](docs/quotations.md) — manual pricing, approval, issue, immutable versions, acceptance
+- [docs/quotation-customer-access.md](docs/quotation-customer-access.md) — the secure customer link
+- [docs/contracts-and-slas.md](docs/contracts-and-slas.md) — activation, immutability, SLA observations
+- [docs/customer-credit-policy.md](docs/customer-credit-policy.md) — policy, holds, what Fleet does not calculate
+- [docs/crm-events.md](docs/crm-events.md) — event catalogue and data minimization
+- [docs/crm-workers.md](docs/crm-workers.md) — expiry, renewal, SLA, notification delivery
+- Runbooks: [quotation delivery](docs/runbooks/quotation-delivery-failure.md),
+  [acceptance conflict](docs/runbooks/quotation-acceptance-conflict.md),
+  [contract activation](docs/runbooks/contract-activation-failure.md),
+  [contract expiry](docs/runbooks/contract-expiry.md),
+  [SLA unknown outcome](docs/runbooks/sla-unknown-outcome.md),
+  [credit hold](docs/runbooks/customer-credit-hold.md),
+  [dead-letter replay](docs/runbooks/crm-dead-letter-replay.md)
+
+Every Section 14 write and worker **defaults off**. Enabling one is a deliberate
+act; `FLEET_CRM_KILL_SWITCH` overrides all of them.
+
+Section 15 quotation acceptance still creates a durable conversion intent; the
+normal order conversion use case consumes that intent exactly once. The service
+catalogue, private orders, shipments/cargo, packages/scans/custody, manifests,
+recurring templates, bulk imports, and provider assignments are present and
+feature-gated. All new writes and workers default off. Taxi is hard-disabled.
+See [docs/section15-private-operations.md](docs/section15-private-operations.md).
+
+Section 16 is described operationally in
+[docs/section16-dispatch-routes-control.md](docs/section16-dispatch-routes-control.md).
+All new writes and workers default off. Optimization requires a configured
+provider-neutral authority, tracking accepts only HMAC-authenticated Dispatch or
+Hauling events, and Taxi/passenger route publication remains hard-disabled.

@@ -1,0 +1,23 @@
+{
+  "providerMode": "ORGANIZATION_MANAGED",
+  "organization": {
+    "id": "org_fixture0000000000000001",
+    "displayName": "Fixture Logistics Co",
+    "status": "ACTIVE",
+    "branch": {
+      "id": "brn_fixture0000000000000001",
+      "name": "Lagos Mainland Hub",
+      "type": "HUB"
+    }
+  },
+  "membership": {
+    "status": "ACTIVE",
+    "role": "EMPLOYEE",
+    "serviceCategory": "HAULING"
+  },
+  "assignmentPolicy": {
+    "assignmentMode": "OFFER",
+    "providerDeclineRequired": true
+  },
+  "fieldVisibilityPolicy": "ORGANIZATION"
+}

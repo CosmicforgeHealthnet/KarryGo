@@ -1,8 +1,4 @@
-// Package tracking is the reserved feature boundary for tracking projections from authoritative trip lifecycle events.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package tracking documents the Section 16 tracking-projection boundary.
+// Fleet consumes versioned authoritative Dispatch/Hauling events and never
+// becomes an independent GPS or provider-location authority.
 package tracking

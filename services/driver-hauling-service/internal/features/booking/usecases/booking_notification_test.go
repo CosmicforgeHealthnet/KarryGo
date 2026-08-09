@@ -37,10 +37,11 @@ func newServiceWithNotifier(repo *fakeBookingRepo) (*BookingService, *recordingN
 func TestAcceptBookingNotifiesCustomer(t *testing.T) {
 	providerID := "provider-1"
 	repo := &fakeBookingRepo{booking: bookingmodels.Booking{
-		ID:         "booking-1",
-		CustomerID: "customer-1",
-		ProviderID: &providerID,
-		Status:     bookingmodels.StatusAwaitingAcceptance,
+		ID:            "booking-1",
+		CustomerID:    "customer-1",
+		ProviderID:    &providerID,
+		Status:        bookingmodels.StatusAwaitingAcceptance,
+		PaymentMethod: bookingmodels.PaymentMethodCash,
 	}}
 	svc, rec := newServiceWithNotifier(repo)
 

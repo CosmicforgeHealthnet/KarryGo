@@ -1,0 +1,13 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('communications.read','communications.manage','communications.send','notification_rules.read','notification_rules.manage');
+DELETE FROM fleet_partner_permissions WHERE code IN('communications.read','communications.manage','communications.send','notification_rules.read','notification_rules.manage');
+DROP TRIGGER IF EXISTS trg_fleet_notification_delivery_attempts_append_only ON fleet_partner_notification_delivery_attempts;
+DROP TABLE IF EXISTS fleet_partner_notification_delivery_attempts;
+DROP TABLE IF EXISTS fleet_partner_notification_intents;
+DROP TABLE IF EXISTS fleet_partner_notification_rules;
+DROP TRIGGER IF EXISTS trg_fleet_communication_messages_append_only ON fleet_partner_communication_messages;
+DROP TABLE IF EXISTS fleet_partner_communication_messages;
+DROP TRIGGER IF EXISTS trg_fleet_communication_participants_append_only ON fleet_partner_communication_participants;
+DROP TABLE IF EXISTS fleet_partner_communication_participants;
+DROP TRIGGER IF EXISTS trg_fleet_communication_thread_history_append_only ON fleet_partner_communication_thread_history;
+DROP TABLE IF EXISTS fleet_partner_communication_thread_history;
+DROP TABLE IF EXISTS fleet_partner_communication_threads;

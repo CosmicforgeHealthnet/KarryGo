@@ -16,12 +16,14 @@ import (
 
 // ExecutionStartWorkerConfig tunes the worker.
 type ExecutionStartWorkerConfig struct {
-	Owner       string
-	Lease       time.Duration
-	BatchSize   int
-	MaxAttempts int
-	BaseBackoff time.Duration
-	MaxBackoff  time.Duration
+	Owner          string
+	Lease          time.Duration
+	BatchSize      int
+	MaxAttempts    int
+	BaseBackoff    time.Duration
+	MaxBackoff     time.Duration
+	EnabledSources []string
+	WritesEnabled  func() bool
 }
 
 func (c ExecutionStartWorkerConfig) withDefaults() ExecutionStartWorkerConfig {
@@ -42,6 +44,9 @@ func (c ExecutionStartWorkerConfig) withDefaults() ExecutionStartWorkerConfig {
 	}
 	if c.MaxBackoff <= 0 {
 		c.MaxBackoff = 10 * time.Minute
+	}
+	if c.EnabledSources == nil {
+		c.EnabledSources = []string{models.SourceDispatch, models.SourceHauling}
 	}
 	return c
 }
@@ -80,6 +85,9 @@ type ExecutionStartResult struct {
 func (s *Service) RunExecutionStart(ctx context.Context, config ExecutionStartWorkerConfig) (ExecutionStartResult, error) {
 	config = config.withDefaults()
 	var result ExecutionStartResult
+	if config.WritesEnabled != nil && !config.WritesEnabled() {
+		return result, nil
+	}
 
 	recovered, err := s.opts.ExecutionStarts.RecoverExpiredLeases(ctx, nil)
 	if err != nil {
@@ -90,7 +98,7 @@ func (s *Service) RunExecutionStart(ctx context.Context, config ExecutionStartWo
 	var claimed []models.ExecutionStartOperation
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 		var claimErr error
-		claimed, claimErr = s.opts.ExecutionStarts.Claim(ctx, tx, config.Owner, config.Lease, config.BatchSize)
+		claimed, claimErr = s.opts.ExecutionStarts.ClaimEnabled(ctx, tx, config.Owner, config.Lease, config.BatchSize, config.EnabledSources)
 		return claimErr
 	})
 	if err != nil {
@@ -121,6 +129,9 @@ func (s *Service) RunExecutionStart(ctx context.Context, config ExecutionStartWo
 // processExecutionStart handles one operation end to end.
 func (s *Service) processExecutionStart(ctx context.Context, operation models.ExecutionStartOperation,
 	config ExecutionStartWorkerConfig) (string, error) {
+	if config.WritesEnabled != nil && !config.WritesEnabled() {
+		return models.ExecutionStartRetryScheduled, s.opts.ExecutionStarts.Fail(ctx, nil, operation.ID, "integration_kill_switch", config.backoffFor(operation.AttemptCount), config.MaxAttempts, false)
+	}
 	// Re-read state under the claim: the provider may have been cancelled or
 	// the assignment may have moved since the row was queued.
 	assignment, err := s.opts.Assignments.GetByID(ctx, operation.OrganizationID, operation.AssignmentID)
@@ -191,6 +202,9 @@ func (s *Service) processExecutionStart(ctx context.Context, operation models.Ex
 	}
 	if err := s.opts.ExecutionStarts.SetStatus(ctx, nil, operation.ID, models.ExecutionStartInFlight); err != nil {
 		return "", err
+	}
+	if config.WritesEnabled != nil && !config.WritesEnabled() {
+		return models.ExecutionStartRetryScheduled, s.opts.ExecutionStarts.Fail(ctx, nil, operation.ID, "integration_kill_switch", config.backoffFor(operation.AttemptCount), config.MaxAttempts, false)
 	}
 
 	// ---- No transaction is open from here until the outcome is known. ----

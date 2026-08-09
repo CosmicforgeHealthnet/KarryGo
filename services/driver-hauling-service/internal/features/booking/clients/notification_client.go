@@ -2,9 +2,11 @@ package bookingclients
 
 import (
 	"context"
+	"errors"
 
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/notifications"
+	"github.com/redis/go-redis/v9"
 )
 
 const sourceService = "driver-hauling-service"
@@ -18,13 +20,10 @@ type BookingNotifier struct {
 }
 
 // NewBookingNotifier builds a BookingNotifier from the notification-service base
-// URL and the HMAC secret shared with it. When either is empty (e.g. local dev
-// without the notification-service running) it returns a no-op notifier so the
-// booking flow keeps working.
+// URL and the HMAC secret shared with it. An incomplete configuration remains
+// an error-producing real client; production must never report a fabricated
+// notification success through a no-op implementation.
 func NewBookingNotifier(baseURL string, secret []byte) *BookingNotifier {
-	if baseURL == "" || len(secret) == 0 {
-		return &BookingNotifier{notifier: noopNotifier{}}
-	}
 	return &BookingNotifier{
 		notifier: notifications.Client{
 			BaseURL:     baseURL,
@@ -37,6 +36,26 @@ func NewBookingNotifier(baseURL string, secret []byte) *BookingNotifier {
 // NewBookingNotifierWith wraps an explicit notifier. Useful in tests.
 func NewBookingNotifierWith(notifier notifications.Notifier) *BookingNotifier {
 	return &BookingNotifier{notifier: notifier}
+}
+
+// NewDurableBookingNotifier writes notification intents to the shared Redis
+// stream consumed by notification-service. A downstream outage leaves the
+// stream entry pending for retry; the booking transition is never rolled back
+// and delivery is never fabricated.
+func NewDurableBookingNotifier(client *redis.Client) *BookingNotifier {
+	return NewBookingNotifierWith(redisQueueNotifier{publisher: notifications.RedisPublisher{Client: client}})
+}
+
+type redisQueueNotifier struct{ publisher notifications.RedisPublisher }
+
+func (n redisQueueNotifier) Send(ctx context.Context, request notifications.Request) (notifications.SendResponse, error) {
+	if n.publisher.Client == nil {
+		return notifications.SendResponse{}, errors.New("notification queue is not configured")
+	}
+	if err := n.publisher.Publish(ctx, request); err != nil {
+		return notifications.SendResponse{}, err
+	}
+	return notifications.SendResponse{MessageID: request.IDempotencyKey, Status: "queued"}, nil
 }
 
 // NotifyProviderMatched tells a provider they have been matched to a booking and
@@ -123,11 +142,4 @@ func (n *BookingNotifier) send(ctx context.Context, eventType, recipientType, re
 	if err != nil {
 		logging.Error("notification", "send event=%s booking=%s recipient=%s: %v", eventType, bookingID, recipientID, err)
 	}
-}
-
-// noopNotifier is used when the notification-service is not configured.
-type noopNotifier struct{}
-
-func (noopNotifier) Send(context.Context, notifications.Request) (notifications.SendResponse, error) {
-	return notifications.SendResponse{}, nil
 }

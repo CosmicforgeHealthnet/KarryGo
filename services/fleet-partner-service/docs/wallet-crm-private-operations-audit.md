@@ -466,3 +466,413 @@ Section 13 contracts are absent and untested.
     compliance decisions are missing.
 12. Taxi is a scaffold and hauling lacks private execution contracts; both must
     remain disabled.
+
+## 22. 2026-07-28 prerequisite remediation update
+
+This historical audit predates the production-contract remediation. Wallet
+organization operations, Media private authority, signed Fleet/Hauling
+execution, event ingestion, reconciliation and Hauling cancellation/read-back
+now have production implementations. Hauling payment-required paths fail
+closed when Wallet is absent; ambiguous holds and settlements use authoritative
+read-back and remain `UNKNOWN` when unresolved. Neither Fleet nor Hauling owns
+a balance or ledger.
+
+No CRM, allocation, withdrawal, quotation, contract, SLA or customer-credit
+scope was added by this remediation. Section 13/14 readiness remains governed
+by the current final verification matrix, not by the obsolete NO-GO list above.
+
+The current final matrix is recorded in `prerequisite-stabilization-report.md`.
+In particular, Wallet remains the sole ledger/balance authority, Fleet and
+Hauling store only opaque references and projections, and unresolved financial
+writes remain `UNKNOWN`. The historical blockers in sections 20-21 above are
+retained as audit history and must not be read as the current wiring state.
+
+---
+
+# Sections 13-14 implementation audit (2026-07-29)
+
+This section supersedes the 2026-07-26 NO-GO decision above for Sections 13-14.
+Everything before this line is retained as audit history.
+
+Decision: **Section 13 GO. Section 14 PARTIAL - schema and catalogue
+delivered, service layer deferred. Section 15 deferred by design.**
+
+> **Superseded for Section 14 by the 2026-07-29 service-layer audit at the end
+> of this document.** The Section 14 resume point recorded in section 5 below
+> has been completed; it is retained as audit history rather than deleted.
+
+## 1. Repository baseline
+
+| Field | Value |
+| --- | --- |
+| Branch | `staging` |
+| Starting HEAD | `7e8da87afea7e2fa301b22cd6b222cf31d2538f4` |
+| Modified files at start | 121 |
+| Untracked files at start | 138 |
+| Staged files at start | 0 |
+| `git diff --check` | clean |
+
+No branch was created; nothing was pulled, merged, pushed, reset, cleaned,
+restored, staged or committed. All pre-existing modified and untracked files
+were preserved. The backup at `C:\KarryGoPush-backup-20260726-213208` was not
+touched.
+
+## 2. Focused prerequisite check
+
+Scoped to what Sections 13-14 depend on, not repeated across WP1-WP14.
+
+| Foundation | Result |
+| --- | --- |
+| Fleet migrations 000001-000021 | Apply cleanly on a fresh database |
+| Generic finance operation framework | Present and reusable (`internal/features/finance`) |
+| Finance projections and reconciliation | Present, with lease recovery and read-back |
+| WP9 approval framework | Present; reused through a narrow port |
+| Durable eligibility gate | Present; reused through a narrow port |
+| Organization wallet link | Present as `fleet_partner_organization_wallet_provisioning` |
+| Provider sub-wallet link | Present as `fleet_partner_provider_subwallet_links` |
+| Wallet HMAC client, allowlist, nonce replay | Present |
+| Media and Notification clients | Present |
+| Taxi | Disabled, fail-closed, unchanged |
+| Hauling | Production-backed, unchanged |
+
+One defect was found and fixed **in this work package's own new code**, not in
+the existing foundations: the allocation duplicate-purpose check ran before the
+idempotency replay lookup, so an identical retry was rejected as a duplicate
+instead of replaying. Caught by
+`TestAllocationIsIdempotentAndFingerprintChecked`.
+
+One test-harness gap was fixed: the Wallet integration harness restores the
+seeded permission catalogue from a hardcoded migration list that did not
+include the new migration. Adding `000007` to that list is the minimum fix.
+
+## 3. Reuse decisions
+
+**The existing earning account IS the provider sub-wallet.**
+`finance_earning_accounts` already carried organization ownership, opaque
+provider identity, currency, status, ledger link and version. Migration
+`000007_provider_subwallet_operations` additively adds
+`organization_wallet_id`, `provider_id`, `organization_membership_id` and
+`provider_service_category`, with a partial unique index enforcing one active
+account per membership, service category and currency. A second provider
+account model was **not** created: two models would be two answers to "how much
+is owed to this provider", and the balance would follow whichever one a given
+code path read.
+
+**The generic finance-operation framework was not duplicated.** Section 13 has
+its own instruction and withdrawal tables because they carry business semantics
+the generic operation record does not (allocation type, business reference,
+reason code, provider-visible explanation, policy mode, approval binding). They
+reuse the same *patterns* - idempotency key, request fingerprint, expected
+version, status machine, append-only history, outbox - rather than a second
+framework. `fleet_partner_finance_operations` is untouched and still in use.
+
+**No second approval or eligibility framework.** Both are reached through
+single-method ports (`ApprovalPort`, `EligibilityPort`) implemented by adapters
+in the composition root over the existing WP9 services.
+
+## 4. Section 13 delivered
+
+payment-wallet-service, migration `000007`:
+
+- Sub-wallet corporate ownership metadata on `finance_earning_accounts`
+- `finance_provider_allocations` with business-purpose and single-reversal
+  unique indexes
+- `finance_provider_withdrawals` with lease, retry, dead-letter and an
+  open-withdrawal unique index
+- Journal types `PROVIDER_ALLOCATION`, `PROVIDER_DEDUCTION`,
+  `PROVIDER_ALLOCATION_REVERSAL`, `PROVIDER_WITHDRAWAL_*`
+- Five permissions and a versioned `PROVIDER_WITHDRAWAL_APPROVAL` policy
+- Nine internal HMAC routes under the existing allowlist, nonce and replay
+  protection
+- A payout execution worker with read-back on ambiguous outcomes
+
+fleet-partner-service, migration `000022`:
+
+- Extended wallet-link and sub-wallet-link state vocabularies (spec 9.2)
+- `fleet_partner_organization_withdrawal_policies`
+- `fleet_partner_provider_allocation_instructions` + append-only history
+- `fleet_partner_provider_withdrawal_requests` + append-only history
+- `fleet_partner_wallet_transaction_projections`
+- Nine `wallet.*` permissions wired into the system role templates
+- A full vertical slice: models, repositories, use cases, HTTP handlers,
+  workers, production composition-root wiring, feature flags, kill switch
+
+Section 13 completion gates 1-22 are met. The settlement-separation gates are
+proven by assertions on the postings, not on naming.
+
+## 5. Section 14: delivered and deferred
+
+**Delivered and verified:**
+
+- Migration `000023_company_crm` creating all 18 Section 14 tables with the
+  required constraints: organization-scoped uniqueness, immutable issued
+  quotation versions, immutable acceptances, one conversion intent per accepted
+  version, immutable activated contract versions, append-only SLA observations
+  and credit history, one primary contact per purpose, timezone and coordinate
+  validation, basis-point probability, integer-minor money, decimal quantity
+- A 24-permission `crm.*` catalogue including a separate `crm.sensitive.read`
+  grant, so ordinary CRM read does not carry PII
+- All 30 Section 14 stable error codes
+- All 17 Section 14 feature flags, defaulting false
+- Fresh apply, rollback and re-apply verified against real PostgreSQL
+
+**Not delivered - the resume point:**
+
+The Section 14 Go service layer does not exist. There is no
+`internal/features/crm` package: no models, repositories, use cases, HTTP
+handlers, workers or wiring. Therefore no CRM route is mounted, no CRM event is
+produced, no CRM worker runs, the `crm.*` permissions are granted but not yet
+enforced anywhere, and the `CRM_*` flags are read into config but have no
+consumer. This is stated plainly rather than presented as gated-off
+functionality.
+
+The schema is additive and fully reversible and nothing in the running service
+reads or writes those tables, so the checkpoint is green.
+
+To resume, in order:
+
+1. `internal/features/crm/models/models.go` - mirror the enums in
+   `migrations/000023_company_crm.up.sql`
+2. `internal/features/crm/repositories/` - customers, contacts, locations,
+   opportunities, quotations, contracts, slas, credit, notifications; follow
+   the organization-scoped SQL and cursor pattern in
+   `internal/features/companywallet/repositories/repository.go`
+3. `internal/features/crm/usecases/` - quotation submit/issue/accept is the
+   hard part; acceptance must create exactly one conversion intent and no order
+4. `internal/features/crm/http/handlers.go` - follow
+   `internal/features/companywallet/http/handlers.go`
+5. Wire in `internal/app/wiring.go` beside `companyWalletHandler`
+6. Tests in `internal/integration/crm_test.go`, following
+   `internal/integration/companywallet_test.go`
+7. Docs listed in section 45 of the specification
+
+## 6. Security boundaries
+
+- Fleet stores no bank details, only an opaque destination reference, excluded
+  from list responses and from every event
+- Fleet stores no Wallet secret or provider credential
+- Provider statements are built field by field, never pruned; asserted on
+  serialized bytes
+- Provider routes resolve the membership from the provider's own session, never
+  from request input; corporate staff cannot impersonate a provider
+- Every repository query carries `organization_id` in SQL; branch scope applies
+  in SQL where relevant
+- Cross-tenant identifiers return the same response as missing ones
+- No organization, provider, customer, quotation or contract ID is a metric
+  label
+
+## 7. Migration decisions
+
+- Fleet continues at `000022`, `000023`; Wallet at `000007`
+- No applied migration was rewritten
+- All three verified: fresh apply, rollback, re-apply
+- Down migrations normalize rows into the older status vocabulary before
+  restoring the narrower CHECK constraint, so a rollback cannot fail on data
+  the newer schema allowed
+- No duplicate migration numbers
+
+## 8. Explicit deferrals
+
+- **Section 15 is deferred.** No service catalogue, private order, order stop,
+  shipment, package, package scan, cargo item, manifest, recurring order, bulk
+  import, order planning, route planning, warehouse operation or fulfilment
+  table, route, event, worker or permission was created.
+  `TestNoSection15TablesExist` asserts this against the live schema.
+- Quotation acceptance creates a **conversion intent**, not an order. It mints
+  no order ID and creates no shipment, package, assignment or canonical trip,
+  and moves no money.
+- Pricing remains manually supplied: no rate card, no formula, no marketplace
+  pricing, no commission calculation, no tax calculation.
+- Fleet owns no financial ledger and no accounts receivable.
+- CRM exports are deferred: no reusable asynchronous export framework exists in
+  this service, and the specification directs documenting the deferral rather
+  than creating an insecure synchronous endpoint.
+- **Taxi remains disabled** and fail-closed; startup rejects the enabling flag.
+- **Hauling remains production-backed** and was not modified.
+
+
+---
+
+# Section 14 service-layer implementation audit (2026-07-29)
+
+This section supersedes the Section 14 PARTIAL verdict above. Everything before
+this line is retained as audit history.
+
+Decision: **Section 14 GO. Section 15 remains deferred by design.**
+
+## 1. Repository baseline
+
+| | |
+| --- | --- |
+| Repository | `C:\KarryGoPush` |
+| Branch | `staging` |
+| Starting HEAD | `7e8da87afea7e2fa301b22cd6b222cf31d2538f4` |
+| Modified entries at start | 121 |
+| Untracked entries at start | 151 |
+| Staged entries at start | 0 |
+| `git diff --check` | clean — CRLF advisories only, no whitespace errors |
+
+Nothing was staged, committed, pushed, reset, cleaned or restored. No branch was
+created. Migration `000023` was not rewritten. The external backup at
+`C:\KarryGoPush-backup-20260726-213208` is untouched.
+
+## 2. Confirmed starting state
+
+The audit in section 5 above was accurate. `internal/features/crm` did not
+exist: no models, repositories, use cases, handlers, workers or wiring. No CRM
+route was mounted, no CRM event was produced, no CRM worker ran, the 24 `crm.*`
+permissions were granted but enforced nowhere, and the `CRM_*` flags were read
+into config with no consumer.
+
+Migration `000023_company_crm` was applied and correct. Its 19 tables, their
+organization-scoped uniqueness, immutability triggers, coordinate and timezone
+checks, basis-point probability and integer-minor money were verified against
+the live schema and reused unchanged.
+
+## 3. Reused foundations — nothing was rebuilt
+
+| Capability | Reused from |
+| --- | --- |
+| Approvals, quorum, separation of duties, fingerprint binding | WP9 `features/approvals` |
+| Transactional outbox | `internal/events` |
+| Audit records and redaction | `platform/audit` |
+| Tenant context and branch scope | `platform/tenant`, `middleware.ResolveTenant` |
+| Permission evaluation | `features/accesscontrol` |
+| Cursor pagination | `platform/cursor` |
+| Optimistic concurrency | `platform/concurrency` |
+| Email and phone normalization | `platform/contact` |
+| Rate limiting | `platform/ratelimit` |
+| Media authority client | `platformclients.MediaFileClient` |
+| Notification client | `shared/go/notifications` |
+| HMAC v2 service auth, nonce replay, freshness | `middleware.InternalServiceAuth` |
+| Error envelope and stable codes | `platform/errorcodes`, `shared/go/apperrors` |
+| Transaction helper | `database.WithinTx` |
+
+No second approval framework, outbox, audit trail, idempotency store or rate
+limiter was created.
+
+## 4. Additive migration `000024_crm_history_documents_tokens`
+
+`000023` was not modified. A genuine gap required the next additive migration:
+the specification mandates customer, contact, location, quotation and SLA
+history endpoints, quotation documents and hashed customer access tokens, none
+of which `000023` created.
+
+Added:
+
+- `fleet_partner_crm_customer_history`, `fleet_partner_crm_contact_history`,
+  `fleet_partner_crm_location_history`, `fleet_partner_quotation_history`,
+  `fleet_partner_sla_history` — all append-only, trigger enforced
+- `fleet_partner_quotation_documents` — Media references for quotations,
+  mirroring the contract document table
+- `fleet_partner_quotation_access_tokens` — hashed, scoped, expiring customer
+  links
+- columns: opportunity `hold_reason`; quotation `internal_notes`, `issued_at`,
+  `resolved_at`; contract `activated_at`; contact `consent_source`; observation
+  `event_id`, `payload_hash`, `causation_id`; causation IDs on acceptances,
+  conversion intents and notification operations; notification
+  `dead_letter_reason`
+- `idx_fleet_crm_sla_observation_source` — the unique key that makes a duplicate
+  observation distinguishable from a contradicting one
+- a renewal-window index so the contract sweeps stay index scans
+
+Fresh apply, rollback and re-apply verified against real PostgreSQL. No
+duplicate migration numbers. No cross-service foreign key. No local financial
+ledger. No Section 15 table.
+
+## 5. What was implemented
+
+`internal/features/crm` — models, repositories, usecases, http — plus
+`internal/app/crm_wiring.go`, route mounting in `internal/app/wiring.go` and
+`internal/app/app.go`, and worker startup in both `cmd/main.go` and
+`cmd/worker/main.go`.
+
+About 60 corporate routes, 3 customer secure-link routes and 1 internal HMAC
+route are mounted. Six durable workers are wired. 39 event types are produced
+through the existing outbox.
+
+Design decisions worth recording:
+
+- **UNKNOWN is never optimism.** An unverified Media document blocks a quotation
+  issue and a contract activation exactly as an unsafe one does. An SLA outcome
+  that could not be determined is `UNKNOWN` or `INSUFFICIENT_DATA` and is never
+  collapsed into `MET`. An ambiguous notification send stays retryable rather
+  than being written off in either direction.
+- **Media is re-read immediately before issue and activation**, outside the
+  transaction. A stale local projection cannot let an unchecked file back a
+  commercial commitment; `TestCRMQuotationIssueFailsClosedOnUnreadyDocument`
+  asserts that hand-editing the projection to `READY` does not survive the
+  refresh.
+- **Data minimization is by construction.** Masked and unmasked views are
+  distinct Go types, and every event payload is built field by field. A model
+  that grows a tax reference cannot start publishing it.
+- **The customer token reuses the session secret** rather than introducing a new
+  mandatory secret whose absence would break startup for deployments that do not
+  use CRM.
+- **Acceptance replay survives token revocation.** Accepting revokes the link;
+  the accept and reject paths still resolve a revoked token when the quotation is
+  terminal, so a customer whose response was lost in transit gets their replay
+  rather than a broken link. This only ever reaches an idempotent replay, because
+  every write path refuses a terminal quotation.
+- **Approval is asked, never assumed.** An empty approval ID means the policy
+  declined to raise a request; it is never read as "approved".
+
+## 6. Defects found and fixed during verification
+
+Six were found by the integration suite. Four were production defects:
+
+1. `NormalizePair` required both an email and a phone — right for an
+   authentication identity, wrong for a CRM contact. Each half is now normalized
+   independently.
+2. `numeric(18,6)` rendered `2.5` as `2.500000`, so a quantity did not
+   round-trip and would not fingerprint stably. Now `trim_scale`d on read.
+3. A unique violation on observation insert aborted the caller's transaction, so
+   the duplicate-versus-conflict read failed with `25P02`. Now
+   `ON CONFLICT DO NOTHING`, which leaves the transaction usable.
+4. Acceptance replay was blocked by the token revocation it had just caused.
+
+Two were test defects: an assertion that expected a stale `READY` projection to
+survive the pre-issue Media refresh (it must not), and a helper that acquired
+the suite's per-test database lock twice and deadlocked.
+
+## 7. Explicit Section 15 deferral
+
+No service catalogue, private order, order stop, shipment, package, package
+scan, cargo item, manifest, recurring order, bulk import, route planning,
+warehouse or fulfilment table, route, event, worker or permission was created.
+
+Quotation acceptance creates a **conversion intent** with
+`conversion_type = FUTURE_PRIVATE_ORDER` and `status = PENDING_SECTION_15`. It
+mints no order, shipment, package, assignment, reservation or canonical trip,
+and moves no money. `assertNoSection15Artifacts` asserts this against the live
+schema on every acceptance test.
+
+Also deferred: **CRM exports**. `crm.exports.create` is seeded, but no reusable
+asynchronous, Media-backed export framework exists in this service, and the
+specification directs documenting the deferral rather than creating an insecure
+synchronous endpoint.
+
+## 8. Unchanged
+
+Section 13 is unchanged. WP1–WP14 are unchanged. Taxi remains disabled and
+fail-closed. Hauling remains production-backed and was not modified. No change
+was made to Dispatch, Wallet, Media or Verification.
+
+## 9. Section 14 machine-readable contract
+
+The Section 14 CRM API now has a service-owned OpenAPI 3.1 contract at
+[openapi/section14-crm.openapi.json](openapi/section14-crm.openapi.json). It is
+limited to Section 14: Section 13 is documented separately and Section 15 is
+still deferred. In particular, acceptance documents only a
+`FUTURE_PRIVATE_ORDER` / `PENDING_SECTION_15` conversion intent and no order or
+Wallet operation.
+
+From the repository root, `go test -count=1 -v
+./services/fleet-partner-service/internal/features/crm/http -run OpenAPI`
+validates JSON structure and references and checks the mounted production
+routes against the specification in both directions, including permissions,
+security class, feature flags, idempotency, expected versions, minimized public
+schemas, and Section 15 absence. The JSON can be opened in an OpenAPI
+3.1-compatible editor or rendered temporarily with `npx @redocly/cli
+preview-docs services/fleet-partner-service/docs/openapi/section14-crm.openapi.json`;
+no public documentation server or viewer asset is added to Fleet.

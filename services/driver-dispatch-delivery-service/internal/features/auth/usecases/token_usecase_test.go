@@ -1,6 +1,7 @@
 package authusecases
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -8,10 +9,50 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/google/uuid"
 
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
+
+func TestAccessTokenJTIRevocation(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	tokens := NewTokenUsecase([]byte("test-access-secret"), 15*time.Minute, 30*24*time.Hour).WithRedis(client)
+	token, expiresAt, err := tokens.GenerateAccessToken("dce2f2c1-a3b4-45c6-87d8-123456789abc", "+2348012345678", "52b13041-a3b4-45c6-87d8-123456789abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := tokens.ValidateAccessTokenContext(context.Background(), token)
+	if err != nil {
+		t.Fatalf("initial validation: %v", err)
+	}
+	if err := tokens.RevokeAccessToken(context.Background(), claims.JWTID, expiresAt.Unix()); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if _, err := tokens.ValidateAccessTokenContext(context.Background(), token); !errors.Is(err, ErrRevokedToken) {
+		t.Fatalf("validation after revoke = %v, want ErrRevokedToken", err)
+	}
+	if server.Exists(claims.JWTID) {
+		t.Fatal("raw JTI must not be stored")
+	}
+}
+
+func TestAccessTokenRevocationAuthorityOutageFailsClosed(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	tokens := NewTokenUsecase([]byte("test-access-secret"), 15*time.Minute, 30*24*time.Hour).WithRedis(client)
+	token, _, err := tokens.GenerateAccessToken("dce2f2c1-a3b4-45c6-87d8-123456789abc", "+2348012345678", "52b13041-a3b4-45c6-87d8-123456789abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.Close()
+	if _, err := tokens.ValidateAccessTokenContext(context.Background(), token); !errors.Is(err, ErrTokenAuthorityUnavailable) {
+		t.Fatalf("validation during outage = %v, want fail closed", err)
+	}
+}
 
 func TestAccessTokenUsesDispatchRiderClaims(t *testing.T) {
 	tokens := NewTokenUsecase([]byte("test-access-secret"), 15*time.Minute, 30*24*time.Hour)

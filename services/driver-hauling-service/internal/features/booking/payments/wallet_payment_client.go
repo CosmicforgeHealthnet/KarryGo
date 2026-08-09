@@ -51,9 +51,16 @@ func (c *WalletPaymentClient) HoldFromWallet(ctx context.Context, in bookingusec
 		IdempotencyKey:  "hauling-hold-" + in.BookingID,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: create wallet payment intent: %v", bookingusecases.ErrPaymentOutcomeUnknown, err)
 	}
 	if _, err := c.wallet.PayFromWallet(ctx, intent.ID, "hauling-pay-"+in.BookingID); err != nil {
+		readBack, readErr := c.wallet.GetPayment(ctx, intent.Reference)
+		if readErr == nil && walletSecured(readBack.Status) {
+			return intent.Reference, nil
+		}
+		if readErr != nil || !walletDefinitivelyFailed(readBack.Status) {
+			return intent.Reference, fmt.Errorf("%w: wallet hold requires reconciliation", bookingusecases.ErrPaymentOutcomeUnknown)
+		}
 		return intent.Reference, err
 	}
 	return intent.Reference, nil
@@ -84,9 +91,21 @@ func (c *WalletPaymentClient) CreateCardIntent(ctx context.Context, in bookingus
 }
 
 // Settle releases the booking's held funds to the provider on completion.
-func (c *WalletPaymentClient) Settle(ctx context.Context, bookingID string) error {
+func (c *WalletPaymentClient) Settle(ctx context.Context, bookingID string, paymentReference string) error {
 	_, err := c.wallet.CompleteJob(ctx, sourceService, bookingID)
-	return err
+	if err == nil {
+		return nil
+	}
+	if paymentReference != "" {
+		readBack, readErr := c.wallet.GetPayment(ctx, paymentReference)
+		if readErr == nil && walletSettled(readBack.Status) {
+			return nil
+		}
+		if readErr != nil || !walletDefinitivelyFailed(readBack.Status) {
+			return fmt.Errorf("%w: wallet settlement requires reconciliation", bookingusecases.ErrPaymentOutcomeUnknown)
+		}
+	}
+	return fmt.Errorf("%w: wallet settlement has no readable payment reference", bookingusecases.ErrPaymentOutcomeUnknown)
 }
 
 // Refund reverses a held charge when a booking is cancelled or unmatched.
@@ -98,5 +117,51 @@ func (c *WalletPaymentClient) Refund(ctx context.Context, paymentReference strin
 		Reason:           reason,
 		IdempotencyKey:   "hauling-refund-" + paymentReference,
 	})
+	if err == nil {
+		return nil
+	}
+	readBack, readErr := c.wallet.GetPayment(ctx, paymentReference)
+	if readErr == nil && walletRefunded(readBack.Status) {
+		return nil
+	}
+	if readErr != nil || !walletDefinitivelyFailed(readBack.Status) {
+		return fmt.Errorf("%w: wallet refund requires reconciliation", bookingusecases.ErrPaymentOutcomeUnknown)
+	}
 	return err
+}
+
+func walletSecured(status string) bool {
+	switch status {
+	case "held", "paid", "completed", "settled":
+		return true
+	default:
+		return false
+	}
+}
+
+func walletSettled(status string) bool {
+	switch status {
+	case "paid", "completed", "settled":
+		return true
+	default:
+		return false
+	}
+}
+
+func walletRefunded(status string) bool {
+	switch status {
+	case "refunded", "reversed", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func walletDefinitivelyFailed(status string) bool {
+	switch status {
+	case "failed", "rejected":
+		return true
+	default:
+		return false
+	}
 }

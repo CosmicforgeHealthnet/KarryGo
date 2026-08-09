@@ -27,6 +27,9 @@ type ExecutionInput struct {
 	IdempotencyKey           string
 	CorrelationID            string
 	RequestIDHeader          string
+	FleetOperationID         string
+	PrivateOrderID           string
+	ShipmentID               string
 }
 
 type executionFingerprint struct {
@@ -207,19 +210,22 @@ func (s *Service) CreateExecution(ctx context.Context, input ExecutionInput) (*E
 		if s.flags.OutboxEnabled {
 			if err := s.repo.PublishEvent(ctx, tx, "trip.created.v1", "TRIP", trip.ID, 1,
 				input.CorrelationID, input.RequestIDHeader, map[string]any{
-					"sourceService":            "driver-dispatch-delivery-service",
-					"requestId":                broadcast.ID,
-					"broadcastId":              broadcast.ID,
-					"bookingId":                broadcast.BookingID,
-					"tripId":                   trip.ID,
-					"sourceVersion":            int64(1),
-					"organizationId":           input.OrganizationID,
-					"settlementOrganizationId": input.OrganizationID,
-					"executingProviderId":      input.ExecutingProviderID,
-					"organizationMembershipId": input.OrganizationMembershipID,
-					"fleetAssignmentId":        input.FleetAssignmentID,
-					"status":                   trip.Status,
-					"occurredAt":               s.now(),
+					"sourceService":             "driver-dispatch-delivery-service",
+					"requestId":                 broadcast.ID,
+					"broadcastId":               broadcast.ID,
+					"bookingId":                 broadcast.BookingID,
+					"tripId":                    trip.ID,
+					"sourceVersion":             int64(1),
+					"organizationId":            input.OrganizationID,
+					"settlementOrganizationId":  input.OrganizationID,
+					"executingProviderId":       input.ExecutingProviderID,
+					"organizationMembershipId":  input.OrganizationMembershipID,
+					"fleetAssignmentId":         input.FleetAssignmentID,
+					"fleetExecutionOperationId": input.FleetOperationID,
+					"privateOrderId":            input.PrivateOrderID,
+					"shipmentId":                input.ShipmentID,
+					"status":                    trip.Status,
+					"occurredAt":                s.now(),
 				}); err != nil {
 				return err
 			}

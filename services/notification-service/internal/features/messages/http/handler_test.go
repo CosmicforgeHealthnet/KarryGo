@@ -121,6 +121,10 @@ func (r *httpFakeRepository) GetMessage(ctx context.Context, id string) (message
 	return messagemodels.Message{ID: id}, nil
 }
 
+func (r *httpFakeRepository) GetMessageByIdempotencyKey(ctx context.Context, key string) (messagemodels.Message, error) {
+	return messagemodels.Message{ID: "message-1", IdempotencyKey: key, Status: messagemodels.StatusQueued}, nil
+}
+
 func (r *httpFakeRepository) ListMessages(ctx context.Context, recipientType string, recipientID string, limit int) ([]messagemodels.Message, error) {
 	return nil, nil
 }

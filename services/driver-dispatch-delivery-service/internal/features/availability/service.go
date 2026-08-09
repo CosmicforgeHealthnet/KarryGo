@@ -227,10 +227,13 @@ func (s *RedisLiveStore) GetNearby(ctx context.Context, request NearbyProvidersR
 }
 
 type Service struct {
-	repository Repository
-	live       LiveStore
-	events     EventPublisher
-	now        func() time.Time
+	repository   Repository
+	live         LiveStore
+	events       EventPublisher
+	now          func() time.Time
+	restrictions interface {
+		Restricted(context.Context, string, string, string) (bool, error)
+	}
 }
 
 type ServiceOption func(*Service)
@@ -247,6 +250,12 @@ func WithEventPublisher(events EventPublisher) ServiceOption {
 	return func(s *Service) {
 		s.events = events
 	}
+}
+
+func WithRestrictionGate(gate interface {
+	Restricted(context.Context, string, string, string) (bool, error)
+}) ServiceOption {
+	return func(s *Service) { s.restrictions = gate }
 }
 
 func NewService(repository Repository, live LiveStore, options ...ServiceOption) *Service {
@@ -683,6 +692,15 @@ func (s *Service) ForceOfflineIfNoVerifiedActiveBike(ctx context.Context, provid
 }
 
 func (s *Service) checkOnlineGate(ctx context.Context, providerID string) error {
+	if s.restrictions != nil {
+		restricted, err := s.restrictions.Restricted(ctx, "", "PROVIDER", providerID)
+		if err != nil {
+			return err
+		}
+		if restricted {
+			return gateForbidden(GateError{Code: GateFleetRestricted, Message: "Your account is temporarily restricted from operations."})
+		}
+	}
 	availability, err := s.repository.EnsureAvailability(ctx, providerID)
 	if err != nil {
 		return err

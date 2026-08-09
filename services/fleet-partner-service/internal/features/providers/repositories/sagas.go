@@ -53,6 +53,20 @@ func (r *Repository) GetInvitationByMembership(ctx context.Context, organization
 	return scanInvitation(row)
 }
 
+// CancelInvitation retires an unsent reconciliation anchor before the real
+// provider-consent invitation is created. It is compare-and-set so a provider
+// outcome that already consumed the invitation can never be overwritten.
+func (r *Repository) CancelInvitation(ctx context.Context, q database.Querier, invitationID string) error {
+	_, err := q.Exec(ctx, `
+		UPDATE fleet_partner_provider_invitations SET
+			status = 'CANCELLED', consumed_at = now(), version = version + 1, updated_at = now()
+		WHERE id = $1 AND status = 'PENDING'`, invitationID)
+	if err != nil {
+		return fmt.Errorf("providers: cancel invitation: %w", err)
+	}
+	return nil
+}
+
 // SetInvitationOutcome records provider acceptance or decline.
 //
 // The organization can never call this on the provider's behalf: it is

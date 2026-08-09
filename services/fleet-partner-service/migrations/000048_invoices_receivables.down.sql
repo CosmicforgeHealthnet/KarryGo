@@ -1,0 +1,14 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('invoices.read','invoices.manage','invoices.approve','invoices.issue','invoices.credit','receivables.read','receivables.reconcile');
+DELETE FROM fleet_partner_permissions WHERE code IN('invoices.read','invoices.manage','invoices.approve','invoices.issue','invoices.credit','receivables.read','receivables.reconcile');
+DROP TRIGGER IF EXISTS trg_fleet_financial_posting_attempts_append_only ON fleet_partner_financial_posting_attempts;
+DROP TABLE IF EXISTS fleet_partner_financial_posting_attempts;
+DROP TABLE IF EXISTS fleet_partner_financial_posting_operations;
+DROP TRIGGER IF EXISTS trg_fleet_receivable_payment_history_append_only ON fleet_partner_receivable_payment_history;
+DROP TABLE IF EXISTS fleet_partner_receivable_payment_history;
+DROP TABLE IF EXISTS fleet_partner_receivable_entries;
+DROP TRIGGER IF EXISTS trg_fleet_credit_notes_append_only ON fleet_partner_credit_notes;
+DROP TABLE IF EXISTS fleet_partner_credit_notes;
+DROP TRIGGER IF EXISTS trg_fleet_invoice_snapshots_append_only ON fleet_partner_invoice_snapshots;
+DROP TABLE IF EXISTS fleet_partner_invoice_snapshots;
+DROP TABLE IF EXISTS fleet_partner_invoice_lines;
+DROP TABLE IF EXISTS fleet_partner_invoices;

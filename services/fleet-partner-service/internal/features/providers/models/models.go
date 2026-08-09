@@ -21,6 +21,31 @@ const (
 	StatusRemoved                   = "REMOVED"
 )
 
+// Provider modes.
+//
+// A provider is INDEPENDENT by the ABSENCE of a membership row for it --
+// this repository never writes ProviderModeIndependent to a stored
+// Membership, since there is no membership row to write it on. Every
+// Membership this package's repository creates is, by construction,
+// ProviderModeOrganizationManaged. The constant exists so callers that
+// need to REPORT a provider's mode (e.g. a login/session response
+// discriminating an org-managed provider client from an independent one,
+// see Section 30 WP19) have a single typed source of truth instead of
+// duplicating the literal.
+//
+// There is deliberately no MIXED value: Membership.Live's doc comment
+// establishes a provider occupies at most one live membership per service
+// category -- a single settlement slot -- so simultaneous independent and
+// organization-managed standing in the same category is not a state this
+// domain represents. A provider that is INDEPENDENT in one service
+// category (no membership row there) and ORGANIZATION_MANAGED in another
+// (a live membership row there) reports each category's mode
+// independently; it is never asked to collapse the two into one value.
+const (
+	ProviderModeIndependent         = "INDEPENDENT"
+	ProviderModeOrganizationManaged = "ORGANIZATION_MANAGED"
+)
+
 // Service categories and their owning services.
 const (
 	CategoryDispatch = "DISPATCH"

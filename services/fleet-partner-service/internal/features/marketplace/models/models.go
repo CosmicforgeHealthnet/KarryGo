@@ -60,6 +60,28 @@ const (
 	ProjectionExpired                = "EXPIRED"
 	ProjectionCancelled              = "CANCELLED"
 	ProjectionReconciliationRequired = "RECONCILIATION_REQUIRED"
+	// ProjectionDeliveryFailed is its own status rather than a reuse of
+	// CANCELLED. A cancellation says someone stood the work down; a failed
+	// delivery says the work was attempted and did not land. Collapsing them
+	// would tell every downstream reader the wrong thing about why.
+	ProjectionDeliveryFailed = "DELIVERY_FAILED"
+)
+
+// Reconciliation case statuses. These mirror the CHECK constraint on
+// fleet_partner_projection_reconciliation_cases.status exactly; a value that
+// drifts from it fails at write time rather than silently.
+const (
+	ReconciliationOpen       = "OPEN"
+	ReconciliationInProgress = "IN_PROGRESS"
+	ReconciliationResolved   = "RESOLVED"
+	ReconciliationFailed     = "FAILED_PERMANENT"
+)
+
+// Reconciliation aggregate types, likewise constrained by the schema.
+const (
+	ReconciliationAggregateRequest = "REQUEST"
+	ReconciliationAggregateTrip    = "TRIP"
+	ReconciliationAggregateCommand = "COMMAND"
 )
 
 // Freshness states.
@@ -252,10 +274,83 @@ type Assignment struct {
 	ReassignmentReason   *string
 	ExecutionStartStatus string
 	SourceExecutionID    *string
-	Version              int64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	// AcknowledgementState records whether the assigned party has confirmed
+	// receipt of the work. It is deliberately separate from Status: an
+	// acknowledgement is not a decision, and no value here may ever imply one.
+	AcknowledgementState    string
+	AcknowledgedAt          *time.Time
+	AcknowledgedByActorType *string
+	AcknowledgedByActorID   *string
+	Version                 int64
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
+
+// Acknowledgement states.
+const (
+	AcknowledgementNotAcknowledged = "NOT_ACKNOWLEDGED"
+	AcknowledgementAcknowledged    = "ACKNOWLEDGED"
+)
+
+// Acknowledged reports whether receipt of the assignment has been confirmed.
+func (a Assignment) Acknowledged() bool {
+	return a.AcknowledgementState == AcknowledgementAcknowledged
+}
+
+// AcknowledgeableStatus reports the states in which confirming receipt is
+// meaningful.
+//
+// An assignment that has already been declined, expired or cancelled cannot be
+// acknowledged: there is nothing left to receive. ACCEPTED is included because
+// an organization may require acknowledgement before departure, and a provider
+// who accepted first must still have a way to satisfy that policy.
+func AcknowledgeableStatus(status string) bool {
+	switch status {
+	case AssignmentCreated, AssignmentPendingProviderResponse, AssignmentAccepted:
+		return true
+	default:
+		return false
+	}
+}
+
+// CanAcknowledge reports whether receipt may still be confirmed.
+//
+// Note what this does NOT consult: any organization setting, operating mode or
+// feature flag. Acknowledgement is a factual record that work was seen; it is
+// never a permission an organization grants.
+func (a Assignment) CanAcknowledge() bool {
+	return AcknowledgeableStatus(a.Status) && !a.Acknowledged()
+}
+
+// Acknowledgement is the immutable record that an assignment was received.
+//
+// It carries no decision field by construction. A reader that wants to know
+// whether the provider agreed to the work must look at Response; conflating
+// the two is precisely the mistake this type exists to make impossible.
+type Acknowledgement struct {
+	ID                  string
+	OrganizationID      string
+	AssignmentID        string
+	MembershipID        string
+	ExecutingProviderID string
+	SourceService       string
+	ActorType           string
+	ActorID             string
+	ExpectedVersion     int64
+	IdempotencyKey      string
+	RequestFingerprint  string
+	RequestID           string
+	CorrelationID       string
+	AcknowledgedAt      time.Time
+	CreatedAt           time.Time
+}
+
+// Acknowledgement actor types.
+const (
+	AcknowledgementActorProvider = "PROVIDER"
+	AcknowledgementActorUser     = "ORGANIZATION_USER"
+	AcknowledgementActorSystem   = "SYSTEM"
+)
 
 // AllowedActions reports what the bound provider may do right now.
 //
@@ -444,9 +539,13 @@ type TripProjection struct {
 	FreshnessState           string
 	CompletedAt              *time.Time
 	CancelledAt              *time.Time
-	Version                  int64
-	CreatedAt                time.Time
-	UpdatedAt                time.Time
+	// LastPayloadHash is the hash of the payload applied at SourceVersion. It
+	// is what distinguishes a harmless redelivery from two different events
+	// claiming the same version — a contradiction the source must resolve.
+	LastPayloadHash *string
+	Version         int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // Command operation types and statuses.

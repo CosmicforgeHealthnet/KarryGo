@@ -93,6 +93,11 @@ func RegisterProviderResponseRoutes(group *gin.RouterGroup, handler *InternalHan
 		handler.requireAllowedCaller, handler.ProviderAcceptAssignment)
 	group.POST("/assignments/:assignmentId/provider-decline",
 		handler.requireAllowedCaller, handler.ProviderDeclineAssignment)
+	// Acknowledgement sits beside accept and decline because it is the third
+	// thing a provider can say about an assignment — and, unlike the other
+	// two, it says nothing about whether they will do the work.
+	group.POST("/assignments/:assignmentId/provider-acknowledge",
+		handler.requireAllowedCaller, handler.ProviderAcknowledgeAssignment)
 
 	group.POST("/marketplace-offers/:offerId/provider-accept",
 		handler.requireAllowedCaller, handler.ProviderAcceptOffer)
@@ -313,6 +318,91 @@ func (h *InternalHandler) ProviderDeclineAssignment(c *gin.Context) {
 		return
 	}
 	respondProvider(c, http.StatusOK, newProviderAssignmentView(result, time.Now().UTC()))
+}
+
+// acknowledgeBody is a provider's confirmation that work was received.
+//
+// It reuses the provider identity fields but carries an idempotencyKey rather
+// than a clientResponseId: this is not a response, and giving it the response
+// field name would eventually get it stored as one.
+type acknowledgeBody struct {
+	ProviderID        string `json:"providerId"`
+	ProviderService   string `json:"providerService"`
+	ProviderSessionID string `json:"providerSessionId"`
+	IdempotencyKey    string `json:"idempotencyKey"`
+	ExpectedVersion   int64  `json:"expectedVersion"`
+}
+
+// ProviderAcknowledgementView is the provider-safe acknowledgement DTO.
+//
+// allowedActions is included precisely because acknowledging must not shrink
+// it: the client can see for itself that Accept and Decline both survive.
+type ProviderAcknowledgementView struct {
+	AssignmentID         string   `json:"assignmentId"`
+	Status               string   `json:"status"`
+	AcknowledgementState string   `json:"acknowledgementState"`
+	AllowedActions       []string `json:"allowedActions"`
+	Version              int64    `json:"version"`
+	Replayed             bool     `json:"replayed"`
+}
+
+// ProviderAcknowledgeAssignment records that a provider received the work.
+//
+// Consults no feature flag, for the same reason decline does not: an
+// organization may switch off new acceptances while a source service is
+// degraded, but it can have no interest in preventing a provider from saying
+// "I have seen this".
+func (h *InternalHandler) ProviderAcknowledgeAssignment(c *gin.Context) {
+	var body acknowledgeBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	// The identity checks are the same ones accept and decline run; the
+	// clientResponseId requirement is not, so it is supplied as the
+	// idempotency key to satisfy the shared validator without inventing a
+	// second identity path.
+	actor, err := h.resolveProviderActor(c, providerResponseBody{
+		ProviderID:        body.ProviderID,
+		ProviderService:   body.ProviderService,
+		ProviderSessionID: body.ProviderSessionID,
+		ClientResponseID:  body.IdempotencyKey,
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+
+	result, err := h.service.AcknowledgeAssignmentForProvider(c.Request.Context(),
+		usecases.AcknowledgeAssignmentInput{
+			Actor:           actor,
+			AssignmentID:    c.Param("assignmentId"),
+			IdempotencyKey:  body.IdempotencyKey,
+			ExpectedVersion: body.ExpectedVersion,
+			RequestID:       c.GetHeader("X-Request-ID"),
+			CorrelationID:   c.GetHeader("X-Correlation-ID"),
+		})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+
+	view := ProviderAcknowledgementView{
+		AcknowledgementState: result.AcknowledgementState,
+		AllowedActions:       result.AllowedActions,
+		Replayed:             result.Replayed,
+	}
+	if view.AllowedActions == nil {
+		view.AllowedActions = []string{}
+	}
+	if result.Assignment != nil {
+		view.AssignmentID = result.Assignment.ID
+		view.Status = result.Assignment.Status
+		view.Version = result.Assignment.Version
+	}
+	c.JSON(http.StatusOK, gin.H{"data": view, "meta": gin.H{
+		"requestId": c.GetHeader("X-Request-ID"),
+	}})
 }
 
 // respondProvider writes the canonical envelope for a provider-safe view.

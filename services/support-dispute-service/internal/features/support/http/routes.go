@@ -64,6 +64,8 @@ func RegisterRoutes(
 	admin := group.Group("/admin")
 	admin.Use(serviceauth.Middleware(serviceauth.NewVerifier(serviceSecrets, 5*time.Minute)))
 	admin.GET("/complaints", handler.AdminListComplaints)
+	admin.POST("/organization-cases", handler.AdminCreateOrganizationCase)
+	admin.GET("/organization-cases/:id", handler.AdminGetOrganizationCase)
 	admin.GET("/complaints/:id", handler.AdminGetComplaint)
 	admin.GET("/complaints/:id/evidence", handler.AdminListEvidence)
 	admin.GET("/complaints/:id/dispute", handler.AdminGetDispute)

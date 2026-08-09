@@ -42,6 +42,7 @@ const assignmentColumns = `id, organization_id, request_projection_id, offer_id,
 	status, response_deadline, accepted_at, declined_at, expired_at, cancelled_at,
 	ready_for_execution_at, started_at, completed_at, root_assignment_id, replaces_assignment_id,
 	reassignment_attempt, reassignment_reason, execution_start_status, source_execution_id,
+	acknowledgement_state, acknowledged_at, acknowledged_by_actor_type, acknowledged_by_actor_id,
 	version, created_at, updated_at`
 
 // Create inserts an assignment.
@@ -184,7 +185,8 @@ func (r *AssignmentRepository) List(ctx context.Context, query tenant.Query, sta
 			a.expired_at, a.cancelled_at, a.ready_for_execution_at, a.started_at, a.completed_at,
 			a.root_assignment_id, a.replaces_assignment_id, a.reassignment_attempt,
 			a.reassignment_reason, a.execution_start_status, a.source_execution_id,
-			a.version, a.created_at, a.updated_at
+			a.acknowledgement_state, a.acknowledged_at, a.acknowledged_by_actor_type,
+			a.acknowledged_by_actor_id, a.version, a.created_at, a.updated_at
 		FROM fleet_partner_provider_assignments a
 		JOIN fleet_partner_organization_provider_memberships m ON m.id = a.membership_id
 		WHERE a.organization_id = $1
@@ -440,6 +442,165 @@ func (r *AssignmentRepository) FindResponseByClientID(ctx context.Context, membe
 	return &response, nil
 }
 
+// ---- Acknowledgements ----
+
+// ErrAcknowledgementExists means the assignment already carries an
+// acknowledgement.
+var ErrAcknowledgementExists = errors.New("marketplace: assignment already acknowledged")
+
+// ErrIdempotencyFingerprintMismatch means a stored idempotency key was reused
+// with different inputs.
+var ErrIdempotencyFingerprintMismatch = errors.New("marketplace: idempotency key reused with a different request")
+
+// CreateAcknowledgement writes the immutable receipt record and flips the
+// assignment's acknowledgement columns under compare-and-swap.
+//
+// Both writes happen here, in the caller's transaction, because an
+// acknowledgement row without the assignment flag (or the reverse) is a state
+// no reader can interpret. The version check is what makes two concurrent
+// acknowledgements resolve to exactly one winner and one replay.
+func (r *AssignmentRepository) CreateAcknowledgement(ctx context.Context, q database.Querier,
+	assignment *models.Assignment, expectedVersion int64,
+	acknowledgement *models.Acknowledgement) error {
+	if acknowledgement.ID == "" {
+		acknowledgement.ID = ids.New("ack")
+	}
+	_, err := q.Exec(ctx, `
+		INSERT INTO fleet_partner_assignment_acknowledgements
+			(id, organization_id, assignment_id, membership_id, executing_provider_id,
+			 source_service, actor_type, actor_id, expected_version, idempotency_key,
+			 request_fingerprint, request_id, correlation_id, acknowledged_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())`,
+		acknowledgement.ID, acknowledgement.OrganizationID, acknowledgement.AssignmentID,
+		acknowledgement.MembershipID, acknowledgement.ExecutingProviderID,
+		acknowledgement.SourceService, acknowledgement.ActorType, acknowledgement.ActorID,
+		acknowledgement.ExpectedVersion, acknowledgement.IdempotencyKey,
+		acknowledgement.RequestFingerprint, acknowledgement.RequestID,
+		acknowledgement.CorrelationID)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrAcknowledgementExists
+		}
+		return fmt.Errorf("marketplace: create acknowledgement: %w", err)
+	}
+
+	// The status column is deliberately absent from this UPDATE. Acknowledgement
+	// must never be able to move an assignment into ACCEPTED, and the surest way
+	// to guarantee that is for the statement to have no way to say it.
+	tag, err := q.Exec(ctx, `
+		UPDATE fleet_partner_provider_assignments SET
+			acknowledgement_state = 'ACKNOWLEDGED',
+			acknowledged_at = COALESCE(acknowledged_at, now()),
+			acknowledged_by_actor_type = $2,
+			acknowledged_by_actor_id = $3,
+			version = version + 1,
+			updated_at = now()
+		WHERE id = $1 AND version = $4 AND acknowledgement_state = 'NOT_ACKNOWLEDGED'`,
+		assignment.ID, acknowledgement.ActorType, acknowledgement.ActorID, expectedVersion)
+	if err != nil {
+		return fmt.Errorf("marketplace: mark assignment acknowledged: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return concurrency.ErrVersionMismatch
+	}
+	return nil
+}
+
+// AppendAcknowledgementHistory records receipt in the append-only history.
+//
+// Separate from Transition because there is no transition: from and to are the
+// same status. Reusing Transition would have meant either weakening its
+// state-machine guard or teaching it a move that is not a move — both worse
+// than a second, honest statement.
+func (r *AssignmentRepository) AppendAcknowledgementHistory(ctx context.Context, q database.Querier,
+	assignment *models.Assignment, entry models.StateHistoryEntry) error {
+	metadata, err := json.Marshal(orEmptyMap(entry.Metadata))
+	if err != nil {
+		return fmt.Errorf("marketplace: marshal acknowledgement metadata: %w", err)
+	}
+	_, err = q.Exec(ctx, `
+		INSERT INTO fleet_partner_assignment_state_history
+			(id, organization_id, assignment_id, from_status, to_status, actor_type, actor_id,
+			 reason_code, metadata, request_id, correlation_id, occurred_at)
+		VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, now())`,
+		ids.New("ash"), assignment.OrganizationID, assignment.ID, assignment.Status,
+		entry.ActorType, entry.ActorID, entry.ReasonCode, metadata,
+		entry.RequestID, entry.CorrelationID)
+	if err != nil {
+		return fmt.Errorf("marketplace: append acknowledgement history: %w", err)
+	}
+	return nil
+}
+
+// GetAcknowledgement loads the acknowledgement for an assignment.
+func (r *AssignmentRepository) GetAcknowledgement(ctx context.Context, q database.Querier,
+	assignmentID string) (*models.Acknowledgement, error) {
+	if q == nil {
+		q = r.db
+	}
+	return scanAcknowledgement(q.QueryRow(ctx, `
+		SELECT id, organization_id, assignment_id, membership_id, executing_provider_id,
+			source_service, actor_type, actor_id, expected_version, idempotency_key,
+			request_fingerprint, request_id, correlation_id, acknowledged_at, created_at
+		FROM fleet_partner_assignment_acknowledgements WHERE assignment_id = $1`, assignmentID))
+}
+
+// FindAcknowledgementByIdempotencyKey resolves a retried acknowledgement.
+//
+// Scoped to the membership that minted the key: a key is only ever unique
+// within one provider, so an unscoped lookup would let one provider observe —
+// and be answered with — another's record.
+func (r *AssignmentRepository) FindAcknowledgementByIdempotencyKey(ctx context.Context,
+	membershipID string, idempotencyKey string) (*models.Acknowledgement, error) {
+	return scanAcknowledgement(r.db.QueryRow(ctx, `
+		SELECT id, organization_id, assignment_id, membership_id, executing_provider_id,
+			source_service, actor_type, actor_id, expected_version, idempotency_key,
+			request_fingerprint, request_id, correlation_id, acknowledged_at, created_at
+		FROM fleet_partner_assignment_acknowledgements
+		WHERE membership_id = $1 AND idempotency_key = $2`, membershipID, idempotencyKey))
+}
+
+func scanAcknowledgement(row pgx.Row) (*models.Acknowledgement, error) {
+	var record models.Acknowledgement
+	err := row.Scan(&record.ID, &record.OrganizationID, &record.AssignmentID,
+		&record.MembershipID, &record.ExecutingProviderID, &record.SourceService,
+		&record.ActorType, &record.ActorID, &record.ExpectedVersion, &record.IdempotencyKey,
+		&record.RequestFingerprint, &record.RequestID, &record.CorrelationID,
+		&record.AcknowledgedAt, &record.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("marketplace: scan acknowledgement: %w", err)
+	}
+	return &record, nil
+}
+
+// RequiresAcknowledgement reports the organization's departure policy.
+//
+// A missing settings row means the organization has never configured one, and
+// the answer is false: a policy nobody set must not block departure. Read here
+// rather than through the organizations feature so the marketplace write path
+// keeps no dependency on it.
+func (r *AssignmentRepository) RequiresAcknowledgement(ctx context.Context, q database.Querier,
+	organizationID string) (bool, error) {
+	if q == nil {
+		q = r.db
+	}
+	var required bool
+	err := q.QueryRow(ctx, `
+		SELECT require_assignment_acknowledgement
+		FROM fleet_partner_organization_settings WHERE organization_id = $1`,
+		organizationID).Scan(&required)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("marketplace: read acknowledgement policy: %w", err)
+	}
+	return required, nil
+}
+
 // ---- Reservations ----
 
 // HoldReservation reserves provider or asset capacity for an assignment.
@@ -497,6 +658,8 @@ func scanAssignment(row pgx.Row) (*models.Assignment, error) {
 		&assignment.CompletedAt, &assignment.RootAssignmentID, &assignment.ReplacesAssignmentID,
 		&assignment.ReassignmentAttempt, &assignment.ReassignmentReason,
 		&assignment.ExecutionStartStatus, &assignment.SourceExecutionID,
+		&assignment.AcknowledgementState, &assignment.AcknowledgedAt,
+		&assignment.AcknowledgedByActorType, &assignment.AcknowledgedByActorID,
 		&assignment.Version, &assignment.CreatedAt, &assignment.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -518,6 +681,8 @@ func scanAssignmentRows(rows pgx.Rows) (*models.Assignment, error) {
 		&assignment.CompletedAt, &assignment.RootAssignmentID, &assignment.ReplacesAssignmentID,
 		&assignment.ReassignmentAttempt, &assignment.ReassignmentReason,
 		&assignment.ExecutionStartStatus, &assignment.SourceExecutionID,
+		&assignment.AcknowledgementState, &assignment.AcknowledgedAt,
+		&assignment.AcknowledgedByActorType, &assignment.AcknowledgedByActorID,
 		&assignment.Version, &assignment.CreatedAt, &assignment.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace: scan assignment: %w", err)

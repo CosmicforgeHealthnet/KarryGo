@@ -72,6 +72,13 @@ func seedProviderMembership(t *testing.T, pool *pgxpool.Pool, organizationID str
 	if err := repo.CreateMembership(context.Background(), pool, organizationID, membership); err != nil {
 		t.Fatalf("seed membership: %v", err)
 	}
+	// An organization that has taken on a managed provider is an operating
+	// organization: it is active, verified, unrestricted and subscribed. The
+	// eligibility gate reads all of that, so seeding it here keeps every
+	// marketplace fixture describing a coherent world. A test that wants a
+	// gate to REFUSE removes one of these facts explicitly.
+	seedEligibleOrganization(t, pool, organizationID)
+	markMembershipSynced(t, pool, membership.ID)
 	return membership
 }
 

@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "section": 31,
+    "artifactType": "mandatory-test-coverage",
+    "caseMetadataInheritance": "Each mandatory case inherits every suite field and all executable evidence entries; the contract test expands and validates that mapping.",
+    "boundedParallelism": 4,
+    "latestResultMeaning": "PASS means every referenced executable test passed in the release-candidate run."
+  },
+  "suites": [
+    {
+      "id": "tenancy-authorization", "suite": "Tenancy and authorization",
+      "testLevels": ["unit", "postgres-integration", "security", "contract"],
+      "owningPackages": ["internal", "internal/integration", "internal/section28contract"],
+      "cases": ["Cross-organization access denied", "Cross-branch access denied", "Object-level authorization", "Nested-resource authorization", "Field-level redaction", "Suspended membership denied operational access", "Removed membership denied managed access", "Independent provider denied organization-managed endpoints", "Company user denied platform/internal endpoints", "Provider relationship authorization", "Download/export/replay IDOR", "Safe 404 behavior"],
+      "evidence": [
+        {"kind":"existing","testName":"TestSQLAlwaysTenantScoped","path":"internal/architecture_test.go"},
+        {"kind":"existing","testName":"TestBranchPermittedScopeEnforced","path":"internal/integration/integration_more_test.go"},
+        {"kind":"existing","testName":"TestExports_ObjectAuthorization_HTTPCrossOrg","path":"internal/integration/idor_imports_exports_test.go"},
+        {"kind":"existing","testName":"TestProviderFacingViews_NeverSerializeCommercialOrInternalFields","path":"internal/integration/field_visibility_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": false, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "organization-onboarding", "suite": "Organization onboarding",
+      "testLevels": ["unit", "postgres-integration", "end-to-end"],
+      "owningPackages": ["internal/features/organizations", "internal/integration"],
+      "cases": ["New organization onboarding", "Resume interrupted onboarding", "Duplicate submit", "Idempotent submission", "Verification status changes", "Activation prerequisites", "Missing prerequisite blocks activation", "Rejected verification", "Re-submission after rejection", "Branch setup where required", "Initial role/membership state", "Organization suspension", "Controlled organization closure", "Legal hold during closure", "Closure preserves immutable evidence", "Closure revokes operational access"],
+      "evidence": [
+        {"kind":"new","testName":"TestOrganizationOnboardingCreatesResumableDraftAndFailsClosedOnMissingPrerequisites","path":"internal/integration/organization_onboarding_resume_test.go"},
+        {"kind":"existing","testName":"TestOrganizationDraftCreationUsesDraftStatus","path":"internal/integration/iam_provider_test.go"},
+        {"kind":"existing","testName":"TestOrganizationValidationAndArchive","path":"internal/integration/integration_more_test.go"},
+        {"kind":"existing","testName":"TestOrganizationClosure_FullLifecycleReachesCompleted","path":"internal/integration/organization_closure_http_test.go"},
+        {"kind":"existing","testName":"TestSuspendedOrganizationCannotRefresh","path":"internal/integration/auth_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "provider-provisioning", "suite": "Provider provisioning",
+      "testLevels": ["unit", "postgres-integration", "contract", "end-to-end"],
+      "owningPackages": ["internal/features/providers", "internal/integration", "internal/section30contract"],
+      "cases": ["New provider identity", "Existing provider identity link", "Existing provider plus new organization membership", "Duplicate phone", "Duplicate email", "Duplicate external provider reference", "Active membership", "Suspended membership", "Removed membership", "Provisioning rollback", "Partial provisioning", "Reconciliation", "Unknown external outcome", "Wallet/sub-wallet relationship provisioning", "Verification dependency", "Idempotent retry", "No competing unverified provider identity"],
+      "evidence": [
+        {"kind":"new","testName":"TestProviderProvisioningUnknownOutcomeReconcilesByContactWithoutDuplicateIdentity","path":"internal/integration/provider_provisioning_reconciliation_test.go"},
+        {"kind":"existing","testName":"TestProviderRepositoryEnforcesOneLiveMembership","path":"internal/integration/iam_provider_test.go"},
+        {"kind":"existing","testName":"TestProviderStateMachineRejectsIllegalTransitions","path":"internal/integration/iam_provider_test.go"},
+        {"kind":"existing","testName":"TestProviderSubWalletProjectionHoldsNoBalance","path":"internal/integration/iam_provider_test.go"},
+        {"kind":"existing","testName":"TestGetMembershipSummaryForProvider_OrganizationManagedReturnsFullSummary","path":"internal/integration/provider_membership_summary_test.go"},
+        {"kind":"existing","testName":"TestCompatibilityFixtures_CoverRequiredProviderContracts","path":"internal/section30contract/compatibility_contract_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "acceptance-decline", "suite": "Acceptance and decline",
+      "testLevels": ["unit", "postgres-integration", "contract", "end-to-end"],
+      "owningPackages": ["internal/features/marketplace", "internal/features/privateoperations", "internal/integration"],
+      "cases": ["Offer/request receive", "Assignment receive", "Acknowledge where required", "Accept", "Decline", "Every configured decline reason", "Timeout", "Assignment expiry", "Duplicate accept", "Duplicate decline", "Accept after decline", "Decline after accept", "Dispatcher/provider race", "Two providers racing for conflicting work", "Stale version", "Cancellation before response", "Cancellation during response", "Idempotency", "Remote acceptance unknown outcome", "Read-back confirmed success", "Read-back confirmed failure", "Independent-provider flow compatibility"],
+      "evidence": [
+        {"kind":"existing","testName":"TestAssignmentAlwaysOffersAcceptAndDecline","path":"internal/integration/marketplace_test.go"},
+        {"kind":"existing","testName":"TestConcurrentProviderResponsesSingleWinner","path":"internal/integration/marketplace_test.go"},
+        {"kind":"existing","testName":"TestOfferDeclineValidatesReasonAndFlagsSafety","path":"internal/integration/offer_response_test.go"},
+        {"kind":"existing","testName":"TestPrivateExecutionWorker_UnknownDoesNotBlindlyResubmitAndLeaseOwnership","path":"internal/integration/private_execution_worker_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "safety-decline", "suite": "Safety decline",
+      "testLevels": ["unit", "postgres-integration", "end-to-end"],
+      "owningPackages": ["internal/features/assets", "internal/features/marketplace", "internal/integration"],
+      "cases": ["UNSAFE_VEHICLE provider decline", "No automatic punishment", "Safety alert created", "Maintenance/work-order draft created", "Asset/vehicle restriction propagates", "No automatic fine", "No automatic debit", "No automatic suspension solely for decline", "Safe dispatch/reassignment continues", "Duplicate decline has no duplicate work order", "Safe audit history"],
+      "evidence": [
+        {"kind":"existing","testName":"TestOfferDeclineValidatesReasonAndFlagsSafety","path":"internal/integration/offer_response_test.go"},
+        {"kind":"existing","testName":"TestSection16MaintenanceProjectsRouteCompletionAndDeclineAlert","path":"internal/integration/section16_dispatch_test.go"},
+        {"kind":"existing","testName":"TestProviderDeclineRightCannotBeDisabled","path":"internal/integration/iam_provider_test.go"},
+        {"kind":"existing","testName":"TestDeductionRequiresExplanationAndLegalBasis","path":"internal/integration/companywallet_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": false, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "assignment-reassignment", "suite": "Assignment and reassignment",
+      "testLevels": ["unit", "postgres-integration", "end-to-end"],
+      "owningPackages": ["internal/features/eligibility", "internal/features/marketplace", "internal/integration"],
+      "cases": ["Candidate eligibility", "Ineligible provider exclusion", "Verification restriction", "Asset restriction", "Capacity conflict", "Existing assignment conflict", "Provider decline", "Provider timeout", "Reassignment", "Rescue workflow", "No eligible candidate", "Excluded previous provider", "Concurrent reassignment", "Duplicate reassignment prevention", "Assignment expiry versus accept race", "Trip creation", "Trip creation unknown outcome", "Read-back before retry", "No fabricated trip success"],
+      "evidence": [
+        {"kind":"existing","testName":"TestEligibleCompanyProviderAndVehicle","path":"internal/integration/eligibility_decisions_test.go"},
+        {"kind":"existing","testName":"TestProviderCapacityCannotBeDoubleBooked","path":"internal/integration/marketplace_test.go"},
+        {"kind":"existing","testName":"TestSection27_AutoReassignStaleCase_TriesCandidatesAndSucceeds","path":"internal/integration/auto_reassignment_section27_test.go"},
+        {"kind":"existing","testName":"TestAcceptanceToOneCanonicalTrip","path":"internal/integration/acceptance_to_canonical_trip_e2e_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "pricing-visibility", "suite": "Pricing visibility",
+      "testLevels": ["unit", "postgres-integration", "contract"],
+      "owningPackages": ["internal/features/marketplace/http", "internal/features/privateoperations/http", "internal/integration"],
+      "cases": ["Customer fare absent", "Customer contract price absent", "Quotation price absent", "Company charge absent", "Company margin absent", "Organization profit absent", "Platform commission absent", "Organization settlement absent", "Company Wallet balance absent", "Internal approval notes absent", "Internal finance notes absent", "Independent provider earnings remain available", "Structural DTO serialization enforcement"],
+      "evidence": [
+        {"kind":"existing","testName":"TestProviderFacingViews_NeverSerializeCommercialOrInternalFields","path":"internal/integration/field_visibility_test.go"},
+        {"kind":"existing","testName":"TestProviderOfferViewCarriesNoCommercialFields","path":"internal/integration/offer_response_test.go"},
+        {"kind":"existing","testName":"TestProviderAssignmentViewCarriesNoCommercialFields","path":"internal/integration/provider_response_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": false, "failureInjectionRequired": false, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "wallet-integration", "suite": "Wallet integration",
+      "testLevels": ["unit", "postgres-integration", "contract", "end-to-end"],
+      "owningPackages": ["internal/features/companywallet", "internal/integration"],
+      "cases": ["Company settlement reference", "Provider sub-wallet allocation", "Wallet projection freshness", "Idempotent allocation", "Duplicate command", "Insufficient balance", "Approval-required operation", "Approved operation", "Rejected operation", "Unknown outcome", "Authoritative read-back", "Wallet service unavailable", "No fabricated balance", "No local Fleet ledger", "Provider cannot see organization settlement fields", "Independent provider settlement unchanged"],
+      "evidence": [
+        {"kind":"existing","testName":"TestAllocationIsIdempotentAndFingerprintChecked","path":"internal/integration/companywallet_test.go"},
+        {"kind":"existing","testName":"TestUnknownOutcomeIsResolvedByReadBackNotResubmission","path":"internal/integration/companywallet_test.go"},
+        {"kind":"existing","testName":"TestFleetToWalletHMACTransport","path":"internal/integration/finance_cross_service_test.go"},
+        {"kind":"existing","testName":"TestProviderStatementExcludesCommercialData","path":"internal/integration/companywallet_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "orders-shipments", "suite": "Orders and shipments",
+      "testLevels": ["unit", "postgres-integration", "end-to-end"],
+      "owningPackages": ["internal/features/orders", "internal/features/shipments", "internal/features/packages", "internal/integration"],
+      "cases": ["Valid state transitions", "Invalid state transition", "Idempotent transition", "Order confirmation", "Shipment creation", "Shipment status progression", "Package lifecycle", "Package scan idempotency", "Duplicate scan", "Partial completion", "Cancellation", "Recurring order generation", "Duplicate schedule occurrence prevention", "Bulk import validation", "Bulk import commit", "Corrected-row import", "Partial import success", "Export", "Search projection", "Event emission"],
+      "evidence": [
+        {"kind":"existing","testName":"TestOrders_CreateConfirmCancelLifecycle","path":"internal/integration/orders_test.go"},
+        {"kind":"existing","testName":"TestPackages_PostgreSQLIdentifiersConcurrencyAndTenantScope","path":"internal/integration/packages_section15_matrix_test.go"},
+        {"kind":"existing","testName":"TestRecurringOrders_WorkerIdempotencyHeartbeatAndBoundedExpansion","path":"internal/integration/recurring_orders_section15_matrix_test.go"},
+        {"kind":"existing","testName":"TestGenericImports_ValidateAndCommitAreSeparateCommands","path":"internal/integration/generic_imports_scenarios_test.go"},
+        {"kind":"existing","testName":"TestExports_WorkerGeneratesFileAndDownloadReauthorizes","path":"internal/integration/exports_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "dispatch-routes", "suite": "Dispatch and routes",
+      "testLevels": ["unit", "postgres-integration", "contract", "end-to-end"],
+      "owningPackages": ["internal/features/dispatch", "internal/integration", "dispatch-service"],
+      "cases": ["Candidate generation", "Candidate exclusion reasons", "Provider capacity", "Asset capacity", "Time windows", "Branch restrictions", "Route planning", "Publish concurrency", "Two dispatchers racing", "Route replan", "Assignment regeneration", "Execution-service unavailable", "Unknown execution outcome", "Canonical read-back", "No local fabricated acceptance"],
+      "evidence": [
+        {"kind":"existing","testName":"TestSection16DispatchPlansTenantBranchStateAndConcurrency","path":"internal/integration/section16_dispatch_test.go"},
+        {"kind":"existing","testName":"TestSection16RoutesStopsPublicationAndReplan","path":"internal/integration/section16_dispatch_test.go"},
+        {"kind":"existing","testName":"TestSection16OptimizationDurableUnknownOutcomeReadBack","path":"internal/integration/section16_dispatch_test.go"},
+        {"kind":"existing","testName":"TestAcceptanceToOneCanonicalTrip","path":"internal/integration/acceptance_to_canonical_trip_e2e_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "fleet-maintenance", "suite": "Fleet and maintenance",
+      "testLevels": ["unit", "postgres-integration", "end-to-end"],
+      "owningPackages": ["internal/features/assets", "internal/features/workforce", "internal/integration"],
+      "cases": ["Asset creation", "Verification state", "Inspection", "Failed inspection block", "Safety block", "Work-order creation", "Work-order lifecycle", "Preventive maintenance", "Duplicate maintenance prevention", "Parts movement", "Parts inventory integrity", "Return-to-service approval", "Return-to-service denied without requirements", "Vehicle verification propagation", "External vehicle authority retained"],
+      "evidence": [
+        {"kind":"existing","testName":"TestSection17And18EndToEnd","path":"internal/integration/section17_18_test.go"},
+        {"kind":"existing","testName":"TestSection17And18Concurrency","path":"internal/integration/section17_18_concurrency_test.go"},
+        {"kind":"existing","testName":"TestSection16MaintenanceProjectsRouteCompletionAndDeclineAlert","path":"internal/integration/section16_dispatch_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "compliance-safety-proof", "suite": "Compliance safety and proof",
+      "testLevels": ["unit", "postgres-integration", "security", "end-to-end"],
+      "owningPackages": ["internal/features/compliance", "internal/features/safety", "internal/features/proof", "internal/integration"],
+      "cases": ["Document expiry warning", "Expiry restriction", "Compliance blocking", "Evidence authorization", "Restricted evidence denial", "Provider/customer visibility", "Incident creation", "Incident lifecycle", "Corrective action", "Legal hold", "Proof submission", "Proof integrity hash", "Media-authoritative metadata", "Custody immutability", "Archived evidence", "Quarantined Media file denied", "Audit history"],
+      "evidence": [
+        {"kind":"existing","testName":"TestSection19ComplianceRestrictionSafetyAndProof","path":"internal/integration/section19_21_test.go"},
+        {"kind":"existing","testName":"TestExpiryWorkerBlocksMandatoryDocuments","path":"internal/integration/documents_test.go"},
+        {"kind":"existing","testName":"TestPackages_CustodyContinuityCorrectionEvidenceAndAppendOnly","path":"internal/integration/packages_section15_matrix_test.go"},
+        {"kind":"existing","testName":"TestSection28LegalHold_LifecycleAndTenantIsolation","path":"internal/integration/section28_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "warehouse", "suite": "Warehouse",
+      "testLevels": ["unit", "postgres-integration", "end-to-end"],
+      "owningPackages": ["internal/features/warehouse", "internal/integration"],
+      "cases": ["Receive", "Put-away", "Pick", "Pack", "Transfer", "Concurrent receive", "Concurrent pick", "Concurrent transfer", "Negative stock prevention", "Duplicate scan", "Lot/batch handling", "Quarantine", "Dock conflict", "Yard conflict", "Branch isolation", "Warehouse isolation", "Inventory reconciliation"],
+      "evidence": [
+        {"kind":"existing","testName":"TestSection21WarehouseReceiptConcurrencyAndNegativeStock","path":"internal/integration/section19_21_test.go"},
+        {"kind":"existing","testName":"TestWarehouse_ObjectAuthorization","path":"internal/integration/idor_warehouse_fulfilment_test.go"},
+        {"kind":"existing","testName":"TestGenericImports_WarehouseInventoryImportReceivesRealStock","path":"internal/integration/generic_imports_scenarios_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": false, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "finance", "suite": "Finance",
+      "testLevels": ["unit", "postgres-integration", "contract", "end-to-end"],
+      "owningPackages": ["internal/features/financeops", "internal/integration", "payment-wallet-service"],
+      "cases": ["Minor-unit arithmetic only", "Currency handling", "Invoice issue", "Issued invoice immutability", "Reversal/credit note", "Duplicate financial command", "Expense", "Budget", "Approval workflow", "Payroll calculation", "Payroll approval", "Settlement projection", "Wallet unknown outcome", "No local ledger", "No automatic deduction because provider declined", "No automatic safety-decline punishment", "Financial field authorization"],
+      "evidence": [
+        {"kind":"existing","testName":"TestSection22FinancePayrollAndAuthorityBoundaries","path":"internal/integration/section22_23_test.go"},
+        {"kind":"existing","testName":"TestFleetFinanceSettlementReversalOrchestration","path":"internal/integration/finance_cross_service_test.go"},
+        {"kind":"existing","testName":"TestFinanceWorkerUnknownOutcomeUsesReadback","path":"internal/integration/finance_operations_test.go"},
+        {"kind":"existing","testName":"TestFinancePermission_CannotReachIncidentEvidenceSupportContentOrDocuments","path":"internal/integration/field_visibility_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "events", "suite": "Events",
+      "testLevels": ["unit", "postgres-integration", "redis-integration", "contract"],
+      "owningPackages": ["internal/events", "internal/integration", "internal/section26contract"],
+      "cases": ["Domain mutation plus outbox atomicity", "Publication", "Duplicate delivery", "Inbox deduplication", "Out-of-order event", "Lower source version", "Same-version conflict", "Missing-version gap", "Unknown schema version", "Unknown event type", "Producer allowlist", "HMAC nonce replay", "Dead-letter", "Replay", "Reconciliation", "Redis restart/reconnect", "Analytics unavailable", "Core transaction still commits", "No event silently lost"],
+      "evidence": [
+        {"kind":"existing","testName":"TestOutboxTransactionAtomicity","path":"internal/integration/integration_test.go"},
+        {"kind":"existing","testName":"TestIngestEventStaleVersionIgnored","path":"internal/integration/event_ingestion_test.go"},
+        {"kind":"existing","testName":"TestIngestEventGapMarksGapDetected","path":"internal/integration/event_ingestion_test.go"},
+        {"kind":"existing","testName":"TestSection26RealRedisTransactionalDedupDeadLetterAndReplay","path":"internal/integration/section26_stream_redis_test.go"},
+        {"kind":"existing","testName":"TestOutbox_DeadLetterThenReplay","path":"internal/integration/events_outbox_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": true, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "jobs-leases", "suite": "Jobs and leases",
+      "testLevels": ["unit", "postgres-integration", "failure-injection"],
+      "owningPackages": ["internal/jobs", "internal/scheduler", "internal/integration"],
+      "cases": ["SKIP LOCKED concurrent claim", "Priority", "Lease owner enforcement", "Heartbeat", "Lease expiry", "Expiry recovery", "Lost lease", "Graceful shutdown", "Retry", "Permanent failure", "Dead-letter", "Replay", "Cancellation", "Unknown external outcome", "Read-back", "Scheduled-task duplicate occurrence prevention", "Scheduler DST behavior", "Worker restart", "No duplicate effect"],
+      "evidence": [
+        {"kind":"existing","testName":"TestDurableJobsLeasing","path":"internal/integration/integration_test.go"},
+        {"kind":"existing","testName":"TestJobs_UnknownExternalOutcomeRequiresReadback","path":"internal/integration/jobs_section27_test.go"},
+        {"kind":"existing","testName":"TestJobWorker_ShutdownSentinelReleasesWithoutBackoff","path":"internal/integration/jobs_section27_test.go"},
+        {"kind":"existing","testName":"TestScheduler_LeaseRecoveryAfterCrash","path":"internal/integration/scheduler_section27_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "security", "suite": "Security",
+      "testLevels": ["unit", "postgres-integration", "redis-integration", "security", "contract"],
+      "owningPackages": ["internal/middleware", "internal/platform/audit", "internal/integration", "internal/section28contract"],
+      "cases": ["Token revocation", "Organization suspension", "Provider suspension", "Membership removal", "Service HMAC authentication", "Route scope", "Method scope", "Event scope", "Service credential rotation", "Nonce replay", "Rate limits", "Distributed Redis rate limiting", "Trusted proxies", "Secret redaction", "Token redaction", "Signed URL redaction", "File authorization", "Media quarantine", "Object authorization", "Field authorization", "Audit append-only", "Audit chain verification", "Legal hold", "Retention authorization", "Step-up", "Company user denied internal routes"],
+      "evidence": [
+        {"kind":"existing","testName":"TestResolveTenant_RevokedSessionRejectedEvenWithActiveMembership","path":"internal/middleware/auth_test.go"},
+        {"kind":"existing","testName":"TestServiceCredentialScope_ValidCallerRouteAndMethod","path":"internal/integration/service_credential_scope_test.go"},
+        {"kind":"existing","testName":"TestRateLimit_RedisBackedLimiterSharesStateAcrossTwoInstances","path":"internal/integration/ratelimit_redis_test.go"},
+        {"kind":"existing","testName":"TestAuditChain_InitialEntryConcurrentAppendAndValidVerification","path":"internal/integration/audit_chain_test.go"},
+        {"kind":"existing","testName":"TestSection28LegalHold_StepUpEnforcedWhenOrgRequiresMFA","path":"internal/integration/section28_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": true, "externalServiceRequired": true, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "performance", "suite": "Performance",
+      "testLevels": ["postgres-integration", "performance"],
+      "owningPackages": ["internal/integration"],
+      "cases": ["Large provider fleet", "Live dispatch board", "High-volume package and warehouse scans", "Large exports with bounded memory and Media handoff", "Event backlog publication consumption lag and replay", "Job backlog throughput lease contention queue delay and shutdown", "Dataset size recorded", "p50 recorded", "p95 recorded", "p99 recorded where meaningful", "Throughput recorded", "Index plan recorded", "Pool pressure recorded", "Memory recorded", "Development-machine label and no production SLA claim"],
+      "evidence": [
+        {"kind":"new","testName":"TestSection31Capacity_OperationalProfiles","path":"internal/integration/section31_capacity_profiles_test.go"},
+        {"kind":"existing","testName":"TestCapacity_LargeSingleTenantJobListing","path":"internal/integration/section29_capacity_test.go"},
+        {"kind":"existing","testName":"TestCapacity_MultiTenantIsolationAndLatency","path":"internal/integration/section29_capacity_test.go"},
+        {"kind":"existing","testName":"TestCapacity_WorkerBacklogDrainThroughput","path":"internal/integration/section29_capacity_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": false, "failureInjectionRequired": false, "mandatory": true, "latestResult": "PASS"
+    },
+    {
+      "id": "migration", "suite": "Migration",
+      "testLevels": ["postgres-integration", "migration", "contract"],
+      "owningPackages": ["internal/section30contract", "internal/platform/migrationlint"],
+      "cases": ["Fresh database replay 000001 to current tip", "Sequential numbering", "Up/down pairing", "Destructive migration guard", "Latest rollback/reapply", "Recent-range replay", "Upgrade with historical data", "Compatibility fixture after upgrade", "Bounded-backfill framework", "Backfill resume where applicable", "No tenant leakage during migration/backfill", "Supported PostgreSQL version", "Index-safety policy", "Enum/check evolution", "Legacy provider compatibility after migration"],
+      "evidence": [
+        {"kind":"existing","testName":"TestMigrationReplay_EmptySchemaAppliesCleanly","path":"internal/section30contract/migration_replay_test.go"},
+        {"kind":"existing","testName":"TestMigrationReplay_LatestMigrationRollbackAndReapply","path":"internal/section30contract/migration_replay_test.go"},
+        {"kind":"existing","testName":"TestMigrationReplay_ExistingDataSurvivesUpgrade","path":"internal/section30contract/migration_replay_test.go"},
+        {"kind":"existing","testName":"TestInventory_NumberingAndPairingIsClean","path":"internal/section30contract/migration_policy_test.go"},
+        {"kind":"existing","testName":"TestProviderApps_ParseAdditiveProviderModeContract","path":"internal/section30contract/compatibility_contract_test.go"}
+      ],
+      "databaseRequired": true, "redisRequired": false, "externalServiceRequired": false, "failureInjectionRequired": true, "mandatory": true, "latestResult": "PASS"
+    }
+  ]
+}

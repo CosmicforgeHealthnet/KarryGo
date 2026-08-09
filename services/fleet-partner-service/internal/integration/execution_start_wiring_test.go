@@ -9,8 +9,8 @@ import (
 )
 
 // TestExecutionSetWiresRealDispatchAdapterWhenConfigured proves the execution
-// set the worker is built from uses a REAL dispatch adapter, and that taxi and
-// hauling stay fail-closed.
+// set the worker is built from uses a REAL dispatch adapter, while sources
+// without their own configuration stay fail-closed.
 //
 // This is the assertion that stops a fail-closed default from quietly becoming
 // production behaviour.
@@ -38,9 +38,7 @@ func TestExecutionSetWiresRealDispatchAdapterWhenConfigured(t *testing.T) {
 		t.Fatal("the worker would run the fail-closed adapter for dispatch")
 	}
 
-	// Taxi and hauling must remain fail-closed: those services do not expose
-	// the marketplace contracts, and a config change must not be able to
-	// pretend otherwise.
+	// Taxi and Hauling were not configured in this call and stay fail-closed.
 	for _, category := range []string{
 		platformclients.CategoryTaxi, platformclients.CategoryHauling,
 	} {
@@ -54,6 +52,31 @@ func TestExecutionSetWiresRealDispatchAdapterWhenConfigured(t *testing.T) {
 		if _, isFallback := contract.(platformclients.UnimplementedExecution); !isFallback {
 			t.Fatalf("%s is not the fail-closed adapter", category)
 		}
+	}
+}
+
+func TestExecutionSetWiresRealHaulingAdapterWhenConfigured(t *testing.T) {
+	set := platformclients.BuildExecutionSet(platformclients.Options{}, platformclients.Options{
+		ServiceName: "fleet-partner-service",
+		BaseURL:     "http://hauling:8104",
+		Secret:      []byte("a-configured-hauling-secret"),
+		Timeout:     5 * time.Second,
+		Metrics:     observability.NewMetrics(),
+	})
+	hauling, ok := set.For(platformclients.CategoryHauling)
+	if !ok || !hauling.Configured() {
+		t.Fatal("complete Hauling configuration did not produce a live execution adapter")
+	}
+	if _, isFallback := hauling.(platformclients.UnimplementedExecution); isFallback {
+		t.Fatal("Hauling execution is still wired to the fail-closed placeholder")
+	}
+	dispatch, _ := set.For(platformclients.CategoryDispatch)
+	if dispatch.Configured() {
+		t.Fatal("configuring Hauling must not implicitly enable Dispatch")
+	}
+	taxi, _ := set.For(platformclients.CategoryTaxi)
+	if taxi.Configured() {
+		t.Fatal("Taxi must remain fail closed")
 	}
 }
 

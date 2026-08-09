@@ -63,6 +63,25 @@ func (r *SessionRepository) GetByID(ctx context.Context, sessionID string) (*mod
 	return scanSession(row)
 }
 
+// Status returns just the status column for a session, without the full row
+// scan GetByID does. It is the per-request check the corporate bearer
+// middleware runs so that revoking one session takes effect on its next
+// request rather than waiting for the access token to expire naturally —
+// see internal/middleware.ResolveTenant. A session id that does not exist
+// answers the same as models.SessionStatusRevoked: an access token minted
+// for a session that has since been deleted must never be treated as valid.
+func (r *SessionRepository) Status(ctx context.Context, sessionID string) (string, error) {
+	var status string
+	err := r.db.QueryRow(ctx, `SELECT status FROM fleet_partner_corporate_sessions WHERE id = $1`, sessionID).Scan(&status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.SessionStatusRevoked, nil
+		}
+		return "", fmt.Errorf("auth: session status: %w", err)
+	}
+	return status, nil
+}
+
 // LockByRefreshHash loads a session by refresh-token hash FOR UPDATE. It
 // matches revoked and compromised sessions too, because finding a revoked
 // session by its hash is exactly how token reuse is detected.

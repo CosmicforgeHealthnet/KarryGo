@@ -39,10 +39,31 @@ type Repository interface {
 	CancelTripByCustomerTx(ctx context.Context, input CustomerCancelTripInput) (*Trip, *Cancellation, error)
 	InsertCustomerRating(ctx context.Context, tripID, providerID, customerID string, score int, comment *string) (CustomerRating, bool, error)
 	GetCustomerRatingByTripID(ctx context.Context, tripID string) (CustomerRating, bool, error)
+	// WP6.3–6.4 authoritative delivery outcomes.
+	DeliveryOutcomeRepository
+}
+
+// DeliveryOutcomeRepository stores the two authoritative delivery outcomes
+// that had no home before WP6: the recipient's confirmation that a delivery
+// arrived, and the record of one that could not be completed.
+//
+// Kept as its own interface, embedded above, so the two concerns read as one
+// contract rather than as six more lines in an already long list.
+type DeliveryOutcomeRepository interface {
+	ConfirmRecipientTx(ctx context.Context, input ConfirmRecipientDBInput) (*RecipientConfirmation, error)
+	GetRecipientConfirmation(ctx context.Context, tripID string) (*RecipientConfirmation, error)
+	FindRecipientConfirmationByKey(ctx context.Context, idempotencyKey string) (*RecipientConfirmation, error)
+	FailDeliveryTx(ctx context.Context, input FailDeliveryDBInput) (*DeliveryFailure, error)
+	GetDeliveryFailure(ctx context.Context, tripID string) (*DeliveryFailure, error)
+	FindDeliveryFailureByKey(ctx context.Context, idempotencyKey string) (*DeliveryFailure, error)
 }
 
 type PostgresRepository struct {
 	db *pgxpool.Pool
+	// emitter is optional. When nil the repository performs no event
+	// publication, which is the behaviour every caller had before the
+	// marketplace outbox existed.
+	emitter EventEmitter
 }
 
 func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
@@ -189,6 +210,13 @@ func (r *PostgresRepository) TransitionTripStatus(ctx context.Context, input Tra
 	`, input.TripID, input.FromStatus, input.ToStatus, input.ChangedAt, input.ChangedBy, input.Notes); err != nil {
 		return false, err
 	}
+	// input.Notes is deliberately not carried onto the event. It is free text
+	// written by whichever actor drove the transition, so it is the one field
+	// here that could contain anything at all.
+	if err := r.emitStatusChange(ctx, tx, input.TripID, input.FromStatus, input.ToStatus,
+		string(input.ChangedBy), input.ChangedAt); err != nil {
+		return false, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return false, err
 	}
@@ -313,6 +341,12 @@ func (r *PostgresRepository) CompleteTripTx(ctx context.Context, input CompleteT
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := r.emitTripEvent(ctx, tx, eventTripCompleted, trip, map[string]any{
+		"completedAt": input.Now,
+		"proofStatus": "VERIFIED",
+	}); err != nil {
+		return nil, nil, err
+	}
 	return trip, proof, tx.Commit(ctx)
 }
 
@@ -369,6 +403,19 @@ func (r *PostgresRepository) CancelTripTx(ctx context.Context, input CancelTripI
 	if err != nil {
 		return nil, nil, err
 	}
+	// penaltyApplied is reported but the penalty amount is not: whether a
+	// penalty attached is an operational fact the managing organization needs,
+	// its monetary value is the wallet service's to state.
+	if err := r.emitTripEvent(ctx, tx, eventTripCancelled, trip, map[string]any{
+		"cancelledAt":    input.Now,
+		"cancelledBy":    "PROVIDER",
+		"fromStatus":     string(input.FromStatus),
+		"reasonCode":     input.ReasonCode,
+		"penaltyApplied": input.PenaltyApplied,
+		"cancellationId": cancellation.ID,
+	}); err != nil {
+		return nil, nil, err
+	}
 	return trip, cancellation, tx.Commit(ctx)
 }
 
@@ -412,6 +459,16 @@ func (r *PostgresRepository) CancelTripByCustomerTx(ctx context.Context, input C
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := r.emitTripEvent(ctx, tx, eventTripCancelled, trip, map[string]any{
+		"cancelledAt":    input.Now,
+		"cancelledBy":    "CUSTOMER",
+		"fromStatus":     string(input.FromStatus),
+		"reasonCode":     "customer_cancelled",
+		"penaltyApplied": false,
+		"cancellationId": cancellation.ID,
+	}); err != nil {
+		return nil, nil, err
+	}
 	return trip, cancellation, tx.Commit(ctx)
 }
 
@@ -442,6 +499,14 @@ func (r *PostgresRepository) MarkArrived(ctx context.Context, tripID, providerID
 	`, tripID, string(fromStatus), now); err != nil {
 		return nil, err
 	}
+	if err := r.emitTripEvent(ctx, tx, eventTripStatusChanged, trip, map[string]any{
+		"fromStatus": string(fromStatus),
+		"toStatus":   "arrived_pickup",
+		"changedBy":  "PROVIDER",
+		"changedAt":  now,
+	}); err != nil {
+		return nil, err
+	}
 	return trip, tx.Commit(ctx)
 }
 
@@ -470,6 +535,14 @@ func (r *PostgresRepository) MarkTripStarted(ctx context.Context, tripID, provid
 		INSERT INTO trip_state_log (trip_id, from_status, to_status, changed_at, changed_by, notes)
 		VALUES ($1,'arrived_pickup','in_progress',$2,'provider','provider_started_delivery')
 	`, tripID, now); err != nil {
+		return nil, err
+	}
+	if err := r.emitTripEvent(ctx, tx, eventTripStatusChanged, trip, map[string]any{
+		"fromStatus": "arrived_pickup",
+		"toStatus":   "in_progress",
+		"changedBy":  "PROVIDER",
+		"changedAt":  now,
+	}); err != nil {
 		return nil, err
 	}
 	return trip, tx.Commit(ctx)
@@ -512,6 +585,10 @@ func (r *PostgresRepository) SubmitProofTx(ctx context.Context, input SubmitProo
 		INSERT INTO trip_state_log (trip_id, from_status, to_status, changed_at, changed_by, notes)
 		VALUES ($1,'in_progress','proof_submitted',$2,'provider','proof_submitted')
 	`, input.TripID, input.Now); err != nil {
+		return nil, err
+	}
+
+	if err := r.emitProofEvent(ctx, tx, input.TripID, proof, input.Now); err != nil {
 		return nil, err
 	}
 

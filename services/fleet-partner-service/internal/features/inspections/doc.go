@@ -1,8 +1,4 @@
-// Package inspections is the reserved feature boundary for asset inspection workflows.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package inspections names the inspection capability boundary. Its production
+// implementation is co-located with assets so inspection completion, asset
+// blocking, work-order creation, audit and outbox commit atomically.
 package inspections

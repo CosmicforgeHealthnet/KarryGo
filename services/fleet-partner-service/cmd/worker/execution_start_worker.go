@@ -10,6 +10,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
+	mktmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	mktrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
@@ -27,9 +28,10 @@ import (
 // perfectly valid.
 func startExecutionStartWorker(ctx context.Context, cfg config.Config,
 	pool *pgxpool.Pool, metrics *observability.Metrics) func() {
-	if !cfg.DispatchExecutionStartEnabled {
+	capabilities := cfg.ExecutionCapabilities()
+	if !capabilities.Any() {
 		logging.Notice(config.ServiceName+"-worker",
-			"execution-start worker disabled by FLEET_DISPATCH_EXECUTION_START_ENABLED")
+			"execution-start worker disabled: no execution source is enabled")
 		return func() {}
 	}
 
@@ -40,6 +42,16 @@ func startExecutionStartWorker(ctx context.Context, cfg config.Config,
 		Timeout:     cfg.DispatchServiceTimeout,
 		Metrics:     metrics,
 	})
+	if cfg.HaulingIntegrationEnabled && !cfg.IntegrationsKillSwitch {
+		hauling := cfg.Clients["driver-hauling-service"]
+		executions = platformclients.BuildExecutionSet(platformclients.Options{
+			ServiceName: config.ServiceName, BaseURL: cfg.DispatchServiceURL,
+			Secret: cfg.DispatchServiceSecret, Timeout: cfg.DispatchServiceTimeout, Metrics: metrics,
+		}, platformclients.Options{
+			ServiceName: config.ServiceName, BaseURL: hauling.BaseURL,
+			Secret: hauling.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics,
+		})
+	}
 	if !executions.AnyConfigured() {
 		logging.Notice(config.ServiceName+"-worker",
 			"execution-start worker not started: no execution service is configured")
@@ -58,11 +70,18 @@ func startExecutionStartWorker(ctx context.Context, cfg config.Config,
 	})
 
 	workerConfig := mktusecases.ExecutionStartWorkerConfig{
-		Owner:       config.ServiceName + "-execution-start",
-		Lease:       cfg.ExecutionStartLease,
-		BatchSize:   cfg.ExecutionStartBatchSize,
-		MaxAttempts: cfg.ExecutionStartMaxAttempts,
-		BaseBackoff: cfg.ExecutionStartBackoffBase,
+		Owner:         config.ServiceName + "-execution-start",
+		Lease:         cfg.ExecutionStartLease,
+		BatchSize:     cfg.ExecutionStartBatchSize,
+		MaxAttempts:   cfg.ExecutionStartMaxAttempts,
+		BaseBackoff:   cfg.ExecutionStartBackoffBase,
+		WritesEnabled: func() bool { return !cfg.IntegrationsKillSwitch },
+	}
+	if capabilities.Dispatch {
+		workerConfig.EnabledSources = append(workerConfig.EnabledSources, mktmodels.SourceDispatch)
+	}
+	if capabilities.Hauling {
+		workerConfig.EnabledSources = append(workerConfig.EnabledSources, mktmodels.SourceHauling)
 	}
 
 	workerCtx, cancel := context.WithCancel(ctx)

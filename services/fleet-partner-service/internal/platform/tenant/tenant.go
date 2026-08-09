@@ -19,9 +19,10 @@ import (
 type ActorType string
 
 const (
-	ActorTypeOrganizationUser ActorType = "organization_user"
-	ActorTypePlatformService  ActorType = "platform_service"
-	ActorTypeSystem           ActorType = "system"
+	ActorTypeOrganizationUser      ActorType = "organization_user"
+	ActorTypeOrganizationAPIClient ActorType = "organization_api_client"
+	ActorTypePlatformService       ActorType = "platform_service"
+	ActorTypeSystem                ActorType = "system"
 )
 
 // Context is the resolved tenant scope of a request, event or job.

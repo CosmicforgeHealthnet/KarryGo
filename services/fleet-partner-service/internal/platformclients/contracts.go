@@ -31,6 +31,7 @@ type VerificationSubmission struct {
 type VerificationOutcome struct {
 	ExternalReference string
 	Status            string
+	RestrictionStatus string
 	SourceVersion     int64
 	Issues            []VerificationIssue
 }
@@ -203,6 +204,47 @@ type ProviderContract interface {
 	Configured() bool
 }
 
+// HaulingLink is the data-minimized projection of an authoritative provider
+// or truck relationship.
+type HaulingLink struct {
+	LinkID         string `json:"linkId"`
+	OrganizationID string `json:"organizationId"`
+	BranchID       string `json:"branchId"`
+	MembershipID   string `json:"membershipId"`
+	ProviderID     string `json:"providerId"`
+	TruckID        string `json:"truckId"`
+	Status         string `json:"status"`
+	SourceVersion  int64  `json:"sourceVersion"`
+}
+
+type HaulingLinkRequest struct {
+	OrganizationID string
+	BranchID       string
+	MembershipID   string
+	ProviderID     string
+	TruckID        string
+	IdempotencyKey string
+}
+
+type HaulingLinkTransition struct {
+	State           string
+	ExpectedVersion int64
+	OrganizationID  string
+	BranchID        string
+	ReasonCode      string
+	IdempotencyKey  string
+}
+
+type HaulingLinkContract interface {
+	CreateProviderLink(context.Context, CallMeta, HaulingLinkRequest) (HaulingLink, error)
+	ReadProviderLink(context.Context, CallMeta, string) (HaulingLink, error)
+	TransitionProviderLink(context.Context, CallMeta, string, HaulingLinkTransition) (HaulingLink, error)
+	CreateTruckLink(context.Context, CallMeta, HaulingLinkRequest) (HaulingLink, error)
+	ReadTruckLink(context.Context, CallMeta, string) (HaulingLink, error)
+	TransitionTruckLink(context.Context, CallMeta, string, HaulingLinkTransition) (HaulingLink, error)
+	Configured() bool
+}
+
 // ---- Unconfigured adapters ----
 
 // ErrContractNotImplemented means the authoritative service does not expose
@@ -278,7 +320,8 @@ type ContractSet struct {
 	Wallet       WalletContract
 	Media        MediaContract
 	// Providers is keyed by service category (DISPATCH, TAXI, HAULING).
-	Providers map[string]ProviderContract
+	Providers    map[string]ProviderContract
+	HaulingLinks HaulingLinkContract
 }
 
 // Service category to owning service mapping.
@@ -314,5 +357,28 @@ func NewUnconfiguredContracts() ContractSet {
 			CategoryTaxi:     UnconfiguredProvider{Service: "driver-taxi-service"},
 			CategoryHauling:  UnconfiguredProvider{Service: "driver-hauling-service"},
 		},
+		HaulingLinks: UnconfiguredHaulingLinks{},
 	}
 }
+
+type UnconfiguredHaulingLinks struct{}
+
+func (UnconfiguredHaulingLinks) CreateProviderLink(context.Context, CallMeta, HaulingLinkRequest) (HaulingLink, error) {
+	return HaulingLink{}, notConfigured("driver-hauling-service")
+}
+func (UnconfiguredHaulingLinks) ReadProviderLink(context.Context, CallMeta, string) (HaulingLink, error) {
+	return HaulingLink{}, notConfigured("driver-hauling-service")
+}
+func (UnconfiguredHaulingLinks) TransitionProviderLink(context.Context, CallMeta, string, HaulingLinkTransition) (HaulingLink, error) {
+	return HaulingLink{}, notConfigured("driver-hauling-service")
+}
+func (UnconfiguredHaulingLinks) CreateTruckLink(context.Context, CallMeta, HaulingLinkRequest) (HaulingLink, error) {
+	return HaulingLink{}, notConfigured("driver-hauling-service")
+}
+func (UnconfiguredHaulingLinks) ReadTruckLink(context.Context, CallMeta, string) (HaulingLink, error) {
+	return HaulingLink{}, notConfigured("driver-hauling-service")
+}
+func (UnconfiguredHaulingLinks) TransitionTruckLink(context.Context, CallMeta, string, HaulingLinkTransition) (HaulingLink, error) {
+	return HaulingLink{}, notConfigured("driver-hauling-service")
+}
+func (UnconfiguredHaulingLinks) Configured() bool { return false }

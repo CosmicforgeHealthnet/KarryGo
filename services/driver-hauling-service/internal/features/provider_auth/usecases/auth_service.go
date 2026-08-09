@@ -15,6 +15,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/phonenumber"
+	"cosmicforge/logistics/shared/go/providercompat"
 )
 
 const (
@@ -27,9 +28,11 @@ type AuthService struct {
 	sessions   providerauthrepositories.RefreshSessionRepository
 	challenges providerauthrepositories.OTPChallengeRepository
 
-	accessSigner  *sharedauth.TokenSigner
-	otpSecret     []byte
-	refreshSecret []byte
+	accessSigner    *sharedauth.TokenSigner
+	otpSecret       []byte
+	refreshSecret   []byte
+	membership      providercompat.Reader
+	providerService string
 
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
@@ -55,6 +58,8 @@ type Options struct {
 	OTPMaxRequests     int
 	OTPMaxAttempts     int
 	OTPDebug           bool
+	MembershipReader   providercompat.Reader
+	ProviderService    string
 }
 
 func NewAuthService(opts Options) *AuthService {
@@ -65,6 +70,8 @@ func NewAuthService(opts Options) *AuthService {
 		accessSigner:    sharedauth.NewTokenSigner(opts.AccessTokenSecret),
 		otpSecret:       opts.OTPSecret,
 		refreshSecret:   opts.RefreshTokenSecret,
+		membership:      opts.MembershipReader,
+		providerService: opts.ProviderService,
 		accessTokenTTL:  opts.AccessTokenTTL,
 		refreshTokenTTL: opts.RefreshTokenTTL,
 		otpTTL:          opts.OTPTTL,
@@ -161,10 +168,15 @@ type VerifyAuthInput struct {
 }
 
 type TokenResult struct {
-	AccessToken  string                            `json:"access_token"`
-	RefreshToken string                            `json:"refresh_token"`
-	ExpiresIn    int64                             `json:"expires_in"`
-	Provider     providerauthmodels.PublicProvider `json:"provider"`
+	AccessToken           string                            `json:"access_token"`
+	RefreshToken          string                            `json:"refresh_token"`
+	ExpiresIn             int64                             `json:"expires_in"`
+	Provider              providerauthmodels.PublicProvider `json:"provider"`
+	ProviderMode          string                            `json:"providerMode,omitempty"`
+	Organization          *providercompat.Organization      `json:"organization,omitempty"`
+	Membership            *providercompat.Membership        `json:"membership,omitempty"`
+	AssignmentPolicy      *providercompat.AssignmentPolicy  `json:"assignmentPolicy,omitempty"`
+	FieldVisibilityPolicy string                            `json:"fieldVisibilityPolicy,omitempty"`
 }
 
 func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (TokenResult, error) {
@@ -375,6 +387,15 @@ func (s *AuthService) AccessSigner() *sharedauth.TokenSigner {
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 func (s *AuthService) createSessionTokens(ctx context.Context, provider providerauthmodels.Provider, deviceID *string, userAgent, ipAddress string) (TokenResult, error) {
+	var compatibility providercompat.Summary
+	if s.membership != nil {
+		var err error
+		compatibility, err = s.membership.ReadMembershipSummary(ctx, s.providerService, provider.ID)
+		if err != nil {
+			return TokenResult{}, apperrors.Unavailable("Organization membership could not be verified. Please try again.", err)
+		}
+	}
+
 	sessionID := uuid.NewString()
 	secret, err := sharedauth.GenerateOpaqueToken(32)
 	if err != nil {
@@ -409,12 +430,20 @@ func (s *AuthService) createSessionTokens(ctx context.Context, provider provider
 		return TokenResult{}, apperrors.Internal("Access token could not be generated.", err)
 	}
 
-	return TokenResult{
+	result := TokenResult{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(s.accessTokenTTL.Seconds()),
 		Provider:     provider.Public(),
-	}, nil
+	}
+	if s.membership != nil {
+		result.ProviderMode = compatibility.ProviderMode
+		result.Organization = compatibility.Organization
+		result.Membership = compatibility.Membership
+		result.AssignmentPolicy = compatibility.AssignmentPolicy
+		result.FieldVisibilityPolicy = compatibility.FieldVisibilityPolicy
+	}
+	return result, nil
 }
 
 func parseRefreshSessionID(refreshToken string) (string, error) {

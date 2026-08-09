@@ -3,8 +3,8 @@ package availabilityhttp
 import (
 	"github.com/gin-gonic/gin"
 
-	availabilityusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/usecases"
 	providerauthusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases"
+	availabilityusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/usecases"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 

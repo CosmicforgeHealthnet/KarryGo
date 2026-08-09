@@ -190,6 +190,108 @@ func (r *OutboxRepository) PendingCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+// OldestPendingAge reports how long the oldest still-PENDING record has been
+// waiting, or zero when the outbox has no backlog. This is the age signal a
+// readiness/alerting policy needs on top of PendingCount: a growing count
+// alone does not distinguish "busy but keeping up" from "stalled," but the
+// age of the single oldest row does.
+func (r *OutboxRepository) OldestPendingAge(ctx context.Context) (time.Duration, error) {
+	var oldest *time.Time
+	err := r.db.QueryRow(ctx,
+		`SELECT min(created_at) FROM fleet_partner_outbox WHERE status = $1`, OutboxStatusPending,
+	).Scan(&oldest)
+	if err != nil {
+		return 0, err
+	}
+	if oldest == nil {
+		return 0, nil
+	}
+	return time.Since(*oldest), nil
+}
+
+// StaleCount reports how many PENDING records have sat unpublished longer
+// than olderThan.
+//
+// A nonzero, growing PENDING count alone (PendingCount) does not by itself
+// distinguish "the worker is healthy and simply busy" from "the transport
+// has been down for an hour and nothing is moving" — age is what makes that
+// distinction, and this is the read-back a reconciliation/alerting loop
+// needs to tell the two apart.
+func (r *OutboxRepository) StaleCount(ctx context.Context, olderThan time.Duration) (int64, error) {
+	var count int64
+	err := r.db.QueryRow(ctx, `
+		SELECT count(*) FROM fleet_partner_outbox
+		WHERE status = $1 AND created_at < now() - $2::interval`,
+		OutboxStatusPending, durationToInterval(olderThan)).Scan(&count)
+	return count, err
+}
+
+// ErrOutboxRecordNotFound covers "no such record" for outbox operator
+// operations.
+var ErrOutboxRecordNotFound = errors.New("events: outbox record not found")
+
+// ReplayDeadLettered returns one dead-lettered record to the pending queue:
+// attempts and the redacted error are cleared, and it becomes claimable
+// again on the worker's next poll. Refused (ErrOutboxRecordNotFound) unless
+// the record is currently DEAD_LETTERED, so replaying an id twice, or a
+// record still mid-retry, is a no-op rather than a silent double-queue.
+//
+// Every other durable-worker subsystem in this service (document
+// reconciliation cases, document deletion requests, bulk imports, exports)
+// already has this same recovery path; the outbox worker — the newest of
+// them to gain a real transport — did not.
+func (r *OutboxRepository) ReplayDeadLettered(ctx context.Context, id string) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE fleet_partner_outbox SET
+			status = $1, attempts = 0, available_at = now(), last_error_redacted = '',
+			lease_owner = NULL, lease_expires_at = NULL
+		WHERE id = $2 AND status = $3`,
+		OutboxStatusPending, id, OutboxStatusDeadLettered)
+	if err != nil {
+		return fmt.Errorf("events: replay dead-lettered outbox record: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrOutboxRecordNotFound
+	}
+	return nil
+}
+
+// ListDeadLettered returns dead-lettered records for operator review,
+// newest first.
+func (r *OutboxRepository) ListDeadLettered(ctx context.Context, limit int) ([]OutboxRecord, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT id, event_type, schema_version, aggregate_type, aggregate_id,
+			COALESCE(organization_id, ''), payload, headers, status, available_at,
+			attempts, COALESCE(lease_owner, ''), lease_expires_at, created_at,
+			published_at, COALESCE(last_error_redacted, '')
+		FROM fleet_partner_outbox
+		WHERE status = $1
+		ORDER BY created_at DESC
+		LIMIT $2`, OutboxStatusDeadLettered, limit)
+	if err != nil {
+		return nil, fmt.Errorf("events: list dead-lettered outbox records: %w", err)
+	}
+	defer rows.Close()
+
+	records := []OutboxRecord{}
+	for rows.Next() {
+		var record OutboxRecord
+		if err := rows.Scan(
+			&record.ID, &record.EventType, &record.SchemaVersion, &record.AggregateType,
+			&record.AggregateID, &record.OrganizationID, &record.Payload, &record.Headers,
+			&record.Status, &record.AvailableAt, &record.Attempts, &record.LeaseOwner,
+			&record.LeaseExpiresAt, &record.CreatedAt, &record.PublishedAt, &record.LastError,
+		); err != nil {
+			return nil, fmt.Errorf("events: scan dead-lettered outbox record: %w", err)
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
+
 // redactError trims error text to a bounded, credential-free summary.
 func redactError(err error) string {
 	if err == nil {

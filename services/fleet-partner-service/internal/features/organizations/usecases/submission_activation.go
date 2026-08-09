@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/enforcement"
+	eligibilitymodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
 	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
@@ -211,7 +213,7 @@ func (s *Service) RequestWalletProvisioning(ctx context.Context, tenantCtx tenan
 	}
 
 	account, err := s.opts.Contracts.Wallet.EnsureOrganizationWallet(ctx, platformclients.CallMeta{
-		RequestID: tenantCtx.RequestID, CorrelationID: tenantCtx.CorrelationID,
+		OrganizationID: tenantCtx.OrganizationID, RequestID: tenantCtx.RequestID, CorrelationID: tenantCtx.CorrelationID,
 	}, platformclients.WalletProvisionRequest{
 		OrganizationID: tenantCtx.OrganizationID,
 		Currency:       organization.DefaultCurrency,
@@ -352,6 +354,22 @@ func (s *Service) TryActivate(ctx context.Context, organizationID string, correl
 		return false, err
 	}
 	if !assessment.Ready {
+		return false, nil
+	}
+
+	// The local assessment says the onboarding stages are done. The durable
+	// gate says whether the platform currently vouches for this organization —
+	// verification approved and fresh, no restriction, required documents in
+	// order. Both must hold, and the gate's answer is the one that is recorded.
+	gateSubject := enforcement.Company(organizationID, eligibilitymodels.OperationCompanyActivation)
+	gateSubject.ActorType = eligibilitymodels.ActorSystem
+	gateSubject.ActorID = "activation-evaluator"
+	gateSubject.CorrelationID = correlationID
+	if _, gateErr := enforcement.Require(ctx, s.opts.Eligibility, gateSubject); gateErr != nil {
+		// Not an error to the caller: activation is evaluated repeatedly by a
+		// worker, and "not yet eligible" is the ordinary answer. It is
+		// reported as "not activated" so the sweep retries rather than
+		// dead-lettering.
 		return false, nil
 	}
 

@@ -84,6 +84,7 @@ func (h *InternalHandler) GetProviderAcceptance(c *gin.Context) {
 //	GET /internal/fleet-partner/v1/providers/:providerId/offers/:offerId
 //	GET /internal/fleet-partner/v1/providers/:providerId/assignments
 //	GET /internal/fleet-partner/v1/providers/:providerId/assignments/:assignmentId
+//	GET /internal/fleet-partner/v1/providers/:providerId/memberships
 //
 // providerId in the path is NOT self-asserted trust: the calling service has
 // already authenticated the provider's session and is vouching for it, and
@@ -98,6 +99,8 @@ func RegisterProviderReadRoutes(group *gin.RouterGroup, handler *InternalHandler
 		handler.requireAllowedCaller, handler.ListProviderAssignments)
 	group.GET("/providers/:providerId/assignments/:assignmentId",
 		handler.requireAllowedCaller, handler.GetProviderAssignment)
+	group.GET("/providers/:providerId/memberships",
+		handler.requireAllowedCaller, handler.ListProviderMemberships)
 }
 
 // callerProviderService resolves which provider service this caller may read.
@@ -184,6 +187,44 @@ func (h *InternalHandler) GetProviderAssignment(c *gin.Context) {
 		return
 	}
 	respondInternal(c, http.StatusOK, assignment)
+}
+
+// callerRawProviderService validates the caller against the same allowlist
+// callerProviderService uses, but returns the caller's own raw HMAC service
+// name (e.g. "driver-dispatch-delivery-service") rather than the
+// "DISPATCH"/"TAXI"/"HAULING" abbreviation callerOwnsProviderService's
+// values hold.
+//
+// That abbreviation is correct for ListProviderOffers/ListProviderAssignments
+// above (via sourceServiceFor, matching the vocabulary marketplace's own
+// assignments/offers tables use) but wrong for a membership lookup:
+// fleet_partner_organization_provider_memberships.provider_service is
+// populated at membership creation from platformclients.OwningService, which
+// returns the raw caller name, not the abbreviation. Querying that column
+// with "DISPATCH" would never match a real row.
+func (h *InternalHandler) callerRawProviderService(c *gin.Context) (string, error) {
+	raw, _ := c.Get("service_name")
+	callerService, _ := raw.(string)
+	if _, known := callerOwnsProviderService[callerService]; !known {
+		return "", apperrors.Forbidden("This service may not read provider work.", nil)
+	}
+	return callerService, nil
+}
+
+// ListProviderMemberships returns every membership this provider identity
+// has ever held, across every organization and any status.
+func (h *InternalHandler) ListProviderMemberships(c *gin.Context) {
+	providerService, err := h.callerRawProviderService(c)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	memberships, err := h.service.ListProviderMemberships(c.Request.Context(), providerService, c.Param("providerId"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondInternal(c, http.StatusOK, memberships)
 }
 
 // respondInternal writes the canonical envelope.

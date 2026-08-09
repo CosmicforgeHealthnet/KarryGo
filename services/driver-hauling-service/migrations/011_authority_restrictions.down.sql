@@ -1,0 +1,6 @@
+DROP TRIGGER IF EXISTS hauling_restriction_operations_append_only ON hauling_authority_restriction_operations;
+DROP TRIGGER IF EXISTS hauling_restriction_history_append_only ON hauling_authority_restriction_history;
+DROP FUNCTION IF EXISTS reject_hauling_restriction_history_mutation();
+DROP TABLE IF EXISTS hauling_authority_restriction_operations;
+DROP TABLE IF EXISTS hauling_authority_restriction_history;
+DROP TABLE IF EXISTS hauling_authority_restrictions;

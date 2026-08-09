@@ -3,8 +3,8 @@ package providerprofilehttp
 import (
 	"github.com/gin-gonic/gin"
 
-	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
 	providerauthusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases"
+	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 

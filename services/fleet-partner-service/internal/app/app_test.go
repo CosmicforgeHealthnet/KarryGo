@@ -95,6 +95,43 @@ func TestHealthIsLivenessOnly(t *testing.T) {
 	}
 }
 
+func TestOrganizationAPIUsesSeparateAuthAndCannotReachManagementRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := BuildRouter(Options{
+		Config:      testConfig(),
+		Metrics:     observability.NewMetrics(),
+		TokenSigner: auth.NewTokenSigner(testAccessSecret),
+		Verifier:    serviceauth.NewVerifier(serviceauth.Secrets{"admin-backoffice-service": testServiceSecret}, 5*time.Minute),
+		Resolver:    staticResolver{err: tenant.ErrMembershipNotFound},
+		OrganizationAPIAuth: func(c *gin.Context) {
+			clientID, secret, ok := c.Request.BasicAuth()
+			if !ok || clientID != "client_1" || secret != "secret_1" {
+				c.AbortWithStatus(http.StatusUnauthorized)
+				return
+			}
+			c.Next()
+		},
+		OrganizationAPIRoutes: func(group *gin.RouterGroup) {
+			group.GET("/context", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"routeClass": "organization_api"}) })
+		},
+	})
+
+	valid := httptest.NewRequest(http.MethodGet, "/fleet-partner/integrations/v1/context", nil)
+	valid.SetBasicAuth("client_1", "secret_1")
+	if response := do(router, valid); response.Code != http.StatusOK {
+		t.Fatalf("organization API credential route = %d", response.Code)
+	}
+	invalid := httptest.NewRequest(http.MethodGet, "/fleet-partner/integrations/v1/context", nil)
+	if response := do(router, invalid); response.Code != http.StatusUnauthorized {
+		t.Fatalf("missing organization API credential = %d", response.Code)
+	}
+	management := httptest.NewRequest(http.MethodGet, "/fleet-partner/v1/integrations/api-clients", nil)
+	management.SetBasicAuth("client_1", "secret_1")
+	if response := do(router, management); response.Code >= 200 && response.Code < 300 {
+		t.Fatalf("organization API credential reached corporate management surface: %d", response.Code)
+	}
+}
+
 func TestReadySucceedsAndFails(t *testing.T) {
 	healthy := ReadyCheck{Name: "postgres", Check: func(context.Context) error { return nil }}
 	router := buildTestRouter(t, nil, healthy)

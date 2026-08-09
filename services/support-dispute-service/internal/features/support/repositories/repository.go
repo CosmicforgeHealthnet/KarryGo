@@ -17,6 +17,8 @@ import (
 type SupportRepository interface {
 	CreateComplaint(ctx context.Context, input CreateComplaintInput) (supportmodels.Complaint, error)
 	GetComplaintByID(ctx context.Context, id string) (supportmodels.Complaint, error)
+	GetOrganizationComplaintByID(ctx context.Context, organizationReference, id string) (supportmodels.Complaint, error)
+	GetOrganizationComplaintByIdempotencyKey(ctx context.Context, organizationReference, key string) (supportmodels.Complaint, error)
 	ListComplaintsByComplainant(ctx context.Context, complainantType supportmodels.ComplainantType, complainantID string, limit, offset int) ([]supportmodels.Complaint, error)
 	ListComplaints(ctx context.Context, filter ComplaintFilter, limit, offset int) ([]supportmodels.Complaint, error)
 	UpdateComplaintStatus(ctx context.Context, id string, status supportmodels.ComplaintStatus, note *string) (supportmodels.Complaint, error)
@@ -44,18 +46,20 @@ type SupportRepository interface {
 }
 
 type CreateComplaintInput struct {
-	ComplainantType  supportmodels.ComplainantType
-	ComplainantID    string
-	ComplainantName  *string
-	ComplainantPhone *string
-	ServiceType      supportmodels.ServiceType
-	BookingReference *string
-	Category         *string
-	Priority         string
-	IncidentLat      *float64
-	IncidentLng      *float64
-	Subject          string
-	Description      string
+	ComplainantType       supportmodels.ComplainantType
+	ComplainantID         string
+	ComplainantName       *string
+	ComplainantPhone      *string
+	ServiceType           supportmodels.ServiceType
+	BookingReference      *string
+	Category              *string
+	Priority              string
+	IncidentLat           *float64
+	IncidentLng           *float64
+	Subject               string
+	Description           string
+	OrganizationReference *string
+	SourceIdempotencyKey  *string
 }
 
 type AddEvidenceInput struct {
@@ -95,7 +99,8 @@ type DisputeFilter struct {
 // scanComplaint reads these in this exact order.
 const complaintColumns = `id::text, complainant_type, complainant_id, complainant_name, complainant_phone,
 	service_type, booking_reference, category, priority, incident_lat, incident_lng,
-	subject, description, status, assigned_to, resolution_note, resolved_at, created_at, updated_at`
+	subject, description, status, assigned_to, resolution_note, resolved_at, created_at, updated_at,
+	organization_reference, source_idempotency_key, source_version`
 
 const disputeColumns = `id::text, complaint_id::text, service_type, booking_reference,
 	respondent_type, respondent_id, respondent_name, respondent_phone,
@@ -121,13 +126,31 @@ func (r *PostgresSupportRepository) CreateComplaint(ctx context.Context, input C
 		INSERT INTO complaints
 		  (complainant_type, complainant_id, complainant_name, complainant_phone,
 		   service_type, booking_reference, category, priority, incident_lat, incident_lng,
-		   subject, description)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		   subject, description, organization_reference, source_idempotency_key)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING `+complaintColumns,
 		input.ComplainantType, input.ComplainantID, input.ComplainantName, input.ComplainantPhone,
 		input.ServiceType, input.BookingReference, input.Category, priority, input.IncidentLat, input.IncidentLng,
-		input.Subject, input.Description)
+		input.Subject, input.Description, input.OrganizationReference, input.SourceIdempotencyKey)
 	return scanComplaint(row)
+}
+
+func (r *PostgresSupportRepository) GetOrganizationComplaintByID(ctx context.Context, organizationReference, id string) (supportmodels.Complaint, error) {
+	row := r.db.QueryRow(ctx, `SELECT `+complaintColumns+` FROM complaints WHERE id=$1 AND organization_reference=$2`, id, organizationReference)
+	c, err := scanComplaint(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return supportmodels.Complaint{}, apperrors.NotFound("Complaint not found.", err)
+	}
+	return c, err
+}
+
+func (r *PostgresSupportRepository) GetOrganizationComplaintByIdempotencyKey(ctx context.Context, organizationReference, key string) (supportmodels.Complaint, error) {
+	row := r.db.QueryRow(ctx, `SELECT `+complaintColumns+` FROM complaints WHERE organization_reference=$1 AND source_idempotency_key=$2`, organizationReference, key)
+	c, err := scanComplaint(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return supportmodels.Complaint{}, apperrors.NotFound("Complaint not found.", err)
+	}
+	return c, err
 }
 
 func (r *PostgresSupportRepository) GetComplaintByID(ctx context.Context, id string) (supportmodels.Complaint, error) {
@@ -514,7 +537,7 @@ func scanComplaint(row scannable) (supportmodels.Complaint, error) {
 		&c.ID, &c.ComplainantType, &c.ComplainantID, &c.ComplainantName, &c.ComplainantPhone,
 		&c.ServiceType, &c.BookingReference, &c.Category, &c.Priority, &c.IncidentLat, &c.IncidentLng,
 		&c.Subject, &c.Description, &c.Status, &c.AssignedTo, &c.ResolutionNote, &c.ResolvedAt,
-		&c.CreatedAt, &c.UpdatedAt,
+		&c.CreatedAt, &c.UpdatedAt, &c.OrganizationReference, &c.SourceIdempotencyKey, &c.SourceVersion,
 	)
 	return c, err
 }
@@ -525,7 +548,7 @@ func scanComplaintWithUnread(row scannable) (supportmodels.Complaint, error) {
 		&c.ID, &c.ComplainantType, &c.ComplainantID, &c.ComplainantName, &c.ComplainantPhone,
 		&c.ServiceType, &c.BookingReference, &c.Category, &c.Priority, &c.IncidentLat, &c.IncidentLng,
 		&c.Subject, &c.Description, &c.Status, &c.AssignedTo, &c.ResolutionNote, &c.ResolvedAt,
-		&c.CreatedAt, &c.UpdatedAt, &c.UnreadCount,
+		&c.CreatedAt, &c.UpdatedAt, &c.OrganizationReference, &c.SourceIdempotencyKey, &c.SourceVersion, &c.UnreadCount,
 	)
 	return c, err
 }

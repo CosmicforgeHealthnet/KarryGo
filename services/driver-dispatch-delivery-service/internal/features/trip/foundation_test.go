@@ -17,8 +17,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"cosmicforge/logistics/shared/go/httpx"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 func TestTripFeatureFilesExist(t *testing.T) {
@@ -214,6 +214,8 @@ type fakeRepository struct {
 	proofs          []DeliveryProof
 	cancels         []Cancellation
 	customerRatings map[string]CustomerRating
+	confirmations   []RecipientConfirmation
+	failures        []DeliveryFailure
 	initialLogs     int
 }
 
@@ -364,4 +366,113 @@ func (r *fakeRepository) CreateCancellation(_ context.Context, input CreateCance
 	cancellation := Cancellation{ID: uuid.NewString(), TripID: input.TripID}
 	r.cancels = append(r.cancels, cancellation)
 	return &r.cancels[len(r.cancels)-1], nil
+}
+
+// ── WP6.3–6.4 delivery outcomes ──────────────────────────────────────────────
+//
+// The in-memory fake mirrors the real repository's contract closely enough for
+// the unit suite: one confirmation and one failure per trip, keyed by
+// idempotency key, and the same "nil, nil means the state forbade it" signal
+// the service branches on.
+
+func (r *fakeRepository) ConfirmRecipientTx(_ context.Context, input ConfirmRecipientDBInput) (*RecipientConfirmation, error) {
+	for i := range r.trips {
+		if r.trips[i].ID != input.TripID || r.trips[i].ProviderID != input.ProviderID {
+			continue
+		}
+		if !CanConfirmRecipient(r.trips[i].Status) {
+			return nil, nil
+		}
+		confirmation := RecipientConfirmation{
+			ID: uuid.NewString(), TripID: input.TripID,
+			VerificationMethod:       input.VerificationMethod,
+			RecipientReference:       input.RecipientReference,
+			RecipientMatchedExpected: input.RecipientMatchedExpected,
+			ProofID:                  input.ProofID,
+			FromStatus:               string(input.FromStatus),
+			ConfirmedAt:              input.Now,
+			ConfirmedByActorType:     input.ActorType,
+			ConfirmedByActorID:       input.ActorID,
+			ExpectedSourceVersion:    input.ExpectedSourceVersion,
+			IdempotencyKey:           input.IdempotencyKey,
+			RequestFingerprint:       input.RequestFingerprint,
+			CorrelationID:            input.CorrelationID,
+			CausationID:              input.CausationID,
+			CreatedAt:                input.Now,
+		}
+		r.confirmations = append(r.confirmations, confirmation)
+		return &r.confirmations[len(r.confirmations)-1], nil
+	}
+	return nil, nil
+}
+
+func (r *fakeRepository) GetRecipientConfirmation(_ context.Context, tripID string) (*RecipientConfirmation, error) {
+	for i := range r.confirmations {
+		if r.confirmations[i].TripID == tripID {
+			return &r.confirmations[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeRepository) FindRecipientConfirmationByKey(_ context.Context, key string) (*RecipientConfirmation, error) {
+	for i := range r.confirmations {
+		if r.confirmations[i].IdempotencyKey == key {
+			return &r.confirmations[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeRepository) FailDeliveryTx(_ context.Context, input FailDeliveryDBInput) (*DeliveryFailure, error) {
+	for i := range r.trips {
+		if r.trips[i].ID != input.TripID || r.trips[i].ProviderID != input.ProviderID {
+			continue
+		}
+		if !CanFailDelivery(r.trips[i].Status) {
+			return nil, nil
+		}
+		r.trips[i].Status = StatusFailed
+		failure := DeliveryFailure{
+			ID: uuid.NewString(), TripID: input.TripID,
+			ReasonCode: input.ReasonCode, ReasonCategory: input.ReasonCategory,
+			FromStatus: string(input.FromStatus), FailedAt: input.Now,
+			ResponsibleActorType: input.ActorType, ResponsibleActorID: input.ActorID,
+			RetryEligible: input.RetryEligible, RecipientUnavailable: input.RecipientUnavailable,
+			ExpectedSourceVersion: input.ExpectedSourceVersion,
+			IdempotencyKey:        input.IdempotencyKey,
+			RequestFingerprint:    input.RequestFingerprint,
+			CorrelationID:         input.CorrelationID, CausationID: input.CausationID,
+			CreatedAt: input.Now,
+		}
+		if input.OperatorNotes != "" {
+			notes := input.OperatorNotes
+			failure.OperatorNotes = &notes
+		}
+		if input.IncidentReference != "" {
+			incident := input.IncidentReference
+			failure.IncidentReference = &incident
+		}
+		r.failures = append(r.failures, failure)
+		return &r.failures[len(r.failures)-1], nil
+	}
+	return nil, nil
+}
+
+func (r *fakeRepository) GetDeliveryFailure(_ context.Context, tripID string) (*DeliveryFailure, error) {
+	for i := range r.failures {
+		if r.failures[i].TripID == tripID {
+			return &r.failures[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeRepository) FindDeliveryFailureByKey(_ context.Context, key string) (*DeliveryFailure, error) {
+	for i := range r.failures {
+		if r.failures[i].IdempotencyKey == key {
+			return &r.failures[i], nil
+		}
+	}
+	return nil, nil
 }

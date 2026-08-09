@@ -10,6 +10,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	eligibilitymodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
@@ -92,6 +93,15 @@ func (s *Service) Assign(ctx context.Context, input AssignInput) (*models.Assign
 			return nil, errorcodes.Conflict(apperrorsCode(sourceDecision.ReasonCode),
 				"That provider cannot take this work right now.")
 		}
+	}
+
+	// The durable gate. It runs after the marketplace checks because those
+	// answer faster and with better reasons, and before anything is written
+	// because a recorded assignment authorized by nothing is what this whole
+	// layer exists to prevent.
+	if err := s.gateAssignment(ctx, input.Tenant, input.MembershipID, input.AssetReference,
+		projection.SourceService, eligibilitymodels.OperationAssignment, ""); err != nil {
+		return nil, err
 	}
 
 	assignment := &models.Assignment{
@@ -271,6 +281,85 @@ func (s *Service) ExpireAssignments(ctx context.Context, limit int) (int, error)
 	return expired, nil
 }
 
+// CandidateMembershipLister lists active provider memberships eligible to be
+// tried as a reassignment candidate, most-preferred first, excluding the
+// given membership IDs. The automatic reassignment coordinator invents no
+// scoring or matching decision of its own: it only sequences calls to
+// Reassign, which already performs the real eligibility/conflict check for
+// each candidate in turn.
+type CandidateMembershipLister interface {
+	ListActiveMemberships(ctx context.Context, organizationID string, excluding []string, limit int) ([]string, error)
+}
+
+// ErrNoEligibleCandidate is returned when every candidate membership was
+// tried and none was eligible -- not an error condition for the caller to
+// treat as a failure, just "this case still needs a human."
+var ErrNoEligibleCandidate = errors.New("marketplace: no eligible reassignment candidate found")
+
+// AutoReassignStaleCase attempts to automatically reassign one open
+// reassignment case to the next eligible candidate. Requires both
+// Flags.AutomaticReassignmentEnabled and a wired CandidateMemberships
+// lister; either being absent returns errorcodes.Unavailable so the safe
+// default (a human dispatcher acts on the case) is preserved.
+//
+// This tries up to `limit` active memberships (excluding the case's own
+// excluded set) in the order the lister returns them, calling the existing,
+// already-correct Reassign use case for each -- Reassign's own
+// eligibility/conflict checks decide whether a candidate is actually
+// usable, and a rejected candidate's attempt is fully rolled back (Reassign
+// runs inside its own transaction), so trying the next one is always safe.
+func (s *Service) AutoReassignStaleCase(ctx context.Context, tenantCtx tenant.Context, reassignmentCase models.ReassignmentCase, reason string) (*models.Assignment, error) {
+	if !s.opts.Flags.AutomaticReassignmentEnabled {
+		return nil, errorcodes.Unavailable(errorcodes.SourceServiceUnavailable, "Automatic reassignment is not enabled.")
+	}
+	if s.opts.CandidateMemberships == nil {
+		return nil, errorcodes.Unavailable(errorcodes.SourceServiceUnavailable, "No candidate membership authority is configured.")
+	}
+	origin, err := s.opts.Assignments.GetByID(ctx, tenantCtx.OrganizationID, reassignmentCase.OriginAssignmentID)
+	if err != nil {
+		return nil, err
+	}
+	const maxCandidateAttempts = 5
+	candidates, err := s.opts.CandidateMemberships.ListActiveMemberships(ctx, tenantCtx.OrganizationID,
+		reassignmentCase.ExcludedMembershipIDs, maxCandidateAttempts)
+	if err != nil {
+		return nil, err
+	}
+	assetReference := ""
+	if origin.AssetReference != nil {
+		assetReference = *origin.AssetReference
+	}
+	var lastErr error = ErrNoEligibleCandidate
+	for _, membershipID := range candidates {
+		replacement, reassignErr := s.Reassign(ctx, ReassignInput{
+			Tenant: tenantCtx, AssignmentID: reassignmentCase.OriginAssignmentID,
+			MembershipID: membershipID, AssetReference: assetReference, Reason: reason,
+		})
+		if reassignErr == nil {
+			return replacement, nil
+		}
+		lastErr = reassignErr
+	}
+	return nil, lastErr
+}
+
+// ScanStaleReassignmentCases counts OPEN/IN_PROGRESS reassignment cases
+// older than staleAfter, for the Section 27 reassignment coordinator's
+// operator-visibility metric. It performs no mutation and makes no
+// candidate-selection decision -- see the coordinator's own doc comment in
+// internal/app/reconciliation_workers.go for why automatic reassignment is
+// out of scope here.
+func (s *Service) ScanStaleReassignmentCases(ctx context.Context, staleAfter time.Duration) (int64, error) {
+	return s.opts.Assignments.CountStaleOpenReassignmentCases(ctx, staleAfter)
+}
+
+// ListStaleReassignmentCases returns the stale OPEN/IN_PROGRESS cases
+// themselves (not just a count), for the automatic reassignment coordinator
+// to iterate.
+func (s *Service) ListStaleReassignmentCases(ctx context.Context, staleAfter time.Duration, limit int) ([]models.ReassignmentCase, error) {
+	return s.opts.Assignments.ListStaleOpenReassignmentCases(ctx, staleAfter, limit)
+}
+
 // ReassignInput replaces an unresolved or resolved assignment.
 type ReassignInput struct {
 	Tenant                 tenant.Context
@@ -353,6 +442,14 @@ func (s *Service) Reassign(ctx context.Context, input ReassignInput) (*models.As
 		if !decision.Eligible {
 			return errorcodes.Conflict(apperrorsCode(decision.ReasonCode),
 				"That provider cannot take this work right now.")
+		}
+
+		// The outgoing assignment is excluded from the conflict checks: a
+		// replacement must not be blocked by the very assignment it replaces.
+		if err := s.gateAssignment(ctx, input.Tenant, input.MembershipID,
+			input.AssetReference, current.SourceService,
+			eligibilitymodels.OperationAssignment, current.ID); err != nil {
+			return err
 		}
 
 		root := current.RootAssignmentID

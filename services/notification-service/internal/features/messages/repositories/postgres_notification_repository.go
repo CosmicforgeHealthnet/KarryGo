@@ -29,6 +29,7 @@ type CreateMessageInput struct {
 type Repository interface {
 	CreateMessageWithDeliveries(ctx context.Context, input CreateMessageInput) (messagemodels.Message, []messagemodels.Delivery, bool, error)
 	GetMessage(ctx context.Context, id string) (messagemodels.Message, error)
+	GetMessageByIdempotencyKey(ctx context.Context, key string) (messagemodels.Message, error)
 	ListMessages(ctx context.Context, recipientType string, recipientID string, limit int) ([]messagemodels.Message, error)
 	GetDelivery(ctx context.Context, id string) (messagemodels.Delivery, error)
 	ListDueRetryDeliveries(ctx context.Context, limit int) ([]messagemodels.Delivery, error)
@@ -170,6 +171,17 @@ func (r *PostgresNotificationRepository) GetMessage(ctx context.Context, id stri
 		WHERE id = $1
 	`, id)
 
+	message, err := scanMessage(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return messagemodels.Message{}, apperrors.NotFound("Notification message could not be found.", err)
+	}
+	return message, err
+}
+
+func (r *PostgresNotificationRepository) GetMessageByIdempotencyKey(ctx context.Context, key string) (messagemodels.Message, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id::text, idempotency_key, source_service, event_type, recipient_type, recipient_id, recipient_email, recipient_phone, channels, template_key, locale, title, body, data, template_data, priority, status, created_at, updated_at
+		FROM notification_messages WHERE idempotency_key = $1`, key)
 	message, err := scanMessage(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return messagemodels.Message{}, apperrors.NotFound("Notification message could not be found.", err)

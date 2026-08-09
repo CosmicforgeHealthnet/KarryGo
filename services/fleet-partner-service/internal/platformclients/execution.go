@@ -152,9 +152,8 @@ var ErrExecutionNotImplemented = errors.New("platformclients: execution service 
 // whose marketplace and trip layers do not exist yet.
 //
 // Per the Sections 11–12 audit this is the honest state of
-// driver-taxi-service (a scaffold) and driver-hauling-service (bookings and
-// provider auth exist, but no marketplace/reservation layer). Every call
-// fails; nothing is fabricated; the corresponding feature flags stay off.
+// driver-taxi-service (a scaffold), and it is also used for any source whose
+// required configuration is absent. Every call fails; nothing is fabricated.
 type UnimplementedExecution struct {
 	Category string
 	Service  string
@@ -242,15 +241,21 @@ func (s ExecutionSet) AnyConfigured() bool {
 
 // BuildExecutionSet assembles the execution contracts.
 //
-// Dispatch gets a real adapter when its base URL and secret are present.
-// Taxi and hauling deliberately get UnimplementedExecution: those services do
-// not expose the required marketplace contracts, and a fail-closed adapter is
-// the honest representation of that. Enabling them requires a real adapter,
-// not a configuration change.
-func BuildExecutionSet(dispatchOpts Options) ExecutionSet {
+// Dispatch and Hauling get independent real adapters when their respective
+// base URLs and secrets are present. Taxi deliberately remains
+// UnimplementedExecution until it has a production contract.
+
+// BuildExecutionSet accepts Dispatch options followed optionally by Hauling
+// options. The variadic form preserves existing composition roots while they
+// roll forward. Taxi has no production contract and remains hard-disabled.
+func BuildExecutionSet(dispatchOpts Options, haulingOpts ...Options) ExecutionSet {
+	hauling := ExecutionContract(UnimplementedExecution{Category: CategoryHauling, Service: "driver-hauling-service"})
+	if len(haulingOpts) > 0 {
+		hauling = NewHaulingExecution(New(haulingOpts[0]))
+	}
 	return ExecutionSet{
 		CategoryDispatch: NewDispatchExecution(New(dispatchOpts)),
-		CategoryTaxi:     UnimplementedExecution{Category: CategoryTaxi},
-		CategoryHauling:  UnimplementedExecution{Category: CategoryHauling},
+		CategoryTaxi:     UnimplementedExecution{Category: CategoryTaxi, Service: "driver-taxi-service"},
+		CategoryHauling:  hauling,
 	}
 }

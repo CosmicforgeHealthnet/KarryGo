@@ -17,16 +17,19 @@ import (
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
 )
 
 const crossServiceSecret = "stage-one-cross-service-hmac-secret"
 
 type dispatchHarnessReady struct {
-	URL        string `json:"url"`
-	ProviderID string `json:"providerId"`
-	RequestID  string `json:"requestId"`
-	Token      string `json:"token"`
+	URL               string `json:"url"`
+	ProviderID        string `json:"providerId"`
+	PrivateProviderID string `json:"privateProviderId"`
+	PrivateVehicleID  string `json:"privateVehicleId"`
+	RequestID         string `json:"requestId"`
+	Token             string `json:"token"`
 }
 
 // TestAcceptanceToCanonicalTripDispatchHarness is the dispatch half of the
@@ -65,7 +68,24 @@ func TestAcceptanceToCanonicalTripDispatchHarness(t *testing.T) {
 		RETURNING id`).Scan(&providerID); err != nil {
 		t.Fatalf("seed provider: %v", err)
 	}
+	var privateProviderID string
+	if err := pool.QueryRow(ctx, `INSERT INTO providers
+		(id,phone,verification_status,is_active,onboarding_complete,operation_type)
+		VALUES(gen_random_uuid(),'+2348099000002','verified',true,true,'fleet') RETURNING id`).Scan(&privateProviderID); err != nil {
+		t.Fatalf("seed private provider: %v", err)
+	}
 	var requestID string
+	var vehicleID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO bikes(provider_id,bike_type,brand,model,year,color,plate_number,verification_status,is_active)
+		VALUES($1,'dispatch_bike','KarryGo','Private',2025,'black',$2,'verified',true)
+		RETURNING id`, privateProviderID, "E2E-"+privateProviderID[:8]).Scan(&vehicleID); err != nil {
+		t.Fatalf("seed vehicle: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO provider_availability(provider_id,status,
+		verified_to_go_online,session_start) VALUES($1,'online',true,now())`, privateProviderID); err != nil {
+		t.Fatalf("seed provider availability: %v", err)
+	}
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO request_broadcasts (booking_id, broadcast_radius_km, expires_at, booking_payload)
 		VALUES (gen_random_uuid(), 5, now() + interval '30 minutes', '{}'::jsonb)
@@ -102,6 +122,8 @@ func TestAcceptanceToCanonicalTripDispatchHarness(t *testing.T) {
 		MarketplaceExecutionEnabled:           true,
 		MarketplaceOutboxEnabled:              true,
 		MarketplaceProviderEligibilityEnabled: true,
+		MarketplaceVehicleEligibilityEnabled:  true,
+		PrivateExecutionEnabled:               true,
 		ProviderOrganizationOffersEnabled:     true,
 		ProviderCompanyAssignmentsEnabled:     true,
 		FleetRelayEnabled:                     true,
@@ -115,7 +137,9 @@ func TestAcceptanceToCanonicalTripDispatchHarness(t *testing.T) {
 		RefreshTokenTTL:                       time.Hour,
 	}
 
-	engine := router.New(cfg, pool, redisClient, authService, nil, nil, nil)
+	tripService := tripfeature.NewService(tripfeature.NewPostgresRepository(pool),
+		tripfeature.NewLocalProofStorage(t.TempDir(), "local-private://"))
+	engine := router.New(cfg, pool, redisClient, authService, nil, tripService, nil)
 	stopRequested := make(chan struct{}, 1)
 	engine.POST("/__cross_service_stop", func(c *gin.Context) {
 		c.Status(http.StatusNoContent)
@@ -135,10 +159,12 @@ func TestAcceptanceToCanonicalTripDispatchHarness(t *testing.T) {
 	stopWorkers := router.StartMarketplaceWorkers(workerCtx, cfg, pool)
 
 	ready := dispatchHarnessReady{
-		URL:        "http://" + listener.Addr().String(),
-		ProviderID: providerID,
-		RequestID:  requestID,
-		Token:      token,
+		URL:               "http://" + listener.Addr().String(),
+		ProviderID:        providerID,
+		PrivateProviderID: privateProviderID,
+		PrivateVehicleID:  vehicleID,
+		RequestID:         requestID,
+		Token:             token,
 	}
 	encoded, err := json.Marshal(ready)
 	if err != nil {

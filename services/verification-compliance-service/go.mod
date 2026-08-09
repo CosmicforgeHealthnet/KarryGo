@@ -2,7 +2,12 @@ module cosmicforge/logistics/services/verification-compliance-service
 
 go 1.26.3
 
-require cosmicforge/logistics/shared/go v0.0.0
+require (
+	cosmicforge/logistics/shared/go v0.0.0
+	github.com/gin-gonic/gin v1.12.0
+	github.com/jackc/pgx/v5 v5.9.2
+	github.com/joho/godotenv v1.5.1
+)
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect

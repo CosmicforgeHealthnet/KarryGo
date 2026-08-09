@@ -11,6 +11,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/enforcement"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
@@ -30,6 +31,17 @@ type EventPublisher interface {
 // is safe to reference.
 type MediaValidator interface {
 	ValidateEvidence(ctx context.Context, meta platformclients.CallMeta, organizationID string, fileIDs []string) error
+}
+
+type PrivateAcceptanceReader interface {
+	VerifyPrivateAcceptance(context.Context, string) (*ProviderAcceptanceView, error)
+}
+
+// PrivateExecutionEventProjector applies authoritative Dispatch and Hauling
+// events that carry a Fleet private-execution operation reference. It runs
+// inside the same transaction as the consumer inbox.
+type PrivateExecutionEventProjector interface {
+	ProjectPrivateExecutionEvent(context.Context, pgx.Tx, InboundEvent) (repositories.SourceEventOutcome, error)
 }
 
 // Flags gates the marketplace write paths so a service category can be rolled
@@ -72,11 +84,30 @@ type Options struct {
 	Commands        *repositories.CommandRepository
 	Executions      platformclients.ExecutionSet
 	Eligibility     *EligibilityChecker
-	Media           MediaValidator
-	Events          EventPublisher
-	Audit           *audit.Recorder
-	Metrics         *observability.Metrics
-	Flags           Flags
+	// DurableEligibility records and enforces the durable decision layer. The
+	// in-feature EligibilityChecker above answers "may this membership take
+	// this request right now"; this one records that answer as an auditable,
+	// expiring decision citing the authorities it consulted. Both run: the
+	// first is fast and marketplace-specific, the second is the accountable
+	// record a gate can be audited against afterwards.
+	DurableEligibility enforcement.Gate
+	Media              MediaValidator
+	PrivateAcceptance  PrivateAcceptanceReader
+	PrivateEvents      PrivateExecutionEventProjector
+	Events             EventPublisher
+	Audit              *audit.Recorder
+	Metrics            *observability.Metrics
+	Flags              Flags
+	// CandidateMemberships lists active provider memberships for the
+	// automatic reassignment coordinator to try, in order. Optional: when
+	// nil, AutoReassignStaleCase reports the capability as unavailable
+	// rather than panicking, so a deployment that has not wired it keeps
+	// the safe (human-reviewed) reassignment path.
+	CandidateMemberships CandidateMembershipLister
+	// MembershipHistory backs the provider-self "membership history" read
+	// (Section 28/34). Optional: when nil, ListProviderMemberships reports
+	// the capability as unavailable rather than panicking.
+	MembershipHistory MembershipHistoryReader
 
 	ResponseTimeoutDefault time.Duration
 	ResponseTimeoutMin     time.Duration
@@ -182,6 +213,14 @@ func (s *Service) AcceptAssignment(ctx context.Context, input AcceptAssignmentIn
 			return err
 		}
 		if err := s.recheckEligibility(ctx, assignment, projection); err != nil {
+			return err
+		}
+		// Acceptance is the moment work becomes real, so it takes its own
+		// durable decision rather than relying on the one taken at assignment
+		// time — which may be minutes or hours old and was answering a
+		// different question.
+		if err := s.gateExecution(ctx, assignment, "PROVIDER",
+			input.Actor.MembershipID, input.CorrelationID); err != nil {
 			return err
 		}
 

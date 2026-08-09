@@ -80,16 +80,28 @@ var (
 
 // Service implements the organization marketplace use cases.
 type Service struct {
-	repo     *Repository
-	flags    Flags
-	verifier AcceptanceVerifier
-	now      func() time.Time
+	repo         *Repository
+	flags        Flags
+	verifier     AcceptanceVerifier
+	restrictions interface {
+		Restricted(context.Context, string, string, string) (bool, error)
+	}
+	now func() time.Time
 	// responder delivers provider decisions to fleet. Nil or unconfigured
 	// means decisions are still recorded durably and delivered later by the
 	// relay worker — never dropped, never faked as success.
 	responder      FleetResponder
 	relayAttempts  int
 	providerReader ProviderReader
+}
+
+// WithRestrictionGate installs Dispatch's local projection gate. It is kept as
+// a narrow port so marketplace policy does not depend on the storage package.
+func (s *Service) WithRestrictionGate(gate interface {
+	Restricted(context.Context, string, string, string) (bool, error)
+}) *Service {
+	s.restrictions = gate
+	return s
 }
 
 // WithResponder attaches the fleet responder used for immediate delivery of

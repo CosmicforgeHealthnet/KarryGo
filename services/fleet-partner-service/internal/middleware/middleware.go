@@ -1,23 +1,30 @@
 // Package middleware implements the HTTP middleware chain for
 // fleet-partner-service.
 //
-// Documented ordering (outermost first) — enforced by TestMiddlewareOrdering:
+// Documented ordering (outermost first):
 //
 //  1. Recovery                (panic -> safe 500 envelope)
 //  2. RequestID               (shared httpx X-Request-ID)
 //  3. CorrelationID           (X-Correlation-ID in/out)
-//  4. SecureHeaders
-//  5. BodySizeLimit
-//  6. RequestLogger + Metrics instrumentation
-//  7. ErrorEnvelope           (terminal error mapping)
-//  8. Route-class boundaries: ContentType, Bearer auth / service auth,
+//  4. Tracing                 (W3C traceparent in/out — see internal/platform/tracing)
+//  5. SecureHeaders
+//  6. BodySizeLimit
+//  7. RequestLogger + Metrics instrumentation
+//  8. ErrorEnvelope           (terminal error mapping)
+//  9. Route-class boundaries: ContentType, Bearer auth / service auth,
 //     tenant resolution — applied per route group.
+//
+// This ordering is exercised end to end by app.BuildRouter and its own test
+// suite (internal/app); this package's unit tests cover each middleware in
+// isolation instead of re-asserting gin's registration order, which is not
+// itself independently observable outside of BuildRouter's own construction.
 //
 // Authorization headers, cookies, tokens and raw request bodies are never
 // logged.
 package middleware
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -29,6 +36,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tracing"
 )
 
 // CorrelationIDKey is the gin context key holding the correlation ID.
@@ -56,6 +64,76 @@ func GetCorrelationID(c *gin.Context) string {
 	value, _ := c.Get(CorrelationIDKey)
 	correlationID, _ := value.(string)
 	return correlationID
+}
+
+// TraceContextKey is the gin context key holding the resolved trace context.
+const TraceContextKey = "trace_context"
+
+// HeaderTraceParent is the W3C propagation header (see internal/platform/tracing).
+const HeaderTraceParent = "traceparent"
+
+// HeaderTraceState is the opaque, capped W3C companion header.
+const HeaderTraceState = "tracestate"
+
+// Tracing extracts a valid inbound "traceparent"/"tracestate" pair or starts
+// a fresh root trace, attaches it to both the gin context (for handlers and
+// RequestLogger) and the request's context.Context (so every downstream
+// platformclients call and usecase automatically inherits it without having
+// to thread it through explicitly — see internal/platformclients/base.go's
+// Exchange, which reads it back out via tracing.FromContext).
+//
+// sampleRate only applies to a NEW root trace; a propagated trace always
+// keeps the upstream sampling decision (W3C head-based sampling).
+func Tracing(sampleRate float64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tc, ok := tracing.ParseTraceParent(c.GetHeader(HeaderTraceParent))
+		if !ok {
+			tc = tracing.New(tracing.ShouldSample(sampleRate))
+		}
+		if state := c.GetHeader(HeaderTraceState); state != "" {
+			tc = tc.WithTraceState(state)
+		}
+		c.Set(TraceContextKey, tc)
+		c.Request = c.Request.WithContext(tracing.WithContext(c.Request.Context(), tc))
+		c.Next()
+	}
+}
+
+// GetTraceContext returns the resolved trace context for the request.
+func GetTraceContext(c *gin.Context) tracing.Context {
+	value, _ := c.Get(TraceContextKey)
+	tc, _ := value.(tracing.Context)
+	return tc
+}
+
+// Recovery replaces shared/go/httpx.Recovery for this service: it responds
+// identically (httpx.RespondError's safe 500 envelope, request ID included)
+// but logs the panic as a structured JSON line via observability.Log instead
+// of shared/go/logging's plain-text "recovered req=%s value=%s" format.
+// httpx.Recovery is a monorepo-wide shared package used by other services
+// too, so its log format is left unchanged there; this is a service-local
+// correction, not a second recovery mechanism -- exactly one panic handler
+// is ever installed (see app.BuildRouter).
+func Recovery(cfg config.Config) gin.HandlerFunc {
+	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		tc := GetTraceContext(c)
+		value := fmt.Sprintf("%v", recovered)
+		if len(value) > 500 {
+			value = value[:500]
+		}
+		observability.Log(config.ServiceName, cfg.AppEnv, "error", "panic_recovered", map[string]any{
+			"requestId":      httpx.GetRequestID(c),
+			"correlationId":  GetCorrelationID(c),
+			"traceId":        tc.TraceID,
+			"spanId":         tc.SpanID,
+			"route":          c.FullPath(),
+			"method":         c.Request.Method,
+			"safeErrorClass": "panic",
+			"recovered":      value,
+		})
+		httpx.RespondError(c, apperrors.Internal("Something went wrong. Please try again.", nil))
+		c.Abort()
+	})
 }
 
 // SecureHeaders sets conservative security headers for an API service.
@@ -118,19 +196,40 @@ func RequestLogger(cfg config.Config, metrics *observability.Metrics) gin.Handle
 		}, 1)
 		metrics.ObserveDuration("fleet_partner_http_request_duration", labels, duration)
 
+		tc := GetTraceContext(c)
 		fields := map[string]any{
-			"requestId":     httpx.GetRequestID(c),
-			"correlationId": GetCorrelationID(c),
-			"route":         route,
-			"method":        c.Request.Method,
-			"status":        status,
-			"durationMs":    duration.Milliseconds(),
+			"requestId":       httpx.GetRequestID(c),
+			"correlationId":   GetCorrelationID(c),
+			"traceId":         tc.TraceID,
+			"spanId":          tc.SpanID,
+			"normalizedRoute": route,
+			"route":           route,
+			"method":          c.Request.Method,
+			"statusCode":      status,
+			"status":          status,
+			"durationMs":      duration.Milliseconds(),
 		}
-		if orgID, ok := c.Get(TenantOrganizationIDKey); ok {
+		if tenantCtx, ok := TenantFromGin(c); ok {
+			fields["organizationId"] = tenantCtx.OrganizationID
+			fields["actorType"] = string(tenantCtx.ActorType)
+			fields["actorId"] = tenantCtx.ActorID
+		} else if orgID, ok := c.Get(TenantOrganizationIDKey); ok {
 			fields["organizationId"] = orgID
 		}
+		if caller := c.GetString(ServiceCallerKey); caller != "" {
+			fields["serviceCallerId"] = caller
+			if _, hasActor := fields["actorType"]; !hasActor {
+				fields["actorType"] = "service"
+				fields["actorId"] = caller
+			}
+		}
+		if branchID := c.Param("branchId"); branchID != "" {
+			fields["branchId"] = branchID
+		}
 		if len(c.Errors) > 0 {
-			fields["errorCode"] = string(apperrors.From(c.Errors.Last().Err).Code)
+			appErr := apperrors.From(c.Errors.Last().Err)
+			fields["safeErrorClass"] = statusClass(status)
+			fields["safeErrorCode"] = string(appErr.Code)
 		}
 		observability.Log(config.ServiceName, cfg.AppEnv, levelFor(status), "http_request", fields)
 	}

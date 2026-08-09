@@ -30,6 +30,10 @@ const (
 	EventTripCompleted             = "trip.completed.v1"
 	EventTripCancelled             = "trip.cancelled.v1"
 	EventProofCompleted            = "proof.completed.v1"
+	// WP6.3–6.4. Both are TRIP-aggregate events published by the authoritative
+	// execution service; fleet only projects them.
+	EventTripRecipientConfirmed = "trip.recipient_confirmed.v1"
+	EventTripDeliveryFailed     = "trip.delivery_failed.v1"
 )
 
 // acceptedEventTypes is the closed set this service will ingest.
@@ -49,6 +53,8 @@ var acceptedEventTypes = map[string]bool{
 	EventTripCompleted:             true,
 	EventTripCancelled:             true,
 	EventProofCompleted:            true,
+	EventTripRecipientConfirmed:    true,
+	EventTripDeliveryFailed:        true,
 }
 
 // IngestStatus is the outcome reported back to the producer.
@@ -116,8 +122,8 @@ func (e *InboundEvent) Validate() *IngestError {
 		return codedBadRequest("invalid_envelope", "sourceService is required.")
 	case strings.TrimSpace(e.AggregateID) == "":
 		return codedBadRequest("invalid_envelope", "aggregateId is required.")
-	case e.AggregateVersion < 0:
-		return codedBadRequest("invalid_envelope", "aggregateVersion must not be negative.")
+	case e.AggregateVersion < 1:
+		return codedBadRequest("invalid_envelope", "aggregateVersion must be positive.")
 	case e.OccurredAt.IsZero():
 		return codedBadRequest("invalid_envelope", "occurredAt is required.")
 	}
@@ -208,6 +214,41 @@ func (s *Service) IngestEvent(ctx context.Context, raw []byte, event InboundEven
 	}
 }
 
+// ApplyStreamEventTx applies a registry-validated stream event inside the
+// common consumer's inbox transaction. The common StreamConsumer owns the
+// producer/event-id deduplication and marks the inbox row processed only when
+// this projection change commits with it.
+func (s *Service) ApplyStreamEventTx(ctx context.Context, tx pgx.Tx, envelope events.Envelope) error {
+	var payload map[string]any
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		return codedBadRequest("invalid_envelope", "payload is not decodable.")
+	}
+	event := InboundEvent{
+		EventID:          envelope.EventID,
+		EventType:        envelope.EventType,
+		SchemaVersion:    envelope.SchemaVersion,
+		SourceService:    envelope.Producer,
+		AggregateType:    envelope.AggregateType,
+		AggregateID:      envelope.AggregateID,
+		AggregateVersion: envelope.AggregateVersion,
+		OccurredAt:       envelope.OccurredAt,
+		CorrelationID:    envelope.CorrelationID,
+		PayloadHash:      events.HashPayload(envelope.Payload),
+		Payload:          payload,
+	}
+	if appErr := event.Validate(); appErr != nil {
+		return appErr
+	}
+	_, err := s.applyEvent(ctx, tx, event)
+	if errors.Is(err, repositories.ErrNotFound) {
+		// The shared stream carries events for many fleet organizations. A
+		// request/trip that has no local projection is intentionally ignored;
+		// inventing one would fabricate source-owned state.
+		return nil
+	}
+	return err
+}
+
 // orEmptyPayload normalises a nil payload so hashing is stable.
 func orEmptyPayload(payload map[string]any) map[string]any {
 	if payload == nil {
@@ -219,6 +260,20 @@ func orEmptyPayload(payload map[string]any) map[string]any {
 // applyEvent routes one validated event to its handler.
 func (s *Service) applyEvent(ctx context.Context, tx pgx.Tx,
 	event InboundEvent) (repositories.SourceEventOutcome, error) {
+	if privateExecutionOperationID(event.Payload) != "" {
+		if s.opts.PrivateEvents == nil {
+			return "", codedBadRequest("private_execution_projection_unavailable",
+				"Private execution event projection is unavailable.")
+		}
+		return s.opts.PrivateEvents.ProjectPrivateExecutionEvent(ctx, tx, event)
+	}
+	// Route on which aggregate the event's version belongs to. Trip and proof
+	// events carry TRIP versions; applying them to the request projection's
+	// counter would compare two unrelated sequences.
+	if tripAggregateEvents[event.EventType] {
+		return s.applyTripEvent(ctx, tx, event)
+	}
+
 	projection, err := s.opts.Projections.FindBySourceRequestAnyOrganization(ctx, tx,
 		event.SourceService, sourceRequestID(event))
 	if err != nil {
@@ -229,6 +284,15 @@ func (s *Service) applyEvent(ctx context.Context, tx pgx.Tx,
 		event.EventID, event.OccurredAt, func(freshness string) error {
 			return s.applyProjectionChange(ctx, tx, projection, event)
 		})
+}
+
+func privateExecutionOperationID(payload map[string]any) string {
+	for _, key := range []string{"fleetExecutionOperationId", "fleetOperationId"} {
+		if value, ok := payload[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 // sourceRequestID extracts the request identity an event refers to.
@@ -307,6 +371,12 @@ func (s *Service) applyProjectionChange(ctx context.Context, tx pgx.Tx,
 		return s.cancelOpenWork(ctx, tx, projection, "source_trip_cancelled")
 
 	case EventProofCompleted:
+		return nil
+
+	case EventTripRecipientConfirmed, EventTripDeliveryFailed:
+		// Both are TRIP-aggregate events and never reach this request-aggregate
+		// path; the case exists so the default below stays a genuine "unknown
+		// type" rather than a routing bug in disguise.
 		return nil
 
 	default:

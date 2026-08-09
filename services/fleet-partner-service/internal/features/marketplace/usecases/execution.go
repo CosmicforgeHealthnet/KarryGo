@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -14,6 +15,11 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
+
+// versionToken renders an expected version for inclusion in a fingerprint.
+func versionToken(version int64) string {
+	return strconv.FormatInt(version, 10)
+}
 
 // fingerprint produces a stable hash of a command's meaningful inputs so the
 // same idempotency key cannot be reused for a different request.
@@ -36,6 +42,20 @@ func fingerprint(parts ...string) string {
 //
 // It returns the execution-start status to surface to the provider.
 func (s *Service) requestExecution(ctx context.Context, assignment *models.Assignment, correlationID string) string {
+	// Organization policy may require the assigned party to confirm receipt
+	// before the work leaves. The acceptance is already durable; withholding
+	// the departure is the whole of the policy's effect, and acknowledging
+	// later resumes it through resumeBlockedDeparture.
+	if s.departureBlocked(ctx, assignment) {
+		_ = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+			return s.opts.Assignments.SetExecutionStatus(ctx, tx, assignment.ID,
+				models.ExecutionNotRequested, "")
+		})
+		s.opts.Metrics.IncCounter("fleet_partner_departure_blocked_unacknowledged_total",
+			map[string]string{"source": assignment.SourceService}, 1)
+		return models.ExecutionNotRequested
+	}
+
 	if !s.opts.Flags.ExecutionStartEnabled || !s.opts.Flags.SourceEnabled(assignment.SourceService) {
 		// Live execution for this service category is switched off. The
 		// acceptance stands; nothing is fabricated downstream.

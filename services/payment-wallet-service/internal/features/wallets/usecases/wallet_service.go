@@ -23,6 +23,10 @@ type WalletService struct {
 	callbackBaseURL   string
 	withdrawalMinKobo int64
 	withdrawalMaxKobo int64
+	// jobPayments mirrors job payment transitions into the authoritative
+	// finance verification record. Nil where the finance domain is disabled;
+	// the payment flow itself never depends on it.
+	jobPayments JobPaymentRecorder
 }
 
 type Options struct {
@@ -38,6 +42,7 @@ type Options struct {
 	CallbackBaseURL   string
 	WithdrawalMinKobo int64
 	WithdrawalMaxKobo int64
+	JobPayments       JobPaymentRecorder
 }
 
 type TopUpInput struct {
@@ -126,6 +131,7 @@ func NewWalletService(opts Options) *WalletService {
 		callbackBaseURL:   strings.TrimRight(opts.CallbackBaseURL, "/"),
 		withdrawalMinKobo: opts.WithdrawalMinKobo,
 		withdrawalMaxKobo: opts.WithdrawalMaxKobo,
+		jobPayments:       opts.JobPayments,
 	}
 }
 
@@ -318,7 +324,11 @@ func (s *WalletService) PayFromWallet(ctx context.Context, paymentIntentID strin
 	if idempotencyKey == "" {
 		return walletmodels.PaymentIntent{}, apperrors.Validation("Check your payment request.", []apperrors.FieldViolation{{Field: "idempotency_key", Message: "Idempotency key is required."}})
 	}
-	return s.repository.HoldPaymentFromWallet(ctx, paymentIntentID, idempotencyKey)
+	intent, err := s.repository.HoldPaymentFromWallet(ctx, paymentIntentID, idempotencyKey)
+	if err == nil {
+		s.recordJobPayment(ctx, intent)
+	}
+	return intent, err
 }
 
 // AssignPaymentProvider binds the matched provider to a held payment intent so
@@ -345,7 +355,11 @@ func (s *WalletService) CompleteJob(ctx context.Context, sourceService string, s
 	if sourceService == "" || sourceReference == "" {
 		return walletmodels.PaymentIntent{}, apperrors.BadRequest("Source service and reference are required.", nil)
 	}
-	return s.repository.CompleteJob(ctx, sourceService, sourceReference)
+	intent, err := s.repository.CompleteJob(ctx, sourceService, sourceReference)
+	if err == nil {
+		s.recordJobPayment(ctx, intent)
+	}
+	return intent, err
 }
 
 func (s *WalletService) RegisterBankAccount(ctx context.Context, input RegisterBankAccountInput) (walletmodels.ProviderBankAccount, error) {
@@ -577,6 +591,7 @@ func (s *WalletService) processPaystackEvent(ctx context.Context, eventType stri
 			return err
 		}
 		s.notifyChargeSuccess(ctx, applied)
+		s.recordJobPayment(ctx, applied)
 		return nil
 	case "transfer.success":
 		withdrawal, err := s.repository.ApplyTransferSuccess(ctx, data.TransferCode)

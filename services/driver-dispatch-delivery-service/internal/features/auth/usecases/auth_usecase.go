@@ -16,6 +16,7 @@ import (
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/providercompat"
 )
 
 // compile-time check: RedisEventPublisher implements EventPublisher
@@ -31,6 +32,8 @@ type AuthUsecase struct {
 	publisher            authclients.EventPublisher
 	otpDebug             bool
 	requireEmailDelivery bool
+	membership           providercompat.Reader
+	providerService      string
 }
 
 type Options struct {
@@ -57,6 +60,8 @@ type Options struct {
 	OTPDebug             bool
 	RequireEmailDelivery bool
 	Redis                *redis.Client
+	MembershipReader     providercompat.Reader
+	ProviderService      string
 }
 
 type RequestMetadata struct {
@@ -122,12 +127,17 @@ type VerifyInput struct {
 // role is always "dispatch_provider".
 // OTP and hashed tokens are never included here.
 type TokenResult struct {
-	ProviderID       string `json:"provider_id"`
-	Role             string `json:"role"`
-	TokenType        string `json:"token_type"`
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	ExpiresInSeconds int64  `json:"expires_in_seconds"`
+	ProviderID            string                           `json:"provider_id"`
+	Role                  string                           `json:"role"`
+	TokenType             string                           `json:"token_type"`
+	AccessToken           string                           `json:"access_token"`
+	RefreshToken          string                           `json:"refresh_token"`
+	ExpiresInSeconds      int64                            `json:"expires_in_seconds"`
+	ProviderMode          string                           `json:"providerMode,omitempty"`
+	Organization          *providercompat.Organization     `json:"organization,omitempty"`
+	Membership            *providercompat.Membership       `json:"membership,omitempty"`
+	AssignmentPolicy      *providercompat.AssignmentPolicy `json:"assignmentPolicy,omitempty"`
+	FieldVisibilityPolicy string                           `json:"fieldVisibilityPolicy,omitempty"`
 }
 
 type RefreshInput struct {
@@ -135,10 +145,15 @@ type RefreshInput struct {
 }
 
 type RefreshResult struct {
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	TokenType        string `json:"token_type"`
-	ExpiresInSeconds int64  `json:"expires_in_seconds"`
+	AccessToken           string                           `json:"access_token"`
+	RefreshToken          string                           `json:"refresh_token"`
+	TokenType             string                           `json:"token_type"`
+	ExpiresInSeconds      int64                            `json:"expires_in_seconds"`
+	ProviderMode          string                           `json:"providerMode,omitempty"`
+	Organization          *providercompat.Organization     `json:"organization,omitempty"`
+	Membership            *providercompat.Membership       `json:"membership,omitempty"`
+	AssignmentPolicy      *providercompat.AssignmentPolicy `json:"assignmentPolicy,omitempty"`
+	FieldVisibilityPolicy string                           `json:"fieldVisibilityPolicy,omitempty"`
 }
 
 type LogoutInput struct {
@@ -148,6 +163,8 @@ type LogoutInput struct {
 	Role            string
 	RefreshToken    *string
 	CorrelationID   string
+	AccessTokenJTI  string
+	AccessExpiresAt int64
 }
 
 type LogoutResult struct {
@@ -173,16 +190,22 @@ func NewAuthUsecase(opts Options) *AuthUsecase {
 		sessions = sessions.WithRedis(opts.Redis)
 	}
 
+	tokens := NewTokenUsecase(opts.AccessTokenSecret, opts.AccessTokenTTL, opts.RefreshTokenTTL)
+	if opts.Redis != nil {
+		tokens = tokens.WithRedis(opts.Redis)
+	}
 	return &AuthUsecase{
 		identities:           opts.Identities,
 		otp:                  otpUsecase,
-		tokens:               NewTokenUsecase(opts.AccessTokenSecret, opts.AccessTokenTTL, opts.RefreshTokenTTL),
+		tokens:               tokens,
 		sessions:             sessions,
 		notifier:             opts.Notifier,
 		emailClient:          opts.EmailClient,
 		publisher:            opts.Publisher,
 		otpDebug:             opts.OTPDebug,
 		requireEmailDelivery: opts.RequireEmailDelivery,
+		membership:           opts.MembershipReader,
+		providerService:      opts.ProviderService,
 	}
 }
 
@@ -627,6 +650,10 @@ func (u *AuthUsecase) Verify(ctx context.Context, input VerifyInput) (TokenResul
 	if !identity.CanCreateSession() {
 		return TokenResult{}, apperrors.Forbidden("This account cannot create a session.", nil)
 	}
+	compatibility, err := u.readProviderCompatibility(ctx, identity.ID)
+	if err != nil {
+		return TokenResult{}, err
+	}
 
 	// Generate tokens.
 	sessionID := uuid.NewString()
@@ -660,14 +687,16 @@ func (u *AuthUsecase) Verify(ctx context.Context, input VerifyInput) (TokenResul
 		}
 	}
 
-	return TokenResult{
+	result := TokenResult{
 		ProviderID:       identity.ID,
 		Role:             authmodels.RoleDispatchProvider,
 		TokenType:        "Bearer",
 		AccessToken:      accessToken,
 		RefreshToken:     refreshToken,
 		ExpiresInSeconds: u.tokens.AccessTTLSeconds(),
-	}, nil
+	}
+	applyTokenCompatibility(&result, compatibility, u.membership != nil)
+	return result, nil
 }
 
 func (u *AuthUsecase) Refresh(ctx context.Context, input RefreshInput) (RefreshResult, error) {
@@ -691,6 +720,10 @@ func (u *AuthUsecase) Refresh(ctx context.Context, input RefreshInput) (RefreshR
 	if !identity.CanCreateSession() {
 		return RefreshResult{}, apperrors.Forbidden("This account cannot refresh session.", nil)
 	}
+	compatibility, err := u.readProviderCompatibility(ctx, identity.ID)
+	if err != nil {
+		return RefreshResult{}, err
+	}
 
 	accessToken, _, err := u.tokens.GenerateAccessToken(session.DispatchRiderID, session.PhoneNumber, session.ID)
 	if err != nil {
@@ -705,12 +738,47 @@ func (u *AuthUsecase) Refresh(ctx context.Context, input RefreshInput) (RefreshR
 		return RefreshResult{}, err
 	}
 
-	return RefreshResult{
+	result := RefreshResult{
 		AccessToken:      accessToken,
 		RefreshToken:     newRefreshToken,
 		TokenType:        "Bearer",
 		ExpiresInSeconds: u.tokens.AccessTTLSeconds(),
-	}, nil
+	}
+	applyRefreshCompatibility(&result, compatibility, u.membership != nil)
+	return result, nil
+}
+
+func (u *AuthUsecase) readProviderCompatibility(ctx context.Context, providerID string) (providercompat.Summary, error) {
+	if u.membership == nil {
+		return providercompat.Summary{}, nil
+	}
+	summary, err := u.membership.ReadMembershipSummary(ctx, u.providerService, providerID)
+	if err != nil {
+		return providercompat.Summary{}, apperrors.Unavailable("Organization membership could not be verified. Please try again.", err)
+	}
+	return summary, nil
+}
+
+func applyTokenCompatibility(result *TokenResult, summary providercompat.Summary, enabled bool) {
+	if !enabled {
+		return
+	}
+	result.ProviderMode = summary.ProviderMode
+	result.Organization = summary.Organization
+	result.Membership = summary.Membership
+	result.AssignmentPolicy = summary.AssignmentPolicy
+	result.FieldVisibilityPolicy = summary.FieldVisibilityPolicy
+}
+
+func applyRefreshCompatibility(result *RefreshResult, summary providercompat.Summary, enabled bool) {
+	if !enabled {
+		return
+	}
+	result.ProviderMode = summary.ProviderMode
+	result.Organization = summary.Organization
+	result.Membership = summary.Membership
+	result.AssignmentPolicy = summary.AssignmentPolicy
+	result.FieldVisibilityPolicy = summary.FieldVisibilityPolicy
 }
 
 func validateRefreshTokenInput(refreshToken string) (string, error) {
@@ -759,7 +827,9 @@ func (u *AuthUsecase) Logout(ctx context.Context, input LogoutInput) (LogoutResu
 		return LogoutResult{}, err
 	}
 
-	// TODO(Phase 1J): JWT jti claim is not currently included; access-token blacklist will be completed when jti support is added.
+	if err := u.tokens.RevokeAccessToken(ctx, input.AccessTokenJTI, input.AccessExpiresAt); err != nil {
+		return LogoutResult{}, apperrors.Unavailable("Token revocation is temporarily unavailable.", err)
+	}
 	if u.publisher != nil {
 		event := authclients.LoggedOutEvent{
 			Event:         authclients.TopicLoggedOut,

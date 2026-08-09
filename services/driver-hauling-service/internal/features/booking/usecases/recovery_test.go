@@ -186,11 +186,11 @@ func TestCreateBooking_CardRejected(t *testing.T) {
 	svc := newMatchService(repo, &fakeStore{}, allTrucks{capacity: 10000}, 25)
 
 	_, err := svc.CreateBooking(context.Background(), CreateBookingInput{
-		CustomerID:     "c1",
-		PickupAddress:  "A", PickupLat: pickupLat, PickupLng: pickupLng,
+		CustomerID:    "c1",
+		PickupAddress: "A", PickupLat: pickupLat, PickupLng: pickupLng,
 		DropoffAddress: "B", DropoffLat: nearLat, DropoffLng: nearLng,
-		CargoWeightKg:  100,
-		PaymentMethod:  bookingmodels.PaymentMethodCard,
+		CargoWeightKg: 100,
+		PaymentMethod: bookingmodels.PaymentMethodCard,
 	})
 	if err == nil {
 		t.Fatal("expected card booking to be rejected")

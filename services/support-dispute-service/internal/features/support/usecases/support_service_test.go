@@ -36,20 +36,23 @@ func (m *memRepo) nextID() string { m.seq++; return fmt.Sprintf("id-%d", m.seq) 
 
 func (m *memRepo) CreateComplaint(_ context.Context, in supportrepositories.CreateComplaintInput) (supportmodels.Complaint, error) {
 	c := supportmodels.Complaint{
-		ID:               m.nextID(),
-		ComplainantType:  in.ComplainantType,
-		ComplainantID:    in.ComplainantID,
-		ComplainantName:  in.ComplainantName,
-		ComplainantPhone: in.ComplainantPhone,
-		ServiceType:      in.ServiceType,
-		BookingReference: in.BookingReference,
-		Category:         in.Category,
-		Priority:         in.Priority,
-		IncidentLat:      in.IncidentLat,
-		IncidentLng:      in.IncidentLng,
-		Subject:          in.Subject,
-		Description:      in.Description,
-		Status:           supportmodels.ComplaintStatusOpen,
+		ID:                    m.nextID(),
+		ComplainantType:       in.ComplainantType,
+		ComplainantID:         in.ComplainantID,
+		ComplainantName:       in.ComplainantName,
+		ComplainantPhone:      in.ComplainantPhone,
+		ServiceType:           in.ServiceType,
+		BookingReference:      in.BookingReference,
+		Category:              in.Category,
+		Priority:              in.Priority,
+		IncidentLat:           in.IncidentLat,
+		IncidentLng:           in.IncidentLng,
+		Subject:               in.Subject,
+		Description:           in.Description,
+		Status:                supportmodels.ComplaintStatusOpen,
+		OrganizationReference: in.OrganizationReference,
+		SourceIdempotencyKey:  in.SourceIdempotencyKey,
+		SourceVersion:         1,
 	}
 	if c.Priority == "" {
 		c.Priority = supportmodels.PriorityNormal
@@ -64,6 +67,23 @@ func (m *memRepo) GetComplaintByID(_ context.Context, id string) (supportmodels.
 		return supportmodels.Complaint{}, apperrors.NotFound("Complaint not found.", nil)
 	}
 	return c, nil
+}
+
+func (m *memRepo) GetOrganizationComplaintByID(_ context.Context, organizationReference, id string) (supportmodels.Complaint, error) {
+	c, err := m.GetComplaintByID(context.Background(), id)
+	if err != nil || c.OrganizationReference == nil || *c.OrganizationReference != organizationReference {
+		return supportmodels.Complaint{}, apperrors.NotFound("Complaint not found.", nil)
+	}
+	return c, nil
+}
+
+func (m *memRepo) GetOrganizationComplaintByIdempotencyKey(_ context.Context, organizationReference, key string) (supportmodels.Complaint, error) {
+	for _, c := range m.complaints {
+		if c.OrganizationReference != nil && *c.OrganizationReference == organizationReference && c.SourceIdempotencyKey != nil && *c.SourceIdempotencyKey == key {
+			return c, nil
+		}
+	}
+	return supportmodels.Complaint{}, apperrors.NotFound("Complaint not found.", nil)
 }
 
 func (m *memRepo) ListComplaintsByComplainant(_ context.Context, t supportmodels.ComplainantType, id string, _, _ int) ([]supportmodels.Complaint, error) {

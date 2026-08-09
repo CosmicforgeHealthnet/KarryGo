@@ -21,6 +21,8 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	authclients "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/clients"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/enforcement"
+	eligibilitymodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
 	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
@@ -39,6 +41,10 @@ type EventPublisher interface {
 // OrganizationReader supplies the organization facts provider flows need.
 type OrganizationReader interface {
 	OrganizationStatus(ctx context.Context, organizationID string) (name string, status string, err error)
+	OrganizationCurrency(ctx context.Context, organizationID string) (string, error)
+	// BranchName supplies a membership's safe branch context (Section 30
+	// membership summary) -- name and type only, never address/coordinates.
+	BranchName(ctx context.Context, organizationID string, branchID string) (name string, branchType string, err error)
 }
 
 // Options configure the provider service.
@@ -47,10 +53,12 @@ type Options struct {
 	Providers     *providerrepos.Repository
 	Organizations OrganizationReader
 	Contracts     platformclients.ContractSet
-	Sender        authclients.Sender
-	Events        EventPublisher
-	Audit         *audit.Recorder
-	Metrics       *observability.Metrics
+	// Eligibility gates linking a provider to the organization.
+	Eligibility enforcement.Gate
+	Sender      authclients.Sender
+	Events      EventPublisher
+	Audit       *audit.Recorder
+	Metrics     *observability.Metrics
 
 	InvitationSecret   []byte
 	InvitationTTL      time.Duration
@@ -134,6 +142,21 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 	if !ok {
 		return nil, errorcodes.Unavailable(errorcodes.ProviderServiceUnavailable,
 			"This provider service is not available right now.")
+	}
+
+	// The company gate runs before anything is created. A suspended,
+	// unverified or restricted organization must not be able to start a
+	// provider-linking saga at all — a half-built membership is harder to
+	// undo than a refused request.
+	linkSubject := enforcement.Company(input.Tenant.OrganizationID,
+		eligibilitymodels.OperationProviderLinking)
+	linkSubject.BranchID = input.HomeBranchID
+	linkSubject.ServiceCategory = input.ServiceCategory
+	linkSubject.ActorType = eligibilitymodels.ActorOrganizationUser
+	linkSubject.ActorID = input.Tenant.OrganizationUserID
+	linkSubject.CorrelationID = input.Tenant.CorrelationID
+	if _, gateErr := enforcement.Require(ctx, s.opts.Eligibility, linkSubject); gateErr != nil {
+		return nil, gateErr
 	}
 
 	// Create the membership shell first so the saga has a durable anchor even
@@ -220,6 +243,15 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 			models.SagaInProgress, "")
 
 	case platformclients.ProviderResolveNotFound:
+		// Persist the normalized contact pair before the external mutation. If
+		// the response is lost, the reconciler must be able to resolve by both
+		// contacts without repeating ProvisionSponsored. This unsent invitation
+		// is a recovery anchor only; it is cancelled before the real consent
+		// invitation is created.
+		reconciliationAnchor, err := s.createReconciliationAnchor(ctx, input, membership, pair)
+		if err != nil {
+			return nil, err
+		}
 		// Step 2: organization-sponsored provisioning by the owning service.
 		identity, err := contract.ProvisionSponsored(ctx, meta, platformclients.ProviderProvisionRequest{
 			OrganizationID:  input.Tenant.OrganizationID,
@@ -228,7 +260,7 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 			PhoneE164:       pair.PhoneE164,
 			ServiceCategory: input.ServiceCategory,
 			OnboardingMode:  "ORGANIZATION_SPONSORED",
-			ProviderMode:    "ORGANIZATION_MANAGED",
+			ProviderMode:    models.ProviderModeOrganizationManaged,
 			IdempotencyKey:  idempotencyKey,
 		})
 		if err != nil {
@@ -245,8 +277,13 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 			return s.opts.Providers.SetProviderID(ctx, tx, input.Tenant.OrganizationID, membership.ID,
 				identity.ProviderID, identity.SourceVersion)
 		}); err != nil {
+			s.markSagaStep(ctx, membership.ID, "provider_identity_status", "UNKNOWN_OUTCOME",
+				models.SagaReconciliationRequired, "provider_identity_persistence_failed")
 			return nil, err
 		}
+		_ = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+			return s.opts.Providers.CancelInvitation(ctx, tx, reconciliationAnchor.ID)
+		})
 		membership.ProviderID = &identity.ProviderID
 		membership.OnboardingSource = models.SourceSponsored
 		s.markSagaStep(ctx, membership.ID, "provider_identity_status", "PROVISIONED",
@@ -266,6 +303,30 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 		return nil, err
 	}
 	return &CreateProviderResult{Membership: reloaded, Saga: saga, InvitationSent: invitationSent}, nil
+}
+
+func (s *Service) createReconciliationAnchor(ctx context.Context, input CreateProviderInput, membership *models.Membership, pair contact.Pair) (*models.Invitation, error) {
+	token, err := auth.GenerateOpaqueToken(32)
+	if err != nil {
+		return nil, err
+	}
+	anchor := &models.Invitation{
+		MembershipID:        &membership.ID,
+		ProviderService:     membership.ProviderService,
+		LegalName:           input.LegalName,
+		EmailNormalized:     pair.EmailNormalized,
+		PhoneE164:           pair.PhoneE164,
+		InvitationTokenHash: auth.HashRefreshToken(s.opts.InvitationSecret, token),
+		ExpiresAt:           s.opts.Now().Add(s.opts.InvitationTTL),
+		CreatedBy:           input.Tenant.ActorID,
+	}
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		return s.opts.Providers.CreateInvitation(ctx, tx, input.Tenant.OrganizationID, anchor)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return anchor, nil
 }
 
 // assertNoLiveMembershipElsewhere enforces one settlement organization per

@@ -226,6 +226,63 @@ func (r *ProjectionRepository) SetFreshness(ctx context.Context, q database.Quer
 	return nil
 }
 
+// ReconcileFromSource overwrites a projection with authoritative source state.
+//
+// This deliberately does NOT follow the one-greater rule that ApplySourceEvent
+// enforces. That rule exists because an event stream can lose messages, so a
+// jump in version means unseen history. A read-back is the opposite situation:
+// it is the source service answering directly about the aggregate's present
+// state, so there is no missing history to protect — the whole point of
+// calling it is to skip past the hole that events left.
+//
+// The source version is only ever moved FORWARD. If the read-back reports an
+// older version than we hold, our projection already reflects events the
+// read-back replica has not caught up to, and lowering it would re-open a gap
+// that the next event would then have to fill again. In that case the state is
+// left alone and only the gap is cleared.
+func (r *ProjectionRepository) ReconcileFromSource(ctx context.Context, q database.Querier,
+	projectionID string, sourceVersion int64, sourceStatus string, projectionStatus string) error {
+	var currentVersion int64
+	err := q.QueryRow(ctx, `
+		SELECT source_version FROM fleet_partner_marketplace_request_projections
+		WHERE id = $1
+		FOR NO KEY UPDATE`, projectionID).Scan(&currentVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("marketplace: lock projection for reconciliation: %w", err)
+	}
+
+	if sourceVersion < currentVersion {
+		// Nothing to repair from a staler answer, but the aggregate is
+		// demonstrably reachable and we are not behind it, so the gap that
+		// opened this case is closed.
+		_, err = q.Exec(ctx, `
+			UPDATE fleet_partner_marketplace_request_projections SET
+				freshness_state = 'CURRENT', last_reconciled_at = now(),
+				version = version + 1, updated_at = now()
+			WHERE id = $1`, projectionID)
+		if err != nil {
+			return fmt.Errorf("marketplace: clear gap from reconciliation: %w", err)
+		}
+		return nil
+	}
+
+	_, err = q.Exec(ctx, `
+		UPDATE fleet_partner_marketplace_request_projections SET
+			source_version = $2,
+			source_status = COALESCE(NULLIF($3, ''), source_status),
+			projection_status = COALESCE(NULLIF($4, ''), projection_status),
+			freshness_state = 'CURRENT', last_reconciled_at = now(),
+			version = version + 1, updated_at = now()
+		WHERE id = $1`, projectionID, sourceVersion, sourceStatus, projectionStatus)
+	if err != nil {
+		return fmt.Errorf("marketplace: reconcile projection from source: %w", err)
+	}
+	return nil
+}
+
 // MarkStale flags projections whose last source event is older than the
 // configured threshold, so the API can label them and commands can refuse.
 func (r *ProjectionRepository) MarkStale(ctx context.Context, olderThan time.Duration, limit int) (int64, error) {

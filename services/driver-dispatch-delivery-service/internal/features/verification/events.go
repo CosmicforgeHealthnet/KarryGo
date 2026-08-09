@@ -16,8 +16,7 @@ const (
 	TopicVerificationStatusUpdated = "verification.status.updated"
 	TopicVerificationFullyApproved = "verification.fully_approved"
 	TopicVerificationRejected      = "verification.rejected"
-	// TopicVerificationSuspended is reserved for a future admin suspension flow.
-	TopicVerificationSuspended = "verification.suspended"
+	TopicVerificationSuspended     = "verification.suspended"
 )
 
 type StepSubmittedEvent struct {
@@ -61,14 +60,18 @@ type VerificationFullyApprovedEvent struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
-// VerificationSuspendedPayload is reserved for a future admin suspension flow.
-// TODO: implement PublishVerificationSuspended when admin suspension endpoint is built.
 type VerificationSuspendedPayload struct {
 	Event         string    `json:"event"`
+	EventVersion  int       `json:"event_version"`
 	CorrelationID string    `json:"correlation_id"`
 	ProviderID    string    `json:"provider_id"`
-	Reason        string    `json:"reason"`
+	SourceVersion int64     `json:"source_version"`
+	ReasonCode    string    `json:"reason_code"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+type SuspensionEventPublisher interface {
+	PublishVerificationSuspended(context.Context, VerificationSuspendedPayload) error
 }
 
 type VerificationRejectedEvent struct {
@@ -114,6 +117,10 @@ func (p *RedisEventPublisher) PublishVerificationFullyApproved(ctx context.Conte
 
 func (p *RedisEventPublisher) PublishVerificationRejected(ctx context.Context, event VerificationRejectedEvent) error {
 	return p.publish(ctx, TopicVerificationRejected, event)
+}
+
+func (p *RedisEventPublisher) PublishVerificationSuspended(ctx context.Context, event VerificationSuspendedPayload) error {
+	return p.publish(ctx, TopicVerificationSuspended, event)
 }
 
 func (p *RedisEventPublisher) publish(ctx context.Context, topic string, event any) error {

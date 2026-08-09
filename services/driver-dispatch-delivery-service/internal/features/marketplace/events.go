@@ -23,6 +23,11 @@ const (
 	EventTripCompleted             = "trip.completed.v1"
 	EventTripCancelled             = "trip.cancelled.v1"
 	EventProofCompleted            = "proof.completed.v1"
+	// WP6.3–6.4. New types rather than overloads: trip.status_changed.v1
+	// cannot carry confirmation or failure detail, and publishing a failure as
+	// trip.completed.v1 would tell every consumer the opposite of the truth.
+	EventTripRecipientConfirmed = "trip.recipient_confirmed.v1"
+	EventTripDeliveryFailed     = "trip.delivery_failed.v1"
 )
 
 // KnownEventTypes is the closed set of types this service publishes.
@@ -38,6 +43,8 @@ var KnownEventTypes = map[string]bool{
 	EventTripCompleted:             true,
 	EventTripCancelled:             true,
 	EventProofCompleted:            true,
+	EventTripRecipientConfirmed:    true,
+	EventTripDeliveryFailed:        true,
 }
 
 // Envelope is the wire format delivered to consumers.
@@ -94,6 +101,15 @@ var forbiddenPayloadKeys = map[string]bool{
 	"platformFee":       true,
 	"discountCode":      true,
 	"promotionalCredit": true,
+	// Recipient identity. The delivery events added by WP6.3 carry an opaque
+	// surrogate and a match verdict; these are the field names a well-meaning
+	// change would reach for instead, so they are refused by name.
+	"receiverName":     true,
+	"receiverPhone":    true,
+	"recipientName":    true,
+	"recipientPhone":   true,
+	"recipientAddress": true,
+	"operatorNotes":    true,
 }
 
 // ErrForbiddenPayloadField reports a payload carrying restricted data.

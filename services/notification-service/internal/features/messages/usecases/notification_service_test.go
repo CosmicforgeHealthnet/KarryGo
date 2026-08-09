@@ -155,6 +155,15 @@ func (r *fakeRepository) GetMessage(ctx context.Context, id string) (messagemode
 	return r.messages[id], nil
 }
 
+func (r *fakeRepository) GetMessageByIdempotencyKey(ctx context.Context, key string) (messagemodels.Message, error) {
+	for _, message := range r.messages {
+		if message.IdempotencyKey == key {
+			return message, nil
+		}
+	}
+	return messagemodels.Message{}, nil
+}
+
 func (r *fakeRepository) ListMessages(ctx context.Context, recipientType string, recipientID string, limit int) ([]messagemodels.Message, error) {
 	var messages []messagemodels.Message
 	for _, message := range r.messages {

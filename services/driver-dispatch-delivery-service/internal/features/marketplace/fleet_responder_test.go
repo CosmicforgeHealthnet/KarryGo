@@ -108,6 +108,8 @@ func newFleetResponderStub(t *testing.T) *fleetResponderStub {
 	group.POST("/marketplace-offers/:offerId/provider-decline", handler)
 	group.POST("/assignments/:assignmentId/provider-accept", handler)
 	group.POST("/assignments/:assignmentId/provider-decline", handler)
+	group.POST("/private-assignments/:assignmentId/accept", handler)
+	group.POST("/private-assignments/:assignmentId/decline", handler)
 
 	stub.server = httptest.NewServer(engine)
 	t.Cleanup(stub.server.Close)
@@ -224,6 +226,22 @@ func TestResponderDeliversAllFourDecisionKinds(t *testing.T) {
 				t.Fatalf("decision payload not delivered: %v", sent.Body)
 			}
 		})
+	}
+}
+
+func TestResponderRoutesPrivateAssignmentThroughPrivateFleetContract(t *testing.T) {
+	stub := newFleetResponderStub(t)
+	stub.bodyJSON = `{"data":{"assignmentId":"pas_private_1","status":"ACCEPTED","allowedActions":[]}}`
+	result, err := stub.responder(t, responderSecret, time.Second).Deliver(context.Background(),
+		marketplace.CallMeta{}, assignmentRelay(marketplace.RelayProviderAssignmentAccept,
+			"pas_private_1", "private-response-1"))
+	if err != nil || !result.Accepted {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	request := stub.last()
+	if request.Path != "/internal/fleet-partner/v1/private-assignments/pas_private_1/accept" ||
+		!request.Authorized || request.IdempotencyKey != "private-response-1" {
+		t.Fatalf("private provider ingress was not safely relayed: %+v", request)
 	}
 }
 

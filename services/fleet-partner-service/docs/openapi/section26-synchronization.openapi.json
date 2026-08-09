@@ -1,0 +1,15 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "KarryGo Fleet Partner Section 26 Synchronization API", "version": "26.1.0"},
+  "paths": {
+    "/fleet-partner/v1/synchronization/projections": {"get": {"operationId": "listSynchronizationProjections", "x-permission": "synchronization.read", "responses": {"200": {"description": "Safe organization-scoped projection metadata."}}}},
+    "/fleet-partner/v1/synchronization/reconciliation-cases": {"get": {"operationId": "listSynchronizationCases", "x-permission": "synchronization.read", "responses": {"200": {"description": "Organization-scoped reconciliation cases."}}}},
+    "/fleet-partner/v1/synchronization/reconciliation-cases/{caseId}": {"get": {"operationId": "getSynchronizationCase", "x-permission": "synchronization.read", "parameters": [{"name": "caseId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Safe reconciliation-case metadata."}}}},
+    "/fleet-partner/v1/synchronization/reconciliation-cases/{caseId}/reconcile": {"post": {"operationId": "reconcileSynchronizationCase", "x-permission": "synchronization.reconcile", "parameters": [{"name": "caseId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"202": {"description": "Reconciliation queued."}}}},
+    "/fleet-partner/v1/synchronization/dead-letters": {"get": {"operationId": "listSynchronizationDeadLetters", "x-permission": "synchronization.read", "responses": {"200": {"description": "Safe dead-letter metadata; payload content is excluded."}}}},
+    "/fleet-partner/v1/synchronization/dead-letters/{deadLetterId}": {"get": {"operationId": "getSynchronizationDeadLetter", "x-permission": "synchronization.read", "parameters": [{"name": "deadLetterId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Safe dead-letter metadata."}}}},
+    "/fleet-partner/v1/synchronization/dead-letters/{deadLetterId}/replay": {"post": {"operationId": "replaySynchronizationDeadLetter", "x-permission": "synchronization.replay", "parameters": [{"name": "deadLetterId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"202": {"description": "Dead letter replayed."}}}}
+  },
+  "components": {"securitySchemes": {"CorporateBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}}},
+  "security": [{"CorporateBearer": []}]
+}

@@ -1,0 +1,1321 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Fleet Partner Section 25 Documents, Search, Exports and Generic Imports API",
+    "version": "25.0.0",
+    "description": "Document/media governance, cross-domain search, the generic asynchronous export framework and the generic bulk-import framework (Section 25C). The legacy order-only bulk-import compatibility surface (/orders/imports) is Section 15 and is documented in section15-private-operations.openapi.json, not here."
+  },
+  "x-export-dataset-types": ["ORDERS", "SHIPMENTS", "PROVIDERS_WORKFORCE", "ASSETS_MAINTENANCE", "WAREHOUSE_INVENTORY", "COMPLIANCE_INCIDENTS", "INVOICES_RECEIVABLES", "FULFILMENT_ORDERS", "SUPPORT_CASE_PROJECTIONS"],
+  "x-search-subject-types": ["CUSTOMER", "PROVIDER_WORKFORCE", "SHIPMENT", "PACKAGE", "MANIFEST", "ROUTE", "ASSET", "INCIDENT", "COMPLIANCE", "INVOICE", "WAREHOUSE_INVENTORY", "FULFILMENT_ORDER", "SUPPORT_CASE"],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "corporateBearer": []
+    }
+  ],
+  "paths": {
+    "/fleet-partner/v1/documents": {
+      "get": {
+        "operationId": "listDocuments",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.read",
+        "x-feature-flag": "FLEET_DOCUMENTS_KILL_SWITCH",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/deletion-requests/{requestId}/replay": {
+      "post": {
+        "operationId": "replayDocumentDeletion",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.delete",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequestId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/reconciliation-cases": {
+      "get": {
+        "operationId": "listDocumentReconciliationCases",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.read",
+        "x-feature-flag": "FLEET_DOCUMENTS_KILL_SWITCH",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/reconciliation-cases/{caseId}/replay": {
+      "post": {
+        "operationId": "replayDocumentReconciliationCase",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.delete",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CaseId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/upload-requests": {
+      "post": {
+        "operationId": "requestDocumentUpload",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.manage",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}": {
+      "get": {
+        "operationId": "getDocument",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.read",
+        "x-feature-flag": "FLEET_DOCUMENTS_KILL_SWITCH",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/archive": {
+      "post": {
+        "operationId": "archiveDocument",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.manage",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/deletion": {
+      "get": {
+        "operationId": "readDocumentDeletion",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.read",
+        "x-feature-flag": "FLEET_DOCUMENTS_KILL_SWITCH",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/deletion-requests": {
+      "post": {
+        "operationId": "scheduleDocumentDeletion",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.delete",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/download-requests": {
+      "post": {
+        "operationId": "requestDocumentDownload",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.download",
+        "x-feature-flag": "FLEET_DOCUMENTS_DOWNLOAD_ENABLED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/history": {
+      "get": {
+        "operationId": "documentHistory",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.read",
+        "x-feature-flag": "FLEET_DOCUMENTS_KILL_SWITCH",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/reject": {
+      "post": {
+        "operationId": "rejectDocument",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.verify",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/replace": {
+      "post": {
+        "operationId": "replaceDocument",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.manage",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/retention": {
+      "post": {
+        "operationId": "setDocumentRetention",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.delete",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/revoke": {
+      "post": {
+        "operationId": "revokeDocument",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.manage",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/verification-requests": {
+      "post": {
+        "operationId": "requestDocumentVerification",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.manage",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/verifications": {
+      "get": {
+        "operationId": "documentVerifications",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.read",
+        "x-feature-flag": "FLEET_DOCUMENTS_KILL_SWITCH",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/documents/{documentId}/verify": {
+      "post": {
+        "operationId": "verifyDocument",
+        "x-auth-class": "corporate",
+        "x-permission": "documents.verify",
+        "x-feature-flag": "FLEET_DOCUMENTS_WRITES_ENABLED",
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/exports": {
+      "get": {
+        "operationId": "listExports",
+        "x-auth-class": "corporate",
+        "x-permission": "exports.read",
+        "x-feature-flag": "EXPORTS_ENABLED",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createExport",
+        "x-auth-class": "corporate",
+        "x-permission": "exports.manage",
+        "x-feature-flag": "EXPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/exports/{exportId}": {
+      "get": {
+        "operationId": "getExport",
+        "x-auth-class": "corporate",
+        "x-permission": "exports.read",
+        "x-feature-flag": "EXPORTS_ENABLED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/exports/{exportId}/cancel": {
+      "post": {
+        "operationId": "cancelExport",
+        "x-auth-class": "corporate",
+        "x-permission": "exports.manage",
+        "x-feature-flag": "EXPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/exports/{exportId}/download-url": {
+      "post": {
+        "operationId": "exportDownloadURL",
+        "x-auth-class": "corporate",
+        "x-permission": "exports.download",
+        "x-feature-flag": "EXPORTS_ENABLED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/exports/{exportId}/replay": {
+      "post": {
+        "operationId": "replayExport",
+        "x-auth-class": "corporate",
+        "x-permission": "exports.manage",
+        "x-feature-flag": "EXPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports": {
+      "get": {
+        "operationId": "listImports",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.read",
+        "x-feature-flag": "BULK_IMPORTS_ENABLED",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createImport",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.manage",
+        "x-feature-flag": "BULK_IMPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}": {
+      "get": {
+        "operationId": "getImport",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.read",
+        "x-feature-flag": "BULK_IMPORTS_ENABLED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}/cancel": {
+      "post": {
+        "operationId": "cancelImport",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.manage",
+        "x-feature-flag": "BULK_IMPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}/commit": {
+      "post": {
+        "operationId": "commitImport",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.commit",
+        "x-feature-flag": "BULK_IMPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}/replay": {
+      "post": {
+        "operationId": "replayImport",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.retry",
+        "x-feature-flag": "BULK_IMPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}/retry": {
+      "post": {
+        "operationId": "retryImport",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.retry",
+        "x-feature-flag": "BULK_IMPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}/rows": {
+      "get": {
+        "operationId": "listImportRows",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.read",
+        "x-feature-flag": "BULK_IMPORTS_ENABLED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}/rows/{rowId}/corrections": {
+      "post": {
+        "operationId": "correctImportRow",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.retry",
+        "x-feature-flag": "BULK_IMPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/VersionedCommand"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}/rows/{rowId}/retry": {
+      "post": {
+        "operationId": "retryImportRow",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.retry",
+        "x-feature-flag": "BULK_IMPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/imports/{importId}/validate": {
+      "post": {
+        "operationId": "validateImport",
+        "x-auth-class": "corporate",
+        "x-permission": "imports.validate",
+        "x-feature-flag": "BULK_IMPORTS_WRITES_ENABLED",
+        "x-idempotency-required": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ImportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/search": {
+      "get": {
+        "operationId": "search",
+        "x-auth-class": "corporate",
+        "x-permission": "search.read",
+        "x-feature-flag": "SEARCH_ENABLED",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/search/reindex": {
+      "post": {
+        "operationId": "reindexSearchSubject",
+        "x-auth-class": "corporate",
+        "x-permission": "search.repair",
+        "x-feature-flag": "SEARCH_ENABLED",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/search/remove": {
+      "post": {
+        "operationId": "removeSearchSubject",
+        "x-auth-class": "corporate",
+        "x-permission": "search.repair",
+        "x-feature-flag": "SEARCH_ENABLED",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/search/index-jobs/{jobId}/replay": {
+      "post": {
+        "operationId": "replaySearchIndexJob",
+        "x-auth-class": "corporate",
+        "x-permission": "search.replay",
+        "x-feature-flag": "SEARCH_ENABLED",
+        "parameters": [{"name": "jobId", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"202": {"$ref": "#/components/responses/Success"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/internal/fleet-partner/v1/customers/{customerId}/orders/{orderId}/documents": {
+      "get": {
+        "operationId": "listCustomerDocuments",
+        "x-auth-class": "internal-hmac-v2",
+        "x-feature-flag": "FLEET_DOCUMENTS_CUSTOMER_ALLOWED_CALLERS",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerId"
+          },
+          {
+            "$ref": "#/components/parameters/OrderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/internal/fleet-partner/v1/customers/{customerId}/orders/{orderId}/documents/{documentId}": {
+      "get": {
+        "operationId": "getCustomerDocument",
+        "x-auth-class": "internal-hmac-v2",
+        "x-feature-flag": "FLEET_DOCUMENTS_CUSTOMER_ALLOWED_CALLERS",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerId"
+          },
+          {
+            "$ref": "#/components/parameters/OrderId"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/internal/fleet-partner/v1/customers/{customerId}/orders/{orderId}/documents/{documentId}/download-requests": {
+      "post": {
+        "operationId": "requestCustomerDocumentDownload",
+        "x-auth-class": "internal-hmac-v2",
+        "x-feature-flag": "FLEET_DOCUMENTS_CUSTOMER_ALLOWED_CALLERS",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerId"
+          },
+          {
+            "$ref": "#/components/parameters/OrderId"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/internal/fleet-partner/v1/documents/media-events": {
+      "post": {
+        "operationId": "ingestDocumentMediaEvent",
+        "x-auth-class": "internal-hmac-v2",
+        "x-feature-flag": "FLEET_DOCUMENTS_EVENT_INGESTION_ENABLED",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Command"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/internal/fleet-partner/v1/providers/{providerId}/documents": {
+      "get": {
+        "operationId": "listProviderDocuments",
+        "x-auth-class": "internal-hmac-v2",
+        "x-feature-flag": "FLEET_DOCUMENTS_PROVIDER_ALLOWED_CALLERS",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProviderId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/internal/fleet-partner/v1/providers/{providerId}/documents/{documentId}": {
+      "get": {
+        "operationId": "getProviderDocument",
+        "x-auth-class": "internal-hmac-v2",
+        "x-feature-flag": "FLEET_DOCUMENTS_PROVIDER_ALLOWED_CALLERS",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProviderId"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/internal/fleet-partner/v1/providers/{providerId}/documents/{documentId}/download-requests": {
+      "post": {
+        "operationId": "requestProviderDocumentDownload",
+        "x-auth-class": "internal-hmac-v2",
+        "x-feature-flag": "FLEET_DOCUMENTS_PROVIDER_ALLOWED_CALLERS",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProviderId"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "corporateBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "serviceHmacV2": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2 with caller, timestamp, nonce, method, path, body digest, and replay protection."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "DocumentId": {
+        "name": "documentId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "CaseId": {
+        "name": "caseId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RequestId": {
+        "name": "requestId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ProviderId": {
+        "name": "providerId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "CustomerId": {
+        "name": "customerId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "OrderId": {
+        "name": "orderId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ExportId": {
+        "name": "exportId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ImportId": {
+        "name": "importId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RowId": {
+        "name": "rowId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "requestBodies": {
+      "Command": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "VersionedCommand": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ExpectedVersion"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Success": {
+        "description": "Success envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SuccessEnvelope"
+            }
+          }
+        }
+      },
+      "Error": {
+        "description": "Stable, data-minimized error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ExpectedVersion": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer"
+          }
+        }
+      },
+      "SuccessEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "DocumentView": {
+        "type": "object",
+        "description": "Provider/customer-safe external document view. No retention, legal-hold or media-source-version fields.",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "documentType": {
+            "type": "string"
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "downloadable": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

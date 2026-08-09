@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "release": "corporate-logistics-backend-release-1",
+  "allowedStatuses": ["PASS","DEFERRED_TAXI","DEFERRED_AI_AUTOMATION"],
+  "items": [
+    {"id":"71.1.1","group":"scope_architecture","check":"Corporate service is a sibling service and distinct from api-gateway Partner API.","status":"PASS","evidence":["cmd/main.go","docs/platform-boundaries.md"]},
+    {"id":"71.1.2","group":"scope_architecture","check":"Customer booking and independent-provider flows remain backward compatible.","status":"PASS","evidence":["docs/section30-database-migrations-backward-compatibility.md","docs/section31-test-coverage.json"]},
+    {"id":"71.1.3","group":"scope_architecture","check":"Canonical ownership boundaries are implemented with no cross-service database access.","status":"PASS","evidence":["internal/platformclients","docs/platform-boundaries.md"]},
+    {"id":"71.1.4","group":"scope_architecture","check":"Unapproved pricing, commission, and subscription formulas are not hard-coded.","status":"PASS","evidence":["docs/section31-test-coverage.json"]},
+    {"id":"71.1.5","group":"scope_architecture","check":"Managed providers can Accept or Decline; company impersonation is impossible.","status":"PASS","evidence":["internal/features/marketplace/usecases/offer_response.go","docs/section31-test-coverage.json"]},
+
+    {"id":"71.2.1","group":"data_migrations","check":"Enabled Section 57 schema has reviewed migrations, constraints, and indexes.","status":"PASS","evidence":["migrations","docs/section31-test-coverage.json"]},
+    {"id":"71.2.2","group":"data_migrations","check":"Fresh apply, baseline replay, latest rollback, and reapply pass.","status":"PASS","evidence":["internal/integration/integration_test.go"]},
+    {"id":"71.2.3","group":"data_migrations","check":"Runtime DB role cannot run DDL or mutate append-only audit/history.","status":"PASS","evidence":["docs/section31-test-coverage.json"]},
+    {"id":"71.2.4","group":"data_migrations","check":"Tenant and branch ownership are enforced in repositories and tests.","status":"PASS","evidence":["internal/platform/objectauth/registry.go","docs/section31-test-coverage.json"]},
+    {"id":"71.2.5","group":"data_migrations","check":"Money uses integer minor units and explicit currency.","status":"PASS","evidence":["docs/api-conventions.md","docs/section31-test-coverage.json"]},
+
+    {"id":"71.3.1","group":"apis_authorization","check":"Every enabled route is contract-documented with permission/auth class.","status":"PASS","evidence":["docs/openapi","internal/section28contract/route_coverage_test.go"]},
+    {"id":"71.3.2","group":"apis_authorization","check":"Strict validation, pagination, idempotency, and expected-version rules are active.","status":"PASS","evidence":["docs/api-conventions.md","docs/section31-test-coverage.json"]},
+    {"id":"71.3.3","group":"apis_authorization","check":"Role, branch, object, and field/financial visibility tests pass.","status":"PASS","evidence":["internal/platform/objectauth/registry.go","docs/section31-test-coverage.json"]},
+    {"id":"71.3.4","group":"apis_authorization","check":"Provider DTOs exclude prohibited commercial fields.","status":"PASS","evidence":["docs/provider-data-minimization.md","docs/section31-test-coverage.json"]},
+    {"id":"71.3.5","group":"apis_authorization","check":"High-risk commands enforce configured step-up, approval, and segregation of duty.","status":"PASS","evidence":["docs/approval-system.md","internal/integration/section28_test.go"]},
+
+    {"id":"71.4.1","group":"integrations_events","check":"Typed clients enforce service auth, timeout, retry class, idempotency, and reconciliation.","status":"PASS","evidence":["internal/platformclients","docs/section31-test-coverage.json"]},
+    {"id":"71.4.2","group":"integrations_events","check":"Command and event schemas are versioned and contract-tested.","status":"PASS","evidence":["internal/events/registry.go","docs/asyncapi"]},
+    {"id":"71.4.3","group":"integrations_events","check":"Outbox/inbox duplicate, gap, crash, and replay tests pass.","status":"PASS","evidence":["internal/events/outbox.go","docs/section31-test-coverage.json"]},
+    {"id":"71.4.4","group":"integrations_events","check":"Unknown source/Wallet writes cannot duplicate trips or financial movement.","status":"PASS","evidence":["internal/features/marketplace/usecases/execution.go","docs/fleet-wallet-integration.md"]},
+    {"id":"71.4.5","group":"integrations_events","check":"Projection freshness and source-of-truth references are observable.","status":"PASS","evidence":["docs/section29-reliability-observability.md","docs/section31-test-coverage.json"]},
+
+    {"id":"71.5.1","group":"workers_operations","check":"Critical async work is durable with lease, heartbeat, bounded retry, dead letter, and recovery.","status":"PASS","evidence":["internal/jobs/jobs.go","internal/features/integrations/worker.go"]},
+    {"id":"71.5.2","group":"workers_operations","check":"Worker metrics/alerts and kill switches are configured.","status":"PASS","evidence":["docs/section29-reliability-observability.md","internal/config/config.go"]},
+    {"id":"71.5.3","group":"workers_operations","check":"No required production client silently uses no-op/logging success.","status":"PASS","evidence":["internal/platformclients","docs/section31-test-coverage.json"]},
+    {"id":"71.5.4","group":"workers_operations","check":"Section 65 runbooks are durable and staging-exercisable.","status":"PASS","evidence":["docs/runbooks","docs/release1-backend-readiness.md"]},
+    {"id":"71.5.5","group":"workers_operations","check":"Backup restore and event replay evidence meets the approved RPO/RTO contract.","status":"PASS","evidence":["docs/section29-disaster-recovery.md","docs/section31-test-coverage.json"]},
+
+    {"id":"71.6.1","group":"security_privacy","check":"JWT/service-auth audience, revocation, and algorithm tests pass.","status":"PASS","evidence":["docs/section31-test-coverage.json"]},
+    {"id":"71.6.2","group":"security_privacy","check":"IDOR, privilege, mass-assignment, injection, SSRF, and rate-limit tests pass.","status":"PASS","evidence":["internal/features/integrations/security_test.go","internal/section28contract/route_coverage_test.go"]},
+    {"id":"71.6.3","group":"security_privacy","check":"Secrets and PII are redacted from logs, traces, events, errors, and dead letters.","status":"PASS","evidence":["docs/section28-security-privacy-audit.md","internal/features/integrations/security.go"]},
+    {"id":"71.6.4","group":"security_privacy","check":"Encryption, secret rotation, signed file access, and webhook signing are verified.","status":"PASS","evidence":["internal/features/integrations/security.go","internal/features/integrations/security_test.go"]},
+    {"id":"71.6.5","group":"security_privacy","check":"Retention, legal hold, privacy export/erasure, and audit access are tested.","status":"PASS","evidence":["docs/section31-test-coverage.json","internal/integration/section28_test.go"]},
+
+    {"id":"71.7.1","group":"functional_safety_finance","check":"Unsafe, expired, or restricted providers/assets cannot accept or be assigned work.","status":"PASS","evidence":["internal/features/compliance/service.go","docs/section31-test-coverage.json"]},
+    {"id":"71.7.2","group":"functional_safety_finance","check":"Safety decline cannot trigger automatic punishment or deduction.","status":"PASS","evidence":["internal/features/marketplace/usecases/offer_response.go","docs/section31-test-coverage.json"]},
+    {"id":"71.7.3","group":"functional_safety_finance","check":"Return-to-service requires independently completed gates.","status":"PASS","evidence":["internal/features/assets/service.go","docs/section31-test-coverage.json"]},
+    {"id":"71.7.4","group":"functional_safety_finance","check":"payment-wallet-service remains authoritative and Fleet cannot edit balances.","status":"PASS","evidence":["docs/fleet-wallet-integration.md","internal/features/companywallet/usecases/service.go"]},
+    {"id":"71.7.5","group":"functional_safety_finance","check":"Every active managed provider has a sub-wallet and trip earnings do not auto-credit it.","status":"PASS","evidence":["docs/company-wallets.md","docs/section31-test-coverage.json"]},
+
+    {"id":"71.8.1","group":"quality_rollout","check":"Section 66 and affected repository suites pass.","status":"PASS","evidence":["docs/section31-release-acceptance.md","../../.github/workflows/section31-mandatory.yml"]},
+    {"id":"71.8.2","group":"quality_rollout","check":"Formatting, vet, build, race-focused tests, dependency, and secret scans pass.","status":"PASS","evidence":["../../.github/workflows/section31-mandatory.yml"]},
+    {"id":"71.8.3","group":"quality_rollout","check":"Capacity/performance evidence meets enabled-scope SLOs.","status":"PASS","evidence":["docs/section29-reliability-observability.md","docs/section31-test-coverage.json"]},
+    {"id":"71.8.4","group":"quality_rollout","check":"Feature flags default safely and staged rollout/rollback is documented.","status":"PASS","evidence":["internal/config/config.go","docs/release1-backend-readiness.md"]},
+    {"id":"71.8.5","group":"quality_rollout","check":"Open risks, deferrals, and unsupported services are explicitly documented.","status":"PASS","evidence":["docs/adr/ADR-001-release1-taxi-deferral.md","docs/adr/ADR-002-release1-ai-automation-deferral.md","docs/release1-specialized-logistics-classification.json"]},
+
+    {"id":"release1.deferral.taxi","group":"explicit_deferrals","check":"Taxi production integration","status":"DEFERRED_TAXI","evidence":["docs/adr/ADR-001-release1-taxi-deferral.md"]},
+    {"id":"release1.deferral.ai_automation","group":"explicit_deferrals","check":"AI and automation implementation","status":"DEFERRED_AI_AUTOMATION","evidence":["docs/adr/ADR-002-release1-ai-automation-deferral.md"]}
+  ]
+}

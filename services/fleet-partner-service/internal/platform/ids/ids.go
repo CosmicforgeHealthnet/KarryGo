@@ -16,17 +16,18 @@ import (
 
 // Prefixes for locally owned domains. External IDs are opaque and unprefixed.
 const (
-	PrefixOrganization = "org"
-	PrefixBranch       = "brn"
-	PrefixDepartment   = "dep"
-	PrefixEvent        = "evt"
-	PrefixJob          = "job"
-	PrefixAudit        = "aud"
-	PrefixStatusChange = "osh"
-	PrefixFileRef      = "fil"
-	PrefixRequest      = "req"
-	PrefixCorrelation  = "cor"
-	PrefixIdempotency  = "idm"
+	PrefixOrganization      = "org"
+	PrefixBranch            = "brn"
+	PrefixDepartment        = "dep"
+	PrefixEvent             = "evt"
+	PrefixJob               = "job"
+	PrefixAudit             = "aud"
+	PrefixStatusChange      = "osh"
+	PrefixFileRef           = "fil"
+	PrefixRequest           = "req"
+	PrefixCorrelation       = "cor"
+	PrefixIdempotency       = "idm"
+	PrefixServiceCredential = "svccred"
 )
 
 var idPattern = regexp.MustCompile(`^[a-z]{2,8}_[0-9a-f]{32}$`)

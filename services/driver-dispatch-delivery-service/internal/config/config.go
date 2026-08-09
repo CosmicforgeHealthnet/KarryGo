@@ -47,8 +47,11 @@ type Config struct {
 	MarketplaceOutboxEnabled              bool
 	MarketplaceProviderEligibilityEnabled bool
 	MarketplaceVehicleEligibilityEnabled  bool
+	PrivateExecutionEnabled               bool
+	PrivateExecutionKillSwitch            bool
 	ProviderOrganizationOffersEnabled     bool
 	ProviderCompanyAssignmentsEnabled     bool
+	ProviderOrganizationModeEnabled       bool
 
 	// Dispatch-to-fleet provider decision relay.
 	FleetRelayEnabled       bool
@@ -57,6 +60,20 @@ type Config struct {
 	FleetRelayRetryLimit    int
 	FleetRelayBackoffBase   time.Duration
 	FleetRelayInterval      time.Duration
+
+	// Dispatch-to-fleet canonical event delivery. Separate from the relay
+	// above: the relay carries provider decisions to fleet, this drains the
+	// marketplace outbox of request, trip and proof events. They are gated
+	// independently so event delivery can be enabled without also enabling
+	// the decision relay, or held back while the relay runs.
+	EventDeliveryEnabled     bool
+	EventDeliveryPath        string
+	EventDeliveryBatchSize   int
+	EventDeliveryLease       time.Duration
+	EventDeliveryRetryLimit  int
+	EventDeliveryBackoffBase time.Duration
+	EventDeliveryBackoffMax  time.Duration
+	EventDeliveryInterval    time.Duration
 
 	AccessTokenSecret  []byte
 	RefreshTokenSecret []byte
@@ -97,7 +114,7 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
-	return Config{
+	cfg := Config{
 		AppEnv:      getEnv("APP_ENV", "development"),
 		ServiceName: getEnv("SERVICE_NAME", "driver-dispatch-delivery-service"),
 		HTTPAddr:    getEnv("HTTP_ADDR", ":8103"),
@@ -127,8 +144,11 @@ func Load() (Config, error) {
 		MarketplaceOutboxEnabled:              getEnvBool("DISPATCH_MARKETPLACE_OUTBOX_ENABLED", false),
 		MarketplaceProviderEligibilityEnabled: getEnvBool("DISPATCH_PROVIDER_ELIGIBILITY_ENABLED", false),
 		MarketplaceVehicleEligibilityEnabled:  getEnvBool("DISPATCH_VEHICLE_ELIGIBILITY_ENABLED", false),
+		PrivateExecutionEnabled:               getEnvBool("DISPATCH_PRIVATE_EXECUTION_ENABLED", false),
+		PrivateExecutionKillSwitch:            getEnvBool("DISPATCH_PRIVATE_EXECUTION_KILL_SWITCH", false),
 		ProviderOrganizationOffersEnabled:     getEnvBool("DISPATCH_PROVIDER_ORGANIZATION_OFFERS_ENABLED", false),
 		ProviderCompanyAssignmentsEnabled:     getEnvBool("DISPATCH_PROVIDER_COMPANY_ASSIGNMENTS_ENABLED", false),
+		ProviderOrganizationModeEnabled:       getEnvBool("PROVIDER_ORGANIZATION_MODE_ENABLED", false),
 
 		FleetRelayEnabled:       getEnvBool("DISPATCH_FLEET_RELAY_ENABLED", false),
 		FleetRelayBatchSize:     getEnvInt("DISPATCH_FLEET_RELAY_BATCH_SIZE", 20),
@@ -136,25 +156,34 @@ func Load() (Config, error) {
 		FleetRelayRetryLimit:    getEnvInt("DISPATCH_FLEET_RELAY_RETRY_LIMIT", 10),
 		FleetRelayBackoffBase:   time.Duration(getEnvInt("DISPATCH_FLEET_RELAY_BACKOFF_BASE", 5)) * time.Second,
 		FleetRelayInterval:      time.Duration(getEnvInt("DISPATCH_FLEET_RELAY_INTERVAL_SECONDS", 5)) * time.Second,
-		AccessTokenSecret:       []byte(accessTokenSecret),
-		RefreshTokenSecret:      []byte(refreshTokenSecret),
-		OTPSecret:               []byte(otpSecret),
-		AccessTokenTTL:          time.Duration(getEnvInt("DISPATCH_RIDER_JWT_ACCESS_TTL_MINUTES", 15)) * time.Minute,
-		RefreshTokenTTL:         time.Duration(getEnvInt("DISPATCH_RIDER_JWT_REFRESH_TTL_DAYS", 30)) * 24 * time.Hour,
-		OTPTTL:                  time.Duration(getEnvInt("DISPATCH_RIDER_OTP_TTL_MINUTES", 10)) * time.Minute,
-		OTPRateWindow:           time.Duration(getEnvInt("DISPATCH_RIDER_OTP_RATE_LIMIT_WINDOW_MINUTES", 10)) * time.Minute,
-		OTPMaxRequests:          getEnvInt("DISPATCH_RIDER_OTP_RATE_LIMIT_MAX", 3),
-		OTPMaxAttempts:          getEnvInt("DISPATCH_RIDER_OTP_MAX_ATTEMPTS", 3),
-		OTPLockoutTTL:           time.Duration(getEnvInt("DISPATCH_RIDER_OTP_LOCKOUT_MINUTES", 30)) * time.Minute,
-		OTPDebug:                getEnvBool("DISPATCH_RIDER_DEBUG_OTP", false),
-		SMTPHost:                getEnv("SMTP_HOST", ""),
-		SMTPPort:                getEnvInt("SMTP_PORT", 465),
-		SMTPTLSMode:             getEnv("SMTP_TLS_MODE", ""),
-		SMTPUser:                getEnv("SMTP_USER", ""),
-		SMTPPassword:            os.Getenv("SMTP_PASSWORD"),
-		SMTPFrom:                getEnv("SMTP_FROM", ""),
-		CustomerTokenSecret:     []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
-		AvailabilityRadiusKM:    getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
+
+		EventDeliveryEnabled:     getEnvBool("DISPATCH_EVENT_DELIVERY_ENABLED", false),
+		EventDeliveryPath:        getEnv("DISPATCH_EVENT_DELIVERY_PATH", "/internal/fleet-partner/v1/events"),
+		EventDeliveryBatchSize:   getEnvInt("DISPATCH_EVENT_DELIVERY_BATCH_SIZE", 25),
+		EventDeliveryLease:       time.Duration(getEnvInt("DISPATCH_EVENT_DELIVERY_LEASE_SECONDS", 120)) * time.Second,
+		EventDeliveryRetryLimit:  getEnvInt("DISPATCH_EVENT_DELIVERY_RETRY_LIMIT", 10),
+		EventDeliveryBackoffBase: time.Duration(getEnvInt("DISPATCH_EVENT_DELIVERY_BACKOFF_BASE_SECONDS", 5)) * time.Second,
+		EventDeliveryBackoffMax:  time.Duration(getEnvInt("DISPATCH_EVENT_DELIVERY_BACKOFF_MAX_SECONDS", 900)) * time.Second,
+		EventDeliveryInterval:    time.Duration(getEnvInt("DISPATCH_EVENT_DELIVERY_INTERVAL_SECONDS", 5)) * time.Second,
+		AccessTokenSecret:        []byte(accessTokenSecret),
+		RefreshTokenSecret:       []byte(refreshTokenSecret),
+		OTPSecret:                []byte(otpSecret),
+		AccessTokenTTL:           time.Duration(getEnvInt("DISPATCH_RIDER_JWT_ACCESS_TTL_MINUTES", 15)) * time.Minute,
+		RefreshTokenTTL:          time.Duration(getEnvInt("DISPATCH_RIDER_JWT_REFRESH_TTL_DAYS", 30)) * 24 * time.Hour,
+		OTPTTL:                   time.Duration(getEnvInt("DISPATCH_RIDER_OTP_TTL_MINUTES", 10)) * time.Minute,
+		OTPRateWindow:            time.Duration(getEnvInt("DISPATCH_RIDER_OTP_RATE_LIMIT_WINDOW_MINUTES", 10)) * time.Minute,
+		OTPMaxRequests:           getEnvInt("DISPATCH_RIDER_OTP_RATE_LIMIT_MAX", 3),
+		OTPMaxAttempts:           getEnvInt("DISPATCH_RIDER_OTP_MAX_ATTEMPTS", 3),
+		OTPLockoutTTL:            time.Duration(getEnvInt("DISPATCH_RIDER_OTP_LOCKOUT_MINUTES", 30)) * time.Minute,
+		OTPDebug:                 getEnvBool("DISPATCH_RIDER_DEBUG_OTP", false),
+		SMTPHost:                 getEnv("SMTP_HOST", ""),
+		SMTPPort:                 getEnvInt("SMTP_PORT", 465),
+		SMTPTLSMode:              getEnv("SMTP_TLS_MODE", ""),
+		SMTPUser:                 getEnv("SMTP_USER", ""),
+		SMTPPassword:             os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:                 getEnv("SMTP_FROM", ""),
+		CustomerTokenSecret:      []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
+		AvailabilityRadiusKM:     getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
 		// Notification-service integration is optional: when unset, lifecycle
 		// notifications no-op and the app notification proxy routes are skipped.
 		NotificationURL:    getEnv("DISPATCH_NOTIFICATION_URL", ""),
@@ -163,7 +192,12 @@ func Load() (Config, error) {
 		// (name=secret pairs). Used by the internal identity endpoint that
 		// support-dispute-service calls to resolve rider identities.
 		ServiceSecrets: getEnv("DISPATCH_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
-	}, nil
+	}
+	if cfg.ProviderOrganizationModeEnabled &&
+		(strings.TrimSpace(cfg.FleetServiceURL) == "" || strings.TrimSpace(cfg.FleetServiceCaller) == "" || len(cfg.FleetServiceSecret) == 0) {
+		return Config{}, fmt.Errorf("FLEET_PARTNER_SERVICE_URL, FLEET_PARTNER_SERVICE_CALLER and FLEET_PARTNER_SERVICE_SECRET are required when PROVIDER_ORGANIZATION_MODE_ENABLED is true")
+	}
+	return cfg, nil
 }
 
 func getEnvFloat(key string, fallback float64) float64 {

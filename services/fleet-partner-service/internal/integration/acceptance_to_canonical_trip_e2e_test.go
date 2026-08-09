@@ -29,6 +29,8 @@ import (
 	mktmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	mktrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
+	privatemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/models"
+	privateusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/usecases"
 	providermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -38,10 +40,12 @@ import (
 const stageOneServiceSecret = "stage-one-cross-service-hmac-secret"
 
 type crossServiceDispatchReady struct {
-	URL        string `json:"url"`
-	ProviderID string `json:"providerId"`
-	RequestID  string `json:"requestId"`
-	Token      string `json:"token"`
+	URL               string `json:"url"`
+	ProviderID        string `json:"providerId"`
+	PrivateProviderID string `json:"privateProviderId"`
+	PrivateVehicleID  string `json:"privateVehicleId"`
+	RequestID         string `json:"requestId"`
+	Token             string `json:"token"`
 }
 
 type executionHTTPObservation struct {
@@ -303,8 +307,9 @@ func TestAcceptanceToOneCanonicalTrip(t *testing.T) {
 			Timeout:     5 * time.Second,
 			Metrics:     metrics,
 		}),
-		Events:  events.NewDomainPublisher(events.NewOutboxRepository(fleetPool)),
-		Metrics: metrics,
+		Events:            events.NewDomainPublisher(events.NewOutboxRepository(fleetPool)),
+		PrivateAcceptance: app.NewPrivateAcceptanceReader(fleetPool),
+		Metrics:           metrics,
 	})
 	internalHandler := mkthttp.NewInternalHandler(service, []string{"driver-dispatch-delivery-service"})
 	fleetConfig := config.Config{AppEnv: "test", MaxRequestBodyBytes: 1 << 20}
@@ -394,7 +399,7 @@ func TestAcceptanceToOneCanonicalTrip(t *testing.T) {
 		}
 	}
 
-	if got := countRows(t, fleetPool, `SELECT count(*) FROM fleet_partner_organization_acceptances`); got != 1 {
+	if got := waitForRowCount(t, fleetPool, 20*time.Second, `SELECT count(*) FROM fleet_partner_organization_acceptances`); got != 1 {
 		t.Fatalf("organization acceptances=%d, want 1", got)
 	}
 	if got := countRows(t, fleetPool, `SELECT count(*) FROM fleet_partner_provider_assignments`); got != 1 {
@@ -535,6 +540,103 @@ func TestAcceptanceToOneCanonicalTrip(t *testing.T) {
 	if got := countRows(t, fleetPool, `SELECT count(*) FROM fleet_partner_assignment_responses`); got != 1 {
 		t.Fatalf("provider responses after worker reruns=%d, want 1", got)
 	}
+
+	// Section 15 private-order boundary: use the production Fleet adapter and
+	// worker against the real Dispatch private contract. Dispatch verifies the
+	// accepted private assignment by calling the live Fleet internal endpoint.
+	privateFixture, privateService, privateRepo, privateAssignmentID :=
+		privateWorkerFixtureOnPool(t, fleetPool, "pex_blackbox_dispatch")
+	privateDecisionID := "prd_blackbox_dispatch"
+	if _, err = privateFixture.pool.Exec(ctx, `UPDATE fleet_partner_private_assignments SET
+		provider_membership_id='mem_blackbox_dispatch',provider_id=$2,
+		vehicle_or_truck_reference=$3,execution_service='DISPATCH',status='ACCEPTED'
+		WHERE id=$1`, privateAssignmentID, ready.PrivateProviderID, ready.PrivateVehicleID); err != nil {
+		t.Fatalf("prepare private assignment: %v", err)
+	}
+	if _, err = privateFixture.pool.Exec(ctx, `INSERT INTO fleet_partner_private_assignment_decisions(
+		id,organization_id,assignment_id,provider_id,decision,idempotency_key,request_fingerprint)
+		SELECT $2,organization_id,id,$3,'ACCEPT',$4,$4 FROM fleet_partner_private_assignments WHERE id=$1`,
+		privateAssignmentID, privateDecisionID, ready.PrivateProviderID, "accept-blackbox-dispatch"); err != nil {
+		t.Fatalf("record private provider acceptance: %v", err)
+	}
+	settlementID := privateFixture.tenant.OrganizationID
+	if _, err = privateFixture.pool.Exec(ctx, `UPDATE fleet_partner_private_execution_operations SET
+		settlement_organization_id=$2,executing_provider_id=$3,
+		organization_membership_id='mem_blackbox_dispatch',provider_response_id=$4,
+		vehicle_or_truck_reference=$5,status='PENDING',next_attempt_at=now(),
+		execution_payload='{"pickupAddress":"blackbox private pickup","pickupLatitude":6.45,
+		"pickupLongitude":3.39,"dropoffAddress":"blackbox private dropoff",
+		"dropoffLatitude":6.52,"dropoffLongitude":3.37}'::jsonb
+		WHERE id=$1`, "pex_blackbox_dispatch", settlementID, ready.PrivateProviderID,
+		privateDecisionID, ready.PrivateVehicleID); err != nil {
+		t.Fatalf("prepare private execution: %v", err)
+	}
+	privatePort := app.BuildPrivateExecutionAdapter(config.Config{
+		DispatchServiceURL: dispatchURL, DispatchServiceSecret: []byte(stageOneServiceSecret),
+		DispatchServiceTimeout: 5 * time.Second, HTTPClientTimeout: 5 * time.Second,
+	}, metrics)
+	privateResult, err := privateService.RunExecutionPass(ctx, privatePort,
+		privateusecases.ExecutionWorkerConfig{Owner: "private-blackbox-dispatch", Lease: 5 * time.Second,
+			BatchSize: 1, MaxAttempts: 3, BaseBackoff: time.Millisecond})
+	if err != nil || privateResult.Confirmed != 1 {
+		current, _ := privateRepo.GetExecution(ctx, nil, privateFixture.tenant.OrganizationID, "pex_blackbox_dispatch")
+		readOutcome, readErr := privatePort.ReadBack(ctx, privateFixture.tenant, current)
+		t.Fatalf("private Dispatch worker result=%+v err=%v readback=%+v readbackErr=%v",
+			privateResult, err, readOutcome, readErr)
+	}
+	privateOperation, err := privateRepo.GetExecution(ctx, nil,
+		privateFixture.tenant.OrganizationID, "pex_blackbox_dispatch")
+	if err != nil || privateOperation.Status != privatemodels.ExecutionConfirmed ||
+		privateOperation.CanonicalTripReference == "" {
+		t.Fatalf("private Dispatch operation=%+v err=%v", privateOperation, err)
+	}
+	var sourcePrivateTrips, distinctSettlement int
+	if err = dispatchPool.QueryRow(ctx, `SELECT count(*) FROM dispatch_private_execution_mappings
+		WHERE fleet_operation_id='pex_blackbox_dispatch' AND canonical_trip_id=$1`,
+		privateOperation.CanonicalTripReference).Scan(&sourcePrivateTrips); err != nil {
+		t.Fatal(err)
+	}
+	if err = dispatchPool.QueryRow(ctx, `SELECT count(*) FROM dispatch_private_execution_mappings
+		WHERE fleet_operation_id='pex_blackbox_dispatch' AND settlement_organization_id<>executing_provider_id::text`).Scan(&distinctSettlement); err != nil {
+		t.Fatal(err)
+	}
+	if sourcePrivateTrips != 1 || distinctSettlement != 1 {
+		t.Fatalf("private source trips=%d distinct settlement rows=%d", sourcePrivateTrips, distinctSettlement)
+	}
+	readyAssignment, err := privateRepo.GetAssignment(ctx, nil,
+		privateFixture.tenant.OrganizationID, privateAssignmentID)
+	if err != nil || readyAssignment.Status != privatemodels.StatusReady {
+		t.Fatalf("ready private assignment=%+v err=%v", readyAssignment, err)
+	}
+	cancelTenant := privateFixture.tenant
+	cancelTenant.CorrelationID = "private-blackbox-cancel"
+	if _, err = privateService.Cancel(ctx, cancelTenant, privateAssignmentID, readyAssignment.Version); err != nil {
+		t.Fatalf("schedule private Dispatch cancellation: %v", err)
+	}
+	cancelPass, err := privateService.RunExecutionPass(ctx, privatePort,
+		privateusecases.ExecutionWorkerConfig{Owner: "private-blackbox-cancel", Lease: 5 * time.Second,
+			BatchSize: 1, MaxAttempts: 3, BaseBackoff: time.Millisecond})
+	if err != nil || cancelPass.Cancelled != 1 {
+		t.Fatalf("private Dispatch cancellation pass=%+v err=%v", cancelPass, err)
+	}
+	cancelledOperation, err := privateRepo.GetExecution(ctx, nil,
+		privateFixture.tenant.OrganizationID, "pex_blackbox_dispatch")
+	if err != nil || cancelledOperation.Status != privatemodels.ExecutionCancelled {
+		t.Fatalf("cancelled private operation=%+v err=%v", cancelledOperation, err)
+	}
+	var sourceCancellation string
+	if err = dispatchPool.QueryRow(ctx, `SELECT cancellation_status FROM dispatch_private_execution_mappings
+		WHERE fleet_operation_id='pex_blackbox_dispatch'`).Scan(&sourceCancellation); err != nil {
+		t.Fatal(err)
+	}
+	if sourceCancellation != "CONFIRMED" {
+		t.Fatalf("source cancellation status=%s", sourceCancellation)
+	}
+	lastPrivatePass, err := privateService.RunExecutionPass(ctx, privatePort,
+		privateusecases.ExecutionWorkerConfig{Owner: "private-blackbox-dispatch", Lease: 5 * time.Second, BatchSize: 1})
+	if err != nil || lastPrivatePass.Claimed != 0 {
+		t.Fatalf("private worker duplicate pass=%+v err=%v", lastPrivatePass, err)
+	}
 }
 
 type providerHTTPResult struct {
@@ -573,6 +675,18 @@ func countRows(t *testing.T, pool *pgxpool.Pool, query string, args ...any) int 
 		t.Fatalf("count rows: %v", err)
 	}
 	return count
+}
+
+func waitForRowCount(t *testing.T, pool *pgxpool.Pool, timeout time.Duration, query string, args ...any) int {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		got := countRows(t, pool, query, args...)
+		if got > 0 || time.Now().After(deadline) {
+			return got
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func assignmentID(t *testing.T, pool *pgxpool.Pool) string {

@@ -3,22 +3,14 @@ package observability
 import (
 	"encoding/json"
 	"log"
-	"strings"
 	"time"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/redact"
 )
 
-// Sensitive field names that must never be logged; Log drops them defensively.
-var redactedFields = map[string]bool{
-	"authorization": true,
-	"cookie":        true,
-	"secret":        true,
-	"token":         true,
-	"password":      true,
-	"refresh_token": true,
-}
-
-// Log writes one structured JSON log line. Values for sensitive keys are
-// replaced with "[REDACTED]". Use low-cardinality, non-sensitive fields only.
+// Log writes one structured JSON log line. Values for sensitive keys
+// (internal/platform/redact.IsSensitiveKey) are replaced with "[REDACTED]".
+// Use low-cardinality, non-sensitive fields only.
 func Log(service string, environment string, level string, message string, fields map[string]any) {
 	entry := map[string]any{
 		"timestamp":   time.Now().UTC().Format(time.RFC3339Nano),
@@ -28,7 +20,7 @@ func Log(service string, environment string, level string, message string, field
 		"message":     message,
 	}
 	for k, v := range fields {
-		if redactedFields[strings.ToLower(k)] {
+		if redact.IsSensitiveKey(k) {
 			entry[k] = "[REDACTED]"
 			continue
 		}

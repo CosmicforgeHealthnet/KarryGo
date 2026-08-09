@@ -59,10 +59,11 @@ var ValidPaymentMethods = map[string]bool{
 
 // Payment statuses (mirror the relevant payment-wallet intent states for the trip)
 const (
-	PaymentStatusUnpaid = "unpaid" // no charge yet (e.g. cash, or wallet before acceptance)
-	PaymentStatusHeld   = "held"   // funds authorized/held against the booking
-	PaymentStatusPaid   = "paid"   // settled to the provider
-	PaymentStatusFailed = "failed" // charge attempt failed
+	PaymentStatusUnpaid  = "unpaid"  // no charge yet (e.g. cash, or wallet before acceptance)
+	PaymentStatusHeld    = "held"    // funds authorized/held against the booking
+	PaymentStatusPaid    = "paid"    // settled to the provider
+	PaymentStatusFailed  = "failed"  // charge attempt failed
+	PaymentStatusUnknown = "unknown" // authoritative write outcome requires read-back
 )
 
 type Booking struct {
@@ -156,7 +157,7 @@ type PublicBooking struct {
 	PaymentMethod string `json:"payment_method,omitempty"`
 	PaymentStatus string `json:"payment_status,omitempty"`
 
-	Status      string  `json:"status"`
+	Status       string  `json:"status"`
 	CancelReason *string `json:"cancel_reason,omitempty"`
 
 	ProofPhotoURL string `json:"proof_photo_url,omitempty"`
@@ -175,60 +176,60 @@ type PublicBooking struct {
 
 func (b Booking) Public() PublicBooking {
 	return PublicBooking{
-		ID:               b.ID,
-		CustomerID:       b.CustomerID,
-		ProviderID:       b.ProviderID,
-		TruckID:          b.TruckID,
-		PickupAddress:    b.PickupAddress,
-		PickupLat:        b.PickupLat,
-		PickupLng:        b.PickupLng,
-		DropoffAddress:   b.DropoffAddress,
-		DropoffLat:       b.DropoffLat,
-		DropoffLng:       b.DropoffLng,
+		ID:                 b.ID,
+		CustomerID:         b.CustomerID,
+		ProviderID:         b.ProviderID,
+		TruckID:            b.TruckID,
+		PickupAddress:      b.PickupAddress,
+		PickupLat:          b.PickupLat,
+		PickupLng:          b.PickupLng,
+		DropoffAddress:     b.DropoffAddress,
+		DropoffLat:         b.DropoffLat,
+		DropoffLng:         b.DropoffLng,
 		CargoType:          b.CargoType,
 		PreferredTruckType: b.PreferredTruckType,
 		CargoWeightKg:      b.CargoWeightKg,
 		CargoDescription:   b.CargoDescription,
 		RequiresHelpers:    b.RequiresHelpers,
 		HelperCount:        b.HelperCount,
-		WeightCategory:    b.WeightCategory,
-		ReceiverName:      b.ReceiverName,
-		ReceiverPhone:     b.ReceiverPhone,
-		PackageContent:    b.PackageContent,
-		PackageSize:       b.PackageSize,
-		IsFragile:         b.IsFragile,
-		DistanceKm:       b.DistanceKm,
-		FareEstimateKobo: b.FareEstimateKobo,
-		FareFinalKobo:    b.FareFinalKobo,
-		PaymentMethod:    b.PaymentMethod,
-		PaymentStatus:    b.PaymentStatus,
-		Status:           b.Status,
-		CancelReason:     b.CancelReason,
-		ProofPhotoURL:    b.ProofPhotoURL,
-		SignatureURL:     b.SignatureURL,
-		MatchedAt:        b.MatchedAt,
-		AcceptedAt:       b.AcceptedAt,
-		PickedUpAt:       b.PickedUpAt,
-		DeliveredAt:      b.DeliveredAt,
-		CompletedAt:      b.CompletedAt,
-		CancelledAt:      b.CancelledAt,
-		ScheduledAt:      b.ScheduledAt,
-		CreatedAt:        b.CreatedAt,
+		WeightCategory:     b.WeightCategory,
+		ReceiverName:       b.ReceiverName,
+		ReceiverPhone:      b.ReceiverPhone,
+		PackageContent:     b.PackageContent,
+		PackageSize:        b.PackageSize,
+		IsFragile:          b.IsFragile,
+		DistanceKm:         b.DistanceKm,
+		FareEstimateKobo:   b.FareEstimateKobo,
+		FareFinalKobo:      b.FareFinalKobo,
+		PaymentMethod:      b.PaymentMethod,
+		PaymentStatus:      b.PaymentStatus,
+		Status:             b.Status,
+		CancelReason:       b.CancelReason,
+		ProofPhotoURL:      b.ProofPhotoURL,
+		SignatureURL:       b.SignatureURL,
+		MatchedAt:          b.MatchedAt,
+		AcceptedAt:         b.AcceptedAt,
+		PickedUpAt:         b.PickedUpAt,
+		DeliveredAt:        b.DeliveredAt,
+		CompletedAt:        b.CompletedAt,
+		CancelledAt:        b.CancelledAt,
+		ScheduledAt:        b.ScheduledAt,
+		CreatedAt:          b.CreatedAt,
 	}
 }
 
 // FareEstimate calculates v1 fare
 type FareEstimate struct {
-	DistanceKm       float64 `json:"distance_km"`
-	FareEstimateKobo int64   `json:"fare_estimate_kobo"`
+	DistanceKm       float64       `json:"distance_km"`
+	FareEstimateKobo int64         `json:"fare_estimate_kobo"`
 	BreakdownKobo    FareBreakdown `json:"breakdown"`
 }
 
 type FareBreakdown struct {
-	BaseFareKobo      int64 `json:"base_fare_kobo"`
-	PerKmFareKobo     int64 `json:"per_km_fare_kobo"`
-	WeightSurcharge   int64 `json:"weight_surcharge_kobo"`
-	HelperFeeKobo     int64 `json:"helper_fee_kobo"`
+	BaseFareKobo    int64 `json:"base_fare_kobo"`
+	PerKmFareKobo   int64 `json:"per_km_fare_kobo"`
+	WeightSurcharge int64 `json:"weight_surcharge_kobo"`
+	HelperFeeKobo   int64 `json:"helper_fee_kobo"`
 }
 
 type BookingEvent struct {
@@ -273,9 +274,9 @@ func (r BookingReview) Public() PublicBookingReview {
 
 func CalculateFare(distanceKm float64, weightKg, helperCount int) FareEstimate {
 	const (
-		baseFare   int64 = 500_000  // ₦5,000 in kobo
-		perKmRate  int64 = 25_000   // ₦250/km in kobo
-		helperFee  int64 = 200_000  // ₦2,000/helper in kobo
+		baseFare  int64 = 500_000 // ₦5,000 in kobo
+		perKmRate int64 = 25_000  // ₦250/km in kobo
+		helperFee int64 = 200_000 // ₦2,000/helper in kobo
 	)
 
 	perKm := int64(math.Round(distanceKm * float64(perKmRate)))

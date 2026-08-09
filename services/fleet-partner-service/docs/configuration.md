@@ -69,6 +69,26 @@ the table above. `notification-service` must be configured for OTP delivery
 to work — if it is not, `/auth/start` returns `503
 otp_delivery_unavailable` rather than pretending a code was sent.
 
+## Section 55 organization integrations
+
+All organization API-client and webhook capabilities default to false. Enabling API clients requires `FLEET_PARTNER_API_CLIENT_HASH_KEY` with at least 32 bytes. Enabling webhooks requires an exactly 32-byte `FLEET_PARTNER_WEBHOOK_SECRET_ENCRYPTION_KEY`; neither key has a default or may be logged.
+
+| Variable | Default | Validation/effect |
+| --- | --- | --- |
+| `FLEET_PARTNER_ORGANIZATION_API_CLIENTS_ENABLED` | `false` | Enables scoped client management/authentication. |
+| `FLEET_PARTNER_WEBHOOKS_ENABLED` | `false` | Enables subscription management/fan-out. |
+| `FLEET_PARTNER_WEBHOOK_DELIVERY_WORKER_ENABLED` | `false` | Requires webhooks; registers the shared durable delivery handler/coordinator. |
+| `FLEET_PARTNER_WEBHOOK_ALLOW_HTTP` | `false` | Development/test only; production rejects `true`. |
+| `FLEET_PARTNER_WEBHOOK_PRIVATE_DESTINATION_ALLOWLIST` | unset | Optional comma-separated enterprise CIDRs; metadata, loopback, link-local, and unspecified addresses remain prohibited. |
+| `FLEET_PARTNER_WEBHOOK_DELIVERY_TIMEOUT` | `15s` | Positive and no more than one minute. |
+| `FLEET_PARTNER_WEBHOOK_REPLAY_WINDOW` | `5m` | Between one and fifteen minutes. |
+| `FLEET_PARTNER_WEBHOOK_ROTATION_OVERLAP_MAX` | `1h` | Bounded to 0–24 hours. |
+| `FLEET_PARTNER_WEBHOOK_DISABLE_AFTER_FAILURES` | `5` | Bounded to 1–100 terminal failures. |
+| `FLEET_PARTNER_WEBHOOK_DELIVERY_MAX_ATTEMPTS` | `12` | Bounded to 1–50 attempts. |
+| `FLEET_PARTNER_WEBHOOK_FANOUT_INTERVAL` / `_BATCH_SIZE` | `2s` / `50` | Positive interval; batch 1–500. |
+
+See [section55-organization-api-clients-and-webhooks.md](section55-organization-api-clients-and-webhooks.md) for the authentication, signature, SSRF, retry, and recovery contract.
+
 ## Validation rules
 
 - URLs of configured clients must be http(s) with a host.

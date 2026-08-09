@@ -53,6 +53,9 @@ func (s *Service) VerifyProviderAcceptance(ctx context.Context, assignmentID str
 	assignment, err := s.opts.Assignments.GetByIDUnscoped(ctx, assignmentID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
+			if s.opts.PrivateAcceptance != nil {
+				return s.opts.PrivateAcceptance.VerifyPrivateAcceptance(ctx, assignmentID)
+			}
 			return nil, errorcodes.Conflict(errorcodes.FleetAssignmentNotFound,
 				"The assignment was not found.")
 		}

@@ -51,6 +51,11 @@ type CreateComplaintInput struct {
 	Description      string
 }
 
+type OrganizationCaseInput struct {
+	OrganizationReference, IdempotencyKey, CaseType, Priority, Subject, Description          string
+	CustomerReference, ProviderReference, TripReference, OrderReference, AssignmentReference string
+}
+
 type SOSInput struct {
 	ComplainantType supportmodels.ComplainantType
 	ComplainantID   string
@@ -118,6 +123,51 @@ func (s *SupportService) CreateComplaint(ctx context.Context, in CreateComplaint
 	}
 	s.recordEvent(ctx, complaint.ID, string(in.ComplainantType), in.ComplainantID, "complaint_created", nil)
 	return complaint, nil
+}
+
+// CreateOrganizationCase is the service-authenticated canonical create
+// contract used by Fleet. Support remains the lifecycle authority; Fleet only
+// stores the safe projection returned here.
+func (s *SupportService) CreateOrganizationCase(ctx context.Context, in OrganizationCaseInput) (supportmodels.Complaint, error) {
+	org := strings.TrimSpace(in.OrganizationReference)
+	key := strings.TrimSpace(in.IdempotencyKey)
+	if org == "" || key == "" || strings.TrimSpace(in.Subject) == "" || strings.TrimSpace(in.Description) == "" {
+		return supportmodels.Complaint{}, apperrors.Validation("Organization, idempotency key, subject and description are required.", nil)
+	}
+	if existing, err := s.repo.GetOrganizationComplaintByIdempotencyKey(ctx, org, key); err == nil {
+		return existing, nil
+	}
+	priority := strings.ToLower(strings.TrimSpace(in.Priority))
+	if priority != supportmodels.PriorityHigh && priority != supportmodels.PriorityEmergency {
+		priority = supportmodels.PriorityNormal
+	}
+	category := "other"
+	booking := firstNonEmpty(in.TripReference, in.OrderReference, in.AssignmentReference, in.CustomerReference, in.ProviderReference)
+	complaint, err := s.repo.CreateComplaint(ctx, supportrepositories.CreateComplaintInput{ComplainantType: supportmodels.ComplainantCustomer, ComplainantID: org, ServiceType: supportmodels.ServiceTypePlatform, BookingReference: trimToPtr(booking), Category: &category, Priority: priority, Subject: strings.TrimSpace(in.Subject), Description: strings.TrimSpace(in.Description), OrganizationReference: &org, SourceIdempotencyKey: &key})
+	if err != nil {
+		if existing, readErr := s.repo.GetOrganizationComplaintByIdempotencyKey(ctx, org, key); readErr == nil {
+			return existing, nil
+		}
+		return supportmodels.Complaint{}, err
+	}
+	s.recordEvent(ctx, complaint.ID, "service", "fleet-partner-service", "organization_case_created", map[string]any{"organization_reference": org, "case_type": in.CaseType})
+	return complaint, nil
+}
+
+func (s *SupportService) GetOrganizationCase(ctx context.Context, organizationReference, id string) (supportmodels.Complaint, error) {
+	if strings.TrimSpace(organizationReference) == "" {
+		return supportmodels.Complaint{}, apperrors.Validation("Organization reference is required.", nil)
+	}
+	return s.repo.GetOrganizationComplaintByID(ctx, organizationReference, id)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 // CreateSOS files a high-priority emergency complaint and acknowledges it to the

@@ -1,8 +1,4 @@
-// Package fuel is the reserved feature boundary for fuel usage records.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package fuel names the fuel/energy capability boundary. Its production
+// implementation is co-located with assets and deliberately has no wallet or
+// accounting dependency.
 package fuel

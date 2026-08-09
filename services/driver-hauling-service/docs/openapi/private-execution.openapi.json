@@ -1,0 +1,30 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Hauling Private Execution Internal API", "version": "1.0.0"},
+  "servers": [{"url": "/api/v1"}],
+  "security": [{"serviceHmacV2": []}],
+  "paths": {
+    "/hauling/internal/private-executions": {"post": {"operationId": "createPrivateHaulingExecution", "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/PrivateExecution"}, "responses": {"201": {"$ref": "#/components/responses/Execution"}, "202": {"$ref": "#/components/responses/Error"}, "409": {"$ref": "#/components/responses/Error"}, "default": {"$ref": "#/components/responses/Error"}}}},
+    "/hauling/internal/private-executions/by-operation/{operationId}": {"get": {"operationId": "readPrivateHaulingExecution", "parameters": [{"$ref": "#/components/parameters/OperationId"}], "responses": {"200": {"$ref": "#/components/responses/Execution"}, "default": {"$ref": "#/components/responses/Error"}}}},
+    "/hauling/internal/private-executions/by-trip/{tripId}": {"get": {"operationId": "readPrivateHaulingExecutionByTrip", "parameters": [{"name": "tripId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"$ref": "#/components/responses/Execution"}, "default": {"$ref": "#/components/responses/Error"}}}},
+    "/hauling/internal/private-executions/{operationId}/cancellations": {"post": {"operationId": "cancelPrivateHaulingExecution", "parameters": [{"$ref": "#/components/parameters/OperationId"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/Cancellation"}, "responses": {"200": {"$ref": "#/components/responses/Execution"}, "default": {"$ref": "#/components/responses/Error"}}}},
+    "/hauling/internal/private-executions/{operationId}/cancellation": {"get": {"operationId": "readPrivateHaulingCancellation", "parameters": [{"$ref": "#/components/parameters/OperationId"}], "responses": {"200": {"$ref": "#/components/responses/Execution"}, "default": {"$ref": "#/components/responses/Error"}}}}
+  },
+  "components": {
+    "securitySchemes": {"serviceHmacV2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 signs caller, timestamp, single-use nonce, exact method, request target and body digest. Caller must be allowlisted."}},
+    "parameters": {
+      "OperationId": {"name": "operationId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string"}}
+    },
+    "requestBodies": {
+      "PrivateExecution": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["organizationId","settlementOrganizationId","executingProviderId","organizationMembershipId","privateOrderId","shipmentId","privateAssignmentId","providerResponseId","fleetOperationId","serviceCategory"], "properties": {"organizationId":{"type":"string"},"settlementOrganizationId":{"type":"string"},"executingProviderId":{"type":"string"},"organizationMembershipId":{"type":"string"},"privateOrderId":{"type":"string"},"shipmentId":{"type":"string"},"privateAssignmentId":{"type":"string"},"providerResponseId":{"type":"string"},"fleetOperationId":{"type":"string"},"serviceCategory":{"type":"string","enum":["HAULING"]},"truckId":{"type":"string"},"correlationId":{"type":"string"},"route":{"type":"object"},"cargo":{"type":"object"}}}}}},
+      "Cancellation": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["reasonCode"], "properties": {"reasonCode":{"type":"string"}}}}}}
+    },
+    "responses": {
+      "Execution": {"description": "Data-minimized authoritative result with canonical request/trip references, normalized status and sourceVersion.", "content": {"application/json": {"schema": {"type":"object"}}}},
+      "Error": {"description": "Stable error. OUTCOME_UNKNOWN requires read-back by fleetOperationId; an idempotency fingerprint conflict returns 409.", "content": {"application/json": {"schema": {"type":"object"}}}}
+    }
+  },
+  "x-data-minimization": {"excluded": ["customerPrice","companyMargin","platformCommission","walletBalance","rawContactData","identityDocuments"]},
+  "x-taxi-excluded": true
+}

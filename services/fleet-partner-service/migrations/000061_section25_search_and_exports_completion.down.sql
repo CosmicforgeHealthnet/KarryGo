@@ -1,0 +1,13 @@
+DROP TRIGGER IF EXISTS search_customers ON fleet_partner_company_customers; DROP TRIGGER IF EXISTS search_workforce ON fleet_partner_workforce_profiles;
+DROP TRIGGER IF EXISTS search_shipments ON fleet_partner_shipments; DROP TRIGGER IF EXISTS search_packages ON fleet_partner_packages;
+DROP TRIGGER IF EXISTS search_manifests ON fleet_partner_manifests; DROP TRIGGER IF EXISTS search_routes ON fleet_partner_route_plans;
+DROP TRIGGER IF EXISTS search_assets ON fleet_partner_assets; DROP TRIGGER IF EXISTS search_incidents ON fleet_partner_incidents;
+DROP TRIGGER IF EXISTS search_compliance ON fleet_partner_compliance_requirements; DROP TRIGGER IF EXISTS search_invoices ON fleet_partner_invoices;
+DROP TRIGGER IF EXISTS search_inventory ON fleet_partner_inventory_items; DROP TRIGGER IF EXISTS search_fulfilment ON fleet_partner_fulfilment_orders;
+DROP TRIGGER IF EXISTS search_support ON fleet_partner_support_case_projections;
+DROP FUNCTION IF EXISTS fleet_enqueue_search_index();
+DROP TRIGGER IF EXISTS fleet_search_index_attempts_append_only ON fleet_partner_search_index_attempts;
+DROP TABLE IF EXISTS fleet_partner_search_index_attempts; DROP TABLE IF EXISTS fleet_partner_search_index_jobs;
+ALTER TABLE fleet_partner_search_documents DROP COLUMN IF EXISTS visibility;
+ALTER TABLE fleet_partner_export_jobs DROP CONSTRAINT IF EXISTS fleet_partner_export_jobs_export_type_check_v3;
+ALTER TABLE fleet_partner_export_jobs ADD CONSTRAINT fleet_partner_export_jobs_export_type_check_v2 CHECK(export_type IN('ORDERS','SHIPMENTS','PROVIDERS_WORKFORCE','ASSETS_MAINTENANCE','WAREHOUSE_INVENTORY'));

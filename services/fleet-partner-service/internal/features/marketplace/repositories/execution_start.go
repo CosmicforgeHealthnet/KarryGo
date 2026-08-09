@@ -85,10 +85,21 @@ func (r *ExecutionStartRepository) GetByAssignment(ctx context.Context, assignme
 // work by timeout rather than holding it forever.
 func (r *ExecutionStartRepository) Claim(ctx context.Context, q database.Querier,
 	owner string, lease time.Duration, limit int) ([]models.ExecutionStartOperation, error) {
+	return r.ClaimEnabled(ctx, q, owner, lease, limit, []string{models.SourceDispatch, models.SourceTaxi, models.SourceHauling})
+}
+
+// ClaimEnabled leases only operations whose durable source identity is
+// currently enabled. Disabled sources remain pending and consume no attempts.
+func (r *ExecutionStartRepository) ClaimEnabled(ctx context.Context, q database.Querier,
+	owner string, lease time.Duration, limit int, enabledSources []string) ([]models.ExecutionStartOperation, error) {
+	if len(enabledSources) == 0 {
+		return nil, nil
+	}
 	rows, err := q.Query(ctx, `
 		WITH claimed AS (
 			SELECT id, status AS previous_status FROM fleet_partner_execution_start_operations
 			WHERE status IN ('PENDING', 'RETRY_SCHEDULED', 'UNKNOWN_OUTCOME')
+			  AND source_service = ANY($4)
 			  AND next_attempt_at <= now()
 			ORDER BY next_attempt_at
 			FOR UPDATE SKIP LOCKED
@@ -102,7 +113,7 @@ func (r *ExecutionStartRepository) Claim(ctx context.Context, q database.Querier
 			updated_at = now()
 		FROM claimed
 		WHERE o.id = claimed.id
-		RETURNING `+prefixed(executionStartColumns, "o")+`, claimed.previous_status`, owner, lease.Seconds(), limit)
+		RETURNING `+prefixed(executionStartColumns, "o")+`, claimed.previous_status`, owner, lease.Seconds(), limit, enabledSources)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace: claim execution start: %w", err)
 	}

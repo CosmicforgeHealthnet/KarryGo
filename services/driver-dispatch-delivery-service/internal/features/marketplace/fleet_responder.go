@@ -122,18 +122,26 @@ func relayPath(op RelayOperation) (string, error) {
 		if op.AssignmentID == nil {
 			return "", errors.New("marketplace: assignment relay without an assignment")
 		}
-		return "/internal/fleet-partner/v1/assignments/" +
-			url.PathEscape(*op.AssignmentID) + "/provider-accept", nil
+		if privateAssignmentID(*op.AssignmentID) {
+			return "/internal/fleet-partner/v1/private-assignments/" +
+				url.PathEscape(*op.AssignmentID) + "/accept", nil
+		}
+		return "/internal/fleet-partner/v1/assignments/" + url.PathEscape(*op.AssignmentID) + "/provider-accept", nil
 	case RelayProviderAssignmentDecline:
 		if op.AssignmentID == nil {
 			return "", errors.New("marketplace: assignment relay without an assignment")
 		}
-		return "/internal/fleet-partner/v1/assignments/" +
-			url.PathEscape(*op.AssignmentID) + "/provider-decline", nil
+		if privateAssignmentID(*op.AssignmentID) {
+			return "/internal/fleet-partner/v1/private-assignments/" +
+				url.PathEscape(*op.AssignmentID) + "/decline", nil
+		}
+		return "/internal/fleet-partner/v1/assignments/" + url.PathEscape(*op.AssignmentID) + "/provider-decline", nil
 	default:
 		return "", fmt.Errorf("marketplace: unknown relay operation %q", op.OperationType)
 	}
 }
+
+func privateAssignmentID(id string) bool { return strings.HasPrefix(id, "pas_") }
 
 // fleetResponseEnvelope is fleet's canonical success shape.
 type fleetResponseEnvelope struct {

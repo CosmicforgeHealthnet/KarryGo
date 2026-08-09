@@ -2,26 +2,36 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
 	"cosmicforge/logistics/services/media-file-service/internal/config"
 	"cosmicforge/logistics/services/media-file-service/internal/database"
+	"cosmicforge/logistics/services/media-file-service/internal/events"
 	filemetadatarepositories "cosmicforge/logistics/services/media-file-service/internal/features/file_metadata/repositories"
+	mediahttp "cosmicforge/logistics/services/media-file-service/internal/features/mediaobjects/http"
+	mediarepositories "cosmicforge/logistics/services/media-file-service/internal/features/mediaobjects/repositories"
+	mediausecases "cosmicforge/logistics/services/media-file-service/internal/features/mediaobjects/usecases"
 	uploadclients "cosmicforge/logistics/services/media-file-service/internal/features/uploads/clients"
 	uploadhttp "cosmicforge/logistics/services/media-file-service/internal/features/uploads/http"
 	uploadusecases "cosmicforge/logistics/services/media-file-service/internal/features/uploads/usecases"
+	"cosmicforge/logistics/services/media-file-service/internal/platform/ids"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/serviceapp"
+	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
 func main() {
 	_ = godotenv.Load()
 
 	cfg := config.Load()
-	logging.Notice("media-file-service config", "migration=%t database=%s firebase_bucket=%s", cfg.Migration, cfg.DatabaseURL, cfg.FirebaseBucket)
+	logging.Notice("media-file-service config", "migration=%t database=%s firebase_bucket=%s private_api=%t",
+		cfg.Migration, cfg.DatabaseURL, cfg.FirebaseBucket, cfg.PrivateAPIEnabled)
 
 	ctx := context.Background()
 	db, err := database.NewPool(ctx, cfg.DatabaseURL)
@@ -34,8 +44,8 @@ func main() {
 
 	if cfg.Migration {
 		logging.Notice("migration", "mode enabled")
-		migrationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		if err := database.ApplyMigrations(migrationCtx, db); err != nil {
+		migrationCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		if err := database.ApplyMigrations(migrationCtx, db, "migrations"); err != nil {
 			cancel()
 			logging.Fatal("migration", "apply media-file migrations: %v", err)
 		}
@@ -60,6 +70,46 @@ func main() {
 		MaxUploadBytes: cfg.MaxUploadBytes,
 	})
 
+	mediaService, privateStorage, err := buildPrivateMediaService(cfg, db, storageClient)
+	if err != nil {
+		logging.Fatal("media", "configure private media contract: %v", err)
+	}
+
+	var workers []func(context.Context) error
+	if mediaService != nil && cfg.MediaWorkersEnabled && !cfg.MediaKillSwitch {
+		owner := ids.New("mwrk")
+		workers = append(workers, func(workerCtx context.Context) error {
+			return mediaService.RunMaintenance(workerCtx, owner, cfg.MediaWorkerInterval,
+				cfg.MediaWorkerLease, cfg.MediaWorkerBatchSize)
+		})
+	}
+	if mediaService != nil && cfg.OutboxEnabled && !cfg.MediaKillSwitch {
+		publisher, publisherErr := events.NewHTTPPublisher(cfg.OutboxTargetURL, cfg.OutboxPath,
+			"media-file-service", cfg.OutboxSecret, cfg.HTTPRequestTimeout)
+		if publisherErr != nil {
+			logging.Fatal("outbox", "configure media outbox publisher: %v", publisherErr)
+		}
+		outboxWorker := events.NewWorker(events.NewOutboxRepository(db), publisher, events.WorkerConfig{
+			Owner:       "media-file-service-outbox",
+			BatchSize:   cfg.OutboxBatchSize,
+			Interval:    cfg.OutboxInterval,
+			Lease:       cfg.OutboxLease,
+			MaxAttempts: cfg.OutboxMaxAttempts,
+		})
+		workers = append(workers, outboxWorker.Run)
+	}
+
+	readyChecks := []func(context.Context) error{
+		db.Ping,
+		storageClient.Check,
+		func(checkCtx context.Context) error {
+			return database.MigrationsCurrent(checkCtx, db, "migrations")
+		},
+	}
+	if privateStorage != nil {
+		readyChecks = append(readyChecks, privateStorage.Check)
+	}
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "media-file-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -69,16 +119,88 @@ func main() {
 			"document uploads",
 			"delivery proof images",
 			"recipient signatures",
+			"private document objects",
 		},
-		ReadyChecks: []func(context.Context) error{
-			db.Ping,
-			storageClient.Check,
-		},
+		ReadyChecks: readyChecks,
 		Register: func(group *gin.RouterGroup) {
 			uploadhttp.RegisterUploadRoutes(group, uploadService, cfg.ServiceTokens, cfg.MaxUploadBytes, cfg.PartnerJWTSecret)
+			if mediaService == nil {
+				logging.Notice("media", "private media contract not mounted (MEDIA_FILE_PRIVATE_API_ENABLED)")
+				return
+			}
+			mediahttp.RegisterPrivateRoutes(group.Group("/internal/media"),
+				mediahttp.NewHandler(mediaService, db),
+				serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+				cfg.PrivateAllowedCallers, cfg.PrivateMaxUploadBytes)
+			logging.Success("media", "private media contract mounted")
 		},
+		Workers: workers,
 	})
 }
+
+// buildPrivateMediaService assembles the authoritative media contract.
+//
+// It returns (nil, nil, nil) when the contract is switched off. It returns an
+// error — refusing to boot — when the contract is switched ON but cannot be
+// operated safely: no download signing secret means no bounded grant can be
+// minted, and starting anyway would leave the routes present and every private
+// download failing at request time instead of at deploy time.
+func buildPrivateMediaService(cfg config.Config, db *pgxpool.Pool,
+	storageClient uploadclients.ObjectStorage) (*mediausecases.Service, uploadclients.PrivateStorage, error) {
+	if !cfg.PrivateAPIEnabled || cfg.MediaKillSwitch {
+		return nil, nil, nil
+	}
+	if len(cfg.DownloadSecret) == 0 {
+		return nil, nil, errMissingDownloadSecret
+	}
+
+	var privateStorage uploadclients.PrivateStorage
+	bucket := ""
+	if cfg.FirebaseBucket != "" {
+		privateStorage = uploadclients.NewBucketPrivateStorage(storageClient, cfg.FirebaseBucket)
+		bucket = cfg.FirebaseBucket
+	} else {
+		dir := cfg.PrivateStorageDir
+		if dir == "" {
+			dir = filepath.Join(os.TempDir(), "karrygo-media-private")
+		}
+		filesystem, err := uploadclients.NewFilesystemPrivateStorage(dir)
+		if err != nil {
+			return nil, nil, err
+		}
+		privateStorage = filesystem
+		bucket = "local:" + dir
+	}
+
+	service := mediausecases.NewService(mediausecases.Options{
+		Pool:           db,
+		Objects:        mediarepositories.NewRepository(db),
+		Storage:        privateStorage,
+		Events:         events.NewDomainPublisher(events.NewOutboxRepository(db)),
+		DownloadSecret: cfg.DownloadSecret,
+		StorageBucket:  bucket,
+		// Scanner is deliberately left nil. There is no production malware
+		// provider configured for this platform, and inventing one here would
+		// mean reporting SAFE without having looked. Objects stay PENDING and
+		// every consumer that requires SAFE blocks.
+		Policy: mediausecases.Policy{
+			MaxSizeBytes:              cfg.PrivateMaxUploadBytes,
+			AllowedMIMETypes:          cfg.PrivateAllowedMIME,
+			UploadAuthorizationTTL:    cfg.UploadAuthorizationTTL,
+			DownloadTTL:               cfg.DownloadTTL,
+			ProhibitExecutableContent: cfg.ProhibitExecutableContent,
+			RequireSafeForDownload:    cfg.RequireSafeForDownload,
+			DefaultRetention:          cfg.DefaultRetention,
+		},
+	})
+	return service, privateStorage, nil
+}
+
+var errMissingDownloadSecret = configError("MEDIA_FILE_DOWNLOAD_SIGNING_SECRET is required when the private media API is enabled")
+
+type configError string
+
+func (e configError) Error() string { return string(e) }
 
 func logConnectivity(ctx context.Context, databaseURL string, db interface{ Ping(context.Context) error }) {
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)

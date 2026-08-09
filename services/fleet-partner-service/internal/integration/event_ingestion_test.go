@@ -24,8 +24,17 @@ func newIngestionService(pool *pgxpool.Pool) *mktusecases.Service {
 		Offers:          mktrepos.NewOfferRepository(pool),
 		Assignments:     mktrepos.NewAssignmentRepository(pool),
 		ExecutionStarts: mktrepos.NewExecutionStartRepository(pool),
-		Events:          events.NewDomainPublisher(events.NewOutboxRepository(pool)),
-		Metrics:         observability.NewMetrics(),
+		// Trips and Commands match what the composition root wires. Omitting
+		// Trips here is what let the production nil-wiring defect survive: the
+		// fixture exercised a service shape no deployment actually runs.
+		Trips:    mktrepos.NewTripRepository(pool),
+		Commands: mktrepos.NewCommandRepository(pool),
+		// The durable gate is wired here for the same reason Trips is: a
+		// fixture that runs a service shape no deployment runs proves nothing
+		// about the deployment.
+		DurableEligibility: newEligibilityService(pool, healthyAuthority("", "")),
+		Events:             events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+		Metrics:            observability.NewMetrics(),
 	})
 }
 
@@ -204,14 +213,20 @@ func TestIngestEventStaleVersionIgnored(t *testing.T) {
 	projection := seedProjection(t, pool, org.ID, "req_ingest_stale",
 		mktmodels.ProjectionOffered)
 
-	raw, event := inboundEvent(t, "evt_stale_new", mktusecases.EventTripCompleted,
-		"req_ingest_stale", 5, map[string]any{"status": "completed"})
+	// Both events are REQUEST-aggregate events, because only they share the
+	// request projection's version counter. This test previously advanced the
+	// projection with trip.completed.v1 at version 5 and then sent a request
+	// event at version 3 — which read as a sequence only while the service
+	// wrongly fed trip versions into the request counter. Trip-side staleness
+	// is covered separately, against the trip projection's own sequence.
+	raw, event := inboundEvent(t, "evt_stale_new", mktusecases.EventRequestCancelled,
+		"req_ingest_stale", 5, map[string]any{"status": "cancelled"})
 	if _, err := service.IngestEvent(ctx, raw, event); err != nil {
 		t.Fatalf("newer ingest: %v", err)
 	}
 
 	// Version 3 arrives after version 5. Applying it would regress the
-	// projection from COMPLETED back to RESERVATION_PENDING.
+	// projection from CANCELLED back to RESERVATION_PENDING.
 	rawOld, eventOld := inboundEvent(t, "evt_stale_old", mktusecases.EventRequestReserved,
 		"req_ingest_stale", 3, map[string]any{"status": "reserved"})
 	result, err := service.IngestEvent(ctx, rawOld, eventOld)
@@ -230,7 +245,7 @@ func TestIngestEventStaleVersionIgnored(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	if stored.ProjectionStatus != mktmodels.ProjectionCompleted {
+	if stored.ProjectionStatus != mktmodels.ProjectionCancelled {
 		t.Fatalf("projection regressed to %q", stored.ProjectionStatus)
 	}
 	if stored.SourceVersion != 5 {

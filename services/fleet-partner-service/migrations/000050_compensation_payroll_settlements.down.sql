@@ -1,0 +1,12 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('compensation.read','compensation.manage','compensation.approve','payroll.read','payroll.manage','payroll.calculate','payroll.approve','payroll.post','payroll.reverse','subcontractor_settlements.read','subcontractor_settlements.manage','subcontractor_settlements.approve','subcontractor_settlements.post');
+DELETE FROM fleet_partner_permissions WHERE code IN('compensation.read','compensation.manage','compensation.approve','payroll.read','payroll.manage','payroll.calculate','payroll.approve','payroll.post','payroll.reverse','subcontractor_settlements.read','subcontractor_settlements.manage','subcontractor_settlements.approve','subcontractor_settlements.post');
+DROP TRIGGER IF EXISTS trg_fleet_settlement_jobs_append_only ON fleet_partner_subcontractor_settlement_jobs;
+DROP TABLE IF EXISTS fleet_partner_subcontractor_settlement_jobs;
+DROP TABLE IF EXISTS fleet_partner_subcontractor_settlements;
+DROP TRIGGER IF EXISTS trg_fleet_payroll_history_append_only ON fleet_partner_payroll_history;
+DROP TABLE IF EXISTS fleet_partner_payroll_history;
+DROP TABLE IF EXISTS fleet_partner_provider_compensation_items;
+DROP TABLE IF EXISTS fleet_partner_payroll_periods;
+DROP TRIGGER IF EXISTS trg_fleet_comp_rule_versions_append_only ON fleet_partner_compensation_rule_versions;
+DROP TABLE IF EXISTS fleet_partner_compensation_rule_versions;
+DROP TABLE IF EXISTS fleet_partner_compensation_rules;

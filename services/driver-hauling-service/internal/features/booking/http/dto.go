@@ -40,7 +40,7 @@ type initiateCardPaymentRequest struct {
 }
 
 type submitReviewRequest struct {
-	Rating           int   `json:"rating"`
+	Rating           int    `json:"rating"`
 	ReviewText       string `json:"review_text"`
 	RecommendsDriver *bool  `json:"recommends_driver"`
 }

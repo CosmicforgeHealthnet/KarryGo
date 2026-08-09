@@ -37,10 +37,18 @@ const migrationsDir = "../../migrations"
 var (
 	migrateOnce sync.Once
 	migrateErr  error
+	// Tests in this package deliberately share one disposable PostgreSQL
+	// database and reset it with TRUNCATE. Several tests use t.Parallel, so one
+	// test must own that database until its cleanup completes; otherwise a
+	// concurrent reset can delete another test's organization mid-assertion or
+	// deadlock two catalogue seed passes.
+	databaseTestMu sync.Mutex
 )
 
 func testPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
+	databaseTestMu.Lock()
+	t.Cleanup(databaseTestMu.Unlock)
 	rawURL := os.Getenv("FLEET_PARTNER_TEST_DATABASE_URL")
 	if rawURL == "" {
 		t.Skip("FLEET_PARTNER_TEST_DATABASE_URL not set; skipping PostgreSQL integration tests (CI must always set it)")
@@ -52,6 +60,22 @@ func testPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("connect test database: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	// Also serialize against a second `go test` process pointed at the same
+	// disposable database (for example an IDE run overlapping the required
+	// repository-wide command). A process-local mutex cannot protect that
+	// boundary.
+	lockConn, err := pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("acquire database test lock connection: %v", err)
+	}
+	if _, err = lockConn.Exec(context.Background(), `SELECT pg_advisory_lock(hashtext('fleet-partner-integration-suite'))`); err != nil {
+		lockConn.Release()
+		t.Fatalf("acquire database test advisory lock: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = lockConn.Exec(context.Background(), `SELECT pg_advisory_unlock(hashtext('fleet-partner-integration-suite'))`)
+		lockConn.Release()
+	})
 
 	// Migrations are applied ONCE per test process, not once per test.
 	//
@@ -60,7 +84,16 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	// outcome. The per-test clean slate below is what actually provides
 	// isolation.
 	migrateOnce.Do(func() {
-		migrateErr = database.ApplyMigrations(context.Background(), pool, migrationsDir)
+		_, migrateErr = pool.Exec(context.Background(), `DROP SCHEMA public CASCADE; CREATE SCHEMA public`)
+		if migrateErr == nil {
+			migrateErr = database.ApplyMigrations(context.Background(), pool, migrationsDir)
+		}
+		if migrateErr == nil {
+			migrateErr = restoreCatalogueFromMigrations(context.Background(), pool)
+		}
+		if migrateErr == nil {
+			migrateErr = snapshotCatalogueSeed(context.Background(), pool)
+		}
 	})
 	if migrateErr != nil {
 		t.Fatalf("apply migrations: %v", migrateErr)
@@ -100,27 +133,83 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	// TRUNCATE bypasses row-level append-only triggers by design — it is test
 	// tooling, not a runtime path.
-	if _, err := pool.Exec(context.Background(),
-		"TRUNCATE "+strings.Join(tables, ", ")+" CASCADE"); err != nil {
-		t.Fatalf("clean test database: %v", err)
+	if err := resetTestData(context.Background(), pool, tables); err != nil {
+		t.Fatalf("reset test database: %v", err)
 	}
 
 	// Truncating wipes the seeded platform catalogue (system role templates,
 	// permissions and their grants). Re-run the seeding migrations — their
 	// seed statements are idempotent — to restore it.
+	return pool
+}
+
+var catalogueSeedTables = []string{
+	"fleet_partner_permissions",
+	"fleet_partner_roles",
+	"fleet_partner_eligibility_reason_codes",
+	"fleet_partner_eligibility_policies",
+	"fleet_partner_role_permissions",
+}
+
+func restoreCatalogueFromMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, seedMigration := range []string{
 		"000005_staff_and_iam.up.sql",
 		"000010_trip_projections_and_permissions.up.sql",
+		"000014_safety_references.up.sql",
+		"000018_finance_operator_access.up.sql",
+		"000019_eligibility_decisions.up.sql",
+		"000021_fleet_documents.up.sql",
 	} {
-		seed, readErr := os.ReadFile(filepath.Join(migrationsDir, seedMigration))
-		if readErr != nil {
-			t.Fatalf("read seed migration %s: %v", seedMigration, readErr)
+		seed, err := os.ReadFile(filepath.Join(migrationsDir, seedMigration))
+		if err != nil {
+			return err
 		}
-		if _, err := pool.Exec(context.Background(), string(seed)); err != nil {
-			t.Fatalf("restore catalogue from %s: %v", seedMigration, err)
+		if _, err := pool.Exec(ctx, string(seed)); err != nil {
+			return err
 		}
 	}
-	return pool
+	return nil
+}
+
+func snapshotCatalogueSeed(ctx context.Context, pool *pgxpool.Pool) error {
+	if _, err := pool.Exec(ctx, `DROP SCHEMA IF EXISTS fleet_partner_test_seed CASCADE; CREATE SCHEMA fleet_partner_test_seed`); err != nil {
+		return err
+	}
+	for _, table := range catalogueSeedTables {
+		identifier := pgx.Identifier{table}.Sanitize()
+		backup := pgx.Identifier{"fleet_partner_test_seed", table}.Sanitize()
+		if _, err := pool.Exec(ctx, "CREATE TABLE "+backup+" (LIKE "+identifier+" INCLUDING ALL); INSERT INTO "+backup+" SELECT * FROM "+identifier); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func resetTestData(ctx context.Context, pool *pgxpool.Pool, tables []string) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	// This runs only against the explicitly validated disposable test database.
+	// Disabling constraint and append-only triggers for this transaction avoids
+	// the catalogue-lock cost of TRUNCATE CASCADE across the large FK graph.
+	if _, err := tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+		return err
+	}
+	for _, table := range tables {
+		if _, err := tx.Exec(ctx, "DELETE FROM "+table); err != nil {
+			return err
+		}
+	}
+	for _, table := range catalogueSeedTables {
+		identifier := pgx.Identifier{table}.Sanitize()
+		backup := pgx.Identifier{"fleet_partner_test_seed", table}.Sanitize()
+		if _, err := tx.Exec(ctx, "INSERT INTO "+identifier+" SELECT * FROM "+backup); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 // requireTestDatabaseName refuses to run against anything that does not look

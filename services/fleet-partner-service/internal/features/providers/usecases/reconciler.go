@@ -8,6 +8,8 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/contact"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
 
@@ -45,7 +47,7 @@ func (s *Service) reconcileOne(ctx context.Context, saga models.ProvisioningSaga
 	if !ok {
 		return false
 	}
-	meta := platformclients.CallMeta{}
+	meta := platformclients.CallMeta{OrganizationID: saga.OrganizationID}
 	progressed := false
 
 	// Step 1: an unknown provisioning outcome is resolved by resolving the
@@ -63,12 +65,37 @@ func (s *Service) reconcileOne(ctx context.Context, saga models.ProvisioningSaga
 				s.scheduleRetry(ctx, saga.MembershipID, "resolve_unavailable")
 				return false
 			case resolution.Outcome == platformclients.ProviderResolveMatched:
-				_ = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+				if err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 					return s.opts.Providers.SetProviderID(ctx, tx, saga.OrganizationID,
 						saga.MembershipID, resolution.ProviderID, resolution.SourceVersion)
-				})
+				}); err != nil {
+					s.scheduleRetry(ctx, saga.MembershipID, "provider_identity_persistence_failed")
+					return false
+				}
 				s.markSagaStep(ctx, saga.MembershipID, "provider_identity_status", "PROVISIONED",
 					models.SagaInProgress, "")
+				reloaded, reloadErr := s.opts.Providers.GetMembership(ctx, saga.OrganizationID, saga.MembershipID)
+				if reloadErr != nil {
+					s.scheduleRetry(ctx, saga.MembershipID, "membership_reload_failed")
+					return false
+				}
+				_ = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+					return s.opts.Providers.CancelInvitation(ctx, tx, invitation.ID)
+				})
+				s.createAssociationInvitation(ctx, CreateProviderInput{
+					Tenant: tenant.Context{
+						OrganizationID: saga.OrganizationID,
+						ActorType:      tenant.ActorTypeSystem,
+						ActorID:        "provider-reconciler",
+						CorrelationID:  "provider-reconcile:" + saga.MembershipID,
+					},
+					LegalName: invitation.LegalName,
+					Email:     invitation.EmailNormalized,
+					Phone:     invitation.PhoneE164,
+				}, reloaded, contact.Pair{
+					EmailNormalized: invitation.EmailNormalized,
+					PhoneE164:       invitation.PhoneE164,
+				}, contract, meta)
 				progressed = true
 			case resolution.Outcome == platformclients.ProviderResolveConflict:
 				s.markSagaStep(ctx, saga.MembershipID, "provider_resolution_status", "CONFLICT",

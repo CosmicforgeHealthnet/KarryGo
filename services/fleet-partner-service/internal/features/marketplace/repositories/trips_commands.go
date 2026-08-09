@@ -235,16 +235,118 @@ func (r *TripRepository) ResolveGaps(ctx context.Context, q database.Querier, so
 
 // OpenReconciliation records that an aggregate needs authoritative repair.
 func (r *TripRepository) OpenReconciliation(ctx context.Context, q database.Querier, organizationID string, sourceService string, aggregateType string, aggregateSourceID string, reason string, nextAttempt time.Time) error {
+	// ON CONFLICT against the partial unique index on live cases. An aggregate
+	// that gaps twice before anyone repairs it needs one case, not two racing
+	// to write the same projection.
 	_, err := q.Exec(ctx, `
 		INSERT INTO fleet_partner_projection_reconciliation_cases
 			(id, organization_id, source_service, aggregate_type, aggregate_source_id, reason,
 			 status, next_attempt_at, version, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, 'OPEN', $7, 1, now(), now())`,
+		VALUES ($1, $2, $3, $4, $5, $6, 'OPEN', $7, 1, now(), now())
+		ON CONFLICT (source_service, aggregate_type, aggregate_source_id)
+			WHERE status IN ('OPEN', 'IN_PROGRESS')
+		DO NOTHING`,
 		ids.New("rec"), organizationID, sourceService, aggregateType, aggregateSourceID, reason, nextAttempt)
 	if err != nil {
 		return fmt.Errorf("marketplace: open reconciliation: %w", err)
 	}
 	return nil
+}
+
+// ErrDuplicateCase reports a live reconciliation case already existing.
+//
+// Retained as a named error even though OpenReconciliation now absorbs the
+// conflict itself, so callers that want to distinguish "created" from "already
+// pending" have something to compare against rather than inventing their own.
+var ErrDuplicateCase = errors.New("marketplace: reconciliation case already open")
+
+// ClaimTripReconciliationLease marks a case in flight without spending an
+// attempt.
+//
+// Separate from ResolveReconciliation, which increments attempts. Using that
+// method to claim charged the case twice per pass — once to claim, once to
+// defer — silently halving every retry budget.
+func (r *TripRepository) ClaimTripReconciliationLease(ctx context.Context, q database.Querier,
+	caseID string, owner string, lease time.Duration) error {
+	_, err := q.Exec(ctx, `
+		UPDATE fleet_partner_projection_reconciliation_cases SET
+			status = 'IN_PROGRESS',
+			lease_owner = $2,
+			lease_expires_at = now() + make_interval(secs => $3::double precision),
+			version = version + 1, updated_at = now()
+		WHERE id = $1`, caseID, owner, lease.Seconds())
+	if err != nil {
+		return fmt.Errorf("marketplace: claim reconciliation lease: %w", err)
+	}
+	return nil
+}
+
+// RecoverExpiredReconciliationLeases returns abandoned cases to the queue.
+//
+// A worker that dies mid-case leaves it IN_PROGRESS forever otherwise. The
+// attempt count is untouched: the case was never actually judged, so charging
+// it for the crash would burn the budget without a single real read-back.
+func (r *TripRepository) RecoverExpiredReconciliationLeases(ctx context.Context,
+	q database.Querier) (int64, error) {
+	tag, err := q.Exec(ctx, `
+		UPDATE fleet_partner_projection_reconciliation_cases SET
+			status = 'OPEN', lease_owner = NULL, lease_expires_at = NULL,
+			next_attempt_at = now(), version = version + 1, updated_at = now()
+		WHERE status = 'IN_PROGRESS' AND lease_expires_at IS NOT NULL
+		  AND lease_expires_at < now()`)
+	if err != nil {
+		return 0, fmt.Errorf("marketplace: recover reconciliation leases: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
+// ReplayReconciliationCase returns a dead-lettered case to the queue.
+//
+// The operator entry point. Attempts reset to zero because a replay follows a
+// human deciding the underlying cause is fixed; leaving the count would have
+// the case dead-letter again on its first retry.
+func (r *TripRepository) ReplayReconciliationCase(ctx context.Context, q database.Querier,
+	caseID string) (bool, error) {
+	tag, err := q.Exec(ctx, `
+		UPDATE fleet_partner_projection_reconciliation_cases SET
+			status = 'OPEN', attempts = 0, last_error_code = NULL,
+			next_attempt_at = now(), lease_owner = NULL, lease_expires_at = NULL,
+			version = version + 1, updated_at = now()
+		WHERE id = $1 AND status = 'FAILED_PERMANENT'`, caseID)
+	if err != nil {
+		return false, fmt.Errorf("marketplace: replay reconciliation case: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// ListDeadLetteredCases returns cases awaiting operator attention.
+func (r *TripRepository) ListDeadLetteredCases(ctx context.Context, limit int) ([]ReconciliationCase, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT id, organization_id, source_service, aggregate_type, aggregate_source_id,
+			reason, status, attempts, version
+		FROM fleet_partner_projection_reconciliation_cases
+		WHERE status = 'FAILED_PERMANENT'
+		ORDER BY updated_at DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("marketplace: list dead-lettered cases: %w", err)
+	}
+	defer rows.Close()
+
+	var cases []ReconciliationCase
+	for rows.Next() {
+		var item ReconciliationCase
+		if err := rows.Scan(&item.ID, &item.OrganizationID, &item.SourceService,
+			&item.AggregateType, &item.AggregateSourceID, &item.Reason, &item.Status,
+			&item.Attempts, &item.Version); err != nil {
+			return nil, fmt.Errorf("marketplace: scan dead-lettered case: %w", err)
+		}
+		cases = append(cases, item)
+	}
+	return cases, rows.Err()
 }
 
 // ClaimReconciliationCases leases due cases for the reconciliation worker.
@@ -253,7 +355,10 @@ func (r *TripRepository) ClaimReconciliationCases(ctx context.Context, q databas
 		SELECT id, organization_id, source_service, aggregate_type, aggregate_source_id,
 			reason, status, attempts, version
 		FROM fleet_partner_projection_reconciliation_cases
-		WHERE status IN ('OPEN', 'IN_PROGRESS')
+		-- OPEN only. An IN_PROGRESS case is leased to a live worker; the
+		-- lease-recovery sweep is what returns abandoned ones here, so
+		-- claiming them directly would let two workers repair one aggregate.
+		WHERE status = 'OPEN'
 		  AND (next_attempt_at IS NULL OR next_attempt_at <= now())
 		ORDER BY updated_at
 		LIMIT $1
@@ -552,6 +657,56 @@ func (r *AssignmentRepository) ResolveReassignmentCase(ctx context.Context, q da
 		return concurrency.ErrVersionMismatch
 	}
 	return nil
+}
+
+// CountStaleOpenReassignmentCases counts OPEN/IN_PROGRESS reassignment
+// cases older than olderThan, across all organizations -- the read-back a
+// staleness worker uses to surface cases a dispatcher has not yet acted on.
+func (r *AssignmentRepository) CountStaleOpenReassignmentCases(ctx context.Context, olderThan time.Duration) (int64, error) {
+	var count int64
+	err := r.db.QueryRow(ctx, `
+		SELECT count(*) FROM fleet_partner_reassignment_cases
+		WHERE status IN ('OPEN', 'IN_PROGRESS') AND created_at < now() - make_interval(secs => $1::double precision)`,
+		olderThan.Seconds()).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("marketplace: count stale reassignment cases: %w", err)
+	}
+	return count, nil
+}
+
+// ListStaleOpenReassignmentCases returns OPEN/IN_PROGRESS reassignment
+// cases older than olderThan, across all organizations, capped at limit --
+// the read the reassignment coordinator worker iterates to decide which
+// cases to (attempt to) act on.
+func (r *AssignmentRepository) ListStaleOpenReassignmentCases(ctx context.Context, olderThan time.Duration, limit int) ([]models.ReassignmentCase, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT id, organization_id, request_projection_id, origin_assignment_id, trigger,
+			reason_code, requires_human_review, status, attempts, excluded_membership_ids,
+			resolved_assignment_id, version, created_at, updated_at
+		FROM fleet_partner_reassignment_cases
+		WHERE status IN ('OPEN', 'IN_PROGRESS') AND created_at < now() - make_interval(secs => $1::double precision)
+		ORDER BY created_at LIMIT $2`,
+		olderThan.Seconds(), limit)
+	if err != nil {
+		return nil, fmt.Errorf("marketplace: list stale reassignment cases: %w", err)
+	}
+	defer rows.Close()
+	var cases []models.ReassignmentCase
+	for rows.Next() {
+		var item models.ReassignmentCase
+		var excluded []byte
+		if err := rows.Scan(&item.ID, &item.OrganizationID, &item.RequestProjectionID, &item.OriginAssignmentID,
+			&item.Trigger, &item.ReasonCode, &item.RequiresHumanReview, &item.Status, &item.Attempts,
+			&excluded, &item.ResolvedAssignmentID, &item.Version, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("marketplace: scan stale reassignment case: %w", err)
+		}
+		_ = json.Unmarshal(excluded, &item.ExcludedMembershipIDs)
+		cases = append(cases, item)
+	}
+	return cases, rows.Err()
 }
 
 // CreateFollowup records a durable decline follow-up action.

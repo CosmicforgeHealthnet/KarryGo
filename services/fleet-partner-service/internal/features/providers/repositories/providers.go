@@ -49,7 +49,11 @@ func (r *Repository) CreateMembership(ctx context.Context, q database.Querier, o
 		membership.ID = ids.New("pmb")
 	}
 	membership.OrganizationID = organizationID
-	membership.ProviderMode = "ORGANIZATION_MANAGED"
+	// Every membership row this repository creates represents an
+	// organization-managed relationship: independence is represented by the
+	// ABSENCE of a membership row, never by a stored ProviderMode value
+	// (see models.Membership.Live's single-settlement-slot doc comment).
+	membership.ProviderMode = models.ProviderModeOrganizationManaged
 	membership.Version = 1
 	if membership.Status == "" {
 		membership.Status = models.StatusInvited
@@ -60,9 +64,9 @@ func (r *Repository) CreateMembership(ctx context.Context, q database.Querier, o
 			(id, organization_id, provider_service, service_category, provider_id, provider_mode,
 			 onboarding_source, relationship_type, employment_type, employee_number, home_branch_id,
 			 status, version, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, 'ORGANIZATION_MANAGED', $6, $7, $8, $9, $10, $11, 1, now(), now())`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1, now(), now())`,
 		membership.ID, organizationID, membership.ProviderService, membership.ServiceCategory,
-		membership.ProviderID, membership.OnboardingSource, membership.RelationshipType,
+		membership.ProviderID, membership.ProviderMode, membership.OnboardingSource, membership.RelationshipType,
 		membership.EmploymentType, membership.EmployeeNumber, membership.HomeBranchID, membership.Status)
 	if err != nil {
 		return fmt.Errorf("providers: create membership: %w", err)
@@ -102,6 +106,34 @@ func (r *Repository) FindLiveByProvider(ctx context.Context, q database.Querier,
 		  AND status IN ('PENDING_PROVIDER_ACCEPTANCE','PENDING_SETUP','ACTIVE','SUSPENDED','ENDING')`,
 		providerService, providerID)
 	return scanMembership(row)
+}
+
+// ListMembershipsByProvider returns every membership -- live or historical,
+// any status -- a given (providerService, providerID) pair has ever held,
+// newest first. This is the provider-self "membership history" read
+// (Section 28/34): FindLiveByProvider above only ever answers with the one
+// current live membership, which cannot show a provider their own past
+// (ended, removed) memberships.
+func (r *Repository) ListMembershipsByProvider(ctx context.Context, providerService string, providerID string) ([]models.Membership, error) {
+	rows, err := r.db.Query(ctx, `SELECT `+membershipColumns+`
+		FROM fleet_partner_organization_provider_memberships
+		WHERE provider_service = $1 AND provider_id = $2
+		ORDER BY created_at DESC, id
+		LIMIT 100`, providerService, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("providers: list memberships by provider: %w", err)
+	}
+	defer rows.Close()
+
+	var memberships []models.Membership
+	for rows.Next() {
+		membership, err := scanMembershipRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		memberships = append(memberships, *membership)
+	}
+	return memberships, rows.Err()
 }
 
 // ListMemberships returns memberships for a tenant query, honouring permitted

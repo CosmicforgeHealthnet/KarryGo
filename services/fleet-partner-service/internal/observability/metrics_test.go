@@ -1,6 +1,8 @@
 package observability
 
 import (
+	"bytes"
+	"log"
 	"strings"
 	"sync"
 	"testing"
@@ -48,15 +50,26 @@ func TestConcurrentAccessSafe(t *testing.T) {
 }
 
 func TestLogRedactsSensitiveFields(t *testing.T) {
-	// Log writes to the standard logger; this asserts the redaction map is
-	// applied by calling the internal path via a captured field set.
-	fields := map[string]any{"authorization": "Bearer x", "route": "/x"}
-	for key := range fields {
-		if redactedFields[key] && key != "authorization" {
-			t.Fatalf("unexpected redaction key %s", key)
+	var buf bytes.Buffer
+	original := log.Writer()
+	log.SetOutput(&buf)
+	defer log.SetOutput(original)
+
+	Log("svc", "test", "info", "message", map[string]any{
+		"authorization": "Bearer super-secret-value",
+		"refresh_token": "rt_super_secret",
+		"api_key":       "ak_super_secret",
+		"bvn":           "12345678901",
+		"route":         "/x",
+	})
+
+	line := buf.String()
+	for _, secret := range []string{"super-secret-value", "rt_super_secret", "ak_super_secret", "12345678901"} {
+		if strings.Contains(line, secret) {
+			t.Fatalf("log line leaked a sensitive value: %s", line)
 		}
 	}
-	if !redactedFields["authorization"] || !redactedFields["token"] {
-		t.Fatal("sensitive fields must be redacted")
+	if !strings.Contains(line, `"route":"/x"`) {
+		t.Fatalf("non-sensitive field was dropped: %s", line)
 	}
 }

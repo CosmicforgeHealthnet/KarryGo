@@ -26,11 +26,17 @@ type Handler struct {
 	staff         *staffusecases.Service
 	providers     *providerusecases.Service
 	authorizer    *accesscontrol.Authorizer
+	sessions      orgusecases.SessionRevoker
 }
 
-// NewHandler builds the handler.
-func NewHandler(organizations *orgusecases.Service, staffService *staffusecases.Service, providers *providerusecases.Service, authorizer *accesscontrol.Authorizer) *Handler {
-	return &Handler{organizations: organizations, staff: staffService, providers: providers, authorizer: authorizer}
+// NewHandler builds the handler. sessions may be nil (matches every other
+// optional dependency convention in this service): the closure/execute
+// route then completes without revoking any corporate sessions, which is
+// disclosed rather than silently claimed as a security control -- a
+// deployment that wires this handler without a session revoker is choosing
+// that tradeoff, not hitting a hidden gap.
+func NewHandler(organizations *orgusecases.Service, staffService *staffusecases.Service, providers *providerusecases.Service, authorizer *accesscontrol.Authorizer, sessions orgusecases.SessionRevoker) *Handler {
+	return &Handler{organizations: organizations, staff: staffService, providers: providers, authorizer: authorizer, sessions: sessions}
 }
 
 // RegisterOnboardingRoutes mounts routes available to an authenticated
@@ -51,6 +57,10 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.POST("/organizations/:organizationId/wallet-provisioning/retry", h.retryWallet)
 	group.POST("/organizations/:organizationId/close-request", h.requestClosure)
 	group.GET("/organizations/:organizationId/closure-status", h.closureStatus)
+	group.POST("/organizations/:organizationId/closure/assess", h.assessClosure)
+	group.POST("/organizations/:organizationId/closure/approve", h.approveClosure)
+	group.POST("/organizations/:organizationId/closure/reject", h.rejectClosure)
+	group.POST("/organizations/:organizationId/closure/execute", h.executeClosure)
 
 	group.GET("/permissions", h.listPermissions)
 	group.GET("/roles", h.listRoles)
@@ -400,6 +410,104 @@ func (h *Handler) closureStatus(c *gin.Context) {
 		return
 	}
 	respond.OK(c, gin.H{"status": closure.Status, "blockers": blockers})
+}
+
+// assessClosure re-evaluates every closure blocker and records the outcome,
+// moving the request to APPROVAL_REQUIRED when clear or back to BLOCKED
+// otherwise. Uses orgusecases.DefaultClosureCheckers() -- the fail-closed
+// UNKNOWN checker set for obligations whose authoritative service contract
+// does not exist yet -- plus a real, DB-backed provider-membership count via
+// h.providers, exactly the same checkers a future scheduled re-assessment
+// job would use, so a caller-triggered assessment and a scheduled one can
+// never disagree about what counts as a blocker.
+func (h *Handler) assessClosure(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.closure.manage") {
+		return
+	}
+	closure, blockers, err := h.organizations.AssessClosure(c.Request.Context(), tenantCtx.OrganizationID,
+		orgusecases.DefaultClosureCheckers(), h.providers)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, gin.H{"status": closure.Status, "blockers": blockers})
+}
+
+// approveClosure moves an unblocked, fully-assessed request from
+// APPROVAL_REQUIRED to APPROVED -- the step ExecuteClosure requires before
+// it will do anything.
+func (h *Handler) approveClosure(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.closure.manage") {
+		return
+	}
+	closure, err := h.organizations.ApproveClosure(c.Request.Context(), tenantCtx, tenantCtx.ActorID)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, gin.H{"status": closure.Status})
+}
+
+type rejectClosureRequest struct {
+	ReasonText string `json:"reasonText"`
+}
+
+// rejectClosure ends an in-flight closure request without executing it.
+func (h *Handler) rejectClosure(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.closure.manage") {
+		return
+	}
+	var request rejectClosureRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&request); err != nil {
+			respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+			return
+		}
+	}
+	closure, err := h.organizations.RejectClosure(c.Request.Context(), tenantCtx, request.ReasonText)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, gin.H{"status": closure.Status})
+}
+
+// executeClosure performs the non-destructive closure steps (revoke
+// corporate sessions, mark the organization CLOSED) once a request is
+// APPROVED. Nothing is hard-deleted; immutable financial, trip, safety,
+// compliance and audit records are always retained.
+func (h *Handler) executeClosure(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.closure.manage") {
+		return
+	}
+	if err := h.organizations.ExecuteClosure(c.Request.Context(), tenantCtx.OrganizationID,
+		h.sessions, tenantCtx.CorrelationID); err != nil {
+		respond.Error(c, err)
+		return
+	}
+	// ExecuteClosure only ever returns nil after its whole transaction --
+	// including the final UpdateClosureStatus(...COMPLETED...) -- commits, so
+	// COMPLETED is the only status a successful call can have produced. It
+	// cannot be re-read via GetClosureStatus: that query's "open request"
+	// filter deliberately excludes COMPLETED (see GetOpenClosureRequest),
+	// so calling it here would 404 immediately after a successful execution.
+	respond.OK(c, gin.H{"status": orgmodels.ClosureStatusCompleted})
 }
 
 func (h *Handler) listPermissions(c *gin.Context) {

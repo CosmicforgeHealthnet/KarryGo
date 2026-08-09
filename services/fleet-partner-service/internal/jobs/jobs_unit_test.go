@@ -4,12 +4,25 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestValidateTenantMatch(t *testing.T) {
 	payload, _ := json.Marshal(map[string]string{"organizationId": "org_1"})
 	if err := ValidateTenant(Job{OrganizationID: "org_1", Payload: payload}); err != nil {
 		t.Fatalf("matching tenant rejected: %v", err)
+	}
+}
+
+func TestRetryDelayHonorsAndBoundsUpstreamRetryAfter(t *testing.T) {
+	if got := RetryDelay(errors.New("plain")); got != 0 {
+		t.Fatalf("plain error retry delay = %s, want zero", got)
+	}
+	if got := RetryDelay(&ClassifiedError{Class: ErrorClassRateLimited, RetryAfter: 45 * time.Second}); got != 45*time.Second {
+		t.Fatalf("retry delay = %s, want 45s", got)
+	}
+	if got := RetryDelay(&ClassifiedError{Class: ErrorClassRateLimited, RetryAfter: 72 * time.Hour}); got != 24*time.Hour {
+		t.Fatalf("unbounded retry delay = %s, want 24h", got)
 	}
 }
 

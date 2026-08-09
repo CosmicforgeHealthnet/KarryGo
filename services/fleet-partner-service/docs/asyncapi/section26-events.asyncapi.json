@@ -1,0 +1,1384 @@
+{
+  "asyncapi": "2.6.0",
+  "channels": {
+    "fleet-partner:events": {
+      "subscribe": {
+        "message": {
+          "oneOf": [
+            {
+              "$ref": "#/components/messages/ApiClientCreatedV1"
+            },
+            {
+              "$ref": "#/components/messages/ApiClientRevokedV1"
+            },
+            {
+              "$ref": "#/components/messages/ApiClientRotatedV1"
+            },
+            {
+              "$ref": "#/components/messages/CorporateInvoiceIssuedV1"
+            },
+            {
+              "$ref": "#/components/messages/CorporateOrderConfirmedV1"
+            },
+            {
+              "$ref": "#/components/messages/CorporateShipmentStatusChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/MediaAssetStatusChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationAssetBlockedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationAssignmentAcceptedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationAssignmentCreatedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationAssignmentDeclinedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationAssignmentExpiredV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationCreatedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentArchivedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentDeletedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentExpiredV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentReconciliationRequiredV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentRegisteredV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentRejectedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentReplacedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentRevokedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentStateChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationDocumentVerifiedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationProviderMembershipChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationProviderProvisionedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationRequestAcceptedV1"
+            },
+            {
+              "$ref": "#/components/messages/OrganizationStatusChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/PlatformRequestCancelledV1"
+            },
+            {
+              "$ref": "#/components/messages/PlatformRequestOfferedV1"
+            },
+            {
+              "$ref": "#/components/messages/ProviderAvailabilityChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/ProviderVerificationChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/SettlementCompletedV1"
+            },
+            {
+              "$ref": "#/components/messages/SettlementCreatedV1"
+            },
+            {
+              "$ref": "#/components/messages/SupportCaseChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/TripCompletedV1"
+            },
+            {
+              "$ref": "#/components/messages/TripCreatedV1"
+            },
+            {
+              "$ref": "#/components/messages/TripStatusChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/VehicleVerificationChangedV1"
+            },
+            {
+              "$ref": "#/components/messages/WalletEntryPostedV1"
+            },
+            {
+              "$ref": "#/components/messages/WebhookDeliveryFailedV1"
+            },
+            {
+              "$ref": "#/components/messages/WebhookDeliveryReplayedV1"
+            },
+            {
+              "$ref": "#/components/messages/WebhookDeliverySucceededV1"
+            },
+            {
+              "$ref": "#/components/messages/WebhookDisabledV1"
+            },
+            {
+              "$ref": "#/components/messages/WebhookSecretRotatedV1"
+            },
+            {
+              "$ref": "#/components/messages/WebhookSubscriptionCreatedV1"
+            },
+            {
+              "$ref": "#/components/messages/WebhookSubscriptionUpdatedV1"
+            }
+          ]
+        }
+      },
+      "x-consumer-group": "fleet-partner-consumers",
+      "x-stream-key": "fleet-partner:events"
+    }
+  },
+  "components": {
+    "messages": {
+      "ApiClientCreatedV1": {
+        "contentType": "application/json",
+        "name": "ApiClientCreatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "api_client.created.v1",
+        "x-aggregate-type": "organization_api_client",
+        "x-direction": "PRODUCED",
+        "x-event-type": "api_client.created.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "ApiClientRevokedV1": {
+        "contentType": "application/json",
+        "name": "ApiClientRevokedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "api_client.revoked.v1",
+        "x-aggregate-type": "organization_api_client",
+        "x-direction": "PRODUCED",
+        "x-event-type": "api_client.revoked.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "ApiClientRotatedV1": {
+        "contentType": "application/json",
+        "name": "ApiClientRotatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "api_client.rotated.v1",
+        "x-aggregate-type": "organization_api_client",
+        "x-direction": "PRODUCED",
+        "x-event-type": "api_client.rotated.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "CorporateInvoiceIssuedV1": {
+        "contentType": "application/json",
+        "name": "CorporateInvoiceIssuedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "corporate.invoice.issued.v1",
+        "x-aggregate-type": "invoice",
+        "x-direction": "PRODUCED",
+        "x-event-type": "corporate.invoice.issued.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "CorporateOrderConfirmedV1": {
+        "contentType": "application/json",
+        "name": "CorporateOrderConfirmedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "corporate.order.confirmed.v1",
+        "x-aggregate-type": "order",
+        "x-direction": "PRODUCED",
+        "x-event-type": "corporate.order.confirmed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "CorporateShipmentStatusChangedV1": {
+        "contentType": "application/json",
+        "name": "CorporateShipmentStatusChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "corporate.shipment.status_changed.v1",
+        "x-aggregate-type": "shipment",
+        "x-direction": "PRODUCED",
+        "x-event-type": "corporate.shipment.status_changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "MediaAssetStatusChangedV1": {
+        "contentType": "application/json",
+        "name": "MediaAssetStatusChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "media.asset.status_changed.v1",
+        "x-aggregate-type": "MEDIA_OBJECT",
+        "x-direction": "CONSUMED",
+        "x-event-type": "media.asset.status_changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "media-file-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationAssetBlockedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationAssetBlockedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.asset.blocked.v1",
+        "x-aggregate-type": "asset",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.asset.blocked.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationAssignmentAcceptedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationAssignmentAcceptedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.assignment.accepted.v1",
+        "x-aggregate-type": "assignment",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.assignment.accepted.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationAssignmentCreatedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationAssignmentCreatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.assignment.created.v1",
+        "x-aggregate-type": "assignment",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.assignment.created.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationAssignmentDeclinedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationAssignmentDeclinedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.assignment.declined.v1",
+        "x-aggregate-type": "assignment",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.assignment.declined.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationAssignmentExpiredV1": {
+        "contentType": "application/json",
+        "name": "OrganizationAssignmentExpiredV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.assignment.expired.v1",
+        "x-aggregate-type": "assignment",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.assignment.expired.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationCreatedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationCreatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.created.v1",
+        "x-aggregate-type": "organization",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.created.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationDocumentArchivedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentArchivedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "A document was organizationally archived out of default listings.",
+        "title": "organization.document.archived.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.archived.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentDeletedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentDeletedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Media confirmed the underlying object was deleted.",
+        "title": "organization.document.deleted.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.deleted.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentExpiredV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentExpiredV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "A document's stated expiry date has passed.",
+        "title": "organization.document.expired.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.expired.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentReconciliationRequiredV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentReconciliationRequiredV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "A version gap or projection disagreement opened a reconciliation case.",
+        "title": "organization.document.reconciliation_required.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.reconciliation_required.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentRegisteredV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentRegisteredV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "A new document reference was created and an upload was authorized.",
+        "title": "organization.document.registered.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.registered.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentRejectedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentRejectedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "An organization user recorded a negative verification decision with a controlled reason.",
+        "title": "organization.document.rejected.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.rejected.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentReplacedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentReplacedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "A document was superseded by a newer replacement document.",
+        "title": "organization.document.replaced.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.replaced.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentRevokedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentRevokedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "A document was revoked and can no longer satisfy a requirement.",
+        "title": "organization.document.revoked.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.revoked.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentStateChangedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentStateChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Media's authoritative projection of a document moved to a new lifecycle state.",
+        "title": "organization.document.state_changed.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.state_changed.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationDocumentVerifiedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationDocumentVerifiedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "An organization user recorded a positive verification decision.",
+        "title": "organization.document.verified.v1",
+        "x-aggregate-type": "document",
+        "x-direction": "",
+        "x-event-type": "organization.document.verified.v1",
+        "x-forbidden-fields": null,
+        "x-max-payload-bytes": 0,
+        "x-producers": null,
+        "x-schema-version": 1,
+        "x-tenant-required": false
+      },
+      "OrganizationProviderMembershipChangedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationProviderMembershipChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.provider.membership_changed.v1",
+        "x-aggregate-type": "provider_membership",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.provider.membership_changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationProviderProvisionedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationProviderProvisionedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.provider.provisioned.v1",
+        "x-aggregate-type": "provider",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.provider.provisioned.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationRequestAcceptedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationRequestAcceptedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.request.accepted.v1",
+        "x-aggregate-type": "request",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.request.accepted.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "OrganizationStatusChangedV1": {
+        "contentType": "application/json",
+        "name": "OrganizationStatusChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "organization.status_changed.v1",
+        "x-aggregate-type": "organization",
+        "x-direction": "PRODUCED",
+        "x-event-type": "organization.status_changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "PlatformRequestCancelledV1": {
+        "contentType": "application/json",
+        "name": "PlatformRequestCancelledV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "platform.request.cancelled.v1",
+        "x-aggregate-type": "request",
+        "x-direction": "CONSUMED",
+        "x-event-type": "platform.request.cancelled.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "driver-dispatch-delivery-service",
+          "driver-hauling-service",
+          "taxi-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "PlatformRequestOfferedV1": {
+        "contentType": "application/json",
+        "name": "PlatformRequestOfferedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "platform.request.offered.v1",
+        "x-aggregate-type": "request",
+        "x-direction": "CONSUMED",
+        "x-event-type": "platform.request.offered.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "driver-dispatch-delivery-service",
+          "driver-hauling-service",
+          "taxi-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "ProviderAvailabilityChangedV1": {
+        "contentType": "application/json",
+        "name": "ProviderAvailabilityChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "provider.availability.changed.v1",
+        "x-aggregate-type": "provider",
+        "x-direction": "CONSUMED",
+        "x-event-type": "provider.availability.changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "driver-dispatch-delivery-service",
+          "driver-hauling-service",
+          "taxi-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "ProviderVerificationChangedV1": {
+        "contentType": "application/json",
+        "name": "ProviderVerificationChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "provider.verification.changed.v1",
+        "x-aggregate-type": "provider",
+        "x-direction": "CONSUMED",
+        "x-event-type": "provider.verification.changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "driver-dispatch-delivery-service",
+          "driver-hauling-service",
+          "verification-compliance-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "SettlementCompletedV1": {
+        "contentType": "application/json",
+        "name": "SettlementCompletedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "settlement.completed.v1",
+        "x-aggregate-type": "settlement",
+        "x-direction": "CONSUMED",
+        "x-event-type": "settlement.completed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "payment-wallet-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "SettlementCreatedV1": {
+        "contentType": "application/json",
+        "name": "SettlementCreatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "settlement.created.v1",
+        "x-aggregate-type": "settlement",
+        "x-direction": "CONSUMED",
+        "x-event-type": "settlement.created.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "payment-wallet-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "SupportCaseChangedV1": {
+        "contentType": "application/json",
+        "name": "SupportCaseChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "support.case.changed.v1",
+        "x-aggregate-type": "support_case",
+        "x-direction": "CONSUMED",
+        "x-event-type": "support.case.changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "support-dispute-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "TripCompletedV1": {
+        "contentType": "application/json",
+        "name": "TripCompletedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "trip.completed.v1",
+        "x-aggregate-type": "trip",
+        "x-direction": "CONSUMED",
+        "x-event-type": "trip.completed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "driver-dispatch-delivery-service",
+          "driver-hauling-service",
+          "taxi-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "TripCreatedV1": {
+        "contentType": "application/json",
+        "name": "TripCreatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "trip.created.v1",
+        "x-aggregate-type": "trip",
+        "x-direction": "CONSUMED",
+        "x-event-type": "trip.created.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "driver-dispatch-delivery-service",
+          "driver-hauling-service",
+          "taxi-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "TripStatusChangedV1": {
+        "contentType": "application/json",
+        "name": "TripStatusChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "trip.status_changed.v1",
+        "x-aggregate-type": "trip",
+        "x-direction": "CONSUMED",
+        "x-event-type": "trip.status_changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "driver-dispatch-delivery-service",
+          "driver-hauling-service",
+          "taxi-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "VehicleVerificationChangedV1": {
+        "contentType": "application/json",
+        "name": "VehicleVerificationChangedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "vehicle.verification.changed.v1",
+        "x-aggregate-type": "vehicle",
+        "x-direction": "CONSUMED",
+        "x-event-type": "vehicle.verification.changed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "driver-dispatch-delivery-service",
+          "driver-hauling-service",
+          "verification-compliance-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "WalletEntryPostedV1": {
+        "contentType": "application/json",
+        "name": "WalletEntryPostedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 26 minimized contract",
+        "title": "wallet.entry.posted.v1",
+        "x-aggregate-type": "wallet_entry",
+        "x-direction": "CONSUMED",
+        "x-event-type": "wallet.entry.posted.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "signedUrl",
+          "bankDetails",
+          "privateMessage",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 32768,
+        "x-producers": [
+          "payment-wallet-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "WebhookDeliveryFailedV1": {
+        "contentType": "application/json",
+        "name": "WebhookDeliveryFailedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "webhook.delivery_failed.v1",
+        "x-aggregate-type": "webhook_delivery",
+        "x-direction": "PRODUCED",
+        "x-event-type": "webhook.delivery_failed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "WebhookDeliveryReplayedV1": {
+        "contentType": "application/json",
+        "name": "WebhookDeliveryReplayedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "webhook.delivery_replayed.v1",
+        "x-aggregate-type": "webhook_delivery",
+        "x-direction": "PRODUCED",
+        "x-event-type": "webhook.delivery_replayed.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "WebhookDeliverySucceededV1": {
+        "contentType": "application/json",
+        "name": "WebhookDeliverySucceededV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "webhook.delivery_succeeded.v1",
+        "x-aggregate-type": "webhook_delivery",
+        "x-direction": "PRODUCED",
+        "x-event-type": "webhook.delivery_succeeded.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "WebhookDisabledV1": {
+        "contentType": "application/json",
+        "name": "WebhookDisabledV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "webhook.disabled.v1",
+        "x-aggregate-type": "webhook_subscription",
+        "x-direction": "PRODUCED",
+        "x-event-type": "webhook.disabled.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "WebhookSecretRotatedV1": {
+        "contentType": "application/json",
+        "name": "WebhookSecretRotatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "webhook.secret_rotated.v1",
+        "x-aggregate-type": "webhook_subscription",
+        "x-direction": "PRODUCED",
+        "x-event-type": "webhook.secret_rotated.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "WebhookSubscriptionCreatedV1": {
+        "contentType": "application/json",
+        "name": "WebhookSubscriptionCreatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "webhook.subscription_created.v1",
+        "x-aggregate-type": "webhook_subscription",
+        "x-direction": "PRODUCED",
+        "x-event-type": "webhook.subscription_created.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      },
+      "WebhookSubscriptionUpdatedV1": {
+        "contentType": "application/json",
+        "name": "WebhookSubscriptionUpdatedV1",
+        "payload": {
+          "$ref": "#/components/schemas/Envelope"
+        },
+        "summary": "Section 55 integration lifecycle",
+        "title": "webhook.subscription_updated.v1",
+        "x-aggregate-type": "webhook_subscription",
+        "x-direction": "PRODUCED",
+        "x-event-type": "webhook.subscription_updated.v1",
+        "x-forbidden-fields": [
+          "password",
+          "token",
+          "credential",
+          "secret",
+          "authorization",
+          "signedUrl",
+          "bankDetails",
+          "evidence"
+        ],
+        "x-max-payload-bytes": 16384,
+        "x-producers": [
+          "fleet-partner-service"
+        ],
+        "x-schema-version": 1,
+        "x-tenant-required": true
+      }
+    },
+    "schemas": {
+      "Envelope": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateId": {
+            "type": "string"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "aggregateVersion": {
+            "type": "integer"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "producer": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "eventId",
+          "eventType",
+          "schemaVersion",
+          "aggregateType",
+          "aggregateId",
+          "aggregateVersion",
+          "correlationId",
+          "occurredAt",
+          "producer",
+          "payload"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Machine-readable produced and consumed event contracts with exact producer authorization, typed minimized payloads, and Redis consumer-group delivery.",
+    "title": "KarryGo Fleet Partner Section 26 Event Catalogue",
+    "version": "26.1.0"
+  }
+}

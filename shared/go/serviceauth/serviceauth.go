@@ -3,6 +3,7 @@ package serviceauth
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -22,6 +23,9 @@ const (
 	HeaderServiceName = "X-Service-Name"
 	HeaderTimestamp   = "X-Service-Timestamp"
 	HeaderSignature   = "X-Service-Signature"
+	HeaderNonce       = "X-Service-Nonce"
+	HeaderVersion     = "X-Service-Signature-Version"
+	SignatureVersion  = "2"
 )
 
 type Secrets map[string][]byte
@@ -79,9 +83,19 @@ func SignRequest(req *http.Request, serviceName string, secret []byte, body []by
 	}
 
 	timestamp := strconv.FormatInt(now.Unix(), 10)
-	signature := signatureFor(req.Method, req.URL.RequestURI(), timestamp, body, secret)
+	nonce := strings.TrimSpace(req.Header.Get(HeaderNonce))
+	if nonce == "" {
+		var value [16]byte
+		if _, err := rand.Read(value[:]); err != nil {
+			return fmt.Errorf("generate service nonce: %w", err)
+		}
+		nonce = hex.EncodeToString(value[:])
+		req.Header.Set(HeaderNonce, nonce)
+	}
+	signature := signatureFor(SignatureVersion, serviceName, req.Method, req.URL.RequestURI(), timestamp, nonce, body, secret)
 	req.Header.Set(HeaderServiceName, serviceName)
 	req.Header.Set(HeaderTimestamp, timestamp)
+	req.Header.Set(HeaderVersion, SignatureVersion)
 	req.Header.Set(HeaderSignature, signature)
 	return nil
 }
@@ -90,7 +104,9 @@ func (v *Verifier) VerifyRequest(req *http.Request) (string, error) {
 	serviceName := req.Header.Get(HeaderServiceName)
 	timestamp := req.Header.Get(HeaderTimestamp)
 	signature := req.Header.Get(HeaderSignature)
-	if serviceName == "" || timestamp == "" || signature == "" {
+	nonce := strings.TrimSpace(req.Header.Get(HeaderNonce))
+	version := req.Header.Get(HeaderVersion)
+	if serviceName == "" || timestamp == "" || signature == "" || nonce == "" || version != SignatureVersion {
 		return "", apperrors.Unauthorized("Service authentication is required.", nil)
 	}
 
@@ -114,7 +130,7 @@ func (v *Verifier) VerifyRequest(req *http.Request) (string, error) {
 	}
 	req.Body = io.NopCloser(bytes.NewReader(body))
 
-	expected := signatureFor(req.Method, req.URL.RequestURI(), timestamp, body, secret)
+	expected := signatureFor(version, serviceName, req.Method, req.URL.RequestURI(), timestamp, nonce, body, secret)
 	if !hmac.Equal([]byte(expected), []byte(signature)) {
 		return "", apperrors.Unauthorized("Service authentication is invalid.", nil)
 	}
@@ -126,7 +142,11 @@ func Middleware(verifier *Verifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		serviceName, err := verifier.VerifyRequest(c.Request)
 		if err != nil {
-			httpx.Abort(c, err)
+			// Private authentication is a security boundary and must render its
+			// own failure even when a service or test mounts it without the
+			// application-wide error middleware.
+			httpx.RespondError(c, err)
+			c.Abort()
 			return
 		}
 
@@ -135,12 +155,15 @@ func Middleware(verifier *Verifier) gin.HandlerFunc {
 	}
 }
 
-func signatureFor(method string, requestURI string, timestamp string, body []byte, secret []byte) string {
+func signatureFor(version string, serviceName string, method string, requestURI string, timestamp string, nonce string, body []byte, secret []byte) string {
 	bodyHash := sha256.Sum256(body)
 	canonical := strings.Join([]string{
+		version,
+		serviceName,
 		strings.ToUpper(method),
 		requestURI,
 		timestamp,
+		nonce,
 		hex.EncodeToString(bodyHash[:]),
 	}, "\n")
 

@@ -1,0 +1,11 @@
+# Section 21: warehouse, fulfilment and terminal operations
+
+Fleet owns warehouses, hierarchical storage locations, inventory projections, immutable movements and reservations, fulfilment orders, docks, yard visits, terminal transfer projections and returns. It reuses Section 15 orders, shipments, packages, manifests and custody, plus Section 19 proof. Dispatch and Hauling remain canonical trip authorities. Exact tenant routes, permissions, idempotency and version metadata are in `openapi/section21-warehouse-fulfilment.openapi.json`.
+
+Warehouses are branch scoped and use valid IANA time zones. Locations enforce same-warehouse hierarchy, cycle prevention, capacity and status. Inventory receipt atomically creates/updates the projection, writes an immutable movement and custody evidence, audit and outbox. Availability is `quantity - reserved`; receipt, move, reserve and pick lock affected rows so concurrent operations cannot create negative stock. Quarantined, expired or blocked stock cannot be released. Serial/lot/batch references remain explicit.
+
+Fulfilment progresses through release, reservation, pick, pack and dispatch. Picking writes immutable movements, packing records package references, dispatch requires the configured proof snapshot where policy mandates it, and cancellation releases only uncommitted reservations. No customer invoice, wallet balance or financial ledger is created.
+
+Dock appointments use overlap protection under an advisory transaction lock. Yard visits preserve seal/security history and security holds win over release. Terminal transfers persist publication/arrival snapshots; differences create discrepancy records and require reconciliation. Return receipt records custody and inventory movement exactly once; disposition is operational and monetary outcomes remain external references.
+
+Flags default false: `WAREHOUSES_ENABLED`, `WAREHOUSE_INVENTORY_ENABLED`, `FULFILMENT_ENABLED`, `DOCK_OPERATIONS_ENABLED`, `YARD_OPERATIONS_ENABLED`, `TERMINAL_TRANSFERS_ENABLED`, `RETURNS_ENABLED`, and `SECTION21_WORKERS_ENABLED`. The shared durable worker expires reservations, quarantines expired stock, detects dock no-shows and stale yard visits, reconciles terminal transfers, and follows up returns. Roll out migrations before flags; stop workers and disable write flags before paired rollback.

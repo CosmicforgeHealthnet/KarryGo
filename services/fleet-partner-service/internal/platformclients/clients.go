@@ -5,6 +5,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/circuitbreaker"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/sourceref"
 )
 
@@ -96,19 +97,44 @@ type Set struct {
 	Admin        AdminBackofficeServiceClient
 }
 
+// OptionsFromConfig fills the Section 29 reliability knobs (timeout,
+// environment, retry, circuit breaker) plus metrics from cfg, leaving only
+// the per-client identity (ServiceName/BaseURL/Secret) for the caller —
+// every platformclients.New call site in this service's composition root
+// should build its Options through this helper rather than repeating these
+// fields, so a single config change (an env var) actually reaches every
+// downstream client instead of only the ones a call site happened to spell
+// out.
+func OptionsFromConfig(cfg config.Config, metrics *observability.Metrics) Options {
+	return Options{
+		Timeout:          cfg.HTTPClientTimeout,
+		Metrics:          metrics,
+		Environment:      cfg.AppEnv,
+		MaxRetries:       cfg.ExternalClientMaxRetries,
+		RetryBackoffBase: cfg.ExternalClientRetryBackoffBase,
+		RetryBackoffMax:  cfg.ExternalClientRetryBackoffMax,
+		Breaker: circuitbreaker.Config{
+			FailureThreshold:  cfg.CircuitBreakerFailureThreshold,
+			ObservationWindow: cfg.CircuitBreakerObservationWindow,
+			OpenDuration:      cfg.CircuitBreakerOpenDuration,
+			HalfOpenProbes:    cfg.CircuitBreakerHalfOpenProbes,
+			SuccessThreshold:  cfg.CircuitBreakerSuccessThreshold,
+		},
+	}
+}
+
 // NewSet builds foundational adapters for every platform service from
 // configuration. Unconfigured services yield adapters whose calls return
 // ErrNotConfigured.
 func NewSet(cfg config.Config, metrics *observability.Metrics) Set {
+	base := OptionsFromConfig(cfg, metrics)
 	build := func(serviceName string) *Client {
 		clientCfg := cfg.Clients[serviceName]
-		return New(Options{
-			ServiceName: serviceName,
-			BaseURL:     clientCfg.BaseURL,
-			Secret:      clientCfg.Secret,
-			Timeout:     cfg.HTTPClientTimeout,
-			Metrics:     metrics,
-		})
+		opts := base
+		opts.ServiceName = serviceName
+		opts.BaseURL = clientCfg.BaseURL
+		opts.Secret = clientCfg.Secret
+		return New(opts)
 	}
 	return Set{
 		Customer:     build(sourceref.ServiceCustomer),

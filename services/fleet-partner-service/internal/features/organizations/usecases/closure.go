@@ -168,6 +168,74 @@ func (s *Service) AssessClosure(ctx context.Context, organizationID string, chec
 	return request, blockers, nil
 }
 
+// ApproveClosure moves a fully-assessed, unblocked closure request from
+// APPROVAL_REQUIRED to APPROVED -- the step ExecuteClosure's own
+// precondition requires and that, before this method existed, no code path
+// in the service could ever perform: the workflow was permanently stuck one
+// step before completion. Refuses (Conflict) from any other status,
+// including BLOCKED -- a blocker must clear and re-assessment must re-run
+// before a request can be approved, approval can never itself clear a
+// blocker.
+func (s *Service) ApproveClosure(ctx context.Context, t tenant.Context, approvedByActorID string) (*models.ClosureRequest, error) {
+	request, err := s.opts.Onboarding.GetOpenClosureRequest(ctx, t.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	if request.Status != models.ClosureStatusApprovalRequired {
+		return nil, errorcodes.Conflict(errorcodes.OrganizationClosureBlocked,
+			"This closure request is not awaiting approval.")
+	}
+
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Onboarding.UpdateClosureStatus(ctx, tx, t.OrganizationID, request.ID,
+			models.ClosureStatusApproved, request.Version); err != nil {
+			return err
+		}
+		entry := audit.EntryFromTenant(t, "organization.closure_approved", "closure_request", request.ID)
+		entry.ActorID = approvedByActorID
+		return s.opts.Audit.Record(ctx, tx, entry)
+	})
+	if err != nil {
+		return nil, err
+	}
+	request.Status = models.ClosureStatusApproved
+	request.Version++
+	return request, nil
+}
+
+// RejectClosure ends an in-flight closure request without executing it.
+// Valid from any non-terminal status (REQUESTED, ASSESSING, BLOCKED,
+// APPROVAL_REQUIRED, APPROVED) -- a request can be called off any time
+// before EXECUTING actually starts moving state (session revocation,
+// organization status change), matching ExecuteClosure's own guard that
+// only an APPROVED request may begin executing.
+func (s *Service) RejectClosure(ctx context.Context, t tenant.Context, reasonText string) (*models.ClosureRequest, error) {
+	request, err := s.opts.Onboarding.GetOpenClosureRequest(ctx, t.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	if request.Status == models.ClosureStatusExecuting {
+		return nil, errorcodes.Conflict(errorcodes.OrganizationClosureBlocked,
+			"This closure request is already executing and can no longer be rejected.")
+	}
+
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Onboarding.UpdateClosureStatus(ctx, tx, t.OrganizationID, request.ID,
+			models.ClosureStatusRejected, request.Version); err != nil {
+			return err
+		}
+		entry := audit.EntryFromTenant(t, "organization.closure_rejected", "closure_request", request.ID)
+		entry.Reason = reasonText
+		return s.opts.Audit.Record(ctx, tx, entry)
+	})
+	if err != nil {
+		return nil, err
+	}
+	request.Status = models.ClosureStatusRejected
+	request.Version++
+	return request, nil
+}
+
 // SessionRevoker revokes organization sessions during closure execution.
 type SessionRevoker interface {
 	RevokeForOrganization(ctx context.Context, q database.Querier, organizationID string, reason string) (int64, error)
