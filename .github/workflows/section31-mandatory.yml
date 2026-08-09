@@ -102,6 +102,11 @@ jobs:
             PGPASSWORD=karrygo_test createdb -h 127.0.0.1 -U karrygo_test "$db"
           done
           echo "FLEET_PARTNER_BACKUP_DOCKER_CONTAINER=$(docker ps --filter ancestor=postgres:16 --format '{{.ID}}' | head -n1)" >> "$GITHUB_ENV"
+      - name: Apply Fleet and Dispatch integration migrations
+        shell: bash
+        run: |
+          (cd services/fleet-partner-service && go run ./cmd/test-migrate)
+          (cd services/driver-dispatch-delivery-service && go run ./cmd/test-migrate)
       - name: Mandatory Fleet PostgreSQL Redis contracts security failure injection performance and migrations
         working-directory: services/fleet-partner-service
         shell: bash
@@ -182,6 +187,10 @@ jobs:
           for db in dispatch_test dispatch_verification_event_test hauling_test wallet_test media_test support_test verification_test; do
             PGPASSWORD=karrygo_test createdb -h 127.0.0.1 -U karrygo_test "$db"
           done
+      - name: Apply Dispatch integration migrations
+        if: matrix.module == 'services/driver-dispatch-delivery-service'
+        working-directory: services/driver-dispatch-delivery-service
+        run: go run ./cmd/test-migrate
       - working-directory: ${{ matrix.module }}
         run: go test ./... -count=1 -p 1 -timeout=600s
       - working-directory: ${{ matrix.module }}

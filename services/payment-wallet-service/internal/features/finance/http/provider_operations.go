@@ -79,7 +79,7 @@ func (h *Handler) postProviderAllocation(c *gin.Context) {
 	}
 	value, err := h.service.PostProviderAllocation(c, usecases.ProviderAllocationInput{
 		Meta: h.meta(c, req.base), OrganizationID: req.OrganizationID,
-		EarningAccountID: req.EarningAccountID,
+		EarningAccountID:         req.EarningAccountID,
 		OrganizationMembershipID: req.OrganizationMembershipID, ProviderID: req.ProviderID,
 		AllocationType: req.AllocationType, BusinessReferenceType: req.BusinessReferenceType,
 		BusinessReferenceID: req.BusinessReferenceID, AmountMinor: req.AmountMinor,
@@ -122,7 +122,7 @@ func (h *Handler) requestProviderWithdrawal(c *gin.Context) {
 	}
 	value, err := h.service.RequestProviderWithdrawal(c, usecases.ProviderWithdrawalInput{
 		Meta: h.meta(c, req.base), OrganizationID: req.OrganizationID,
-		EarningAccountID: req.EarningAccountID,
+		EarningAccountID:         req.EarningAccountID,
 		OrganizationMembershipID: req.OrganizationMembershipID, ProviderID: req.ProviderID,
 		AmountMinor: req.AmountMinor, Currency: req.Currency,
 		DestinationReference: req.DestinationReference, PolicyMode: req.PolicyMode,

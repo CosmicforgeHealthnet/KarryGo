@@ -24,13 +24,13 @@ const (
 
 // Allocation types a company may authorize against a provider sub-wallet.
 const (
-	AllocationSalary           = "SALARY"
-	AllocationWage             = "WAGE"
-	AllocationPerJob           = "PER_JOB"
-	AllocationAllowance        = "ALLOWANCE"
-	AllocationReimbursement    = "REIMBURSEMENT"
-	AllocationBonus            = "BONUS"
-	AllocationAdjustmentCredit = "ADJUSTMENT_CREDIT"
+	AllocationSalary            = "SALARY"
+	AllocationWage              = "WAGE"
+	AllocationPerJob            = "PER_JOB"
+	AllocationAllowance         = "ALLOWANCE"
+	AllocationReimbursement     = "REIMBURSEMENT"
+	AllocationBonus             = "BONUS"
+	AllocationAdjustmentCredit  = "ADJUSTMENT_CREDIT"
 	AllocationApprovedDeduction = "APPROVED_DEDUCTION"
 	AllocationReversal          = "REVERSAL"
 )
@@ -42,33 +42,33 @@ const (
 // and adding them before Section 15 exists would let a half-built order flow
 // move money.
 const (
-	ReferenceTrip            = "TRIP"
-	ReferenceAssignment      = "ASSIGNMENT"
-	ReferencePayroll         = "PAYROLL_REFERENCE"
-	ReferenceExpense         = "EXPENSE_REFERENCE"
-	ReferenceManualApproved  = "MANUAL_APPROVED_REFERENCE"
+	ReferenceTrip           = "TRIP"
+	ReferenceAssignment     = "ASSIGNMENT"
+	ReferencePayroll        = "PAYROLL_REFERENCE"
+	ReferenceExpense        = "EXPENSE_REFERENCE"
+	ReferenceManualApproved = "MANUAL_APPROVED_REFERENCE"
 )
 
 // Withdrawal policy modes asserted by the requesting organization.
 const (
-	WithdrawalPolicyProviderDirect     = "PROVIDER_DIRECT"
-	WithdrawalPolicyCompanyApproval    = "COMPANY_APPROVAL_REQUIRED"
-	WithdrawalPolicyCompanyInitiated   = "COMPANY_INITIATED_ONLY"
-	WithdrawalPolicyDisabled           = "WITHDRAWALS_DISABLED"
+	WithdrawalPolicyProviderDirect   = "PROVIDER_DIRECT"
+	WithdrawalPolicyCompanyApproval  = "COMPANY_APPROVAL_REQUIRED"
+	WithdrawalPolicyCompanyInitiated = "COMPANY_INITIATED_ONLY"
+	WithdrawalPolicyDisabled         = "WITHDRAWALS_DISABLED"
 )
 
 // Withdrawal statuses.
 const (
-	WithdrawalRequested        = "REQUESTED"
-	WithdrawalPendingApproval  = "PENDING_APPROVAL"
-	WithdrawalApproved         = "APPROVED"
-	WithdrawalRejected         = "REJECTED"
-	WithdrawalProcessing       = "PROCESSING"
-	WithdrawalCompleted        = "COMPLETED"
-	WithdrawalFailedRetryable  = "FAILED_RETRYABLE"
-	WithdrawalFailedPermanent  = "FAILED_PERMANENT"
-	WithdrawalCancelled        = "CANCELLED"
-	WithdrawalDeadLetter       = "DEAD_LETTER"
+	WithdrawalRequested       = "REQUESTED"
+	WithdrawalPendingApproval = "PENDING_APPROVAL"
+	WithdrawalApproved        = "APPROVED"
+	WithdrawalRejected        = "REJECTED"
+	WithdrawalProcessing      = "PROCESSING"
+	WithdrawalCompleted       = "COMPLETED"
+	WithdrawalFailedRetryable = "FAILED_RETRYABLE"
+	WithdrawalFailedPermanent = "FAILED_PERMANENT"
+	WithdrawalCancelled       = "CANCELLED"
+	WithdrawalDeadLetter      = "DEAD_LETTER"
 )
 
 // Allocation approval operation, governed by a versioned policy.
