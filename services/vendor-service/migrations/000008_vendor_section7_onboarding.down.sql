@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS vendor_service_nonces;
+DROP TABLE IF EXISTS vendor_verification_operations;
+DROP TABLE IF EXISTS vendor_bank_profiles;
+DROP TABLE IF EXISTS vendor_compliance_requirements;
+DROP TABLE IF EXISTS vendor_verification_history;
+DROP TABLE IF EXISTS vendor_verification_projections;
+DROP TABLE IF EXISTS vendor_onboarding_documents;
+DROP TABLE IF EXISTS vendor_authorized_representatives;
+DROP TABLE IF EXISTS vendor_onboarding_profiles;

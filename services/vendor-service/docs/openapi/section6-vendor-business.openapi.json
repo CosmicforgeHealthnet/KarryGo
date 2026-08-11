@@ -1,0 +1,118 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Vendor Business API", "version": "6.0.0", "description": "Section 6 authenticated vendor business, brand, capability, branch, hours, radius service-area, and explicit operations-settings API. Vendor actors cannot self-activate or self-verify."},
+  "servers": [{"url": "/api/v1/vendor"}],
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/capability-types": {"get": {"operationId": "listCapabilityTypes", "x-permission": "authenticated", "responses": {"200": {"description": "Exactly seven supported capability types"}}}},
+    "/businesses": {
+      "get": {"operationId": "listBusinesses", "x-permission": "vendor.business.read", "parameters": [{"$ref":"#/components/parameters/Limit"},{"$ref":"#/components/parameters/Offset"},{"$ref":"#/components/parameters/StatusFilter"},{"$ref":"#/components/parameters/Search"}], "responses": {"200": {"description": "Paginated businesses in the authenticated staff scope"}}},
+      "post": {"operationId": "createBusiness", "x-permission": "vendor.business.manage", "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/BusinessCreate"}, "responses": {"201": {"description": "DRAFT business; id equals authenticated vendor scope"}, "409": {"$ref": "#/components/responses/Conflict"}}}
+    },
+    "/businesses/{businessId}": {
+      "parameters": [{"$ref": "#/components/parameters/BusinessId"}],
+      "get": {"operationId": "getBusiness", "x-permission": "vendor.business.read", "responses": {"200": {"description": "Business"}, "404": {"$ref": "#/components/responses/NotFound"}}},
+      "patch": {"operationId": "updateBusiness", "x-permission": "vendor.business.manage", "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/BusinessUpdate"}, "responses": {"200": {"description": "Updated business"}, "409": {"$ref": "#/components/responses/Conflict"}}}
+    },
+    "/businesses/{businessId}/pause": {"post": {"operationId": "pauseBusiness", "x-permission": "vendor.business.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "ACTIVE to PAUSED"}, "409": {"$ref": "#/components/responses/Conflict"}}}},
+    "/businesses/{businessId}/resume": {"post": {"operationId": "resumeBusiness", "x-permission": "vendor.business.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "PAUSED to ACTIVE only"}, "409": {"$ref": "#/components/responses/Conflict"}}}},
+    "/businesses/{businessId}/capabilities": {
+      "get": {"operationId": "listBusinessCapabilities", "x-permission": "vendor.capabilities.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref":"#/components/parameters/Limit"},{"$ref":"#/components/parameters/Offset"},{"$ref":"#/components/parameters/StatusFilter"},{"$ref":"#/components/parameters/CapabilityTypeFilter"}], "responses": {"200": {"description": "Paginated business capabilities"}}},
+      "post": {"operationId": "createBusinessCapability", "x-permission": "vendor.capabilities.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/CapabilityCreate"}, "responses": {"201": {"description": "DRAFT capability"}, "409": {"$ref": "#/components/responses/Conflict"}}}
+    },
+    "/businesses/{businessId}/capabilities/{capabilityId}": {"get": {"operationId": "getBusinessCapability", "x-permission": "vendor.capabilities.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/CapabilityId"}], "responses": {"200": {"description": "Capability"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/businesses/{businessId}/capabilities/{capabilityId}/pause": {"post": {"operationId": "pauseBusinessCapability", "x-permission": "vendor.capabilities.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/CapabilityId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "ACTIVE to PAUSED"}, "409": {"$ref": "#/components/responses/Conflict"}}}},
+    "/businesses/{businessId}/capabilities/{capabilityId}/resume": {"post": {"operationId": "resumeBusinessCapability", "x-permission": "vendor.capabilities.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/CapabilityId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "PAUSED to ACTIVE only"}, "409": {"$ref": "#/components/responses/Conflict"}}}},
+    "/businesses/{businessId}/brands": {
+      "get": {"operationId": "listBrands", "x-permission": "vendor.brands.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref":"#/components/parameters/Limit"},{"$ref":"#/components/parameters/Offset"},{"$ref":"#/components/parameters/StatusFilter"},{"$ref":"#/components/parameters/Search"},{"$ref":"#/components/parameters/Sort"},{"$ref":"#/components/parameters/Direction"}], "responses": {"200": {"description": "Paginated brands"}}},
+      "post": {"operationId": "createBrand", "x-permission": "vendor.brands.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/BrandCreate"}, "responses": {"201": {"description": "NOT_STARTED brand verification"}}}
+    },
+    "/businesses/{businessId}/brands/{brandId}": {
+      "get": {"operationId": "getBrand", "x-permission": "vendor.brands.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BrandId"}], "responses": {"200": {"description": "Brand"}}},
+      "patch": {"operationId": "updateBrand", "x-permission": "vendor.brands.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BrandId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/BrandUpdate"}, "responses": {"200": {"description": "Updated brand; verification unchanged"}, "409": {"$ref": "#/components/responses/Conflict"}}}
+    },
+    "/businesses/{businessId}/branches": {
+      "get": {"operationId": "listBranches", "x-permission": "vendor.branches.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref":"#/components/parameters/Limit"},{"$ref":"#/components/parameters/Offset"},{"$ref":"#/components/parameters/StatusFilter"},{"$ref":"#/components/parameters/BrandFilter"},{"$ref":"#/components/parameters/Search"},{"$ref":"#/components/parameters/Sort"},{"$ref":"#/components/parameters/Direction"}], "responses": {"200": {"description": "Paginated branches"}}},
+      "post": {"operationId": "createBranch", "x-permission": "vendor.branches.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/BranchCreate"}, "responses": {"201": {"description": "DRAFT branch"}}}
+    },
+    "/businesses/{businessId}/branches/{branchId}": {
+      "get": {"operationId": "getBranch", "x-permission": "vendor.branches.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"}], "responses": {"200": {"description": "Branch"}}},
+      "patch": {"operationId": "updateBranch", "x-permission": "vendor.branches.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/BranchUpdate"}, "responses": {"200": {"description": "Updated branch"}, "409": {"$ref": "#/components/responses/Conflict"}}}
+    },
+    "/businesses/{businessId}/branches/{branchId}/pause": {"post": {"operationId": "pauseBranch", "x-permission": "vendor.branches.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "ACTIVE to PAUSED"}}}},
+    "/businesses/{businessId}/branches/{branchId}/resume": {"post": {"operationId": "resumeBranch", "x-permission": "vendor.branches.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "PAUSED to ACTIVE only"}}}},
+    "/businesses/{businessId}/branches/{branchId}/hours": {
+      "get": {"operationId": "getBranchHours", "x-permission": "vendor.branches.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"}], "responses": {"200": {"description": "Normalized weekly intervals"}}},
+      "put": {"operationId": "replaceBranchHours", "x-permission": "vendor.branch.hours.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/HoursUpdate"}, "responses": {"200": {"description": "Replaced normalized weekly intervals"}}}
+    },
+    "/businesses/{businessId}/branches/{branchId}/service-area": {
+      "get": {"operationId": "getBranchServiceArea", "x-permission": "vendor.branches.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"}], "responses": {"200": {"description": "Versioned radius service area"}}},
+      "put": {"operationId": "putBranchServiceArea", "x-permission": "vendor.branch.settings.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/ServiceAreaUpdate"}, "responses": {"200": {"description": "Versioned radius service area"}}}
+    },
+    "/businesses/{businessId}/branches/{branchId}/operations-settings": {
+      "get": {"operationId": "getBranchOperationsSettings", "x-permission": "vendor.branches.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"}], "responses": {"200": {"description": "Explicit schema-v1 settings"}}},
+      "put": {"operationId": "putBranchOperationsSettings", "x-permission": "vendor.branch.settings.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/SettingsUpdate"}, "responses": {"200": {"description": "Explicit schema-v1 settings"}}}
+    },
+    "/businesses/{businessId}/branches/{branchId}/capabilities": {"get": {"operationId": "listBranchCapabilities", "x-permission": "vendor.capabilities.read", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"}], "responses": {"200": {"description": "Configured capabilities with effective-state reasons"}}}},
+    "/businesses/{businessId}/branches/{branchId}/capabilities/{capabilityId}": {"put": {"operationId": "configureBranchCapability", "x-permission": "vendor.branch.capabilities.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/CapabilityId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "DRAFT branch capability configuration"}}}},
+    "/businesses/{businessId}/branches/{branchId}/capabilities/{capabilityId}/pause": {"post": {"operationId": "pauseBranchCapability", "x-permission": "vendor.branch.capabilities.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/CapabilityId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "ACTIVE branch capability changed to PAUSED"}, "409": {"$ref": "#/components/responses/Conflict"}}}},
+    "/businesses/{businessId}/branches/{branchId}/capabilities/{capabilityId}/resume": {"post": {"operationId": "resumeBranchCapability", "x-permission": "vendor.branch.capabilities.manage", "parameters": [{"$ref": "#/components/parameters/BusinessId"},{"$ref": "#/components/parameters/BranchId"},{"$ref": "#/components/parameters/CapabilityId"},{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/VersionedMutation"}, "responses": {"200": {"description": "PAUSED branch capability changed to ACTIVE"}, "409": {"$ref": "#/components/responses/Conflict"}}}}
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+    "parameters": {
+      "BusinessId": {"name": "businessId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "BranchId": {"name": "branchId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "BrandId": {"name": "brandId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "CapabilityId": {"name": "capabilityId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 200}},
+      "Limit": {"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":50}},
+      "Offset": {"name":"offset","in":"query","schema":{"type":"integer","minimum":0,"default":0}},
+      "StatusFilter": {"name":"status","in":"query","schema":{"type":"string"}},
+      "CapabilityTypeFilter": {"name":"capability_type","in":"query","schema":{"$ref":"#/components/schemas/CapabilityType"}},
+      "BrandFilter": {"name":"brand_id","in":"query","schema":{"type":"string"}},
+      "Search": {"name":"search","in":"query","schema":{"type":"string","maxLength":100}},
+      "Sort": {"name":"sort","in":"query","schema":{"type":"string"}},
+      "Direction": {"name":"direction","in":"query","schema":{"type":"string","enum":["asc","desc"]}}
+    },
+    "requestBodies": {
+      "BusinessCreate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BusinessCreate"}}}},
+      "BusinessUpdate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BusinessUpdate"}}}},
+      "CapabilityCreate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CapabilityCreate"}}}},
+      "BrandCreate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BrandCreate"}}}},
+      "BrandUpdate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BrandUpdate"}}}},
+      "BranchCreate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BranchCreate"}}}},
+      "BranchUpdate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BranchUpdate"}}}},
+      "HoursUpdate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/HoursUpdate"}}}},
+      "ServiceAreaUpdate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ServiceAreaUpdate"}}}},
+      "SettingsUpdate": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SettingsUpdate"}}}},
+      "VersionedMutation": {"required": true, "content": {"application/json": {"schema": {"$ref":"#/components/schemas/VersionCommand"}}}}
+    },
+    "responses": {
+      "Conflict": {"description": "Optimistic concurrency, lifecycle, or idempotency conflict"},
+      "NotFound": {"description": "Resource absent from authenticated business scope"}
+    },
+    "schemas": {
+      "VersionCommand": {"type":"object","required":["expected_version"],"properties":{"expected_version":{"type":"integer","minimum":0}},"additionalProperties":false},
+      "BusinessCreate": {"type":"object","required":["legal_name","currency","timezone"],"properties":{"legal_name":{"type":"string","minLength":2,"maxLength":200},"trading_name":{"type":"string","minLength":2,"maxLength":200},"support_email":{"type":"string","format":"email"},"support_phone":{"type":"string","pattern":"^\\+[1-9][0-9]{7,14}$"},"currency":{"type":"string","pattern":"^[A-Z]{3}$"},"timezone":{"type":"string","description":"IANA timezone"}},"additionalProperties":false},
+      "BusinessUpdate": {"type":"object","required":["legal_name","currency","timezone","expected_version"],"properties":{"legal_name":{"type":"string","minLength":2,"maxLength":200},"trading_name":{"type":"string"},"support_email":{"type":"string","format":"email"},"support_phone":{"type":"string"},"currency":{"type":"string","pattern":"^[A-Z]{3}$"},"timezone":{"type":"string"},"expected_version":{"type":"integer","minimum":1}},"additionalProperties":false},
+      "CapabilityCreate": {"type":"object","required":["capability_type"],"properties":{"capability_type":{"$ref":"#/components/schemas/CapabilityType"}},"additionalProperties":false},
+      "MediaReference": {"type":"object","required":["kind","media_ref"],"properties":{"kind":{"type":"string","enum":["LOGO","COVER","GALLERY"]},"media_ref":{"type":"string","description":"Opaque media-service reference; URLs are rejected"}},"additionalProperties":false},
+      "BrandCreate": {"type":"object","required":["display_name"],"properties":{"display_name":{"type":"string","minLength":2,"maxLength":160},"description":{"type":"string","maxLength":2000},"media_refs":{"type":"array","items":{"$ref":"#/components/schemas/MediaReference"}}},"additionalProperties":false},
+      "BrandUpdate": {"type":"object","required":["display_name","expected_version"],"properties":{"display_name":{"type":"string","minLength":2,"maxLength":160},"description":{"type":"string","maxLength":2000},"media_refs":{"type":"array","items":{"$ref":"#/components/schemas/MediaReference"}},"expected_version":{"type":"integer","minimum":1}},"additionalProperties":false},
+      "Address": {"type":"object","required":["line1","city","region","country_code"],"properties":{"line1":{"type":"string"},"line2":{"type":"string"},"city":{"type":"string"},"region":{"type":"string"},"postal_code":{"type":"string"},"country_code":{"type":"string","pattern":"^[A-Z]{2}$"}},"additionalProperties":false},
+      "BranchCreate": {"type":"object","required":["display_name","address","latitude","longitude","timezone"],"properties":{"brand_id":{"type":"string"},"display_name":{"type":"string"},"address":{"$ref":"#/components/schemas/Address"},"latitude":{"type":"number","minimum":-90,"maximum":90},"longitude":{"type":"number","minimum":-180,"maximum":180},"timezone":{"type":"string"}},"additionalProperties":false},
+      "BranchUpdate": {"type":"object","required":["display_name","address","latitude","longitude","timezone","expected_version"],"properties":{"brand_id":{"type":"string"},"display_name":{"type":"string"},"address":{"$ref":"#/components/schemas/Address"},"latitude":{"type":"number","minimum":-90,"maximum":90},"longitude":{"type":"number","minimum":-180,"maximum":180},"timezone":{"type":"string"},"expected_version":{"type":"integer","minimum":1}},"additionalProperties":false},
+      "OperatingWindow": {"type":"object","required":["weekday","is_closed"],"properties":{"weekday":{"type":"integer","minimum":1,"maximum":7},"is_closed":{"type":"boolean"},"opens_at":{"type":"string","pattern":"^[0-2][0-9]:[0-5][0-9]$"},"closes_at":{"type":"string","pattern":"^[0-2][0-9]:[0-5][0-9]$"}},"additionalProperties":false},
+      "HoursUpdate": {"type":"object","required":["hours","expected_version"],"properties":{"hours":{"type":"array","items":{"$ref":"#/components/schemas/OperatingWindow"}},"expected_version":{"type":"integer","minimum":1}},"additionalProperties":false},
+      "ServiceAreaUpdate": {"type":"object","required":["mode","center_latitude","center_longitude","radius_meters","expected_version"],"properties":{"mode":{"type":"string","enum":["RADIUS"]},"center_latitude":{"type":"number","minimum":-90,"maximum":90},"center_longitude":{"type":"number","minimum":-180,"maximum":180},"radius_meters":{"type":"integer","minimum":1,"maximum":200000},"expected_version":{"type":"integer","minimum":0}},"additionalProperties":false},
+      "SettingsUpdate": {"type":"object","required":["schema_version","accepting_new_orders","pickup_enabled","expected_version"],"properties":{"schema_version":{"type":"integer","enum":[1]},"accepting_new_orders":{"type":"boolean"},"pickup_enabled":{"type":"boolean"},"expected_version":{"type":"integer","minimum":0}},"additionalProperties":false},
+      "CapabilityType": {"type": "string", "enum": ["RESTAURANT","FAST_FOOD","CLOUD_KITCHEN","PASTRY_BAKERY","SHOP_GROCERY","MARKET","WHOLESALE"]},
+      "BusinessStatus": {"type": "string", "enum": ["DRAFT","PENDING_VERIFICATION","PENDING_REVIEW","ACTIVE","PAUSED","SUSPENDED","CLOSED"]},
+      "CapabilityStatus": {"type": "string", "enum": ["DRAFT","PENDING_REVIEW","ACTIVE","PAUSED","SUSPENDED","REJECTED"]},
+      "BrandVerificationState": {"type": "string", "enum": ["NOT_STARTED","IN_PROGRESS","PENDING_REVIEW","VERIFIED","REJECTED","EXPIRED","SUSPENDED"]},
+      "BranchStatus": {"type": "string", "enum": ["DRAFT","ACTIVE","PAUSED","SUSPENDED","CLOSED"]},
+      "BranchCapabilityStatus": {"type": "string", "enum": ["DRAFT","ACTIVE","PAUSED","SUSPENDED"]}
+    }
+  }
+}

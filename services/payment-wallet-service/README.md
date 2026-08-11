@@ -91,6 +91,26 @@ All money-moving calls require an `idempotency_key`; replays return the original
 - `POST /internal/refunds` — `walletclient.RequestRefund`. Body `RefundRequest`.
 - `GET /internal/payments/:reference` — `walletclient.GetPayment`.
 
+### Vendor bank onboarding (Section 7 only)
+
+These additive HMAC-v2 routes accept only the exact `vendor-service` caller.
+They resolve/register a `vendor_business` bank subject in Wallet's existing
+Paystack/provider-bank authority; they do not create a Vendor ledger,
+settlement, withdrawal, or commerce-money surface.
+
+- `POST /internal/vendor-bank-profiles/resolve` validates a supplied account and
+  returns only bank code, masked account, and resolved account name.
+- `PUT /internal/vendor-bank-profiles/:businessId` idempotently registers or
+  selects the matching account as default. `Idempotency-Key` is mandatory.
+- `GET /internal/vendor-bank-profiles/:businessId` performs authoritative
+  read-back after an unknown mutation outcome.
+
+Responses never contain the full account number, recipient code, storage
+credential, or Paystack secret. The Vendor-facing projection is
+`external_ref`, `bank_code`, `masked_account`, `resolved_account_name`,
+`source_version`, `status=VERIFIED`, and `observed_at`. See
+`docs/openapi/vendor-bank-onboarding.openapi.json`.
+
 Example caller:
 ```go
 client := walletclient.Client{

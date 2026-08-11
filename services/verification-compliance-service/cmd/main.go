@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"cosmicforge/logistics/services/verification-compliance-service/internal/config"
 	"cosmicforge/logistics/services/verification-compliance-service/internal/database"
 	organizations "cosmicforge/logistics/services/verification-compliance-service/internal/features/organizations"
+	vendors "cosmicforge/logistics/services/verification-compliance-service/internal/features/vendors"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -35,6 +37,24 @@ func main() {
 		}
 	}
 	allowed := split(cfg.AllowedCallers)
+	workers := []func(context.Context) error{}
+	if cfg.VendorCallbackURL != "" {
+		callbackWorker := vendors.NewCallbackWorker(db, cfg.VendorCallbackURL, cfg.VendorCallbackSecret, 5*time.Second)
+		workers = append(workers, func(runCtx context.Context) error {
+			ticker := time.NewTicker(10 * time.Second)
+			defer ticker.Stop()
+			for {
+				if err := callbackWorker.Process(runCtx, "verification-vendor-callback", 25); err != nil && runCtx.Err() == nil {
+					log.Printf("verification vendor callback worker error=%v", err)
+				}
+				select {
+				case <-runCtx.Done():
+					return runCtx.Err()
+				case <-ticker.C:
+				}
+			}
+		})
+	}
 
 	serviceapp.Run(serviceapp.Options{
 		Name:        "verification-compliance-service",
@@ -48,8 +68,11 @@ func main() {
 		},
 		ReadyChecks: []func(context.Context) error{db.Ping},
 		Register: func(group *gin.RouterGroup) {
-			organizations.Register(group, organizations.New(db, cfg.PrivateAPIEnabled), serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute), allowed)
+			verifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
+			organizations.Register(group, organizations.New(db, cfg.PrivateAPIEnabled), verifier, allowed)
+			vendors.Register(group, vendors.New(db, cfg.PrivateAPIEnabled, allowed), verifier)
 		},
+		Workers: workers,
 	})
 }
 

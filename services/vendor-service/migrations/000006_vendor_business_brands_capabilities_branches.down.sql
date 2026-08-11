@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS vendor_branch_capabilities;
+DROP TABLE IF EXISTS vendor_branch_settings;
+DROP TABLE IF EXISTS vendor_branch_service_areas;
+DROP TABLE IF EXISTS vendor_branch_hours;
+DROP TABLE IF EXISTS vendor_branches;
+DROP TABLE IF EXISTS vendor_brands;
+DROP TABLE IF EXISTS vendor_capabilities;
+DROP TABLE IF EXISTS vendor_businesses;
+DROP INDEX IF EXISTS vendor_staff_id_vendor_unique;

@@ -297,7 +297,8 @@ func (p *privateAPI) postAllocation(t *testing.T, organizationID, jobReference s
 	t.Helper()
 	ctx := context.Background()
 	rule := &models.CommissionRule{OrganizationID: organizationID, ServiceType: "DELIVERY",
-		Currency: "NGN", ProviderShareBPS: 10000, Status: "ACTIVE"}
+		Currency: "NGN", ProviderShareBPS: 10000, Status: "ACTIVE",
+		EffectiveFrom: time.Now().UTC().Add(-time.Minute)}
 	if err := p.fixture.marketplace.CreateCommissionRule(ctx, nil, rule); err != nil {
 		t.Fatalf("commission rule: %v", err)
 	}

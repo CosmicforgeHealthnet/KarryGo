@@ -26,6 +26,7 @@ type Options struct {
 	Capabilities []string
 	ReadyChecks  []func(context.Context) error
 	Register     func(*gin.RouterGroup)
+	RegisterRoot func(*gin.Engine)
 	Workers      []func(context.Context) error
 }
 
@@ -46,8 +47,8 @@ func Run(opts Options) {
 	router := gin.New()
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000", "https://karry-go.vercel.app"},
-		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Idempotency-Key", "X-Correlation-ID", "X-Causation-ID"},
 		AllowCredentials: true,
 	}))
 	router.Use(httpx.RequestID())
@@ -114,6 +115,9 @@ func Run(opts Options) {
 	})
 	if opts.Register != nil {
 		opts.Register(group)
+	}
+	if opts.RegisterRoot != nil {
+		opts.RegisterRoot(router)
 	}
 
 	server := &http.Server{

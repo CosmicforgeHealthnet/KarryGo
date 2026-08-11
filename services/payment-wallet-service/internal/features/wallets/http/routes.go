@@ -41,6 +41,9 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	internal.POST("/refunds", handler.RequestRefund)
 	internal.GET("/payments/:reference", handler.GetInternalPayment)
 	internal.PUT("/payments/:reference/provider", handler.AssignPaymentProvider)
+	internal.POST("/vendor-bank-profiles/resolve", handler.ResolveVendorBankProfile)
+	internal.PUT("/vendor-bank-profiles/:businessId", handler.PutVendorBankProfile)
+	internal.GET("/vendor-bank-profiles/:businessId", handler.GetVendorBankProfile)
 
 	group.POST("/webhooks/paystack", handler.PaystackWebhook)
 }
