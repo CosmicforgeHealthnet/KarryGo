@@ -58,3 +58,14 @@ Section 6 adds only vendor-service migrations: `000006_vendor_business_brands_ca
 ## Existing-service migration changes
 
 Section 7 adds `verification-compliance-service` migration `000002_vendor_verification_cases`, including Vendor cases/history and additive delivery state on its existing outbox. Payment Wallet and Media reuse existing schemas. The change register records ownership, rollback and deployment config.
+
+## Section 8A migrations
+
+- `000010_vendor_crm_foundation` — `vendor_customer_profiles`, `crm_customer_identity_links`, `crm_customer_branch_relations`, `crm_customer_order_facts`, `crm_consent_projections`, `crm_privacy_projections`, `crm_privacy_processing_history`, plus one additive nullable `payload_fingerprint` column on `vendor_inbox_processed_events`.
+- `000011_vendor_section8a_crm_permissions` — five CRM permissions and their role mappings.
+
+No accepted Section 5–7 migration was modified. The inbox column was added rather than duplicating inbox infrastructure: the existing table deduped by event id but could not detect the same id carrying a different body, which Section 8A requires.
+
+Verified against real Postgres: fresh replay, Section 7 → 8A upgrade, rollback of the 8A pair, and reapply. The pre-existing `TestSection7MigrationsRollbackAndReapplyAsAPair` hardcoded "the last two migrations are Section 7's"; it now steps back past 8A first, preserving exactly what it originally proved.
+
+Tenancy is enforced in the schema, not only in middleware: every CRM table carries `business_id` and reaches its parent through a composite `(id, business_id)` foreign key, so a child row cannot be attached across tenants even if application code were wrong.

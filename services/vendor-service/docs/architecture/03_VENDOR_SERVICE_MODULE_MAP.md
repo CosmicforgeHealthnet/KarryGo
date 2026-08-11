@@ -77,3 +77,11 @@ Section 6 uses `internal/features/vendors/{models,validation,service,http}.go` a
 ## Cross-feature dependency rule
 
 No `internal/features/X` package may import `internal/features/Y/http` or `internal/features/Y/repositories` for a different Y. A feature needing another feature's data defines a narrow port interface in its own `usecases` package (e.g. `orders/usecases.CatalogPort`), with the real adapter wired in `internal/app` — the same pattern proven at scale in `fleet-partner-service` (`orders/usecases.CRMPort`/`.CatalogPort`, adapters in `internal/app/orders_adapters.go`) and enforced there by a real Go-level test. Vendor Service adopts the identical rule and the identical enforcement mechanism from day one: `internal/architecture_test.go`'s `TestFeaturesDoNotImportOtherFeatureHTTPOrRepositories` statically scans every file under `internal/features` for a forbidden cross-feature import. Importing another feature's `models` package is fine; only `http` and `repositories` are restricted.
+
+## Section 8A — `internal/features/crm`
+
+Implemented as a flat feature package following the Section 6/7 `vendors` convention: `models.go` (pure domain rules and invariants), `service.go` (tenancy- and scope-safe reads, lifecycle commands, shared transactional helpers), `consent.go`, `privacy.go` (redaction engine plus the handler registry), `commercial.go` (order-fact projection and rebuild), `identity.go` (link/merge), `ingestion.go` (profile resolution, anti-resurrection, inbox claim), `customer360.go` (composed read model), `events.go` (event registry, authority checks, handlers), `http.go` and `internal_http.go`.
+
+Cross-feature dependencies go through ports, per the boundary rule enforced by `internal/architecture_test.go`: `ScopeResolver` (over the Section 5 authorization evaluator), `AuditRecorder` and `EventPublisher`, each adapted in `cmd/adapters.go`. The CRM package imports no other feature's `http` or `repositories`.
+
+Two extension points exist so later CRM packages do not require rewrites: `PrivacyRegistry` (8B–8H register their own redaction handlers) and the modular Customer 360 composition (each block comes from its own reader, rather than one service importing every future repository).

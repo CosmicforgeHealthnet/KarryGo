@@ -117,6 +117,28 @@ All rows use vendor staff bearer authentication, are business-scoped from the re
 | vendor-service | POST | /businesses/:businessId/branches/:branchId/capabilities/:capabilityId/pause | Authenticated | bearer | vendor.branch.capabilities.manage | Pause one branch capability | branch capability | Yes | Yes | onboarding writes | 6 | section6-vendor-business | VERIFIED |
 | vendor-service | POST | /businesses/:businessId/branches/:branchId/capabilities/:capabilityId/resume | Authenticated | bearer | vendor.branch.capabilities.manage | Resume one branch capability | branch capability | Yes | Yes | onboarding writes | 6 | section6-vendor-business | VERIFIED |
 
+## Section 8A registered routes
+
+Six vendor-facing operations plus one root-mounted internal event ingress, described by `section8a-crm-foundation.openapi.json`. Public paths are relative to `/api/v1/vendor`; the internal row is an absolute root-level path, deliberately **not** nested under the public base and **not** gateway-exposed, following the Section 7 callback correction.
+
+**Authority boundary.** There is deliberately no vendor-facing route that creates a customer, sets consent, sets privacy state, or merges identities. Those are authority decisions and reach CRM only through the signed internal ingress. `internal/section8acontract` asserts this structurally, so adding such a route fails the build.
+
+**Branch scope.** Every read is scope-aware: a vendor-wide grant sees business-level totals; a branch-scoped grant sees only relationships at authorised branches, with figures recomputed from those branches alone.
+
+| Service | Method | Path | Surface | Auth | Permission | Purpose | Idempotency / concurrency | Flag | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| vendor-service | GET | /crm/customers | Public | bearer | vendor.crm.customers.read | List relationships; redacted and merged-away excluded | read; limit/offset max 100, allowlisted sort | VENDOR_CRM_ENABLED | IMPLEMENTED |
+| vendor-service | GET | /crm/customers/:profileId | Public | bearer | vendor.crm.customer360.read | Customer 360; no canonical PII | read | VENDOR_CRM_ENABLED | IMPLEMENTED |
+| vendor-service | GET | /crm/customers/:profileId/consent | Public | bearer | vendor.crm.consent.read | Projected consent + marketing eligibility | read | VENDOR_CRM_ENABLED | IMPLEMENTED |
+| vendor-service | GET | /crm/customers/:profileId/privacy | Public | bearer | vendor.crm.privacy.read | Projected privacy state | read | VENDOR_CRM_ENABLED | IMPLEMENTED |
+| vendor-service | POST | /crm/customers/:profileId/archive | Public | bearer | vendor.crm.customers.manage | Archive an inactive relationship; refused when redacted or merged | expected_version (or If-Match) | VENDOR_CRM_WRITES_ENABLED | IMPLEMENTED |
+| vendor-service | POST | /crm/customers/:profileId/restore | Public | bearer | vendor.crm.customers.manage | Restore an archived relationship; refused when redacted or merged | expected_version (or If-Match) | VENDOR_CRM_WRITES_ENABLED | IMPLEMENTED |
+| vendor-service | POST | /internal/vendor/v1/crm/events | Internal | HMAC v2 + nonce | per-event-type caller allowlist | Apply authoritative relationship/consent/privacy/identity/order events | (source_service,event_id) dedupe + payload fingerprint + source_version | per-integration flag | IMPLEMENTED |
+
+Internal event types and their owning authority: `CUSTOMER_RELATIONSHIP_OBSERVED`, `CUSTOMER_IDENTITY_LINKED`, `CUSTOMER_IDENTITY_MERGED`, `CUSTOMER_CONSENT_CHANGED`, `CUSTOMER_PRIVACY_CHANGED` (customer-service); `CRM_ORDER_FACT_CHANGED` (the authoritative vendor order publisher, which does not exist yet and stays disabled behind `VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED`). A caller may never send an event type it does not own.
+
+Section 8A adds **no** step-up requirement: the reads are ordinary, and archive/restore are low-risk lifecycle operations. Sensitive CRM export belongs to Section 8H and will require step-up then.
+
 **High-risk operations requiring a step-up grant** (in addition to the permission check): creating/editing a role or custom-role permission set that includes any `is_high_risk` permission (`vendor.finance.bank_change`, `vendor.owner.transfer`, `vendor.data.export_sensitive`), and assigning a role that carries one. Step-up purpose used: `iam.high_risk_permission_change`.
 
-Add one row per route the moment it is registered in code - not before, and not batched at the end of a section. A route existing in code but missing here is a documentation-gate failure. `internal/section5contract` verifies the 21 Section 5 operations and `internal/section6contract` verifies all 32 new Section 6 operations, for 53 cumulative Vendor routes.
+Add one row per route the moment it is registered in code - not before, and not batched at the end of a section. A route existing in code but missing here is a documentation-gate failure. `internal/section5contract` verifies the 21 Section 5 operations, `internal/section6contract` all 32 Section 6 operations, `internal/section7contract` the 20 Section 7 operations, and `internal/section8acontract` the 7 Section 8A operations — **80 cumulative Vendor routes**.

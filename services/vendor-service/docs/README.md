@@ -1,5 +1,17 @@
 # Vendor Service Documentation
 
+## Section 8A backend
+
+Section 8A adds the CRM foundation: vendor-local customer relationship profiles, a privacy-safe Customer 360, projected marketing consent, projected privacy state with a working redaction engine, an authoritative identity-link/merge path, and the commercial-projection foundation. Public surface `/api/v1/vendor/crm/customers` (six operations); root-level authority ingress `POST /internal/vendor/v1/crm/events`. Migrations `000010`-`000011`. Contract: `openapi/section8a-crm-foundation.openapi.json`.
+
+**Authority boundary, which is the whole point of this section.** Vendor Service is not a customer master. customer-service owns canonical identity, and (once they exist) consent and privacy decisions. CRM stores opaque subject references, never canonical email, phone, address or date of birth, and never a hash of a customer reference used as a substitute identity. There is no vendor-facing route that creates a customer, sets consent, sets privacy state or merges identities — a contract test enforces that structurally.
+
+**Fail-closed marketing.** An absent, unknown, expired or stale consent decision is never permission. Privacy outranks consent: a redacted, restricted or marketing-suppressed subject is ineligible regardless of any stored ALLOW. No permission exists — at any role, including Owner — that can override either.
+
+**Honest projections.** With no commerce authority integrated, commercial data reports `NOT_AVAILABLE` rather than a spend of zero, and Sections 8B-8H report `NOT_IMPLEMENTED` rather than empty structures that would read as working-but-empty features. A fresh production deployment legitimately holds zero CRM profiles.
+
+**Dormant by design.** Consent, privacy, identity-link and order-fact ingestion each sit behind their own flag and are all off, because no service publishes those events yet. The contracts, projections, dedupe, source-version rules, redaction engine and rebuild path are implemented and tested against fixtures; nothing fabricates a publisher.
+
 ## Section 7 backend
 
 Section 7 adds onboarding, representative management, Media-owned document references, six-dimension verification projections, Wallet-owned masked bank onboarding, a data-driven checklist, automatic policy activation, signed callbacks, expiry handling, and durable reconciliation. The public surface is `/api/v1/vendor/onboarding`; the root-level internal callback is `/internal/vendor/v1/verification-events`.
@@ -39,7 +51,7 @@ If a document has no impact from a given section, record `NO CHANGE — <reason>
 
 ## Section 6 delivery
 
-Vendor business, brand, capability, and branch management is implemented in `internal/features/vendors`, migrations `000006`-`000007`, and `openapi/section6-vendor-business.openapi.json`. Section 7 onboarding builds on that graph; catalogues/commerce and Section 8 CRM remain out of scope. The UI handoff is documentation-only; no frontend source was changed.
+Vendor business, brand, capability, and branch management is implemented in `internal/features/vendors`, migrations `000006`-`000007`, and `openapi/section6-vendor-business.openapi.json`. Section 7 onboarding builds on that graph, and Section 8A CRM projects relationships onto its businesses and branches; catalogues/commerce and Sections 8B-8H remain out of scope. The UI handoff is documentation-only; no frontend source was changed.
 
 ## Reading order for a new implementation section
 

@@ -66,3 +66,19 @@ Two layers now exist, deliberately different in shape because they solve differe
 Every staff/role/assignment repository query is scoped by `vendor_id` in the SQL `WHERE` clause itself — `StaffRepository.GetByIDForVendor`, `RoleRepository.ListVisibleToVendor`/`GetVisibleToVendor` never "load by id, then check vendor_id in Go." A row belonging to another vendor produces the identical "not found" outcome as a genuinely nonexistent row, so a caller can never distinguish "wrong tenant" from "doesn't exist" through response content. Proven directly by `TestIAM_TenantIsolation_VendorACannotAccessVendorBStaff` (cross-vendor read, suspend, role-list-leak, and role-assignment attempts all refused).
 
 `internal/architecture_test.go` remains the static guardrail against a different mistake class (cross-feature coupling, not cross-tenant leakage) — unchanged from the Foundation phase.
+
+## Section 8A — CRM authority and scope
+
+**Permissions** (all added in `000011`, none high-risk): `vendor.crm.customers.read`, `vendor.crm.customers.manage`, `vendor.crm.customer360.read`, `vendor.crm.consent.read`, `vendor.crm.privacy.read`.
+
+There is deliberately **no** `vendor.crm.consent.override`, `vendor.crm.privacy.override` or `vendor.crm.identity.force_merge`. No role, including Owner, can be granted authority the platform does not delegate to vendors, and a migration test asserts none is ever introduced.
+
+**Branch scope.** CRM resolves an actor's scope per permission rather than asking a yes/no question: a vendor-wide grant sees business-level totals, while a branch-scoped grant sees only relationships that exist at its authorised branches. The restriction is applied inside SQL, through an `EXISTS` join over `crm_customer_branch_relations` — loading business-wide rows and filtering them in Go would leak existence and totals through counts and pagination. Branch-scoped commercial figures are recomputed from the visible branches alone, and `last_order_ref` is withheld because the most recent order may belong to an unauthorised branch.
+
+**Indistinguishable denials.** Wrong tenant, unauthorised branch and redacted all return not-found, so relationship identifiers cannot be probed.
+
+**Step-up.** Section 8A adds none: the reads are ordinary and archive/restore are low-risk. Sensitive CRM export belongs to Section 8H.
+
+**Privacy over consent.** Eligibility precedence is redaction > merge > marketing suppression > restriction > archival > consent unavailable > DENY > UNKNOWN/stale > ALLOW. The decision function accepts no override parameter, so fail-closed is a property of the type rather than a convention callers must remember.
+
+**Anti-resurrection.** A redacted subject's opaque reference is retained solely so a late event can be recognised and refused; it is never used for marketing, presentation, enrichment or matching. Hashing it was explicitly rejected — a hash is not anonymisation, and it would make suppression unreliable. This holds in both orderings: a late event after a redaction, and a redaction that arrives before any relationship exists.

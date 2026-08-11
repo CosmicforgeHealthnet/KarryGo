@@ -10,6 +10,7 @@ import (
 
 	vendorauthrepositories "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
+	crm "cosmicforge/logistics/services/vendor-service/internal/features/crm"
 	staffmodels "cosmicforge/logistics/services/vendor-service/internal/features/staff/models"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
@@ -166,4 +167,48 @@ func (a staffEventAdapter) PublishStaffEvent(ctx context.Context, eventType, ven
 		return err
 	}
 	return a.outbox.Append(ctx, a.db, envelope)
+}
+
+// crmScopeAdapter implements crm.ScopeResolver over the Section 5
+// authorization evaluator.
+//
+// It answers a slightly different question from the plain Authorize check: CRM
+// needs to know *at which scope* a permission is held, because a vendor-wide
+// grant may see business totals while a branch-scoped grant may only ever see
+// its own branches' slice of a relationship.
+type crmScopeAdapter struct {
+	evaluator *staffusecases.AuthorizationEvaluator
+}
+
+func (a crmScopeAdapter) ResolveScope(ctx context.Context, staffID, permission string) (crm.Scope, error) {
+	grants, err := a.evaluator.EffectivePermissions(ctx, staffID)
+	if err != nil {
+		return crm.Scope{}, err
+	}
+	var scope crm.Scope
+	for _, grant := range grants {
+		if grant.PermissionCode != permission {
+			continue
+		}
+		if grant.BranchID == nil {
+			// A vendor-wide grant subsumes every branch-scoped one.
+			return crm.Scope{Global: true}, nil
+		}
+		scope.BranchIDs = append(scope.BranchIDs, *grant.BranchID)
+	}
+	return scope, nil
+}
+
+// crmAuditAdapter implements crm.AuditRecorder over the real recorder.
+type crmAuditAdapter struct {
+	recorder audit.Recorder
+}
+
+func (a crmAuditAdapter) Record(ctx context.Context, entry crm.AuditEntry) error {
+	return a.recorder.Record(ctx, audit.Entry{
+		ActorType: "vendor_staff", ActorID: entry.ActorID, Action: entry.Action,
+		AggregateType: entry.AggregateType, AggregateID: entry.AggregateID,
+		VendorID: entry.VendorID, BranchID: entry.BranchID,
+		Before: entry.Before, After: entry.After, Reason: entry.Reason,
+	})
 }

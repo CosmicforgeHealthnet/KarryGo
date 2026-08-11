@@ -186,3 +186,87 @@ All writes use one generated `Idempotency-Key` retained across byte-equivalent r
 - Every destructive or hard-to-reverse action (reject an order, remove a staff member, delete a catalogue item with active orders) needs a confirmation dialog.
 - Every write action must be safe to retry (the backend is idempotency-key-protected — see [architecture/09_SECURITY_AND_AUTHORITY_MODEL.md](architecture/09_SECURITY_AND_AUTHORITY_MODEL.md)), so the UI should not need to invent its own double-submit protection beyond disabling the button while in flight.
 - A vendor with multiple businesses/branches always needs an explicit, always-visible "acting as" indicator — never an implicit single-business assumption.
+
+## Section 8A — CRM Foundation, Customer 360, Consent and Privacy
+
+Backend only in this section; no frontend source was written. This records the UX the implemented contract supports, and — just as importantly — the UX it deliberately does not.
+
+### The mental model to design against
+
+A CRM record here is a **commercial relationship with this business**, not a person's profile. Karry Go's customer authority owns the person. That single fact drives most of what follows: there is no contact card, no email address, no phone number, and no way for a vendor to add a customer by typing an identifier.
+
+Designers should expect, and design for, a CRM that is **empty in a new deployment** and stays empty until commerce integration exists. The empty state is the default state, not an edge case.
+
+### Customer list
+
+Per row: relationship reference, subject type (Customer / Guest / External), relationship status, privacy state, last order date, completed order count, spend, branch and capability context, and a marketing-eligibility indicator.
+
+- **There is no name, email or phone to show.** A display label exists in the contract but is always absent today. Design the row around the relationship (recency, value, branch), not around identity. If a label is needed, the row should degrade to the relationship reference without looking broken.
+- **No free-text search.** Filters only: subject type, status, privacy state, branch, capability, commercial-projection state, order-count range, spend range, last-order date range, acquisition source. Do not design a search bar that implies name/email/phone lookup — the data does not exist to answer it.
+- Pagination is limit/offset, max 100 per page, with a stable sort.
+- Redacted and merged-away relationships never appear.
+
+### Empty, loading and error states
+
+- **Empty because nothing is integrated** (today's normal): "Customer relationships appear here once orders start flowing." Do not show a "Add your first customer" call to action — there is no such action.
+- **Empty because filters exclude everything**: distinguish clearly from the above.
+- **Forbidden (403)**: the user lacks the CRM permission, or asked about a branch outside their scope. Say so plainly without revealing whether anything exists there.
+- **Not found (404)**: covers "no such relationship", "outside your scope" and "redacted" identically, by design. The UI must not try to distinguish them or speculate.
+
+### Customer 360
+
+Sections: relationship summary, commercial summary, branch and capability context, data freshness, consent summary, privacy summary, merge status, and availability markers for future modules.
+
+**The single most important UX rule in this section**: never render "unknown" as zero.
+
+When `commercial.state` is `NOT_AVAILABLE`, show "No order history recorded" — not "₦0", not "0 orders", not an empty chart implying no spending. A vendor who reads "₦0 spent" about a loyal customer will make a bad commercial decision based on a number the system never actually knew. Reserve real zeros for genuinely observed zeros.
+
+Show freshness explicitly where the backend provides it: `observed_at`, `stale`, and the projection state. A stale figure should look stale.
+
+All money arrives as integer minor units. Format for display; never treat as a float.
+
+### Branch-scoped view
+
+A branch manager sees only relationships that exist at their authorised branches, and the figures they see cover **only those branches**. The backend enforces this; the UI must not undermine it by mislabelling.
+
+Label branch-scoped figures unambiguously — "Spend at Ikeja branch", not "Total spend". A customer who spent ₦100,000 at branch A and ₦300,000 at branch B must show ₦100,000 to the branch A manager, framed as that branch's figure. Never present it as the customer's lifetime value, and never hint that other branches exist.
+
+`commercial.scope` (`BUSINESS` / `BRANCH`) is provided precisely so the label can be driven by data rather than by guesswork.
+
+### Consent
+
+Read-only, per channel (Email, Push, In-app, SMS), showing decision, eligibility, reason, observed time and staleness.
+
+- **The interface must never let staff set, override or "fix" consent.** No toggle, no "mark as opted in", no bulk action. If a vendor believes a decision is wrong, the resolution is with the customer authority, not here.
+- Present three distinct states, never two. `UNKNOWN` is "no decision on record — cannot contact", visually distinct from `DENY` ("customer declined"). Collapsing them into a single "not opted in" toggle is exactly the design error that leads to someone contacting a customer they had no permission to contact.
+- Show the reason, not just the outcome. "Cannot email: no consent on record" is actionable; a grey icon is not.
+- When the consent integration is unavailable, say so as a **system** state ("Consent service not connected") rather than attributing it to the customer.
+- SMS consent may read `ALLOW` even though the platform has no SMS sender. Do not offer an SMS action on that basis.
+
+### Privacy
+
+Show state and its consequences, with affected actions visibly disabled and explained.
+
+- **Restricted**: visible, not targetable. Marketing controls disabled with a reason.
+- **Marketing suppressed**: relationship intact, targeting off. This can co-occur with an `ACTIVE` state and even a stored `ALLOW` — the UI must follow `eligible`, not `decision`.
+- **Merged**: show that this relationship has been merged and link to the surviving one. All actions disabled.
+- **Redacted**: normally unreachable (reads 404). If encountered, show a neutral "This relationship is no longer available" — never the previous data, and never an option to restore.
+- Nothing in the privacy view may be presented as vendor-editable. There is no override, at any permission level, including Owner.
+
+### Archive and restore
+
+The only vendor-facing writes. Archive is a tidiness action for dormant relationships and must never be presented as deletion, erasure or a privacy remedy — the copy should avoid "delete" and "remove" entirely.
+
+Both require the current record version; a stale version returns 409, so the UI should reload and re-present rather than silently retrying. Both are refused on redacted and merged relationships, so those actions should not be offered there at all.
+
+### Future modules
+
+Tags, segments, interactions, tasks, loyalty, campaigns, corporate and intelligence all report `NOT_IMPLEMENTED`. Show them as unavailable or omit them; an empty tag chip row or empty activity timeline reads as "this customer has none", which is false. The same applies to category and item affinity.
+
+### Role-based visibility
+
+- Owner / General Manager / CRM & Support: full Section 8A surface.
+- Marketing: customer list, Customer 360 and consent eligibility. **No privacy view, no archive/restore, and structurally no access to contact data.**
+- Branch Manager: read-only, branch-scoped as described above.
+- Analyst / Auditor: read-only including privacy state.
+- Finance, Kitchen/Pastry, Shop/Inventory, Procurement, Vendor Rider: no CRM access by default — CRM should not appear in their navigation.

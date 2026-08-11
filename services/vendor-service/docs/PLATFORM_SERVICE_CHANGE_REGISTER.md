@@ -142,3 +142,58 @@ Everything Vendor Service implementation requires outside `services/vendor-servi
 - **Why required**: accuracy for future sessions
 - **What was actually done**: this session added a one-line `fleet-partner-service` entry and a `vendor-service` entry to CLAUDE.md's "Backend Services"/"Default local databases"/"Important local ports" lists, and disclosed the docker-compose/bootstrap-script gap explicitly in [architecture/00_REPOSITORY_AUDIT_BASELINE.md](architecture/00_REPOSITORY_AUDIT_BASELINE.md) rather than fabricating those files
 - **Status**: **PARTIAL** — full fleet-partner-service documentation and recreating the platform's local-dev tooling are both out of scope for this task
+
+## Section 8A — CRM Foundation, Customer 360, Consent and Privacy
+
+**No external service was modified for Section 8A.** Every entry below is either NO CHANGE or a recorded pending dependency. The repository was audited before any code was written, and where an authority does not exist the integration was left dormant rather than invented.
+
+### 11. `customer-service` — NO CHANGE (three pending authority contracts recorded)
+
+- **Audited on 2026-08-11.** Features present: `auth`, `identity`, `notifications`, `preferences` (directory scaffolding only, no Go files), `profile`, `request_history`, `saved_locations`. Migrations `001`–`005`.
+- **Consent**: no consent concept exists anywhere in the service — no table, no field, no route, no event. **PENDING_EXTERNAL_DEPENDENCY — CUSTOMER MARKETING CONSENT AUTHORITY.** Vendor CRM defines the projection, the source-version rules and the `CUSTOMER_CONSENT_CHANGED` contract, and keeps ingestion disabled behind `VENDOR_CRM_CONSENT_INTEGRATION_ENABLED`. Until an authority exists every decision is UNKNOWN and marketing is ineligible.
+- **Privacy**: no delete-request, restriction, redaction or suppression concept exists. **PENDING_EXTERNAL_DEPENDENCY — CUSTOMER PRIVACY AUTHORITY.** The `CUSTOMER_PRIVACY_CHANGED` contract and the full redaction engine are implemented and tested; nothing currently instructs them.
+- **Identity merge**: no identity-link, guest-upgrade or account-merge concept exists. **PENDING_EXTERNAL_DEPENDENCY — CUSTOMER IDENTITY LINK AUTHORITY.**
+- **Presentation**: `GET /internal/customers/:id` (HMAC service-auth) exists and returns `{id, name, phone, email, status}`. It is **not** usable as a CRM display source: it carries canonical contact data, and storing any of it would make Vendor Service a second customer master. Vendor CRM therefore leaves `safe_display_label` permanently null. **PENDING_EXTERNAL_DEPENDENCY — PII-FREE CUSTOMER PRESENTATION CONTRACT** (a display-only projection with no contact fields) if vendor staff ever need a human-readable label.
+- **Why no change was made now**: none of the four is required for Section 8A to be correct and deployable. Adding speculative consent/privacy tables to customer-service would be designing another service's domain from inside this one, which the service-boundary rules forbid.
+- **Status**: **NO CHANGE** (four dependencies recorded above).
+
+### 12. Vendor commerce order publisher — DOES NOT EXIST
+
+- `services/vendor-service/internal/features/orders` is still a reserved `doc.go` boundary; no service publishes vendor commerce order events.
+- Vendor CRM defines the `CRM_ORDER_FACT_CHANGED` contract, implements the fact projection, dedupe, source-version handling, refund-safe recomputation and rebuild path, and tests all of it against fixtures. The allowlisted caller is named (`vendor-order-service`) and the integration stays disabled behind `VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED`.
+- **No publisher was fabricated.** Until the order section exists, every CRM commercial figure honestly reports `NOT_AVAILABLE`.
+- **Status**: **PENDING_EXTERNAL_DEPENDENCY — VENDOR COMMERCE ORDER AUTHORITY.**
+
+### 13. `notification-service` — NO CHANGE
+
+- Audited for Section 8A because later CRM packages (8E/8F campaigns) will depend on it. Channels are exactly push/email/websocket/in_app; there is no SMS sender.
+- `notification_preferences` (`recipient_type`, `recipient_id`, `channel`, `enabled boolean DEFAULT true`) is a **delivery preference toggle owned by the delivery service**, not a marketing-consent authority: it has no purpose dimension, no source version, no consent semantics, and defaults to opt-in. Vendor CRM deliberately does **not** map it to consent — treating `enabled=true` as marketing ALLOW would manufacture permission nobody granted.
+- Section 8A sends nothing and requires no notification change.
+- **Note for later packages**: SMS *consent* is representable in the CRM projection even though SMS *delivery* does not exist. A future campaign package must not dispatch on a channel with no sender.
+- **Status**: **NO CHANGE.**
+
+### 14. `api-gateway` — NO CHANGE
+
+- The six public CRM routes follow the existing direct-exposure precedent and need no gateway work.
+- `POST /internal/vendor/v1/crm/events` is root-mounted and **must never be gateway-exposed**: it is the authority write path into consent, privacy and identity projections. It is not nested under `/api/v1/vendor`, repeating the Section 7 callback correction, and `internal/section8acontract` asserts that structurally.
+- **Status**: **NO CHANGE.**
+
+### 15. `payment-wallet-service` — NO CHANGE
+
+- Section 8A holds no financial authority. CRM commercial figures are a read-model projection of order facts, not a balance, receivable, settlement or credit line. Nothing was read from or written to wallet.
+- **Status**: **NO CHANGE.**
+
+### 16. `support-dispute-service` — NO CHANGE
+
+- Complaints, disputes and adjudication remain outside CRM authority. Section 8A implements no interactions (that is 8C), so nothing was needed.
+- **Status**: **NO CHANGE.**
+
+### 17. `media-file-service` — NO CHANGE
+
+- Section 8A stores no media and performs no export (exports are 8H).
+- **Status**: **NO CHANGE.**
+
+### 18. `analytics-service` / `admin-backoffice-service` — NO CHANGE
+
+- Both remain scaffolds. Section 8A emits its CRM outbox events durably (`vendor.crm.profile.created`, `.archived`, `.restored`, `.linked`, `.privacy_state.changed`); with no configured publisher they accumulate as `PENDING` and are never silently dropped, matching the Section 5/6/7 precedent.
+- **Status**: **NO CHANGE.**

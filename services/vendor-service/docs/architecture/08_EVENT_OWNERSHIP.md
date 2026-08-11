@@ -30,3 +30,26 @@ Section 6 appends versioned business/brand/capability/branch lifecycle events th
 ## Correlation, causation, and idempotency
 
 Every event carries a correlation id (ties together every event produced by one logical workflow, e.g. one checkout) and an optional causation id (the specific event/command that directly produced this one). Every outbound delivery carries `Idempotency-Key: <event-id>` so a redelivered event is a safe no-op on the receiving service's own inbox — the same convention `payment-wallet-service`'s `HTTPPublisher` already uses against `fleet-partner-service`.
+
+## Section 8A — CRM events
+
+### Consumed (inbound, root-level `POST /internal/vendor/v1/crm/events`)
+
+| Event type | Owning authority | Gating flag |
+|---|---|---|
+| `CUSTOMER_RELATIONSHIP_OBSERVED` | customer-service | `VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED` |
+| `CUSTOMER_IDENTITY_LINKED` | customer-service | `VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED` |
+| `CUSTOMER_IDENTITY_MERGED` | customer-service | `VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED` |
+| `CUSTOMER_CONSENT_CHANGED` | customer-service | `VENDOR_CRM_CONSENT_INTEGRATION_ENABLED` |
+| `CUSTOMER_PRIVACY_CHANGED` | customer-service | `VENDOR_CRM_PRIVACY_INTEGRATION_ENABLED` |
+| `CRM_ORDER_FACT_CHANGED` | the authoritative vendor commerce order publisher (does not exist yet) | `VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED` |
+
+Authority is per event type, not per service: a caller that owns one event type still cannot send another. The signed caller identity wins over any `source_service` the body claims. Protection is HMAC v2 + single-use nonce + `(source_service, event_id)` inbox dedupe with a payload fingerprint, so an identical redelivery is a no-op while the same event id carrying different data is an integrity conflict rather than a silent overwrite. Ordering is settled by `source_version`, never arrival time.
+
+All six are currently dormant: no service publishes them. The contracts exist so the owning services have something concrete to implement against.
+
+### Produced (outbox)
+
+`vendor.crm.profile.created`, `vendor.crm.profile.archived`, `vendor.crm.profile.restored`, `vendor.crm.profile.linked`, `vendor.crm.privacy_state.changed`.
+
+Payloads are minimal and carry no personal data: profile reference, business reference, state, subject type, source version, correlation id. No consumer exists yet, so they accumulate durably as `PENDING` — never silently dropped — matching the Section 5/6/7 precedent.

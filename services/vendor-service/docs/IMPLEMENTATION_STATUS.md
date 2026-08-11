@@ -88,6 +88,75 @@ Each of these is expected to follow the specification's own "Preferred backend f
 - No frontend, catalogue, logistics, wallet, verification, media-file, or other-service implementation was added.
 - Known continuing audit limitation: Section 6 reuses the Section 5 `PostgresRecorder`, so audit rows are durable and tested but still append after the aggregate transaction rather than atomically inside it; this remains disclosed in architecture/09 and was not expanded into an unrelated audit-framework rewrite.
 
+## Section 8A - CRM Foundation, Customer 360, Consent and Privacy
+
+**Status: IMPLEMENTED; every external CRM integration is deliberately dormant because no authority publishes those events yet.**
+
+- Repository checkpoint: branch `claude/vendor-crm-foundation-8a-uonlya` (based on `staging`); starting HEAD `aa8c7807d8f7b90aad33425add2ac92402830fcf`. Route baseline before 8A: **73**; after: **80** (6 public + 1 internal). No existing route was changed or removed.
+- Migrations `000010_vendor_crm_foundation` and `000011_vendor_section8a_crm_permissions`. Fresh replay, Section 7 -> 8A upgrade, rollback and reapply all verified against real Postgres; the Section 7 pair test was updated to step back past 8A first so it still proves exactly what it always proved.
+
+### What the CRM is, and is not
+
+A CRM profile is the commercial relationship between one vendor business and one customer subject. It is a projection, not a customer master: no canonical email, phone, address, date of birth or credential is stored or returned anywhere, and no hash of a customer reference is used as a stand-in identity. `TestHTTPCustomer360ReturnsNoCanonicalPII` walks the whole response tree to enforce that at the contract level.
+
+Relationships are created **only** from an authenticated authoritative event. There is no vendor-facing create-customer route, so a production database legitimately holds zero CRM profiles until a real commerce or identity authority is integrated. Nothing was seeded to make the feature look populated.
+
+### Authority audit (the reason most integrations are dormant)
+
+| Capability | Result | Evidence |
+|---|---|---|
+| `CUSTOMER_CONSENT_SUPPORT` | **NOT_PRESENT** | No consent concept anywhere in customer-service. notification-service's `notification_preferences` is a delivery toggle (`enabled boolean DEFAULT true`, no purpose, no source version, defaults opt-in) owned by the delivery service, not a marketing-consent authority — mapping it to ALLOW would be exactly the forbidden widening. |
+| `CUSTOMER_PRIVACY_EVENT_SUPPORT` | **NOT_PRESENT** | No delete/restrict/redact/suppression concept in customer-service. |
+| `CUSTOMER_IDENTITY_MERGE_SUPPORT` | **NOT_PRESENT** | No identity-link, guest-upgrade or account-merge concept in customer-service. |
+| `CUSTOMER_PRESENTATION_SUPPORT` | **PARTIAL, unusable as-is** | `GET /internal/customers/:id` (HMAC) exists but returns `phone` and `email` alongside `name`. There is no PII-free presentation contract, so `safe_display_label` is left permanently null rather than populated from a payload that carries contact data. |
+| `ORDER_CRM_PROJECTION_SUPPORT` | **NOT_PRESENT** | `internal/features/orders` is still a reserved `doc.go` boundary; no vendor commerce order publisher exists. The projection interface, ingestion contract, dedupe, source-version rules and rebuild path are implemented and fixture-tested; the live integration stays disabled. |
+| `SUPPORT_INTERACTION_PROJECTION_SUPPORT` | NOT_PRESENT | Not needed by 8A (interactions are 8C); recorded for later packages. |
+| `NOTIFICATION_REFERENCE_DELIVERY_SUPPORT` | PARTIAL | push/email/websocket/in_app exist; no SMS sender. 8A sends nothing. SMS **consent** remains representable even though SMS **delivery** does not exist — the two are separate concerns. |
+| `MEDIA_EXPORT_SUPPORT` | Not applicable to 8A | Exports are 8H. |
+
+Consequence, stated plainly: with no consent authority wired, every marketing decision reads UNKNOWN and every channel is ineligible. That is the designed fail-closed outcome, not a defect.
+
+### Schema
+
+`vendor_customer_profiles`, `crm_customer_identity_links`, `crm_customer_branch_relations`, `crm_customer_order_facts`, `crm_consent_projections`, `crm_privacy_projections`, `crm_privacy_processing_history`, plus one additive nullable `payload_fingerprint` column on the shared inbox (the existing inbox deduped by event id but could not detect the same id carrying a different body).
+
+Every CRM table is tenant-scoped in PostgreSQL, not merely in middleware: each carries `business_id` and reaches its parent through a composite `(id, business_id)` foreign key, so a child row can never be attached across tenants. Vocabularies, money non-negativity, the one-primary-subject-reference invariant, the merge-state/privacy-state agreement, and the "redacted iff redacted_at" rule are all real CHECK constraints.
+
+**No privacy tombstone table was added.** The redacted profile row *is* the suppression record: it retains its opaque subject reference (and nothing else usable), which is the minimum needed to recognise a late event and refuse recreation. Hashing that reference would not make the subject anonymous — it would only make suppression unreliable.
+
+### Behaviour worth calling out
+
+- **Marketing fails closed by construction.** `MarketingEligibility` takes no override input, so no caller can pass one. Precedence: redaction > merge > marketing suppression > restriction > archival > consent unavailable > DENY > UNKNOWN/stale > ALLOW. Only the last returns true.
+- **Aggregates are derived, never incremented.** Totals are recomputed from `crm_customer_order_facts` on every change, which is what makes refunds, replays, out-of-order delivery and merges safe by construction rather than by careful arithmetic. A partial refund lowers net without creating a second order; a redelivered event changes nothing.
+- **Cross-currency data is quarantined, never converted.** CRM has no FX authority. An order denominated differently from the business currency is rejected and the existing totals are proven uncorrupted.
+- **Merges require authoritative evidence.** No heuristic, fuzzy or ML matching exists. Both profiles are locked in a fixed id order (no deadlock), evidence is unique per authority event (no double merge), and the survivor's totals are rebuilt from the merged fact set so an order both sides observed is counted once.
+- **Anti-resurrection holds in both orderings**: a late event for a redacted subject is refused, and a redaction that arrives *before* any relationship still blocks the later creation. A merged-away reference routes to its survivor instead of spawning a duplicate.
+- **Archive cannot launder a privacy decision.** Archive and restore are both refused on a redacted or merged-away relationship.
+- **Privacy processing is a handler registry**, so 8B-8H register their own redaction behaviour instead of the engine being rewritten. 8A registers `customer_profile`, `consent`, `commercial_projection`, `identity_link`, and Customer 360 reports the covered domain list.
+- **Customer 360 distinguishes zero from unknown.** With no observed commercial data the state is `NOT_AVAILABLE` and every figure is omitted. Future modules report `NOT_IMPLEMENTED` rather than an empty structure that would read as an operational feature with no data.
+
+### IAM
+
+Five permissions added in `000011`: `vendor.crm.customers.read`, `.customers.manage`, `.customer360.read`, `.consent.read`, `.privacy.read`. Mapped to Owner, General Manager, CRM/Support (full 8A surface); Marketing (safe read + consent eligibility only — no privacy read, no lifecycle); Branch Manager (read only, branch-scoped by its Section 5 assignment); Analyst/Auditor (read only, including privacy for compliance review). Finance, Kitchen/Pastry, Shop/Inventory, Procurement and Vendor Rider are deliberately unmapped.
+
+No `vendor.crm.consent.override`, `vendor.crm.privacy.override` or `vendor.crm.identity.force_merge` permission exists, and a migration test asserts none is ever introduced.
+
+### Tests
+
+220 test functions across the service, **0 failures, 0 skips**, run with real Postgres and Redis (`go test -p 1 ./... -count=1`). Section 8A contributes unit tests for the pure rules plus real-Postgres suites for tenancy/IDOR, branch-scope escape, event-caller authority, privacy races (including out-of-order versions and both anti-resurrection orderings), merge concurrency and dedupe, consent decision/version matrices, Customer 360 honesty, refund and replay safety, HTTP contract behaviour, and OpenAPI route parity.
+
+### Known dependencies (real, not hypothetical)
+
+1. **No consent authority** — needed before any marketing feature (8E/8F) can target anyone. Until then eligibility is uniformly false.
+2. **No privacy authority** — the redaction engine is built and tested but nothing currently instructs it.
+3. **No identity-merge authority** — guest-to-customer linking cannot occur in production yet.
+4. **No vendor commerce order publisher** — every commercial figure stays `NOT_AVAILABLE`. This is the dependency that makes CRM useful, and it belongs to the order section.
+5. **No PII-free customer presentation contract** — `safe_display_label` stays null; a client needing display identity must ask the customer authority directly.
+
+### Not started
+
+Section 8B (tags, segmentation) and everything after it. No table, route, permission or flag for a later CRM package was created.
+
 ## External dependencies blocking full activation (not blocking further Vendor Service sections)
 
 - **PENDING_EXTERNAL_DEPENDENCY — LOGISTICS OTP/QR** (see [architecture/07_EXISTING_OTP_QR_INTEGRATION.md](architecture/07_EXISTING_OTP_QR_INTEGRATION.md)): blocks only final confirmed-handover activation of platform-delivery fulfilment units.

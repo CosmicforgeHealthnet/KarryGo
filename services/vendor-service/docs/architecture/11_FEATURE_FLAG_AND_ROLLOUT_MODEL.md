@@ -55,3 +55,18 @@ Section 6 routes are registered behind the authenticated surface. Writes fast-fa
 ## Rollout posture
 
 Every flag defaults to disabled. A feature section is expected to: implement the feature behind its flag, verify it (tests, and where meaningful a real integration run), and only then document in [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) that the flag is safe to enable in a given environment. No flag should be flipped to `true` in any shared `.env` as a side effect of scaffolding it — `.env.example` ships every flag as `false`.
+
+## Section 8A flags
+
+| Flag | Effect when off |
+|---|---|
+| `VENDOR_CRM_ENABLED` | No CRM route is registered at all — requests 404 rather than 503, so a disabled CRM has no attack surface. |
+| `VENDOR_CRM_WRITES_ENABLED` | Reads continue; archive/restore return 503. Rollout can disable risky writes without blinding operators. |
+| `VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED` | Relationship, identity-link and order-fact ingestion rejected (503). |
+| `VENDOR_CRM_CONSENT_INTEGRATION_ENABLED` | Consent ingestion rejected; every decision reads UNKNOWN and marketing is ineligible. |
+| `VENDOR_CRM_PRIVACY_INTEGRATION_ENABLED` | Privacy ingestion rejected. |
+| `COMMERCE_GLOBAL_KILL_SWITCH` | Disables CRM writes alongside every other commerce write. |
+
+All default false, and all four integration flags are currently off in every environment because no service publishes those events.
+
+**A disabled flag can only ever suppress marketing eligibility, never enable it.** `VENDOR_CRM_CONSENT_INTEGRATION_ENABLED=false` yields `CONSENT_SOURCE_UNAVAILABLE` and ineligible on every channel — the failure mode of a dead consent feed is "cannot target", never "target everyone with a cached ALLOW".

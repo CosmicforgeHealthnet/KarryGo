@@ -102,9 +102,18 @@ type FeatureFlags struct {
 	VendorServiceEnabled          bool
 	VendorOnboardingWritesEnabled bool
 	VendorCRMEnabled              bool
-	VendorInventoryEnabled        bool
-	VendorPurchasingEnabled       bool
-	VendorRecipesEnabled          bool
+	// Section 8A rollout flags. Reads and writes are separable so risky
+	// external ingestion can be disabled without blinding operators, and each
+	// external integration is gated independently because none of the
+	// authorities exists yet. A disabled consent integration can only suppress
+	// marketing eligibility, never enable it.
+	VendorCRMWritesEnabled             bool
+	VendorCRMCustomerProjectionEnabled bool
+	VendorCRMConsentIntegrationEnabled bool
+	VendorCRMPrivacyIntegrationEnabled bool
+	VendorInventoryEnabled             bool
+	VendorPurchasingEnabled            bool
+	VendorRecipesEnabled               bool
 
 	CommerceFoodEnabled           bool
 	CommerceShopEnabled           bool
@@ -147,9 +156,15 @@ func Load() Config {
 			VendorServiceEnabled:          getEnvBool("VENDOR_SERVICE_ENABLED", false),
 			VendorOnboardingWritesEnabled: getEnvBool("VENDOR_ONBOARDING_WRITES_ENABLED", false),
 			VendorCRMEnabled:              getEnvBool("VENDOR_CRM_ENABLED", false),
-			VendorInventoryEnabled:        getEnvBool("VENDOR_INVENTORY_ENABLED", false),
-			VendorPurchasingEnabled:       getEnvBool("VENDOR_PURCHASING_ENABLED", false),
-			VendorRecipesEnabled:          getEnvBool("VENDOR_RECIPES_ENABLED", false),
+
+			VendorCRMWritesEnabled:             getEnvBool("VENDOR_CRM_WRITES_ENABLED", false),
+			VendorCRMCustomerProjectionEnabled: getEnvBool("VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED", false),
+			VendorCRMConsentIntegrationEnabled: getEnvBool("VENDOR_CRM_CONSENT_INTEGRATION_ENABLED", false),
+			VendorCRMPrivacyIntegrationEnabled: getEnvBool("VENDOR_CRM_PRIVACY_INTEGRATION_ENABLED", false),
+
+			VendorInventoryEnabled:  getEnvBool("VENDOR_INVENTORY_ENABLED", false),
+			VendorPurchasingEnabled: getEnvBool("VENDOR_PURCHASING_ENABLED", false),
+			VendorRecipesEnabled:    getEnvBool("VENDOR_RECIPES_ENABLED", false),
 
 			CommerceFoodEnabled:           getEnvBool("COMMERCE_FOOD_ENABLED", false),
 			CommerceShopEnabled:           getEnvBool("COMMERCE_SHOP_ENABLED", false),

@@ -21,6 +21,7 @@ import (
 	vendorauthrepositories "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
 
+	crm "cosmicforge/logistics/services/vendor-service/internal/features/crm"
 	staffhttp "cosmicforge/logistics/services/vendor-service/internal/features/staff/http"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
@@ -173,6 +174,28 @@ func main() {
 	staffHandler := staffhttp.NewHandler(staffService, roleService, authService.RevokeAllSessionsForStaff)
 	vendorHandler := vendors.NewHandler(vendorService, idempotencyStore, cfg.Flags.VendorOnboardingWritesEnabled, cfg.Flags.CommerceGlobalKillSwitch)
 
+	// Section 8A CRM. Every external integration it can consume is disabled by
+	// default because no authority publishes those events yet; with them off
+	// the read surface still works and simply reports data as unavailable
+	// rather than inventing it.
+	crmFlags := crm.Flags{
+		CRMEnabled:                cfg.Flags.VendorCRMEnabled,
+		WritesEnabled:             cfg.Flags.VendorCRMWritesEnabled,
+		CustomerProjectionEnabled: cfg.Flags.VendorCRMCustomerProjectionEnabled,
+		ConsentIntegrationEnabled: cfg.Flags.VendorCRMConsentIntegrationEnabled,
+		PrivacyIntegrationEnabled: cfg.Flags.VendorCRMPrivacyIntegrationEnabled,
+		CommerceKillSwitch:        cfg.Flags.CommerceGlobalKillSwitch,
+	}
+	crmService := crm.NewService(crm.Options{
+		DB:     db,
+		Scopes: crmScopeAdapter{evaluator: evaluator},
+		Audit:  crmAuditAdapter{recorder: auditRecorder},
+		Events: events.NewDomainPublisher(outboxRepo),
+		Flags:  crmFlags,
+	})
+	crmHandler := crm.NewHandler(crmService)
+	crmInternalHandler := crm.NewInternalHandler(crmService)
+
 	accessSigner := sharedauth.NewTokenSigner(cfg.Auth.AccessTokenSecret)
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	workers := []func(context.Context) error{}
@@ -223,11 +246,16 @@ func main() {
 			staffhttp.RegisterRoutes(protected, staffHandler)
 			vendors.RegisterRoutes(protected, vendorHandler)
 			vendors.RegisterOnboardingRoutes(protected, vendorHandler)
+			crm.RegisterRoutes(protected, crmHandler, crmFlags)
 
 			staffhttp.RegisterInternalRoutes(group, staffService, inboundVerifier)
 		},
 		RegisterRoot: func(router *gin.Engine) {
 			vendors.RegisterInternalOnboardingRoutes(router, vendorHandler, inboundVerifier)
+			// Root-mounted, never under /api/v1/vendor: the CRM event ingress
+			// carries consent and privacy authority and must not be reachable
+			// through the public gateway.
+			crm.RegisterInternalRoutes(router, crmInternalHandler, inboundVerifier, crmFlags)
 		},
 		Workers: workers,
 	})

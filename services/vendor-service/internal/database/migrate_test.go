@@ -224,6 +224,14 @@ func TestSection7MigrationsRollbackAndReapplyAsAPair(t *testing.T) {
 	if _, err = pool.Exec(ctx, `TRUNCATE vendor_businesses,vendor_staff_role_assignments,vendor_step_up_grants,vendor_sessions,vendor_otp_challenges,vendor_staff,vendor_users RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatal(err)
 	}
+	// Section 8A sits on top of Section 7, so step back past it first: this
+	// test is about the Section 7 pair rolling back and reapplying cleanly,
+	// not about which migration happens to be the current tip.
+	for range []string{"000011_vendor_section8a_crm_permissions", "000010_vendor_crm_foundation"} {
+		if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+			t.Fatalf("rollback Section 8A: %v", err)
+		}
+	}
 	for _, version := range []string{"000009_vendor_section7_permissions", "000008_vendor_section7_onboarding"} {
 		if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
 			t.Fatalf("rollback %s: %v", version, err)
@@ -263,5 +271,118 @@ func TestSection7MigrationsRollbackAndReapplyAsAPair(t *testing.T) {
 	var permissionCount int
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM vendor_permissions WHERE code IN ('vendor.onboarding.read','vendor.onboarding.manage','vendor.verification.read','vendor.verification.submit','vendor.bank_profile.read','vendor.bank_profile.manage')`).Scan(&permissionCount); err != nil || permissionCount != 6 {
 		t.Fatalf("Section 7 permissions=%d err=%v", permissionCount, err)
+	}
+}
+
+// TestSection8AMigrationsRollbackAndReapplyAsAPair proves the CRM foundation
+// and its permission seed roll back and reapply cleanly as a pair, that the
+// tenancy/privacy/consent vocabularies are enforced by real CHECK constraints
+// rather than only in Go, and that the composite (id, business_id) foreign
+// keys every CRM child table depends on actually exist.
+func TestSection8AMigrationsRollbackAndReapplyAsAPair(t *testing.T) {
+	dsn := os.Getenv("VENDOR_SERVICE_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("VENDOR_SERVICE_TEST_DATABASE_URL not set; skipping real-Postgres Section 8A replay")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if err = ApplyMigrations(ctx, pool, "../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+
+	crmTables := []string{
+		"vendor_customer_profiles", "crm_customer_identity_links", "crm_customer_branch_relations",
+		"crm_customer_order_facts", "crm_consent_projections", "crm_privacy_projections",
+		"crm_privacy_processing_history",
+	}
+
+	for _, version := range []string{"000011_vendor_section8a_crm_permissions", "000010_vendor_crm_foundation"} {
+		if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+			t.Fatalf("rollback %s: %v", version, err)
+		}
+		var tracked bool
+		if err = pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM vendor_service_schema_migrations WHERE version=$1)`, version).Scan(&tracked); err != nil || tracked {
+			t.Fatalf("version %s tracked=%t err=%v", version, tracked, err)
+		}
+	}
+	for _, table := range crmTables {
+		var exists bool
+		if err = pool.QueryRow(ctx, `SELECT to_regclass('public.'||$1) IS NOT NULL`, table).Scan(&exists); err != nil || exists {
+			t.Fatalf("CRM table %s survived rollback exists=%t err=%v", table, exists, err)
+		}
+	}
+	// The inbox fingerprint column is additive and must also be reversible.
+	var fingerprint bool
+	if err = pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='vendor_inbox_processed_events' AND column_name='payload_fingerprint')`).Scan(&fingerprint); err != nil || fingerprint {
+		t.Fatalf("inbox fingerprint survived rollback exists=%t err=%v", fingerprint, err)
+	}
+
+	if err = ApplyMigrations(ctx, pool, "../../migrations"); err != nil {
+		t.Fatalf("reapply Section 8A: %v", err)
+	}
+	for _, table := range crmTables {
+		var exists bool
+		if err = pool.QueryRow(ctx, `SELECT to_regclass('public.'||$1) IS NOT NULL`, table).Scan(&exists); err != nil || !exists {
+			t.Fatalf("reapplied table %s exists=%t err=%v", table, exists, err)
+		}
+	}
+
+	// Exact vocabularies, enforced in SQL.
+	vocabularies := map[string][]string{
+		"vendor_customer_profiles_subject_type_check":     {"CUSTOMER", "GUEST", "EXTERNAL"},
+		"vendor_customer_profiles_status_check":           {"ACTIVE", "ARCHIVED"},
+		"vendor_customer_profiles_privacy_state_check":    {"ACTIVE", "RESTRICTED", "REDACTED", "MERGED"},
+		"vendor_customer_profiles_merge_state_check":      {"NONE", "LINK_PENDING", "MERGED_SOURCE", "MERGED_TARGET"},
+		"crm_consent_projections_decision_check":          {"ALLOW", "DENY", "UNKNOWN"},
+		"crm_privacy_projections_action_check":            {"RESTRICT", "REDACT", "MARKETING_SUPPRESS", "IDENTITY_MERGE"},
+		"crm_privacy_projections_processing_status_check": {"PENDING", "PROCESSING", "APPLIED", "FAILED", "DEAD_LETTER"},
+	}
+	for constraint, values := range vocabularies {
+		var definition string
+		if err = pool.QueryRow(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname=$1`, constraint).Scan(&definition); err != nil {
+			t.Fatalf("read %s: %v", constraint, err)
+		}
+		for _, value := range values {
+			if !strings.Contains(definition, "'"+value+"'") {
+				t.Fatalf("%s does not contain %s: %s", constraint, value, definition)
+			}
+		}
+	}
+
+	// Tenancy: every CRM child reaches its profile through the composite key,
+	// so a child can never point at another business's profile.
+	for _, constraint := range []string{
+		"crm_identity_link_source_fk", "crm_identity_link_target_fk",
+		"crm_branch_relation_profile_fk", "crm_branch_relation_branch_fk",
+		"crm_order_fact_profile_fk", "crm_order_fact_branch_fk",
+		"crm_consent_profile_fk", "crm_privacy_profile_fk",
+	} {
+		var definition string
+		if err = pool.QueryRow(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname=$1`, constraint).Scan(&definition); err != nil {
+			t.Fatalf("read %s: %v", constraint, err)
+		}
+		if !strings.Contains(definition, "business_id") {
+			t.Fatalf("%s is not tenant-composite: %s", constraint, definition)
+		}
+	}
+
+	var permissionCount int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM vendor_permissions WHERE code IN ('vendor.crm.customers.read','vendor.crm.customers.manage','vendor.crm.customer360.read','vendor.crm.consent.read','vendor.crm.privacy.read')`).Scan(&permissionCount); err != nil || permissionCount != 5 {
+		t.Fatalf("Section 8A permissions=%d err=%v", permissionCount, err)
+	}
+	// No override permission may exist for any role, at any time.
+	var overrides int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM vendor_permissions WHERE code IN ('vendor.crm.consent.override','vendor.crm.privacy.override','vendor.crm.identity.force_merge')`).Scan(&overrides); err != nil || overrides != 0 {
+		t.Fatalf("forbidden override permissions=%d err=%v", overrides, err)
+	}
+	// Marketing must never hold privacy read or lifecycle management.
+	var marketingLeak int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM vendor_role_permissions rp JOIN vendor_permissions p ON p.id=rp.permission_id WHERE rp.role_id='role_marketing' AND p.code IN ('vendor.crm.privacy.read','vendor.crm.customers.manage')`).Scan(&marketingLeak); err != nil || marketingLeak != 0 {
+		t.Fatalf("marketing over-granted=%d err=%v", marketingLeak, err)
 	}
 }

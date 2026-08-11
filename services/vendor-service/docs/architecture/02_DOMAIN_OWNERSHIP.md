@@ -25,3 +25,13 @@ Section 6 implements the vendor business aggregate: Business is the tenant root;
 | **Commerce cart/checkout, parent commerce orders, vendor orders, substitutions, promotions** | **`vendor-service`** | New. `internal/features/orders`, `substitutions`, `promotions`. |
 | **Vendor-owned delivery, commerce fulfilment planning** | **`vendor-service`** | New. `internal/features/delivery` (vendor-owned riders only — not a platform provider marketplace), `fulfilment` (orchestrates dispatch/taxi/hauling execution requests; never assigns a platform provider itself). |
 | **Vendor operational reports/projections** | **`vendor-service`** | New. `internal/features/analytics` (vendor's own dashboards) and `finance_projection` (read-model over `payment-wallet-service`'s authoritative allocations — never a competing ledger). |
+
+## Section 8A — CRM relationship ownership
+
+Vendor Service owns the **vendor-local commercial relationship**: the CRM profile lifecycle, commercial summary projections derived from authoritative events, branch/capability relationship projections, acquisition references, the local consent projection, the local privacy projection and its application, the local identity-link/merge projection, the Customer 360 read model, and the CRM audit/outbox/inbox state.
+
+customer-service remains authoritative for canonical customer identity, authentication, canonical profile and names, canonical email and phone, saved addresses, credentials, identity merge decisions, canonical privacy status, and marketing consent wherever that authority comes to live.
+
+The dividing line is deliberate and load-bearing: **Vendor Service must not become a second customer master.** It therefore stores opaque, authority-owned subject references and no canonical contact data of any kind, and does not treat a hash of a customer reference as an anonymised identity — a hash is still a stable identifier.
+
+Financial authority is unaffected. CRM commercial figures are a read-model projection of order facts, not a wallet balance, receivable, settlement or credit line.

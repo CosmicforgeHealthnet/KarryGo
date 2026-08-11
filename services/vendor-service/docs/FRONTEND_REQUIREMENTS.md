@@ -153,3 +153,88 @@ List responses use `data.items` plus `data.pagination {limit, offset, has_more}`
 ## Known dependency: Vendor admin review surface
 
 The six-dimension Verification authority now exists and is integrated. The remaining operator dependency is `admin-backoffice-service`, which is still a scaffold: it has no Vendor review UI/work queue. Clients must display `PENDING_REVIEW` honestly and must not invent a Vendor-side approval control.
+
+## Section 8A — CRM Foundation, Customer 360, Consent and Privacy
+
+### Hard rules for any CRM client
+
+These are not style preferences; the backend enforces each one and will reject or ignore attempts to work around them.
+
+- **Do not submit a customer-service customer id to create a CRM customer.** There is no create-customer route. Relationships come into existence only from an authenticated authority event. A vendor with no integrated commerce authority will legitimately see an empty CRM.
+- **Do not attempt to set consent.** No route exists. Consent is a read-only projection of an external authority. A UI must never present a control that appears to grant marketing permission on a customer's behalf.
+- **Do not attempt to set privacy state, or to un-redact.** No route exists.
+- **Do not attempt to force a merge.** No route exists, and the backend performs no name/phone/email/device similarity matching.
+- **Do not expect canonical customer PII.** CRM returns no email, phone, address or date of birth, and `display_label` is currently always `null`. If human-readable identity is needed, it must come from the customer authority through an approved contract that does not exist yet.
+
+### Routes
+
+All paths are relative to `/api/v1/vendor`. All require a Vendor staff bearer token. Errors use the standard envelope; validation failures are **422**, permission denials **403**, unknown/out-of-scope/redacted relationships **404**, version and state conflicts **409**, and disabled writes **503**.
+
+#### `GET /crm/customers`
+
+- **Permission**: `vendor.crm.customers.read`
+- **Query**: `limit` (1–100, default 50), `offset`, `sort` (`last_completed_order_at` | `completed_order_count` | `net_spend_minor` | `created_at`), `direction` (`asc`|`desc`), `subject_type`, `status`, `privacy_state` (`ACTIVE`|`RESTRICTED` only), `branch_ref`, `capability_type`, `commercial_projection_state`, `acquisition_source_type`, `min_completed_orders`, `max_completed_orders`, `min_net_spend_minor`, `max_net_spend_minor`, `last_order_after`, `last_order_before` (RFC3339).
+- **There is no free-text search parameter**, and no filter over email/phone/address — CRM does not hold those fields. Do not build a search box that implies otherwise.
+- Requesting `privacy_state=REDACTED` is a 422. Filtering by a branch the caller is not authorised for is a 403.
+- **Response**: `{items: [{profile, commercial, marketing_eligibility}], pagination: {limit, offset, has_more}}`.
+
+#### `GET /crm/customers/{profileId}` — Customer 360
+
+- **Permission**: `vendor.crm.customer360.read`
+- **Response blocks**: `profile`, `commercial`, `branches[]`, `capability`, `consent`, `privacy`, `identity_link`, `modules`.
+
+#### `GET /crm/customers/{profileId}/consent`
+
+- **Permission**: `vendor.crm.consent.read`. Read-only.
+
+#### `GET /crm/customers/{profileId}/privacy`
+
+- **Permission**: `vendor.crm.privacy.read`. Read-only.
+
+#### `POST /crm/customers/{profileId}/archive` and `.../restore`
+
+- **Permission**: `vendor.crm.customers.manage`. **Feature flag**: `VENDOR_CRM_WRITES_ENABLED`.
+- **Concurrency**: `expected_version` query parameter or `If-Match` header is **required**. Omitting it is a 422; a wrong value is a 409 — reload and retry with the current `profile.version`.
+- Returns 409 on a redacted or merged relationship. Do not offer these actions for those states.
+- No `Idempotency-Key` is required: both are version-guarded state transitions, and re-issuing the same transition is already a no-op.
+
+### Reading `commercial` correctly — the one thing most likely to be got wrong
+
+`commercial.state` must be read **before** any figure.
+
+- `NOT_AVAILABLE` means no authoritative commercial data has ever been observed. **Every numeric field is absent (`null`/omitted).** Render "No order history yet" — never "₦0" and never "0 orders". Today this is the normal case, because no vendor commerce order publisher exists.
+- `CURRENT` means the figures are trustworthy. `STALE` / `REBUILDING` / `ERROR` mean show the numbers with a freshness caveat.
+- `commercial.stale` is a separate boolean for age within `CURRENT`.
+- **All money is an integer count of minor units** (kobo). Divide by 100 for display; never parse as a float.
+- `commercial.scope` is `BUSINESS` or `BRANCH`. When `BRANCH`, the figures cover **only the branches this user may see** — label them accordingly, never as the customer's total value. `last_order_ref` is omitted in that case because the most recent order may belong to a branch the user cannot see.
+- `recency_days` and `order_frequency_per_year` are absent when there is nothing to derive them from. Do not substitute the profile creation date.
+
+### Reading `consent` correctly
+
+`consent.marketing` is keyed by channel and **always contains every channel** (`EMAIL`, `PUSH`, `IN_APP`, `SMS`). A missing key never means permission.
+
+Each entry has `decision` (`ALLOW`|`DENY`|`UNKNOWN`), `eligible` (boolean), `reason`, `stale`, `observed_at`.
+
+- **`eligible` is the only field that may gate a marketing action.** Do not re-derive it from `decision`: a customer can have a stored `ALLOW` and still be ineligible because of privacy suppression, restriction, staleness or archival.
+- `UNKNOWN` is a real state meaning "we have no decision", not "no". Present it as "No consent on record — cannot contact", never as an opt-out the vendor may reverse.
+- `consent.integration_available: false` means no consent authority is wired; every channel then reads `UNKNOWN`/ineligible. Show this as a system status, not as a property of the customer.
+- Reasons: `CONSENT_ALLOWED`, `CONSENT_DENIED`, `CONSENT_UNKNOWN`, `CONSENT_STALE`, `CONSENT_SOURCE_UNAVAILABLE`, `PRIVACY_REDACTED`, `PRIVACY_RESTRICTED`, `PRIVACY_MARKETING_SUPPRESSED`, `PROFILE_MERGED`, `PROFILE_ARCHIVED`.
+
+### Reading `privacy` correctly
+
+`state` is `ACTIVE` | `RESTRICTED` | `REDACTED` | `MERGED`; plus `marketing_suppressed`, `redacted`, `redacted_at`, `integration_available`, `covered_domains[]`.
+
+- `RESTRICTED`: still readable, not targetable. Disable marketing actions; keep operational history visible.
+- `MERGED`: this relationship is no longer independent. Direct the user to `identity_link.merged_into_profile_ref`. Disable all actions.
+- `REDACTED`: you will not normally encounter this — such relationships return 404 from every read. Handle 404 gracefully rather than assuming a bug.
+- `marketing_suppressed: true` with `state: ACTIVE` is a valid combination: the relationship is intact but not targetable.
+
+### Reading `modules`
+
+Every later CRM package reports `NOT_IMPLEMENTED` in Section 8A: `tags`, `segments`, `interactions`, `tasks`, `loyalty`, `campaigns`, `corporate`, `intelligence`. Do not render an empty tag list or an empty activity feed — that would tell the user "this customer has no tags" when the truth is "tagging does not exist yet". Either omit the section or show it as unavailable. The same applies to `capability.category_affinity` and `capability.item_affinity`.
+
+### Feature flags and retries
+
+- `VENDOR_CRM_ENABLED` off: the routes are **not registered**, so requests return **404**, not 503. A client must not interpret that as "customer not found" at the collection level.
+- `VENDOR_CRM_WRITES_ENABLED` off (or the global commerce kill switch on): reads work, archive/restore return 503. Surface as "temporarily unavailable" and retry later; do not retry automatically in a tight loop.
+- 409 from archive/restore is never retryable as-is — reload the profile and use the fresh `version`.
