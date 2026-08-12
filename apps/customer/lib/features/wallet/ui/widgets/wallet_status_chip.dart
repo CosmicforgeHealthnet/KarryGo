@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../models/wallet_models.dart';
 
 /// Small pill showing a transaction's status, matching the mockup's
@@ -12,9 +13,9 @@ class WalletStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (status) {
-      WalletTxnStatus.pending => (const Color(0xFFFFF4E0), const Color(0xFFB8801F)),
-      WalletTxnStatus.success => (const Color(0xFFEAF8EE), const Color(0xFF1E8E45)),
-      WalletTxnStatus.failed => (const Color(0xFFFDECEC), const Color(0xFFC0392B)),
+      WalletTxnStatus.pending => (const Color(0xFFFCF3D9), const Color(0xFFB8801F)),
+      WalletTxnStatus.success => (CustomerFigmaColors.successSoft, CustomerFigmaColors.success),
+      WalletTxnStatus.failed => (const Color(0xFFF7E4E4), const Color(0xFFA81717)),
     };
 
     return Container(

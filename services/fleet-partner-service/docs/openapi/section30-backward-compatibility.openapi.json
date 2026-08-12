@@ -1,0 +1,76 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "KarryGo Fleet Partner Section 30 Database Migration and Backward Compatibility API", "version": "30.1.0"},
+  "paths": {
+    "/internal/fleet-partner/v1/providers/{providerService}/{providerId}/membership-summary": {
+      "get": {
+        "operationId": "getProviderMembershipSummary",
+        "x-auth-class": "internal-hmac-v2",
+        "x-caller-allowlist-env": "PROVIDER_MEMBERSHIP_ALLOWED_CALLERS",
+        "parameters": [
+          {"name": "providerService", "in": "path", "required": true, "schema": {"type": "string"}, "description": "The owning driver service's own identity string (e.g. driver-hauling-service)."},
+          {"name": "providerId", "in": "path", "required": true, "schema": {"type": "string"}, "description": "The provider identity within providerService."}
+        ],
+        "responses": {
+          "200": {
+            "description": "providerMode is always derived fresh from the authoritative membership row -- never trusted from the caller. Every field beyond providerMode is additive and omitted entirely (not null) when providerMode is INDEPENDENT.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MembershipSummary"}}}
+          },
+          "400": {"description": "Missing providerService or providerId path parameter."},
+          "403": {"description": "Caller not on the PROVIDER_MEMBERSHIP_ALLOWED_CALLERS allowlist."}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MembershipSummary": {
+        "type": "object",
+        "required": ["providerMode"],
+        "properties": {
+          "providerMode": {"type": "string", "enum": ["INDEPENDENT", "ORGANIZATION_MANAGED"]},
+          "organization": {"$ref": "#/components/schemas/OrganizationSummary"},
+          "membership": {"$ref": "#/components/schemas/MembershipSection"},
+          "assignmentPolicy": {"$ref": "#/components/schemas/AssignmentPolicySummary"},
+          "fieldVisibilityPolicy": {"type": "string", "enum": ["ORGANIZATION", "BRANCH"]}
+        }
+      },
+      "OrganizationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "displayName": {"type": "string", "description": "Trading name if set, else legal name -- never both, never internal legal/registration detail."},
+          "status": {"type": "string"},
+          "branch": {"$ref": "#/components/schemas/BranchSummary"}
+        }
+      },
+      "BranchSummary": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "type": {"type": "string"}
+        }
+      },
+      "MembershipSection": {
+        "type": "object",
+        "properties": {
+          "status": {"type": "string", "enum": ["INVITED", "PENDING_PROVIDER_ACCEPTANCE", "PENDING_SETUP", "ACTIVE", "DECLINED", "EXPIRED", "CANCELLED", "SUSPENDED", "ENDING", "REMOVED"]},
+          "role": {"type": "string", "enum": ["EMPLOYEE", "CONTRACTOR", "PARTNER"]},
+          "serviceCategory": {"type": "string", "enum": ["DISPATCH", "TAXI", "HAULING"]}
+        }
+      },
+      "AssignmentPolicySummary": {
+        "type": "object",
+        "properties": {
+          "assignmentMode": {"type": "string", "enum": ["OFFER", "BROADCAST", "DIRECTED_OFFER"]},
+          "providerDeclineRequired": {"type": "boolean", "description": "Always true -- a platform invariant, DB-enforced, never organization-configurable."}
+        }
+      }
+    },
+    "securitySchemes": {
+      "InternalServiceHmac": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 service-to-service auth (shared/go/serviceauth) plus PROVIDER_MEMBERSHIP_ALLOWED_CALLERS."}
+    }
+  },
+  "security": [{"InternalServiceHmac": []}]
+}

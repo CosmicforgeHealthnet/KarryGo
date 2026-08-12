@@ -127,7 +127,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               Text(
                 widget.phone,
                 style: const TextStyle(
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   height: 1.5,
@@ -142,10 +142,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withValues(alpha: 0.08),
+                    color: const Color(0xFF05124D).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: const Color(0xFF4CAF50),
+                      color: const Color(0xFF05124D),
                       width: 1.5,
                     ),
                   ),
@@ -163,7 +163,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       Text(
                         widget.controller.debugOtp!,
                         style: const TextStyle(
-                          color: Color(0xFF4CAF50),
+                          color: Color(0xFF05124D),
                           fontSize: 36,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 8,
@@ -217,7 +217,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: _canResend
-                            ? const Color(0xFF4CAF50)
+                            ? const Color(0xFF05124D)
                             : const Color(0xFFAAAAAA),
                       ),
                     ),
@@ -227,7 +227,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     Text(
                       _timerText,
                       style: const TextStyle(
-                        color: Color(0xFF4CAF50),
+                        color: Color(0xFF05124D),
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -246,9 +246,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           ? _verify
                           : null,
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
+                        backgroundColor: const Color(0xFF05124D),
                         disabledBackgroundColor: const Color(
-                          0xFF4CAF50,
+                          0xFF05124D,
                         ).withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
@@ -410,7 +410,7 @@ class _OtpSlots extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: hasValue || isActive
-                  ? const Color(0xFF4CAF50)
+                  ? const Color(0xFF05124D)
                   : const Color(0xFFE0E0E0),
               width: hasValue || isActive ? 1.5 : 1.0,
             ),

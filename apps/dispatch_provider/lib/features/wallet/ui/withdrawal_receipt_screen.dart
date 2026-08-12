@@ -25,7 +25,7 @@ class WithdrawalReceiptScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1B5E20),
+      backgroundColor: const Color(0xFF05124D),
       body: SafeArea(
         child: Column(
           children: [
@@ -86,7 +86,7 @@ class WithdrawalReceiptScreen extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF4CAF50),
+                            color: Color(0xFF05124D),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -131,7 +131,7 @@ class WithdrawalReceiptScreen extends StatelessWidget {
                                 child: const Icon(
                                   Icons.arrow_back,
                                   size: 20,
-                                  color: Color(0xFF4CAF50),
+                                  color: Color(0xFF05124D),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -179,7 +179,7 @@ class WithdrawalReceiptScreen extends StatelessWidget {
                             height: 52,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4CAF50),
+                              color: const Color(0xFF05124D),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: const Text(
@@ -327,10 +327,10 @@ class _OctagonPainter extends CustomPainter {
     final r = size.width / 2;
 
     // fill
-    final fillPaint = Paint()..color = const Color(0xFFB7E4C7);
+    final fillPaint = Paint()..color = const Color(0xFFC1C5D4);
     // stroke
     final strokePaint = Paint()
-      ..color = const Color(0xFF4CAF50)
+      ..color = const Color(0xFF05124D)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
 

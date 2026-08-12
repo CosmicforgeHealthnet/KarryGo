@@ -55,7 +55,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final imageHeight = size.height * 0.66;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF062E03),
+      backgroundColor: const Color(0xFF020B2E),
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -65,7 +65,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             end: Alignment.topCenter,
             stops: [0.0538, 0.9383],
             colors: [
-              Color(0xFF062E03), // #062E03 at 5.38%
+              Color(0xFF020B2E), // brand navy backdrop at 5.38%
               Color(0x00212121), // rgba(33, 33, 33, 0) at 93.83%
             ],
           ),
@@ -116,9 +116,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             shape: BoxShape.circle,
                             color: isActive
                                 ? const Color(
-                                    0xFF27A747,
-                                  ) // Active indicator #27A747
-                                : const Color(0xFF0D441D),
+                                    0xFF05124D,
+                                  ) // Active indicator
+                                : const Color(0xFF3A3E4D),
                           ),
                         );
                       }),
@@ -168,7 +168,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         child: FilledButton(
                           onPressed: widget.onDone,
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF27A747), // #27A747
+                            backgroundColor: const Color(0xFF05124D),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(27),
                             ),
@@ -198,8 +198,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 onPressed: _next,
                                 style: FilledButton.styleFrom(
                                   backgroundColor: const Color(
-                                    0xFF27A747,
-                                  ), // #27A747
+                                    0xFF05124D,
+                                  ),
                                   shape: const CircleBorder(),
                                   padding: EdgeInsets.zero,
                                 ),

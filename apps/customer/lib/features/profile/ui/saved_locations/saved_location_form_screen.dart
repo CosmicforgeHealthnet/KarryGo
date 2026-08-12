@@ -151,7 +151,7 @@ class _SavedLocationFormScreenState extends State<SavedLocationFormScreen> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child:
-                const Text('Delete', style: TextStyle(color: Color(0xFFE53935))),
+                const Text('Delete', style: TextStyle(color: Color(0xFFA81717))),
           ),
         ],
       ),
@@ -196,11 +196,11 @@ class _SavedLocationFormScreenState extends State<SavedLocationFormScreen> {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFFE53935),
+                                color: Color(0xFFA81717),
                               ),
                             )
                           : const Icon(Icons.delete_outline_rounded,
-                              color: Color(0xFFE53935), size: 22),
+                              color: Color(0xFFA81717), size: 22),
                     )
                   : null,
             ),

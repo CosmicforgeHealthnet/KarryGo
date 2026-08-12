@@ -120,7 +120,7 @@ class _OnlineTogglePill extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
         decoration: BoxDecoration(
           // Green tint when online ("Go Offline"), grey when offline ("Go Online").
-          color: isOnline ? kProviderGreenPale : const Color(0xFFE6E8E6),
+          color: isOnline ? kProviderSuccessTint : const Color(0xFFE6E8E6),
           borderRadius: BorderRadius.circular(30),
           boxShadow: const [
             BoxShadow(color: Color(0x28000000), blurRadius: 10, offset: Offset(0, 3)),
@@ -132,13 +132,13 @@ class _OnlineTogglePill extends StatelessWidget {
             if (isLoading)
               const SizedBox.square(
                 dimension: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: kProviderGreen),
+                child: CircularProgressIndicator(strokeWidth: 2, color: kProviderSuccess),
               )
             else
               Text(
                 isOnline ? 'Go Offline' : 'Go Online',
                 style: TextStyle(
-                  color: isOnline ? kProviderDarkGreen : kProviderMuted,
+                  color: isOnline ? kProviderSuccess : kProviderMuted,
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
                 ),

@@ -239,14 +239,14 @@ class TripDetailScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
+                  color: const Color(0xFFE6E8EE),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
                     const Icon(
                       Icons.check_circle,
-                      color: Color(0xFF4CAF50),
+                      color: Color(0xFF05124D),
                       size: 24,
                     ),
                     const SizedBox(width: 12),
@@ -370,7 +370,7 @@ class _TripTimeline extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isDone || isCurrent
-                            ? const Color(0xFF4CAF50)
+                            ? const Color(0xFF05124D)
                             : const Color(0xFFE0E0E0),
                       ),
                       child: Icon(
@@ -384,7 +384,7 @@ class _TripTimeline extends StatelessWidget {
                         child: Container(
                           width: 2,
                           color: isDone
-                              ? const Color(0xFF4CAF50)
+                              ? const Color(0xFF05124D)
                               : const Color(0xFFE0E0E0),
                         ),
                       ),
@@ -404,7 +404,7 @@ class _TripTimeline extends StatelessWidget {
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: isCurrent
-                              ? const Color(0xFF4CAF50)
+                              ? const Color(0xFF05124D)
                               : isDone
                               ? const Color(0xFF1A1A1A)
                               : const Color(0xFFAAAAAA),
@@ -509,13 +509,13 @@ class _RouteInfo extends StatelessWidget {
                   width: 14,
                   height: 14,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF4CAF50),
+                    color: Color(0xFF05124D),
                     shape: BoxShape.circle,
                   ),
                 ),
                 Expanded(
                   child: Center(
-                    child: Container(width: 2, color: const Color(0xFF4CAF50)),
+                    child: Container(width: 2, color: const Color(0xFF05124D)),
                   ),
                 ),
                 Container(
@@ -524,7 +524,7 @@ class _RouteInfo extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF4CAF50),
+                      color: const Color(0xFF05124D),
                       width: 2.5,
                     ),
                   ),

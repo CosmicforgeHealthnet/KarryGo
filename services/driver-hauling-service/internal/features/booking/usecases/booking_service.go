@@ -2,6 +2,7 @@ package bookingusecases
 
 import (
 	"context"
+	"errors"
 	"math"
 	"sort"
 	"strings"
@@ -47,6 +48,10 @@ type TruckLookup interface {
 	GetTruck(ctx context.Context, truckID string) (TruckInfo, error)
 }
 
+type RestrictionGate interface {
+	Restricted(ctx context.Context, organizationID, subjectType, subjectReference string) (bool, error)
+}
+
 // PaymentClient binds a booking's fare to a payment-wallet-service payment
 // intent. Implemented by an adapter over shared/go/walletclient in cmd wiring;
 // nil in local dev (payment becomes a no-op and bookings settle as before).
@@ -58,10 +63,12 @@ type PaymentClient interface {
 	// returns the intent id and the authorization URL for the checkout WebView.
 	CreateCardIntent(ctx context.Context, in PaymentHoldInput, customerEmail string) (intentID, authorizationURL string, err error)
 	// Settle releases the held funds to the provider on completion.
-	Settle(ctx context.Context, bookingID string) error
+	Settle(ctx context.Context, bookingID string, paymentReference string) error
 	// Refund reverses a charge on cancel/unmatched.
 	Refund(ctx context.Context, paymentIntentID string, amountKobo int64, reason string) error
 }
+
+var ErrPaymentOutcomeUnknown = errors.New("payment authority outcome is unknown")
 
 type PaymentHoldInput struct {
 	BookingID  string
@@ -71,16 +78,18 @@ type PaymentHoldInput struct {
 }
 
 type BookingService struct {
-	bookings       bookingrepo.BookingRepository
-	availability   availabilityrepositories.AvailabilityStore
-	trucks         TruckLookup
-	payments       PaymentClient
-	notifier       *bookingclients.BookingNotifier
-	matchTimeout   time.Duration // per-provider acceptance window
-	searchWindow   time.Duration // total time to keep searching before unmatched
-	maxRadiusKm    float64
-	activeMatches  sync.Map // map[bookingID]*matchHandle
-	handoverSecret []byte
+	bookings          bookingrepo.BookingRepository
+	availability      availabilityrepositories.AvailabilityStore
+	trucks            TruckLookup
+	payments          PaymentClient
+	notifier          *bookingclients.BookingNotifier
+	matchTimeout      time.Duration // per-provider acceptance window
+	searchWindow      time.Duration // total time to keep searching before unmatched
+	maxRadiusKm       float64
+	allowCashPayments bool
+	restrictions      RestrictionGate
+	activeMatches     sync.Map // map[bookingID]*matchHandle
+	handoverSecret    []byte
 }
 
 // matchHandle wraps a context.CancelFunc so it can be stored in sync.Map and
@@ -100,6 +109,8 @@ type Options struct {
 	SearchWindowSeconds int
 	MaxRadiusKm         float64
 	HandoverSecret      []byte // signs/verifies pickup & delivery handover codes
+	AllowCashPayments   bool
+	Restrictions        RestrictionGate
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -118,15 +129,17 @@ func NewBookingService(opts Options) *BookingService {
 		searchWindow = matchTimeout
 	}
 	return &BookingService{
-		bookings:       opts.Bookings,
-		availability:   opts.Availability,
-		trucks:         opts.Trucks,
-		payments:       opts.Payments,
-		notifier:       opts.Notifier,
-		matchTimeout:   matchTimeout,
-		searchWindow:   searchWindow,
-		maxRadiusKm:    radius,
-		handoverSecret: opts.HandoverSecret,
+		bookings:          opts.Bookings,
+		availability:      opts.Availability,
+		trucks:            opts.Trucks,
+		payments:          opts.Payments,
+		notifier:          opts.Notifier,
+		matchTimeout:      matchTimeout,
+		searchWindow:      searchWindow,
+		maxRadiusKm:       radius,
+		allowCashPayments: opts.AllowCashPayments,
+		restrictions:      opts.Restrictions,
+		handoverSecret:    opts.HandoverSecret,
 	}
 }
 
@@ -188,6 +201,13 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	if input.CargoWeightKg <= 0 {
 		fields = append(fields, apperrors.FieldViolation{Field: "cargo_weight_kg", Message: "Cargo weight must be greater than zero."})
 	}
+	// Empty means "any truck" (skips the matcher's type filter). Anything else
+	// must be a real truck type, otherwise the booking would be stored fine and
+	// then silently never match, since matching compares the type verbatim.
+	if truckType := strings.TrimSpace(input.PreferredTruckType); truckType != "" &&
+		!bookingmodels.ValidPreferredTruckTypes[strings.ToLower(truckType)] {
+		fields = append(fields, apperrors.FieldViolation{Field: "preferred_truck_type", Message: "Choose a valid truck type."})
+	}
 	paymentMethod := strings.TrimSpace(input.PaymentMethod)
 	if paymentMethod == "" {
 		paymentMethod = bookingmodels.PaymentMethodWallet
@@ -198,6 +218,8 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		// Card is disabled until the Paystack webhook flips unpaid->held; without
 		// it a card booking can never be accepted (see ensurePaymentSecured).
 		fields = append(fields, apperrors.FieldViolation{Field: "payment_method", Message: "Card payment is coming soon. Choose wallet or cash."})
+	} else if paymentMethod == bookingmodels.PaymentMethodCash && !s.allowCashPayments {
+		fields = append(fields, apperrors.FieldViolation{Field: "payment_method", Message: "Cash payment is not enabled."})
 	}
 	if len(fields) > 0 {
 		return bookingmodels.PublicBooking{}, apperrors.Validation("Please check your booking details.", fields)
@@ -228,7 +250,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		DropoffLat:         input.DropoffLat,
 		DropoffLng:         input.DropoffLng,
 		CargoType:          "",
-		PreferredTruckType: strings.TrimSpace(input.PreferredTruckType),
+		PreferredTruckType: strings.ToLower(strings.TrimSpace(input.PreferredTruckType)),
 		CargoWeightKg:      input.CargoWeightKg,
 		CargoDescription:   strings.TrimSpace(input.CargoDescription),
 		RequiresHelpers:    input.RequiresHelpers,
@@ -540,6 +562,18 @@ func (s *BookingService) eligibleProviders(
 	}
 	var matches []scored
 	for _, p := range providers {
+		if s.restrictions != nil {
+			restricted, err := s.restrictions.Restricted(ctx, "", "PROVIDER", p.ProviderID)
+			if err != nil || restricted {
+				continue
+			}
+			if p.TruckID != "" {
+				restricted, err = s.restrictions.Restricted(ctx, "", "ASSET", p.TruckID)
+				if err != nil || restricted {
+					continue
+				}
+			}
+		}
 		if rejected[p.ProviderID] {
 			continue
 		}
@@ -875,6 +909,15 @@ func (s *BookingService) AcceptBooking(ctx context.Context, id, providerID strin
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot accept this booking.", nil)
 	}
+	if s.restrictions != nil {
+		restricted, gateErr := s.restrictions.Restricted(ctx, "", "PROVIDER", providerID)
+		if gateErr != nil {
+			return bookingmodels.PublicBooking{}, apperrors.Unavailable("Restriction authority is unavailable.", gateErr)
+		}
+		if restricted {
+			return bookingmodels.PublicBooking{}, apperrors.Forbidden("You are temporarily restricted from accepting work.", nil)
+		}
+	}
 
 	// Charge-on-acceptance: secure the fare before the provider starts the trip.
 	// Wallet funds are held now; card must already be paid up-front; cash is
@@ -1068,8 +1111,8 @@ func (s *BookingService) CancelByProvider(ctx context.Context, id, providerID, r
 //     checkout while searching); we accept held/paid, otherwise reject.
 //   - wallet: hold the fare from the customer wallet now.
 //
-// When no payment client is wired (local dev) payment is a no-op so the flow
-// keeps working. A secured payment marks the booking PaymentStatusHeld.
+// A missing payment client fails closed. A secured payment marks the booking
+// PaymentStatusHeld; an unresolved authoritative write remains UNKNOWN.
 func (s *BookingService) ensurePaymentSecured(ctx context.Context, b bookingmodels.Booking) error {
 	switch b.PaymentMethod {
 	case bookingmodels.PaymentMethodCash:
@@ -1079,12 +1122,12 @@ func (s *BookingService) ensurePaymentSecured(ctx context.Context, b bookingmode
 			return nil
 		}
 		if s.payments == nil {
-			return nil // local dev without payment-wallet wired
+			return apperrors.Unavailable("Payment service is not configured.", nil)
 		}
 		return apperrors.BadRequest("The customer hasn't completed card payment yet. This request will reappear once payment clears — try again shortly.", nil)
 	default: // wallet
 		if s.payments == nil {
-			return nil
+			return apperrors.Unavailable("Payment service is not configured.", nil)
 		}
 		if b.PaymentStatus == bookingmodels.PaymentStatusHeld || b.PaymentStatus == bookingmodels.PaymentStatusPaid {
 			return nil
@@ -1104,7 +1147,11 @@ func (s *BookingService) ensurePaymentSecured(ctx context.Context, b bookingmode
 			AmountKobo: fare,
 		})
 		if err != nil {
-			_, _ = s.bookings.SetPayment(ctx, b.ID, bookingmodels.PaymentStatusFailed, "")
+			status := bookingmodels.PaymentStatusFailed
+			if errors.Is(err, ErrPaymentOutcomeUnknown) {
+				status = bookingmodels.PaymentStatusUnknown
+			}
+			_, _ = s.bookings.SetPayment(ctx, b.ID, status, intentID)
 			return apperrors.BadRequest("We couldn't charge your wallet. Check your balance or choose another payment method.", err)
 		}
 		_, _ = s.bookings.SetPayment(ctx, b.ID, bookingmodels.PaymentStatusHeld, intentID)
@@ -1112,22 +1159,27 @@ func (s *BookingService) ensurePaymentSecured(ctx context.Context, b bookingmode
 	}
 }
 
-// settleOnComplete releases held funds to the provider on completion. Cash and
-// no-op (local dev) settlements just mark the booking paid.
+// settleOnComplete releases held funds to the provider on completion. Cash is
+// operationally complete without fabricating PAID; a missing client cannot
+// change the financial state.
 func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string) {
 	b, err := s.bookings.GetByID(ctx, bookingID)
 	if err != nil {
 		return
 	}
 	if b.PaymentMethod == bookingmodels.PaymentMethodCash || s.payments == nil {
-		_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusPaid, "")
 		return
 	}
 	if b.PaymentStatus != bookingmodels.PaymentStatusHeld {
 		return
 	}
-	if err := s.payments.Settle(ctx, bookingID); err != nil {
-		return // leave as held; a later reconciliation/retry can settle
+	reference := ""
+	if b.PaymentIntentID != nil {
+		reference = *b.PaymentIntentID
+	}
+	if err := s.payments.Settle(ctx, bookingID, reference); err != nil {
+		_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusUnknown, reference)
+		return
 	}
 	_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusPaid, "")
 }
@@ -1145,6 +1197,7 @@ func (s *BookingService) refundIfHeld(ctx context.Context, bookingID, reason str
 		return
 	}
 	if err := s.payments.Refund(ctx, *b.PaymentIntentID, fareToCharge(b), reason); err != nil {
+		_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusUnknown, *b.PaymentIntentID)
 		return
 	}
 	_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusUnpaid, "")

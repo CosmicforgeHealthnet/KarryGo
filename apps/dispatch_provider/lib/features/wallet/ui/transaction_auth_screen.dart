@@ -265,7 +265,7 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFF4CAF50),
+                          color: const Color(0xFF05124D),
                           width: 1.5,
                         ),
                       ),
@@ -284,7 +284,7 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
-                    child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                    child: CircularProgressIndicator(color: Color(0xFF05124D)),
                   ),
                 ),
               if (_error != null) ...[
@@ -311,8 +311,8 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: (ready && _isValid && !_submitting)
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFA8D5B5),
+                        ? const Color(0xFF05124D)
+                        : const Color(0xFFC1C5D4),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: _submitting

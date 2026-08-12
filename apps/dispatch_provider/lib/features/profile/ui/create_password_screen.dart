@@ -35,18 +35,18 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   Color _newBorderColor() {
     if (_newPasswordController.text.isEmpty) return const Color(0xFFEEEEEE);
     return _newPasswordValid
-        ? const Color(0xFF4CAF50)
+        ? const Color(0xFF05124D)
         : const Color(0xFFE53935);
   }
 
   Color _confirmBorderColor() {
     if (_confirmPasswordController.text.isEmpty) return const Color(0xFFEEEEEE);
-    if (_confirmMatches) return const Color(0xFF4CAF50);
+    if (_confirmMatches) return const Color(0xFF05124D);
     return const Color(0xFFFFA000);
   }
 
   Color get _requirementsBg =>
-      _newPasswordValid ? const Color(0xFFE8F5E9) : const Color(0xFFFDECEC);
+      _newPasswordValid ? const Color(0xFFE7F5EC) : const Color(0xFFFDECEC);
 
   Color get _requirementsTextColor =>
       _newPasswordValid ? const Color(0xFF2E7D32) : const Color(0xFFE53935);
@@ -162,9 +162,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                 child: FilledButton(
                   onPressed: _canSubmit ? _submit : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor:
-                        const Color(0xFF4CAF50).withValues(alpha: 0.35),
+                        const Color(0xFF05124D).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),

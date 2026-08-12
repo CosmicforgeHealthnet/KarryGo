@@ -119,7 +119,7 @@ class ProviderAvatar extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [kProviderGreen, Color(0xFF1E8F3E)],
+          colors: [kProviderGreen, Color(0xFF020B2E)],
         ),
         shape: BoxShape.circle,
       ),

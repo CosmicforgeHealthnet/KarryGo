@@ -162,7 +162,7 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
               Text(
                 widget.phoneDisplay,
                 style: const TextStyle(
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   height: 1.5,
@@ -211,7 +211,7 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: _canResend
-                            ? const Color(0xFF4CAF50)
+                            ? const Color(0xFF05124D)
                             : const Color(0xFFAAAAAA),
                       ),
                     ),
@@ -221,7 +221,7 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
                     Text(
                       _timerText,
                       style: const TextStyle(
-                        color: Color(0xFF4CAF50),
+                        color: Color(0xFF05124D),
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -238,9 +238,9 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
                     child: FilledButton(
                       onPressed: canContinue && !_isLoading ? _confirm : null,
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
+                        backgroundColor: const Color(0xFF05124D),
                         disabledBackgroundColor: const Color(
-                          0xFF4CAF50,
+                          0xFF05124D,
                         ).withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
@@ -296,7 +296,7 @@ class _OtpSlots extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: hasValue || isActive
-                  ? const Color(0xFF4CAF50)
+                  ? const Color(0xFF05124D)
                   : const Color(0xFFE0E0E0),
               width: hasValue || isActive ? 1.5 : 1.0,
             ),

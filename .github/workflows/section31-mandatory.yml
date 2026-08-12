@@ -1,0 +1,264 @@
+name: Section 31 mandatory acceptance
+
+on:
+  pull_request:
+  push:
+    branches: [staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: section31-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOFLAGS: -buildvcs=false
+  FLEET_PARTNER_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/fleet_partner_test?sslmode=disable
+  # This URL is consumed inside `docker exec`, so it addresses PostgreSQL's
+  # container port and the Fleet source DB (the restore target is created by
+  # the test itself). It is intentionally different from the host-side URL.
+  FLEET_PARTNER_BACKUP_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/fleet_partner_test?sslmode=disable
+  FLEET_PARTNER_TEST_REDIS_ADDR: 127.0.0.1:6379
+  TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/karrygo_test?sslmode=disable
+  DISPATCH_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/dispatch_test?sslmode=disable
+  DISPATCH_AVAILABILITY_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/dispatch_test?sslmode=disable
+  DISPATCH_PROFILE_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/dispatch_test?sslmode=disable
+  DISPATCH_REQUEST_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/dispatch_test?sslmode=disable
+  DISPATCH_TRIP_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/dispatch_test?sslmode=disable
+  DISPATCH_VEHICLE_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/dispatch_test?sslmode=disable
+  DISPATCH_VERIFICATION_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/dispatch_test?sslmode=disable
+  DISPATCH_VERIFICATION_EVENT_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/dispatch_verification_event_test?sslmode=disable
+  HAULING_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/hauling_test?sslmode=disable
+  PAYMENT_WALLET_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/wallet_test?sslmode=disable
+  MEDIA_FILE_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/media_test?sslmode=disable
+  SUPPORT_DISPUTE_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/support_test?sslmode=disable
+  VERIFICATION_COMPLIANCE_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/verification_test?sslmode=disable
+
+jobs:
+  static-and-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: karrygo_test
+          POSTGRES_PASSWORD: karrygo_test
+          POSTGRES_DB: fleet_partner_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U karrygo_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.26.x', cache: true}
+      - name: Go formatting of changed files
+        shell: bash
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$base" ]; then base="${{ github.event.before }}"; fi
+          git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.go' > /tmp/changed-go.txt
+          if [ -s /tmp/changed-go.txt ]; then
+            test -z "$(xargs -r gofmt -l < /tmp/changed-go.txt)"
+          fi
+      - name: Section 31 contract coverage
+        working-directory: services/fleet-partner-service
+        run: go test ./internal/section31contract ./internal/section30contract ./internal/masterreleasecontract -count=1 -p 1 -timeout=600s
+      - name: Build and vet every Go module
+        shell: bash
+        run: |
+          while IFS= read -r module; do
+            directory="$(dirname "$module")"
+            (cd "$directory" && go vet ./... && go build ./...)
+          done < <(git ls-files '**/go.mod' 'go.mod')
+      - name: Reachable Go vulnerability scan
+        shell: bash
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          while IFS= read -r module; do
+            directory="$(dirname "$module")"
+            (cd "$directory" && govulncheck ./...)
+          done < <(git ls-files '**/go.mod' 'go.mod')
+      - run: git diff --check
+
+  fleet-mandatory:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: karrygo_test
+          POSTGRES_PASSWORD: karrygo_test
+          POSTGRES_DB: karrygo_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U karrygo_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.26.x', cache: true}
+      - name: Create isolated PostgreSQL databases
+        shell: bash
+        run: |
+          for db in fleet_partner_test fleet_partner_backup_test dispatch_test dispatch_verification_event_test hauling_test wallet_test media_test support_test verification_test; do
+            PGPASSWORD=karrygo_test createdb -h 127.0.0.1 -U karrygo_test "$db"
+          done
+          echo "FLEET_PARTNER_BACKUP_DOCKER_CONTAINER=$(docker ps --filter ancestor=postgres:16 --format '{{.ID}}' | head -n1)" >> "$GITHUB_ENV"
+      - name: Apply Fleet and Dispatch integration migrations
+        shell: bash
+        run: |
+          (cd services/fleet-partner-service && go run ./cmd/test-migrate)
+          (cd services/driver-dispatch-delivery-service && go run ./cmd/test-migrate)
+      - name: Mandatory Fleet PostgreSQL Redis contracts security failure injection performance and migrations
+        working-directory: services/fleet-partner-service
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -json ./... -count=1 -parallel 4 -p 1 -timeout=1200s \
+            | tee "$RUNNER_TEMP/fleet-test.json" \
+            | go run ./cmd/section31-testgate -allow TestAcceptanceToCanonicalTripDispatchHarness
+      - name: Explicit tenant and security mandatory suite
+        working-directory: services/fleet-partner-service
+        run: go test ./internal/... -run 'TestSQLAlwaysTenantScoped|TestBranchPermittedScopeEnforced|Test.*ObjectAuthorization|TestProviderFacingViews|TestResolveTenant_Revoked|TestServiceCredentialScope|TestRateLimit_Redis' -count=1 -parallel 4 -p 1 -timeout=600s
+      - name: Explicit Redis mandatory suite
+        working-directory: services/fleet-partner-service
+        run: go test ./internal/integration -run 'TestSection26RealRedisTransactionalDedupDeadLetterAndReplay|TestRateLimit_RedisBackedLimiterSharesStateAcrossTwoInstances' -count=1 -parallel 4 -p 1 -timeout=300s
+      - name: Release 1 master coverage and Section 55 mandatory suite (zero skips)
+        working-directory: services/fleet-partner-service
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -json ./internal/masterreleasecontract ./internal/features/integrations ./internal/integration ./internal/app \
+            -run 'TestCoverageMatrix|TestDeferralADR|TestSection71|TestSpecializedCapability|TestSection55|TestDestinationValidator|TestWebhook|TestClientSecrets|TestOrganizationAPI' \
+            -count=1 -parallel 4 -p 1 -timeout=600s \
+            | go run ./cmd/section31-testgate
+      - name: Critical performance smoke profile
+        working-directory: services/fleet-partner-service
+        run: go test ./internal/integration -run 'TestCapacity_' -count=1 -parallel 4 -p 1 -timeout=600s -v
+      - name: Upload safe test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleet-safe-test-output
+          path: ${{ runner.temp }}/fleet-test.json
+          retention-days: 7
+      - name: Container status on failure
+        if: failure()
+        run: docker ps --all --format 'table {{.Image}}\t{{.Status}}\t{{.Ports}}'
+
+  other-go-modules:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: karrygo_test, POSTGRES_PASSWORD: karrygo_test, POSTGRES_DB: karrygo_test}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U karrygo_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - services/admin-backoffice-service
+          - services/analytics-service
+          - services/api-gateway
+          - services/customer-service
+          - services/driver-dispatch-delivery-service
+          - services/driver-hauling-service
+          - services/driver-taxi-service
+          - services/media-file-service
+          - services/notification-service
+          - services/payment-wallet-service
+          - services/support-dispute-service
+          - services/verification-compliance-service
+          - shared/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.26.x', cache: true}
+      - name: Create service databases
+        shell: bash
+        run: |
+          for db in dispatch_test dispatch_verification_event_test hauling_test wallet_test media_test support_test verification_test; do
+            PGPASSWORD=karrygo_test createdb -h 127.0.0.1 -U karrygo_test "$db"
+          done
+      - name: Apply Dispatch integration migrations
+        if: matrix.module == 'services/driver-dispatch-delivery-service'
+        working-directory: services/driver-dispatch-delivery-service
+        run: go run ./cmd/test-migrate
+      - working-directory: ${{ matrix.module }}
+        run: go test ./... -count=1 -p 1 -timeout=600s
+      - working-directory: ${{ matrix.module }}
+        run: go vet ./...
+      - working-directory: ${{ matrix.module }}
+        run: go build ./...
+
+  provider-apps:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [apps/dispatch_provider, apps/truck_provider]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable, cache: true}
+      - working-directory: ${{ matrix.app }}
+        run: flutter pub get
+      - working-directory: ${{ matrix.app }}
+        run: flutter test
+
+  repository-security-scans:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: private-key and provider-token scan
+        shell: bash
+        run: |
+          if git grep -n -I -E -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|sk-proj-[A-Za-z0-9_-]{20,}' -- ':!**/*_test.go' ':!**/testdata/**'; then exit 1; fi
+      - name: untracked-env guard
+        shell: bash
+        run: |
+          findings="$(git ls-files --others --exclude-standard | grep -E '(^|/)\.env($|\.)' | grep -Ev '\.env\.(example|sample|template)$' || true)"
+          if [ -n "$findings" ]; then printf '%s\n' "$findings"; exit 1; fi
+      - name: sensitive-log scan
+        shell: bash
+        run: |
+          findings="$(git grep -n -I -E 'log\.(Print|Printf|Info|Debug).*([Tt]oken|[Pp]assword|[Ss]igned.?[Uu][Rr][Ll])' -- '*.go' ':!**/*_test.go' || true)"
+          unsafe="$(printf '%s\n' "$findings" | grep -Ev 'token_count|not set|no FCM token' || true)"
+          if [ -n "$unsafe" ]; then printf '%s\n' "$unsafe"; exit 1; fi
+      - name: Section 55 credential-storage and logging guard
+        shell: bash
+        run: |
+          test -z "$(grep -E '^[[:space:]]*(secret|previous_secret)[[:space:]]+(text|varchar)' services/fleet-partner-service/migrations/000074_section55_company_integrations.up.sql || true)"
+          test -z "$(grep -RInE '(Printf|Notice|Log).*([Ss]ecret|[Aa]uthorization|[Ss]ignature)' services/fleet-partner-service/internal/features/integrations --include='*.go' --exclude='*_test.go' || true)"
+      - run: git diff --check
+
+  acceptance:
+    if: always()
+    needs: [static-and-contract, fleet-mandatory, other-go-modules, provider-apps, repository-security-scans]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every mandatory gate
+        shell: bash
+        run: |
+          test '${{ needs.static-and-contract.result }}' = success
+          test '${{ needs.fleet-mandatory.result }}' = success
+          test '${{ needs.other-go-modules.result }}' = success
+          test '${{ needs.provider-apps.result }}' = success
+          test '${{ needs.repository-security-scans.result }}' = success

@@ -1,0 +1,46 @@
+{
+  "asyncapi": "2.6.0",
+  "info": {"title":"KarryGo Corporate Logistics Section 55 Integration Events","version":"1.0.0"},
+  "defaultContentType": "application/json",
+  "x-delivery-semantics": "at-least-once",
+  "x-signature": {
+    "algorithm":"HMAC-SHA-256",
+    "header":"X-KarryGo-Webhook-Signature",
+    "timestampHeader":"X-KarryGo-Webhook-Timestamp",
+    "eventIdHeader":"X-KarryGo-Event-Id",
+    "deliveryIdHeader":"X-KarryGo-Delivery-Id",
+    "canonical":"v1 + subscriptionId + deliveryId + eventId + timestamp + SHA-256(raw request body)",
+    "verification":"Compare decoded MAC bytes in constant time and reject timestamps outside FLEET_PARTNER_WEBHOOK_REPLAY_WINDOW. During bounded rotation overlap, each signature component identifies its key version as v1.k<version>."
+  },
+  "channels": {
+    "internal/integration-lifecycle": {
+      "publish": {"message":{"oneOf":[
+        {"$ref":"#/components/messages/ApiClientCreated"},{"$ref":"#/components/messages/ApiClientRotated"},{"$ref":"#/components/messages/ApiClientRevoked"},
+        {"$ref":"#/components/messages/WebhookSubscriptionCreated"},{"$ref":"#/components/messages/WebhookSubscriptionUpdated"},{"$ref":"#/components/messages/WebhookSecretRotated"},
+        {"$ref":"#/components/messages/WebhookDisabled"},{"$ref":"#/components/messages/WebhookDeliverySucceeded"},{"$ref":"#/components/messages/WebhookDeliveryFailed"},{"$ref":"#/components/messages/WebhookDeliveryReplayed"}
+      ]}}
+    },
+    "outbound/organization-webhooks": {
+      "publish": {"summary":"Only registry events with PUBLIC_INTEGRATION visibility may be delivered.","message":{"$ref":"#/components/messages/PublicWebhookEnvelope"}}
+    }
+  },
+  "components": {
+    "schemas": {
+      "LifecyclePayload": {"type":"object","additionalProperties":false,"required":["subjectReference","sourceVersion"],"properties":{"subjectReference":{"type":"string"},"sourceVersion":{"type":"integer","minimum":1},"status":{"type":"string"},"scopes":{"type":"array","items":{"type":"string"}},"eventTypes":{"type":"array","items":{"type":"string"}},"eventId":{"type":"string"},"attempt":{"type":"integer"}}},
+      "PublicWebhookEnvelope": {"type":"object","additionalProperties":false,"required":["eventId","eventType","schemaVersion","organizationId","correlationId","occurredAt","data"],"properties":{"eventId":{"type":"string"},"eventType":{"type":"string"},"schemaVersion":{"type":"integer"},"organizationId":{"type":"string"},"correlationId":{"type":"string"},"occurredAt":{"type":"string","format":"date-time"},"data":{"type":"object"}}}
+    },
+    "messages": {
+      "ApiClientCreated":{"name":"api_client.created.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "ApiClientRotated":{"name":"api_client.rotated.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "ApiClientRevoked":{"name":"api_client.revoked.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "WebhookSubscriptionCreated":{"name":"webhook.subscription_created.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "WebhookSubscriptionUpdated":{"name":"webhook.subscription_updated.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "WebhookSecretRotated":{"name":"webhook.secret_rotated.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "WebhookDisabled":{"name":"webhook.disabled.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "WebhookDeliverySucceeded":{"name":"webhook.delivery_succeeded.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "WebhookDeliveryFailed":{"name":"webhook.delivery_failed.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "WebhookDeliveryReplayed":{"name":"webhook.delivery_replayed.v1","payload":{"$ref":"#/components/schemas/LifecyclePayload"}},
+      "PublicWebhookEnvelope":{"name":"public.webhook.envelope.v1","payload":{"$ref":"#/components/schemas/PublicWebhookEnvelope"}}
+    }
+  }
+}

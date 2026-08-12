@@ -1,0 +1,7 @@
+DROP TRIGGER IF EXISTS trg_fleet_partner_security_events_append_only ON fleet_partner_auth_security_events;
+DROP TABLE IF EXISTS fleet_partner_auth_security_events;
+DROP TRIGGER IF EXISTS trg_fleet_partner_session_history_append_only ON fleet_partner_corporate_session_history;
+DROP TABLE IF EXISTS fleet_partner_corporate_session_history;
+DROP TABLE IF EXISTS fleet_partner_corporate_sessions;
+DROP TABLE IF EXISTS fleet_partner_auth_otp_challenges;
+DROP TABLE IF EXISTS fleet_partner_corporate_identities;

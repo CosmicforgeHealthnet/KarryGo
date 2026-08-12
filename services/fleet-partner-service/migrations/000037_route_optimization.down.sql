@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS fleet_partner_route_optimization_attempts;
+DROP TABLE IF EXISTS fleet_partner_route_optimization_requests;

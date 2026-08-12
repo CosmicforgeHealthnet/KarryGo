@@ -286,22 +286,22 @@ class _QuickActions extends StatelessWidget {
       children: [
         _ActionIcon(
           icon: Icons.account_balance_wallet_rounded,
-          iconColor: const Color(0xFF22A84A),
-          bgColor: const Color(0xFFEAF8EE),
+          iconColor: CustomerFigmaColors.primary,
+          bgColor: CustomerFigmaColors.primaryTint,
           label: 'Fund Wallet',
           onTap: onFund,
         ),
         _ActionIcon(
           icon: Icons.savings_rounded,
-          iconColor: const Color(0xFF22A84A),
-          bgColor: const Color(0xFFEAF8EE),
+          iconColor: CustomerFigmaColors.primary,
+          bgColor: CustomerFigmaColors.primaryTint,
           label: 'Withdraw',
           onTap: onWithdraw,
         ),
         _ActionIcon(
           icon: Icons.receipt_long_rounded,
-          iconColor: const Color(0xFFE53935),
-          bgColor: const Color(0xFFFDECEC),
+          iconColor: const Color(0xFFA81717),
+          bgColor: const Color(0xFFF7E4E4),
           label: 'Dispute',
           onTap: onDispute,
         ),
@@ -460,7 +460,7 @@ class _ErrorView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline_rounded,
-                color: Color(0xFFE53935), size: 40),
+                color: Color(0xFFA81717), size: 40),
             const SizedBox(height: 16),
             Text(error.message,
                 textAlign: TextAlign.center,

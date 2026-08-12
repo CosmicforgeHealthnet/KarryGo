@@ -228,7 +228,7 @@ class _StatusDot extends StatelessWidget {
         'open' => const Color(0xFFF59E0B),
         'under_review' => const Color(0xFF2563EB),
         'resolved' || 'closed' => CustomerFigmaColors.primary,
-        'escalated' => const Color(0xFFE53935),
+        'escalated' => const Color(0xFFA81717),
         _ => CustomerFigmaColors.muted,
       };
 }
@@ -262,7 +262,7 @@ class _StatusBadge extends StatelessWidget {
         'open' => const Color(0xFFF59E0B),
         'under_review' => const Color(0xFF2563EB),
         'resolved' || 'closed' => CustomerFigmaColors.primary,
-        'escalated' => const Color(0xFFE53935),
+        'escalated' => const Color(0xFFA81717),
         _ => CustomerFigmaColors.muted,
       };
 }
@@ -351,7 +351,7 @@ class _ErrorView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline_rounded,
-                color: Color(0xFFE53935), size: 40),
+                color: Color(0xFFA81717), size: 40),
             const SizedBox(height: 16),
             Text(error.message,
                 textAlign: TextAlign.center,

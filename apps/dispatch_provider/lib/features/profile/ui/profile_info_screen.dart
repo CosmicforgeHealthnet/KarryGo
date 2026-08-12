@@ -146,7 +146,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
             height: radius * 2,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: Color(0xFF4CAF50),
+              color: Color(0xFF05124D),
             ),
           ),
         ],
@@ -461,9 +461,9 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       ? (_isDirty && !_isSaving ? _onSave : null)
                       : _startEditing,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor: const Color(
-                      0xFF4CAF50,
+                      0xFF05124D,
                     ).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
@@ -744,7 +744,7 @@ class _PillButton extends StatelessWidget {
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: filled
-              ? const Color(0xFF4CAF50)
+              ? const Color(0xFF05124D)
               : const Color(0xFFEFF7EE),
           foregroundColor: filled ? Colors.white : const Color(0xFFAAAAAA),
           elevation: 0,

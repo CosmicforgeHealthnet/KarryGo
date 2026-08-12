@@ -184,19 +184,19 @@ class CustomerProfileTab extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Row(
               children: const [
-                Icon(Icons.logout_rounded, color: Color(0xFFE53935), size: 22),
+                Icon(Icons.logout_rounded, color: Color(0xFFA81717), size: 22),
                 SizedBox(width: 16),
                 Expanded(
                   child: Text(
                     'Log Out',
                     style: TextStyle(
-                      color: Color(0xFFE53935),
+                      color: Color(0xFFA81717),
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: Color(0xFFE53935), size: 20),
+                Icon(Icons.chevron_right_rounded, color: Color(0xFFA81717), size: 20),
               ],
             ),
           ),
@@ -207,7 +207,7 @@ class CustomerProfileTab extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFFFEE2E2),
+            color: const Color(0xFFF7E4E4),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -219,7 +219,7 @@ class CustomerProfileTab extends StatelessWidget {
                     Text(
                       'Delete Account',
                       style: TextStyle(
-                        color: Color(0xFFB91C1C),
+                        color: Color(0xFF8A1212),
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
                       ),
@@ -227,7 +227,7 @@ class CustomerProfileTab extends StatelessWidget {
                     SizedBox(height: 4),
                     Text(
                       'When you delete your account, you\nlose complete access.',
-                      style: TextStyle(color: Color(0xFFB91C1C), fontSize: 12),
+                      style: TextStyle(color: Color(0xFF8A1212), fontSize: 12),
                     ),
                   ],
                 ),
@@ -236,7 +236,7 @@ class CustomerProfileTab extends StatelessWidget {
               ElevatedButton(
                 onPressed: () => _confirmDeleteAccount(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE53935),
+                  backgroundColor: const Color(0xFFA81717),
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

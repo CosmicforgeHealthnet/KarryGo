@@ -98,7 +98,7 @@ class _LiveChatScreenState extends State<LiveChatScreen> {
                     child: const Text(
                       'Try again',
                       style: TextStyle(
-                        color: Color(0xFF4CAF50),
+                        color: Color(0xFF05124D),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -108,7 +108,7 @@ class _LiveChatScreenState extends State<LiveChatScreen> {
             );
           }
           return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+            child: CircularProgressIndicator(color: Color(0xFF05124D)),
           );
         },
       ),

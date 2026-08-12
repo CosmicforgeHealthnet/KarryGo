@@ -20,6 +20,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *messageusecases.Notificatio
 	protected.POST("/devices", handler.RegisterDevice)
 	protected.POST("/realtime/token", handler.RealtimeToken)
 	protected.GET("/messages", handler.ListMessages)
+	protected.GET("/messages/by-idempotency/:key", handler.GetMessageByIdempotencyKey)
 	protected.GET("/messages/:id", handler.GetMessage)
 
 	group.GET("/ws", handler.WebSocket)

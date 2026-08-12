@@ -181,9 +181,9 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
                       ? _submit
                       : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor:
-                        const Color(0xFF4CAF50).withValues(alpha: 0.35),
+                        const Color(0xFF05124D).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -235,7 +235,7 @@ class _PinDots extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: const Color(0xFF4CAF50),
+              color: const Color(0xFF05124D),
               width: 1.5,
             ),
           ),
@@ -244,7 +244,7 @@ class _PinDots extends StatelessWidget {
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF4CAF50),
+              color: Color(0xFF05124D),
             ),
           ),
         );

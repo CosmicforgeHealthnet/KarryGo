@@ -261,7 +261,7 @@ class _EmptyState extends StatelessWidget {
                         error!.message,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                            color: Color(0xFFC0392B), fontSize: 13),
+                            color: Color(0xFF8A1212), fontSize: 13),
                       ),
                     ],
                   ],

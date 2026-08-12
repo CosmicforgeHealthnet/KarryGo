@@ -259,6 +259,46 @@ class ProviderAuthController extends ChangeNotifier {
     }
   }
 
+  /// Swaps an expired access token for a fresh one using the stored refresh
+  /// token, keeping the provider signed in and on the same screen.
+  ///
+  /// Access tokens last an hour while refresh tokens last 30 days, so a 401
+  /// during a shift is almost always just an aged-out access token — not a
+  /// revoked session. Without this, a provider mid-shift is stuck: going online,
+  /// accepting a request, or advancing a trip all fail with "Your session has
+  /// expired" until the app is restarted.
+  ///
+  /// Returns true when the session was renewed. Returns false when there is
+  /// nothing to refresh with or the refresh was rejected — the caller should
+  /// then surface the original error.
+  Future<bool> tryRefreshSession() async {
+    if (_refreshing != null) return _refreshing!;
+    final saved = _state.session;
+    if (saved == null || saved.refreshToken.isEmpty) return false;
+
+    final future = () async {
+      try {
+        final refreshed = await _api.refreshSession(
+          refreshToken: saved.refreshToken,
+        );
+        await _store.saveSession(refreshed);
+        _emit(_state.copyWith(session: refreshed));
+        return true;
+      } catch (_) {
+        return false;
+      } finally {
+        _refreshing = null;
+      }
+    }();
+    _refreshing = future;
+    return future;
+  }
+
+  /// De-dupes concurrent refreshes: the home controller fires several polls and
+  /// a heartbeat in parallel, so an expiry typically trips multiple calls at
+  /// once and they must share one refresh rather than race.
+  Future<bool>? _refreshing;
+
   // ─── Auth ─────────────────────────────────────────────────────────────────────
 
   Future<void> startAuth({String phone = '', String email = ''}) async {

@@ -39,6 +39,9 @@ type Repository interface {
 
 type PostgresRepository struct {
 	db *pgxpool.Pool
+	// emitter is optional; nil means this repository publishes no events,
+	// which is the behaviour every caller had before the marketplace outbox.
+	emitter EventEmitter
 }
 
 func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
@@ -46,21 +49,55 @@ func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
 }
 
 func (r *PostgresRepository) CreateBroadcast(ctx context.Context, input CreateBroadcastInput) (RequestBroadcast, error) {
-	row := r.db.QueryRow(ctx, `
+	const statement = `
 		INSERT INTO request_broadcasts (
 			booking_id, service_type, broadcast_radius_km, attempt_number,
 			providers_notified, broadcast_at, expires_at, booking_payload
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id::text, booking_id::text, service_type, broadcast_radius_km::float8,
 			attempt_number, providers_notified, status, broadcast_at, expires_at,
-			accepted_by_provider_id::text, booking_payload, created_at, updated_at
-	`, input.BookingID, input.ServiceType, input.RadiusKM, input.Attempt, input.ProvidersNotified,
-		input.BroadcastAt, input.ExpiresAt, input.BookingPayload)
-	broadcast, err := scanBroadcast(row)
-	if isUniqueViolation(err) {
-		return RequestBroadcast{}, apperrors.Conflict("A broadcast already exists for this booking.", err)
+			accepted_by_provider_id::text, booking_payload, created_at, updated_at`
+	args := []any{input.BookingID, input.ServiceType, input.RadiusKM, input.Attempt,
+		input.ProvidersNotified, input.BroadcastAt, input.ExpiresAt, input.BookingPayload}
+
+	if !r.emitting() {
+		broadcast, err := scanBroadcast(r.db.QueryRow(ctx, statement, args...))
+		if isUniqueViolation(err) {
+			return RequestBroadcast{}, apperrors.Conflict("A broadcast already exists for this booking.", err)
+		}
+		return broadcast, err
 	}
-	return broadcast, err
+
+	var broadcast RequestBroadcast
+	err := r.withTx(ctx, func(tx pgx.Tx) error {
+		var scanErr error
+		broadcast, scanErr = scanBroadcast(tx.QueryRow(ctx, statement, args...))
+		if isUniqueViolation(scanErr) {
+			return apperrors.Conflict("A broadcast already exists for this booking.", scanErr)
+		}
+		if scanErr != nil {
+			return scanErr
+		}
+		// The row is inserted with source_version 1; emitting bumps it to 2.
+		// Consumers therefore see this aggregate open at 2 rather than 1. That
+		// is deliberate and harmless — gap detection compares each event
+		// against the version the consumer last stored, never against a fixed
+		// starting number — and it keeps one rule for every emission site
+		// instead of a special case for the first.
+		return r.emitBroadcastEvent(ctx, tx, eventRequestOffered, broadcast.ID, broadcast.BookingID,
+			map[string]any{
+				"status":            string(broadcast.Status),
+				"serviceType":       broadcast.ServiceType,
+				"attemptNumber":     broadcast.AttemptNumber,
+				"broadcastRadiusKm": broadcast.BroadcastRadiusKM,
+				"broadcastAt":       broadcast.BroadcastAt,
+				"expiresAt":         broadcast.ExpiresAt,
+			})
+	})
+	if err != nil {
+		return RequestBroadcast{}, err
+	}
+	return broadcast, nil
 }
 
 func (r *PostgresRepository) GetBroadcastByID(ctx context.Context, broadcastID string) (RequestBroadcast, bool, error) {
@@ -116,30 +153,90 @@ func (r *PostgresRepository) MarkBroadcastAccepted(ctx context.Context, broadcas
 }
 
 func (r *PostgresRepository) MarkBroadcastExpired(ctx context.Context, broadcastID string) error {
-	_, err := r.db.Exec(ctx, `UPDATE request_broadcasts SET status='expired', updated_at=now() WHERE id=$1 AND status='broadcasting'`, broadcastID)
-	return err
+	return r.terminalTransition(ctx, broadcastID, eventRequestExpired,
+		`UPDATE request_broadcasts SET status='expired', updated_at=now()
+		 WHERE id=$1 AND status='broadcasting'
+		 RETURNING booking_id::text`,
+		map[string]any{"status": "expired", "reason": "offer_window_elapsed"})
 }
 
 func (r *PostgresRepository) MarkBroadcastNoProviderFound(ctx context.Context, broadcastID string) error {
-	_, err := r.db.Exec(ctx, `UPDATE request_broadcasts SET status='no_provider_found', updated_at=now() WHERE id=$1 AND status='broadcasting'`, broadcastID)
-	return err
+	// Emitted as expired rather than as a type of its own. To a managing
+	// organization the operational fact is identical — the request is no
+	// longer on offer — and a twelfth event type would oblige every consumer
+	// to learn a distinction that changes nothing they do. The reason field
+	// carries the difference for anyone who needs it.
+	return r.terminalTransition(ctx, broadcastID, eventRequestExpired,
+		`UPDATE request_broadcasts SET status='no_provider_found', updated_at=now()
+		 WHERE id=$1 AND status='broadcasting'
+		 RETURNING booking_id::text`,
+		map[string]any{"status": "no_provider_found", "reason": "no_provider_found"})
 }
 
 func (r *PostgresRepository) CancelBroadcast(ctx context.Context, broadcastID string) error {
-	_, err := r.db.Exec(ctx,
-		`UPDATE request_broadcasts SET status='cancelled', updated_at=now() WHERE id=$1 AND status IN ('broadcasting','expired')`,
-		broadcastID)
-	return err
+	return r.terminalTransition(ctx, broadcastID, eventRequestCancelled,
+		`UPDATE request_broadcasts SET status='cancelled', updated_at=now()
+		 WHERE id=$1 AND status IN ('broadcasting','expired')
+		 RETURNING booking_id::text`,
+		map[string]any{"status": "cancelled"})
+}
+
+// terminalTransition applies a guarded status change and emits its event.
+//
+// The UPDATE is guarded on the current status, so a repeat call affects no
+// rows and publishes nothing. That is what makes these transitions safe to
+// retry: expiry and cancellation both arrive from schedulers that may fire
+// twice, and an event per attempt would have consumers watching one request
+// expire over and over.
+func (r *PostgresRepository) terminalTransition(ctx context.Context, broadcastID string,
+	eventType string, statement string, extra map[string]any) error {
+	if !r.emitting() {
+		_, err := r.db.Exec(ctx, statement, broadcastID)
+		return err
+	}
+	return r.withTx(ctx, func(tx pgx.Tx) error {
+		var bookingID string
+		err := tx.QueryRow(ctx, statement, broadcastID).Scan(&bookingID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // Already terminal: nothing changed, so nothing to announce.
+		}
+		if err != nil {
+			return err
+		}
+		return r.emitBroadcastEvent(ctx, tx, eventType, broadcastID, bookingID, extra)
+	})
 }
 
 func (r *PostgresRepository) UpdateBroadcastAttempt(ctx context.Context, broadcastID string, attempt int, radius float64, providersNotified int, broadcastAt, expiresAt time.Time) error {
-	_, err := r.db.Exec(ctx, `
+	const statement = `
 		UPDATE request_broadcasts
 		SET attempt_number=$2, broadcast_radius_km=$3, providers_notified=providers_notified+$4,
 			broadcast_at=$5, expires_at=$6, updated_at=$5
 		WHERE id=$1 AND status='broadcasting'
-	`, broadcastID, attempt, radius, providersNotified, broadcastAt, expiresAt)
-	return err
+		RETURNING booking_id::text`
+	if !r.emitting() {
+		_, err := r.db.Exec(ctx, statement, broadcastID, attempt, radius, providersNotified,
+			broadcastAt, expiresAt)
+		return err
+	}
+	return r.withTx(ctx, func(tx pgx.Tx) error {
+		var bookingID string
+		err := tx.QueryRow(ctx, statement, broadcastID, attempt, radius, providersNotified,
+			broadcastAt, expiresAt).Scan(&bookingID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return r.emitBroadcastEvent(ctx, tx, eventRequestUpdated, broadcastID, bookingID,
+			map[string]any{
+				"status":            "broadcasting",
+				"attemptNumber":     attempt,
+				"broadcastRadiusKm": radius,
+				"expiresAt":         expiresAt,
+			})
+	})
 }
 
 func (r *PostgresRepository) CreateInboxRows(ctx context.Context, broadcastID, bookingID string, providerIDs []string) ([]ProviderRequestInbox, error) {

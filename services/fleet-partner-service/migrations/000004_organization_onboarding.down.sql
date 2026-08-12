@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS fleet_partner_organization_closure_blockers;
+DROP TABLE IF EXISTS fleet_partner_organization_closure_requests;
+DROP TABLE IF EXISTS fleet_partner_organization_wallet_provisioning;
+DROP TRIGGER IF EXISTS trg_fleet_partner_verification_issues_append_only ON fleet_partner_organization_verification_issues;
+DROP TABLE IF EXISTS fleet_partner_organization_verification_issues;
+DROP TABLE IF EXISTS fleet_partner_organization_verification_requests;
+DROP TABLE IF EXISTS fleet_partner_organization_documents;
+DROP TABLE IF EXISTS fleet_partner_organization_capabilities;
+DROP TABLE IF EXISTS fleet_partner_organization_onboarding_stages;
+DROP TABLE IF EXISTS fleet_partner_organization_authorized_representatives;
+DROP TABLE IF EXISTS fleet_partner_organization_profiles;

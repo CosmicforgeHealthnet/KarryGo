@@ -1,0 +1,48 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title":"KarryGo Corporate Logistics Section 55 Integrations","version":"1.0.0"},
+  "x-feature-flags": [
+    "FLEET_PARTNER_ORGANIZATION_API_CLIENTS_ENABLED",
+    "FLEET_PARTNER_WEBHOOKS_ENABLED",
+    "FLEET_PARTNER_WEBHOOK_DELIVERY_WORKER_ENABLED"
+  ],
+  "paths": {
+    "/fleet-partner/v1/integrations/api-clients": {
+      "get": {"operationId":"listOrganizationApiClients","security":[{"CorporateBearer":[]}],"x-permission":"integrations.read","responses":{"200":{"description":"Secret-free API client metadata"}}},
+      "post": {"operationId":"createOrganizationApiClient","security":[{"CorporateBearer":[]}],"x-permission":"integrations.manage","x-step-up":true,"x-idempotency-key":true,"responses":{"201":{"description":"Credential secret is returned exactly once"},"409":{"$ref":"#/components/responses/Error"}}}
+    },
+    "/fleet-partner/v1/integrations/api-clients/{id}/rotate": {
+      "post": {"operationId":"rotateOrganizationApiClient","security":[{"CorporateBearer":[]}],"x-permission":"integrations.manage","x-step-up":true,"x-idempotency-key":true,"x-expected-version":true,"parameters":[{"$ref":"#/components/parameters/Id"}],"responses":{"200":{"description":"New secret returned once; bounded previous-secret overlap"},"409":{"$ref":"#/components/responses/Error"}}}
+    },
+    "/fleet-partner/v1/integrations/api-clients/{id}/revoke": {
+      "post": {"operationId":"revokeOrganizationApiClient","security":[{"CorporateBearer":[]}],"x-permission":"integrations.manage","x-step-up":true,"x-idempotency-key":true,"x-expected-version":true,"parameters":[{"$ref":"#/components/parameters/Id"}],"responses":{"200":{"description":"Revocation is immediate"},"409":{"$ref":"#/components/responses/Error"}}}
+    },
+    "/fleet-partner/v1/integrations/webhooks": {
+      "get": {"operationId":"listWebhookSubscriptions","security":[{"CorporateBearer":[]}],"x-permission":"integrations.read","responses":{"200":{"description":"Secret-free webhook metadata"}}},
+      "post": {"operationId":"createWebhookSubscription","security":[{"CorporateBearer":[]}],"x-permission":"webhooks.manage","x-step-up":true,"x-idempotency-key":true,"responses":{"201":{"description":"Webhook secret returned exactly once"},"400":{"$ref":"#/components/responses/Error"}}}
+    },
+    "/fleet-partner/v1/integrations/webhooks/{id}": {
+      "patch": {"operationId":"updateWebhookSubscription","security":[{"CorporateBearer":[]}],"x-permission":"webhooks.manage","x-step-up":true,"x-idempotency-key":true,"x-expected-version":true,"parameters":[{"$ref":"#/components/parameters/Id"}],"responses":{"200":{"description":"Updated SSRF-revalidated subscription"},"409":{"$ref":"#/components/responses/Error"}}}
+    },
+    "/fleet-partner/v1/integrations/webhooks/{id}/rotate-secret": {
+      "post": {"operationId":"rotateWebhookSecret","security":[{"CorporateBearer":[]}],"x-permission":"webhooks.manage","x-step-up":true,"x-idempotency-key":true,"x-expected-version":true,"parameters":[{"$ref":"#/components/parameters/Id"}],"responses":{"200":{"description":"New independent webhook secret returned once"},"409":{"$ref":"#/components/responses/Error"}}}
+    },
+    "/fleet-partner/v1/integrations/webhooks/{id}/deliveries": {
+      "get": {"operationId":"listWebhookDeliveries","security":[{"CorporateBearer":[]}],"x-permission":"integrations.read","parameters":[{"$ref":"#/components/parameters/Id"}],"responses":{"200":{"description":"Redacted delivery history; request bodies and secrets are excluded"}}}
+    },
+    "/fleet-partner/v1/integrations/webhook-deliveries/{id}/replay": {
+      "post": {"operationId":"replayWebhookDelivery","security":[{"CorporateBearer":[]}],"x-permission":"webhooks.manage","x-step-up":true,"x-idempotency-key":true,"parameters":[{"$ref":"#/components/parameters/Id"}],"responses":{"201":{"description":"Controlled new attempt preserving the original history"},"404":{"$ref":"#/components/responses/Error"}}}
+    },
+    "/fleet-partner/integrations/v1/context": {
+      "get": {"operationId":"getOrganizationIntegrationContext","security":[{"OrganizationClientBasic":[]}],"x-required-scope":"integration.context.read","responses":{"200":{"description":"Credential-derived organization context"},"401":{"$ref":"#/components/responses/Error"},"403":{"$ref":"#/components/responses/Error"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CorporateBearer": {"type":"http","scheme":"bearer","bearerFormat":"JWT"},
+      "OrganizationClientBasic": {"type":"http","scheme":"basic","description":"Opaque organization client ID and one-time-issued secret; distinct from user JWT, provider JWT, service HMAC, and Partner API credentials."}
+    },
+    "parameters": {"Id":{"name":"id","in":"path","required":true,"schema":{"type":"string"}}},
+    "responses": {"Error":{"description":"Structured, safe error envelope without SQL, stack, URL credentials, or secret material."}}
+  }
+}

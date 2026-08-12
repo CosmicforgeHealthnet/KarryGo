@@ -6,16 +6,133 @@ class ProviderSession {
     required this.accessToken,
     required this.refreshToken,
     required this.provider,
+    this.providerMode = ProviderMode.independent,
+    this.organization,
+    this.membership,
+    this.assignmentPolicy,
+    this.fieldVisibilityPolicy,
   });
 
   final String accessToken;
   final String refreshToken;
   final TruckProvider provider;
+  final ProviderMode providerMode;
+  final ProviderOrganizationSummary? organization;
+  final ProviderMembershipSummary? membership;
+  final ProviderAssignmentPolicy? assignmentPolicy;
+  final String? fieldVisibilityPolicy;
 
   factory ProviderSession.fromJson(Map<String, dynamic> j) => ProviderSession(
-        accessToken: j['access_token'] as String,
-        refreshToken: j['refresh_token'] as String,
-        provider: TruckProvider.fromJson(j['provider'] as Map<String, dynamic>),
+    accessToken: j['access_token'] as String,
+    refreshToken: j['refresh_token'] as String,
+    provider: TruckProvider.fromJson(j['provider'] as Map<String, dynamic>),
+    providerMode: ProviderMode.fromWire(j['providerMode'] as String?),
+    organization: j['organization'] is Map<String, dynamic>
+        ? ProviderOrganizationSummary.fromJson(
+            j['organization'] as Map<String, dynamic>,
+          )
+        : null,
+    membership: j['membership'] is Map<String, dynamic>
+        ? ProviderMembershipSummary.fromJson(
+            j['membership'] as Map<String, dynamic>,
+          )
+        : null,
+    assignmentPolicy: j['assignmentPolicy'] is Map<String, dynamic>
+        ? ProviderAssignmentPolicy.fromJson(
+            j['assignmentPolicy'] as Map<String, dynamic>,
+          )
+        : null,
+    fieldVisibilityPolicy: j['fieldVisibilityPolicy'] as String?,
+  );
+}
+
+enum ProviderMode {
+  independent,
+  organizationManaged;
+
+  static ProviderMode fromWire(String? value) => value == 'ORGANIZATION_MANAGED'
+      ? ProviderMode.organizationManaged
+      : ProviderMode.independent;
+}
+
+@immutable
+class ProviderOrganizationSummary {
+  const ProviderOrganizationSummary({
+    required this.id,
+    required this.displayName,
+    required this.status,
+    this.branch,
+  });
+
+  final String id;
+  final String displayName;
+  final String status;
+  final ProviderBranchSummary? branch;
+
+  factory ProviderOrganizationSummary.fromJson(Map<String, dynamic> j) =>
+      ProviderOrganizationSummary(
+        id: j['id'] as String? ?? '',
+        displayName: j['displayName'] as String? ?? '',
+        status: j['status'] as String? ?? '',
+        branch: j['branch'] is Map<String, dynamic>
+            ? ProviderBranchSummary.fromJson(
+                j['branch'] as Map<String, dynamic>,
+              )
+            : null,
+      );
+}
+
+@immutable
+class ProviderBranchSummary {
+  const ProviderBranchSummary({
+    required this.id,
+    required this.name,
+    required this.type,
+  });
+  final String id;
+  final String name;
+  final String type;
+
+  factory ProviderBranchSummary.fromJson(Map<String, dynamic> j) =>
+      ProviderBranchSummary(
+        id: j['id'] as String? ?? '',
+        name: j['name'] as String? ?? '',
+        type: j['type'] as String? ?? '',
+      );
+}
+
+@immutable
+class ProviderMembershipSummary {
+  const ProviderMembershipSummary({
+    required this.status,
+    required this.role,
+    required this.serviceCategory,
+  });
+  final String status;
+  final String role;
+  final String serviceCategory;
+
+  factory ProviderMembershipSummary.fromJson(Map<String, dynamic> j) =>
+      ProviderMembershipSummary(
+        status: j['status'] as String? ?? '',
+        role: j['role'] as String? ?? '',
+        serviceCategory: j['serviceCategory'] as String? ?? '',
+      );
+}
+
+@immutable
+class ProviderAssignmentPolicy {
+  const ProviderAssignmentPolicy({
+    required this.assignmentMode,
+    required this.providerDeclineRequired,
+  });
+  final String assignmentMode;
+  final bool providerDeclineRequired;
+
+  factory ProviderAssignmentPolicy.fromJson(Map<String, dynamic> j) =>
+      ProviderAssignmentPolicy(
+        assignmentMode: j['assignmentMode'] as String? ?? '',
+        providerDeclineRequired: j['providerDeclineRequired'] as bool? ?? true,
       );
 }
 
@@ -170,54 +287,63 @@ class TruckProvider {
       guarantorName: guarantorName ?? this.guarantorName,
       guarantorPhone: guarantorPhone ?? this.guarantorPhone,
       emergencyContactName: emergencyContactName ?? this.emergencyContactName,
-      emergencyContactPhone: emergencyContactPhone ?? this.emergencyContactPhone,
-      emergencyContactRelationship: emergencyContactRelationship ?? this.emergencyContactRelationship,
+      emergencyContactPhone:
+          emergencyContactPhone ?? this.emergencyContactPhone,
+      emergencyContactRelationship:
+          emergencyContactRelationship ?? this.emergencyContactRelationship,
       createdAt: createdAt ?? this.createdAt,
     );
   }
 
   factory TruckProvider.fromJson(Map<String, dynamic> j) => TruckProvider(
-        id: j['id'] as String,
-        phone: j['phone'] as String? ?? '',
-        onboardingStatus: j['onboarding_status'] as String? ?? 'profile_required',
-        firstName: j['first_name'] as String? ?? '',
-        lastName: j['last_name'] as String? ?? '',
-        email: j['email'] as String? ?? '',
-        profilePhotoUrl: j['profile_photo_url'] as String?,
-        rating: (j['rating'] as num? ?? 0).toDouble(),
-        totalTrips: (j['total_trips'] as num? ?? 0).toInt(),
-        locationState: j['location_state'] as String? ?? '',
-        locationCity: j['location_city'] as String? ?? '',
-        language: j['language'] as String? ?? '',
-        serviceType: j['service_type'] as String? ?? '',
-        operationMode: j['operation_mode'] as String? ?? '',
-        driverLicenseNumber: j['driver_license_number'] as String? ?? '',
-        licenseExpiryYear: j['license_expiry_year'] as String? ?? '',
-        licenseExpiryDate: j['license_expiry_date'] as String? ?? '',
-        govIdUrl: j['gov_id_url'] as String? ?? '',
-        driverLicenseUrl: j['driver_license_url'] as String? ?? '',
-        vehicleRegUrl: j['vehicle_reg_url'] as String? ?? '',
-        guarantorName: j['guarantor_name'] as String? ?? '',
-        guarantorPhone: j['guarantor_phone'] as String? ?? '',
-        emergencyContactName: j['emergency_contact_name'] as String? ?? '',
-        emergencyContactPhone: j['emergency_contact_phone'] as String? ?? '',
-        emergencyContactRelationship: j['emergency_contact_relationship'] as String? ?? '',
-        createdAt: j['created_at'] != null ? DateTime.tryParse(j['created_at'] as String) : null,
-      );
+    id: j['id'] as String,
+    phone: j['phone'] as String? ?? '',
+    onboardingStatus: j['onboarding_status'] as String? ?? 'profile_required',
+    firstName: j['first_name'] as String? ?? '',
+    lastName: j['last_name'] as String? ?? '',
+    email: j['email'] as String? ?? '',
+    profilePhotoUrl: j['profile_photo_url'] as String?,
+    rating: (j['rating'] as num? ?? 0).toDouble(),
+    totalTrips: (j['total_trips'] as num? ?? 0).toInt(),
+    locationState: j['location_state'] as String? ?? '',
+    locationCity: j['location_city'] as String? ?? '',
+    language: j['language'] as String? ?? '',
+    serviceType: j['service_type'] as String? ?? '',
+    operationMode: j['operation_mode'] as String? ?? '',
+    driverLicenseNumber: j['driver_license_number'] as String? ?? '',
+    licenseExpiryYear: j['license_expiry_year'] as String? ?? '',
+    licenseExpiryDate: j['license_expiry_date'] as String? ?? '',
+    govIdUrl: j['gov_id_url'] as String? ?? '',
+    driverLicenseUrl: j['driver_license_url'] as String? ?? '',
+    vehicleRegUrl: j['vehicle_reg_url'] as String? ?? '',
+    guarantorName: j['guarantor_name'] as String? ?? '',
+    guarantorPhone: j['guarantor_phone'] as String? ?? '',
+    emergencyContactName: j['emergency_contact_name'] as String? ?? '',
+    emergencyContactPhone: j['emergency_contact_phone'] as String? ?? '',
+    emergencyContactRelationship:
+        j['emergency_contact_relationship'] as String? ?? '',
+    createdAt: j['created_at'] != null
+        ? DateTime.tryParse(j['created_at'] as String)
+        : null,
+  );
 }
 
 @immutable
 class OtpChallenge {
-  const OtpChallenge({required this.challengeId, this.expiresIn = 300, this.debugOtp});
+  const OtpChallenge({
+    required this.challengeId,
+    this.expiresIn = 300,
+    this.debugOtp,
+  });
   final String challengeId;
   final int expiresIn;
   final String? debugOtp;
 
   factory OtpChallenge.fromJson(Map<String, dynamic> j) => OtpChallenge(
-        challengeId: j['challenge_id'] as String,
-        expiresIn: (j['expires_in'] as num? ?? 300).toInt(),
-        debugOtp: j['debug_otp'] as String?,
-      );
+    challengeId: j['challenge_id'] as String,
+    expiresIn: (j['expires_in'] as num? ?? 300).toInt(),
+    debugOtp: j['debug_otp'] as String?,
+  );
 }
 
 // Truck model (for assign-truck screen, listings, and the Truck Information screens)
@@ -260,41 +386,43 @@ class ProviderTruck {
   String get displayType => truckTypeLabel(truckType);
 
   factory ProviderTruck.fromJson(Map<String, dynamic> j) => ProviderTruck(
-        id: j['id'] as String,
-        truckType: j['truck_type'] as String? ?? '',
-        capacityKg: (j['capacity_kg'] as num? ?? 0).toInt(),
-        plateNumber: j['plate_number'] as String? ?? '',
-        status: j['status'] as String? ?? 'active',
-        year: (j['year'] as num?)?.toInt(),
-        make: j['make'] as String? ?? '',
-        model: j['model'] as String? ?? '',
-        color: j['color'] as String? ?? '',
-        licenseType: j['license_type'] as String? ?? '',
-        numberOfAxles: j['number_of_axles'] as String? ?? '',
-        yearsOfExperience: j['years_of_experience'] as String? ?? '',
-        goodsTypes: (j['goods_types'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-        hasInsurance: j['has_insurance'] as bool? ?? false,
-      );
+    id: j['id'] as String,
+    truckType: j['truck_type'] as String? ?? '',
+    capacityKg: (j['capacity_kg'] as num? ?? 0).toInt(),
+    plateNumber: j['plate_number'] as String? ?? '',
+    status: j['status'] as String? ?? 'active',
+    year: (j['year'] as num?)?.toInt(),
+    make: j['make'] as String? ?? '',
+    model: j['model'] as String? ?? '',
+    color: j['color'] as String? ?? '',
+    licenseType: j['license_type'] as String? ?? '',
+    numberOfAxles: j['number_of_axles'] as String? ?? '',
+    yearsOfExperience: j['years_of_experience'] as String? ?? '',
+    goodsTypes:
+        (j['goods_types'] as List?)?.map((e) => e.toString()).toList() ??
+        const [],
+    hasInsurance: j['has_insurance'] as bool? ?? false,
+  );
 }
 
 /// Truck-type slug → display label. Covers the original seeded slugs plus the
 /// options in the Truck Information form ("Select Truck Type").
 String truckTypeLabel(String slug) => switch (slug) {
-      'flatbed' => 'Flatbed Truck',
-      'container' => 'Container',
-      'tipper' => 'Tipper',
-      'van' => 'Van',
-      'refrigerated' => 'Refrigerated Truck',
-      'pickup' => 'Pickup Truck',
-      'box' => 'Box Truck',
-      'tanker' => 'Tanker',
-      'trailer' => 'Trailer (Articulated Truck)',
-      'dump' => 'Dump Truck',
-      'lowbed' => 'Lowbed Truck',
-      'crane' => 'Crane Truck',
-      'other' => 'Other',
-      _ => slug.isEmpty ? '' : slug,
-    };
+  'flatbed' => 'Flatbed Truck',
+  'container' => 'Container',
+  'tipper' => 'Tipper',
+  'van' => 'Van',
+  'refrigerated' => 'Refrigerated Truck',
+  'pickup' => 'Pickup Truck',
+  'box' => 'Box Truck',
+  'tanker' => 'Tanker',
+  'trailer' => 'Trailer (Articulated Truck)',
+  'dump' => 'Dump Truck',
+  'lowbed' => 'Lowbed Truck',
+  'crane' => 'Crane Truck',
+  'other' => 'Other',
+  _ => slug.isEmpty ? '' : slug,
+};
 
 /// Truck-type options for the Truck Information form, matching the Figma
 /// "Select Truck Type" dropdown. Value is the slug stored by the backend.
@@ -372,37 +500,39 @@ class ProviderBooking {
   double get fareEstimateNaira => (fareEstimateKobo ?? 0) / 100;
 
   // Short display reference (first 8 chars of UUID)
-  String get shortId => id.length >= 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();
+  String get shortId =>
+      id.length >= 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();
 
   // Headline person name — the package receiver, or a fallback.
-  String get displayName => receiverName.trim().isEmpty ? 'Customer' : receiverName.trim();
+  String get displayName =>
+      receiverName.trim().isEmpty ? 'Customer' : receiverName.trim();
 
   factory ProviderBooking.fromJson(Map<String, dynamic> j) => ProviderBooking(
-        id: j['id'] as String,
-        pickupAddress: j['pickup_address'] as String,
-        pickupLat: (j['pickup_lat'] as num).toDouble(),
-        pickupLng: (j['pickup_lng'] as num).toDouble(),
-        dropoffAddress: j['dropoff_address'] as String,
-        dropoffLat: (j['dropoff_lat'] as num).toDouble(),
-        dropoffLng: (j['dropoff_lng'] as num).toDouble(),
-        cargoType: j['cargo_type'] as String,
-        cargoWeightKg: (j['cargo_weight_kg'] as num).toInt(),
-        cargoDescription: j['cargo_description'] as String? ?? '',
-        requiresHelpers: j['requires_helpers'] as bool? ?? false,
-        helperCount: (j['helper_count'] as num? ?? 0).toInt(),
-        distanceKm: (j['distance_km'] as num?)?.toDouble(),
-        fareEstimateKobo: (j['fare_estimate_kobo'] as num?)?.toInt(),
-        fareFinalKobo: (j['fare_final_kobo'] as num?)?.toInt(),
-        receiverName: j['receiver_name'] as String? ?? '',
-        receiverPhone: j['receiver_phone'] as String? ?? '',
-        packageContent: j['package_content'] as String? ?? '',
-        weightCategory: j['weight_category'] as String? ?? '',
-        packageSize: j['package_size'] as String? ?? '',
-        preferredTruckType: j['preferred_truck_type'] as String? ?? '',
-        isFragile: j['is_fragile'] as bool? ?? false,
-        status: j['status'] as String,
-        createdAt: DateTime.parse(j['created_at'] as String),
-      );
+    id: j['id'] as String,
+    pickupAddress: j['pickup_address'] as String,
+    pickupLat: (j['pickup_lat'] as num).toDouble(),
+    pickupLng: (j['pickup_lng'] as num).toDouble(),
+    dropoffAddress: j['dropoff_address'] as String,
+    dropoffLat: (j['dropoff_lat'] as num).toDouble(),
+    dropoffLng: (j['dropoff_lng'] as num).toDouble(),
+    cargoType: j['cargo_type'] as String,
+    cargoWeightKg: (j['cargo_weight_kg'] as num).toInt(),
+    cargoDescription: j['cargo_description'] as String? ?? '',
+    requiresHelpers: j['requires_helpers'] as bool? ?? false,
+    helperCount: (j['helper_count'] as num? ?? 0).toInt(),
+    distanceKm: (j['distance_km'] as num?)?.toDouble(),
+    fareEstimateKobo: (j['fare_estimate_kobo'] as num?)?.toInt(),
+    fareFinalKobo: (j['fare_final_kobo'] as num?)?.toInt(),
+    receiverName: j['receiver_name'] as String? ?? '',
+    receiverPhone: j['receiver_phone'] as String? ?? '',
+    packageContent: j['package_content'] as String? ?? '',
+    weightCategory: j['weight_category'] as String? ?? '',
+    packageSize: j['package_size'] as String? ?? '',
+    preferredTruckType: j['preferred_truck_type'] as String? ?? '',
+    isFragile: j['is_fragile'] as bool? ?? false,
+    status: j['status'] as String,
+    createdAt: DateTime.parse(j['created_at'] as String),
+  );
 }
 
 /// The driver's own pickup handover credential — displayed on this app and

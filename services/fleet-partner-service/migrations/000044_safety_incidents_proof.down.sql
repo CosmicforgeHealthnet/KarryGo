@@ -1,0 +1,16 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('safety.read','safety.report','safety.manage','incidents.read','incidents.manage','incidents.attach_evidence','incidents.verify_actions','proof.read','proof.manage_policies','proof.record','proof.verify');
+DELETE FROM fleet_partner_permissions WHERE code IN('safety.read','safety.report','safety.manage','incidents.read','incidents.manage','incidents.attach_evidence','incidents.verify_actions','proof.read','proof.manage_policies','proof.record','proof.verify');
+DROP TRIGGER IF EXISTS trg_fleet_proof_verifications_append_only ON fleet_partner_proof_verifications;
+DROP TABLE IF EXISTS fleet_partner_proof_verifications;
+DROP TRIGGER IF EXISTS trg_fleet_proof_records_append_only ON fleet_partner_proof_records;
+DROP TABLE IF EXISTS fleet_partner_proof_records;
+DROP TRIGGER IF EXISTS trg_fleet_proof_policy_versions_append_only ON fleet_partner_proof_policy_versions;
+DROP TABLE IF EXISTS fleet_partner_proof_policy_versions;
+DROP TABLE IF EXISTS fleet_partner_proof_policies;
+DROP TABLE IF EXISTS fleet_partner_corrective_actions;
+DROP TRIGGER IF EXISTS trg_fleet_incident_evidence_append_only ON fleet_partner_incident_evidence;
+DROP TABLE IF EXISTS fleet_partner_incident_evidence;
+DROP TRIGGER IF EXISTS trg_fleet_incident_history_append_only ON fleet_partner_incident_history;
+DROP TABLE IF EXISTS fleet_partner_incident_history;
+DROP TABLE IF EXISTS fleet_partner_incidents;
+DROP TABLE IF EXISTS fleet_partner_safety_reports;

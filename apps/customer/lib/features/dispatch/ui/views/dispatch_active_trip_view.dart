@@ -409,7 +409,7 @@ class _TripActionCircles extends StatelessWidget {
         ),
         _ActionCircle(
           icon: Icons.power_settings_new,
-          iconColor: const Color(0xFFE03131),
+          iconColor: const Color(0xFFA81717),
           label: 'SOS',
           onTap: onSos,
         ),

@@ -84,7 +84,7 @@ class _PaymentsWithdrawalsScreenState
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
+                      color: const Color(0xFF05124D),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: const Text(
@@ -187,11 +187,11 @@ class _PaymentsWithdrawalsScreenState
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: const Color(0xFF4CAF50),
+                                      color: const Color(0xFF05124D),
                                       width: 1.5,
                                     ),
                                     color: isDefault
-                                        ? const Color(0xFF4CAF50)
+                                        ? const Color(0xFF05124D)
                                         : Colors.transparent,
                                   ),
                                   child: isDefault
@@ -445,9 +445,9 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                 child: FilledButton(
                   onPressed: _canSave ? _onSave : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor:
-                        const Color(0xFF4CAF50).withValues(alpha: 0.35),
+                        const Color(0xFF05124D).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),

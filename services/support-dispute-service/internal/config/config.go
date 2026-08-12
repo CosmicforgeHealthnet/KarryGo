@@ -52,7 +52,7 @@ func Load() Config {
 		HaulingProviderTokenSecret:  getEnv("SUPPORT_DISPUTE_HAULING_PROVIDER_TOKEN_SECRET", "development-hauling-provider-token-secret"),
 		TaxiProviderTokenSecret:     getEnv("SUPPORT_DISPUTE_TAXI_PROVIDER_TOKEN_SECRET", "development-taxi-provider-token-secret"),
 		DispatchProviderTokenSecret: getEnv("SUPPORT_DISPUTE_DISPATCH_PROVIDER_TOKEN_SECRET", "development-dispatch-access-token-secret"),
-		ServiceSecrets:              getEnv("SUPPORT_DISPUTE_SERVICE_SECRETS", "customer-service=development-support-dispute-service-secret,taxi-service=development-support-dispute-service-secret,dispatch-delivery-service=development-support-dispute-service-secret,hauling-service=development-support-dispute-service-secret,admin-backoffice-service=development-support-dispute-service-secret"),
+		ServiceSecrets:              getEnv("SUPPORT_DISPUTE_SERVICE_SECRETS", "customer-service=development-support-dispute-service-secret,taxi-service=development-support-dispute-service-secret,dispatch-delivery-service=development-support-dispute-service-secret,hauling-service=development-support-dispute-service-secret,admin-backoffice-service=development-support-dispute-service-secret,fleet-partner-service=development-support-dispute-service-secret"),
 
 		// Bare origins only. Empty = feature disabled.
 		NotificationURL:    getEnv("SUPPORT_DISPUTE_NOTIFICATION_URL", ""),

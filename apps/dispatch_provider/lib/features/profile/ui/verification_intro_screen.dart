@@ -209,7 +209,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen> {
             if (_isLoading)
               const Expanded(
                 child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                  child: CircularProgressIndicator(color: Color(0xFF05124D)),
                 ),
               )
             else if (_loadError != null)
@@ -226,7 +226,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen> {
                     return const Expanded(
                       child: Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFF4CAF50),
+                          color: Color(0xFF05124D),
                         ),
                       ),
                     );
@@ -493,8 +493,8 @@ class _BottomCta extends StatelessWidget {
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF4CAF50),
-          disabledBackgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.35),
+          backgroundColor: const Color(0xFF05124D),
+          disabledBackgroundColor: const Color(0xFF05124D).withValues(alpha: 0.35),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(999),
           ),
@@ -524,7 +524,7 @@ class _OverallStatusBanner extends StatelessWidget {
     final (label, bg, fg, icon) = switch (overallStatus) {
       'verified' => (
         'All steps verified',
-        const Color(0xFFE8F5E9),
+        const Color(0xFFE7F5EC),
         const Color(0xFF2E7D32),
         Icons.verified_outlined,
       ),
@@ -673,7 +673,7 @@ class _StepCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isRejected
                         ? const Color(0xFFC62828)
-                        : const Color(0xFF4CAF50),
+                        : const Color(0xFF05124D),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(

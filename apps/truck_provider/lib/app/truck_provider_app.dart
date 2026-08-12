@@ -43,7 +43,8 @@ class TruckProviderApp extends StatefulWidget {
   State<TruckProviderApp> createState() => _TruckProviderAppState();
 }
 
-class _TruckProviderAppState extends State<TruckProviderApp> {
+class _TruckProviderAppState extends State<TruckProviderApp>
+    with WidgetsBindingObserver {
   late final ProviderAuthController _authController;
   late final ProviderHomeController _homeController;
   late final ProviderProfileController _profileController;
@@ -162,12 +163,26 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
       );
     });
 
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _authController.initialize();
       if (_authController.state.status == ProviderAuthStatus.authenticated) {
         _homeController.restoreOnlineStatus();
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The online marker in Redis expires ~90s after the last heartbeat, and the
+    // OS suspends our timer while backgrounded — so a provider who backgrounds
+    // the app for a few minutes is dropped from the matching pool server-side
+    // while the toggle still reads "Online". Re-check with the server on resume
+    // so the UI reflects reality (and re-arms the heartbeat if still online).
+    if (state == AppLifecycleState.resumed &&
+        _authController.state.status == ProviderAuthStatus.authenticated) {
+      _homeController.syncOnlineStatus();
+    }
   }
 
   void _onAuthChangedForPush() {
@@ -202,6 +217,7 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _fcmTokenRefreshSub?.cancel();
     _fcmForegroundSub?.cancel();
     _authController.removeListener(_onAuthChangedForPush);
@@ -229,7 +245,7 @@ class _TruckProviderAppState extends State<TruckProviderApp> {
       title: 'Truck Provider',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF22A84A),
+        colorSchemeSeed: const Color(0xFF05124D),
         useMaterial3: true,
         fontFamily: 'Poppins',
       ),
@@ -306,7 +322,7 @@ class _SplashScreen extends StatelessWidget {
           gradient: RadialGradient(
             center: Alignment(-0.3, -0.3),
             radius: 1.2,
-            colors: [Color(0xFF4CAF50), Color(0xFF1B5E20), Color(0xFF0D2818)],
+            colors: [Color(0xFF2761A7), Color(0xFF0A1F5C), Color(0xFF05124D)],
             stops: [0.0, 0.5, 1.0],
           ),
         ),

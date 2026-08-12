@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class CustomerFigmaColors {
-  static const primary = Color(0xFF22A84A);
-  static const primarySoft = Color(0xFFB8E0C2);
-  static const primaryPale = Color(0xFFD7EEDB);
-  static const darkGreen = Color(0xFF2F5135);
-  static const darkGreenAlt = Color(0xFF2A4830);
-  static const text = Color(0xFF121A14);
-  static const muted = Color(0xFF7B827C);
-  static const surface = Color(0xFFF7F8F7);
-  static const field = Color(0xFFFFFFFF);
+  static const primary = Color(0xFF05124D);
+  static const primarySoft = Color(0xFFC1C5D4);
+  static const primaryPale = Color(0xFFDADCE4);
+  static const darkGreen = Color(0xFF020B2E);
+  static const darkGreenAlt = Color(0xFF2761A7);
+  static const text = Color(0xFF000000);
+  static const muted = Color(0xFF5B5959);
+  static const surface = Color(0xFFF7F7F7);
+  static const field = Color(0xFFFEFEFE);
   static const fieldMuted = Color(0xFFF5F6F8);
-  static const border = Color(0xFFE5E9E5);
-  static const primaryTint = Color(0xFFEAF8EE);
+  static const border = Color(0xFFE3E4E8);
+  static const primaryTint = Color(0xFFE6E8EE);
+  static const success = Color(0xFF1F9D55);
+  static const successSoft = Color(0xFFE7F5EC);
 
   const CustomerFigmaColors._();
 }
@@ -132,7 +134,7 @@ class FigmaSecondaryButton extends StatelessWidget {
         onPressed: onPressed,
         style: FilledButton.styleFrom(
           backgroundColor: dark
-              ? const Color(0xFF356D42)
+              ? CustomerFigmaColors.darkGreen
               : CustomerFigmaColors.primaryPale,
           foregroundColor: dark ? Colors.white : CustomerFigmaColors.primary,
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),

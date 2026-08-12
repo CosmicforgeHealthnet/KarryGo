@@ -102,6 +102,15 @@ func (h *Handler) GetMessage(c *gin.Context) {
 	respondOK(c, message)
 }
 
+func (h *Handler) GetMessageByIdempotencyKey(c *gin.Context) {
+	message, err := h.notifications.GetMessageByIdempotencyKey(c.Request.Context(), c.Param("key"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, message)
+}
+
 func (h *Handler) ListMessages(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	messages, err := h.notifications.ListMessages(c.Request.Context(), c.Query("recipient_type"), c.Query("recipient_id"), limit)

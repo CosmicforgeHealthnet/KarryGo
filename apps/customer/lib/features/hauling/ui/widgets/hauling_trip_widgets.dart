@@ -8,7 +8,7 @@ Color tripStatusColor(HaulingBookingStatus status) {
   if (status == HaulingBookingStatus.completed) return CustomerFigmaColors.primary;
   if (status == HaulingBookingStatus.cancelled ||
       status == HaulingBookingStatus.unmatched) {
-    return const Color(0xFFD7493B);
+    return const Color(0xFFA81717);
   }
   if (status.isSearching) return const Color(0xFFE08A00);
   // active states

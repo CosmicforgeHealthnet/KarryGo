@@ -114,7 +114,7 @@ class _NewPhoneNumberScreenState extends State<NewPhoneNumberScreen> {
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF4CAF50),
+                            color: Color(0xFF05124D),
                           ),
                           decoration: InputDecoration(
                             hintText: 'Phone number',
@@ -131,21 +131,21 @@ class _NewPhoneNumberScreenState extends State<NewPhoneNumberScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFF4CAF50),
+                                color: Color(0xFF05124D),
                                 width: 1.5,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFF4CAF50),
+                                color: Color(0xFF05124D),
                                 width: 1.5,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFF4CAF50),
+                                color: Color(0xFF05124D),
                                 width: 1.5,
                               ),
                             ),
@@ -166,9 +166,9 @@ class _NewPhoneNumberScreenState extends State<NewPhoneNumberScreen> {
                     child: FilledButton(
                       onPressed: canContinue ? _onVerify : null,
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
+                        backgroundColor: const Color(0xFF05124D),
                         disabledBackgroundColor: const Color(
-                          0xFF4CAF50,
+                          0xFF05124D,
                         ).withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),

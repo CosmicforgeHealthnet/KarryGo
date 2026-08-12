@@ -226,6 +226,13 @@ func (s *NotificationService) GetMessage(ctx context.Context, id string) (messag
 	return s.repository.GetMessage(ctx, id)
 }
 
+func (s *NotificationService) GetMessageByIdempotencyKey(ctx context.Context, key string) (messagemodels.Message, error) {
+	if strings.TrimSpace(key) == "" {
+		return messagemodels.Message{}, apperrors.Validation("Idempotency key is required.", nil)
+	}
+	return s.repository.GetMessageByIdempotencyKey(ctx, key)
+}
+
 func (s *NotificationService) ListMessages(ctx context.Context, recipientType string, recipientID string, limit int) ([]messagemodels.Message, error) {
 	if recipientType == "" || recipientID == "" {
 		return nil, apperrors.Validation("Check your query.", []apperrors.FieldViolation{

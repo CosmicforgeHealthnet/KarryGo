@@ -59,12 +59,38 @@ var ValidPaymentMethods = map[string]bool{
 	PaymentMethodCash:   true,
 }
 
+// ValidPreferredTruckTypes are the truck types a booking may request. It must
+// stay in sync with providerprofilemodels.ValidTruckTypes — the matcher compares
+// a booking's preferred_truck_type to trucks.truck_type with exact string
+// equality, so a value outside this set would be stored happily and then never
+// match any provider. Kept here rather than imported so the booking feature does
+// not depend on provider_profile (see the truckLookup adapter in cmd/main.go).
+//
+// An empty preferred_truck_type is also valid and means "any truck": it skips
+// the matcher's type filter entirely.
+var ValidPreferredTruckTypes = map[string]bool{
+	"flatbed":      true,
+	"container":    true,
+	"tipper":       true,
+	"van":          true,
+	"refrigerated": true,
+	"pickup":       true,
+	"box":          true,
+	"tanker":       true,
+	"trailer":      true,
+	"dump":         true,
+	"lowbed":       true,
+	"crane":        true,
+	"other":        true,
+}
+
 // Payment statuses (mirror the relevant payment-wallet intent states for the trip)
 const (
-	PaymentStatusUnpaid = "unpaid" // no charge yet (e.g. cash, or wallet before acceptance)
-	PaymentStatusHeld   = "held"   // funds authorized/held against the booking
-	PaymentStatusPaid   = "paid"   // settled to the provider
-	PaymentStatusFailed = "failed" // charge attempt failed
+	PaymentStatusUnpaid  = "unpaid"  // no charge yet (e.g. cash, or wallet before acceptance)
+	PaymentStatusHeld    = "held"    // funds authorized/held against the booking
+	PaymentStatusPaid    = "paid"    // settled to the provider
+	PaymentStatusFailed  = "failed"  // charge attempt failed
+	PaymentStatusUnknown = "unknown" // authoritative write outcome requires read-back
 )
 
 type Booking struct {

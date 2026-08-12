@@ -678,7 +678,7 @@ class _DispatchLocationEntryViewState extends State<DispatchLocationEntryView> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFDECEC),
+                        color: const Color(0xFFF7E4E4),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(

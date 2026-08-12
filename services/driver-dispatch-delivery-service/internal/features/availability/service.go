@@ -227,10 +227,13 @@ func (s *RedisLiveStore) GetNearby(ctx context.Context, request NearbyProvidersR
 }
 
 type Service struct {
-	repository Repository
-	live       LiveStore
-	events     EventPublisher
-	now        func() time.Time
+	repository   Repository
+	live         LiveStore
+	events       EventPublisher
+	now          func() time.Time
+	restrictions interface {
+		Restricted(context.Context, string, string, string) (bool, error)
+	}
 }
 
 type ServiceOption func(*Service)
@@ -247,6 +250,12 @@ func WithEventPublisher(events EventPublisher) ServiceOption {
 	return func(s *Service) {
 		s.events = events
 	}
+}
+
+func WithRestrictionGate(gate interface {
+	Restricted(context.Context, string, string, string) (bool, error)
+}) ServiceOption {
+	return func(s *Service) { s.restrictions = gate }
 }
 
 func NewService(repository Repository, live LiveStore, options ...ServiceOption) *Service {
@@ -498,6 +507,23 @@ func (s *Service) UpdateLocation(ctx context.Context, providerID string, request
 	if err != nil {
 		return LocationUpdateResponse{}, err
 	}
+	if !liveExists {
+		// The live status key carries a TTL (StatusTTL) that only an accepted
+		// ping refreshes. A rider who stops pinging for longer than that TTL —
+		// no GPS fix indoors, app backgrounded, a network blip — would other-
+		// wise be stuck forever: the refresh lives past this check, so every
+		// later ping is rejected and the key can never come back. Postgres is
+		// the durable record of intent, so fall back to it and rebuild the
+		// cache entry when it still says the rider chose to be online.
+		durable, found, dbErr := s.repository.GetAvailability(ctx, providerID)
+		if dbErr != nil {
+			return LocationUpdateResponse{}, dbErr
+		}
+		if found && (durable.Status == StatusOnline || durable.Status == StatusBusy) {
+			liveStatus = durable.Status
+			liveExists = true
+		}
+	}
 	if !liveExists || liveStatus == StatusOffline {
 		return LocationUpdateResponse{}, apperrors.BadRequest("Provider must be online before updating location.", nil)
 	}
@@ -683,6 +709,15 @@ func (s *Service) ForceOfflineIfNoVerifiedActiveBike(ctx context.Context, provid
 }
 
 func (s *Service) checkOnlineGate(ctx context.Context, providerID string) error {
+	if s.restrictions != nil {
+		restricted, err := s.restrictions.Restricted(ctx, "", "PROVIDER", providerID)
+		if err != nil {
+			return err
+		}
+		if restricted {
+			return gateForbidden(GateError{Code: GateFleetRestricted, Message: "Your account is temporarily restricted from operations."})
+		}
+	}
 	availability, err := s.repository.EnsureAvailability(ctx, providerID)
 	if err != nil {
 		return err

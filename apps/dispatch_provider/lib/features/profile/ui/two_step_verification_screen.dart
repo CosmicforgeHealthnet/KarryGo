@@ -134,7 +134,7 @@ class _TwoStepVerificationScreenState
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF4CAF50),
+                                color: Color(0xFF05124D),
                               ),
                             ),
                           )
@@ -144,7 +144,7 @@ class _TwoStepVerificationScreenState
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF4CAF50),
+                              color: Color(0xFF05124D),
                             ),
                           ),
                       ],
@@ -163,9 +163,9 @@ class _TwoStepVerificationScreenState
                   style: FilledButton.styleFrom(
                     backgroundColor: isOn
                         ? const Color(0xFFE53935)
-                        : const Color(0xFF4CAF50),
+                        : const Color(0xFF05124D),
                     disabledBackgroundColor:
-                        const Color(0xFF4CAF50).withValues(alpha: 0.35),
+                        const Color(0xFF05124D).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),

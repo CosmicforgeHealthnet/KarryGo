@@ -106,7 +106,7 @@ class DisputeDetailScreen extends StatelessWidget {
                   ),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
+                  backgroundColor: const Color(0xFF05124D),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                   ),
@@ -164,7 +164,7 @@ class _StatusStepper extends StatelessWidget {
             child: Container(
               height: 3,
               margin: const EdgeInsets.only(bottom: 22),
-              color: done ? const Color(0xFF4CAF50) : const Color(0xFFE0E0E0),
+              color: done ? const Color(0xFF05124D) : const Color(0xFFE0E0E0),
             ),
           );
         }
@@ -176,11 +176,11 @@ class _StatusStepper extends StatelessWidget {
               width: 28,
               height: 28,
               decoration: BoxDecoration(
-                color: reached ? const Color(0xFF4CAF50) : Colors.white,
+                color: reached ? const Color(0xFF05124D) : Colors.white,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: reached
-                      ? const Color(0xFF4CAF50)
+                      ? const Color(0xFF05124D)
                       : const Color(0xFFE0E0E0),
                   width: 2,
                 ),

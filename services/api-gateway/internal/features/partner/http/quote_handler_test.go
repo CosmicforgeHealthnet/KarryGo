@@ -47,6 +47,10 @@ func (r *fakeAccountRepo) UpdateProfile(context.Context, string, partneraccount.
 	return r.account, r.account != nil, nil
 }
 
+func (r *fakeAccountRepo) DeleteAccount(context.Context, string) (bool, error) {
+	return true, nil
+}
+
 // newQuoteRouter builds a router with API-key auth, the pricing config, and an
 // optional account repo (for active-account enforcement).
 func newQuoteRouter(t *testing.T, accounts partneraccount.AccountRepository) *gin.Engine {

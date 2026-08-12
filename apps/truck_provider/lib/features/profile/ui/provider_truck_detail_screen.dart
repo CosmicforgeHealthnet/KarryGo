@@ -302,7 +302,7 @@ class ProviderTruckDetailScreen extends StatelessWidget {
           border: Border.all(color: kProviderBorder),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1B3A24).withValues(alpha: 0.04),
+              color: const Color(0xFF05124D).withValues(alpha: 0.04),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

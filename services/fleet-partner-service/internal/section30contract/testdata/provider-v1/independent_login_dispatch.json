@@ -1,0 +1,1 @@
+{"success":true,"data":{"provider_id":"provider_fixture","role":"dispatch_provider","token_type":"Bearer","access_token":"sanitized-access-token","refresh_token":"sanitized-refresh-token","expires_in_seconds":900}}

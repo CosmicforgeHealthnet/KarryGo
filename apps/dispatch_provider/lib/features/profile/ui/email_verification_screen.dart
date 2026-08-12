@@ -100,7 +100,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                 ),
               ),
               const SizedBox(height: 32),
@@ -123,7 +123,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: _canResend
-                            ? const Color(0xFF4CAF50)
+                            ? const Color(0xFF05124D)
                             : const Color(0xFFAAAAAA),
                       ),
                     ),
@@ -135,7 +135,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF4CAF50),
+                        color: Color(0xFF05124D),
                       ),
                     ),
                 ],
@@ -148,7 +148,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 child: FilledButton(
                   onPressed: () => setState(() => _isVerified = true),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -211,7 +211,7 @@ class _VerifiedSuccessScreen extends StatelessWidget {
                 child: FilledButton(
                   onPressed: onTurnOn,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),

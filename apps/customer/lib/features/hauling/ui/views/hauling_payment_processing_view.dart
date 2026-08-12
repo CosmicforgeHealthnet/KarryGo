@@ -13,7 +13,7 @@ class HaulingPaymentProcessingView extends StatelessWidget {
     final fareNaira = fareKobo / 100;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1F7A4D),
+      backgroundColor: const Color(0xFF05124D),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),

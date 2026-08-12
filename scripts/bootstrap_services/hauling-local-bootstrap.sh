@@ -73,14 +73,17 @@ ensure_role_and_db() {
 apply_migrations() {
   log "applying hauling migrations"
   local dsn="postgres://${ROLE_NAME}:${ROLE_PASSWORD}@localhost:${PG_PORT}/${DB_NAME}?sslmode=disable"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/001_hauling_core.sql"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/002_schema_updates.sql"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/003_provider_onboarding.sql"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/004_package_info_and_reviews.sql"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/005_provider_profile_extras.sql"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/006_booking_payment.sql"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/007_proof_of_delivery.sql"
-  "$PSQL_BIN" "$dsn" -f "$ROOT_DIR/services/driver-hauling-service/migrations/008_handover_verification.sql"
+  local migration
+  # Apply every migration in sorted order, skipping the .down.sql rollbacks.
+  # This mirrors internal/database/migrate.go so new migrations are picked up
+  # automatically instead of needing to be listed here.
+  for migration in "$ROOT_DIR/services/driver-hauling-service/migrations"/*.sql; do
+    case "$migration" in
+      *.down.sql) continue ;;
+    esac
+    log "  -> $(basename "$migration")"
+    "$PSQL_BIN" "$dsn" -f "$migration"
+  done
 }
 
 seed_dev_providers() {

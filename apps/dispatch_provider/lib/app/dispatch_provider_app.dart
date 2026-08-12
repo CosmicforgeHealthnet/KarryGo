@@ -8,6 +8,7 @@ import '../core/config.dart';
 import '../core/network/api_connectivity_check.dart';
 import '../core/network/authenticated_api_client.dart';
 import '../core/storage/token_storage.dart';
+import '../core/theme/dispatch_colors.dart';
 import '../features/account_setup/ui/bike_type_screen.dart';
 import '../features/account_setup/ui/driver_information_screen.dart';
 import '../features/account_setup/ui/operation_mode_screen.dart';
@@ -320,7 +321,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF4CAF50),
+        colorSchemeSeed: DispatchColors.primary,
         useMaterial3: true,
         fontFamily: 'Poppins',
       ),

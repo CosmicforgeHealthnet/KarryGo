@@ -198,9 +198,9 @@ class _IdleView extends StatelessWidget {
             child: FilledButton(
               onPressed: isSubmitting ? null : onVerify,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
+                backgroundColor: const Color(0xFF05124D),
                 disabledBackgroundColor: const Color(
-                  0xFF4CAF50,
+                  0xFF05124D,
                 ).withValues(alpha: 0.35),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
@@ -241,7 +241,7 @@ class _UploadingView extends StatelessWidget {
     return const Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        CircularProgressIndicator(color: Color(0xFF4CAF50)),
+        CircularProgressIndicator(color: Color(0xFF05124D)),
         SizedBox(height: 24),
         Text(
           'Uploading selfie…',
@@ -276,7 +276,7 @@ class _SuccessView extends StatelessWidget {
               height: 110,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF4CAF50), width: 3),
+                border: Border.all(color: const Color(0xFF05124D), width: 3),
                 color: const Color(0xFFE8D5CC),
               ),
               child: ClipOval(child: Container(color: const Color(0xFFE8D5CC))),
@@ -286,7 +286,7 @@ class _SuccessView extends StatelessWidget {
               height: 32,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: Color(0xFF4CAF50),
+                color: Color(0xFF05124D),
               ),
               child: const Icon(Icons.check, size: 18, color: Colors.white),
             ),
@@ -322,7 +322,7 @@ class _SuccessView extends StatelessWidget {
             'You will receive a follow up mail on verification status.',
             style: TextStyle(
               fontSize: 13,
-              color: Color(0xFF4CAF50),
+              color: Color(0xFF05124D),
               height: 1.5,
             ),
             textAlign: TextAlign.center,
@@ -337,7 +337,7 @@ class _SuccessView extends StatelessWidget {
             child: FilledButton(
               onPressed: onOkay,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
+                backgroundColor: const Color(0xFF05124D),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
                 ),
@@ -366,7 +366,7 @@ class _CornerBracketPainter extends CustomPainter {
 
   static const _bracketLength = 24.0;
   static const _radius = 10.0;
-  static const _color = Color(0xFF4CAF50);
+  static const _color = Color(0xFF05124D);
   static const _padding = 12.0;
 
   @override
@@ -435,7 +435,7 @@ class _CornerBracketPainter extends CustomPainter {
 }
 
 class _SilhouettePainter extends CustomPainter {
-  static const _color = Color(0xFF4CAF50);
+  static const _color = Color(0xFF05124D);
 
   @override
   void paint(Canvas canvas, Size size) {

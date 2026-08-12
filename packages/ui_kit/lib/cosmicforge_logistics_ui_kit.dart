@@ -6,21 +6,28 @@ export 'src/code_entry_sheet.dart';
 export 'src/verification_code_card.dart';
 
 class CosmicforgeLogisticsColors {
-  static const primary = Color(0xFF20AD4E);
-  static const primaryDark = Color(0xFF0D7130);
-  static const primarySoft = Color(0xFFC4EBCD);
-  static const primaryTint = Color(0xFFEAF8EE);
+  static const primary = Color(0xFF05124D);
+  static const primaryDark = Color(0xFF020B2E);
+  static const primarySoft = Color(0xFFC1C5D4);
+  static const primaryTint = Color(0xFFE6E8EE);
   static const surface = Color(0xFFF7F7F7);
-  static const card = Color(0xFFFFFFFF);
-  static const text = Color(0xFF111111);
-  static const textMuted = Color(0xFF747474);
-  static const border = Color(0xFFE7E7E7);
-  static const danger = Color(0xFFE53935);
-  static const dangerSoft = Color(0xFFFFEBEE);
-  static const warning = Color(0xFFF59E0B);
-  static const warningSoft = Color(0xFFFFF7E6);
+  static const card = Color(0xFFFEFEFE);
+  static const text = Color(0xFF000000);
+  static const textMuted = Color(0xFF5B5959);
+  static const border = Color(0xFFE3E4E8);
+  static const danger = Color(0xFFA81717);
+  static const dangerSoft = Color(0xFFF7E4E4);
+  static const warning = Color(0xFFE8B600);
+  static const warningSoft = Color(0xFFFCF3D9);
   static const info = Color(0xFF2563EB);
   static const infoSoft = Color(0xFFEAF2FF);
+  static const success = Color(0xFF1F9D55);
+  static const successSoft = Color(0xFFE7F5EC);
+  static const radialBlue = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF2761A7), Color(0xFF05124D)],
+  );
 
   const CosmicforgeLogisticsColors._();
 }
@@ -286,7 +293,7 @@ extension CosmicforgeLogisticsFeedbackToneColors on CosmicforgeLogisticsFeedback
       CosmicforgeLogisticsFeedbackTone.error => CosmicforgeLogisticsColors.danger,
       CosmicforgeLogisticsFeedbackTone.warning => CosmicforgeLogisticsColors.warning,
       CosmicforgeLogisticsFeedbackTone.info => CosmicforgeLogisticsColors.info,
-      CosmicforgeLogisticsFeedbackTone.success => CosmicforgeLogisticsColors.primary,
+      CosmicforgeLogisticsFeedbackTone.success => CosmicforgeLogisticsColors.success,
     };
   }
 
@@ -295,7 +302,7 @@ extension CosmicforgeLogisticsFeedbackToneColors on CosmicforgeLogisticsFeedback
       CosmicforgeLogisticsFeedbackTone.error => CosmicforgeLogisticsColors.dangerSoft,
       CosmicforgeLogisticsFeedbackTone.warning => CosmicforgeLogisticsColors.warningSoft,
       CosmicforgeLogisticsFeedbackTone.info => CosmicforgeLogisticsColors.infoSoft,
-      CosmicforgeLogisticsFeedbackTone.success => CosmicforgeLogisticsColors.primaryTint,
+      CosmicforgeLogisticsFeedbackTone.success => CosmicforgeLogisticsColors.successSoft,
     };
   }
 

@@ -73,7 +73,7 @@ class _ProviderHomeMapState extends State<ProviderHomeMap> {
         Polyline(
           polylineId: const PolylineId('route'),
           points: widget.polylinePoints,
-          color: const Color(0xFF22A84A),
+          color: const Color(0xFF05124D),
           width: 5,
         ),
       };

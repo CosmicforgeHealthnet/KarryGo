@@ -52,7 +52,7 @@ class ChangePhoneNumberSheet extends StatelessWidget {
             errorBuilder: (_, _, _) => const Icon(
               Icons.phone_iphone,
               size: 96,
-              color: Color(0xFF4CAF50),
+              color: Color(0xFF05124D),
             ),
           ),
           const SizedBox(height: 24),
@@ -82,7 +82,7 @@ class ChangePhoneNumberSheet extends StatelessWidget {
             child: FilledButton(
               onPressed: () => _startFlow(context),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
+                backgroundColor: const Color(0xFF05124D),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
                 ),

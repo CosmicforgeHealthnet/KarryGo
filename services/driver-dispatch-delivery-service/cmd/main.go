@@ -17,15 +17,17 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/database"
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
-	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	bookingfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking"
+	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
 	"cosmicforge/logistics/shared/go/mediaclient"
+	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
 
@@ -88,6 +90,11 @@ func main() {
 		log.Printf("dispatch rider otp email smtp not configured; email OTP delivery will be skipped when optional and fail when required")
 	}
 
+	var membershipReader providercompat.Reader
+	if cfg.ProviderOrganizationModeEnabled {
+		membershipReader = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller,
+			cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+	}
 	authService := authusecases.NewAuthUsecase(authusecases.Options{
 		Identities:           authrepositories.NewPostgresIdentityRepository(db),
 		OTPs:                 authrepositories.NewPostgresOTPRepository(db),
@@ -108,6 +115,8 @@ func main() {
 		OTPDebug:             cfg.OTPDebug,
 		RequireEmailDelivery: cfg.AppEnv != "development",
 		Redis:                redisClient,
+		MembershipReader:     membershipReader,
+		ProviderService:      cfg.FleetServiceCaller,
 	})
 
 	asynqRedis := asynq.RedisClientOpt{
@@ -131,7 +140,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("configure trip proof storage: %v", err)
 	}
-	tripService := tripfeature.NewService(tripfeature.NewPostgresRepository(db), proofStorage).
+	// Canonical event emission for the request and trip transitions. Gated on
+	// the outbox flag, and attached to both repositories from one instance so
+	// the two aggregates cannot end up with different opinions about whether
+	// events are being written.
+	marketplaceEmitter := marketplace.NewLegacyEventEmitter(
+		marketplace.NewRepository(db), cfg.MarketplaceOutboxEnabled)
+	if marketplaceEmitter.Enabled() {
+		log.Printf("marketplace: canonical event emission enabled for request and trip transitions")
+	} else {
+		log.Printf("marketplace: canonical event emission disabled by DISPATCH_MARKETPLACE_OUTBOX_ENABLED")
+	}
+
+	tripRepository := tripfeature.NewPostgresRepository(db).WithEventEmitter(marketplaceEmitter)
+	tripService := tripfeature.NewService(tripRepository, proofStorage).
 		WithEventPublisher(tripfeature.NewRedisEventPublisher(redisClient)).
 		WithWalletClient(walletClient).
 		WithNotifier(bookingNotifier).
@@ -146,7 +168,7 @@ func main() {
 	}
 
 	requestService := requestfeature.NewService(
-		requestfeature.NewPostgresRepository(db),
+		requestfeature.NewPostgresRepository(db).WithEventEmitter(marketplaceEmitter),
 		redisClient,
 		requestfeature.NewHTTPNearbyClient(cfg.AvailabilityServiceURL, cfg.InternalServiceKey),
 		requestSender,
@@ -184,6 +206,9 @@ func main() {
 		}
 	}()
 
+	// Organization marketplace relay worker. Returns a no-op stopper when the
+	// feature flag is off or the fleet client is unconfigured.
+	stopMarketplaceWorkers := router.StartMarketplaceWorkers(ctx, cfg, db)
 	// Re-adopt broadcasts stranded mid-window by a crash before their expire
 	// task was scheduled (idempotent — the worker re-checks state).
 	go func() {
@@ -219,6 +244,9 @@ func main() {
 		log.Printf("%s shutdown: %v", cfg.ServiceName, err)
 	}
 	asynqServer.Shutdown()
+	// Stop after the HTTP server so an in-flight provider decision finishes
+	// being recorded before the worker that delivers it goes away.
+	stopMarketplaceWorkers()
 }
 
 func connectPostgresWithRetry(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {

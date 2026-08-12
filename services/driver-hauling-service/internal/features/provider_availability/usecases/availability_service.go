@@ -10,9 +10,24 @@ import (
 )
 
 type AvailabilityService struct {
-	store  availabilityrepositories.AvailabilityStore
-	trucks providerprofilerepositories.TruckRepository
-	onlineTTL time.Duration
+	store        availabilityrepositories.AvailabilityStore
+	trucks       providerprofilerepositories.TruckRepository
+	onlineTTL    time.Duration
+	authority    availabilityrepositories.AuthorityStore
+	restrictions interface {
+		Restricted(context.Context, string, string, string) (bool, error)
+	}
+}
+
+func (s *AvailabilityService) WithRestrictionGate(gate interface {
+	Restricted(context.Context, string, string, string) (bool, error)
+}) *AvailabilityService {
+	s.restrictions = gate
+	return s
+}
+
+func NewAvailabilityServiceWithAuthority(store availabilityrepositories.AvailabilityStore, trucks providerprofilerepositories.TruckRepository, onlineTTL time.Duration, authority availabilityrepositories.AuthorityStore) *AvailabilityService {
+	return &AvailabilityService{store: store, trucks: trucks, onlineTTL: onlineTTL, authority: authority}
 }
 
 func NewAvailabilityService(
@@ -27,7 +42,7 @@ func NewAvailabilityService(
 
 type SetAvailabilityInput struct {
 	ProviderID string
-	Status     string  // "online" | "offline"
+	Status     string // "online" | "offline"
 	TruckID    string
 	Lat        float64
 	Lng        float64
@@ -39,6 +54,11 @@ type AvailabilityResult struct {
 
 func (s *AvailabilityService) SetAvailability(ctx context.Context, input SetAvailabilityInput) (AvailabilityResult, error) {
 	if input.Status == "offline" {
+		if s.authority != nil {
+			if err := s.authority.SetAuthorityState(ctx, input.ProviderID, "UNAVAILABLE", false, "PROVIDER_OFFLINE"); err != nil {
+				return AvailabilityResult{}, err
+			}
+		}
 		if err := s.store.SetOffline(ctx, input.ProviderID); err != nil {
 			return AvailabilityResult{}, err
 		}
@@ -49,6 +69,15 @@ func (s *AvailabilityService) SetAvailability(ctx context.Context, input SetAvai
 		return AvailabilityResult{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
 			{Field: "status", Message: "Status must be 'online' or 'offline'."},
 		})
+	}
+	if s.restrictions != nil {
+		restricted, err := s.restrictions.Restricted(ctx, "", "PROVIDER", input.ProviderID)
+		if err != nil {
+			return AvailabilityResult{}, apperrors.Unavailable("Restriction authority is unavailable.", err)
+		}
+		if restricted {
+			return AvailabilityResult{}, apperrors.Forbidden("You are temporarily restricted from operations.", nil)
+		}
 	}
 
 	// Gate: provider must have at least one active truck
@@ -67,6 +96,11 @@ func (s *AvailabilityService) SetAvailability(ctx context.Context, input SetAvai
 		}
 	}
 
+	if s.authority != nil {
+		if err := s.authority.SetAuthorityState(ctx, input.ProviderID, "AVAILABLE", true, "PROVIDER_ONLINE"); err != nil {
+			return AvailabilityResult{}, err
+		}
+	}
 	err = s.store.SetOnline(ctx, availabilityrepositories.ProviderStatus{
 		ProviderID: input.ProviderID,
 		TruckID:    input.TruckID,
@@ -75,6 +109,9 @@ func (s *AvailabilityService) SetAvailability(ctx context.Context, input SetAvai
 		UpdatedAt:  nowUnix(),
 	}, s.onlineTTL)
 	if err != nil {
+		if s.authority != nil {
+			_ = s.authority.SetAuthorityState(ctx, input.ProviderID, "UNAVAILABLE", false, "CACHE_WRITE_FAILED")
+		}
 		return AvailabilityResult{}, err
 	}
 	return AvailabilityResult{Status: "online"}, nil
@@ -87,7 +124,13 @@ type HeartbeatInput struct {
 }
 
 func (s *AvailabilityService) Heartbeat(ctx context.Context, input HeartbeatInput) error {
-	return s.store.Heartbeat(ctx, input.ProviderID, input.Lat, input.Lng, s.onlineTTL)
+	if err := s.store.Heartbeat(ctx, input.ProviderID, input.Lat, input.Lng, s.onlineTTL); err != nil {
+		return err
+	}
+	if s.authority != nil {
+		return s.authority.SetAuthorityState(ctx, input.ProviderID, "AVAILABLE", true, "HEARTBEAT")
+	}
+	return nil
 }
 
 func (s *AvailabilityService) GetStatus(ctx context.Context, providerID string) (AvailabilityResult, error) {

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,8 +23,12 @@ import (
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
 
+	fleetauthority "cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority"
 	identityhttp "cosmicforge/logistics/services/hauling-service/internal/features/identity/http"
 	notificationhttp "cosmicforge/logistics/services/hauling-service/internal/features/notifications/http"
+	privateexecution "cosmicforge/logistics/services/hauling-service/internal/features/privateexecution"
+	providerassignments "cosmicforge/logistics/services/hauling-service/internal/features/providerassignments"
+	restrictions "cosmicforge/logistics/services/hauling-service/internal/features/restrictions"
 
 	providerauthhttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/http"
 	providerauthrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/repositories"
@@ -35,6 +41,7 @@ import (
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -43,7 +50,10 @@ func main() {
 	_ = godotenv.Load()
 
 	cfg := config.Load()
-	logging.Notice("hauling-service", "migration=%t database=%s redis=%s", cfg.Migration, cfg.DatabaseURL, cfg.Redis.Addr)
+	if err := cfg.Validate(); err != nil {
+		logging.Fatal("configuration", "%v", err)
+	}
+	logging.Notice("hauling-service", "migration=%t redis=%s", cfg.Migration, cfg.Redis.Addr)
 
 	// ctx is cancelled when main returns (after serviceapp.Run exits on SIGTERM).
 	// Background goroutines (auto-complete worker) use this to stop cleanly.
@@ -62,6 +72,21 @@ func main() {
 		DB:       cfg.Redis.DB,
 	})
 	defer redisClient.Close()
+
+	// The notification queue is consumed by notification-service, so it lives on
+	// whichever Redis that service reads — usually a different instance from our
+	// own. Reuse the main client when both point at the same address so we do not
+	// hold a second pool for nothing.
+	notificationRedis := redisClient
+	if cfg.NotificationRedis.Addr != cfg.Redis.Addr || cfg.NotificationRedis.DB != cfg.Redis.DB {
+		notificationRedis = redis.NewClient(&redis.Options{
+			Addr:     cfg.NotificationRedis.Addr,
+			Password: cfg.NotificationRedis.Password,
+			DB:       cfg.NotificationRedis.DB,
+		})
+		defer notificationRedis.Close()
+		logging.Notice("notification-queue", "redis=%s", cfg.NotificationRedis.Addr)
+	}
 
 	logConnectivity(ctx, cfg.DatabaseURL, cfg.Redis.Addr, db, redisClient)
 
@@ -86,6 +111,11 @@ func main() {
 	bookingRepo := bookingrepo.NewPostgresBookingRepository(db)
 
 	// ─── Auth service ──────────────────────────────────────────────────────────
+	var membershipReader providercompat.Reader
+	if cfg.ProviderOrganizationModeEnabled {
+		membershipReader = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller,
+			cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+	}
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
 		Sessions:           sessionRepo,
@@ -100,6 +130,8 @@ func main() {
 		OTPMaxRequests:     cfg.OTPMaxRequests,
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
+		MembershipReader:   membershipReader,
+		ProviderService:    cfg.FleetServiceCaller,
 	})
 
 	// customerSigner verifies customer bearer tokens (read-only; same secret as customer-service).
@@ -110,16 +142,17 @@ func main() {
 
 	// ─── Availability service ──────────────────────────────────────────────────
 	onlineTTL := time.Duration(cfg.ProviderOnlineTTL) * time.Second
-	availService := availabilityusecases.NewAvailabilityService(availabilityStore, truckRepo, onlineTTL)
+	restrictionService := restrictions.New(db)
+	availService := availabilityusecases.NewAvailabilityServiceWithAuthority(availabilityStore, truckRepo, onlineTTL, availabilityrepositories.NewPostgresAuthorityStore(db)).WithRestrictionGate(restrictionService)
 
 	// ─── Booking service ───────────────────────────────────────────────────────
 	// bookingNotifier sends booking-lifecycle notifications via notification-service.
-	// When HAULING_NOTIFICATION_URL/SECRET are unset it is a no-op (local dev).
-	bookingNotifier := bookingclients.NewBookingNotifier(cfg.NotificationURL, cfg.NotificationSecret)
+	// Incomplete configuration produces a delivery error; it never reports a
+	// fabricated notification success.
+	bookingNotifier := bookingclients.NewDurableBookingNotifier(notificationRedis)
 
 	// paymentClient binds booking fares to payment-wallet-service. When
-	// HAULING_PAYMENT_URL/SECRET are unset (local dev) payment is disabled and the
-	// booking flow settles without charging.
+	// HAULING_PAYMENT_URL/SECRET are unset payment-required paths fail closed.
 	var paymentClient bookingusecases.PaymentClient
 	if cfg.PaymentURL != "" && len(cfg.PaymentSecret) > 0 {
 		paymentClient = bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret)
@@ -135,7 +168,23 @@ func main() {
 		SearchWindowSeconds: cfg.BookingSearchWindow,
 		MaxRadiusKm:         cfg.MatchMaxRadiusKm,
 		HandoverSecret:      cfg.HandoverSecret,
+		AllowCashPayments:   cfg.CashPaymentsEnabled,
+		Restrictions:        restrictionService,
 	})
+	authorityHandler := fleetauthority.New(db, fleetauthority.Flags{
+		Enabled: cfg.FleetIntegrationEnabled, KillSwitch: cfg.FleetIntegrationKillSwitch,
+	})
+	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
+	privateExecutionService := privateexecution.NewService(
+		privateexecution.NewRepository(db),
+		privateexecution.NewHTTPAcceptanceVerifier(cfg.FleetServiceURL, cfg.FleetServiceCaller,
+			cfg.FleetServiceSecret, cfg.FleetServiceTimeout),
+		cfg.PrivateExecutionEnabled, cfg.FleetIntegrationKillSwitch).WithRestrictionGate(restrictionService)
+	providerAssignmentClient := providerassignments.NewClient(cfg.FleetServiceURL,
+		cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+	if cfg.OutboxWorkerEnabled && cfg.FleetIntegrationEnabled && !cfg.FleetIntegrationKillSwitch {
+		go (&fleetauthority.OutboxWorker{DB: db, URL: cfg.FleetEventURL, Secret: cfg.FleetEventSecret}).Run(ctx)
+	}
 
 	// notificationClient brokers provider-app notification access to
 	// notification-service (feed, realtime token, device registration). Empty
@@ -148,12 +197,16 @@ func main() {
 
 	// Auto-complete worker: promotes delivered bookings to completed after the
 	// grace period. Runs until ctx is cancelled (i.e. service shutdown).
-	go bookingService.RunAutoCompleteWorker(ctx)
+	if !cfg.FleetIntegrationKillSwitch {
+		go bookingService.RunAutoCompleteWorker(ctx)
+	}
 
 	// Match recovery worker: re-adopts bookings whose in-memory matcher was lost
 	// (e.g. across a restart) so they resume matching or go unmatched instead of
 	// stranding in pending_match forever.
-	go bookingService.RunMatchRecoveryWorker(ctx)
+	if !cfg.FleetIntegrationKillSwitch {
+		go bookingService.RunMatchRecoveryWorker(ctx)
+	}
 
 	// ─── HTTP ──────────────────────────────────────────────────────────────────
 	serviceapp.Run(serviceapp.Options{
@@ -176,14 +229,36 @@ func main() {
 			},
 		},
 		Register: func(group *gin.RouterGroup) {
+			group.Use(func(c *gin.Context) {
+				if cfg.FleetIntegrationKillSwitch && c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead && c.Request.Method != http.MethodOptions {
+					c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"success": false, "error": gin.H{"code": "integration_kill_switch", "message": "Hauling writes are temporarily disabled."}})
+					return
+				}
+				c.Next()
+			})
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService)
 			availabilityhttp.RegisterAvailabilityRoutes(group, availService, authService, customerSigner)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
 			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+			fleetauthority.Register(group, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
+			restrictions.Register(group, restrictionService, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
+			privateexecution.Register(group, privateexecution.NewHandler(privateExecutionService),
+				authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
+			providerassignments.Register(group, authService, providerAssignmentClient)
 		},
 	})
+}
+
+func splitCSV(value string) []string {
+	var out []string
+	for _, item := range strings.Split(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 // truckLookup adapts the provider_profile truck repository to the booking
@@ -212,9 +287,9 @@ func logConnectivity(ctx context.Context, databaseURL, redisAddr string, db inte
 	defer cancel()
 
 	if err := db.Ping(pingCtx); err != nil {
-		logging.Error("database", "failed url=%s err=%v", databaseURL, err)
+		logging.Error("database", "connectivity check failed: %v", err)
 	} else {
-		logging.Success("database", "connected url=%s", databaseURL)
+		logging.Success("database", "connected")
 	}
 
 	if err := redisClient.Ping(pingCtx).Err(); err != nil {

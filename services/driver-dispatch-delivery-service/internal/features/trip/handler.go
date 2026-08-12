@@ -38,6 +38,106 @@ func RegisterRoutes(engine *gin.Engine, tokens *authusecases.TokenUsecase, handl
 	trips.POST("/:id/complete", handler.CompleteTrip)
 	trips.POST("/:id/cancel", handler.CancelTrip)
 	trips.POST("/:id/rate-customer", handler.RateCustomer)
+	// WP6.3–6.4: the two authoritative delivery outcomes.
+	trips.POST("/:id/recipient-confirmation", handler.ConfirmRecipient)
+	trips.GET("/:id/recipient-confirmation", handler.GetRecipientConfirmation)
+	trips.POST("/:id/fail", handler.FailDelivery)
+}
+
+// confirmRecipientRequest is the JSON body for
+// POST /api/v1/provider/trips/:id/recipient-confirmation.
+//
+// recipient_contact is compared against the booking's expected receiver and
+// then discarded. It is never stored and never published.
+type confirmRecipientRequest struct {
+	VerificationMethod    string `json:"verification_method"`
+	RecipientContact      string `json:"recipient_contact"`
+	ExpectedSourceVersion int64  `json:"expected_source_version"`
+}
+
+// ConfirmRecipient records the authoritative recipient confirmation.
+func (h *Handler) ConfirmRecipient(c *gin.Context) {
+	var body confirmRecipientRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	idempotencyKey := c.GetHeader("Idempotency-Key")
+	if idempotencyKey == "" {
+		httpx.Abort(c, apperrors.BadRequest("An Idempotency-Key header is required.", nil))
+		return
+	}
+
+	result, err := h.service.ConfirmRecipient(c.Request.Context(), ConfirmRecipientInput{
+		TripID:                c.Param("id"),
+		ProviderID:            authhttp.DispatchRiderID(c),
+		VerificationMethod:    body.VerificationMethod,
+		RecipientContact:      body.RecipientContact,
+		ExpectedSourceVersion: body.ExpectedSourceVersion,
+		IdempotencyKey:        idempotencyKey,
+		CorrelationID:         c.GetHeader("X-Correlation-ID"),
+		CausationID:           c.GetHeader("X-Causation-ID"),
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	apiresponse.RespondSuccess(c, http.StatusOK, "Recipient confirmation recorded.", result)
+}
+
+// GetRecipientConfirmation returns the provider's own confirmation record.
+func (h *Handler) GetRecipientConfirmation(c *gin.Context) {
+	result, err := h.service.GetRecipientConfirmation(c.Request.Context(),
+		c.Param("id"), authhttp.DispatchRiderID(c))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	apiresponse.RespondSuccess(c, http.StatusOK, "Recipient confirmation loaded.", result)
+}
+
+// failDeliveryRequest is the JSON body for POST /api/v1/provider/trips/:id/fail.
+//
+// There is no retry_eligible field, and there must never be one: the server
+// derives it from the reason so a caller cannot decide its own consequences.
+type failDeliveryRequest struct {
+	ReasonCode            string `json:"reason_code"`
+	OperatorNotes         string `json:"operator_notes"`
+	AttemptReference      string `json:"attempt_reference"`
+	IncidentReference     string `json:"incident_reference"`
+	ExpectedSourceVersion int64  `json:"expected_source_version"`
+}
+
+// FailDelivery records the authoritative delivery failure.
+func (h *Handler) FailDelivery(c *gin.Context) {
+	var body failDeliveryRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	idempotencyKey := c.GetHeader("Idempotency-Key")
+	if idempotencyKey == "" {
+		httpx.Abort(c, apperrors.BadRequest("An Idempotency-Key header is required.", nil))
+		return
+	}
+
+	result, err := h.service.FailDelivery(c.Request.Context(), FailDeliveryInput{
+		TripID:                c.Param("id"),
+		ProviderID:            authhttp.DispatchRiderID(c),
+		ReasonCode:            body.ReasonCode,
+		OperatorNotes:         body.OperatorNotes,
+		AttemptReference:      body.AttemptReference,
+		IncidentReference:     body.IncidentReference,
+		ExpectedSourceVersion: body.ExpectedSourceVersion,
+		IdempotencyKey:        idempotencyKey,
+		CorrelationID:         c.GetHeader("X-Correlation-ID"),
+		CausationID:           c.GetHeader("X-Causation-ID"),
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	apiresponse.RespondSuccess(c, http.StatusOK, "Delivery failure recorded.", result)
 }
 
 func (h *Handler) ListTrips(c *gin.Context) {

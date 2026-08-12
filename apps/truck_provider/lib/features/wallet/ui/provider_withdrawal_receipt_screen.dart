@@ -22,7 +22,7 @@ class ProviderWithdrawalReceiptScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1E7C36), Color(0xFF18672D)],
+            colors: [Color(0xFF2761A7), Color(0xFF05124D)],
           ),
         ),
         child: SafeArea(

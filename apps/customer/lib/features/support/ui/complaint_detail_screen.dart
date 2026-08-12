@@ -168,7 +168,7 @@ class _StatusHeader extends StatelessWidget {
         'open' => const Color(0xFFF59E0B),
         'under_review' => const Color(0xFF2563EB),
         'resolved' || 'closed' => CustomerFigmaColors.primary,
-        'escalated' => const Color(0xFFE53935),
+        'escalated' => const Color(0xFFA81717),
         _ => CustomerFigmaColors.muted,
       };
 

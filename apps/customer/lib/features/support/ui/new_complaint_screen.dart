@@ -281,13 +281,13 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF1F0),
+        color: const Color(0xFFF7E4E4),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFFCDD2)),
+        border: Border.all(color: const Color(0xFFEBC4C4)),
       ),
       child: Text(
         message,
-        style: const TextStyle(color: Color(0xFFC0392B), fontSize: 13),
+        style: const TextStyle(color: Color(0xFF8A1212), fontSize: 13),
       ),
     );
   }

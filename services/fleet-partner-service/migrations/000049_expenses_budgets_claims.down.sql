@@ -1,0 +1,13 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('expenses.read','expenses.manage','expenses.approve','expenses.reverse','budgets.read','budgets.manage','budgets.approve','claims.read','claims.manage');
+DELETE FROM fleet_partner_permissions WHERE code IN('expenses.read','expenses.manage','expenses.approve','expenses.reverse','budgets.read','budgets.manage','budgets.approve','claims.read','claims.manage');
+DROP TRIGGER IF EXISTS trg_fleet_claim_history_append_only ON fleet_partner_claim_history;
+DROP TABLE IF EXISTS fleet_partner_claim_history;
+DROP TABLE IF EXISTS fleet_partner_claims;
+DROP TRIGGER IF EXISTS trg_fleet_budget_history_append_only ON fleet_partner_budget_history;
+DROP TABLE IF EXISTS fleet_partner_budget_history;
+DROP TABLE IF EXISTS fleet_partner_budgets;
+DROP TRIGGER IF EXISTS trg_fleet_expense_reversals_append_only ON fleet_partner_expense_reversals;
+DROP TABLE IF EXISTS fleet_partner_expense_reversals;
+DROP TRIGGER IF EXISTS trg_fleet_expense_history_append_only ON fleet_partner_expense_history;
+DROP TABLE IF EXISTS fleet_partner_expense_history;
+DROP TABLE IF EXISTS fleet_partner_expenses;

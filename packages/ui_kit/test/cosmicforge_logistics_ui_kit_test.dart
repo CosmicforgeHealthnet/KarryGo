@@ -4,7 +4,7 @@ import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 
 void main() {
   test('exposes Cosmicforge Logistics primary color', () {
-    expect(CosmicforgeLogisticsColors.primary, const Color(0xFF20AD4E));
+    expect(CosmicforgeLogisticsColors.primary, const Color(0xFF05124D));
   });
 
   testWidgets('renders error banner message', (tester) async {

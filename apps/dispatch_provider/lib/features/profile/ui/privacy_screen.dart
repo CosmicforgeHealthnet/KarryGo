@@ -223,7 +223,7 @@ class _ToggleCard extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF4CAF50),
+            activeColor: const Color(0xFF05124D),
           ),
         ],
       ),
@@ -340,10 +340,10 @@ class _RadioOption extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
                 color: selected
-                    ? const Color(0xFF4CAF50)
+                    ? const Color(0xFF05124D)
                     : Colors.transparent,
                 border: Border.all(
-                  color: const Color(0xFF4CAF50),
+                  color: const Color(0xFF05124D),
                   width: 1.5,
                 ),
               ),

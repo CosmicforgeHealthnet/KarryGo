@@ -271,12 +271,11 @@ class _BalanceCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(20, 16, 18, 16),
             decoration: BoxDecoration(
-              // Figma radial gradient:
-              // radial-gradient(102.19% 102.19% at 50% 46.56%, #27A747 0%, #002509 100%)
+              // Radial gradient, navy brand palette.
               gradient: const RadialGradient(
                 center: Alignment(0, -0.0688), // 46.56% vertical → 2*0.4656 - 1
                 radius: 1.0219, // 102.19%
-                colors: [Color(0xFF27A747), Color(0xFF002509)],
+                colors: [Color(0xFF2761A7), Color(0xFF05124D)],
               ),
               borderRadius: BorderRadius.circular(20),
             ), 

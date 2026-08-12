@@ -1,0 +1,1298 @@
+{
+    "openapi":  "3.0.3",
+    "info":  {
+                 "title":  "Section 20 Specialized Logistics",
+                 "version":  "1.0.0",
+                 "description":  "Authoritative machine-readable contract. All routes are tenant scoped and deny by default."
+             },
+    "servers":  [
+                    {
+                        "url":  "/"
+                    }
+                ],
+    "components":  {
+                       "securitySchemes":  {
+                                               "bearerAuth":  {
+                                                                  "type":  "http",
+                                                                  "scheme":  "bearer",
+                                                                  "bearerFormat":  "JWT"
+                                                              }
+                                           },
+                       "schemas":  {
+                                       "CommandRequest":  {
+                                                              "type":  "object",
+                                                              "description":  "Operation-specific JSON request. Unknown fields are rejected by the HTTP decoder where the operation uses a strict DTO.",
+                                                              "additionalProperties":  true,
+                                                              "properties":  {
+                                                                                 "expectedVersion":  {
+                                                                                                         "type":  "integer",
+                                                                                                         "format":  "int64",
+                                                                                                         "minimum":  1
+                                                                                                     },
+                                                                                 "reason":  {
+                                                                                                "type":  "string",
+                                                                                                "minLength":  1
+                                                                                            }
+                                                                             }
+                                                          },
+                                       "Envelope":  {
+                                                        "type":  "object",
+                                                        "required":  [
+                                                                         "success",
+                                                                         "data"
+                                                                     ],
+                                                        "properties":  {
+                                                                           "success":  {
+                                                                                           "type":  "boolean",
+                                                                                           "enum":  [
+                                                                                                        true
+                                                                                                    ]
+                                                                                       },
+                                                                           "data":  {
+                                                                                        "type":  "object",
+                                                                                        "additionalProperties":  true
+                                                                                    },
+                                                                           "meta":  {
+                                                                                        "type":  "object",
+                                                                                        "additionalProperties":  true
+                                                                                    }
+                                                                       }
+                                                    },
+                                       "Problem":  {
+                                                       "type":  "object",
+                                                       "required":  [
+                                                                        "error"
+                                                                    ],
+                                                       "properties":  {
+                                                                          "error":  {
+                                                                                        "type":  "object",
+                                                                                        "required":  [
+                                                                                                         "code",
+                                                                                                         "message"
+                                                                                                     ],
+                                                                                        "properties":  {
+                                                                                                           "code":  {
+                                                                                                                        "type":  "string"
+                                                                                                                    },
+                                                                                                           "message":  {
+                                                                                                                           "type":  "string"
+                                                                                                                       },
+                                                                                                           "details":  {
+                                                                                                                           "type":  "object",
+                                                                                                                           "additionalProperties":  true
+                                                                                                                       }
+                                                                                                       }
+                                                                                    }
+                                                                      }
+                                                   }
+                                   }
+                   },
+    "paths":  {
+                  "/fleet-partner/v1/specialized/capabilities":  {
+                                                                     "get":  {
+                                                                                 "operationId":  "listSpecializedCapabilities",
+                                                                                 "tags":  [
+                                                                                              "Section 20 Specialized Logistics"
+                                                                                          ],
+                                                                                 "security":  [
+                                                                                                  {
+                                                                                                      "bearerAuth":  [
+
+                                                                                                                     ]
+                                                                                                  }
+                                                                                              ],
+                                                                                 "x-permission":  "specialized.read",
+                                                                                 "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                 "x-auth-class":  "corporate",
+                                                                                 "x-idempotency-required":  false,
+                                                                                 "x-expected-version-required":  false,
+                                                                                 "responses":  {
+                                                                                                   "200":  {
+                                                                                                               "description":  "Successful response",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           },
+                                                                                                   "400":  {
+                                                                                                               "description":  "Invalid request",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           },
+                                                                                                   "401":  {
+                                                                                                               "description":  "Unauthenticated",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           },
+                                                                                                   "403":  {
+                                                                                                               "description":  "Forbidden",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           },
+                                                                                                   "404":  {
+                                                                                                               "description":  "Not found",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           },
+                                                                                                   "409":  {
+                                                                                                               "description":  "Conflict",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           },
+                                                                                                   "503":  {
+                                                                                                               "description":  "Capability or authority unavailable",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           }
+                                                                                               }
+                                                                             }
+                                                                 },
+                  "/fleet-partner/v1/specialized/capabilities/{capabilityCode}/enable":  {
+                                                                                             "post":  {
+                                                                                                          "operationId":  "enableSpecializedCapability",
+                                                                                                          "tags":  [
+                                                                                                                       "Section 20 Specialized Logistics"
+                                                                                                                   ],
+                                                                                                          "security":  [
+                                                                                                                           {
+                                                                                                                               "bearerAuth":  [
+
+                                                                                                                                              ]
+                                                                                                                           }
+                                                                                                                       ],
+                                                                                                          "x-permission":  "specialized.manage",
+                                                                                                          "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                                          "x-auth-class":  "corporate",
+                                                                                                          "x-idempotency-required":  true,
+                                                                                                          "x-expected-version-required":  true,
+                                                                                                          "responses":  {
+                                                                                                                            "200":  {
+                                                                                                                                        "description":  "Successful response",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "400":  {
+                                                                                                                                        "description":  "Invalid request",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "401":  {
+                                                                                                                                        "description":  "Unauthenticated",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "403":  {
+                                                                                                                                        "description":  "Forbidden",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "404":  {
+                                                                                                                                        "description":  "Not found",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "409":  {
+                                                                                                                                        "description":  "Conflict",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "503":  {
+                                                                                                                                        "description":  "Capability or authority unavailable",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    }
+                                                                                                                        },
+                                                                                                          "parameters":  [
+                                                                                                                             {
+                                                                                                                                 "name":  "capabilityCode",
+                                                                                                                                 "in":  "path",
+                                                                                                                                 "required":  true,
+                                                                                                                                 "schema":  {
+                                                                                                                                                "type":  "string"
+                                                                                                                                            }
+                                                                                                                             },
+                                                                                                                             {
+                                                                                                                                 "name":  "Idempotency-Key",
+                                                                                                                                 "in":  "header",
+                                                                                                                                 "required":  true,
+                                                                                                                                 "schema":  {
+                                                                                                                                                "type":  "string",
+                                                                                                                                                "minLength":  1
+                                                                                                                                            }
+                                                                                                                             },
+                                                                                                                             {
+                                                                                                                                 "name":  "If-Match",
+                                                                                                                                 "in":  "header",
+                                                                                                                                 "required":  false,
+                                                                                                                                 "schema":  {
+                                                                                                                                                "type":  "string"
+                                                                                                                                            },
+                                                                                                                                 "description":  "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+                                                                                                                             }
+                                                                                                                         ],
+                                                                                                          "requestBody":  {
+                                                                                                                              "required":  true,
+                                                                                                                              "content":  {
+                                                                                                                                              "application/json":  {
+                                                                                                                                                                       "schema":  {
+                                                                                                                                                                                      "$ref":  "#/components/schemas/CommandRequest"
+                                                                                                                                                                                  }
+                                                                                                                                                                   }
+                                                                                                                                          }
+                                                                                                                          }
+                                                                                                      }
+                                                                                         },
+                  "/fleet-partner/v1/specialized/capabilities/{capabilityCode}/disable":  {
+                                                                                              "post":  {
+                                                                                                           "operationId":  "disableSpecializedCapability",
+                                                                                                           "tags":  [
+                                                                                                                        "Section 20 Specialized Logistics"
+                                                                                                                    ],
+                                                                                                           "security":  [
+                                                                                                                            {
+                                                                                                                                "bearerAuth":  [
+
+                                                                                                                                               ]
+                                                                                                                            }
+                                                                                                                        ],
+                                                                                                           "x-permission":  "specialized.manage",
+                                                                                                           "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                                           "x-auth-class":  "corporate",
+                                                                                                           "x-idempotency-required":  true,
+                                                                                                           "x-expected-version-required":  true,
+                                                                                                           "responses":  {
+                                                                                                                             "200":  {
+                                                                                                                                         "description":  "Successful response",
+                                                                                                                                         "content":  {
+                                                                                                                                                         "application/json":  {
+                                                                                                                                                                                  "schema":  {
+                                                                                                                                                                                                 "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                                             }
+                                                                                                                                                                              }
+                                                                                                                                                     }
+                                                                                                                                     },
+                                                                                                                             "400":  {
+                                                                                                                                         "description":  "Invalid request",
+                                                                                                                                         "content":  {
+                                                                                                                                                         "application/json":  {
+                                                                                                                                                                                  "schema":  {
+                                                                                                                                                                                                 "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                             }
+                                                                                                                                                                              }
+                                                                                                                                                     }
+                                                                                                                                     },
+                                                                                                                             "401":  {
+                                                                                                                                         "description":  "Unauthenticated",
+                                                                                                                                         "content":  {
+                                                                                                                                                         "application/json":  {
+                                                                                                                                                                                  "schema":  {
+                                                                                                                                                                                                 "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                             }
+                                                                                                                                                                              }
+                                                                                                                                                     }
+                                                                                                                                     },
+                                                                                                                             "403":  {
+                                                                                                                                         "description":  "Forbidden",
+                                                                                                                                         "content":  {
+                                                                                                                                                         "application/json":  {
+                                                                                                                                                                                  "schema":  {
+                                                                                                                                                                                                 "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                             }
+                                                                                                                                                                              }
+                                                                                                                                                     }
+                                                                                                                                     },
+                                                                                                                             "404":  {
+                                                                                                                                         "description":  "Not found",
+                                                                                                                                         "content":  {
+                                                                                                                                                         "application/json":  {
+                                                                                                                                                                                  "schema":  {
+                                                                                                                                                                                                 "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                             }
+                                                                                                                                                                              }
+                                                                                                                                                     }
+                                                                                                                                     },
+                                                                                                                             "409":  {
+                                                                                                                                         "description":  "Conflict",
+                                                                                                                                         "content":  {
+                                                                                                                                                         "application/json":  {
+                                                                                                                                                                                  "schema":  {
+                                                                                                                                                                                                 "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                             }
+                                                                                                                                                                              }
+                                                                                                                                                     }
+                                                                                                                                     },
+                                                                                                                             "503":  {
+                                                                                                                                         "description":  "Capability or authority unavailable",
+                                                                                                                                         "content":  {
+                                                                                                                                                         "application/json":  {
+                                                                                                                                                                                  "schema":  {
+                                                                                                                                                                                                 "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                             }
+                                                                                                                                                                              }
+                                                                                                                                                     }
+                                                                                                                                     }
+                                                                                                                         },
+                                                                                                           "parameters":  [
+                                                                                                                              {
+                                                                                                                                  "name":  "capabilityCode",
+                                                                                                                                  "in":  "path",
+                                                                                                                                  "required":  true,
+                                                                                                                                  "schema":  {
+                                                                                                                                                 "type":  "string"
+                                                                                                                                             }
+                                                                                                                              },
+                                                                                                                              {
+                                                                                                                                  "name":  "Idempotency-Key",
+                                                                                                                                  "in":  "header",
+                                                                                                                                  "required":  true,
+                                                                                                                                  "schema":  {
+                                                                                                                                                 "type":  "string",
+                                                                                                                                                 "minLength":  1
+                                                                                                                                             }
+                                                                                                                              },
+                                                                                                                              {
+                                                                                                                                  "name":  "If-Match",
+                                                                                                                                  "in":  "header",
+                                                                                                                                  "required":  false,
+                                                                                                                                  "schema":  {
+                                                                                                                                                 "type":  "string"
+                                                                                                                                             },
+                                                                                                                                  "description":  "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+                                                                                                                              }
+                                                                                                                          ],
+                                                                                                           "requestBody":  {
+                                                                                                                               "required":  true,
+                                                                                                                               "content":  {
+                                                                                                                                               "application/json":  {
+                                                                                                                                                                        "schema":  {
+                                                                                                                                                                                       "$ref":  "#/components/schemas/CommandRequest"
+                                                                                                                                                                                   }
+                                                                                                                                                                    }
+                                                                                                                                           }
+                                                                                                                           }
+                                                                                                       }
+                                                                                          },
+                  "/fleet-partner/v1/specialized/{capabilityCode}/records":  {
+                                                                                 "get":  {
+                                                                                             "operationId":  "listSpecializedRecords",
+                                                                                             "tags":  [
+                                                                                                          "Section 20 Specialized Logistics"
+                                                                                                      ],
+                                                                                             "security":  [
+                                                                                                              {
+                                                                                                                  "bearerAuth":  [
+
+                                                                                                                                 ]
+                                                                                                              }
+                                                                                                          ],
+                                                                                             "x-permission":  "specialized.read",
+                                                                                             "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                             "x-auth-class":  "corporate",
+                                                                                             "x-idempotency-required":  false,
+                                                                                             "x-expected-version-required":  false,
+                                                                                             "responses":  {
+                                                                                                               "200":  {
+                                                                                                                           "description":  "Successful response",
+                                                                                                                           "content":  {
+                                                                                                                                           "application/json":  {
+                                                                                                                                                                    "schema":  {
+                                                                                                                                                                                   "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                               }
+                                                                                                                                                                }
+                                                                                                                                       }
+                                                                                                                       },
+                                                                                                               "400":  {
+                                                                                                                           "description":  "Invalid request",
+                                                                                                                           "content":  {
+                                                                                                                                           "application/json":  {
+                                                                                                                                                                    "schema":  {
+                                                                                                                                                                                   "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                               }
+                                                                                                                                                                }
+                                                                                                                                       }
+                                                                                                                       },
+                                                                                                               "401":  {
+                                                                                                                           "description":  "Unauthenticated",
+                                                                                                                           "content":  {
+                                                                                                                                           "application/json":  {
+                                                                                                                                                                    "schema":  {
+                                                                                                                                                                                   "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                               }
+                                                                                                                                                                }
+                                                                                                                                       }
+                                                                                                                       },
+                                                                                                               "403":  {
+                                                                                                                           "description":  "Forbidden",
+                                                                                                                           "content":  {
+                                                                                                                                           "application/json":  {
+                                                                                                                                                                    "schema":  {
+                                                                                                                                                                                   "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                               }
+                                                                                                                                                                }
+                                                                                                                                       }
+                                                                                                                       },
+                                                                                                               "404":  {
+                                                                                                                           "description":  "Not found",
+                                                                                                                           "content":  {
+                                                                                                                                           "application/json":  {
+                                                                                                                                                                    "schema":  {
+                                                                                                                                                                                   "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                               }
+                                                                                                                                                                }
+                                                                                                                                       }
+                                                                                                                       },
+                                                                                                               "409":  {
+                                                                                                                           "description":  "Conflict",
+                                                                                                                           "content":  {
+                                                                                                                                           "application/json":  {
+                                                                                                                                                                    "schema":  {
+                                                                                                                                                                                   "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                               }
+                                                                                                                                                                }
+                                                                                                                                       }
+                                                                                                                       },
+                                                                                                               "503":  {
+                                                                                                                           "description":  "Capability or authority unavailable",
+                                                                                                                           "content":  {
+                                                                                                                                           "application/json":  {
+                                                                                                                                                                    "schema":  {
+                                                                                                                                                                                   "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                               }
+                                                                                                                                                                }
+                                                                                                                                       }
+                                                                                                                       }
+                                                                                                           },
+                                                                                             "parameters":  [
+                                                                                                                {
+                                                                                                                    "name":  "capabilityCode",
+                                                                                                                    "in":  "path",
+                                                                                                                    "required":  true,
+                                                                                                                    "schema":  {
+                                                                                                                                   "type":  "string"
+                                                                                                                               }
+                                                                                                                }
+                                                                                                            ]
+                                                                                         },
+                                                                                 "post":  {
+                                                                                              "operationId":  "createSpecializedRecord",
+                                                                                              "tags":  [
+                                                                                                           "Section 20 Specialized Logistics"
+                                                                                                       ],
+                                                                                              "security":  [
+                                                                                                               {
+                                                                                                                   "bearerAuth":  [
+
+                                                                                                                                  ]
+                                                                                                               }
+                                                                                                           ],
+                                                                                              "x-permission":  "specialized.manage",
+                                                                                              "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                              "x-auth-class":  "corporate",
+                                                                                              "x-idempotency-required":  true,
+                                                                                              "x-expected-version-required":  false,
+                                                                                              "responses":  {
+                                                                                                                "200":  {
+                                                                                                                            "description":  "Successful response",
+                                                                                                                            "content":  {
+                                                                                                                                            "application/json":  {
+                                                                                                                                                                     "schema":  {
+                                                                                                                                                                                    "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                                }
+                                                                                                                                                                 }
+                                                                                                                                        }
+                                                                                                                        },
+                                                                                                                "400":  {
+                                                                                                                            "description":  "Invalid request",
+                                                                                                                            "content":  {
+                                                                                                                                            "application/json":  {
+                                                                                                                                                                     "schema":  {
+                                                                                                                                                                                    "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                }
+                                                                                                                                                                 }
+                                                                                                                                        }
+                                                                                                                        },
+                                                                                                                "401":  {
+                                                                                                                            "description":  "Unauthenticated",
+                                                                                                                            "content":  {
+                                                                                                                                            "application/json":  {
+                                                                                                                                                                     "schema":  {
+                                                                                                                                                                                    "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                }
+                                                                                                                                                                 }
+                                                                                                                                        }
+                                                                                                                        },
+                                                                                                                "403":  {
+                                                                                                                            "description":  "Forbidden",
+                                                                                                                            "content":  {
+                                                                                                                                            "application/json":  {
+                                                                                                                                                                     "schema":  {
+                                                                                                                                                                                    "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                }
+                                                                                                                                                                 }
+                                                                                                                                        }
+                                                                                                                        },
+                                                                                                                "404":  {
+                                                                                                                            "description":  "Not found",
+                                                                                                                            "content":  {
+                                                                                                                                            "application/json":  {
+                                                                                                                                                                     "schema":  {
+                                                                                                                                                                                    "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                }
+                                                                                                                                                                 }
+                                                                                                                                        }
+                                                                                                                        },
+                                                                                                                "409":  {
+                                                                                                                            "description":  "Conflict",
+                                                                                                                            "content":  {
+                                                                                                                                            "application/json":  {
+                                                                                                                                                                     "schema":  {
+                                                                                                                                                                                    "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                }
+                                                                                                                                                                 }
+                                                                                                                                        }
+                                                                                                                        },
+                                                                                                                "503":  {
+                                                                                                                            "description":  "Capability or authority unavailable",
+                                                                                                                            "content":  {
+                                                                                                                                            "application/json":  {
+                                                                                                                                                                     "schema":  {
+                                                                                                                                                                                    "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                }
+                                                                                                                                                                 }
+                                                                                                                                        }
+                                                                                                                        }
+                                                                                                            },
+                                                                                              "parameters":  [
+                                                                                                                 {
+                                                                                                                     "name":  "capabilityCode",
+                                                                                                                     "in":  "path",
+                                                                                                                     "required":  true,
+                                                                                                                     "schema":  {
+                                                                                                                                    "type":  "string"
+                                                                                                                                }
+                                                                                                                 },
+                                                                                                                 {
+                                                                                                                     "name":  "Idempotency-Key",
+                                                                                                                     "in":  "header",
+                                                                                                                     "required":  true,
+                                                                                                                     "schema":  {
+                                                                                                                                    "type":  "string",
+                                                                                                                                    "minLength":  1
+                                                                                                                                }
+                                                                                                                 }
+                                                                                                             ],
+                                                                                              "requestBody":  {
+                                                                                                                  "required":  true,
+                                                                                                                  "content":  {
+                                                                                                                                  "application/json":  {
+                                                                                                                                                           "schema":  {
+                                                                                                                                                                          "$ref":  "#/components/schemas/CommandRequest"
+                                                                                                                                                                      }
+                                                                                                                                                       }
+                                                                                                                              }
+                                                                                                              }
+                                                                                          }
+                                                                             },
+                  "/fleet-partner/v1/specialized/{capabilityCode}/records/{recordId}":  {
+                                                                                            "get":  {
+                                                                                                        "operationId":  "getSpecializedRecord",
+                                                                                                        "tags":  [
+                                                                                                                     "Section 20 Specialized Logistics"
+                                                                                                                 ],
+                                                                                                        "security":  [
+                                                                                                                         {
+                                                                                                                             "bearerAuth":  [
+
+                                                                                                                                            ]
+                                                                                                                         }
+                                                                                                                     ],
+                                                                                                        "x-permission":  "specialized.read",
+                                                                                                        "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                                        "x-auth-class":  "corporate",
+                                                                                                        "x-idempotency-required":  false,
+                                                                                                        "x-expected-version-required":  false,
+                                                                                                        "responses":  {
+                                                                                                                          "200":  {
+                                                                                                                                      "description":  "Successful response",
+                                                                                                                                      "content":  {
+                                                                                                                                                      "application/json":  {
+                                                                                                                                                                               "schema":  {
+                                                                                                                                                                                              "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                                          }
+                                                                                                                                                                           }
+                                                                                                                                                  }
+                                                                                                                                  },
+                                                                                                                          "400":  {
+                                                                                                                                      "description":  "Invalid request",
+                                                                                                                                      "content":  {
+                                                                                                                                                      "application/json":  {
+                                                                                                                                                                               "schema":  {
+                                                                                                                                                                                              "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                          }
+                                                                                                                                                                           }
+                                                                                                                                                  }
+                                                                                                                                  },
+                                                                                                                          "401":  {
+                                                                                                                                      "description":  "Unauthenticated",
+                                                                                                                                      "content":  {
+                                                                                                                                                      "application/json":  {
+                                                                                                                                                                               "schema":  {
+                                                                                                                                                                                              "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                          }
+                                                                                                                                                                           }
+                                                                                                                                                  }
+                                                                                                                                  },
+                                                                                                                          "403":  {
+                                                                                                                                      "description":  "Forbidden",
+                                                                                                                                      "content":  {
+                                                                                                                                                      "application/json":  {
+                                                                                                                                                                               "schema":  {
+                                                                                                                                                                                              "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                          }
+                                                                                                                                                                           }
+                                                                                                                                                  }
+                                                                                                                                  },
+                                                                                                                          "404":  {
+                                                                                                                                      "description":  "Not found",
+                                                                                                                                      "content":  {
+                                                                                                                                                      "application/json":  {
+                                                                                                                                                                               "schema":  {
+                                                                                                                                                                                              "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                          }
+                                                                                                                                                                           }
+                                                                                                                                                  }
+                                                                                                                                  },
+                                                                                                                          "409":  {
+                                                                                                                                      "description":  "Conflict",
+                                                                                                                                      "content":  {
+                                                                                                                                                      "application/json":  {
+                                                                                                                                                                               "schema":  {
+                                                                                                                                                                                              "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                          }
+                                                                                                                                                                           }
+                                                                                                                                                  }
+                                                                                                                                  },
+                                                                                                                          "503":  {
+                                                                                                                                      "description":  "Capability or authority unavailable",
+                                                                                                                                      "content":  {
+                                                                                                                                                      "application/json":  {
+                                                                                                                                                                               "schema":  {
+                                                                                                                                                                                              "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                          }
+                                                                                                                                                                           }
+                                                                                                                                                  }
+                                                                                                                                  }
+                                                                                                                      },
+                                                                                                        "parameters":  [
+                                                                                                                           {
+                                                                                                                               "name":  "capabilityCode",
+                                                                                                                               "in":  "path",
+                                                                                                                               "required":  true,
+                                                                                                                               "schema":  {
+                                                                                                                                              "type":  "string"
+                                                                                                                                          }
+                                                                                                                           },
+                                                                                                                           {
+                                                                                                                               "name":  "recordId",
+                                                                                                                               "in":  "path",
+                                                                                                                               "required":  true,
+                                                                                                                               "schema":  {
+                                                                                                                                              "type":  "string"
+                                                                                                                                          }
+                                                                                                                           }
+                                                                                                                       ]
+                                                                                                    },
+                                                                                            "patch":  {
+                                                                                                          "operationId":  "updateSpecializedRecord",
+                                                                                                          "tags":  [
+                                                                                                                       "Section 20 Specialized Logistics"
+                                                                                                                   ],
+                                                                                                          "security":  [
+                                                                                                                           {
+                                                                                                                               "bearerAuth":  [
+
+                                                                                                                                              ]
+                                                                                                                           }
+                                                                                                                       ],
+                                                                                                          "x-permission":  "specialized.manage",
+                                                                                                          "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                                          "x-auth-class":  "corporate",
+                                                                                                          "x-idempotency-required":  false,
+                                                                                                          "x-expected-version-required":  true,
+                                                                                                          "responses":  {
+                                                                                                                            "200":  {
+                                                                                                                                        "description":  "Successful response",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "400":  {
+                                                                                                                                        "description":  "Invalid request",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "401":  {
+                                                                                                                                        "description":  "Unauthenticated",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "403":  {
+                                                                                                                                        "description":  "Forbidden",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "404":  {
+                                                                                                                                        "description":  "Not found",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "409":  {
+                                                                                                                                        "description":  "Conflict",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    },
+                                                                                                                            "503":  {
+                                                                                                                                        "description":  "Capability or authority unavailable",
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    }
+                                                                                                                        },
+                                                                                                          "parameters":  [
+                                                                                                                             {
+                                                                                                                                 "name":  "capabilityCode",
+                                                                                                                                 "in":  "path",
+                                                                                                                                 "required":  true,
+                                                                                                                                 "schema":  {
+                                                                                                                                                "type":  "string"
+                                                                                                                                            }
+                                                                                                                             },
+                                                                                                                             {
+                                                                                                                                 "name":  "recordId",
+                                                                                                                                 "in":  "path",
+                                                                                                                                 "required":  true,
+                                                                                                                                 "schema":  {
+                                                                                                                                                "type":  "string"
+                                                                                                                                            }
+                                                                                                                             },
+                                                                                                                             {
+                                                                                                                                 "name":  "If-Match",
+                                                                                                                                 "in":  "header",
+                                                                                                                                 "required":  false,
+                                                                                                                                 "schema":  {
+                                                                                                                                                "type":  "string"
+                                                                                                                                            },
+                                                                                                                                 "description":  "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+                                                                                                                             }
+                                                                                                                         ],
+                                                                                                          "requestBody":  {
+                                                                                                                              "required":  true,
+                                                                                                                              "content":  {
+                                                                                                                                              "application/json":  {
+                                                                                                                                                                       "schema":  {
+                                                                                                                                                                                      "$ref":  "#/components/schemas/CommandRequest"
+                                                                                                                                                                                  }
+                                                                                                                                                                   }
+                                                                                                                                          }
+                                                                                                                          }
+                                                                                                      }
+                                                                                        },
+                  "/fleet-partner/v1/specialized/{capabilityCode}/records/{recordId}/commands/{command}":  {
+                                                                                                               "post":  {
+                                                                                                                            "operationId":  "commandSpecializedRecord",
+                                                                                                                            "tags":  [
+                                                                                                                                         "Section 20 Specialized Logistics"
+                                                                                                                                     ],
+                                                                                                                            "security":  [
+                                                                                                                                             {
+                                                                                                                                                 "bearerAuth":  [
+
+                                                                                                                                                                ]
+                                                                                                                                             }
+                                                                                                                                         ],
+                                                                                                                            "x-permission":  "specialized.manage",
+                                                                                                                            "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                                                            "x-auth-class":  "corporate",
+                                                                                                                            "x-idempotency-required":  true,
+                                                                                                                            "x-expected-version-required":  true,
+                                                                                                                            "responses":  {
+                                                                                                                                              "200":  {
+                                                                                                                                                          "description":  "Successful response",
+                                                                                                                                                          "content":  {
+                                                                                                                                                                          "application/json":  {
+                                                                                                                                                                                                   "schema":  {
+                                                                                                                                                                                                                  "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                                                              }
+                                                                                                                                                                                               }
+                                                                                                                                                                      }
+                                                                                                                                                      },
+                                                                                                                                              "400":  {
+                                                                                                                                                          "description":  "Invalid request",
+                                                                                                                                                          "content":  {
+                                                                                                                                                                          "application/json":  {
+                                                                                                                                                                                                   "schema":  {
+                                                                                                                                                                                                                  "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                              }
+                                                                                                                                                                                               }
+                                                                                                                                                                      }
+                                                                                                                                                      },
+                                                                                                                                              "401":  {
+                                                                                                                                                          "description":  "Unauthenticated",
+                                                                                                                                                          "content":  {
+                                                                                                                                                                          "application/json":  {
+                                                                                                                                                                                                   "schema":  {
+                                                                                                                                                                                                                  "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                              }
+                                                                                                                                                                                               }
+                                                                                                                                                                      }
+                                                                                                                                                      },
+                                                                                                                                              "403":  {
+                                                                                                                                                          "description":  "Forbidden",
+                                                                                                                                                          "content":  {
+                                                                                                                                                                          "application/json":  {
+                                                                                                                                                                                                   "schema":  {
+                                                                                                                                                                                                                  "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                              }
+                                                                                                                                                                                               }
+                                                                                                                                                                      }
+                                                                                                                                                      },
+                                                                                                                                              "404":  {
+                                                                                                                                                          "description":  "Not found",
+                                                                                                                                                          "content":  {
+                                                                                                                                                                          "application/json":  {
+                                                                                                                                                                                                   "schema":  {
+                                                                                                                                                                                                                  "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                              }
+                                                                                                                                                                                               }
+                                                                                                                                                                      }
+                                                                                                                                                      },
+                                                                                                                                              "409":  {
+                                                                                                                                                          "description":  "Conflict",
+                                                                                                                                                          "content":  {
+                                                                                                                                                                          "application/json":  {
+                                                                                                                                                                                                   "schema":  {
+                                                                                                                                                                                                                  "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                              }
+                                                                                                                                                                                               }
+                                                                                                                                                                      }
+                                                                                                                                                      },
+                                                                                                                                              "503":  {
+                                                                                                                                                          "description":  "Capability or authority unavailable",
+                                                                                                                                                          "content":  {
+                                                                                                                                                                          "application/json":  {
+                                                                                                                                                                                                   "schema":  {
+                                                                                                                                                                                                                  "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                              }
+                                                                                                                                                                                               }
+                                                                                                                                                                      }
+                                                                                                                                                      }
+                                                                                                                                          },
+                                                                                                                            "parameters":  [
+                                                                                                                                               {
+                                                                                                                                                   "name":  "capabilityCode",
+                                                                                                                                                   "in":  "path",
+                                                                                                                                                   "required":  true,
+                                                                                                                                                   "schema":  {
+                                                                                                                                                                  "type":  "string"
+                                                                                                                                                              }
+                                                                                                                                               },
+                                                                                                                                               {
+                                                                                                                                                   "name":  "recordId",
+                                                                                                                                                   "in":  "path",
+                                                                                                                                                   "required":  true,
+                                                                                                                                                   "schema":  {
+                                                                                                                                                                  "type":  "string"
+                                                                                                                                                              }
+                                                                                                                                               },
+                                                                                                                                               {
+                                                                                                                                                   "name":  "command",
+                                                                                                                                                   "in":  "path",
+                                                                                                                                                   "required":  true,
+                                                                                                                                                   "schema":  {
+                                                                                                                                                                  "type":  "string"
+                                                                                                                                                              }
+                                                                                                                                               },
+                                                                                                                                               {
+                                                                                                                                                   "name":  "Idempotency-Key",
+                                                                                                                                                   "in":  "header",
+                                                                                                                                                   "required":  true,
+                                                                                                                                                   "schema":  {
+                                                                                                                                                                  "type":  "string",
+                                                                                                                                                                  "minLength":  1
+                                                                                                                                                              }
+                                                                                                                                               },
+                                                                                                                                               {
+                                                                                                                                                   "name":  "If-Match",
+                                                                                                                                                   "in":  "header",
+                                                                                                                                                   "required":  false,
+                                                                                                                                                   "schema":  {
+                                                                                                                                                                  "type":  "string"
+                                                                                                                                                              },
+                                                                                                                                                   "description":  "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+                                                                                                                                               }
+                                                                                                                                           ],
+                                                                                                                            "requestBody":  {
+                                                                                                                                                "required":  true,
+                                                                                                                                                "content":  {
+                                                                                                                                                                "application/json":  {
+                                                                                                                                                                                         "schema":  {
+                                                                                                                                                                                                        "$ref":  "#/components/schemas/CommandRequest"
+                                                                                                                                                                                                    }
+                                                                                                                                                                                     }
+                                                                                                                                                            }
+                                                                                                                                            }
+                                                                                                                        }
+                                                                                                           },
+                  "/fleet-partner/v1/specialized/{capabilityCode}/records/{recordId}/milestones":  {
+                                                                                                       "post":  {
+                                                                                                                    "operationId":  "addSpecializedMilestone",
+                                                                                                                    "tags":  [
+                                                                                                                                 "Section 20 Specialized Logistics"
+                                                                                                                             ],
+                                                                                                                    "security":  [
+                                                                                                                                     {
+                                                                                                                                         "bearerAuth":  [
+
+                                                                                                                                                        ]
+                                                                                                                                     }
+                                                                                                                                 ],
+                                                                                                                    "x-permission":  "specialized.manage",
+                                                                                                                    "x-feature-flag":  "SPECIALIZED_LOGISTICS_ENABLED",
+                                                                                                                    "x-auth-class":  "corporate",
+                                                                                                                    "x-idempotency-required":  true,
+                                                                                                                    "x-expected-version-required":  false,
+                                                                                                                    "responses":  {
+                                                                                                                                      "200":  {
+                                                                                                                                                  "description":  "Successful response",
+                                                                                                                                                  "content":  {
+                                                                                                                                                                  "application/json":  {
+                                                                                                                                                                                           "schema":  {
+                                                                                                                                                                                                          "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                                                      }
+                                                                                                                                                                                       }
+                                                                                                                                                              }
+                                                                                                                                              },
+                                                                                                                                      "400":  {
+                                                                                                                                                  "description":  "Invalid request",
+                                                                                                                                                  "content":  {
+                                                                                                                                                                  "application/json":  {
+                                                                                                                                                                                           "schema":  {
+                                                                                                                                                                                                          "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                      }
+                                                                                                                                                                                       }
+                                                                                                                                                              }
+                                                                                                                                              },
+                                                                                                                                      "401":  {
+                                                                                                                                                  "description":  "Unauthenticated",
+                                                                                                                                                  "content":  {
+                                                                                                                                                                  "application/json":  {
+                                                                                                                                                                                           "schema":  {
+                                                                                                                                                                                                          "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                      }
+                                                                                                                                                                                       }
+                                                                                                                                                              }
+                                                                                                                                              },
+                                                                                                                                      "403":  {
+                                                                                                                                                  "description":  "Forbidden",
+                                                                                                                                                  "content":  {
+                                                                                                                                                                  "application/json":  {
+                                                                                                                                                                                           "schema":  {
+                                                                                                                                                                                                          "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                      }
+                                                                                                                                                                                       }
+                                                                                                                                                              }
+                                                                                                                                              },
+                                                                                                                                      "404":  {
+                                                                                                                                                  "description":  "Not found",
+                                                                                                                                                  "content":  {
+                                                                                                                                                                  "application/json":  {
+                                                                                                                                                                                           "schema":  {
+                                                                                                                                                                                                          "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                      }
+                                                                                                                                                                                       }
+                                                                                                                                                              }
+                                                                                                                                              },
+                                                                                                                                      "409":  {
+                                                                                                                                                  "description":  "Conflict",
+                                                                                                                                                  "content":  {
+                                                                                                                                                                  "application/json":  {
+                                                                                                                                                                                           "schema":  {
+                                                                                                                                                                                                          "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                      }
+                                                                                                                                                                                       }
+                                                                                                                                                              }
+                                                                                                                                              },
+                                                                                                                                      "503":  {
+                                                                                                                                                  "description":  "Capability or authority unavailable",
+                                                                                                                                                  "content":  {
+                                                                                                                                                                  "application/json":  {
+                                                                                                                                                                                           "schema":  {
+                                                                                                                                                                                                          "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                      }
+                                                                                                                                                                                       }
+                                                                                                                                                              }
+                                                                                                                                              }
+                                                                                                                                  },
+                                                                                                                    "parameters":  [
+                                                                                                                                       {
+                                                                                                                                           "name":  "capabilityCode",
+                                                                                                                                           "in":  "path",
+                                                                                                                                           "required":  true,
+                                                                                                                                           "schema":  {
+                                                                                                                                                          "type":  "string"
+                                                                                                                                                      }
+                                                                                                                                       },
+                                                                                                                                       {
+                                                                                                                                           "name":  "recordId",
+                                                                                                                                           "in":  "path",
+                                                                                                                                           "required":  true,
+                                                                                                                                           "schema":  {
+                                                                                                                                                          "type":  "string"
+                                                                                                                                                      }
+                                                                                                                                       },
+                                                                                                                                       {
+                                                                                                                                           "name":  "Idempotency-Key",
+                                                                                                                                           "in":  "header",
+                                                                                                                                           "required":  true,
+                                                                                                                                           "schema":  {
+                                                                                                                                                          "type":  "string",
+                                                                                                                                                          "minLength":  1
+                                                                                                                                                      }
+                                                                                                                                       }
+                                                                                                                                   ],
+                                                                                                                    "requestBody":  {
+                                                                                                                                        "required":  true,
+                                                                                                                                        "content":  {
+                                                                                                                                                        "application/json":  {
+                                                                                                                                                                                 "schema":  {
+                                                                                                                                                                                                "$ref":  "#/components/schemas/CommandRequest"
+                                                                                                                                                                                            }
+                                                                                                                                                                             }
+                                                                                                                                                    }
+                                                                                                                                    }
+                                                                                                                }
+                                                                                                   },
+                  "/fleet-partner/v1/specialized/COLD_CHAIN/records/{recordId}/temperature-events":  {
+                                                                                                         "post":  {
+                                                                                                                      "operationId":  "addTemperatureEvent",
+                                                                                                                      "tags":  [
+                                                                                                                                   "Section 20 Specialized Logistics"
+                                                                                                                               ],
+                                                                                                                      "security":  [
+                                                                                                                                       {
+                                                                                                                                           "bearerAuth":  [
+
+                                                                                                                                                          ]
+                                                                                                                                       }
+                                                                                                                                   ],
+                                                                                                                      "x-permission":  "specialized.manage",
+                                                                                                                      "x-feature-flag":  "COLD_CHAIN_ENABLED",
+                                                                                                                      "x-auth-class":  "corporate",
+                                                                                                                      "x-idempotency-required":  true,
+                                                                                                                      "x-expected-version-required":  false,
+                                                                                                                      "responses":  {
+                                                                                                                                        "200":  {
+                                                                                                                                                    "description":  "Successful response",
+                                                                                                                                                    "content":  {
+                                                                                                                                                                    "application/json":  {
+                                                                                                                                                                                             "schema":  {
+                                                                                                                                                                                                            "$ref":  "#/components/schemas/Envelope"
+                                                                                                                                                                                                        }
+                                                                                                                                                                                         }
+                                                                                                                                                                }
+                                                                                                                                                },
+                                                                                                                                        "400":  {
+                                                                                                                                                    "description":  "Invalid request",
+                                                                                                                                                    "content":  {
+                                                                                                                                                                    "application/json":  {
+                                                                                                                                                                                             "schema":  {
+                                                                                                                                                                                                            "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                        }
+                                                                                                                                                                                         }
+                                                                                                                                                                }
+                                                                                                                                                },
+                                                                                                                                        "401":  {
+                                                                                                                                                    "description":  "Unauthenticated",
+                                                                                                                                                    "content":  {
+                                                                                                                                                                    "application/json":  {
+                                                                                                                                                                                             "schema":  {
+                                                                                                                                                                                                            "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                        }
+                                                                                                                                                                                         }
+                                                                                                                                                                }
+                                                                                                                                                },
+                                                                                                                                        "403":  {
+                                                                                                                                                    "description":  "Forbidden",
+                                                                                                                                                    "content":  {
+                                                                                                                                                                    "application/json":  {
+                                                                                                                                                                                             "schema":  {
+                                                                                                                                                                                                            "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                        }
+                                                                                                                                                                                         }
+                                                                                                                                                                }
+                                                                                                                                                },
+                                                                                                                                        "404":  {
+                                                                                                                                                    "description":  "Not found",
+                                                                                                                                                    "content":  {
+                                                                                                                                                                    "application/json":  {
+                                                                                                                                                                                             "schema":  {
+                                                                                                                                                                                                            "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                        }
+                                                                                                                                                                                         }
+                                                                                                                                                                }
+                                                                                                                                                },
+                                                                                                                                        "409":  {
+                                                                                                                                                    "description":  "Conflict",
+                                                                                                                                                    "content":  {
+                                                                                                                                                                    "application/json":  {
+                                                                                                                                                                                             "schema":  {
+                                                                                                                                                                                                            "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                        }
+                                                                                                                                                                                         }
+                                                                                                                                                                }
+                                                                                                                                                },
+                                                                                                                                        "503":  {
+                                                                                                                                                    "description":  "Capability or authority unavailable",
+                                                                                                                                                    "content":  {
+                                                                                                                                                                    "application/json":  {
+                                                                                                                                                                                             "schema":  {
+                                                                                                                                                                                                            "$ref":  "#/components/schemas/Problem"
+                                                                                                                                                                                                        }
+                                                                                                                                                                                         }
+                                                                                                                                                                }
+                                                                                                                                                }
+                                                                                                                                    },
+                                                                                                                      "parameters":  [
+                                                                                                                                         {
+                                                                                                                                             "name":  "recordId",
+                                                                                                                                             "in":  "path",
+                                                                                                                                             "required":  true,
+                                                                                                                                             "schema":  {
+                                                                                                                                                            "type":  "string"
+                                                                                                                                                        }
+                                                                                                                                         },
+                                                                                                                                         {
+                                                                                                                                             "name":  "Idempotency-Key",
+                                                                                                                                             "in":  "header",
+                                                                                                                                             "required":  true,
+                                                                                                                                             "schema":  {
+                                                                                                                                                            "type":  "string",
+                                                                                                                                                            "minLength":  1
+                                                                                                                                                        }
+                                                                                                                                         }
+                                                                                                                                     ],
+                                                                                                                      "requestBody":  {
+                                                                                                                                          "required":  true,
+                                                                                                                                          "content":  {
+                                                                                                                                                          "application/json":  {
+                                                                                                                                                                                   "schema":  {
+                                                                                                                                                                                                  "$ref":  "#/components/schemas/CommandRequest"
+                                                                                                                                                                                              }
+                                                                                                                                                                               }
+                                                                                                                                                      }
+                                                                                                                                      }
+                                                                                                                  }
+                                                                                                     }
+              }
+}

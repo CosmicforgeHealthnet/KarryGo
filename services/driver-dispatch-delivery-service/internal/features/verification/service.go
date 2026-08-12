@@ -63,6 +63,33 @@ func NewService(repository Repository, faceClient FaceMatcher, options ...Servic
 	return service
 }
 
+func (s *Service) SuspendProvider(ctx context.Context, input SuspensionInput) (SuspensionOutcome, error) {
+	if err := validateProviderID(input.ProviderID); err != nil {
+		return SuspensionOutcome{}, err
+	}
+	input.ReasonCode = strings.ToUpper(strings.TrimSpace(input.ReasonCode))
+	if input.ExpectedVersion < 1 || input.ActorID == "" || input.ReasonCode == "" || len(input.ReasonCode) > 64 {
+		return SuspensionOutcome{}, apperrors.BadRequest("A valid reason code, actor and expected version are required.", nil)
+	}
+	for _, char := range input.ReasonCode {
+		if (char < 'A' || char > 'Z') && (char < '0' || char > '9') && char != '_' {
+			return SuspensionOutcome{}, apperrors.BadRequest("Reason code contains unsupported characters.", nil)
+		}
+	}
+	repository, ok := s.repository.(SuspensionRepository)
+	if !ok {
+		return SuspensionOutcome{}, apperrors.Unavailable("Verification suspension is unavailable.", nil)
+	}
+	out, err := repository.SuspendProvider(ctx, input)
+	if errors.Is(err, ErrVerificationVersionConflict) {
+		return SuspensionOutcome{}, apperrors.Conflict("Verification state changed; refresh and retry.", err)
+	}
+	if err != nil {
+		return SuspensionOutcome{}, apperrors.Internal("Verification suspension failed.", err)
+	}
+	return out, nil
+}
+
 func (s *Service) SubmitIdentity(ctx context.Context, input IdentitySubmissionInput) (StepSubmissionResponse, error) {
 	if err := validateProviderID(input.ProviderID); err != nil {
 		return StepSubmissionResponse{}, err
@@ -1030,10 +1057,6 @@ func validationErrors(fields []apperrors.FieldViolation) *apperrors.Error {
 
 func preconditionFailed(message string) *apperrors.Error {
 	return apperrors.New(http.StatusPreconditionFailed, apperrors.Code("precondition_failed"), message, nil)
-}
-
-func notImplemented() *apperrors.Error {
-	return apperrors.New(http.StatusNotImplemented, apperrors.Code("not_implemented"), "Verification endpoint is not implemented yet.", nil)
 }
 
 func wrapInternal(message string, err error) *apperrors.Error {

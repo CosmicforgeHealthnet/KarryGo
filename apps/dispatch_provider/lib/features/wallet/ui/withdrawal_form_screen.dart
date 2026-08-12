@@ -76,7 +76,7 @@ class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
                   _cardHeight - _cardOverhang + 16,
                 ),
                 decoration: const BoxDecoration(
-                  color: Color(0xFFB7E4C7),
+                  color: Color(0xFFC1C5D4),
                   borderRadius: BorderRadius.vertical(
                     bottom: Radius.circular(28),
                   ),
@@ -117,7 +117,7 @@ class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
                   padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF1B5E20), Color(0xFF388E3C)],
+                      colors: [Color(0xFF05124D), Color(0xFF2761A7)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -176,7 +176,7 @@ class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: Colors.green.shade200,
+                      color: const Color(0xFFC1C5D4),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -185,7 +185,7 @@ class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF4CAF50),
+                      color: Color(0xFF05124D),
                     ),
                   ),
                 ],
@@ -219,8 +219,8 @@ class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: _isValid
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFA8D5B5),
+                        ? const Color(0xFF05124D)
+                        : const Color(0xFFC1C5D4),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: const Text(

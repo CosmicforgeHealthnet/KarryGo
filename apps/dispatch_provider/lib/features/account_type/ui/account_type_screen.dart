@@ -89,8 +89,8 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                       ? () => widget.onSelected(_selected!)
                       : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF27A747),
-                    disabledBackgroundColor: const Color(0xFFBCDFCD),
+                    backgroundColor: const Color(0xFF05124D),
+                    disabledBackgroundColor: const Color(0xFFC1C5D4),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(27),
                     ),
@@ -160,12 +160,12 @@ class _OptionCard extends StatelessWidget {
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) => Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF27A747).withValues(alpha: 0.1),
+                    color: const Color(0xFF05124D).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.account_box,
-                    color: Color(0xFF27A747),
+                    color: Color(0xFF05124D),
                   ),
                 ),
               ),
@@ -204,7 +204,7 @@ class _OptionCard extends StatelessWidget {
             Icon(
               Icons.arrow_forward,
               color: isSelected
-                  ? const Color(0xFF27A747)
+                  ? const Color(0xFF05124D)
                   : const Color(0xFFE5E5EA),
               size: 18,
             ),

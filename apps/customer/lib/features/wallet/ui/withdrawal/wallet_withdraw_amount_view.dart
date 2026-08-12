@@ -62,7 +62,7 @@ class WalletWithdrawAmountView extends StatelessWidget {
               Text(
                 controller.amountError!,
                 style: const TextStyle(
-                  color: Color(0xFFC0392B),
+                  color: Color(0xFF8A1212),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),

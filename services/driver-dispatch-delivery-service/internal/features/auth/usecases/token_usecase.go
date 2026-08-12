@@ -1,15 +1,18 @@
 package authusecases
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 )
@@ -21,8 +24,10 @@ const (
 )
 
 var (
-	ErrInvalidToken = errors.New("invalid token")
-	ErrExpiredToken = errors.New("expired token")
+	ErrInvalidToken              = errors.New("invalid token")
+	ErrExpiredToken              = errors.New("expired token")
+	ErrRevokedToken              = errors.New("revoked token")
+	ErrTokenAuthorityUnavailable = errors.New("token revocation authority unavailable")
 )
 
 type DispatchRiderClaims struct {
@@ -45,6 +50,12 @@ type TokenUsecase struct {
 	accessTTL  time.Duration
 	refreshTTL time.Duration
 	now        func() time.Time
+	redis      *redis.Client
+}
+
+func (u *TokenUsecase) WithRedis(client *redis.Client) *TokenUsecase {
+	u.redis = client
+	return u
 }
 
 func NewTokenUsecase(secret []byte, accessTTL time.Duration, refreshTTL time.Duration) *TokenUsecase {
@@ -73,6 +84,47 @@ func (u *TokenUsecase) ValidateAccessToken(token string) (DispatchRiderClaims, e
 		return DispatchRiderClaims{}, ErrInvalidToken
 	}
 	return claims, nil
+}
+
+// ValidateAccessTokenContext also consults the revocation authority. Redis
+// errors fail closed; a security decision is never guessed during an outage.
+func (u *TokenUsecase) ValidateAccessTokenContext(ctx context.Context, token string) (DispatchRiderClaims, error) {
+	claims, err := u.ValidateAccessToken(token)
+	if err != nil {
+		return DispatchRiderClaims{}, err
+	}
+	if u.redis == nil {
+		return claims, nil
+	}
+	revoked, err := u.redis.Exists(ctx, revokedJTIKey(claims.JWTID)).Result()
+	if err != nil {
+		return DispatchRiderClaims{}, ErrTokenAuthorityUnavailable
+	}
+	if revoked != 0 {
+		return DispatchRiderClaims{}, ErrRevokedToken
+	}
+	return claims, nil
+}
+
+// RevokeAccessToken stores only a hash of the JTI and lets Redis remove it at
+// the token's natural expiry. No bearer token is persisted.
+func (u *TokenUsecase) RevokeAccessToken(ctx context.Context, jti string, expiresAt int64) error {
+	if u.redis == nil || strings.TrimSpace(jti) == "" {
+		return nil
+	}
+	ttl := time.Until(time.Unix(expiresAt, 0))
+	if ttl <= 0 {
+		return nil
+	}
+	if err := u.redis.Set(ctx, revokedJTIKey(jti), "1", ttl).Err(); err != nil {
+		return ErrTokenAuthorityUnavailable
+	}
+	return nil
+}
+
+func revokedJTIKey(jti string) string {
+	sum := sha256.Sum256([]byte(jti))
+	return "dispatch_rider_auth:revoked_jti:" + hex.EncodeToString(sum[:])
 }
 
 func (u *TokenUsecase) ValidateRefreshToken(token string) (DispatchRiderClaims, error) {
@@ -138,6 +190,9 @@ func (u *TokenUsecase) validate(token string) (DispatchRiderClaims, error) {
 	}
 
 	if claims.DispatchRiderID == "" || claims.PhoneNumber == "" || claims.SessionID == "" {
+		return claims, ErrInvalidToken
+	}
+	if _, err := uuid.Parse(claims.JWTID); err != nil {
 		return claims, ErrInvalidToken
 	}
 	if _, err := uuid.Parse(claims.DispatchRiderID); err != nil {

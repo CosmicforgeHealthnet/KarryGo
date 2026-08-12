@@ -3,15 +3,16 @@ package serviceapp
 import (
 	"context"
 	"errors"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
-    "github.com/gin-contrib/cors" 
-	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
@@ -25,6 +26,7 @@ type Options struct {
 	Capabilities []string
 	ReadyChecks  []func(context.Context) error
 	Register     func(*gin.RouterGroup)
+	Workers      []func(context.Context) error
 }
 
 func Run(opts Options) {
@@ -41,7 +43,7 @@ func Run(opts Options) {
 		addr = ":8080"
 	}
 
-router := gin.New()
+	router := gin.New()
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000", "https://karry-go.vercel.app"},
 		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
@@ -122,6 +124,24 @@ router := gin.New()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		var wg sync.WaitGroup
+		for _, worker := range opts.Workers {
+			if worker == nil {
+				continue
+			}
+			wg.Add(1)
+			go func(run func(context.Context) error) {
+				defer wg.Done()
+				if err := run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+					log.Printf("%s worker stopped: %v", opts.Name, err)
+				}
+			}(worker)
+		}
+		wg.Wait()
+	}()
 
 	go func() {
 		log.Printf("%s listening on %s", opts.Name, addr)
@@ -131,6 +151,7 @@ router := gin.New()
 	}()
 
 	<-ctx.Done()
+	<-workerDone
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

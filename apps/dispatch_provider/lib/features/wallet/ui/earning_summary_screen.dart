@@ -71,7 +71,7 @@ class _EarningSummaryScreenState extends State<EarningSummaryScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)],
+                  colors: [Color(0xFF05124D), Color(0xFF2761A7)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),

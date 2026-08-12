@@ -3,37 +3,38 @@
 //
 // HOW TO SELECT THE RIGHT URL
 // ───────────────────────────
-// Always pass --dart-define=DISPATCH_PROVIDER_API_BASE_URL=<url> at run time.
-// If no dart-define is set the app falls back to http://localhost:8103, which
-// only works on Chrome/Windows.  On a physical Android phone localhost means
-// the phone itself, so every API call will fail with "Cannot connect".
+// The defaults below point at this dev machine's LAN IP (192.168.1.112), so a
+// physical Android phone on the same Wi-Fi reaches the backend directly with a
+// plain `flutter run` — no adb reverse tunnels. macOS may prompt once to allow
+// incoming connections; you must Allow.
 //
-// ── Chrome / Windows desktop ─────────────────────────────────────────────────
+// Pass --dart-define=DISPATCH_PROVIDER_API_BASE_URL=<url> whenever the host
+// differs — a different dev machine, a new DHCP lease, an emulator, or the
+// loopback + adb reverse setup.
+//
+// ── Physical Android over Wi-Fi (default — no flags needed) ──────────────────
+// flutter run -d <DEVICE_ID>
+//
+//   If your LAN IP has changed:
+//   ipconfig getifaddr en0             ← find your Mac's Wi-Fi IP
+//   flutter run -d <DEVICE_ID> \
+//     --dart-define=DISPATCH_PROVIDER_API_BASE_URL=http://192.168.x.x:8103
+//
+// ── Physical Android over USB (fallback — requires adb reverse) ──────────────
+// bash scripts/adb-reverse.sh          ← sets up every port this app needs
+// adb reverse --list                   ← verify the tunnels are active
+// flutter run -d <DEVICE_ID> \
+//   --dart-define=DISPATCH_PROVIDER_API_BASE_URL=http://127.0.0.1:8103
+//
+//   If you get a "service protocol" error add --disable-dds.
+//
+// ── Chrome / desktop ─────────────────────────────────────────────────────────
 // flutter run -d chrome \
 //   --dart-define=DISPATCH_PROVIDER_API_BASE_URL=http://localhost:8103
 //
 // ── Android emulator ─────────────────────────────────────────────────────────
 // flutter run \
 //   --dart-define=DISPATCH_PROVIDER_API_BASE_URL=http://10.0.2.2:8103
-//
-// ── Physical Android over USB (recommended — requires adb reverse) ───────────
-// adb reverse tcp:8103 tcp:8103
-// adb reverse --list                   ← verify the tunnel is active
-// flutter run -d <DEVICE_ID> \
-//   --dart-define=DISPATCH_PROVIDER_API_BASE_URL=http://127.0.0.1:8103
-//
-//   Example device ID: RFCY51N8EJB
-//   flutter run -d RFCY51N8EJB \
-//     --dart-define=DISPATCH_PROVIDER_API_BASE_URL=http://127.0.0.1:8103
-//
-//   If you get a "service protocol" error add --disable-dds:
-//   flutter run -d RFCY51N8EJB --disable-dds \
-//     --dart-define=DISPATCH_PROVIDER_API_BASE_URL=http://127.0.0.1:8103
-//
-// ── Physical Android over Wi-Fi ──────────────────────────────────────────────
-// ipconfig                             ← find your laptop's Wi-Fi IP
-// flutter run -d <DEVICE_ID> \
-//   --dart-define=DISPATCH_PROVIDER_API_BASE_URL=http://192.168.x.x:8103
 //
 // ── Production / VPS ─────────────────────────────────────────────────────────
 // flutter run \
@@ -58,22 +59,21 @@ class AppConfig {
   );
 
   /// Fallback when no dart-define is supplied.
-  /// Uses 127.0.0.1 (explicit IPv4) so adb-reverse tunnels work on Android
-  /// without needing --dart-define. Chrome/Windows also accepts 127.0.0.1.
-  static const developmentDefaultApiBaseUrl = 'http://127.0.0.1:8103';
+  /// This dev machine's LAN IP, so a physical Android phone on the same Wi-Fi
+  /// reaches the backend without adb-reverse tunnels. Note this is a bare
+  /// origin — callers append their own /api/v1/... paths.
+  static const developmentDefaultApiBaseUrl = 'http://192.168.1.112:8103';
 
   static const developmentDefaultWalletBaseUrl =
-      'http://127.0.0.1:8105/api/v1/payment-wallet';
+      'http://192.168.1.112:8105/api/v1/payment-wallet';
 
-  /// Notification-service websocket for realtime pushes. Requires
-  /// `adb reverse tcp:8106 tcp:8106` on a physical Android phone.
+  /// Notification-service websocket for realtime pushes.
   static const developmentDefaultNotificationWsUrl =
-      'ws://127.0.0.1:8106/api/v1/notifications/ws';
+      'ws://192.168.1.112:8106/api/v1/notifications/ws';
 
-  /// support-dispute-service (disputes + live chat). Requires
-  /// `adb reverse tcp:8107 tcp:8107` on a physical Android phone.
+  /// support-dispute-service (disputes + live chat).
   static const developmentDefaultSupportBaseUrl =
-      'http://127.0.0.1:8107/api/v1/support-disputes';
+      'http://192.168.1.112:8107/api/v1/support-disputes';
 
   /// The resolved backend base URL.  dart-define always wins; falls back to
   /// [developmentDefaultApiBaseUrl] when not set.

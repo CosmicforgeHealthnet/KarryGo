@@ -22,7 +22,7 @@ class TransactionDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        txn.isCredit ? CustomerFigmaColors.primary : const Color(0xFFE53935);
+        txn.isCredit ? CustomerFigmaColors.primary : const Color(0xFFA81717);
 
     return WalletFlowScaffold(
       title: 'Transaction Details',

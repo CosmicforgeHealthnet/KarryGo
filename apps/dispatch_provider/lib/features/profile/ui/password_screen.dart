@@ -92,7 +92,7 @@ class _PasswordScreenState extends State<PasswordScreen> {
                         Switch(
                           value: _enabled,
                           onChanged: _onToggle,
-                          activeColor: const Color(0xFF4CAF50),
+                          activeColor: const Color(0xFF05124D),
                         ),
                       ],
                     ),
@@ -124,9 +124,9 @@ class _PasswordScreenState extends State<PasswordScreen> {
                         }
                       : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor:
-                        const Color(0xFF4CAF50).withValues(alpha: 0.35),
+                        const Color(0xFF05124D).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),

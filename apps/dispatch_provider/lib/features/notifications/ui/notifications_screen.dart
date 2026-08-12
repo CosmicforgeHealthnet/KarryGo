@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/rider_notification.dart';
 import '../state/rider_notification_controller.dart';
 
-const _kGreen = Color(0xFF4CAF50);
-const _kGreenPale = Color(0xFFD3EBD4);
+const _kGreen = Color(0xFF05124D);
+const _kGreenPale = Color(0xFFE6E8EE);
 const _kText = Color(0xFF1A1A1A);
 const _kMuted = Color(0xFF8A8A8A);
 

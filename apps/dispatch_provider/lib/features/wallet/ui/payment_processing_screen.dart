@@ -40,7 +40,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF4CAF50),
+      backgroundColor: const Color(0xFF05124D),
       body: SafeArea(
         child: Stack(
           children: [

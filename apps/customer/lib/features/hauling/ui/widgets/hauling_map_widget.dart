@@ -134,7 +134,7 @@ class _HaulingMapWidgetState extends State<HaulingMapWidget> {
       Polyline(
         polylineId: const PolylineId('route'),
         points: [widget.pickupLatLng!, widget.dropoffLatLng!],
-        color: const Color(0xFF1F7A4D),
+        color: const Color(0xFF05124D),
         width: 3,
         patterns: [PatternItem.dash(20), PatternItem.gap(10)],
       ),

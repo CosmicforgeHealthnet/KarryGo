@@ -70,7 +70,7 @@ class _VerificationPendingScreenState extends State<VerificationPendingScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4CAF50)),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF05124D)),
             onPressed: _fetchStatus,
             tooltip: 'Refresh Status',
           ),
@@ -84,7 +84,7 @@ class _VerificationPendingScreenState extends State<VerificationPendingScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                      CircularProgressIndicator(color: Color(0xFF05124D)),
                       SizedBox(height: 16),
                       Text(
                         'Checking verification status...',
@@ -150,7 +150,7 @@ class _VerificationPendingScreenState extends State<VerificationPendingScreen> {
                                     const Icon(
                                       Icons.assignment_turned_in_rounded,
                                       size: 80,
-                                      color: Color(0xFF4CAF50),
+                                      color: Color(0xFF05124D),
                                     ),
                               ),
                             ),
@@ -214,7 +214,7 @@ class _VerificationPendingScreenState extends State<VerificationPendingScreen> {
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w800,
                                           fontSize: 15,
-                                          color: Color(0xFF4CAF50),
+                                          color: Color(0xFF05124D),
                                         ),
                                       ),
                                     ],
@@ -224,8 +224,8 @@ class _VerificationPendingScreenState extends State<VerificationPendingScreen> {
                                     value:
                                         statusResponse.completionPercentage /
                                         100.0,
-                                    backgroundColor: const Color(0xFFE8F5E9),
-                                    color: const Color(0xFF4CAF50),
+                                    backgroundColor: const Color(0xFFE7F5EC),
+                                    color: const Color(0xFF05124D),
                                     minHeight: 8,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
@@ -281,7 +281,7 @@ class _VerificationPendingScreenState extends State<VerificationPendingScreen> {
                     if (_localLoading)
                       const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFF4CAF50),
+                          color: Color(0xFF05124D),
                         ),
                       )
                     else
@@ -292,8 +292,8 @@ class _VerificationPendingScreenState extends State<VerificationPendingScreen> {
                               ? widget.onGoToDashboard
                               : null,
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
-                            disabledBackgroundColor: const Color(0xFFBCDFCD),
+                            backgroundColor: const Color(0xFF05124D),
+                            disabledBackgroundColor: const Color(0xFFC1C5D4),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(999),
                             ),
@@ -412,7 +412,7 @@ class _StepListTile extends StatelessWidget {
       case 'approved':
         return const Icon(
           Icons.check_circle_rounded,
-          color: Color(0xFF4CAF50),
+          color: Color(0xFF1F9D55),
           size: 24,
         );
       case 'submitted':
@@ -444,7 +444,7 @@ class _StepListTile extends StatelessWidget {
 
     switch (status) {
       case 'approved':
-        bgColor = const Color(0xFFE8F5E9);
+        bgColor = const Color(0xFFE7F5EC);
         textColor = const Color(0xFF2E7D32);
         label = 'Approved';
         break;

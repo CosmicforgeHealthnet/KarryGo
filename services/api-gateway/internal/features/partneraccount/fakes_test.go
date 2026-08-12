@@ -108,6 +108,24 @@ func (r *fakeAccountRepo) UpdateProfile(_ context.Context, id string, params Upd
 	cp := *a
 	return &cp, true, nil
 }
+func (r *fakeAccountRepo) DeleteAccount(_ context.Context, partnerID string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	account, ok := r.byID[partnerID]
+	if !ok {
+		return false, nil
+	}
+
+	delete(r.byID, partnerID)
+	delete(r.pass, partnerID)
+
+	if account != nil {
+		delete(r.emailToID, account.BusinessEmail)
+	}
+
+	return true, nil
+}
 func (r *fakeAccountRepo) passwordHash(id string) *string {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -1,0 +1,16 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('specialized.read','specialized.manage');
+DELETE FROM fleet_partner_permissions WHERE code IN('specialized.read','specialized.manage');
+DROP TRIGGER IF EXISTS trg_fleet_sensitive_access_append_only ON fleet_partner_sensitive_access_audit;
+DROP TABLE IF EXISTS fleet_partner_sensitive_access_audit;
+DROP TRIGGER IF EXISTS trg_fleet_temperature_events_append_only ON fleet_partner_temperature_events;
+DROP TABLE IF EXISTS fleet_partner_temperature_events;
+DROP TRIGGER IF EXISTS trg_fleet_specialized_milestones_append_only ON fleet_partner_specialized_milestones;
+DROP TABLE IF EXISTS fleet_partner_specialized_milestones;
+DROP TABLE IF EXISTS fleet_partner_specialized_records;
+DROP TRIGGER IF EXISTS trg_fleet_capability_history_append_only ON fleet_partner_capability_history;
+DROP TABLE IF EXISTS fleet_partner_capability_history;
+UPDATE fleet_partner_organization_capabilities SET status=CASE WHEN status='ENABLED' THEN 'APPROVED' WHEN status='DISABLED' THEN 'WITHDRAWN' ELSE status END;
+ALTER TABLE fleet_partner_organization_capabilities DROP CONSTRAINT IF EXISTS uq_fleet_partner_organization_capability_id;
+ALTER TABLE fleet_partner_organization_capabilities DROP COLUMN IF EXISTS disabled_at, DROP COLUMN IF EXISTS enabled_at, DROP COLUMN IF EXISTS configuration, DROP COLUMN IF EXISTS id;
+ALTER TABLE fleet_partner_organization_capabilities DROP CONSTRAINT fleet_partner_organization_capabilities_status_check;
+ALTER TABLE fleet_partner_organization_capabilities ADD CONSTRAINT fleet_partner_organization_capabilities_status_check CHECK(status IN('REQUESTED','APPROVED','REJECTED','WITHDRAWN'));

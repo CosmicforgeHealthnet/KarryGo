@@ -302,7 +302,7 @@ class _DocumentUploadBoxState extends State<DocumentUploadBox> {
                       'Tap to change',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF4CAF50),
+                        color: Color(0xFF05124D),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -346,7 +346,7 @@ class _DocumentUploadBoxState extends State<DocumentUploadBox> {
               Icon(
                 Icons.upload_file_rounded,
                 size: 30,
-                color: Color(0xFF4CAF50),
+                color: Color(0xFF05124D),
               ),
               SizedBox(height: 8),
               Text(
@@ -392,7 +392,7 @@ class _SheetOption extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: const Color(0xFF4CAF50)),
+            Icon(icon, size: 22, color: const Color(0xFF05124D)),
             const SizedBox(width: 16),
             Text(
               label,

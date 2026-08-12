@@ -380,12 +380,33 @@ Important local ports:
 - Analytics service: `8111`
 
 All three Flutter driver/customer apps (`apps/customer`, `apps/truck_provider`,
-`apps/dispatch_provider`) default their API/WebSocket base URLs to
-`127.0.0.1`, not a LAN IP. On a physical Android device this only works with
-`adb reverse` tunnels for every backend port that app talks to — otherwise
-`127.0.0.1` on the phone resolves to the phone itself, not your machine.
-Before running an app on a physical device without an explicit
-`--dart-define`, reverse the ports it needs, e.g.:
+`apps/dispatch_provider`) default their API/WebSocket base URLs to this dev
+machine's LAN IP, `192.168.1.112`. A physical Android phone on the same Wi-Fi
+therefore reaches the backend with a plain `flutter run` — no tunnels, no
+flags. Every Go service binds `HTTP_ADDR=:<port>` (bare colon = all
+interfaces), so they are already LAN-reachable; macOS may prompt once to allow
+incoming connections, and you must Allow.
+
+When the host differs — a different dev machine, a new DHCP lease, a network
+switch, an emulator — override the relevant key with `--dart-define`, e.g.
+`--dart-define=CUSTOMER_API_BASE_URL=http://192.168.x.x:8101/api/v1/customer`.
+Run `ipconfig getifaddr en0` to find the current LAN IP. The exact key names
+per backend live in each app's config file
+(`apps/customer/lib/core/config/customer_app_config.dart`,
+`apps/truck_provider/lib/core/config/provider_app_config.dart`,
+`apps/dispatch_provider/lib/core/config.dart`); note they are not uniform —
+the customer app uses `WALLET_API_BASE_URL` where truck_provider uses
+`PAYMENT_WALLET_API_BASE_URL`, and `DISPATCH_PROVIDER_API_BASE_URL` takes a
+bare origin with no path.
+
+**Fallback — `adb reverse` over USB/wireless debugging.** Still fully
+supported, and the better option when your LAN IP churns or the phone is on a
+guest network that isolates clients. Reverse the ports the app needs and point
+it back at loopback via `--dart-define`:
+
+```bash
+bash scripts/adb-reverse.sh     # reverses all 7 ports below in one go
+```
 
 ```bash
 adb reverse tcp:8101 tcp:8101   # customer-service
@@ -398,10 +419,10 @@ adb reverse tcp:8109 tcp:8109   # media-file-service
 adb reverse --list              # verify the tunnels are active
 ```
 
-Alternatively, pass the machine's LAN IP explicitly via `--dart-define` (e.g.
-`--dart-define=CUSTOMER_API_BASE_URL=http://192.168.x.x:8101/api/v1/customer`)
-to skip `adb reverse` entirely — see each app's `core/config/` file for the
-exact `--dart-define` key per backend.
+These tunnels are not persistent — they drop on unplug/reconnect, an adb
+server restart, or a wireless-debug blip. If `scripts/adb-reverse.sh` reports
+"multiple devices connected" for what is really one phone, that is a duplicate
+mDNS registration; `adb kill-server && adb start-server` clears it.
 
 ## Session Progress Log
 
@@ -1510,7 +1531,7 @@ Read-only audit of the customer/dispatch/hauling booking systems and their suppo
 - **5a/5b — Notification templates:** dispatch and hauling shared event-type strings (`booking.matched`, `cargo.delivered`, etc.), so bike-delivery riders got "New haulage request" and customers got "Your cargo is on its way". Added a `driver-dispatch-delivery-service` block to `shared/go/notifications` (`EventDeliveryMatched`, `EventPackagePickedUp`, etc. — 10 new constants), switched dispatch's two notification clients (`booking/clients/notification_client.go`, `request/notification_client.go`) to them, and seeded matching `delivery.*`/`package.*` templates in `notification-service/seeds/dev_templates.sql` with package/rider copy (purely additive — template resolution is a keyed lookup, no schema change). Also reworded the misleading `booking.cancelled_by_provider`/new `delivery.cancelled_by_provider` copy — neither service actually rematches after a provider cancel, so the copy no longer implies it does.
 - **5c — Blank support-dispute integration URLs:** `SUPPORT_DISPUTE_NOTIFICATION_URL`/`_PAYMENT_URL`/`_CUSTOMER_SERVICE_URL`/`_HAULING_SERVICE_URL` were all empty, so identity snapshots and complaint notifications silently never fired. Populating the customer/hauling URLs was safe (those services already default-trust `support-dispute-service` in their own `*_SERVICE_SECRETS`), but **notification-service and payment-wallet-service did not trust `support-dispute-service` as a caller at all** — populating just the URL would have swapped a silent no-op for a silent 401 (the refund hook and notifier are both fire-and-forget/best-effort, so failures log but never block). Added `support-dispute-service=development-support-dispute-notification-secret` to notification-service's `NOTIFICATION_SERVICE_SECRETS` (`.env`) and `support-dispute-service=development-support-dispute-payment-secret` to payment-wallet-service's `PAYMENT_WALLET_SERVICE_SECRETS` (`.env` **and** the `config.go` default, to match this repo's convention of keeping them in sync), then set all four URLs in support-dispute's `.env`/`.env.example`. `SUPPORT_DISPUTE_TAXI_SERVICE_URL` deliberately left blank — driver-taxi-service has no internal identity endpoint yet.
 - **5d — Committed Google Maps key:** the same key was hardcoded three places; `android/local.properties` is gitignored (no action needed) but `apps/customer/lib/core/config/customer_app_config.dart` and `ios/Runner/Info.plist` are git-tracked. Removed the Dart default (`defaultGoogleMapsApiKey = ''`) so it must always come from `--dart-define=GOOGLE_MAPS_API_KEY=...`; `PlacesApi` already degrades to a friendly "missing key" error rather than crashing. Documented the required dart-define in the canonical customer-app run command below. **The key itself must still be rotated in Google Cloud** — removing the default doesn't undo the prior exposure, and the iOS `Info.plist` key wasn't touched (out of scope; native Maps SDK key injection needs a separate xcconfig-based mechanism).
-- **5e — Divergent app network defaults:** customer and truck_provider apps defaulted to a specific dev machine's LAN IP (`192.168.1.112`); dispatch_provider used `127.0.0.1` + `adb reverse`. Standardized all three on the `127.0.0.1` + `adb reverse` convention (confirmed with the user first, since this changes what happens when no `--dart-define` is passed) and documented the required `adb reverse` ports in the "Important local ports" section above.
+- **5e — Divergent app network defaults:** customer and truck_provider apps defaulted to a specific dev machine's LAN IP (`192.168.1.112`); dispatch_provider used `127.0.0.1` + `adb reverse`. Standardized all three on the `127.0.0.1` + `adb reverse` convention (confirmed with the user first, since this changes what happens when no `--dart-define` is passed) and documented the required `adb reverse` ports in the "Important local ports" section above. **Superseded 2026-08-11** — reverted to a LAN-IP default (`192.168.1.112`) because the adb tunnels proved too fragile in daily use; `adb reverse` is now the documented fallback. See that session's entry below.
 
 **Verification:** `go build/vet/test` clean across `shared/go`, `driver-dispatch-delivery-service`, `driver-hauling-service`, `payment-wallet-service`, `notification-service`, `support-dispute-service`. All three Flutter apps (`customer` 31/31 tests + 7 baseline infos, `truck_provider` 34/34 + 0 issues, `dispatch_provider` 17/17 + 13 baseline infos — unchanged, confirming no regression) `flutter analyze`/`flutter test` clean against their pre-session baselines.
 
@@ -1535,3 +1556,24 @@ Built the "two-stage sender-to-rider and rider-to-receiver OTP and QR flow" call
 **Key design decisions confirmed with the user before building:** (1) participant model is customer-app ↔ driver only, no third-party receiver identity (that's a separate, bigger PDF initiative); (2) code delivery is in-app + push notification only, no SMS gateway (none exists in this codebase); (3) hard gate — wrong/missing code actually blocks the transition, not just logged.
 
 **Verification:** `go build/vet/test` clean across `shared/go` (new `handover` package fully unit-tested), `driver-hauling-service` (new + extended tests for the full mirrored flow: pickup-blocked-until-verified, wrong/expired/attempts-exceeded codes on both directions, resend cooldown/ownership), `driver-dispatch-delivery-service` (same coverage, plus fixed 3 pre-existing HTTP integration tests that broke because `seedTrip`/`submitProof` test helpers needed handover-aware defaults). All three Flutter apps `flutter analyze`/`flutter test` clean against their pre-session baselines (customer 31/31, truck_provider 34/34, dispatch_provider 17/17). **Not done this session:** live end-to-end smoke test against a running stack, and on-device visual verification of the QR scan/display round trip (camera interaction isn't unit-testable) — both were part of the plan's verification section but not executed given session scope.
+
+### 2026-08-11 — Flutter apps default to the LAN IP again (adb reverse demoted to fallback)
+
+**What changed:** all three Flutter apps now default their API/WebSocket base URLs to this dev machine's LAN IP `192.168.1.112` instead of `127.0.0.1`. A physical Android phone on the same Wi-Fi reaches the backend with a plain `flutter run` — no `adb reverse` tunnels, no `--dart-define` flags.
+
+**Why:** the tunnels are not persistent (they drop on unplug/reconnect, adb server restart, or a wireless-debug blip) and re-establishing them repeatedly was costing real time. This session also hit a duplicate mDNS registration that made one phone appear as two devices, breaking `scripts/adb-reverse.sh`'s device auto-pick — `adb kill-server && adb start-server` clears that, and the fix is now noted in the docs.
+
+This **reverts the 2026-07-29 Task 5e decision** that standardized all three apps onto `127.0.0.1` + `adb reverse`; that log entry is annotated as superseded so the history stays readable.
+
+**Files (URL constants only — tokens, `mediaOwnerService`, and the intentionally-empty `GOOGLE_MAPS_API_KEY` untouched):**
+- `apps/customer/lib/core/config/customer_app_config.dart` — 7 URL constants.
+- `apps/truck_provider/lib/core/config/provider_app_config.dart` — 5 URL constants.
+- `apps/dispatch_provider/lib/core/config.dart` — 4 `developmentDefault*` constants (note `developmentDefaultApiBaseUrl` is a **bare origin**, no `/api/v1` path — callers append their own). Its 40-line header comment block was stale in the other direction (claimed the fallback was `http://localhost:8103`) and was rewritten around the LAN-IP-first workflow.
+
+`backendModeHint` and `isLocalhostUrl` in the dispatch config are runtime *classifiers*, not defaults — left as-is. With a LAN-IP default `backendModeHint` now correctly reports `physical-phone-wifi (lan ip — may change if DHCP)`.
+
+**No backend change was needed:** every Go service already binds `HTTP_ADDR=:<port>` (bare colon = all interfaces) via `shared/go/serviceapp`, so they were always LAN-reachable. `shared/go/serviceapp/serviceapp.go` registers `GET /health` at the **root**, not under `/api/v1` — useful for a reachability check: `curl http://192.168.1.112:8101/health`.
+
+**Known tradeoff (accepted):** the IP is in git-tracked source, so it is wrong for any other developer and breaks on a new DHCP lease or network switch. `--dart-define` still overrides every key, and `adb reverse` remains fully supported as the fallback — both documented in the "Important local ports" section above. macOS prompts once to allow incoming connections; you must Allow.
+
+**Verification:** `flutter analyze` clean in all three apps; `flutter test` at baseline (customer 31, truck_provider 34, dispatch_provider 17).

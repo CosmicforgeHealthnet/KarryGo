@@ -74,7 +74,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                 ),
               ),
               const SizedBox(height: 8),
@@ -102,7 +102,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF4CAF50)),
+                      border: Border.all(color: const Color(0xFF05124D)),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
@@ -153,19 +153,19 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                           borderSide: const BorderSide(
-                            color: Color(0xFF4CAF50),
+                            color: Color(0xFF05124D),
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                           borderSide: const BorderSide(
-                            color: Color(0xFF4CAF50),
+                            color: Color(0xFF05124D),
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                           borderSide: const BorderSide(
-                            color: Color(0xFF4CAF50),
+                            color: Color(0xFF05124D),
                             width: 1.5,
                           ),
                         ),
@@ -209,16 +209,16 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(color: Color(0xFF05124D)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(color: Color(0xFF05124D)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(
-                      color: Color(0xFF4CAF50),
+                      color: Color(0xFF05124D),
                       width: 1.5,
                     ),
                   ),
@@ -229,7 +229,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                 "We'll send your verification code to your phone.",
                 style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -327,7 +327,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                       TextSpan(
                         text: 'Log In',
                         style: TextStyle(
-                          color: Color(0xFF4CAF50),
+                          color: Color(0xFF05124D),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -483,9 +483,9 @@ class _ContinueButton extends StatelessWidget {
           child: FilledButton(
             onPressed: canContinue && !isLoading ? onTap : null,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50),
+              backgroundColor: const Color(0xFF05124D),
               disabledBackgroundColor: const Color(
-                0xFF4CAF50,
+                0xFF05124D,
               ).withValues(alpha: 0.45),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),

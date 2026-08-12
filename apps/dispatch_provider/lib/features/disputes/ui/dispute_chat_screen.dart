@@ -110,7 +110,7 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
                 child: widget.controller.loadingMessages && messages.isEmpty
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFF4CAF50),
+                          color: Color(0xFF05124D),
                         ),
                       )
                     : messages.isEmpty
@@ -172,7 +172,7 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
                           width: 44,
                           height: 44,
                           decoration: const BoxDecoration(
-                            color: Color(0xFF4CAF50),
+                            color: Color(0xFF05124D),
                             shape: BoxShape.circle,
                           ),
                           child: widget.controller.sending
@@ -219,7 +219,7 @@ class _MessageBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
-          color: mine ? const Color(0xFF4CAF50) : Colors.white,
+          color: mine ? const Color(0xFF05124D) : Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),

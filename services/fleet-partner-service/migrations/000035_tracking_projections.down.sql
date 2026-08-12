@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS fleet_partner_tracking_projection_conflicts;
+DROP TABLE IF EXISTS fleet_partner_tracking_projections;
+DROP TABLE IF EXISTS fleet_partner_tracking_event_inbox;

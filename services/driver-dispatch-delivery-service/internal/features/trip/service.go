@@ -213,6 +213,36 @@ func (s *Service) HandleBookingDispatchCancelled(ctx context.Context, event Book
 	return nil
 }
 
+// CancelOrganizationTrip is the internal authority path used by Fleet for an
+// organization-managed trip.  It deliberately delegates to the same
+// transaction, state log and outbox path as a customer cancellation; it does
+// not update the trip table independently.
+func (s *Service) CancelOrganizationTrip(ctx context.Context, tripID, reason, correlationID string) (*Trip, error) {
+	trip, err := s.repository.GetTripByID(ctx, tripID)
+	if err != nil || trip == nil {
+		return nil, err
+	}
+	if trip.Status == StatusCancelled {
+		return trip, nil
+	}
+	switch trip.Status {
+	case StatusAssigned, StatusEnRoutePickup, StatusArrivedPickup:
+	default:
+		return nil, apperrors.Conflict("Trip cannot be cancelled in its current state.", nil)
+	}
+	updated, _, err := s.repository.CancelTripByCustomerTx(ctx, CustomerCancelTripInput{
+		TripID: trip.ID, FromStatus: trip.Status, ReasonText: strings.TrimSpace(reason), Now: s.now(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, apperrors.Conflict("Trip cannot be cancelled in its current state.", nil)
+	}
+	_ = correlationID // retained by the private authority mapping and event envelope
+	return s.repository.GetTripByID(ctx, tripID)
+}
+
 func (s *Service) HandleProviderLocationUpdated(ctx context.Context, event ProviderLocationUpdatedEvent) error {
 	if err := validateID(event.ProviderID, "provider_id"); err != nil {
 		return err

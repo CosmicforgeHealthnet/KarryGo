@@ -163,7 +163,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                     ),
                     if (_loading)
                       const CircularProgressIndicator(
-                        color: Color(0xFF4CAF50),
+                        color: Color(0xFF05124D),
                         strokeWidth: 3,
                       ),
                   ],
@@ -183,9 +183,9 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                       icon: const Icon(Icons.camera_alt_outlined, size: 18),
                       label: const Text('Take Photo'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF4CAF50),
+                        foregroundColor: const Color(0xFF05124D),
                         side: const BorderSide(
-                          color: Color(0xFF4CAF50),
+                          color: Color(0xFF05124D),
                           width: 1.5,
                         ),
                         shape: RoundedRectangleBorder(
@@ -208,7 +208,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                       icon: const Icon(Icons.upload_rounded, size: 18),
                       label: const Text('Upload Photo'),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
+                        backgroundColor: const Color(0xFF05124D),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
                         ),
@@ -230,9 +230,9 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                 child: FilledButton(
                   onPressed: hasPhoto && !_loading ? _handleContinue : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor: const Color(
-                      0xFF4CAF50,
+                      0xFF05124D,
                     ).withValues(alpha: 0.4),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
@@ -309,7 +309,7 @@ class _ProgressBar extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               color: i < current
-                  ? const Color(0xFF4CAF50)
+                  ? const Color(0xFF05124D)
                   : const Color(0xFFDDDDDD),
               borderRadius: BorderRadius.circular(2),
             ),

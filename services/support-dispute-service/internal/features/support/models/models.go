@@ -110,25 +110,28 @@ const (
 )
 
 type Complaint struct {
-	ID               string
-	ComplainantType  ComplainantType
-	ComplainantID    string
-	ComplainantName  *string
-	ComplainantPhone *string
-	ServiceType      ServiceType
-	BookingReference *string
-	Category         *string
-	Priority         string
-	IncidentLat      *float64
-	IncidentLng      *float64
-	Subject          string
-	Description      string
-	Status           ComplaintStatus
-	AssignedTo       *string
-	ResolutionNote   *string
-	ResolvedAt       *time.Time
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                    string
+	ComplainantType       ComplainantType
+	ComplainantID         string
+	ComplainantName       *string
+	ComplainantPhone      *string
+	ServiceType           ServiceType
+	BookingReference      *string
+	Category              *string
+	Priority              string
+	IncidentLat           *float64
+	IncidentLng           *float64
+	Subject               string
+	Description           string
+	Status                ComplaintStatus
+	AssignedTo            *string
+	ResolutionNote        *string
+	ResolvedAt            *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	OrganizationReference *string
+	SourceIdempotencyKey  *string
+	SourceVersion         int64
 
 	// UnreadCount is populated only by list/get queries that join the chat
 	// table; it is the number of messages the requester has not yet read.

@@ -77,7 +77,7 @@ class _DispatchPaymentViewState extends State<DispatchPaymentView> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF1F7A4D), Color(0xFF2EA65A)],
+                  colors: [Color(0xFF05124D), Color(0xFF2761A7)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -147,7 +147,7 @@ class _DispatchPaymentViewState extends State<DispatchPaymentView> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F5EE),
+                color: const Color(0xFFE6E8EE),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Row(
@@ -228,9 +228,9 @@ class _DispatchPaymentViewState extends State<DispatchPaymentView> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFEBEE),
+                  color: const Color(0xFFF7E4E4),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFEF9A9A)),
+                  border: Border.all(color: const Color(0xFFD98F8F)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -239,7 +239,7 @@ class _DispatchPaymentViewState extends State<DispatchPaymentView> {
                       'Your wallet balance is too low (need '
                       '₦${((fareKobo - balance) / 100).toStringAsFixed(2)} more). '
                       'Top up your wallet to continue.',
-                      style: const TextStyle(color: Color(0xFFB71C1C), fontSize: 12),
+                      style: const TextStyle(color: Color(0xFF8A1212), fontSize: 12),
                     ),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(

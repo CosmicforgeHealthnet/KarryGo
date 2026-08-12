@@ -174,7 +174,7 @@ class _WalletScreenState extends State<WalletScreen> {
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50),
+                          color: const Color(0xFF05124D),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: const Row(
@@ -230,7 +230,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         ),
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Color(0xFF1B5E20), Color(0xFF388E3C)],
+                            colors: [Color(0xFF05124D), Color(0xFF2761A7)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -418,7 +418,7 @@ class _WalletScreenState extends State<WalletScreen> {
                               bottomRight: Radius.circular(_cardRadius),
                             ),
                             border: Border.all(
-                              color: const Color(0xFF4CAF50),
+                              color: const Color(0xFF05124D),
                               width: 1.5,
                             ),
                           ),
@@ -428,7 +428,7 @@ class _WalletScreenState extends State<WalletScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF4CAF50),
+                              color: Color(0xFF05124D),
                             ),
                           ),
                         ),
@@ -464,7 +464,7 @@ class _WalletScreenState extends State<WalletScreen> {
                               'Trips Completed Today',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF4CAF50),
+                                color: Color(0xFF05124D),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -488,7 +488,7 @@ class _WalletScreenState extends State<WalletScreen> {
                               'Hours Online',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF4CAF50),
+                                color: Color(0xFF05124D),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -532,7 +532,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Colors.green.shade600,
+                        color: const Color(0xFF05124D),
                       ),
                     ),
                   ],

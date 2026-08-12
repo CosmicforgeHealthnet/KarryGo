@@ -103,9 +103,9 @@ class _ServiceTypeScreenState extends State<ServiceTypeScreen> {
                       ? () => widget.onContinue(_selected!)
                       : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor: const Color(
-                      0xFF4CAF50,
+                      0xFF05124D,
                     ).withValues(alpha: 0.4),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
@@ -146,11 +146,11 @@ class _OptionCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF4CAF50).withValues(alpha: 0.12)
+              ? const Color(0xFF05124D).withValues(alpha: 0.12)
               : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? const Color(0xFF4CAF50) : Colors.transparent,
+            color: isSelected ? const Color(0xFF05124D) : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -165,7 +165,7 @@ class _OptionCard extends StatelessWidget {
                 errorBuilder: (context, error, stackTrace) => Container(
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF4CAF50).withValues(alpha: 0.15)
+                        ? const Color(0xFF05124D).withValues(alpha: 0.15)
                         : const Color(0xFFF0F0F0),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -173,7 +173,7 @@ class _OptionCard extends StatelessWidget {
                     Icons.inventory_2_outlined,
                     size: 26,
                     color: isSelected
-                        ? const Color(0xFF4CAF50)
+                        ? const Color(0xFF05124D)
                         : const Color(0xFF888888),
                   ),
                 ),
@@ -213,7 +213,7 @@ class _OptionCard extends StatelessWidget {
               Icons.arrow_forward,
               size: 18,
               color: isSelected
-                  ? const Color(0xFF4CAF50)
+                  ? const Color(0xFF05124D)
                   : const Color(0xFFCCCCCC),
             ),
           ],
@@ -239,7 +239,7 @@ class _ProgressBar extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 2),
             height: 4,
             decoration: BoxDecoration(
-              color: active ? const Color(0xFF4CAF50) : const Color(0xFFDDDDDD),
+              color: active ? const Color(0xFF05124D) : const Color(0xFFDDDDDD),
               borderRadius: BorderRadius.circular(2),
             ),
           ),

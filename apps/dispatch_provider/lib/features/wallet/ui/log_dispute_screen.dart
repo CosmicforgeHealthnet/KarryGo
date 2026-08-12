@@ -171,7 +171,7 @@ class _LogDisputeScreenState extends State<LogDisputeScreen> {
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: selectedTrip != null
-                                  ? const Color(0xFF4CAF50)
+                                  ? const Color(0xFF05124D)
                                   : const Color(0xFFDDDDDD),
                             ),
                           ),
@@ -205,7 +205,7 @@ class _LogDisputeScreenState extends State<LogDisputeScreen> {
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
-                                        color: Color(0xFF4CAF50),
+                                        color: Color(0xFF05124D),
                                       ),
                                     ),
                                   ],
@@ -282,7 +282,7 @@ class _LogDisputeScreenState extends State<LogDisputeScreen> {
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: isSelected
-                                                ? const Color(0xFF4CAF50)
+                                                ? const Color(0xFF05124D)
                                                 : const Color(0xFF1A1A1A),
                                           ),
                                         ),
@@ -291,7 +291,7 @@ class _LogDisputeScreenState extends State<LogDisputeScreen> {
                                         const Icon(
                                           Icons.check,
                                           size: 16,
-                                          color: Color(0xFF4CAF50),
+                                          color: Color(0xFF05124D),
                                         ),
                                     ],
                                   ),
@@ -336,9 +336,9 @@ class _LogDisputeScreenState extends State<LogDisputeScreen> {
                     child: FilledButton(
                       onPressed: _canConfirm ? _submit : null,
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
+                        backgroundColor: const Color(0xFF05124D),
                         disabledBackgroundColor: const Color(
-                          0xFF4CAF50,
+                          0xFF05124D,
                         ).withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
@@ -404,7 +404,7 @@ class _ComplaintCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (complaint.stage) {
-      2 => const Color(0xFF4CAF50),
+      2 => const Color(0xFF05124D),
       1 => const Color(0xFFFFA000),
       _ => const Color(0xFF888888),
     };
@@ -506,7 +506,7 @@ class _TripPickerSheet extends StatelessWidget {
               if (tripsController.isLoading && trips.isEmpty)
                 const Expanded(
                   child: Center(
-                    child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                    child: CircularProgressIndicator(color: Color(0xFF05124D)),
                   ),
                 )
               else if (trips.isEmpty)
@@ -574,7 +574,7 @@ class _TripPickerSheet extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF4CAF50),
+                                  color: Color(0xFF05124D),
                                 ),
                               ),
                             ],

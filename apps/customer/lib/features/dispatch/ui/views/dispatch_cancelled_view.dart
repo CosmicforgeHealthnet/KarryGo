@@ -35,7 +35,7 @@ class DispatchCancelledView extends StatelessWidget {
                   width: 100,
                   height: 100,
                   decoration: const BoxDecoration(
-                    color: Color(0xFFFFF0F0),
+                    color: Color(0xFFF7E4E4),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.cancel_outlined, size: 48, color: Colors.red),

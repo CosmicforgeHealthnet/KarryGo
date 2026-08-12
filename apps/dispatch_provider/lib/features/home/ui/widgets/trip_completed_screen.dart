@@ -189,7 +189,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50),
+                  color: const Color(0xFF05124D),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text(
@@ -268,7 +268,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                         Icons.star,
                         size: 28,
                         color: i < _rating
-                            ? const Color(0xFF4CAF50)
+                            ? const Color(0xFF05124D)
                             : const Color(0xFFCCCCCC),
                       ),
                     );
@@ -361,12 +361,12 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: _proofFile != null
-                          ? const Color(0xFFE8F5E9)
+                          ? const Color(0xFFE7F5EC)
                           : const Color(0xFFF5F5F5),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: _proofFile != null
-                            ? const Color(0xFF4CAF50)
+                            ? const Color(0xFF05124D)
                             : const Color(0xFFE0E0E0),
                       ),
                     ),
@@ -377,7 +377,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                               ? Icons.check_circle
                               : Icons.attach_file,
                           color: _proofFile != null
-                              ? const Color(0xFF4CAF50)
+                              ? const Color(0xFF05124D)
                               : const Color(0xFF888888),
                           size: 28,
                         ),
@@ -487,9 +487,9 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                 child: FilledButton(
                   onPressed: _isSubmitting ? null : _confirm,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor: const Color(
-                      0xFF4CAF50,
+                      0xFF05124D,
                     ).withValues(alpha: 0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),

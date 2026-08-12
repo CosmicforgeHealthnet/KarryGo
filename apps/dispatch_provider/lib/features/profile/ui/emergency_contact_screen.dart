@@ -133,7 +133,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
       body: SafeArea(
         child: _isLoading
             ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                child: CircularProgressIndicator(color: Color(0xFF05124D)),
               )
             : Column(
                 children: [
@@ -192,7 +192,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
                             'Provide emergency Contact information. This could be a family member or close relative but not same individual as guarantor.',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Color(0xFF4CAF50),
+                              color: Color(0xFF05124D),
                               height: 1.5,
                             ),
                           ),
@@ -246,7 +246,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
                             'Provide emergency Contact information. This could be a family member or close relative but not same individual as guarantor.',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Color(0xFF4CAF50),
+                              color: Color(0xFF05124D),
                               height: 1.5,
                             ),
                           ),
@@ -298,9 +298,9 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
                         child: FilledButton(
                           onPressed: _canSave ? _onSave : null,
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
+                            backgroundColor: const Color(0xFF05124D),
                             disabledBackgroundColor: const Color(
-                              0xFF4CAF50,
+                              0xFF05124D,
                             ).withValues(alpha: 0.35),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(999),
@@ -402,7 +402,7 @@ class _AddNewButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF4CAF50),
+          color: const Color(0xFF05124D),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(

@@ -55,7 +55,7 @@ class TransactionDetailScreen extends StatelessWidget {
   Color get _amountColor {
     switch (transaction.status) {
       case TransactionStatus.successful:
-        return const Color(0xFF4CAF50);
+        return const Color(0xFF1F9D55);
       case TransactionStatus.pending:
         return const Color(0xFFFFB300);
       case TransactionStatus.failed:
@@ -197,8 +197,8 @@ class _StatusBadge extends StatelessWidget {
 
     switch (status) {
       case TransactionStatus.successful:
-        dotColor = const Color(0xFF4CAF50);
-        bgColor = const Color(0xFFE8F5E9);
+        dotColor = const Color(0xFF1F9D55);
+        bgColor = const Color(0xFFE7F5EC);
         label = 'Successful';
         break;
       case TransactionStatus.failed:
@@ -254,7 +254,7 @@ class _DetailsTable extends StatelessWidget {
 
     final amountColor = isDebit
         ? const Color(0xFFE53935)
-        : const Color(0xFF4CAF50);
+        : const Color(0xFF05124D);
 
     final commissionColor = isDebit
         ? const Color(0xFFE53935)
@@ -520,7 +520,7 @@ class _RouteCard extends StatelessWidget {
                         width: 13,
                         height: 13,
                         decoration: const BoxDecoration(
-                          color: Color(0xFF4CAF50),
+                          color: Color(0xFF05124D),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -528,7 +528,7 @@ class _RouteCard extends StatelessWidget {
                         child: Center(
                           child: Container(
                             width: 2,
-                            color: const Color(0xFF4CAF50),
+                            color: const Color(0xFF05124D),
                           ),
                         ),
                       ),
@@ -538,7 +538,7 @@ class _RouteCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF4CAF50),
+                            color: const Color(0xFF05124D),
                             width: 2.5,
                           ),
                         ),
@@ -634,14 +634,14 @@ class _GoToTripsLink extends StatelessWidget {
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.arrow_forward, size: 16, color: Color(0xFF4CAF50)),
+          Icon(Icons.arrow_forward, size: 16, color: Color(0xFF05124D)),
           SizedBox(width: 6),
           Text(
             'Go to Trips',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF4CAF50),
+              color: Color(0xFF05124D),
             ),
           ),
         ],
@@ -682,7 +682,7 @@ class _SupportCard extends StatelessWidget {
                 Icon(
                   Icons.headset_mic_outlined,
                   size: 20,
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                 ),
                 SizedBox(width: 8),
                 Text(
@@ -690,7 +690,7 @@ class _SupportCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF4CAF50),
+                    color: Color(0xFF05124D),
                   ),
                 ),
               ],

@@ -113,6 +113,16 @@ type CreateRefundResponse struct {
 	Status    string `json:"status"`
 }
 
+type TransferStatusResponse struct {
+	Reference string `json:"reference"`
+	Status    string `json:"status"`
+}
+
+type RefundStatusResponse struct {
+	Reference string `json:"reference"`
+	Status    string `json:"status"`
+}
+
 type BalanceResponse struct {
 	Items []BalanceItem `json:"items"`
 }
@@ -184,6 +194,20 @@ func (c HTTPPaystackClient) FinalizeTransfer(ctx context.Context, request Finali
 func (c HTTPPaystackClient) CreateRefund(ctx context.Context, request CreateRefundRequest) (CreateRefundResponse, error) {
 	var response CreateRefundResponse
 	return response, c.post(ctx, "/refund", request, &response)
+}
+
+// VerifyTransfer reads an existing transfer by the idempotent reference. It is
+// deliberately separate from PaystackClient so existing consumer-wallet fakes
+// are not forced to implement the WP7 settlement surface.
+func (c HTTPPaystackClient) VerifyTransfer(ctx context.Context, reference string) (TransferStatusResponse, error) {
+	var response TransferStatusResponse
+	return response, c.get(ctx, "/transfer/verify/"+reference, &response)
+}
+
+// VerifyRefund reads an existing refund after an ambiguous create response.
+func (c HTTPPaystackClient) VerifyRefund(ctx context.Context, reference string) (RefundStatusResponse, error) {
+	var response RefundStatusResponse
+	return response, c.get(ctx, "/refund/"+reference, &response)
 }
 
 func (c HTTPPaystackClient) CheckBalance(ctx context.Context) (BalanceResponse, error) {

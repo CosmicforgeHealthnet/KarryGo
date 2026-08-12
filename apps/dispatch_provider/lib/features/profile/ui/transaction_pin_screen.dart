@@ -172,7 +172,7 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
                         Switch(
                           value: _enabled,
                           onChanged: _onToggle,
-                          activeColor: const Color(0xFF4CAF50),
+                          activeColor: const Color(0xFF05124D),
                         ),
                       ],
                     ),
@@ -207,7 +207,7 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: _hasPin
-                          ? const Color(0xFF4CAF50)
+                          ? const Color(0xFF05124D)
                           : const Color(0xFFAAAAAA),
                     ),
                   ),
@@ -236,7 +236,7 @@ class _PinDots extends StatelessWidget {
         final color = hasError
             ? const Color(0xFFE53935)
             : filled
-                ? const Color(0xFF4CAF50)
+                ? const Color(0xFF05124D)
                 : const Color(0xFFE53935);
 
         return Container(
@@ -306,7 +306,7 @@ class _ChangePinDialog extends StatelessWidget {
               child: FilledButton(
                 onPressed: () => Navigator.of(context).pop(true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
+                  backgroundColor: const Color(0xFF05124D),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                   ),
@@ -328,7 +328,7 @@ class _ChangePinDialog extends StatelessWidget {
               child: FilledButton(
                 onPressed: () => Navigator.of(context).pop(false),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50).withValues(alpha: 0.15),
+                  backgroundColor: const Color(0xFF05124D).withValues(alpha: 0.15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                   ),
@@ -338,7 +338,7 @@ class _ChangePinDialog extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF4CAF50),
+                    color: Color(0xFF05124D),
                   ),
                 ),
               ),

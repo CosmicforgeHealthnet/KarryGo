@@ -229,7 +229,7 @@ class _VehicleInformationScreenState extends State<VehicleInformationScreen> {
               child: const Text(
                 'Continue',
                 style: TextStyle(
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -380,7 +380,7 @@ class _VehicleInformationScreenState extends State<VehicleInformationScreen> {
       body: SafeArea(
         child: _isLoadingVehicle
             ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                child: CircularProgressIndicator(color: Color(0xFF05124D)),
               )
             : Column(
                 children: [
@@ -548,9 +548,9 @@ class _VehicleInformationScreenState extends State<VehicleInformationScreen> {
                               ? _onSave
                               : _onEditTap,
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
+                            backgroundColor: const Color(0xFF05124D),
                             disabledBackgroundColor: const Color(
-                              0xFF4CAF50,
+                              0xFF05124D,
                             ).withValues(alpha: 0.35),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(999),
@@ -598,7 +598,7 @@ class _StatusBadge extends StatelessWidget {
     final (label, bg, fg) = switch (status) {
       'verified' => (
           'Verified',
-          const Color(0xFFE8F5E9),
+          const Color(0xFFE7F5EC),
           const Color(0xFF2E7D32)
         ),
       'suspended' => (
@@ -717,7 +717,7 @@ class _EditConfirmDialog extends StatelessWidget {
               child: FilledButton(
                 onPressed: () => Navigator.of(context).pop(true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
+                  backgroundColor: const Color(0xFF05124D),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                   ),
@@ -740,7 +740,7 @@ class _EditConfirmDialog extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(false),
                 style: FilledButton.styleFrom(
                   backgroundColor:
-                      const Color(0xFF4CAF50).withValues(alpha: 0.15),
+                      const Color(0xFF05124D).withValues(alpha: 0.15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                   ),
@@ -750,7 +750,7 @@ class _EditConfirmDialog extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF4CAF50),
+                    color: Color(0xFF05124D),
                   ),
                 ),
               ),

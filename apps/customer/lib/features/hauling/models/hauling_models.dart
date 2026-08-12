@@ -122,6 +122,14 @@ enum WeightCategory {
 
 // ─── Truck type option ───────────────────────────────────────────────────────
 
+/// Truck types a customer can request.
+///
+/// [apiValue] must stay an identity mapping onto the backend's `ValidTruckTypes`
+/// (`provider_profile/models/models.go`) and mirror `providerTruckTypeOptions` in
+/// the truck-provider app: the matcher compares the booking's
+/// `preferred_truck_type` to the provider's `trucks.truck_type` with exact string
+/// equality, so any label that collapses onto a different slug silently makes
+/// those providers unmatchable.
 enum HaulingTruckTypeOption {
   pickupTruck,
   boxTruck,
@@ -132,6 +140,9 @@ enum HaulingTruckTypeOption {
   dumpTruck,
   lowbedTruck,
   craneTruck,
+  container,
+  van,
+  tipper,
   other;
 
   String get displayLabel => switch (this) {
@@ -140,30 +151,38 @@ enum HaulingTruckTypeOption {
     HaulingTruckTypeOption.flatbedTruck      => 'Flatbed Truck',
     HaulingTruckTypeOption.refrigeratedTruck => 'Refrigerated Truck',
     HaulingTruckTypeOption.tanker            => 'Tanker',
-    HaulingTruckTypeOption.trailer           => 'Trailer',
+    HaulingTruckTypeOption.trailer           => 'Trailer (Articulated Truck)',
     HaulingTruckTypeOption.dumpTruck         => 'Dump Truck',
     HaulingTruckTypeOption.lowbedTruck       => 'Lowbed Truck',
     HaulingTruckTypeOption.craneTruck        => 'Crane Truck',
-    HaulingTruckTypeOption.other             => 'Other',
+    HaulingTruckTypeOption.container         => 'Container',
+    HaulingTruckTypeOption.van               => 'Van',
+    HaulingTruckTypeOption.tipper            => 'Tipper',
+    // Sends an empty preferred_truck_type, which disables the matcher's type
+    // filter — i.e. "any truck". Labelled to say so.
+    HaulingTruckTypeOption.other             => 'Any / Not sure',
   };
 
   String get apiValue => switch (this) {
-    HaulingTruckTypeOption.pickupTruck       => 'van',
-    HaulingTruckTypeOption.boxTruck          => 'van',
+    HaulingTruckTypeOption.pickupTruck       => 'pickup',
+    HaulingTruckTypeOption.boxTruck          => 'box',
     HaulingTruckTypeOption.flatbedTruck      => 'flatbed',
     HaulingTruckTypeOption.refrigeratedTruck => 'refrigerated',
-    HaulingTruckTypeOption.tanker            => 'container',
-    HaulingTruckTypeOption.trailer           => 'container',
-    HaulingTruckTypeOption.dumpTruck         => 'tipper',
-    HaulingTruckTypeOption.lowbedTruck       => 'flatbed',
-    HaulingTruckTypeOption.craneTruck        => 'flatbed',
+    HaulingTruckTypeOption.tanker            => 'tanker',
+    HaulingTruckTypeOption.trailer           => 'trailer',
+    HaulingTruckTypeOption.dumpTruck         => 'dump',
+    HaulingTruckTypeOption.lowbedTruck       => 'lowbed',
+    HaulingTruckTypeOption.craneTruck        => 'crane',
+    HaulingTruckTypeOption.container         => 'container',
+    HaulingTruckTypeOption.van               => 'van',
+    HaulingTruckTypeOption.tipper            => 'tipper',
+    // Deliberately empty rather than 'other': no provider registers a truck as
+    // `other`, so sending it would match nobody. Empty skips the type filter.
     HaulingTruckTypeOption.other             => '',
   };
 
-  /// Best-effort reverse of `apiValue` (the backend stores the collapsed value,
-  /// e.g. 'flatbed'/'van'/'container'). The mapping is many-to-one, so this picks
-  /// the first matching option — good enough to prefill a re-book; returns null
-  /// for empty/unknown values so the user re-selects.
+  /// Reverse of [apiValue]. The mapping is 1:1, so this round-trips exactly;
+  /// returns null for empty/unknown values so the user re-selects.
   static HaulingTruckTypeOption? fromApiValue(String apiValue) {
     if (apiValue.isEmpty) return null;
     for (final o in HaulingTruckTypeOption.values) {

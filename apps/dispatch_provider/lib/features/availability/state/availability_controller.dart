@@ -32,6 +32,21 @@ class AvailabilityController extends ChangeNotifier {
 
   static const Duration _heartbeatInterval = Duration(seconds: 15);
 
+  /// Consecutive failed location pings. The server drops a rider from the
+  /// customer availability check when it stops hearing from them, so repeated
+  /// failures mean the rider is effectively invisible while the toggle still
+  /// reads "online".
+  int _consecutiveLocationFailures = 0;
+
+  /// Roughly 45 s of failed pings at [_heartbeatInterval] — long enough to ride
+  /// out a transient blip, short enough to warn before the 90 s status TTL.
+  static const int _locationFailureThreshold = 3;
+
+  /// True when location pings have failed enough times in a row that the rider
+  /// should no longer be treated as reliably discoverable.
+  bool get hasStaleLocation =>
+      isOnline && _consecutiveLocationFailures >= _locationFailureThreshold;
+
   ProviderAvailability? get availability => _availability;
   AvailabilitySession? get currentSession => _currentSession;
   ProviderLocation? get lastLocation => _lastLocation;
@@ -94,6 +109,14 @@ class AvailabilityController extends ChangeNotifier {
           cancelOnError: false,
         );
 
+    // Seed the heartbeat with a position immediately. The stream above only
+    // emits after the device moves `distanceFilter` metres, and indoors it may
+    // never produce a fix at all — leaving _lastPosition null, which makes the
+    // heartbeat a no-op and lets the server-side live keys expire. Falling back
+    // to the last known fix (cached by the OS, no GPS lock required) means a
+    // stationary or indoor rider still pings and stays discoverable.
+    unawaited(_seedLastPosition());
+
     // Heartbeat: re-post the last known position on a fixed interval so a
     // stationary rider keeps refreshing the server-side live keys and stays
     // visible to customers even when the GPS stream is silent.
@@ -103,12 +126,45 @@ class AvailabilityController extends ChangeNotifier {
     _debugLog('[LOCATION] GPS stream started');
   }
 
+  /// Best-effort initial fix so the heartbeat has something to send before the
+  /// position stream produces its first event. Never throws — on failure the
+  /// heartbeat simply stays idle until the stream delivers a position.
+  Future<void> _seedLastPosition() async {
+    if (_lastPosition != null) return;
+    try {
+      final cached = await Geolocator.getLastKnownPosition();
+      if (cached != null) {
+        _lastPosition ??= cached;
+        _debugLog('[LOCATION] seeded heartbeat from last known position');
+        await _heartbeat();
+        return;
+      }
+    } catch (err) {
+      _debugLog('[LOCATION] getLastKnownPosition failed: $err');
+    }
+
+    try {
+      final fresh = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 20),
+        ),
+      );
+      _lastPosition ??= fresh;
+      _debugLog('[LOCATION] seeded heartbeat from current position');
+      await _heartbeat();
+    } catch (err) {
+      _debugLog('[LOCATION] getCurrentPosition failed: $err');
+    }
+  }
+
   void _stopLocationUpdates() {
     _positionSub?.cancel();
     _positionSub = null;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _lastPosition = null;
+    _consecutiveLocationFailures = 0;
     _debugLog('[LOCATION] GPS stream stopped');
   }
 
@@ -359,10 +415,21 @@ class AvailabilityController extends ChangeNotifier {
     result.when(
       success: (loc) {
         _lastLocation = loc;
+        if (_consecutiveLocationFailures > 0) {
+          _consecutiveLocationFailures = 0;
+          _debugLog('[LOCATION] ping recovered');
+        }
         notifyListeners();
       },
       failure: (error) {
         _debugLog('[LOCATION] sendLocation failed: ${error.message}');
+        // The app showing "online" while the server has dropped this rider is
+        // worse than showing nothing: the rider waits for requests that can
+        // never arrive. Track repeated failures so the UI can say so.
+        _consecutiveLocationFailures++;
+        if (_consecutiveLocationFailures == _locationFailureThreshold) {
+          notifyListeners();
+        }
       },
     );
     return result;

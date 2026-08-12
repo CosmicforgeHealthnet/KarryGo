@@ -209,8 +209,8 @@ class _CustomerProfileEditScreenState extends State<CustomerProfileEditScreen> {
                               );
                             },
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFFE53935),
-                              side: const BorderSide(color: Color(0xFFE53935), width: 1.5),
+                              foregroundColor: const Color(0xFFA81717),
+                              side: const BorderSide(color: Color(0xFFA81717), width: 1.5),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20)),
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -229,13 +229,13 @@ class _CustomerProfileEditScreenState extends State<CustomerProfileEditScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF1F0),
+                      color: const Color(0xFFF7E4E4),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFFCDD2)),
+                      border: Border.all(color: const Color(0xFFEBC4C4)),
                     ),
                     child: Text(
                       _error!.message,
-                      style: const TextStyle(color: Color(0xFFC0392B), fontSize: 13),
+                      style: const TextStyle(color: Color(0xFF8A1212), fontSize: 13),
                     ),
                   ),
                   const SizedBox(height: 16),

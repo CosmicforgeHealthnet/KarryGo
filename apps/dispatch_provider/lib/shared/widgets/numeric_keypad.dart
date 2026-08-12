@@ -43,13 +43,13 @@ class NumericKeypad extends StatelessWidget {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE8F5E9),
+                              color: const Color(0xFFE6E8EE),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
                               Icons.close,
                               size: 16,
-                              color: Color(0xFF4CAF50),
+                              color: Color(0xFF05124D),
                             ),
                           )
                         : Text(

@@ -860,7 +860,13 @@ class HaulingBookingController extends ChangeNotifier {
           ));
           return;
         } catch (_) {
-          // Fall through to local cancel if the server call fails.
+          // The server refused the cancel. The usual reason is that a provider
+          // accepted while this timer was pending — the trip is live (and, for
+          // wallet, already charged), so cancelling locally would strand the
+          // booking: the customer would see "cancelled" while the driver is en
+          // route, and could no longer reach the pickup-verification step.
+          // Re-sync instead and let the server's status decide what to show.
+          if (await _resyncAfterFailedTimeoutCancel(bookingId, token)) return;
         }
       }
       _bumpGeneration();
@@ -871,6 +877,45 @@ class HaulingBookingController extends ChangeNotifier {
         error: 'No trucks found nearby. Please try again later.',
       ));
     });
+  }
+
+  /// Whether the search-timeout handler must abandon its local cancel and adopt
+  /// the server's status instead.
+  ///
+  /// True for anything past the search phase: a provider accepted (the trip is
+  /// live and, for wallet, already charged), or the server already resolved the
+  /// booking itself. Showing "cancelled" in those cases strands the booking —
+  /// the customer loses access to pickup verification while a driver is en
+  /// route and the fare stays held.
+  ///
+  /// False while still searching, where the cancel failed for an unrelated
+  /// reason (network, transient 5xx) and giving up locally is correct.
+  @visibleForTesting
+  static bool shouldAdoptServerStatusOnTimeout(HaulingBookingStatus status) {
+    return status != HaulingBookingStatus.pendingMatch &&
+        status != HaulingBookingStatus.awaitingAcceptance;
+  }
+
+  /// Re-reads the booking after a failed timeout cancel. Returns true when the
+  /// server state has been adopted (so the caller must not cancel locally), and
+  /// false only when the booking is genuinely still searching or cannot be read
+  /// at all — in which case falling back to the local cancel is correct.
+  Future<bool> _resyncAfterFailedTimeoutCancel(
+    String bookingId,
+    String token,
+  ) async {
+    try {
+      final booking = await _api.getBooking(
+        accessToken: token,
+        bookingId: bookingId,
+      );
+      if (!shouldAdoptServerStatusOnTimeout(booking.status)) return false;
+      _bumpGeneration();
+      await _applyBookingUpdate(booking);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _stopSearchTimeout() {

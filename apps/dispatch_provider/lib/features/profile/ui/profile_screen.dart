@@ -172,7 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: SafeArea(
         child: _isLoading
             ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                child: CircularProgressIndicator(color: Color(0xFF05124D)),
               )
             : profile == null
             ? Center(
@@ -252,7 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.green.shade600,
+                                  color: const Color(0xFF05124D),
                                 ),
                               ),
                             ],
@@ -274,7 +274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.green.shade600,
+                                  color: const Color(0xFF05124D),
                                 ),
                               ),
                             ],
@@ -586,14 +586,14 @@ class _ProfileAvatar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+        color: const Color(0xFF05124D).withValues(alpha: 0.1),
       ),
       child: Text(
         fallbackInitial,
         style: const TextStyle(
           fontSize: 36,
           fontWeight: FontWeight.bold,
-          color: Color(0xFF4CAF50),
+          color: Color(0xFF05124D),
         ),
       ),
     );
@@ -617,13 +617,13 @@ class _ProfileAvatar extends StatelessWidget {
             width: _size,
             height: _size,
             alignment: Alignment.center,
-            color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+            color: const Color(0xFF05124D).withValues(alpha: 0.1),
             child: const SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Color(0xFF4CAF50),
+                color: Color(0xFF05124D),
               ),
             ),
           );
@@ -727,7 +727,7 @@ class _StatusBadges extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: Colors.green.shade600,
+              color: const Color(0xFF05124D),
             ),
           ),
         ],
@@ -769,7 +769,7 @@ class _StatsCard extends StatelessWidget {
             width: 32,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: Color(0xFF4CAF50),
+              color: Color(0xFF05124D),
             ),
           ),
         ),
@@ -796,7 +796,7 @@ class _StatsCard extends StatelessWidget {
               child: const Text(
                 'Retry',
                 style: TextStyle(
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),

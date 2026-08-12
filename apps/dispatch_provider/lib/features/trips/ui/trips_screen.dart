@@ -72,7 +72,7 @@ class _TripsScreenState extends State<TripsScreen>
                   FilledButton(
                     onPressed: controller.loadTrips,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF4CAF50),
+                      backgroundColor: const Color(0xFF05124D),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(999),
                       ),
@@ -136,7 +136,7 @@ class _TripsScreenState extends State<TripsScreen>
             ),
             TabBar(
               controller: _tabController,
-              labelColor: const Color(0xFF4CAF50),
+              labelColor: const Color(0xFF05124D),
               unselectedLabelColor: const Color(0xFF888888),
               labelStyle: const TextStyle(
                 fontSize: 14,
@@ -146,7 +146,7 @@ class _TripsScreenState extends State<TripsScreen>
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
-              indicatorColor: const Color(0xFF4CAF50),
+              indicatorColor: const Color(0xFF05124D),
               indicatorWeight: 2,
               indicatorSize: TabBarIndicatorSize.label,
               dividerColor: const Color(0xFFEEEEEE),
@@ -357,7 +357,7 @@ class _StatusBadge extends StatelessWidget {
       ),
       TripStatusCode.cancelled => (
         'Cancelled',
-        const Color(0xFFE8F5E9),
+        const Color(0xFFF0F0F0),
         const Color(0xFF888888),
       ),
       TripStatusCode.assigned => (
@@ -377,7 +377,7 @@ class _StatusBadge extends StatelessWidget {
       ),
       TripStatusCode.proofSubmitted => (
         'Proof Sent',
-        const Color(0xFF4CAF50),
+        const Color(0xFF05124D),
         Colors.white,
       ),
     };
@@ -415,13 +415,13 @@ class _RouteInfo extends StatelessWidget {
                   width: 10,
                   height: 10,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF4CAF50),
+                    color: Color(0xFF05124D),
                     shape: BoxShape.circle,
                   ),
                 ),
                 Expanded(
                   child: Center(
-                    child: Container(width: 2, color: const Color(0xFF4CAF50)),
+                    child: Container(width: 2, color: const Color(0xFF05124D)),
                   ),
                 ),
                 Container(
@@ -430,7 +430,7 @@ class _RouteInfo extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF4CAF50),
+                      color: const Color(0xFF05124D),
                       width: 2,
                     ),
                   ),

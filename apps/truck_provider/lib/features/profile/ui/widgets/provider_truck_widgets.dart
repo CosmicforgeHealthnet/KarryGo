@@ -35,7 +35,7 @@ Color truckColorSwatch(String name) {
     case 'red':
       return const Color(0xFFE5484D);
     case 'green':
-      return kProviderGreen;
+      return const Color(0xFF1F9D55);
     case 'yellow':
       return const Color(0xFFF5C518);
     case 'orange':

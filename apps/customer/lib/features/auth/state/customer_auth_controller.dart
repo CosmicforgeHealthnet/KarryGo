@@ -177,8 +177,12 @@ class CustomerAuthController extends ChangeNotifier {
 
   /// Reacts to an authentication failure (expired or revoked session) detected
   /// on any bearer-authenticated API call while the user is active in the app.
-  /// Clears the local session and routes back to phone entry so the user can
-  /// sign in again.
+  ///
+  /// Access tokens are short-lived (15 minutes) while refresh tokens last 30
+  /// days, so the common case here is simply an expired access token during
+  /// normal use — not a revoked session. Try to refresh first and keep the user
+  /// where they are; only sign them out when the refresh itself is rejected,
+  /// which means the session is genuinely gone.
   ///
   /// No-op during the pre-authentication flow (onboarding/phone/OTP), where a
   /// 401 is part of the normal challenge handshake and handled inline.
@@ -200,6 +204,7 @@ class CustomerAuthController extends ChangeNotifier {
 
     _handlingAuthFailure = true;
     try {
+      if (await _tryRecoverSession()) return;
       await _sessionStore.clearSession();
       _setState(
         const CustomerAuthState(
@@ -212,6 +217,30 @@ class CustomerAuthController extends ChangeNotifier {
       );
     } finally {
       _handlingAuthFailure = false;
+    }
+  }
+
+  /// Attempts to swap an expired access token for a fresh one using the stored
+  /// refresh token, leaving the user on whatever screen they were on.
+  ///
+  /// Returns false when there is nothing to refresh with, when the refresh is
+  /// rejected (revoked/expired session), or on a network error — the caller
+  /// then falls back to signing the user out. A network failure is treated as
+  /// unrecoverable here deliberately: callers have already surfaced their own
+  /// error, and silently keeping a session that cannot make requests would be
+  /// more confusing than asking for a fresh sign-in.
+  Future<bool> _tryRecoverSession() async {
+    final current = _state.session;
+    if (current == null || current.refreshToken.isEmpty) return false;
+
+    try {
+      final refreshed = await _refreshSession(current);
+      // Keep the customer profile we already hold: /auth/refresh returns tokens,
+      // and re-fetching /me here would just be another call that can fail.
+      _setAuthenticatedSession(refreshed.copyWith(customer: current.customer));
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

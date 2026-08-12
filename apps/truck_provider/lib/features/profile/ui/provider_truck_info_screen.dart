@@ -155,7 +155,7 @@ class _TruckCard extends StatelessWidget {
             border: Border.all(color: kProviderBorder),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF1B3A24).withValues(alpha: 0.05),
+                color: const Color(0xFF05124D).withValues(alpha: 0.05),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),

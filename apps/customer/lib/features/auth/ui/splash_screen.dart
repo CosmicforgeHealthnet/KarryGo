@@ -13,7 +13,7 @@ class SplashScreen extends StatelessWidget {
           gradient: RadialGradient(
             center: Alignment(-0.3, -0.3),
             radius: 1.2,
-            colors: [Color(0xFF4CAF50), Color(0xFF1B5E20), Color(0xFF0D2818)],
+            colors: [Color(0xFF2761A7), Color(0xFF0A1F5C), Color(0xFF05124D)],
             stops: [0.0, 0.5, 1.0],
           ),
         ),

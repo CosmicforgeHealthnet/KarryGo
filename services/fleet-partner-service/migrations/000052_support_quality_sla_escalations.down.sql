@@ -1,0 +1,13 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('support.read','support.create','quality.read','quality.manage','quality.resolve','sla.read','escalations.read','escalations.acknowledge','escalations.resolve','escalations.replay');
+DELETE FROM fleet_partner_permissions WHERE code IN('support.read','support.create','quality.read','quality.manage','quality.resolve','sla.read','escalations.read','escalations.acknowledge','escalations.resolve','escalations.replay');
+DROP TRIGGER IF EXISTS trg_fleet_escalation_history_append_only ON fleet_partner_escalation_history;
+DROP TABLE IF EXISTS fleet_partner_escalation_history;
+DROP TABLE IF EXISTS fleet_partner_escalations;
+DROP TRIGGER IF EXISTS trg_fleet_sla_measurements_append_only ON fleet_partner_sla_measurements;
+DROP TABLE IF EXISTS fleet_partner_sla_measurements;
+DROP TRIGGER IF EXISTS trg_fleet_quality_history_append_only ON fleet_partner_quality_case_history;
+DROP TABLE IF EXISTS fleet_partner_quality_case_history;
+DROP TABLE IF EXISTS fleet_partner_quality_cases;
+DROP TRIGGER IF EXISTS trg_fleet_support_events_append_only ON fleet_partner_support_case_events_inbox;
+DROP TABLE IF EXISTS fleet_partner_support_case_events_inbox;
+DROP TABLE IF EXISTS fleet_partner_support_case_projections;

@@ -160,7 +160,7 @@ class ProviderHomeController extends ChangeNotifier {
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
       final pos = await _currentPosition();
-      await _api.setOnline(accessToken: token, lat: pos.$1, lng: pos.$2);
+      await _withAuth((t) => _api.setOnline(accessToken: t, lat: pos.$1, lng: pos.$2));
       _emit(_state.copyWith(
         isOnline: true,
         isLoading: false,
@@ -217,7 +217,7 @@ class ProviderHomeController extends ChangeNotifier {
     }
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      await _api.setOffline(accessToken: token);
+      await _withAuth((t) => _api.setOffline(accessToken: t));
     } catch (_) {}
     _emit(_state.copyWith(
       isOnline: false,
@@ -257,7 +257,7 @@ class ProviderHomeController extends ChangeNotifier {
       }
     } catch (_) {}
     try {
-      final online = await _api.getAvailability(accessToken: token);
+      final online = await _withAuth((t) => _api.getAvailability(accessToken: t));
       if (!online) return;
       _emit(_state.copyWith(isOnline: true));
       unawaited(_sendHeartbeat());
@@ -267,6 +267,38 @@ class ProviderHomeController extends ChangeNotifier {
     } catch (_) {
       // Leave the provider offline in the UI if the check fails; they can toggle
       // manually.
+    }
+  }
+
+  /// Reconciles the local online toggle with the server, in both directions.
+  ///
+  /// Called when the app returns to the foreground. [restoreOnlineStatus] only
+  /// handles the offline→online direction (and returns early when already
+  /// online), which leaves the dangerous case unhandled: the app was suspended,
+  /// the heartbeat stopped, the ~90s Redis TTL lapsed, and the provider is now
+  /// out of the matching pool while the UI still shows "Online". They wait for
+  /// requests that can never arrive.
+  Future<void> syncOnlineStatus() async {
+    if (_token == null) return;
+    try {
+      final online = await _withAuth((t) => _api.getAvailability(accessToken: t));
+      if (online == _state.isOnline) {
+        // Agreed. Re-arm the heartbeat in case the timer was killed while
+        // suspended, otherwise we would drift offline again.
+        if (online) _startHeartbeat();
+        return;
+      }
+      if (online) {
+        _emit(_state.copyWith(isOnline: true, clearError: true));
+        _startHeartbeat();
+        _startPolling();
+        _startRealtime();
+      } else {
+        _markDroppedOffline();
+      }
+    } catch (_) {
+      // Network failure: leave the toggle as-is rather than guessing. The next
+      // heartbeat (or resume) reconciles.
     }
   }
 
@@ -288,8 +320,47 @@ class ProviderHomeController extends ChangeNotifier {
     final pos = await _currentPosition();
     _emit(_state.copyWith(currentLat: pos.$1, currentLng: pos.$2));
     try {
-      await _api.heartbeat(accessToken: token, lat: pos.$1, lng: pos.$2);
-    } catch (_) {}
+      await _withAuth((t) => _api.heartbeat(accessToken: t, lat: pos.$1, lng: pos.$2));
+      _missedHeartbeats = 0;
+    } catch (_) {
+      // The online marker in Redis expires ~90s after the last heartbeat. If
+      // beats keep failing (network drop, or the OS throttling our timer while
+      // backgrounded) the server has already dropped this provider from the
+      // matching pool — keep showing "Online" and they sit there believing they
+      // are available while no request can ever reach them.
+      _missedHeartbeats++;
+      if (_missedHeartbeats >= _maxMissedHeartbeats && _state.isOnline) {
+        _markDroppedOffline();
+      }
+    }
+  }
+
+  /// Consecutive failed heartbeats. Reset on every success.
+  int _missedHeartbeats = 0;
+
+  /// Two misses (~60s) still sits inside the server's ~90s online TTL, so this
+  /// reacts just before the provider actually falls out of the matching pool
+  /// rather than after — without flapping on a single transient failure.
+  static const _maxMissedHeartbeats = 2;
+
+  /// Drops the UI back to offline after the heartbeat has failed repeatedly, so
+  /// the toggle reflects the server rather than a stale local belief.
+  ///
+  /// An in-progress trip is deliberately left running: going offline only stops
+  /// NEW requests, and cargo already on the truck must stay on screen.
+  void _markDroppedOffline() {
+    _missedHeartbeats = 0;
+    _stopHeartbeat();
+    final hasActiveTrip = _state.status == ProviderHomeStatus.activeTrip &&
+        _state.activeBooking != null;
+    if (!hasActiveTrip) {
+      _stopPolling();
+      _stopRealtime();
+    }
+    _emit(_state.copyWith(
+      isOnline: false,
+      error: 'You went offline — reconnect to keep receiving requests.',
+    ));
   }
 
   void _stopHeartbeat() {
@@ -340,7 +411,7 @@ class ProviderHomeController extends ChangeNotifier {
     _pollInFlight = true;
     final generation = _stateGeneration;
     try {
-      final bookings = await _api.listBookings(accessToken: token);
+      final bookings = await _withAuth((t) => _api.listBookings(accessToken: t));
 
       // A local mutation happened while this response was in flight — the data
       // is stale (e.g. the just-accepted booking still reads awaiting_acceptance).
@@ -417,7 +488,7 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      final updated = await _api.acceptBooking(accessToken: token, bookingId: bookingId);
+      final updated = await _withAuth((t) => _api.acceptBooking(accessToken: t, bookingId: bookingId));
       _bumpGeneration();
       _emit(_state.copyWith(
         status: ProviderHomeStatus.activeTrip,
@@ -445,7 +516,7 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      await _api.rejectBooking(accessToken: token, bookingId: bookingId);
+      await _withAuth((t) => _api.rejectBooking(accessToken: t, bookingId: bookingId));
       _bumpGeneration();
       _emit(_state.copyWith(
         isLoading: false,
@@ -473,7 +544,7 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      final updated = await _api.markEnRoutePickup(accessToken: token, bookingId: booking.id);
+      final updated = await _withAuth((t) => _api.markEnRoutePickup(accessToken: t, bookingId: booking.id));
       _emit(_state.copyWith(isLoading: false, activeBooking: updated));
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
@@ -487,7 +558,7 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      final result = await _api.markArrived(accessToken: token, bookingId: booking.id);
+      final result = await _withAuth((t) => _api.markArrived(accessToken: t, bookingId: booking.id));
       _emit(_state.copyWith(
         isLoading: false,
         activeBooking: result.booking,
@@ -505,7 +576,7 @@ class ProviderHomeController extends ChangeNotifier {
     final booking = _state.activeBooking;
     if (token == null || booking == null) return;
     try {
-      final credential = await _api.getPickupCredential(accessToken: token, bookingId: booking.id);
+      final credential = await _withAuth((t) => _api.getPickupCredential(accessToken: t, bookingId: booking.id));
       _emit(_state.copyWith(pickupCredential: credential));
     } catch (_) {
       // Not fatal — the resend button lets the driver retry.
@@ -520,7 +591,7 @@ class ProviderHomeController extends ChangeNotifier {
     if (token == null || booking == null) return;
     _emit(_state.copyWith(isResendingPickupCredential: true, clearError: true));
     try {
-      final credential = await _api.resendPickupCredential(accessToken: token, bookingId: booking.id);
+      final credential = await _withAuth((t) => _api.resendPickupCredential(accessToken: t, bookingId: booking.id));
       _emit(_state.copyWith(pickupCredential: credential, isResendingPickupCredential: false));
     } catch (e) {
       _emit(_state.copyWith(isResendingPickupCredential: false, error: _msg(e)));
@@ -534,7 +605,7 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      final updated = await _api.confirmPickup(accessToken: token, bookingId: booking.id);
+      final updated = await _withAuth((t) => _api.confirmPickup(accessToken: t, bookingId: booking.id));
       _emit(_state.copyWith(isLoading: false, activeBooking: updated, clearPickupCredential: true));
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
@@ -548,7 +619,7 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      final updated = await _api.markEnRouteDelivery(accessToken: token, bookingId: booking.id);
+      final updated = await _withAuth((t) => _api.markEnRouteDelivery(accessToken: t, bookingId: booking.id));
       _emit(_state.copyWith(isLoading: false, activeBooking: updated));
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
@@ -627,7 +698,7 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
-      await _api.cancelActiveTrip(accessToken: token, bookingId: booking.id);
+      await _withAuth((t) => _api.cancelActiveTrip(accessToken: t, bookingId: booking.id));
       _bumpGeneration();
       _stopPolling();
       _emit(_state.copyWith(
@@ -650,7 +721,7 @@ class ProviderHomeController extends ChangeNotifier {
 
     _emit(_state.copyWith(trucksLoading: true));
     try {
-      final trucks = await _api.listTrucks(accessToken: token);
+      final trucks = await _withAuth((t) => _api.listTrucks(accessToken: t));
       _emit(_state.copyWith(trucks: trucks, trucksLoading: false));
     } catch (_) {
       _emit(_state.copyWith(trucksLoading: false));
@@ -665,6 +736,28 @@ class ProviderHomeController extends ChangeNotifier {
   }
 
   String _msg(Object e) => e is ApiException ? e.message : e.toString();
+
+  /// Runs an authenticated request, refreshing the session and retrying once if
+  /// the access token has expired.
+  ///
+  /// Access tokens last an hour but a shift lasts longer, so without this every
+  /// call made after the hour mark fails with "Your session has expired" until
+  /// the app is restarted — including going online and advancing a live trip.
+  /// Only a genuine auth failure triggers the retry; every other error is
+  /// rethrown untouched for the caller to surface.
+  Future<T> _withAuth<T>(Future<T> Function(String accessToken) call) async {
+    final token = _token;
+    if (token == null) throw StateError('not authenticated');
+    try {
+      return await call(token);
+    } on ApiException catch (e) {
+      if (!e.isAuthFailure) rethrow;
+      if (!await _auth.tryRefreshSession()) rethrow;
+      final renewed = _token;
+      if (renewed == null) rethrow;
+      return await call(renewed);
+    }
+  }
 
   @override
   void dispose() {

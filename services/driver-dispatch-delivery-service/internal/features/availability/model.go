@@ -130,6 +130,7 @@ const (
 	GateAccountSuspended  = "account_suspended"
 	GateNoVerifiedVehicle = "no_verified_vehicle"
 	GateLicenceExpired    = "licence_expired"
+	GateFleetRestricted   = "fleet_restricted"
 )
 
 type Location struct {

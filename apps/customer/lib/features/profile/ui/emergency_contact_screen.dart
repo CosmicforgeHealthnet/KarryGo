@@ -65,7 +65,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Remove', style: TextStyle(color: Color(0xFFE53935))),
+            child: const Text('Remove', style: TextStyle(color: Color(0xFFA81717))),
           ),
         ],
       ),
@@ -348,14 +348,14 @@ class _EmergencyContactFormScreenState
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF1F0),
+                      color: const Color(0xFFF7E4E4),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFFCDD2)),
+                      border: Border.all(color: const Color(0xFFEBC4C4)),
                     ),
                     child: Text(
                       _error!.message,
                       style: const TextStyle(
-                          color: Color(0xFFC0392B), fontSize: 13),
+                          color: Color(0xFF8A1212), fontSize: 13),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -526,7 +526,7 @@ class _ErrorView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline_rounded,
-                color: Color(0xFFE53935), size: 40),
+                color: Color(0xFFA81717), size: 40),
             const SizedBox(height: 16),
             Text(error.message,
                 textAlign: TextAlign.center,

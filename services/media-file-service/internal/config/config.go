@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -21,6 +22,55 @@ type Config struct {
 	MaxUploadBytes   int64
 	ServiceTokens    map[string]string
 	PartnerJWTSecret string
+
+	// --- WP10 private media object contract ---
+
+	// PrivateAPIEnabled mounts the authoritative private surface. Default
+	// false: a deployment that has not configured callers, secrets and a
+	// download signing key must not expose the contract at all.
+	PrivateAPIEnabled bool
+	// ServiceSecrets holds per-caller HMAC secrets ("name=secret,...").
+	ServiceSecrets string
+	// PrivateAllowedCallers is the caller allowlist for the private surface.
+	PrivateAllowedCallers []string
+	// PrivateStorageDir roots filesystem-backed private object storage. Used
+	// when no bucket is configured.
+	PrivateStorageDir string
+	// DownloadSecret signs short-lived content grants. Without it, private
+	// download is refused rather than made open.
+	DownloadSecret []byte
+
+	UploadAuthorizationTTL time.Duration
+	DownloadTTL            time.Duration
+	PrivateMaxUploadBytes  int64
+	PrivateAllowedMIME     []string
+	// ProhibitExecutableContent refuses recognised executable signatures.
+	ProhibitExecutableContent bool
+	// RequireSafeForDownload refuses a content grant for anything not
+	// confirmed SAFE. Enabling it without a scanner means no private content
+	// can be served, which is the intended fail-closed posture.
+	RequireSafeForDownload bool
+	DefaultRetention       time.Duration
+
+	// MediaWorkersEnabled runs the in-process maintenance sweep.
+	MediaWorkersEnabled  bool
+	MediaWorkerInterval  time.Duration
+	MediaWorkerLease     time.Duration
+	MediaWorkerBatchSize int
+	// MediaKillSwitch stops every media worker and write path without
+	// requiring a redeploy of a different image.
+	MediaKillSwitch bool
+
+	// OutboxEnabled starts the event publisher.
+	OutboxEnabled      bool
+	OutboxTargetURL    string
+	OutboxPath         string
+	OutboxSecret       []byte
+	OutboxBatchSize    int
+	OutboxInterval     time.Duration
+	OutboxLease        time.Duration
+	OutboxMaxAttempts  int
+	HTTPRequestTimeout time.Duration
 }
 
 func Load() Config {
@@ -40,7 +90,63 @@ func Load() Config {
 		MaxUploadBytes:   getEnvInt64("MEDIA_FILE_MAX_UPLOAD_BYTES", 25*1024*1024),
 		ServiceTokens:    getEnvServiceTokens("MEDIA_FILE_SERVICE_TOKENS"),
 		PartnerJWTSecret: getEnv("PARTNER_JWT_SECRET", ""),
+
+		PrivateAPIEnabled:     getEnvBool("MEDIA_FILE_PRIVATE_API_ENABLED", false),
+		ServiceSecrets:        getEnv("MEDIA_FILE_SERVICE_SECRETS", ""),
+		PrivateAllowedCallers: getEnvList("MEDIA_FILE_PRIVATE_ALLOWED_CALLERS", "fleet-partner-service"),
+		PrivateStorageDir:     getEnv("MEDIA_FILE_PRIVATE_STORAGE_DIR", ""),
+		DownloadSecret:        []byte(getEnv("MEDIA_FILE_DOWNLOAD_SIGNING_SECRET", "")),
+
+		UploadAuthorizationTTL:    getEnvDuration("MEDIA_FILE_UPLOAD_AUTHORIZATION_TTL_SECONDS", 15*time.Minute),
+		DownloadTTL:               getEnvDuration("MEDIA_FILE_PRIVATE_DOWNLOAD_TTL_SECONDS", 5*time.Minute),
+		PrivateMaxUploadBytes:     getEnvInt64("MEDIA_FILE_PRIVATE_MAX_UPLOAD_BYTES", 25*1024*1024),
+		PrivateAllowedMIME:        getEnvList("MEDIA_FILE_PRIVATE_ALLOWED_MIME_TYPES", "application/pdf,image/jpeg,image/png,image/webp"),
+		ProhibitExecutableContent: getEnvBool("MEDIA_FILE_PROHIBIT_EXECUTABLE_CONTENT", true),
+		RequireSafeForDownload:    getEnvBool("MEDIA_FILE_REQUIRE_SAFE_FOR_DOWNLOAD", false),
+		DefaultRetention:          getEnvDuration("MEDIA_FILE_DEFAULT_RETENTION_SECONDS", 0),
+
+		MediaWorkersEnabled:  getEnvBool("MEDIA_FILE_WORKERS_ENABLED", false),
+		MediaWorkerInterval:  getEnvDuration("MEDIA_FILE_WORKER_INTERVAL_SECONDS", time.Minute),
+		MediaWorkerLease:     getEnvDuration("MEDIA_FILE_WORKER_LEASE_SECONDS", 2*time.Minute),
+		MediaWorkerBatchSize: int(getEnvInt64("MEDIA_FILE_WORKER_BATCH_SIZE", 100)),
+		MediaKillSwitch:      getEnvBool("MEDIA_FILE_KILL_SWITCH", false),
+
+		OutboxEnabled:      getEnvBool("MEDIA_FILE_OUTBOX_ENABLED", false),
+		OutboxTargetURL:    getEnv("MEDIA_FILE_OUTBOX_TARGET_URL", ""),
+		OutboxPath:         getEnv("MEDIA_FILE_OUTBOX_PATH", ""),
+		OutboxSecret:       []byte(getEnv("MEDIA_FILE_OUTBOX_SECRET", "")),
+		OutboxBatchSize:    int(getEnvInt64("MEDIA_FILE_OUTBOX_BATCH_SIZE", 50)),
+		OutboxInterval:     getEnvDuration("MEDIA_FILE_OUTBOX_INTERVAL_SECONDS", 5*time.Second),
+		OutboxLease:        getEnvDuration("MEDIA_FILE_OUTBOX_LEASE_SECONDS", 30*time.Second),
+		OutboxMaxAttempts:  int(getEnvInt64("MEDIA_FILE_OUTBOX_MAX_ATTEMPTS", 10)),
+		HTTPRequestTimeout: getEnvDuration("MEDIA_FILE_HTTP_REQUEST_TIMEOUT_SECONDS", 10*time.Second),
 	}
+}
+
+// getEnvList splits a comma-separated setting, trimming blanks.
+func getEnvList(key string, fallback string) []string {
+	raw := getEnv(key, fallback)
+	values := []string{}
+	for _, part := range strings.Split(raw, ",") {
+		if value := strings.TrimSpace(part); value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+// getEnvDuration reads a whole-second setting. Seconds rather than a duration
+// string keeps every timing knob in this service spelled the same way.
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	seconds, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || seconds < 0 {
+		return fallback
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func getEnv(key string, fallback string) string {

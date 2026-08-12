@@ -89,7 +89,7 @@ class _SavedLocationsScreenState extends State<SavedLocationsScreen> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child:
-                const Text('Delete', style: TextStyle(color: Color(0xFFE53935))),
+                const Text('Delete', style: TextStyle(color: Color(0xFFA81717))),
           ),
         ],
       ),
@@ -150,7 +150,7 @@ class _SavedLocationsScreenState extends State<SavedLocationsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.error_outline_rounded,
-                  color: Color(0xFFE53935), size: 40),
+                  color: Color(0xFFA81717), size: 40),
               const SizedBox(height: 16),
               Text(
                 error.message,

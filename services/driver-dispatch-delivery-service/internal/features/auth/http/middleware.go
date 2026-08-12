@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
-	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 )
 
 const (
@@ -16,6 +16,8 @@ const (
 	ContextPhoneNumber     = "phone_number"
 	ContextSessionID       = "session_id"
 	ContextRole            = "role"
+	ContextAccessTokenJTI  = "access_token_jti"
+	ContextAccessExpiresAt = "access_expires_at"
 )
 
 func DispatchRiderAuthRequired(tokens *authusecases.TokenUsecase) gin.HandlerFunc {
@@ -28,7 +30,7 @@ func DispatchRiderAuthRequired(tokens *authusecases.TokenUsecase) gin.HandlerFun
 		}
 
 		rawToken := parts[1]
-		claims, err := tokens.ValidateAccessToken(rawToken)
+		claims, err := tokens.ValidateAccessTokenContext(c.Request.Context(), rawToken)
 		if err != nil {
 			if errors.Is(err, authusecases.ErrExpiredToken) {
 				httpx.Abort(c, apperrors.Unauthorized("Access token has expired.", nil))
@@ -45,8 +47,18 @@ func DispatchRiderAuthRequired(tokens *authusecases.TokenUsecase) gin.HandlerFun
 		c.Set(ContextPhoneNumber, claims.PhoneNumber)
 		c.Set(ContextSessionID, claims.SessionID)
 		c.Set(ContextRole, claims.Role)
+		c.Set(ContextAccessTokenJTI, claims.JWTID)
+		c.Set(ContextAccessExpiresAt, claims.ExpiresAt)
 		c.Next()
 	}
+}
+
+func AccessTokenJTI(c *gin.Context) string { return c.GetString(ContextAccessTokenJTI) }
+
+func AccessExpiresAt(c *gin.Context) int64 {
+	value, _ := c.Get(ContextAccessExpiresAt)
+	expiresAt, _ := value.(int64)
+	return expiresAt
 }
 
 func DispatchRiderID(c *gin.Context) string {

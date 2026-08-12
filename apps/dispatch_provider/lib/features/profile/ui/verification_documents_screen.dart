@@ -246,7 +246,7 @@ class _VerificationDocumentsScreenState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: Color(0xFF4CAF50)),
+              CircularProgressIndicator(color: Color(0xFF05124D)),
               SizedBox(height: 16),
               Text(
                 'Documents submitted.',
@@ -488,9 +488,9 @@ class _VerificationDocumentsScreenState
                 child: FilledButton(
                   onPressed: _canProceed ? _onNext : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor: const Color(
-                      0xFF4CAF50,
+                      0xFF05124D,
                     ).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
@@ -629,7 +629,7 @@ class _UploadSection extends StatelessWidget {
           description,
           style: const TextStyle(
             fontSize: 12,
-            color: Color(0xFF4CAF50),
+            color: Color(0xFF05124D),
             height: 1.4,
           ),
         ),

@@ -165,8 +165,8 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                     ? _onVerify
                     : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
-                  disabledBackgroundColor: const Color(0xFFA8D5B5),
+                  backgroundColor: const Color(0xFF05124D),
+                  disabledBackgroundColor: const Color(0xFFC1C5D4),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                 ),
                 child: _resolving
@@ -196,7 +196,7 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0FFF0),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF4CAF50), width: 1),
+                  border: Border.all(color: const Color(0xFF05124D), width: 1),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,8 +224,8 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                 child: ElevatedButton(
                   onPressed: _registering ? null : _onRegister,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
-                    disabledBackgroundColor: const Color(0xFFA8D5B5),
+                    backgroundColor: const Color(0xFF05124D),
+                    disabledBackgroundColor: const Color(0xFFC1C5D4),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                   ),
                   child: _registering

@@ -102,7 +102,7 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
+                      color: const Color(0xFF05124D),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
@@ -141,7 +141,7 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                     'Your withdrawal will be processed into your account',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.green.shade600,
+                      color: const Color(0xFF05124D),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -159,7 +159,7 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: const Color(0xFF4CAF50),
+                            color: const Color(0xFF05124D),
                             width: 1.5,
                           ),
                         ),
@@ -168,7 +168,7 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                           children: [
                             const Icon(
                               Icons.add_circle_outline,
-                              color: Color(0xFF4CAF50),
+                              color: Color(0xFF05124D),
                               size: 20,
                             ),
                             const SizedBox(width: 8),
@@ -177,7 +177,7 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.green.shade600,
+                                color: const Color(0xFF05124D),
                               ),
                             ),
                           ],
@@ -237,14 +237,14 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: const Color(0xFF4CAF50),
+                                color: const Color(0xFF05124D),
                                 width: 1.5,
                               ),
                             ),
                             child: Container(
                               decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Color(0xFF4CAF50),
+                                color: Color(0xFF05124D),
                               ),
                             ),
                           ),
@@ -262,7 +262,7 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Colors.green.shade600,
+                          color: const Color(0xFF05124D),
                         ),
                       ),
                     ),
@@ -282,7 +282,7 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                         TextSpan(
                           text: 'terms and conditions',
                           style: TextStyle(
-                            color: Colors.green.shade600,
+                            color: const Color(0xFF05124D),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -290,7 +290,7 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                         TextSpan(
                           text: 'privacy policy',
                           style: TextStyle(
-                            color: Colors.green.shade600,
+                            color: const Color(0xFF05124D),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -306,8 +306,8 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: hasBankAccount
-                            ? const Color(0xFF4CAF50)
-                            : const Color(0xFFA8D5B5),
+                            ? const Color(0xFF05124D)
+                            : const Color(0xFFC1C5D4),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: const Text(

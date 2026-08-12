@@ -123,10 +123,67 @@ func Test5F_MissingRedisStatusReturns400(t *testing.T) {
 	router, tokens, _, _ := newLocationTestEnv(t)
 	providerID := uuid.NewString()
 	tok := providerJWT(t, tokens, providerID)
-	// No status key set — treated as offline.
+	// Neither a live status key nor a durable Postgres row saying this rider
+	// went online — genuinely offline, so the ping is rejected.
 	w := postLocation(router, tok, `{"lat":6.5244,"lng":3.3792,"heading":45,"speed":20,"accuracy":8}`)
 	assertHTTPCode(t, w, http.StatusBadRequest)
 	assertHTTPErrorCode(t, w, apperrors.CodeBadRequest)
+}
+
+// Regression: the live status key carries a 90 s TTL that only an accepted ping
+// refreshes, but the refresh sits *after* the online check. A rider who stopped
+// pinging for longer than that TTL (no GPS fix indoors, app backgrounded) used
+// to be rejected forever, because the only thing that could restore the key
+// required the key to already exist. Postgres still records that they chose to
+// be online, so the ping must be accepted and the cache entry rebuilt.
+func Test5F_ExpiredLiveStatusRecoversFromDurableOnlineState(t *testing.T) {
+	_, _, store, mr := newLocationTestEnv(t)
+	ctx := context.Background()
+	providerID := uuid.NewString()
+
+	repo := newFakeAvailabilityRepository()
+	if _, err := repo.SetOnline(ctx, providerID, time.Now().UTC()); err != nil {
+		t.Fatalf("SetOnline error = %v", err)
+	}
+	// Live key absent — simulates the StatusTTL having lapsed.
+	svc := NewService(repo, store)
+
+	if _, err := svc.UpdateLocation(ctx, providerID, UpdateLocationRequest{Lat: 6.5244, Lng: 3.3792}); err != nil {
+		t.Fatalf("UpdateLocation after status TTL lapse: %v", err)
+	}
+
+	status, ok, err := store.GetStatus(ctx, providerID)
+	if err != nil {
+		t.Fatalf("GetStatus error = %v", err)
+	}
+	if !ok || status != StatusOnline {
+		t.Fatalf("live status not rebuilt: got %q exists=%v, want %q", status, ok, StatusOnline)
+	}
+	// Membership of the geo set is what the customer availability query reads,
+	// so this is the assertion that proves the rider became bookable again.
+	// (Asserted via ZSCORE rather than GetNearby because miniredis does not
+	// implement GEOSEARCH.)
+	if _, err := mr.ZScore(OnlineProvidersGeoKey, providerID); err != nil {
+		t.Fatalf("rider not re-added to the discoverable geo set: %v", err)
+	}
+}
+
+// A rider whose durable state says offline must still be rejected — the
+// fallback recovers a lapsed cache entry, it does not resurrect an offline one.
+func Test5F_ExpiredLiveStatusStaysRejectedWhenDurablyOffline(t *testing.T) {
+	_, _, store, _ := newLocationTestEnv(t)
+	ctx := context.Background()
+	providerID := uuid.NewString()
+
+	repo := newFakeAvailabilityRepository()
+	if _, err := repo.SetOffline(ctx, providerID, time.Now().UTC()); err != nil {
+		t.Fatalf("SetOffline error = %v", err)
+	}
+	svc := NewService(repo, store)
+
+	if _, err := svc.UpdateLocation(ctx, providerID, UpdateLocationRequest{Lat: 6.5244, Lng: 3.3792}); err == nil {
+		t.Fatal("UpdateLocation succeeded for a durably-offline rider, want rejection")
+	}
 }
 
 func Test5F_OnlineProviderCanUpdateLocation(t *testing.T) {

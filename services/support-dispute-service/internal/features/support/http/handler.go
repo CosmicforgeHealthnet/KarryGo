@@ -325,6 +325,49 @@ func (h *Handler) AdminGetComplaint(c *gin.Context) {
 	respondOK(c, result.Public())
 }
 
+func (h *Handler) AdminCreateOrganizationCase(c *gin.Context) {
+	var req struct {
+		OrganizationReference string `json:"organization_reference"`
+		IdempotencyKey        string `json:"idempotency_key"`
+		CaseType              string `json:"case_type"`
+		Priority              string `json:"priority"`
+		Subject               string `json:"subject"`
+		Description           string `json:"description"`
+		CustomerReference     string `json:"customer_reference"`
+		ProviderReference     string `json:"provider_reference"`
+		TripReference         string `json:"trip_reference"`
+		OrderReference        string `json:"order_reference"`
+		AssignmentReference   string `json:"assignment_reference"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body must be valid JSON.", err))
+		return
+	}
+	value, err := h.service.CreateOrganizationCase(c.Request.Context(), supportusecases.OrganizationCaseInput{OrganizationReference: req.OrganizationReference, IdempotencyKey: req.IdempotencyKey, CaseType: req.CaseType, Priority: req.Priority, Subject: req.Subject, Description: req.Description, CustomerReference: req.CustomerReference, ProviderReference: req.ProviderReference, TripReference: req.TripReference, OrderReference: req.OrderReference, AssignmentReference: req.AssignmentReference})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, organizationCaseProjection(value))
+}
+
+func (h *Handler) AdminGetOrganizationCase(c *gin.Context) {
+	value, err := h.service.GetOrganizationCase(c.Request.Context(), c.Query("organization_reference"), c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, organizationCaseProjection(value))
+}
+
+func organizationCaseProjection(value supportmodels.Complaint) gin.H {
+	owner := ""
+	if value.AssignedTo != nil {
+		owner = *value.AssignedTo
+	}
+	return gin.H{"id": value.ID, "status": value.Status, "priority": value.Priority, "owner_reference": owner, "version": value.SourceVersion, "updated_at": value.UpdatedAt}
+}
+
 // GET /admin/complaints/:id/evidence
 func (h *Handler) AdminListEvidence(c *gin.Context) {
 	results, err := h.service.ListEvidence(c.Request.Context(), c.Param("id"), "", "")

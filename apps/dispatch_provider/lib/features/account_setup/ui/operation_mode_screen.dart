@@ -97,9 +97,9 @@ class _OperationModeScreenState extends State<OperationModeScreen> {
                       ? () => widget.onContinue(_selected!)
                       : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor: const Color(
-                      0xFF4CAF50,
+                      0xFF05124D,
                     ).withValues(alpha: 0.4),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
@@ -140,11 +140,11 @@ class _ModeCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF4CAF50).withValues(alpha: 0.12)
+              ? const Color(0xFF05124D).withValues(alpha: 0.12)
               : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? const Color(0xFF4CAF50) : Colors.transparent,
+            color: isSelected ? const Color(0xFF05124D) : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -159,7 +159,7 @@ class _ModeCard extends StatelessWidget {
                 errorBuilder: (context, error, stackTrace) => Container(
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF4CAF50).withValues(alpha: 0.15)
+                        ? const Color(0xFF05124D).withValues(alpha: 0.15)
                         : const Color(0xFFF0F0F0),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -167,7 +167,7 @@ class _ModeCard extends StatelessWidget {
                     Icons.directions_car_outlined,
                     size: 28,
                     color: isSelected
-                        ? const Color(0xFF4CAF50)
+                        ? const Color(0xFF05124D)
                         : const Color(0xFF888888),
                   ),
                 ),
@@ -207,7 +207,7 @@ class _ModeCard extends StatelessWidget {
               Icons.arrow_forward,
               size: 18,
               color: isSelected
-                  ? const Color(0xFF4CAF50)
+                  ? const Color(0xFF05124D)
                   : const Color(0xFFCCCCCC),
             ),
           ],
@@ -233,7 +233,7 @@ class _ProgressBar extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               color: i < current
-                  ? const Color(0xFF4CAF50)
+                  ? const Color(0xFF05124D)
                   : const Color(0xFFDDDDDD),
               borderRadius: BorderRadius.circular(2),
             ),

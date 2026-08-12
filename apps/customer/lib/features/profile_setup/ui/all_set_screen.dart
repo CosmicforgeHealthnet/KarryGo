@@ -49,15 +49,15 @@ class AllSetScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              "We've sent a confirmation link to your email.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: CustomerFigmaColors.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            // const Text(
+            //   "We've sent a confirmation link to your email.",
+            //   textAlign: TextAlign.center,
+            //   style: TextStyle(
+            //     color: CustomerFigmaColors.primary,
+            //     fontSize: 12,
+            //     fontWeight: FontWeight.w600,
+            //   ),
+            // ),
           ],
         ),
       ),

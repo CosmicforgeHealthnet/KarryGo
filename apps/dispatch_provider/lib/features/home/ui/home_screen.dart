@@ -164,7 +164,7 @@ class HomeScreenState extends State<HomeScreen> {
                       const LatLng(6.5300, 3.2980),
                     ],
                     color: _tripState == TripState.tripStarted
-                        ? const Color(0xFF4CAF50)
+                        ? const Color(0xFF05124D)
                         : Colors.black54,
                     strokeWidth: 4,
                     pattern: _tripState == TripState.arriving
@@ -244,7 +244,7 @@ class HomeScreenState extends State<HomeScreen> {
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Color(0xFF4CAF50),
+                                  color: Color(0xFF05124D),
                                 ),
                               )
                             else
@@ -332,7 +332,7 @@ class _ToggleSwitch extends StatelessWidget {
     final trackColor = disabled
         ? Colors.grey.shade300
         : isOn
-        ? const Color(0xFF4CAF50)
+        ? const Color(0xFF05124D)
         : const Color(0xFFDDDDDD);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -415,7 +415,7 @@ class OfflineSheet extends StatelessWidget {
             child: FilledButton(
               onPressed: onGoOnline,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
+                backgroundColor: const Color(0xFF05124D),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
                 ),
@@ -441,11 +441,17 @@ class IncomingRequestsSheet extends StatelessWidget {
     required this.onAccept,
     required this.onReject,
     this.isLoading = false,
+    this.hasStaleLocation = false,
   });
   final List<RequestModel> requests;
   final ValueChanged<RequestModel> onAccept;
   final ValueChanged<RequestModel> onReject;
   final bool isLoading;
+
+  /// Location pings have been failing, so the server has likely stopped
+  /// treating this rider as discoverable. Without this warning the sheet just
+  /// reads "No active requests" forever and looks like a quiet night.
+  final bool hasStaleLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -475,6 +481,35 @@ class IncomingRequestsSheet extends StatelessWidget {
             ],
           ),
         ),
+        if (hasStaleLocation)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF4E5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFFCC80)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.location_off_outlined,
+                    size: 18,
+                    color: Color(0xFFB25E02),
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Can't share your location — customers may not see you. "
+                      'Check your GPS and connection.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFFB25E02)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (isLoading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 32),
@@ -610,7 +645,7 @@ class RequestCard extends StatelessWidget {
                   child: FilledButton(
                     onPressed: onAccept,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF4CAF50),
+                      backgroundColor: const Color(0xFF05124D),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(999),
                       ),
@@ -740,12 +775,12 @@ class TripSheet extends StatelessWidget {
                             width: 44,
                             height: 44,
                             decoration: const BoxDecoration(
-                              color: Color(0xFFE8F5E9),
+                              color: Color(0xFFE6E8EE),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
                               Icons.phone,
-                              color: Color(0xFF4CAF50),
+                              color: Color(0xFF05124D),
                               size: 20,
                             ),
                           ),
@@ -802,9 +837,9 @@ class TripSheet extends StatelessWidget {
                         child: FilledButton(
                           onPressed: primaryEnabled ? onPrimary : null,
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
+                            backgroundColor: const Color(0xFF05124D),
                             disabledBackgroundColor: const Color(
-                              0xFF4CAF50,
+                              0xFF05124D,
                             ).withValues(alpha: 0.4),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(999),
@@ -927,14 +962,14 @@ class TripStartedSheet extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               child: Container(
                                 height: 3,
-                                color: const Color(0xFF4CAF50),
+                                color: const Color(0xFF05124D),
                               ),
                             ),
                             Align(
                               alignment: Alignment(-1.0 + (value * 2.0), 0),
                               child: const Icon(
                                 Icons.delivery_dining,
-                                color: Color(0xFF4CAF50),
+                                color: Color(0xFF05124D),
                                 size: 28,
                               ),
                             ),
@@ -1064,13 +1099,13 @@ class RouteInfo extends StatelessWidget {
                   width: 14,
                   height: 14,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF4CAF50),
+                    color: Color(0xFF05124D),
                     shape: BoxShape.circle,
                   ),
                 ),
                 Expanded(
                   child: Center(
-                    child: Container(width: 2, color: const Color(0xFF4CAF50)),
+                    child: Container(width: 2, color: const Color(0xFF05124D)),
                   ),
                 ),
                 Container(
@@ -1079,7 +1114,7 @@ class RouteInfo extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF4CAF50),
+                      color: const Color(0xFF05124D),
                       width: 2.5,
                     ),
                   ),

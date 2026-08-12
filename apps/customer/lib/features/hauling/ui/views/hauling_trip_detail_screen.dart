@@ -404,7 +404,7 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
                 children: [
                   const Icon(
                     Icons.info_outline,
-                    color: Color(0xFFD7493B),
+                    color: Color(0xFFA81717),
                     size: 18,
                   ),
                   const SizedBox(width: 8),
@@ -412,7 +412,7 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
                     child: Text(
                       'Cancelled: ${booking.cancelReason}',
                       style: const TextStyle(
-                        color: Color(0xFFB7362A),
+                        color: Color(0xFF8A1212),
                         fontSize: 13,
                       ),
                     ),
@@ -792,7 +792,7 @@ class _ReviewSection extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             error!,
-            style: const TextStyle(color: Color(0xFFB7362A), fontSize: 13),
+            style: const TextStyle(color: Color(0xFF8A1212), fontSize: 13),
           ),
         ],
       ],

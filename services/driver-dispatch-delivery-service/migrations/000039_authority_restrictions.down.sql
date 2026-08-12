@@ -1,0 +1,6 @@
+DROP TRIGGER IF EXISTS dispatch_restriction_operations_append_only ON dispatch_authority_restriction_operations;
+DROP TRIGGER IF EXISTS dispatch_restriction_history_append_only ON dispatch_authority_restriction_history;
+DROP FUNCTION IF EXISTS reject_dispatch_restriction_history_mutation();
+DROP TABLE IF EXISTS dispatch_authority_restriction_operations;
+DROP TABLE IF EXISTS dispatch_authority_restriction_history;
+DROP TABLE IF EXISTS dispatch_authority_restrictions;

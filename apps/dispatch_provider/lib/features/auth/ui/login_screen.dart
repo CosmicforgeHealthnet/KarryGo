@@ -79,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                 ),
               ),
               const SizedBox(height: 8),
@@ -120,16 +120,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(color: Color(0xFF05124D)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                    borderSide: const BorderSide(color: Color(0xFF05124D)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(
-                      color: Color(0xFF4CAF50),
+                      color: Color(0xFF05124D),
                       width: 1.5,
                     ),
                   ),
@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 "We'll send you a verification code.",
                 style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF4CAF50),
+                  color: Color(0xFF05124D),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -154,9 +154,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: FilledButton(
                       onPressed: canContinue && !_isLoading ? _login : null,
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
+                        backgroundColor: const Color(0xFF05124D),
                         disabledBackgroundColor: const Color(
-                          0xFF4CAF50,
+                          0xFF05124D,
                         ).withValues(alpha: 0.45),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
@@ -197,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextSpan(
                         text: 'Create account',
                         style: TextStyle(
-                          color: Color(0xFF4CAF50),
+                          color: Color(0xFF05124D),
                           fontWeight: FontWeight.w700,
                         ),
                       ),

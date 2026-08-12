@@ -93,7 +93,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 _load();
               },
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
+                backgroundColor: const Color(0xFF05124D),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
                 ),
@@ -146,7 +146,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Request accepted — trip is starting.'),
-            backgroundColor: Color(0xFF4CAF50),
+            backgroundColor: Color(0xFF05124D),
           ),
         );
       },

@@ -529,9 +529,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                 child: FilledButton(
                   onPressed: _canContinue && !_isLoading ? _continue : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: const Color(0xFF05124D),
                     disabledBackgroundColor: const Color(
-                      0xFF4CAF50,
+                      0xFF05124D,
                     ).withValues(alpha: 0.4),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
@@ -663,7 +663,7 @@ class _InputField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF05124D), width: 1.5),
         ),
       ),
     );
@@ -805,7 +805,7 @@ class _ProgressBar extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               color: i < current
-                  ? const Color(0xFF4CAF50)
+                  ? const Color(0xFF05124D)
                   : const Color(0xFFDDDDDD),
               borderRadius: BorderRadius.circular(2),
             ),

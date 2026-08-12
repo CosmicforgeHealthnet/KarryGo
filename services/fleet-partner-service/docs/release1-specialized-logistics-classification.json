@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "release": "corporate-logistics-backend-release-1",
+  "evidence": [
+    "internal/features/specialized/service.go",
+    "internal/features/specialized/validation.go",
+    "internal/features/specialized/validation_test.go",
+    "docs/section31-test-coverage.json"
+  ],
+  "capabilities": [
+    {"code":"COURIER_LAST_MILE","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented behind organization and capability gates."},
+    {"code":"TAXI_PASSENGER","status":"DEFERRED_WITH_REASON","defaultEnabled":false,"reason":"Data foundation only; Taxi production provisioning and execution remain fail-closed under ADR-001.","deferral":"docs/adr/ADR-001-release1-taxi-deferral.md"},
+    {"code":"TRUCKING_HAULAGE","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented; production Hauling authority remains separately configured and fail-closed."},
+    {"code":"HEAVY_SPECIALIZED","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented behind organization and capability gates."},
+    {"code":"FREIGHT_FORWARDING","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented behind organization and capability gates."},
+    {"code":"COLD_CHAIN","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented with excursion/quarantine controls behind capability gates."},
+    {"code":"MEDICAL_SENSITIVE","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented with restricted visibility behind capability gates."},
+    {"code":"AGRICULTURAL_FOOD","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented behind organization and capability gates."},
+    {"code":"MOVING_RELOCATION","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented behind organization and capability gates."},
+    {"code":"TOWING_RECOVERY","status":"PASS_ENABLED","defaultEnabled":false,"reason":"Implemented with breakdown-reference validation behind capability gates."}
+  ]
+}

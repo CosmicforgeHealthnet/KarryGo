@@ -93,15 +93,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // safety net.
     widget.requestsController.startPolling();
     widget.tripsController.startActivePolling();
+    // The poll refreshes the controller, but the sheet is driven by
+    // _tripStateNotifier, which only initState and _handleAccept ever set.
+    // Without this listener a status that changes while the app is already
+    // open (or a trip that starts after launch) leaves the dashboard showing
+    // the previous state until the app is restarted.
+    widget.tripsController.addListener(_syncTripStateFromController);
   }
 
   @override
   void dispose() {
     widget.requestsController.stopPolling();
     widget.tripsController.stopActivePolling();
+    widget.tripsController.removeListener(_syncTripStateFromController);
     _tripStateNotifier.dispose();
     _activeRequestNotifier.dispose();
     super.dispose();
+  }
+
+  /// Mirrors the controller's active trip onto the sheet state. Runs on every
+  /// controller notification (i.e. every poll tick) so the dashboard follows
+  /// server-side status changes without needing a restart.
+  void _syncTripStateFromController() {
+    if (!mounted) return;
+    final trip = widget.tripsController.activeTrip;
+    if (trip == null || !trip.statusCode.isActive) return;
+    // A local action is mid-flight; don't clobber its optimistic transition.
+    if (widget.tripsController.isActionLoading) return;
+    final tripState = _tripStateFromStatus(trip.statusCode);
+    if (tripState == null || _tripStateNotifier.value == tripState) return;
+    _activeTripId = trip.id;
+    _activeRequestNotifier.value = _requestFromTrip(trip);
+    _tripStateNotifier.value = tripState;
+    _ensurePickupCredential(trip);
   }
 
   // ── Resume active trip on startup ─────────────────────────────────────────
@@ -118,9 +142,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (tripState != null) {
           _tripStateNotifier.value = tripState;
         }
+        _ensurePickupCredential(trip);
       },
       failure: (_) {},
     );
+  }
+
+  /// The pickup credential is otherwise only ever held as the return value of
+  /// `markArrived()`, so it lives in memory for that one screen visit. After an
+  /// app restart — or any route away and back — the rider lands on "Arrived at
+  /// Pickup" with an empty code card and cannot show the customer anything,
+  /// which blocks the handover entirely. Refetch it whenever we resume into a
+  /// state that needs it and don't already have it.
+  void _ensurePickupCredential(TripModel trip) {
+    if (trip.statusCode != TripStatusCode.arrivedPickup) return;
+    if (widget.tripsController.pickupCredential != null) return;
+    widget.tripsController.fetchPickupCredential(trip.id);
   }
 
   static RequestModel _requestFromTrip(TripModel trip) {
@@ -390,10 +427,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: switch (tripState) {
         TripState.offline => OfflineSheet(onGoOnline: () => _handleGoOnline()),
         TripState.online => ListenableBuilder(
-          listenable: widget.requestsController,
+          // Also listens to availability so the stale-location warning appears
+          // as soon as location pings start failing.
+          listenable: Listenable.merge([
+            widget.requestsController,
+            widget.availabilityController,
+          ]),
           builder: (context, _) => IncomingRequestsSheet(
             requests: widget.requestsController.requests,
             isLoading: widget.requestsController.isLoading,
+            hasStaleLocation: widget.availabilityController.hasStaleLocation,
             onAccept: _handleAccept,
             onReject: _handleReject,
           ),
@@ -538,7 +581,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         : const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isActive
-                          ? const Color(0xFF4CAF50)
+                          ? const Color(0xFF05124D)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(999),
                     ),

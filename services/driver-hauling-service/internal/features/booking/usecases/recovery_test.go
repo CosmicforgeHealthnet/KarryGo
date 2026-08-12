@@ -186,11 +186,11 @@ func TestCreateBooking_CardRejected(t *testing.T) {
 	svc := newMatchService(repo, &fakeStore{}, allTrucks{capacity: 10000}, 25)
 
 	_, err := svc.CreateBooking(context.Background(), CreateBookingInput{
-		CustomerID:     "c1",
-		PickupAddress:  "A", PickupLat: pickupLat, PickupLng: pickupLng,
+		CustomerID:    "c1",
+		PickupAddress: "A", PickupLat: pickupLat, PickupLng: pickupLng,
 		DropoffAddress: "B", DropoffLat: nearLat, DropoffLng: nearLng,
-		CargoWeightKg:  100,
-		PaymentMethod:  bookingmodels.PaymentMethodCard,
+		CargoWeightKg: 100,
+		PaymentMethod: bookingmodels.PaymentMethodCard,
 	})
 	if err == nil {
 		t.Fatal("expected card booking to be rejected")
@@ -198,4 +198,77 @@ func TestCreateBooking_CardRejected(t *testing.T) {
 	if appErr := apperrors.From(err); appErr == nil || appErr.Code != apperrors.CodeValidationFailed {
 		t.Fatalf("expected validation error, got %v", err)
 	}
+}
+
+// onlineStore returns a store with one nearby provider, so CreateBooking gets
+// past its "any providers online?" gate and reaches the input validation.
+func onlineStore() *fakeStore {
+	return &fakeStore{providers: []availabilityrepositories.ProviderStatus{
+		{ProviderID: "near", TruckID: "t1", Lat: nearLat, Lng: nearLng},
+	}}
+}
+
+// TestCreateBooking_PreferredTruckTypeValidated guards the customer/backend
+// truck-type contract. Matching compares preferred_truck_type to the provider's
+// trucks.truck_type with exact string equality, so an unknown value would be
+// stored happily and then never match anything — the booking would just expire.
+// Empty stays valid: it means "any truck" and skips the matcher's type filter.
+func TestCreateBooking_PreferredTruckTypeValidated(t *testing.T) {
+	newInput := func(truckType string) CreateBookingInput {
+		return CreateBookingInput{
+			CustomerID:    "c1",
+			PickupAddress: "A", PickupLat: pickupLat, PickupLng: pickupLng,
+			DropoffAddress: "B", DropoffLat: nearLat, DropoffLng: nearLng,
+			CargoWeightKg:      100,
+			PreferredTruckType: truckType,
+			PaymentMethod:      bookingmodels.PaymentMethodWallet,
+		}
+	}
+
+	t.Run("unknown type rejected", func(t *testing.T) {
+		svc := newMatchService(newTrackingRepo(), onlineStore(), allTrucks{capacity: 10000}, 25)
+		_, err := svc.CreateBooking(context.Background(), newInput("spaceship"))
+		if err == nil {
+			t.Fatal("expected unknown truck type to be rejected")
+		}
+		appErr := apperrors.From(err)
+		if appErr == nil || appErr.Code != apperrors.CodeValidationFailed {
+			t.Fatalf("expected validation error, got %v", err)
+		}
+		var found bool
+		for _, f := range appErr.Fields {
+			if f.Field == "preferred_truck_type" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("expected a preferred_truck_type field violation, got %+v", appErr.Fields)
+		}
+	})
+
+	// Every type the customer app can emit must be accepted, otherwise picking it
+	// in the dropdown would 422 the booking.
+	for _, truckType := range []string{
+		"pickup", "box", "flatbed", "refrigerated", "tanker", "trailer",
+		"dump", "lowbed", "crane", "container", "van", "tipper", "",
+	} {
+		t.Run("accepts "+truckType, func(t *testing.T) {
+			svc := newMatchService(newTrackingRepo(), onlineStore(), allTrucks{capacity: 10000}, 25)
+			if _, err := svc.CreateBooking(context.Background(), newInput(truckType)); err != nil {
+				t.Fatalf("expected %q to be accepted, got %v", truckType, err)
+			}
+		})
+	}
+
+	t.Run("normalized to lowercase on store", func(t *testing.T) {
+		repo := newTrackingRepo()
+		svc := newMatchService(repo, onlineStore(), allTrucks{capacity: 10000}, 25)
+		created, err := svc.CreateBooking(context.Background(), newInput("  Van  "))
+		if err != nil {
+			t.Fatalf("expected mixed-case truck type to be accepted, got %v", err)
+		}
+		if created.PreferredTruckType != "van" {
+			t.Fatalf("expected stored truck type %q, got %q", "van", created.PreferredTruckType)
+		}
+	})
 }

@@ -1,0 +1,100 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "fleet-partner-service — Section 29 Reliability, Observability and Operational Readiness",
+    "version": "1.0.0",
+    "description": "Liveness, readiness, protected metrics, and the platform-scoped operational surface (backlog visibility, dead-lettered outbox record replay) added by Section 29. Business-domain routes are documented in their own section's OpenAPI file; this file covers only the operational surface this section adds or extends."
+  },
+  "paths": {
+    "/live": {
+      "get": {
+        "operationId": "liveness",
+        "summary": "Process liveness only. Never checks a dependency (database, Redis, or any external service) by design — see docs/section29-reliability-observability.md's Liveness section.",
+        "security": [],
+        "responses": {
+          "200": { "description": "Process is running." }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "legacyLiveness",
+        "summary": "Identical to /live, preserved for any existing caller already pointed at this path.",
+        "security": [],
+        "responses": {
+          "200": { "description": "Process is running." }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "readiness",
+        "summary": "Mandatory-dependency readiness. Returns 503 when any enabled, mandatory dependency is unavailable; disabled features never contribute a check. Never exposes a credential or raw internal error — only a dependency name and 'unavailable'.",
+        "security": [],
+        "responses": {
+          "200": { "description": "Ready.", "content": { "application/json": { "schema": { "type": "object", "properties": { "service": { "type": "string" }, "status": { "type": "string", "enum": ["ready"] } } } } } },
+          "503": { "description": "Not ready.", "content": { "application/json": { "schema": { "type": "object", "properties": { "service": { "type": "string" }, "status": { "type": "string", "enum": ["not_ready"] }, "failures": { "type": "array", "items": { "type": "object", "properties": { "dependency": { "type": "string" }, "status": { "type": "string" } } } } } } } } }
+        }
+      }
+    },
+    "/fleet-partner/v1/metrics": {
+      "get": {
+        "operationId": "metrics",
+        "summary": "Prometheus-style text exposition of every bounded-label metric this service records. Protected by a static bearer-style auth token (FLEET_PARTNER_METRICS_AUTH_TOKEN); never public.",
+        "security": [{ "metricsToken": [] }],
+        "responses": {
+          "200": { "description": "Metrics text exposition.", "content": { "text/plain; version=0.0.4": { "schema": { "type": "string" } } } },
+          "401": { "description": "Missing or invalid metrics token." }
+        }
+      }
+    },
+    "/internal/fleet-partner/v1/operations/backlogs": {
+      "get": {
+        "operationId": "getPlatformBacklogs",
+        "summary": "Platform-wide job and outbox backlog/staleness snapshot — the same figures /ready gates on (job_stale_leases, job_dead_letter_backlog, outbox_backlog), exposed for on-demand operator inspection.",
+        "security": [{ "internalServiceAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Backlog snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobs": { "type": "object", "properties": { "byStatus": { "type": "object", "additionalProperties": { "type": "integer" } }, "deadLettered": { "type": "integer" } } },
+                    "outbox": { "type": "object", "properties": { "pending": { "type": "integer" }, "oldestPendingAgeSeconds": { "type": "number" } } }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Caller is not on the internal worker-operations allowlist." }
+        }
+      }
+    },
+    "/internal/fleet-partner/v1/operations/outbox/replay": {
+      "post": {
+        "operationId": "replayOutboxRecord",
+        "summary": "Replay exactly one DEAD_LETTERED outbox record back to PENDING, by ID. Never a bulk/blind replay-everything operation — mirrors the existing per-job retry route's scope.",
+        "security": [{ "internalServiceAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["recordId"], "properties": { "recordId": { "type": "string" } } } } }
+        },
+        "responses": {
+          "200": { "description": "Replayed.", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string", "enum": ["REPLAYED"] }, "recordId": { "type": "string" } } } } } },
+          "400": { "description": "recordId missing." },
+          "403": { "description": "Caller is not on the internal worker-operations allowlist." },
+          "404": { "description": "Record does not exist or is not currently DEAD_LETTERED." },
+          "503": { "description": "The outbox repository is not configured in this deployment." }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "metricsToken": { "type": "apiKey", "in": "header", "name": "Authorization", "description": "Static token configured via FLEET_PARTNER_METRICS_AUTH_TOKEN." },
+      "internalServiceAuth": { "type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC service-to-service signature (shared/go/serviceauth) plus caller allowlist (WORKER_OPERATIONS_ALLOWED_CALLERS)." }
+    }
+  }
+}

@@ -38,33 +38,46 @@ device_arg=()
 if [[ -n "${DEVICE:-}" ]]; then
   device_arg=(-s "$DEVICE")
 else
-  count=$(adb devices | awk 'NR>1 && $2=="device"' | wc -l | tr -d ' ')
+  # Read device lines safely into variables one-by-one to support macOS Bash 3.2
+  devices=()
+  while IFS= read -r line; do
+    if [[ -n "$line" ]]; then
+      devices+=("$line")
+    fi
+  done < <(adb devices | grep -v "List of" | grep "[[:space:]]device$" | sed 's/[[:space:]]*device$//')
+
+  count="${#devices[@]}"
+
   if [[ "$count" == "0" ]]; then
     echo "error: no Android device connected (adb devices is empty)" >&2
     exit 1
   elif [[ "$count" != "1" ]]; then
     echo "error: multiple devices connected — set DEVICE=<id>. Devices:" >&2
-    adb devices | awk 'NR>1 && $2=="device"{print "  "$1}' >&2
+    for dev in "${devices[@]}"; do
+      echo "  $dev" >&2
+    done
     exit 1
+  else
+    device_arg=(-s "${devices[0]}")
   fi
 fi
 
 case "${1:-}" in
   --list)
-    adb ${device_arg[@]+"${device_arg[@]}"} reverse --list
+    adb "${device_arg[@]}" reverse --list
     exit 0
     ;;
   --clear)
-    adb ${device_arg[@]+"${device_arg[@]}"} reverse --remove-all
+    adb "${device_arg[@]}" reverse --remove-all
     echo "cleared all reverse tunnels"
     exit 0
     ;;
 esac
 
 for p in "${PORTS[@]}"; do
-  adb ${device_arg[@]+"${device_arg[@]}"} reverse "tcp:$p" "tcp:$p" >/dev/null
+  adb "${device_arg[@]}" reverse "tcp:$p" "tcp:$p" >/dev/null
   echo "reversed tcp:$p"
 done
 
 echo "── active tunnels ──"
-adb ${device_arg[@]+"${device_arg[@]}"} reverse --list
+adb "${device_arg[@]}" reverse --list
