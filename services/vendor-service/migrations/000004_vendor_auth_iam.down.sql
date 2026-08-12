@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS vendor_audit_log;
+DROP TABLE IF EXISTS vendor_staff_role_assignments;
+DROP TABLE IF EXISTS vendor_role_permissions;
+DROP TABLE IF EXISTS vendor_roles;
+DROP TABLE IF EXISTS vendor_permissions;
+DROP TABLE IF EXISTS vendor_step_up_grants;
+DROP TABLE IF EXISTS vendor_sessions;
+DROP TABLE IF EXISTS vendor_otp_challenges;
+DROP TABLE IF EXISTS vendor_staff;
+DROP TABLE IF EXISTS vendor_users;

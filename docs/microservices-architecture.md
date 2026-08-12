@@ -4,6 +4,8 @@ This structure keeps the monorepo but separates backend ownership into distinct
 services. Booking and matching are not standalone services. They live inside the
 operational service that owns the business flow.
 
+Section 7 contract correction: `verification-compliance-service` and `vendor-service` exchange the exact Vendor VerificationStatus vocabulary `NOT_STARTED`, `IN_PROGRESS`, `PENDING_REVIEW`, `VERIFIED`, `REJECTED`, `EXPIRED`, `SUSPENDED`. The signed callback uses direct-service root path `/internal/vendor/v1/verification-events`; the public `/api/v1/vendor` prefix does not apply to that internal route.
+
 ## Core Business Services
 
 | Service | Owns |
@@ -12,6 +14,7 @@ operational service that owns the business flow.
 | `taxi-service` | Taxi provider profiles, car records, taxi ride bookings, taxi matching, taxi trip lifecycle |
 | `dispatch-delivery-service` | Dispatch rider profiles, bike records, package delivery bookings, rider matching, proof of delivery |
 | `hauling-service` | Truck provider profiles, truck records, haulage bookings, truck matching, cargo workflow |
+| `vendor-service` | Vendor staff auth/IAM, business/brand/branch graph, onboarding checklist and authoritative verification/bank/media projections |
 
 ## Shared Platform Services
 
@@ -19,9 +22,9 @@ operational service that owns the business flow.
 |---|---|
 | `api-gateway` | Client entry point, request routing, edge health checks |
 | `payment-wallet-service` | Wallets, payments, refunds, provider earnings, withdrawals, fleet settlement |
-| `notification-service` | Push, SMS, email, in-app notifications, retry handling |
+| `notification-service` | Push, email, websocket and in-app notifications; SMS is not currently implemented |
 | `support-dispute-service` | Complaints, disputes, evidence, issue resolution |
-| `verification-compliance-service` | ID checks, licenses, vehicle documents, provider verification |
+| `verification-compliance-service` | Formal verification cases/decisions, including source-versioned Vendor KYB/KYC dimensions |
 | `media-file-service` | Profile photos, document uploads, proof images, signatures |
 | `admin-backoffice-service` | Admin dashboards, moderation, user actions, operational monitoring |
 | `analytics-service` | Reports, metrics, revenue dashboards, service performance |
@@ -41,6 +44,16 @@ sessions, and OTP challenges. In local development it uses its own
 `CUSTOMER_DATABASE_URL` and `CUSTOMER_REDIS_ADDR`. Other user-facing services
 can later follow the same pattern with their own storage and the shared auth
 helpers.
+
+## Vendor onboarding authority boundary
+
+`vendor-service` owns onboarding progress, representative metadata, document
+references, requirements, activation policy and safe projections. Formal
+verification decisions remain in `verification-compliance-service`; full bank
+records and resolution remain in `payment-wallet-service`; uploaded bytes and
+object safety/deletion truth remain in `media-file-service`. Verification sends
+signed, nonce-protected callbacks and Vendor also reconciles by authoritative
+client reference. Vendor activation never treats transport success as approval.
 
 ## Booking And Matching Boundary
 

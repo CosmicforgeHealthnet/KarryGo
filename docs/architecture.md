@@ -2,6 +2,8 @@
 
 This document is a handoff guide for continuing development in this monorepo. It describes the current architecture, service boundaries, data flow, persistence, API conventions, and business rules that should remain stable as features are added.
 
+Section 7 contract correction: Vendor verification uses the exact status vocabulary `NOT_STARTED`, `IN_PROGRESS`, `PENDING_REVIEW`, `VERIFIED`, `REJECTED`, `EXPIRED`, `SUSPENDED`; plain `PENDING` belongs only to unrelated worker/outbox state. Verification callbacks reach Vendor Service directly at root-level `POST /internal/vendor/v1/verification-events` under HMAC v2 and are not exposed by API Gateway.
+
 ## System Overview
 
 Karry Go is a logistics platform with multiple client apps and a Go microservice backend. The repository is organized as a monorepo so shared contracts, UI packages, and service helpers can evolve together.
@@ -42,6 +44,7 @@ services/
   verification-compliance-service/ ID, license, vehicle document verification scaffold
   admin-backoffice-service/      Admin dashboards, moderation, user actions scaffold
   analytics-service/             Reporting and metrics scaffold
+  vendor-service/                Vendor auth/IAM, business graph, onboarding, verification projections and activation
   Dockerfile                     Shared service build image
 
 shared/go/
@@ -79,6 +82,21 @@ services/<service>/internal/
   migrations/                    Service-owned SQL migrations
 ```
 
+## Vendor onboarding and activation
+
+Section 7 implements Vendor onboarding as a policy aggregate in
+`vendor-service`, not as a second verification or financial authority. The
+service stores minimal representative data, opaque Media object references,
+source-versioned verification projections, a masked Wallet bank projection,
+and data-driven activation requirements. Verification decisions are created and
+decided in `verification-compliance-service`; bank resolution is performed in
+`payment-wallet-service`; file state is read from `media-file-service`.
+
+All cross-service calls use HMAC v2. Verification callbacks additionally claim
+single-use nonces and event IDs, reject stale source versions, and are backed by
+authoritative polling. Activation is transactional and only occurs when every
+business, branch and enabled branch-capability requirement is satisfied.
+
 ## Modules And Services
 
 ### Client Apps
@@ -109,6 +127,7 @@ The customer app currently owns the most complete frontend flow. Its auth contro
 | `media-file-service` | `/api/v1/media-files` | `8109` | Authenticated internal file uploads and metadata. |
 | `admin-backoffice-service` | `/api/v1/admin-backoffice` | `8110` | Admin dashboards, moderation, user actions scaffold. |
 | `analytics-service` | `/api/v1/analytics` | `8111` | Analytics and read models scaffold. |
+| `vendor-service` | `/api/v1/vendor` | `8112` | Vendor staff IAM, business graph, onboarding, verification/bank/media projections and policy activation. |
 
 All services started through `shared/go/serviceapp` expose:
 

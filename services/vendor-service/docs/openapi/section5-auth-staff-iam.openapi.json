@@ -1,0 +1,205 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service — Section 5: Authentication, Sessions and Staff IAM",
+    "version": "1.0.0",
+    "description": "Vendor staff passwordless-OTP authentication, sessions, step-up authentication, and Staff IAM (staff/roles/permissions/assignments). Completely separate security domain from the platform's logistics pickup/delivery custody handover — see docs/architecture/07_EXISTING_OTP_QR_INTEGRATION.md."
+  },
+  "servers": [{ "url": "/api/v1/vendor" }],
+  "components": {
+    "securitySchemes": {
+      "vendorStaffBearer": { "type": "http", "scheme": "bearer", "description": "Access token issued by POST /auth/verify or /auth/refresh." },
+      "internalServiceAuth": { "type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "shared/go/serviceauth HMAC signing (X-Service-Name/-Timestamp/-Signature/-Nonce headers)." }
+    },
+    "schemas": {
+      "SuccessEnvelope": { "type": "object", "properties": { "success": { "type": "boolean", "enum": [true] }, "data": {} } },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "enum": ["bad_request", "validation_failed", "unauthorized", "forbidden", "not_found", "conflict", "rate_limited", "service_unavailable", "internal_error"] },
+              "message": { "type": "string" },
+              "request_id": { "type": "string" },
+              "fields": { "type": "array", "items": { "type": "object", "properties": { "field": { "type": "string" }, "message": { "type": "string" } } } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/start": {
+      "post": {
+        "operationId": "vendorAuthStart",
+        "summary": "Start passwordless OTP login.",
+        "description": "Rate-limited (bucket auth_start). Returns only a challenge reference and expiry — never the code, except debug_otp when VENDOR_AUTH_OTP_DEBUG=true (refused in production).",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "phone": { "type": "string" }, "email": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Challenge created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } }, "422": { "$ref": "#/components/responses/Validation" }, "429": { "$ref": "#/components/responses/RateLimited" } }
+      }
+    },
+    "/auth/resend": {
+      "post": {
+        "operationId": "vendorAuthResend",
+        "summary": "Resend the active OTP challenge.",
+        "description": "Rate-limited (bucket auth_resend). Bounded by VENDOR_AUTH_OTP_MAX_RESENDS. The previous code becomes immediately unusable.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "phone": { "type": "string" }, "email": { "type": "string" }, "challenge_id": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "New code issued." }, "404": { "description": "No active challenge to resend." }, "429": { "$ref": "#/components/responses/RateLimited" } }
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "operationId": "vendorAuthVerify",
+        "summary": "Verify the OTP and obtain access/refresh tokens.",
+        "description": "Rate-limited (bucket auth_verify). If the login identity has staff access at more than one vendor and vendor_id is omitted, returns requires_vendor_choice=true with available_vendor_ids and does NOT consume the OTP — resubmit with vendor_id using the same still-active code.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["otp", "challenge_id"], "properties": {
+            "phone": { "type": "string" }, "email": { "type": "string" }, "otp": { "type": "string" }, "challenge_id": { "type": "string" },
+            "vendor_id": { "type": "string", "description": "Required only when the identity has staff access at more than one vendor." },
+            "device_id": { "type": "string" }
+          } } } }
+        },
+        "responses": { "200": { "description": "Tokens issued, or a vendor-choice response." }, "401": { "description": "Invalid, expired, consumed, or locked code." }, "429": { "$ref": "#/components/responses/RateLimited" } }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "vendorAuthRefresh",
+        "summary": "Rotate a refresh session for new tokens.",
+        "description": "Rate-limited (bucket auth_refresh). Re-checks staff status live (suspension takes effect immediately, not just at token expiry). Rotates the refresh token; the previous one is revoked.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["refresh_token"], "properties": { "refresh_token": { "type": "string" }, "device_id": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "New tokens issued." }, "401": { "description": "Expired, revoked, invalid, or suspended-staff refresh." } }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "vendorAuthLogout",
+        "summary": "Revoke the current refresh session (and its step-up grants).",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "refresh_token": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Session revoked." } }
+      }
+    },
+    "/auth/step-up/start": {
+      "post": {
+        "operationId": "vendorAuthStepUpStart",
+        "summary": "Start step-up authentication for a high-risk operation.",
+        "security": [{ "vendorStaffBearer": [] }],
+        "description": "Bound to the caller's own authenticated session/staff/vendor. Rate-limited (bucket step_up_start).",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["purpose"], "properties": { "purpose": { "type": "string", "example": "iam.high_risk_permission_change" } } } } } },
+        "responses": { "200": { "description": "Step-up challenge created." }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/auth/step-up/verify": {
+      "post": {
+        "operationId": "vendorAuthStepUpVerify",
+        "summary": "Verify step-up OTP and obtain a single-use elevation grant.",
+        "security": [{ "vendorStaffBearer": [] }],
+        "description": "Rate-limited (bucket step_up_verify). The grant is bound to session/staff/vendor/purpose exactly; any mismatch is rejected identically to a wrong code.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["purpose", "challenge_id", "otp"], "properties": { "purpose": { "type": "string" }, "challenge_id": { "type": "string" }, "otp": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Grant issued (grant_id, expires_in)." }, "401": { "description": "Invalid/expired/mismatched code." } }
+      }
+    },
+    "/staff": {
+      "get": {
+        "operationId": "vendorListStaff", "summary": "List staff at the caller's vendor business.",
+        "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.staff.read",
+        "responses": { "200": { "description": "Staff list." }, "403": { "$ref": "#/components/responses/Forbidden" } }
+      },
+      "post": {
+        "operationId": "vendorInviteStaff", "summary": "Invite a new staff member.",
+        "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.staff.manage",
+        "description": "The actor must hold every permission the target role carries, at a scope covering branch_id (delegation check) — see Section 5 rule 16/20/22.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["role_id"], "properties": { "phone": { "type": "string" }, "email": { "type": "string" }, "role_id": { "type": "string" }, "branch_id": { "type": "string", "nullable": true } } } } } },
+        "responses": { "201": { "description": "Staff member created." }, "403": { "description": "Missing permission, or delegating a permission the actor does not hold (privilege escalation)." }, "409": { "description": "Already staff at this vendor." } }
+      }
+    },
+    "/staff/{id}": {
+      "get": { "operationId": "vendorGetStaff", "summary": "Read one staff member (vendor-scoped).", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.staff.read",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Staff detail." }, "404": { "description": "Not found (identical response whether nonexistent or belonging to another vendor)." } } }
+    },
+    "/staff/{id}/suspend": {
+      "put": {
+        "operationId": "vendorSuspendStaff", "summary": "Suspend a staff member.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.staff.suspend",
+        "description": "expectedVersion-guarded. Revokes every active session for the target immediately. Never suspends the vendor business itself.",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "required": ["expected_version"], "properties": { "reason": { "type": "string" }, "expected_version": { "type": "integer" } } } } } },
+        "responses": { "200": { "description": "Suspended." }, "409": { "description": "Already suspended, or stale expected_version." } }
+      }
+    },
+    "/staff/{id}/reactivate": {
+      "put": {
+        "operationId": "vendorReactivateStaff", "summary": "Reactivate a suspended staff member.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.staff.suspend",
+        "description": "Explicit and audited. Does not restore sessions revoked at suspension — the staff member must log in again.",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "required": ["expected_version"], "properties": { "expected_version": { "type": "integer" } } } } } },
+        "responses": { "200": { "description": "Reactivated." }, "409": { "description": "Not suspended, or stale expected_version." } }
+      }
+    },
+    "/staff/{id}/roles": {
+      "get": { "operationId": "vendorListStaffAssignments", "summary": "List a staff member's active role assignments.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.staff.read",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Assignment list." } } }
+    },
+    "/permissions": {
+      "get": { "operationId": "vendorListPermissions", "summary": "List the global permission catalogue.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.roles.read",
+        "responses": { "200": { "description": "Permission catalogue (code, description, category, is_high_risk)." } } }
+    },
+    "/roles": {
+      "get": { "operationId": "vendorListRoles", "summary": "List system role templates + this vendor's custom roles.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.roles.read",
+        "responses": { "200": { "description": "Role list." } } },
+      "post": {
+        "operationId": "vendorCreateCustomRole", "summary": "Create a vendor-scoped custom role.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.roles.manage",
+        "description": "The actor must hold every requested permission themselves. Including any high-risk permission requires a valid step_up_grant_id (purpose iam.high_risk_permission_change). vendor.owner.transfer can never be included.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["code", "name", "permission_codes"], "properties": { "code": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" }, "permission_codes": { "type": "array", "items": { "type": "string" } }, "step_up_grant_id": { "type": "string" } } } } } },
+        "responses": { "201": { "description": "Role created." }, "403": { "description": "Delegation refused, owner-only permission requested, or step-up required." } }
+      }
+    },
+    "/roles/{id}": {
+      "get": { "operationId": "vendorGetRole", "summary": "Read one role and its permission codes.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.roles.read",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Role detail." }, "404": { "description": "Not found (or another vendor's custom role)." } } }
+    },
+    "/roles/{id}/permissions": {
+      "put": {
+        "operationId": "vendorSetRolePermissions", "summary": "Replace a custom role's full permission set.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.roles.manage",
+        "description": "expectedVersion-guarded. System role templates cannot be edited. Same delegation + step-up rules as role creation.",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["permission_codes", "expected_version"], "properties": { "permission_codes": { "type": "array", "items": { "type": "string" } }, "expected_version": { "type": "integer" }, "step_up_grant_id": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Updated." }, "403": { "description": "System role, delegation refused, or step-up required." }, "409": { "description": "Stale expected_version." } }
+      }
+    },
+    "/roles/{id}/assign": {
+      "post": {
+        "operationId": "vendorAssignRole", "summary": "Assign a role to a staff member, optionally branch-scoped.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.roles.assign",
+        "description": "Delegation-checked against the acting staff member's own effective permissions at the target branch scope. High-risk roles require a valid step_up_grant_id.",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["staff_id", "role_id"], "properties": { "staff_id": { "type": "string" }, "role_id": { "type": "string" }, "branch_id": { "type": "string", "nullable": true }, "step_up_grant_id": { "type": "string" } } } } } },
+        "responses": { "201": { "description": "Assignment created." }, "403": { "description": "Delegation refused or step-up required." }, "409": { "description": "Duplicate active assignment." } }
+      }
+    },
+    "/assignments/{id}": {
+      "delete": { "operationId": "vendorUnassignRole", "summary": "Revoke a staff role assignment.", "security": [{ "vendorStaffBearer": [] }], "x-permission": "vendor.roles.assign",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Unassigned." }, "404": { "description": "Not found." } } }
+    },
+    "/internal/staff/provision-owner": {
+      "post": {
+        "operationId": "vendorProvisionOwner", "summary": "[Internal] Provision the first staff member (Owner) for a new vendor business.",
+        "security": [{ "internalServiceAuth": [] }],
+        "description": "HMAC-signed internal callers only (shared/go/serviceauth). Idempotent: provisioning the same (vendor_id, identifier) twice returns the existing record. Section 5 does not own vendor business creation — this is the hook a future Section 6 onboarding flow calls.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["vendor_id"], "properties": { "vendor_id": { "type": "string" }, "phone": { "type": "string" }, "email": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Owner provisioned (or already existed)." } }
+      }
+    }
+  },
+  "responses": {
+    "Validation": { "description": "Validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+    "Unauthorized": { "description": "Authentication required or invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+    "Forbidden": { "description": "Authenticated but not authorized for this action.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+    "RateLimited": { "description": "Too many requests for this bucket/identity.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+  }
+}

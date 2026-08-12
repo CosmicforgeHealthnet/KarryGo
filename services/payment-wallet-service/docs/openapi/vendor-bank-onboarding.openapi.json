@@ -1,0 +1,34 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Payment Wallet Vendor Bank Onboarding", "version": "7.0.0"},
+  "servers": [{"url": "/api/v1/payment-wallet"}],
+  "paths": {
+    "/internal/vendor-bank-profiles/resolve": {"post": {"summary": "Resolve Vendor bank account", "security": [{"ServiceHMACv2": []}], "requestBody": {"$ref": "#/components/requestBodies/BankInput"}, "responses": {"200": {"description": "Masked resolution"}}}},
+    "/internal/vendor-bank-profiles/{businessId}": {
+      "put": {"summary": "Register or replace Vendor bank profile", "security": [{"ServiceHMACv2": []}], "parameters": [{"name": "businessId", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string"}}], "requestBody": {"$ref": "#/components/requestBodies/BankInput"}, "responses": {"200": {"description": "Existing safe projection"}, "201": {"description": "Created safe projection"}}},
+      "get": {"summary": "Authoritative Vendor bank read-back", "security": [{"ServiceHMACv2": []}], "parameters": [{"name": "businessId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Safe projection"}, "404": {"description": "Not found"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {"ServiceHMACv2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature"}},
+    "requestBodies": {
+      "BankInput": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["account_number", "bank_code"],
+              "properties": {
+                "account_number": {"type": "string", "writeOnly": true},
+                "bank_code": {"type": "string"},
+                "currency": {"type": "string", "default": "NGN"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {"SafeBankProfile": {"type": "object", "required": ["external_ref", "bank_code", "masked_account", "resolved_account_name", "source_version", "status", "observed_at"], "properties": {"external_ref": {"type": "string"}, "bank_code": {"type": "string"}, "masked_account": {"type": "string"}, "resolved_account_name": {"type": "string"}, "source_version": {"type": "integer"}, "status": {"type": "string", "enum": ["VERIFIED"]}, "observed_at": {"type": "string", "format": "date-time"}}}}
+  }
+}

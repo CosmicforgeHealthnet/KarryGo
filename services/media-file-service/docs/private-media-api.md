@@ -81,6 +81,16 @@ Mounted at `/api/v1/media-files/internal/media` when
 | `GET` | `/objects/:id/deletion` | Read back the authoritative deletion outcome |
 | `POST` | `/objects/:id/retention` | Set retention class, window and legal hold |
 
+### Vendor onboarding consumer
+
+Section 7 does not add a Media route or schema. Vendor Service reuses
+`GET /objects/:id` to validate that an opaque onboarding document reference is
+owned by the same Vendor business, has completed upload, remains active, and is
+not unsafe or quarantined. Vendor stores only the opaque object id and business
+metadata; bytes, object key, URLs, grants, and safety/deletion truth remain here.
+Deployment must add `vendor-service=<secret>` to the Media private service
+secrets and include `vendor-service` in `MEDIA_FILE_PRIVATE_ALLOWED_CALLERS`.
+
 ### Upload authorization
 
 The caller supplies the organization, owner type and reference, document

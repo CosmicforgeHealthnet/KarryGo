@@ -13,6 +13,7 @@ use (
 	./services/notification-service
 	./services/payment-wallet-service
 	./services/support-dispute-service
+	./services/vendor-service
 	./services/verification-compliance-service
 	./shared/go
 )

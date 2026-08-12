@@ -83,7 +83,8 @@ func Load() Config {
 		// match that service's HMAC identity (driver-hauling-service) and secret.
 		// support-dispute-service signs with SUPPORT_DISPUTE_PAYMENT_SECRET (used
 		// for the admin-driven dispute refund hook).
-		ServiceSecrets: serviceauth.ParseSecrets(getEnv("PAYMENT_WALLET_SERVICE_SECRETS", "taxi-service=development-payment-wallet-service-secret,dispatch-delivery-service=development-payment-wallet-service-secret,driver-hauling-service=development-hauling-payment-secret,admin-backoffice-service=development-payment-wallet-service-secret,support-dispute-service=development-support-dispute-payment-secret")),
+		// vendor-service signs with VENDOR_WALLET_SECRET (vendor bank onboarding).
+		ServiceSecrets: serviceauth.ParseSecrets(getEnv("PAYMENT_WALLET_SERVICE_SECRETS", "taxi-service=development-payment-wallet-service-secret,dispatch-delivery-service=development-payment-wallet-service-secret,driver-hauling-service=development-hauling-payment-secret,admin-backoffice-service=development-payment-wallet-service-secret,support-dispute-service=development-support-dispute-payment-secret,vendor-service=development-vendor-wallet-secret")),
 
 		NotificationURL:    os.Getenv("PAYMENT_WALLET_NOTIFICATION_URL"),
 		NotificationSecret: []byte(os.Getenv("PAYMENT_WALLET_NOTIFICATION_SECRET")),

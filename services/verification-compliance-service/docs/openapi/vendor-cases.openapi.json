@@ -1,0 +1,20 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Verification Compliance Vendor Cases", "version": "7.0.0"},
+  "servers": [{"url": "/api/v1/verification-compliance"}],
+  "paths": {
+    "/internal/vendor-cases/cases": {"post": {"summary": "Create Vendor verification case", "security": [{"ServiceHMACv2": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}, {"$ref": "#/components/parameters/ServiceNonce"}], "requestBody": {"$ref": "#/components/requestBodies/CreateCase"}, "responses": {"201": {"description": "Created or idempotently replayed"}, "409": {"description": "Idempotency conflict"}}}},
+    "/internal/vendor-cases/cases/by-client-reference/{clientReference}": {"get": {"summary": "Read case by client reference", "security": [{"ServiceHMACv2": []}], "parameters": [{"name": "clientReference", "in": "path", "required": true, "schema": {"type": "string"}}, {"$ref": "#/components/parameters/ServiceNonce"}], "responses": {"200": {"description": "Authoritative case"}, "404": {"description": "Not found"}}}},
+    "/internal/vendor-cases/cases/{caseRef}": {"get": {"summary": "Read case", "security": [{"ServiceHMACv2": []}], "parameters": [{"name": "caseRef", "in": "path", "required": true, "schema": {"type": "string"}}, {"$ref": "#/components/parameters/ServiceNonce"}], "responses": {"200": {"description": "Authoritative case"}}}},
+    "/internal/vendor-cases/cases/{caseRef}/decisions": {"post": {"summary": "Record formal admin decision", "security": [{"ServiceHMACv2": []}], "parameters": [{"name": "caseRef", "in": "path", "required": true, "schema": {"type": "string"}}, {"$ref": "#/components/parameters/IdempotencyKey"}, {"$ref": "#/components/parameters/ServiceNonce"}], "requestBody": {"$ref": "#/components/requestBodies/Decision"}, "responses": {"200": {"description": "Source-versioned decision"}, "409": {"description": "Version conflict"}}}}
+  },
+  "components": {
+    "securitySchemes": {"ServiceHMACv2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature"}},
+    "parameters": {"IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string"}}, "ServiceNonce": {"name": "X-Service-Nonce", "in": "header", "required": true, "schema": {"type": "string"}}},
+    "schemas": {"Dimension": {"type": "string", "enum": ["IDENTITY", "BUSINESS", "BANK", "LOCATION", "BRAND", "FOOD_KITCHEN"]}, "Status": {"type": "string", "enum": ["NOT_STARTED", "IN_PROGRESS", "PENDING_REVIEW", "VERIFIED", "REJECTED", "EXPIRED", "SUSPENDED"]}},
+    "requestBodies": {
+      "CreateCase": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["client_reference", "business_id", "dimension", "subject_type", "subject_ref", "document_refs"]}}}},
+      "Decision": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["status", "expected_source_version"]}}}}
+    }
+  }
+}

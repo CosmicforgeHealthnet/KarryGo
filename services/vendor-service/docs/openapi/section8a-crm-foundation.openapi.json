@@ -1,0 +1,719 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor CRM Foundation API",
+    "version": "8.1.0",
+    "description": "Section 8A CRM foundation: vendor-local customer relationship profiles, privacy-safe Customer 360, projected marketing consent and privacy state, and the authority-driven internal event ingress. Vendor Service is not a customer master: no canonical email, phone, address or date of birth is stored or returned by any operation below, and no vendor-facing route can create a relationship, set consent, set privacy state or merge identities."
+  },
+  "servers": [{ "url": "/api/v1/vendor" }],
+  "x-feature-flags": {
+    "service": "VENDOR_SERVICE_ENABLED",
+    "crm": "VENDOR_CRM_ENABLED",
+    "writes": "VENDOR_CRM_WRITES_ENABLED",
+    "customer_projection": "VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED",
+    "consent_integration": "VENDOR_CRM_CONSENT_INTEGRATION_ENABLED",
+    "privacy_integration": "VENDOR_CRM_PRIVACY_INTEGRATION_ENABLED",
+    "kill_switch": "COMMERCE_GLOBAL_KILL_SWITCH"
+  },
+  "x-list-contract": "Section 8A lists use limit/offset with a maximum page size of 100, a stable allowlisted sort and a deterministic id tie-break. Filters cover only CRM-owned relationship data; there is deliberately no filter over email, phone, address or date of birth because CRM holds none of them. Redacted relationships are excluded from ordinary search and cannot be filtered into view.",
+  "x-error-contract": "All errors use ErrorEnvelope. Stable cases include validation_failed (422), forbidden (403), not_found (404), conflict (409) and service_unavailable (503). A relationship that exists but is outside the caller's tenant or branch scope, and a redacted relationship, both return not_found so identifiers cannot be probed.",
+  "x-scope-contract": "A vendor-wide grant sees business-level commercial totals. A branch-scoped grant sees only relationships that exist at an authorised branch, and its commercial figures are recomputed from those branches alone — never the business-wide total, and never the most recent order reference when that order belongs to an unauthorised branch.",
+  "x-authority-contract": "customer-service is the authority for canonical customer identity, consent and privacy. The authoritative vendor commerce order publisher does not exist yet; its contract is defined here and its ingestion stays disabled behind VENDOR_CRM_CUSTOMER_PROJECTION_ENABLED. Marketing eligibility fails closed: an absent, unknown, expired or stale consent decision is never treated as permission, and no privacy state can be overridden by a vendor.",
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/crm/customers": {
+      "get": {
+        "operationId": "listCrmCustomers",
+        "summary": "List vendor-local customer relationships",
+        "x-permission": "vendor.crm.customers.read",
+        "x-branch-scope": "Branch-scoped callers see only relationships at their authorised branches, with branch-scoped commercial figures.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" },
+          { "$ref": "#/components/parameters/Sort" },
+          { "$ref": "#/components/parameters/Direction" },
+          { "$ref": "#/components/parameters/SubjectTypeFilter" },
+          { "$ref": "#/components/parameters/StatusFilter" },
+          { "$ref": "#/components/parameters/PrivacyStateFilter" },
+          { "$ref": "#/components/parameters/BranchRefFilter" },
+          { "$ref": "#/components/parameters/CapabilityTypeFilter" },
+          { "$ref": "#/components/parameters/CommercialProjectionStateFilter" },
+          { "$ref": "#/components/parameters/AcquisitionSourceTypeFilter" },
+          { "$ref": "#/components/parameters/MinCompletedOrders" },
+          { "$ref": "#/components/parameters/MaxCompletedOrders" },
+          { "$ref": "#/components/parameters/MinNetSpendMinor" },
+          { "$ref": "#/components/parameters/MaxNetSpendMinor" },
+          { "$ref": "#/components/parameters/LastOrderAfter" },
+          { "$ref": "#/components/parameters/LastOrderBefore" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of relationships",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/CustomerListItem" }
+                        },
+                        "pagination": { "$ref": "#/components/schemas/Pagination" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/customers/{profileId}": {
+      "get": {
+        "operationId": "getCrmCustomer360",
+        "summary": "Customer 360 relationship view",
+        "x-permission": "vendor.crm.customer360.read",
+        "x-privacy": "Returns no canonical customer contact data. A redacted relationship returns 404.",
+        "parameters": [{ "$ref": "#/components/parameters/ProfileId" }],
+        "responses": {
+          "200": {
+            "description": "Composed relationship view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Customer360" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/crm/customers/{profileId}/consent": {
+      "get": {
+        "operationId": "getCrmCustomerConsent",
+        "summary": "Projected marketing consent and eligibility",
+        "x-permission": "vendor.crm.consent.read",
+        "x-authority": "Read-only projection of an external consent authority. There is no operation anywhere in this API that sets consent.",
+        "parameters": [{ "$ref": "#/components/parameters/ProfileId" }],
+        "responses": {
+          "200": {
+            "description": "Consent projection and eligibility per channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/ConsentSummary" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/crm/customers/{profileId}/privacy": {
+      "get": {
+        "operationId": "getCrmCustomerPrivacy",
+        "summary": "Projected privacy state",
+        "x-permission": "vendor.crm.privacy.read",
+        "x-authority": "Read-only projection of an external privacy authority. There is no operation anywhere in this API that sets privacy state.",
+        "parameters": [{ "$ref": "#/components/parameters/ProfileId" }],
+        "responses": {
+          "200": {
+            "description": "Privacy state and consequences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/PrivacySummary" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/crm/customers/{profileId}/archive": {
+      "post": {
+        "operationId": "archiveCrmCustomer",
+        "summary": "Archive an inactive relationship",
+        "x-permission": "vendor.crm.customers.manage",
+        "x-feature-flag": "VENDOR_CRM_WRITES_ENABLED",
+        "x-privacy": "Archival is an operator convenience with no privacy meaning. A redacted or merged-away relationship cannot be archived, so archive can never be used to mask a privacy decision.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProfileId" },
+          { "$ref": "#/components/parameters/ExpectedVersion" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archived relationship",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/ProfileView" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/customers/{profileId}/restore": {
+      "post": {
+        "operationId": "restoreCrmCustomer",
+        "summary": "Restore an archived relationship",
+        "x-permission": "vendor.crm.customers.manage",
+        "x-feature-flag": "VENDOR_CRM_WRITES_ENABLED",
+        "x-privacy": "Cannot restore a redacted or merged-away relationship.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProfileId" },
+          { "$ref": "#/components/parameters/ExpectedVersion" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restored relationship",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/ProfileView" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/internal/vendor/v1/crm/events": {
+      "post": {
+        "operationId": "ingestCrmEvent",
+        "summary": "Authority-driven CRM event ingress",
+        "description": "Root-mounted, not under /api/v1/vendor, and never exposed through the public gateway. This is the only write path into relationship creation, consent, privacy, identity links and commercial projections.",
+        "servers": [{ "url": "/" }],
+        "security": [{ "serviceHmacV2": [] }],
+        "x-permission": "Per-event-type caller allowlist: customer-service owns CUSTOMER_RELATIONSHIP_OBSERVED, CUSTOMER_IDENTITY_LINKED, CUSTOMER_IDENTITY_MERGED, CUSTOMER_CONSENT_CHANGED and CUSTOMER_PRIVACY_CHANGED; the authoritative vendor order publisher owns CRM_ORDER_FACT_CHANGED. A caller may never send an event type it does not own.",
+        "x-replay-protection": "X-Service-Nonce (single use, ten-minute window) plus (source_service, event_id) inbox dedupe with a payload fingerprint.",
+        "requestBody": { "$ref": "#/components/requestBodies/CrmEvent" },
+        "responses": {
+          "200": { "description": "Event applied, or acknowledged as an identical duplicate" },
+          "401": { "description": "Missing or invalid signature, or a replayed nonce" },
+          "403": { "description": "Caller is not the authority for this event type, or the body claims a different producer" },
+          "404": { "description": "Unknown business reference" },
+          "409": { "description": "Stale source version, conflicting data at the same source version, the same event id with a different payload, or a change blocked by an applied privacy decision" },
+          "422": { "description": "Malformed envelope or payload" },
+          "503": { "description": "The integration for this event type is disabled" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" },
+      "serviceHmacV2": { "type": "apiKey", "in": "header", "name": "X-Service-Signature" }
+    },
+    "parameters": {
+      "ProfileId": {
+        "name": "profileId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "ExpectedVersion": {
+        "name": "expected_version",
+        "in": "query",
+        "required": false,
+        "description": "Optimistic concurrency guard. Required unless supplied as If-Match.",
+        "schema": { "type": "integer", "format": "int64", "minimum": 1 }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": false,
+        "description": "Alternative to expected_version.",
+        "schema": { "type": "string" }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      },
+      "Sort": {
+        "name": "sort",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": ["last_completed_order_at", "completed_order_count", "net_spend_minor", "created_at"],
+          "default": "last_completed_order_at"
+        }
+      },
+      "Direction": {
+        "name": "direction",
+        "in": "query",
+        "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+      },
+      "SubjectTypeFilter": {
+        "name": "subject_type",
+        "in": "query",
+        "schema": { "$ref": "#/components/schemas/SubjectType" }
+      },
+      "StatusFilter": {
+        "name": "status",
+        "in": "query",
+        "schema": { "$ref": "#/components/schemas/ProfileStatus" }
+      },
+      "PrivacyStateFilter": {
+        "name": "privacy_state",
+        "in": "query",
+        "description": "REDACTED and MERGED are deliberately not accepted; those relationships are never part of an ordinary working view.",
+        "schema": { "type": "string", "enum": ["ACTIVE", "RESTRICTED"] }
+      },
+      "BranchRefFilter": {
+        "name": "branch_ref",
+        "in": "query",
+        "description": "Filtering by a branch the caller is not authorised for returns 403.",
+        "schema": { "type": "string" }
+      },
+      "CapabilityTypeFilter": {
+        "name": "capability_type",
+        "in": "query",
+        "schema": { "$ref": "#/components/schemas/CapabilityType" }
+      },
+      "CommercialProjectionStateFilter": {
+        "name": "commercial_projection_state",
+        "in": "query",
+        "schema": { "$ref": "#/components/schemas/ProjectionState" }
+      },
+      "AcquisitionSourceTypeFilter": {
+        "name": "acquisition_source_type",
+        "in": "query",
+        "schema": { "type": "string" }
+      },
+      "MinCompletedOrders": {
+        "name": "min_completed_orders",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 0 }
+      },
+      "MaxCompletedOrders": {
+        "name": "max_completed_orders",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 0 }
+      },
+      "MinNetSpendMinor": {
+        "name": "min_net_spend_minor",
+        "in": "query",
+        "schema": { "type": "integer", "format": "int64", "minimum": 0 }
+      },
+      "MaxNetSpendMinor": {
+        "name": "max_net_spend_minor",
+        "in": "query",
+        "schema": { "type": "integer", "format": "int64", "minimum": 0 }
+      },
+      "LastOrderAfter": {
+        "name": "last_order_after",
+        "in": "query",
+        "schema": { "type": "string", "format": "date-time" }
+      },
+      "LastOrderBefore": {
+        "name": "last_order_before",
+        "in": "query",
+        "schema": { "type": "string", "format": "date-time" }
+      }
+    },
+    "requestBodies": {
+      "CrmEvent": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CrmEventEnvelope" }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Forbidden": {
+        "description": "Caller lacks the required permission or branch scope",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "NotFound": {
+        "description": "No such relationship, or it is outside the caller's scope, or it is redacted",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Conflict": {
+        "description": "Version conflict, or the relationship is redacted or merged and cannot be changed",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "ValidationFailed": {
+        "description": "Invalid parameters",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Unavailable": {
+        "description": "CRM writes are disabled by feature flag or kill switch",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      }
+    },
+    "schemas": {
+      "SubjectType": { "type": "string", "enum": ["CUSTOMER", "GUEST", "EXTERNAL"] },
+      "ProfileStatus": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] },
+      "PrivacyState": { "type": "string", "enum": ["ACTIVE", "RESTRICTED", "REDACTED", "MERGED"] },
+      "MergeState": { "type": "string", "enum": ["NONE", "LINK_PENDING", "MERGED_SOURCE", "MERGED_TARGET"] },
+      "ProjectionState": {
+        "type": "string",
+        "enum": ["NOT_AVAILABLE", "CURRENT", "STALE", "REBUILDING", "ERROR"],
+        "description": "NOT_AVAILABLE means no authoritative commercial data has ever been observed. It is not a spend of zero, and every figure is omitted in that state."
+      },
+      "ConsentDecision": {
+        "type": "string",
+        "enum": ["ALLOW", "DENY", "UNKNOWN"],
+        "description": "UNKNOWN is a first-class decision and is never equivalent to ALLOW. An absent projection is UNKNOWN."
+      },
+      "ConsentChannel": { "type": "string", "enum": ["EMAIL", "PUSH", "IN_APP", "SMS"] },
+      "ConsentPurpose": { "type": "string", "enum": ["MARKETING"] },
+      "PrivacyAction": {
+        "type": "string",
+        "enum": ["RESTRICT", "REDACT", "MARKETING_SUPPRESS", "IDENTITY_MERGE"]
+      },
+      "CapabilityType": {
+        "type": "string",
+        "enum": ["RESTAURANT", "FAST_FOOD", "CLOUD_KITCHEN", "PASTRY_BAKERY", "SHOP_GROCERY", "MARKET", "WHOLESALE"]
+      },
+      "OrderFactState": { "type": "string", "enum": ["COMPLETED", "CANCELLED", "REFUNDED", "UPDATED"] },
+      "ModuleAvailability": {
+        "type": "string",
+        "enum": ["NOT_IMPLEMENTED", "AVAILABLE"],
+        "description": "Sections 8B-8H are not implemented, so their modules report NOT_IMPLEMENTED rather than an empty structure that would read as an operational feature with no data."
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" },
+          "has_more": { "type": "boolean" }
+        }
+      },
+      "ProfileView": {
+        "type": "object",
+        "description": "Privacy-safe relationship projection. Carries no canonical customer contact data.",
+        "properties": {
+          "profile_ref": { "type": "string" },
+          "subject_type": { "$ref": "#/components/schemas/SubjectType" },
+          "display_label": {
+            "type": "string",
+            "nullable": true,
+            "description": "Populated only from an approved PII-free presentation contract. No such contract exists today, so this is always null; it is never derived from an email address or phone number."
+          },
+          "status": { "$ref": "#/components/schemas/ProfileStatus" },
+          "privacy_state": { "$ref": "#/components/schemas/PrivacyState" },
+          "merge_state": { "$ref": "#/components/schemas/MergeState" },
+          "acquisition_source_type": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "version": { "type": "integer", "format": "int64" }
+        }
+      },
+      "CommercialSummary": {
+        "type": "object",
+        "description": "Money is always an integer count of minor units. Every figure is omitted when state is NOT_AVAILABLE.",
+        "required": ["state", "scope", "stale"],
+        "properties": {
+          "state": { "$ref": "#/components/schemas/ProjectionState" },
+          "scope": {
+            "type": "string",
+            "enum": ["BUSINESS", "BRANCH"],
+            "description": "BRANCH means these figures cover only the caller's authorised branches."
+          },
+          "currency": { "type": "string", "nullable": true },
+          "completed_order_count": { "type": "integer", "nullable": true },
+          "gross_spend_minor": { "type": "integer", "format": "int64", "nullable": true },
+          "net_spend_minor": { "type": "integer", "format": "int64", "nullable": true },
+          "average_order_value_minor": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Net completed spend divided by eligible completed order count, using integer arithmetic that truncates toward zero."
+          },
+          "first_completed_order_at": { "type": "string", "format": "date-time", "nullable": true },
+          "last_completed_order_at": { "type": "string", "format": "date-time", "nullable": true },
+          "last_order_ref": {
+            "type": "string",
+            "nullable": true,
+            "description": "Omitted for a branch-scoped caller, because the most recent order may belong to an unauthorised branch."
+          },
+          "recency_days": { "type": "integer", "nullable": true },
+          "order_frequency_per_year": { "type": "number", "nullable": true },
+          "observed_at": { "type": "string", "format": "date-time", "nullable": true },
+          "projection_version": { "type": "integer", "format": "int64", "nullable": true },
+          "stale": { "type": "boolean" }
+        }
+      },
+      "BranchSummary": {
+        "type": "object",
+        "properties": {
+          "branch_ref": { "type": "string" },
+          "completed_order_count": { "type": "integer" },
+          "gross_spend_minor": { "type": "integer", "format": "int64" },
+          "net_spend_minor": { "type": "integer", "format": "int64" },
+          "currency": { "type": "string", "nullable": true },
+          "first_relationship_at": { "type": "string", "format": "date-time", "nullable": true },
+          "last_relationship_at": { "type": "string", "format": "date-time", "nullable": true },
+          "last_capability_type": { "$ref": "#/components/schemas/CapabilityType" },
+          "projection_state": { "$ref": "#/components/schemas/ProjectionState" }
+        }
+      },
+      "CapabilitySummary": {
+        "type": "object",
+        "properties": {
+          "last_capability_type": { "$ref": "#/components/schemas/CapabilityType" },
+          "category_affinity": { "$ref": "#/components/schemas/ModuleAvailability" },
+          "item_affinity": { "$ref": "#/components/schemas/ModuleAvailability" }
+        }
+      },
+      "ChannelConsent": {
+        "type": "object",
+        "required": ["channel", "decision", "eligible", "reason", "stale"],
+        "properties": {
+          "channel": { "$ref": "#/components/schemas/ConsentChannel" },
+          "decision": { "$ref": "#/components/schemas/ConsentDecision" },
+          "eligible": { "type": "boolean" },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "CONSENT_ALLOWED",
+              "CONSENT_DENIED",
+              "CONSENT_UNKNOWN",
+              "CONSENT_STALE",
+              "CONSENT_SOURCE_UNAVAILABLE",
+              "PRIVACY_REDACTED",
+              "PRIVACY_RESTRICTED",
+              "PRIVACY_MARKETING_SUPPRESSED",
+              "PROFILE_MERGED",
+              "PROFILE_ARCHIVED"
+            ]
+          },
+          "stale": { "type": "boolean" },
+          "observed_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "ConsentSummary": {
+        "type": "object",
+        "required": ["integration_available", "marketing"],
+        "properties": {
+          "integration_available": {
+            "type": "boolean",
+            "description": "False when no consent authority is wired. Every channel then reads UNKNOWN and ineligible, because 'we cannot know' is the answer."
+          },
+          "marketing": {
+            "type": "object",
+            "description": "Keyed by channel. Every channel is always present, so a missing key can never be mistaken for permission.",
+            "additionalProperties": { "$ref": "#/components/schemas/ChannelConsent" }
+          }
+        }
+      },
+      "PrivacySummary": {
+        "type": "object",
+        "required": ["state", "marketing_suppressed", "redacted", "integration_available", "covered_domains"],
+        "properties": {
+          "state": { "$ref": "#/components/schemas/PrivacyState" },
+          "marketing_suppressed": { "type": "boolean" },
+          "redacted": { "type": "boolean" },
+          "redacted_at": { "type": "string", "format": "date-time", "nullable": true },
+          "integration_available": { "type": "boolean" },
+          "covered_domains": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "CRM domains a redaction processes. Later CRM packages register additional handlers and appear here."
+          }
+        }
+      },
+      "IdentityLinkSummary": {
+        "type": "object",
+        "properties": {
+          "merge_state": { "$ref": "#/components/schemas/MergeState" },
+          "merged_into_profile_ref": { "type": "string", "nullable": true },
+          "linked_profile_count": { "type": "integer" }
+        }
+      },
+      "MarketingEligibilitySummary": {
+        "type": "object",
+        "properties": {
+          "integration_available": { "type": "boolean" },
+          "eligible_channels": { "type": "array", "items": { "$ref": "#/components/schemas/ConsentChannel" } },
+          "any_channel_eligible": { "type": "boolean" }
+        }
+      },
+      "CustomerListItem": {
+        "type": "object",
+        "properties": {
+          "profile": { "$ref": "#/components/schemas/ProfileView" },
+          "commercial": { "$ref": "#/components/schemas/CommercialSummary" },
+          "marketing_eligibility": { "$ref": "#/components/schemas/MarketingEligibilitySummary" }
+        }
+      },
+      "Customer360": {
+        "type": "object",
+        "properties": {
+          "profile": { "$ref": "#/components/schemas/ProfileView" },
+          "commercial": { "$ref": "#/components/schemas/CommercialSummary" },
+          "branches": { "type": "array", "items": { "$ref": "#/components/schemas/BranchSummary" } },
+          "capability": { "$ref": "#/components/schemas/CapabilitySummary" },
+          "consent": { "$ref": "#/components/schemas/ConsentSummary" },
+          "privacy": { "$ref": "#/components/schemas/PrivacySummary" },
+          "identity_link": { "$ref": "#/components/schemas/IdentityLinkSummary" },
+          "modules": {
+            "type": "object",
+            "description": "Availability of later CRM packages. All report NOT_IMPLEMENTED in Section 8A.",
+            "additionalProperties": { "$ref": "#/components/schemas/ModuleAvailability" }
+          }
+        }
+      },
+      "CrmEventSubject": {
+        "type": "object",
+        "required": ["type", "ref"],
+        "properties": {
+          "type": { "$ref": "#/components/schemas/SubjectType" },
+          "ref": { "type": "string", "description": "Opaque, authority-owned subject reference." },
+          "privacy_subject_ref": {
+            "type": "string",
+            "description": "The authority's own suppression identifier, preferred over ref for privacy events."
+          }
+        }
+      },
+      "CrmEventEnvelope": {
+        "type": "object",
+        "required": ["event_id", "event_type", "source_service", "source_version", "occurred_at", "business_ref"],
+        "properties": {
+          "event_id": { "type": "string" },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER_RELATIONSHIP_OBSERVED",
+              "CUSTOMER_IDENTITY_LINKED",
+              "CUSTOMER_IDENTITY_MERGED",
+              "CUSTOMER_CONSENT_CHANGED",
+              "CUSTOMER_PRIVACY_CHANGED",
+              "CRM_ORDER_FACT_CHANGED"
+            ]
+          },
+          "source_service": {
+            "type": "string",
+            "description": "Must equal the authenticated caller identity; a body claiming a different producer is rejected."
+          },
+          "source_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Monotonic per authoritative subject. A lower version never overwrites a higher one; the same version with different data is an integrity conflict."
+          },
+          "occurred_at": { "type": "string", "format": "date-time" },
+          "correlation_id": { "type": "string" },
+          "causation_id": { "type": "string" },
+          "business_ref": { "type": "string" },
+          "subject": { "$ref": "#/components/schemas/CrmEventSubject" },
+          "payload": { "$ref": "#/components/schemas/CrmEventPayload" }
+        }
+      },
+      "CrmEventPayload": {
+        "type": "object",
+        "description": "Discriminated by event_type. Only the fields belonging to the declared type are read.",
+        "properties": {
+          "purpose": { "$ref": "#/components/schemas/ConsentPurpose" },
+          "channel": { "$ref": "#/components/schemas/ConsentChannel" },
+          "decision": { "$ref": "#/components/schemas/ConsentDecision" },
+          "effective_at": { "type": "string", "format": "date-time", "nullable": true },
+          "expires_at": { "type": "string", "format": "date-time", "nullable": true },
+          "action": { "$ref": "#/components/schemas/PrivacyAction" },
+          "retention_policy_ref": { "type": "string" },
+          "source_subject": { "$ref": "#/components/schemas/CrmEventSubject" },
+          "target_subject": { "$ref": "#/components/schemas/CrmEventSubject" },
+          "authority_reference": {
+            "type": "string",
+            "description": "Required evidence for an identity link. A vendor assertion is never evidence."
+          },
+          "source_order_ref": { "type": "string" },
+          "order_state": { "$ref": "#/components/schemas/OrderFactState" },
+          "completed_at": { "type": "string", "format": "date-time", "nullable": true },
+          "currency": {
+            "type": "string",
+            "description": "Must match the business commerce currency. A differing currency is quarantined rather than converted; CRM performs no FX."
+          },
+          "gross_amount_minor": { "type": "integer", "format": "int64", "minimum": 0 },
+          "net_amount_minor": { "type": "integer", "format": "int64", "minimum": 0 },
+          "refunded_amount_minor": { "type": "integer", "format": "int64", "minimum": 0 },
+          "branch_ref": { "type": "string" },
+          "capability_type": { "$ref": "#/components/schemas/CapabilityType" },
+          "acquisition_source_type": { "type": "string" },
+          "acquisition_source_ref": { "type": "string" }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "request_id": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
