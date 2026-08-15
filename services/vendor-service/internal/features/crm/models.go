@@ -181,6 +181,7 @@ type Profile struct {
 
 	FirstCompletedOrderAt  *time.Time
 	LastCompletedOrderAt   *time.Time
+	ObservedOrderCount     int
 	CompletedOrderCount    int
 	GrossSpendMinor        int64
 	NetSpendMinor          int64
@@ -358,6 +359,7 @@ func MarketingEligibility(in MarketingEligibilityInput) (eligible bool, reason s
 
 // CommercialTotals is the aggregate derived from a set of order facts.
 type CommercialTotals struct {
+	ObservedOrderCount     int
 	CompletedOrderCount    int
 	GrossSpendMinor        int64
 	NetSpendMinor          int64
@@ -372,22 +374,24 @@ type CommercialTotals struct {
 
 // OrderFact is one authoritative order reference projected into CRM.
 type OrderFact struct {
-	ID             string
-	BusinessID     string
-	ProfileID      string
-	SourceService  string
-	SourceOrderRef string
-	SourceEventID  string
-	SourceVersion  int64
-	OrderState     OrderFactState
-	CompletedAt    *time.Time
-	Currency       string
-	GrossMinor     int64
-	NetMinor       int64
-	RefundedMinor  int64
-	BranchID       *string
-	CapabilityType *string
-	LastObservedAt time.Time
+	ID                  string
+	BusinessID          string
+	ProfileID           string
+	SourceService       string
+	SourceOrderRef      string
+	SourceEventID       string
+	SourceVersion       int64
+	OrderState          OrderFactState
+	OrderType           string
+	CorporateCustomerID *string
+	CompletedAt         *time.Time
+	Currency            string
+	GrossMinor          int64
+	NetMinor            int64
+	RefundedMinor       int64
+	BranchID            *string
+	CapabilityType      *string
+	LastObservedAt      time.Time
 }
 
 // ComputeCommercialTotals derives the profile-level aggregate from facts.
@@ -400,6 +404,7 @@ type OrderFact struct {
 func ComputeCommercialTotals(facts []OrderFact) CommercialTotals {
 	var totals CommercialTotals
 	for _, fact := range facts {
+		totals.ObservedOrderCount++
 		if !fact.OrderState.CountsTowardCommercialTotals() {
 			continue
 		}
@@ -488,6 +493,7 @@ type BranchRelation struct {
 	BranchID            string
 	FirstRelationshipAt *time.Time
 	LastRelationshipAt  *time.Time
+	ObservedOrderCount  int
 	CompletedOrderCount int
 	GrossSpendMinor     int64
 	NetSpendMinor       int64

@@ -3,26 +3,43 @@ package crm
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
+	"cosmicforge/logistics/shared/go/apperrors"
 	"github.com/jackc/pgx/v5"
 )
 
 // OrderFactInput is one authoritative order observation.
 type OrderFactInput struct {
-	SourceService  string
-	SourceOrderRef string
-	SourceEventID  string
-	SourceVersion  int64
-	OrderState     OrderFactState
-	CompletedAt    *time.Time
-	Currency       string
-	GrossMinor     int64
-	NetMinor       int64
-	RefundedMinor  int64
-	BranchID       *string
-	CapabilityType *string
-	ObservedAt     time.Time
+	SourceService       string
+	SourceOrderRef      string
+	SourceEventID       string
+	SourceVersion       int64
+	OrderState          OrderFactState
+	OrderType           string
+	CorporateCustomerID *string
+	CompletedAt         *time.Time
+	Currency            string
+	GrossMinor          int64
+	NetMinor            int64
+	RefundedMinor       int64
+	BranchID            *string
+	CapabilityType      *string
+	ObservedAt          time.Time
+	Lines               []OrderFactLineInput
+}
+
+// OrderFactLineInput is the bounded, reference-only line evidence used to
+// rebuild category and item affinity. CRM never stores catalogue names or
+// prices; the order authority supplies the historical net line amount.
+type OrderFactLineInput struct {
+	CategoryRef        string  `json:"category_ref"`
+	ItemRef            string  `json:"item_ref"`
+	Quantity           int     `json:"quantity"`
+	NetLineAmountMinor int64   `json:"net_line_amount_minor"`
+	BranchID           *string `json:"branch_ref"`
 }
 
 // ApplyOrderFact upserts one order fact and rebuilds the affected aggregates.
@@ -65,15 +82,16 @@ func (s *Service) ApplyOrderFact(ctx context.Context, tx pgx.Tx, actor Actor, pr
 
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
+		existingID = newID("crmof_")
 		if _, err = tx.Exec(ctx, `INSERT INTO crm_customer_order_facts
 			(id,business_id,profile_id,source_service,source_order_ref,source_event_id,source_version,
-			 order_state,completed_at,currency,gross_amount_minor,net_amount_minor,refunded_amount_minor,
+			 order_state,order_type,corporate_customer_id,completed_at,currency,gross_amount_minor,net_amount_minor,refunded_amount_minor,
 			 branch_id,capability_type,last_observed_at)
-			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-			newID("crmof_"), actor.VendorID, profile.ID, in.SourceService, in.SourceOrderRef, in.SourceEventID,
-			in.SourceVersion, in.OrderState, in.CompletedAt, in.Currency, in.GrossMinor, in.NetMinor,
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+			existingID, actor.VendorID, profile.ID, in.SourceService, in.SourceOrderRef, in.SourceEventID,
+			in.SourceVersion, in.OrderState, normalizedOrderType(in.OrderType), in.CorporateCustomerID, in.CompletedAt, in.Currency, in.GrossMinor, in.NetMinor,
 			in.RefundedMinor, in.BranchID, in.CapabilityType, in.ObservedAt); err != nil {
-			return err
+			return fmt.Errorf("insert order fact: %w", err)
 		}
 	case err != nil:
 		return err
@@ -87,18 +105,29 @@ func (s *Service) ApplyOrderFact(ctx context.Context, tx pgx.Tx, actor Actor, pr
 		return nil
 	default:
 		if _, err = tx.Exec(ctx, `UPDATE crm_customer_order_facts
-			SET profile_id=$1,source_event_id=$2,source_version=$3,order_state=$4,completed_at=$5,currency=$6,
-				gross_amount_minor=$7,net_amount_minor=$8,refunded_amount_minor=$9,branch_id=$10,
-				capability_type=$11,last_observed_at=$12,updated_at=now()
-			WHERE id=$13`,
-			profile.ID, in.SourceEventID, in.SourceVersion, in.OrderState, in.CompletedAt, in.Currency,
+			SET profile_id=$1,source_event_id=$2,source_version=$3,order_state=$4,order_type=$5,corporate_customer_id=$6,completed_at=$7,currency=$8,
+				gross_amount_minor=$9,net_amount_minor=$10,refunded_amount_minor=$11,branch_id=$12,
+				capability_type=$13,last_observed_at=$14,updated_at=now()
+			WHERE id=$15`,
+			profile.ID, in.SourceEventID, in.SourceVersion, in.OrderState, normalizedOrderType(in.OrderType), in.CorporateCustomerID, in.CompletedAt, in.Currency,
 			in.GrossMinor, in.NetMinor, in.RefundedMinor, in.BranchID, in.CapabilityType, in.ObservedAt, existingID); err != nil {
-			return err
+			return fmt.Errorf("update order fact: %w", err)
 		}
+	}
+	if err := s.replaceOrderFactLines(ctx, tx, actor, profile.ID, existingID, in); err != nil {
+		return fmt.Errorf("replace order lines: %w", err)
 	}
 
 	s.metrics.Inc("crm_profile_projection_events_total", "state", string(in.OrderState))
-	return s.RebuildCommercialProjection(ctx, tx, actor, profile.ID, in.SourceVersion, in.ObservedAt)
+	if err := s.RebuildCommercialProjection(ctx, tx, actor, profile.ID, in.SourceVersion, in.ObservedAt); err != nil {
+		return fmt.Errorf("rebuild commercial: %w", err)
+	}
+	if in.CorporateCustomerID != nil {
+		if err := s.RebuildCorporateCommercial(ctx, tx, actor, *in.CorporateCustomerID, in.ObservedAt); err != nil {
+			return fmt.Errorf("rebuild corporate commercial: %w", err)
+		}
+	}
+	return s.RebuildCompletionProjections(ctx, tx, actor, profile.ID, in.ObservedAt)
 }
 
 // RebuildCommercialProjection recomputes a profile's commercial aggregates and
@@ -110,7 +139,7 @@ func (s *Service) ApplyOrderFact(ctx context.Context, tx pgx.Tx, actor Actor, pr
 func (s *Service) RebuildCommercialProjection(ctx context.Context, tx pgx.Tx, actor Actor, profileID string, sourceVersion int64, observedAt time.Time) error {
 	facts, err := s.orderFacts(ctx, tx, actor.VendorID, profileID)
 	if err != nil {
-		return err
+		return fmt.Errorf("load order facts: %w", err)
 	}
 	totals := ComputeCommercialTotals(facts)
 
@@ -118,22 +147,25 @@ func (s *Service) RebuildCommercialProjection(ctx context.Context, tx pgx.Tx, ac
 		// No facts left (for example, everything moved away by a merge): the
 		// honest state is "nothing observed", not "spent zero".
 		_, err = tx.Exec(ctx, `UPDATE vendor_customer_profiles SET
-			completed_order_count=0, gross_spend_minor=0, net_spend_minor=0, average_order_value_minor=0,
+		observed_order_count=0, completed_order_count=0, gross_spend_minor=0, net_spend_minor=0, average_order_value_minor=0,
 			first_completed_order_at=NULL, last_completed_order_at=NULL, last_order_ref=NULL,
 			last_branch_ref=NULL, preferred_branch_ref=NULL, last_capability_type=NULL,
 			commercial_currency=NULL, commercial_projection_state=$1, commercial_projection_version=NULL,
 			last_commercial_source_observed_at=NULL, updated_at=now(), version=version+1
 			WHERE business_id=$2 AND id=$3`,
 			ProjectionNotAvailable, actor.VendorID, profileID)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.invalidateCommercialSegmentsTx(ctx, tx, actor.VendorID)
 	}
 
 	if err = s.rebuildBranchRelations(ctx, tx, actor, profileID, facts, sourceVersion); err != nil {
-		return err
+		return fmt.Errorf("rebuild branch relations: %w", err)
 	}
 	relations, err := s.branchRelations(ctx, tx, actor.VendorID, profileID)
 	if err != nil {
-		return err
+		return fmt.Errorf("load branch relations: %w", err)
 	}
 	preferred := PreferredBranch(relations)
 
@@ -146,28 +178,50 @@ func (s *Service) RebuildCommercialProjection(ctx context.Context, tx pgx.Tx, ac
 	}
 
 	_, err = tx.Exec(ctx, `UPDATE vendor_customer_profiles SET
-		completed_order_count=$1, gross_spend_minor=$2, net_spend_minor=$3, average_order_value_minor=$4,
-		first_completed_order_at=$5, last_completed_order_at=$6, last_order_ref=$7, last_branch_ref=$8,
-		preferred_branch_ref=$9, last_capability_type=$10, commercial_currency=$11,
-		commercial_projection_state=$12, commercial_projection_version=$13,
-		last_commercial_source_observed_at=$14, updated_at=now(), version=version+1
-		WHERE business_id=$15 AND id=$16`,
-		totals.CompletedOrderCount, totals.GrossSpendMinor, totals.NetSpendMinor, totals.AverageOrderValueMinor,
+		observed_order_count=$1, completed_order_count=$2, gross_spend_minor=$3, net_spend_minor=$4, average_order_value_minor=$5,
+		first_completed_order_at=$6, last_completed_order_at=$7, last_order_ref=$8, last_branch_ref=$9,
+		preferred_branch_ref=$10, last_capability_type=$11, commercial_currency=$12,
+		commercial_projection_state=$13, commercial_projection_version=$14,
+		last_commercial_source_observed_at=$15, updated_at=now(), version=version+1
+		WHERE business_id=$16 AND id=$17`,
+		totals.ObservedOrderCount, totals.CompletedOrderCount, totals.GrossSpendMinor, totals.NetSpendMinor, totals.AverageOrderValueMinor,
 		totals.FirstCompletedOrderAt, totals.LastCompletedOrderAt, totals.LastOrderRef, totals.LastBranchRef,
 		preferred, totals.LastCapabilityType, currency,
 		ProjectionCurrent, nullableVersion(sourceVersion), nullableTime(observedAt),
 		actor.VendorID, profileID)
 	if err != nil {
-		return err
+		return fmt.Errorf("update commercial profile: %w", err)
 	}
 	s.metrics.Inc("crm_commercial_rebuild_total")
-	return nil
+	return s.invalidateCommercialSegmentsTx(ctx, tx, actor.VendorID)
+}
+
+func (s *Service) invalidateCommercialSegmentsTx(ctx context.Context, tx pgx.Tx, businessID string) error {
+	// Commercial facts are the only source both Section 8H models read, so a
+	// projection change makes every score in this tenant stale. It is marked in
+	// this same transaction: a crash must not leave a scope claiming CURRENT
+	// over facts that already moved.
+	if err := s.MarkIntelligenceStaleTx(ctx, tx, businessID); err != nil {
+		return err
+	}
+	return s.invalidateSegmentsForDependencies(ctx, tx, businessID, []string{
+		"commercial.projection_state",
+		"commercial.completed_order_count",
+		"commercial.gross_spend_minor",
+		"commercial.net_spend_minor",
+		"commercial.average_order_value_minor",
+		"commercial.first_completed_order_at",
+		"commercial.last_completed_order_at",
+		"commercial.days_since_last_order",
+		"relationship.branch_ref",
+		"relationship.capability_type",
+	})
 }
 
 func (s *Service) rebuildBranchRelations(ctx context.Context, tx pgx.Tx, actor Actor, profileID string, facts []OrderFact, sourceVersion int64) error {
 	byBranch := map[string]*branchAggregate{}
 	for _, fact := range facts {
-		if fact.BranchID == nil || !fact.OrderState.CountsTowardCommercialTotals() {
+		if fact.BranchID == nil {
 			continue
 		}
 		entry, ok := byBranch[*fact.BranchID]
@@ -175,9 +229,12 @@ func (s *Service) rebuildBranchRelations(ctx context.Context, tx pgx.Tx, actor A
 			entry = &branchAggregate{}
 			byBranch[*fact.BranchID] = entry
 		}
-		entry.count++
-		entry.gross += fact.GrossMinor
-		entry.net += fact.NetMinor
+		entry.observed++
+		if fact.OrderState.CountsTowardCommercialTotals() {
+			entry.count++
+			entry.gross += fact.GrossMinor
+			entry.net += fact.NetMinor
+		}
 		if entry.currency == "" {
 			entry.currency = fact.Currency
 		}
@@ -210,12 +267,13 @@ func (s *Service) rebuildBranchRelations(ctx context.Context, tx pgx.Tx, actor A
 	for branchID, entry := range byBranch {
 		if _, err := tx.Exec(ctx, `INSERT INTO crm_customer_branch_relations
 			(id,business_id,profile_id,branch_id,first_relationship_at,last_relationship_at,
-			 completed_order_count,gross_spend_minor,net_spend_minor,currency,last_order_ref,
+			 observed_order_count,completed_order_count,gross_spend_minor,net_spend_minor,currency,last_order_ref,
 			 last_capability_type,projection_state,source_version)
-			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 			ON CONFLICT (business_id,profile_id,branch_id) DO UPDATE SET
 				first_relationship_at=EXCLUDED.first_relationship_at,
 				last_relationship_at=EXCLUDED.last_relationship_at,
+				observed_order_count=EXCLUDED.observed_order_count,
 				completed_order_count=EXCLUDED.completed_order_count,
 				gross_spend_minor=EXCLUDED.gross_spend_minor,
 				net_spend_minor=EXCLUDED.net_spend_minor,
@@ -226,7 +284,7 @@ func (s *Service) rebuildBranchRelations(ctx context.Context, tx pgx.Tx, actor A
 				source_version=EXCLUDED.source_version,
 				updated_at=now(), version=crm_customer_branch_relations.version+1`,
 			newID("crmbr_"), actor.VendorID, profileID, branchID, entry.first, entry.last,
-			entry.count, entry.gross, entry.net, nullableString(entry.currency), entry.lastOrderRef,
+			entry.observed, entry.count, entry.gross, entry.net, nullableString(entry.currency), entry.lastOrderRef,
 			entry.lastCapability, ProjectionCurrent, nullableVersion(sourceVersion)); err != nil {
 			return err
 		}
@@ -236,7 +294,7 @@ func (s *Service) rebuildBranchRelations(ctx context.Context, tx pgx.Tx, actor A
 
 func (s *Service) orderFacts(ctx context.Context, q querier, businessID, profileID string) ([]OrderFact, error) {
 	rows, err := q.Query(ctx, `SELECT id,business_id,profile_id,source_service,source_order_ref,source_event_id,
-		source_version,order_state,completed_at,currency,gross_amount_minor,net_amount_minor,
+		source_version,order_state,order_type,corporate_customer_id,completed_at,currency,gross_amount_minor,net_amount_minor,
 		refunded_amount_minor,branch_id,capability_type,last_observed_at
 		FROM crm_customer_order_facts WHERE business_id=$1 AND profile_id=$2`, businessID, profileID)
 	if err != nil {
@@ -247,7 +305,7 @@ func (s *Service) orderFacts(ctx context.Context, q querier, businessID, profile
 	for rows.Next() {
 		var f OrderFact
 		if err = rows.Scan(&f.ID, &f.BusinessID, &f.ProfileID, &f.SourceService, &f.SourceOrderRef,
-			&f.SourceEventID, &f.SourceVersion, &f.OrderState, &f.CompletedAt, &f.Currency,
+			&f.SourceEventID, &f.SourceVersion, &f.OrderState, &f.OrderType, &f.CorporateCustomerID, &f.CompletedAt, &f.Currency,
 			&f.GrossMinor, &f.NetMinor, &f.RefundedMinor, &f.BranchID, &f.CapabilityType, &f.LastObservedAt); err != nil {
 			return nil, err
 		}
@@ -258,7 +316,7 @@ func (s *Service) orderFacts(ctx context.Context, q querier, businessID, profile
 
 func (s *Service) branchRelations(ctx context.Context, q querier, businessID, profileID string) ([]BranchRelation, error) {
 	rows, err := q.Query(ctx, `SELECT id,business_id,profile_id,branch_id,first_relationship_at,last_relationship_at,
-		completed_order_count,gross_spend_minor,net_spend_minor,currency,last_order_ref,last_capability_type,
+		observed_order_count,completed_order_count,gross_spend_minor,net_spend_minor,currency,last_order_ref,last_capability_type,
 		projection_state,source_version,version
 		FROM crm_customer_branch_relations WHERE business_id=$1 AND profile_id=$2 ORDER BY branch_id`,
 		businessID, profileID)
@@ -270,7 +328,7 @@ func (s *Service) branchRelations(ctx context.Context, q querier, businessID, pr
 	for rows.Next() {
 		var r BranchRelation
 		if err = rows.Scan(&r.ID, &r.BusinessID, &r.ProfileID, &r.BranchID, &r.FirstRelationshipAt,
-			&r.LastRelationshipAt, &r.CompletedOrderCount, &r.GrossSpendMinor, &r.NetSpendMinor,
+			&r.LastRelationshipAt, &r.ObservedOrderCount, &r.CompletedOrderCount, &r.GrossSpendMinor, &r.NetSpendMinor,
 			&r.Currency, &r.LastOrderRef, &r.LastCapabilityType, &r.ProjectionState, &r.SourceVersion, &r.Version); err != nil {
 			return nil, err
 		}
@@ -302,12 +360,62 @@ type querier interface {
 // during a rebuild.
 type branchAggregate struct {
 	first, last    *time.Time
+	observed       int
 	count          int
 	gross, net     int64
 	currency       string
 	lastOrderRef   *string
 	lastCapability *string
 	lastAt         *time.Time
+}
+
+func normalizedOrderType(v string) string {
+	v = strings.ToUpper(strings.TrimSpace(v))
+	if v == "" {
+		return "STANDARD"
+	}
+	switch v {
+	case "STANDARD", "BULK", "RECURRING", "CORPORATE":
+		return v
+	}
+	return "STANDARD"
+}
+
+func (s *Service) replaceOrderFactLines(ctx context.Context, tx pgx.Tx, actor Actor, profileID, orderFactID string, in OrderFactInput) error {
+	if orderFactID == "" {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM crm_customer_order_fact_lines WHERE business_id=$1 AND order_fact_id=$2`, actor.VendorID, orderFactID); err != nil {
+		return err
+	}
+	for _, line := range in.Lines {
+		if strings.TrimSpace(line.CategoryRef) == "" && strings.TrimSpace(line.ItemRef) == "" {
+			return apperrors.BadRequest("An order line must identify a category or item.", nil)
+		}
+		if line.Quantity < 0 || line.NetLineAmountMinor < 0 {
+			return apperrors.BadRequest("Order line quantity and amount cannot be negative.", nil)
+		}
+		branch := line.BranchID
+		if branch == nil {
+			branch = in.BranchID
+		}
+		if branch != nil {
+			owned, err := s.branchBelongsToBusiness(ctx, tx, actor.VendorID, *branch)
+			if err != nil {
+				return err
+			}
+			if !owned {
+				return errCrossTenant()
+			}
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO crm_customer_order_fact_lines
+			(id,business_id,order_fact_id,profile_id,branch_id,category_ref,item_ref,quantity,net_line_amount_minor)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, newID("crmline_"), actor.VendorID, orderFactID, profileID,
+			branch, optional(line.CategoryRef), optional(line.ItemRef), line.Quantity, line.NetLineAmountMinor); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func branchKeys(m map[string]*branchAggregate) []string {

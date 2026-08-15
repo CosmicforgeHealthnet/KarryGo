@@ -1,5 +1,5 @@
-// Package crm implements Section 8A: the CRM foundation, Customer 360,
-// consent and privacy projections.
+// Package crm implements Sections 8A and 8B: the CRM foundation, Customer 360,
+// consent/privacy projections, tags, and safe static/dynamic segmentation.
 //
 // # What this package is
 //
@@ -25,13 +25,12 @@
 //
 // # What this package deliberately does not do
 //
-// Section 8A stops at the foundation. Tags and segmentation (8B), interactions
-// and tasks (8C), loyalty (8D), campaigns (8E/8F), corporate CRM (8G) and
-// scoring/exports (8H) are not implemented here. Customer 360 reports those
-// modules as unavailable rather than returning an empty structure that would
-// read as "implemented and empty". Privacy processing is built around a
-// handler registry (privacy.go) so those later domains can register their own
-// redaction behaviour without the redaction engine being rewritten.
+// Section 8B adds Vendor tags, a closed rule/field registry, static and dynamic
+// segments, preview, and durable generation-based materialization. Interactions
+// and tasks (8C), loyalty (8D), campaigns (8E/8F), corporate CRM (8G), and
+// scoring/exports (8H) are not implemented. Customer 360 reports only those
+// later modules as unavailable. Privacy processing remains a handler registry
+// so future domains can extend redaction without rewriting the engine.
 //
 // # Authority dependencies, honestly stated
 //

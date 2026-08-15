@@ -133,6 +133,12 @@ func (s *Service) ApplyIdentityLink(ctx context.Context, tx pgx.Tx, actor Actor,
 	if err = s.RebuildCommercialProjection(ctx, tx, actor, source.ID, in.AuthorityVersion, s.now()); err != nil {
 		return err
 	}
+	if err = s.RebuildCompletionProjections(ctx, tx, actor, target.ID, s.now()); err != nil {
+		return err
+	}
+	if err = s.RebuildCompletionProjections(ctx, tx, actor, source.ID, s.now()); err != nil {
+		return err
+	}
 
 	if err = s.recordIdentityLink(ctx, tx, actor, source.ID, target.ID, linkType, in); err != nil {
 		return err

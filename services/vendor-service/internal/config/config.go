@@ -31,6 +31,10 @@ type Config struct {
 	// ServiceSecrets are HMAC secrets (shared/go/serviceauth) for inbound
 	// internal callers, in "caller=secret,caller2=secret2" form.
 	ServiceSecrets string
+	// ShopInternalCallers is the explicit comma-separated HMAC caller
+	// allowlist for the Section 12 internal discovery/reservation contract.
+	// Possessing a configured secret alone does not enable Shop authority.
+	ShopInternalCallers string
 
 	// Flags is the full feature-flag/kill-switch surface. Every high-risk
 	// flag defaults to false/disabled until its implementation section is
@@ -111,15 +115,60 @@ type FeatureFlags struct {
 	VendorCRMCustomerProjectionEnabled bool
 	VendorCRMConsentIntegrationEnabled bool
 	VendorCRMPrivacyIntegrationEnabled bool
+	// Section 8B rollout flags. Segmentation gates the whole tags/segments
+	// surface; materialization additionally gates the dynamic evaluation
+	// worker, so an operator can freeze rebuilds (during a database incident,
+	// say) while definitions and previews stay usable. Write commands
+	// additionally require VendorCRMWritesEnabled, so the feature can also be
+	// exposed read-only.
+	VendorCRMSegmentationEnabled           bool
+	VendorCRMSegmentMaterializationEnabled bool
+	// Section 8C read surfaces. Mutations additionally require the shared CRM
+	// writes flag and remain subject to the commerce kill switch.
+	VendorCRMInteractionsEnabled bool
+	VendorCRMTasksEnabled        bool
+	// Section 8D loyalty points. Mutations additionally require the shared CRM
+	// writes flag. Turning this off stands the expiry sweeper down without
+	// discarding due work: nothing expires late and nothing expired becomes
+	// spendable, because every balance command settles expiry itself.
+	VendorCRMLoyaltyEnabled bool
+	// Section 8E campaign intelligence. Campaigns gate the whole definition and
+	// audience surface; preparation additionally gates the audience worker, so
+	// an operator can freeze expensive audience freezes while definitions and
+	// previews stay usable. Turning preparation off never disturbs an audience
+	// that is already prepared.
+	VendorCRMCampaignsEnabled           bool
+	VendorCRMCampaignPreparationEnabled bool
+	VendorCRMCampaignExecutionEnabled   bool
+	// Section 8G corporate customer CRM. Mutations additionally require the
+	// shared CRM writes flag. Corporate interactions and tasks reuse the Section
+	// 8C engine and therefore also observe its own flags.
+	VendorCRMCorporateEnabled bool
+	// Section 8H CRM intelligence and secure exports. Intelligence requires the
+	// CRM foundation because a score is computed from Section 8A projections;
+	// the worker flag stands the materializer down without hiding existing
+	// scores; exports require the CRM foundation and, at runtime, a configured
+	// private artifact store.
+	VendorCRMIntelligenceEnabled       bool
+	VendorCRMIntelligenceWorkerEnabled bool
+	VendorCRMExportsEnabled            bool
 	VendorInventoryEnabled             bool
 	VendorPurchasingEnabled            bool
 	VendorRecipesEnabled               bool
 
-	CommerceFoodEnabled           bool
-	CommerceShopEnabled           bool
-	CommerceMultiVendorEnabled    bool
-	CommerceVariableWeightEnabled bool
-	CommerceBulkRFQEnabled        bool
+	// CommerceFoodEnabled is Section 9A's master switch: with it false no food
+	// catalogue route is registered at all. VendorFoodCatalogueWritesEnabled
+	// additionally gates mutations, so a rollout can expose the read surface
+	// before it accepts edits. Both are subordinate to
+	// CommerceGlobalKillSwitch, which can only ever withhold a write.
+	CommerceFoodEnabled              bool
+	VendorFoodCatalogueWritesEnabled bool
+
+	CommerceShopEnabled              bool
+	VendorShopCatalogueWritesEnabled bool
+	CommerceMultiVendorEnabled       bool
+	CommerceVariableWeightEnabled    bool
+	CommerceBulkRFQEnabled           bool
 
 	VendorOwnDeliveryEnabled bool
 
@@ -150,7 +199,8 @@ func Load() Config {
 			DB:       getEnvInt("VENDOR_REDIS_DB", 0),
 		},
 
-		ServiceSecrets: os.Getenv("VENDOR_SERVICE_SECRETS"),
+		ServiceSecrets:      os.Getenv("VENDOR_SERVICE_SECRETS"),
+		ShopInternalCallers: os.Getenv("VENDOR_SHOP_INTERNAL_CALLERS"),
 
 		Flags: FeatureFlags{
 			VendorServiceEnabled:          getEnvBool("VENDOR_SERVICE_ENABLED", false),
@@ -162,15 +212,33 @@ func Load() Config {
 			VendorCRMConsentIntegrationEnabled: getEnvBool("VENDOR_CRM_CONSENT_INTEGRATION_ENABLED", false),
 			VendorCRMPrivacyIntegrationEnabled: getEnvBool("VENDOR_CRM_PRIVACY_INTEGRATION_ENABLED", false),
 
+			VendorCRMSegmentationEnabled:           getEnvBool("VENDOR_CRM_SEGMENTATION_ENABLED", false),
+			VendorCRMSegmentMaterializationEnabled: getEnvBool("VENDOR_CRM_SEGMENT_MATERIALIZATION_ENABLED", false),
+			VendorCRMInteractionsEnabled:           getEnvBool("VENDOR_CRM_INTERACTIONS_ENABLED", false),
+			VendorCRMTasksEnabled:                  getEnvBool("VENDOR_CRM_TASKS_ENABLED", false),
+			VendorCRMLoyaltyEnabled:                getEnvBool("VENDOR_CRM_LOYALTY_ENABLED", false),
+
+			VendorCRMCampaignsEnabled:           getEnvBool("VENDOR_CRM_CAMPAIGNS_ENABLED", false),
+			VendorCRMCampaignPreparationEnabled: getEnvBool("VENDOR_CRM_CAMPAIGN_PREPARATION_ENABLED", false),
+			VendorCRMCampaignExecutionEnabled:   getEnvBool("VENDOR_CRM_CAMPAIGN_EXECUTION_ENABLED", false),
+
+			VendorCRMCorporateEnabled:          getEnvBool("VENDOR_CRM_CORPORATE_ENABLED", false),
+			VendorCRMIntelligenceEnabled:       getEnvBool("VENDOR_CRM_INTELLIGENCE_ENABLED", false),
+			VendorCRMIntelligenceWorkerEnabled: getEnvBool("VENDOR_CRM_INTELLIGENCE_WORKER_ENABLED", false),
+			VendorCRMExportsEnabled:            getEnvBool("VENDOR_CRM_EXPORTS_ENABLED", false),
+
 			VendorInventoryEnabled:  getEnvBool("VENDOR_INVENTORY_ENABLED", false),
 			VendorPurchasingEnabled: getEnvBool("VENDOR_PURCHASING_ENABLED", false),
 			VendorRecipesEnabled:    getEnvBool("VENDOR_RECIPES_ENABLED", false),
 
-			CommerceFoodEnabled:           getEnvBool("COMMERCE_FOOD_ENABLED", false),
-			CommerceShopEnabled:           getEnvBool("COMMERCE_SHOP_ENABLED", false),
-			CommerceMultiVendorEnabled:    getEnvBool("COMMERCE_MULTI_VENDOR_ENABLED", false),
-			CommerceVariableWeightEnabled: getEnvBool("COMMERCE_VARIABLE_WEIGHT_ENABLED", false),
-			CommerceBulkRFQEnabled:        getEnvBool("COMMERCE_BULK_RFQ_ENABLED", false),
+			CommerceFoodEnabled:              getEnvBool("COMMERCE_FOOD_ENABLED", false),
+			VendorFoodCatalogueWritesEnabled: getEnvBool("VENDOR_FOOD_CATALOGUE_WRITES_ENABLED", false),
+
+			CommerceShopEnabled:              getEnvBool("COMMERCE_SHOP_ENABLED", false),
+			VendorShopCatalogueWritesEnabled: getEnvBool("VENDOR_SHOP_CATALOGUE_WRITES_ENABLED", false),
+			CommerceMultiVendorEnabled:       getEnvBool("COMMERCE_MULTI_VENDOR_ENABLED", false),
+			CommerceVariableWeightEnabled:    getEnvBool("COMMERCE_VARIABLE_WEIGHT_ENABLED", false),
+			CommerceBulkRFQEnabled:           getEnvBool("COMMERCE_BULK_RFQ_ENABLED", false),
 
 			VendorOwnDeliveryEnabled: getEnvBool("VENDOR_OWN_DELIVERY_ENABLED", false),
 
@@ -288,12 +356,95 @@ func (c Config) Validate() error {
 	// configuration mistake, not a valid "partially enabled" state.
 	if !c.Flags.VendorServiceEnabled {
 		anyFeature := c.Flags.VendorOnboardingWritesEnabled || c.Flags.VendorCRMEnabled ||
+			c.Flags.VendorCRMSegmentationEnabled || c.Flags.VendorCRMInteractionsEnabled || c.Flags.VendorCRMTasksEnabled ||
+			c.Flags.VendorCRMLoyaltyEnabled || c.Flags.VendorCRMCampaignsEnabled ||
+			c.Flags.VendorCRMCorporateEnabled ||
+			c.Flags.VendorCRMIntelligenceEnabled ||
+			c.Flags.VendorCRMExportsEnabled ||
 			c.Flags.VendorInventoryEnabled || c.Flags.VendorPurchasingEnabled || c.Flags.VendorRecipesEnabled ||
-			c.Flags.CommerceFoodEnabled || c.Flags.CommerceShopEnabled || c.Flags.CommerceMultiVendorEnabled ||
+			c.Flags.CommerceFoodEnabled || c.Flags.VendorFoodCatalogueWritesEnabled ||
+			c.Flags.CommerceShopEnabled || c.Flags.VendorShopCatalogueWritesEnabled || c.Flags.CommerceMultiVendorEnabled ||
 			c.Flags.CommerceVariableWeightEnabled || c.Flags.CommerceBulkRFQEnabled || c.Flags.VendorOwnDeliveryEnabled
 		if anyFeature {
 			problems = append(problems, "VENDOR_SERVICE_ENABLED must be true when any VENDOR_* or COMMERCE_* feature flag is enabled")
 		}
+	}
+
+	// Section 8B sits on top of Section 8A's projections; enabling it without
+	// the CRM foundation would register routes over tables nothing populates.
+	// Materialization in turn needs the segmentation surface that owns its
+	// definitions. A flag enabled without its prerequisite is a configuration
+	// mistake, not a partially-enabled state.
+	if c.Flags.VendorCRMSegmentationEnabled && !c.Flags.VendorCRMEnabled {
+		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_SEGMENTATION_ENABLED=true")
+	}
+	if c.Flags.VendorCRMSegmentMaterializationEnabled && !c.Flags.VendorCRMSegmentationEnabled {
+		problems = append(problems, "VENDOR_CRM_SEGMENTATION_ENABLED must be true when VENDOR_CRM_SEGMENT_MATERIALIZATION_ENABLED=true")
+	}
+	if (c.Flags.VendorCRMInteractionsEnabled || c.Flags.VendorCRMTasksEnabled) && !c.Flags.VendorCRMEnabled {
+		problems = append(problems, "VENDOR_CRM_ENABLED must be true when Section 8C interactions or tasks are enabled")
+	}
+
+	// Section 9A: catalogue writes without the catalogue itself would be a flag
+	// with nothing to act on, which is a configuration mistake rather than a
+	// partially-enabled state.
+	if c.Flags.VendorFoodCatalogueWritesEnabled && !c.Flags.CommerceFoodEnabled {
+		problems = append(problems, "COMMERCE_FOOD_ENABLED must be true when VENDOR_FOOD_CATALOGUE_WRITES_ENABLED=true")
+	}
+	if c.Flags.VendorShopCatalogueWritesEnabled && !c.Flags.CommerceShopEnabled {
+		problems = append(problems, "COMMERCE_SHOP_ENABLED must be true when VENDOR_SHOP_CATALOGUE_WRITES_ENABLED=true")
+	}
+	if c.Flags.VendorCRMLoyaltyEnabled && !c.Flags.VendorCRMEnabled {
+		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_LOYALTY_ENABLED=true")
+	}
+
+	// Section 8E draws its whole audience from the Section 8B segment engine
+	// and has no second way to select customers, so campaigns without
+	// segmentation would be a surface that can define a campaign it can never
+	// populate. Preparation in turn needs the campaign surface that owns the
+	// definitions it freezes.
+	if c.Flags.VendorCRMCampaignsEnabled && !c.Flags.VendorCRMEnabled {
+		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_CAMPAIGNS_ENABLED=true")
+	}
+	if c.Flags.VendorCRMCampaignsEnabled && !c.Flags.VendorCRMSegmentationEnabled {
+		problems = append(problems, "VENDOR_CRM_SEGMENTATION_ENABLED must be true when VENDOR_CRM_CAMPAIGNS_ENABLED=true")
+	}
+	if c.Flags.VendorCRMCampaignPreparationEnabled && !c.Flags.VendorCRMCampaignsEnabled {
+		problems = append(problems, "VENDOR_CRM_CAMPAIGNS_ENABLED must be true when VENDOR_CRM_CAMPAIGN_PREPARATION_ENABLED=true")
+	}
+	// Section 8G reuses the Section 8A relationship graph for contact identity
+	// and the Section 8C engine for corporate activity, so it is meaningless
+	// without the CRM foundation underneath it.
+	if c.Flags.VendorCRMCorporateEnabled && !c.Flags.VendorCRMEnabled {
+		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_CORPORATE_ENABLED=true")
+	}
+	// Section 8H computes every score from Section 8A commercial projections and
+	// exports every dataset from CRM tables, so both halves are meaningless
+	// without the CRM foundation underneath them.
+	if c.Flags.VendorCRMIntelligenceEnabled && !c.Flags.VendorCRMEnabled {
+		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_INTELLIGENCE_ENABLED=true")
+	}
+	// A materializer with nothing to materialize would claim jobs no surface
+	// can create, so the worker switch requires the feature it serves.
+	if c.Flags.VendorCRMIntelligenceWorkerEnabled && !c.Flags.VendorCRMIntelligenceEnabled {
+		problems = append(problems, "VENDOR_CRM_INTELLIGENCE_ENABLED must be true when VENDOR_CRM_INTELLIGENCE_WORKER_ENABLED=true")
+	}
+	if c.Flags.VendorCRMExportsEnabled && !c.Flags.VendorCRMEnabled {
+		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_EXPORTS_ENABLED=true")
+	}
+	// An export with no private store cannot produce an artifact, and the only
+	// alternative to a private store is not writing the file at all. Requiring
+	// the Media credentials up front turns that into a boot failure rather than
+	// a queue of jobs that can never finish.
+	if c.Flags.VendorCRMExportsEnabled &&
+		(strings.TrimSpace(c.MediaURL) == "" || strings.TrimSpace(c.MediaSecret) == "") {
+		problems = append(problems, "VENDOR_MEDIA_URL and VENDOR_MEDIA_SECRET are required when VENDOR_CRM_EXPORTS_ENABLED=true")
+	}
+	if c.Flags.VendorCRMCampaignExecutionEnabled && !c.Flags.VendorCRMCampaignsEnabled {
+		problems = append(problems, "VENDOR_CRM_CAMPAIGNS_ENABLED must be true when VENDOR_CRM_CAMPAIGN_EXECUTION_ENABLED=true")
+	}
+	if c.Flags.VendorCRMCampaignExecutionEnabled && (strings.TrimSpace(c.NotificationURL) == "" || strings.TrimSpace(c.NotificationSecret) == "") {
+		problems = append(problems, "VENDOR_NOTIFICATION_URL and VENDOR_NOTIFICATION_SECRET are required when VENDOR_CRM_CAMPAIGN_EXECUTION_ENABLED=true")
 	}
 
 	// Auth secrets are always required — authentication is core infrastructure,

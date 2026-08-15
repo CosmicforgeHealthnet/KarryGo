@@ -40,7 +40,11 @@ func TestCustomer360WithoutCommercialDataIsHonest(t *testing.T) {
 }
 
 // TestCustomer360ReportsFutureModulesAsUnimplemented keeps the view honest
-// about 8B-8H.
+// about the CRM sections that are still unbuilt.
+//
+// Tags/segments and interactions/tasks moved out as Sections 8B/8C built them, which is
+// the point of the map: a module claims availability only once something backs
+// it, so an empty list is never mistaken for "this customer has none".
 func TestCustomer360ReportsFutureModulesAsUnimplemented(t *testing.T) {
 	env := newTestEnv(t, allFlagsOn())
 	profile := env.seedProfile(t, businessA, "vs_a", customerSubject("cus_modules"))
@@ -48,13 +52,19 @@ func TestCustomer360ReportsFutureModulesAsUnimplemented(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, module := range []string{"tags", "segments", "interactions", "tasks", "loyalty", "campaigns", "corporate", "intelligence"} {
+	for _, module := range []string{"campaigns", "corporate"} {
 		state, present := view.Modules[module]
 		if !present {
 			t.Fatalf("module %s missing from the availability map", module)
 		}
 		if state != ModuleNotImplemented {
-			t.Fatalf("module %s reported %s while Section 8B-8H are unbuilt", module, state)
+			t.Fatalf("module %s reported %s while its own section composes it elsewhere", module, state)
+		}
+	}
+	// Sections 8B, 8C, 8D and 8H are built and say so.
+	for _, module := range []string{"tags", "segments", "interactions", "tasks", "loyalty", "intelligence"} {
+		if view.Modules[module] != ModuleAvailable {
+			t.Fatalf("module %s reported %s; Sections 8B/8C/8D/8H implement it", module, view.Modules[module])
 		}
 	}
 	if view.Capability.CategoryAffinity != ModuleNotImplemented || view.Capability.ItemAffinity != ModuleNotImplemented {

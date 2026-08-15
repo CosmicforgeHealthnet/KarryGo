@@ -33,14 +33,66 @@ type PrivacyRegistry struct {
 	handlers []PrivacyHandler
 }
 
-// NewPrivacyRegistry builds the Section 8A registry.
+// NewPrivacyRegistry builds the registry for the CRM domains that exist today.
+//
+// Sections 8A and 8B both appear here; the ordering is fixed alphabetically by
+// Register so a redaction is reproducible regardless of construction order.
 func NewPrivacyRegistry(s *Service) *PrivacyRegistry {
-	return &PrivacyRegistry{handlers: []PrivacyHandler{
+	registry := &PrivacyRegistry{handlers: []PrivacyHandler{
 		profilePrivacyHandler{service: s},
 		consentPrivacyHandler{service: s},
 		commercialPrivacyHandler{service: s},
 		identityLinkPrivacyHandler{service: s},
 	}}
+	// Section 8B: classification and audiences. Registered through the same
+	// port a future 8C/8D/8E package will use.
+	registry.Register(tagPrivacyHandler{service: s})
+	registry.Register(segmentPrivacyHandler{service: s})
+	registry.Register(interactionPrivacyHandler{service: s})
+	registry.Register(taskPrivacyHandler{service: s})
+	registry.Register(loyaltyPrivacyHandler{service: s})
+	registry.Register(campaignPrivacyHandler{service: s})
+	registry.Register(corporateContactPrivacyHandler{service: s})
+	registry.Register(intelligencePrivacyHandler{service: s})
+	registry.Register(completionPrivacyHandler{service: s})
+	return registry
+}
+
+type completionPrivacyHandler struct{ service *Service }
+
+func (completionPrivacyHandler) Domain() string                                         { return "section8_completion_projections" }
+func (completionPrivacyHandler) Restrict(context.Context, pgx.Tx, string, string) error { return nil }
+func (completionPrivacyHandler) MarketingSuppress(context.Context, pgx.Tx, string, string) error {
+	return nil
+}
+func (completionPrivacyHandler) Redact(ctx context.Context, tx pgx.Tx, businessID, profileID string) error {
+	for _, q := range []string{
+		`DELETE FROM crm_customer_order_fact_lines WHERE business_id=$1 AND profile_id=$2`,
+		`DELETE FROM crm_customer_category_affinities WHERE business_id=$1 AND profile_id=$2`,
+		`DELETE FROM crm_customer_item_affinities WHERE business_id=$1 AND profile_id=$2`,
+		`DELETE FROM crm_customer_service_recovery_projections WHERE business_id=$1 AND profile_id=$2`,
+		`DELETE FROM crm_customer_value_projections WHERE business_id=$1 AND profile_id=$2`,
+		`DELETE FROM crm_relationship_signals WHERE business_id=$1 AND profile_id=$2`,
+	} {
+		if _, err := tx.Exec(ctx, q, businessID, profileID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (completionPrivacyHandler) IdentityMerge(ctx context.Context, tx pgx.Tx, businessID, sourceProfileID, targetProfileID string) error {
+	if _, err := tx.Exec(ctx, `UPDATE crm_customer_order_fact_lines SET profile_id=$1 WHERE business_id=$2 AND profile_id=$3`, targetProfileID, businessID, sourceProfileID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE crm_customer_support_facts SET profile_id=$1 WHERE business_id=$2 AND profile_id=$3`, targetProfileID, businessID, sourceProfileID); err != nil {
+		return err
+	}
+	for _, q := range []string{`DELETE FROM crm_customer_category_affinities WHERE business_id=$1 AND profile_id=$2`, `DELETE FROM crm_customer_item_affinities WHERE business_id=$1 AND profile_id=$2`, `DELETE FROM crm_customer_service_recovery_projections WHERE business_id=$1 AND profile_id=$2`, `DELETE FROM crm_customer_value_projections WHERE business_id=$1 AND profile_id=$2`, `DELETE FROM crm_relationship_signals WHERE business_id=$1 AND profile_id=$2`} {
+		if _, err := tx.Exec(ctx, q, businessID, sourceProfileID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Register adds a handler. Later CRM packages call this from the composition
@@ -139,6 +191,20 @@ func (s *Service) ApplyPrivacy(ctx context.Context, tx pgx.Tx, actor Actor, prof
 		s.metrics.Inc("crm_privacy_updates_total", "action", string(in.Action), "matched", "false")
 		return s.recordPrivacyHistory(ctx, tx, actor, existingID, nil, in, "NONE", "NONE", "APPLIED", "NO_MATCHING_PROFILE")
 	}
+
+	// Privacy and identity merge share this profile-row lock discipline with
+	// final segment-generation certification. Whichever transaction obtains the
+	// lock first completes its full state change before the other can certify or
+	// mutate an audience, closing the post-sweep/pre-swap race across processes.
+	locked, err := scanProfile(tx.QueryRow(ctx, `SELECT `+profileCols+` FROM vendor_customer_profiles
+		WHERE business_id=$1 AND id=$2 FOR UPDATE`, actor.VendorID, profile.ID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errProfileNotFound()
+	}
+	if err != nil {
+		return err
+	}
+	profile = &locked
 
 	previousState := profile.PrivacyState
 	if err = s.runPrivacyHandlers(ctx, tx, actor, in.Action, profile); err != nil {

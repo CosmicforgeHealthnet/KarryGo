@@ -1,0 +1,602 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor CRM Loyalty API",
+    "version": "8.4.0",
+    "description": "Section 8D is a vendor-owned loyalty POINTS ledger. Points are integers. They are not money, not a currency, and not convertible: payment-wallet-service remains the sole monetary authority on the platform and nothing in this API reads, writes, or settles against a wallet. There is deliberately no public earn or redeem endpoint — the earning and redemption engines are service-internal primitives awaiting a trusted producer, and the only vendor-callable movements are a bounded, reason-carrying manual adjustment and a full reversal. No canonical customer PII is stored or returned; a customer is referenced only by their vendor-local CRM profile."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "x-feature-flags": [
+    "VENDOR_CRM_ENABLED",
+    "VENDOR_CRM_WRITES_ENABLED",
+    "VENDOR_CRM_LOYALTY_ENABLED",
+    "COMMERCE_GLOBAL_KILL_SWITCH"
+  ],
+  "x-authority-boundary": "Vendor Service owns the loyalty programme, accounts, points ledger, lots, expiry, reversal, and manual adjustments. payment-wallet-service owns all money. customer-service owns customer identity, canonical PII, privacy decisions, and identity merge. Section 8D emits no payment.*, wallet.*, refund.*, settlement.* or payout.* event and holds no currency, minor-unit amount, or wallet reference.",
+  "x-programme-state-contract": "DISABLED: configuration and reversal remain available; no earning, redemption, or manual adjustment. PAUSED: configuration, manual adjustment, and reversal remain available; no earning or redemption. ACTIVE: everything is available. Reversal is permitted in every state so a business that switches loyalty off can still correct an entry it posted while it was on.",
+  "x-expiry-contract": "Expiry is stamped onto a point lot when the credit is issued and is never recomputed. Changing the programme's expiry policy affects future credits only; points a customer already holds keep the window they were issued under, and an identity merge carries each lot's original expiry across unchanged. Points past their expiry are excluded from available_points immediately, whether or not the background sweeper has settled them yet, and every balance-changing command settles due expiry before it acts — a sweeper outage delays bookkeeping without ever letting an expired point be spent.",
+  "x-ledger-contract": "The ledger is append-only. There is no update or delete operation for a posted entry; corrections are made by posting a compensating REVERSAL entry that references the original. Each entry carries a per-account monotonic sequence and the balance that resulted, so history replays exactly. current_points always equals lifetime_credited_points minus lifetime_debited_points and always equals the sum of remaining points across the account's lots.",
+  "x-idempotency-contract": "Every command requires an Idempotency-Key header. The same key with the same request replays the stored response; the same key with a different request returns 409. The key is also recorded durably against the posted ledger entry, so exactly-once holds in PostgreSQL and does not depend on a cache surviving. Trusted producer credits are additionally deduplicated by source event reference.",
+  "x-privacy-contract": "A redacted customer's loyalty account becomes non-actionable and is suppressed from Customer 360 and every ordinary loyalty read. Ledger rows are retained: they contain integer point movements and vendor-local references only, with no personal data to erase, and they are the evidence that a balance was legitimately granted and spent. Marketing suppression and processing restriction never confiscate points — holding a balance is not marketing consent, and withdrawing consent is not forfeiture.",
+  "x-scope-contract": "A points balance belongs to the business, not to a branch. A branch-scoped actor may read or adjust loyalty only for a customer who has a relationship at one of their branches; a customer outside that reach is reported as not found rather than forbidden, so loyalty lookups cannot be used to discover that another branch's customers exist.",
+  "x-out-of-scope": "Section 8D implements no loyalty tiers, reward catalogue, voucher or coupon engine, cashback, gift cards, wallet conversion, cash-out, campaign targeting, or automatic order integration. Loyalty is also deliberately absent from the Section 8B segmentation field registry, which remains at 22 fields.",
+  "paths": {
+    "/crm/loyalty/program": {
+      "get": {
+        "operationId": "getLoyaltyProgram",
+        "summary": "Read the loyalty programme configuration",
+        "description": "Returns the programme. A business that has never configured one receives the unwritten defaults at version 0 with configured=false; this read never creates a row.",
+        "tags": ["Loyalty programme"],
+        "x-permission": "vendor.crm.loyalty.read",
+        "responses": {
+          "200": {
+            "description": "The programme configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/LoyaltyProgram" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "patch": {
+        "operationId": "updateLoyaltyProgram",
+        "summary": "Update the loyalty programme configuration",
+        "description": "Partial update under optimistic concurrency. expected_version must be 0 for the first write and the current version thereafter; a stale version returns LOYALTY_VERSION_CONFLICT rather than overwriting. Changing the expiry policy never rewrites the expiry of points already issued.",
+        "tags": ["Loyalty programme"],
+        "x-permission": "vendor.crm.loyalty.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateLoyaltyProgramRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated programme.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/LoyaltyProgram" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/customers/{profileId}/loyalty": {
+      "get": {
+        "operationId": "getCustomerLoyalty",
+        "summary": "Read a customer's loyalty balance",
+        "description": "Returns the balance summary. A customer who has never held points is reported as NOT_ENROLLED rather than as a zero balance, and no account is created by reading. available_points already excludes anything past its expiry.",
+        "tags": ["Customer loyalty"],
+        "x-permission": "vendor.crm.loyalty.read",
+        "parameters": [{ "$ref": "#/components/parameters/ProfileId" }],
+        "responses": {
+          "200": {
+            "description": "The loyalty summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/LoyaltySummary" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/crm/customers/{profileId}/loyalty/entries": {
+      "get": {
+        "operationId": "listCustomerLoyaltyEntries",
+        "summary": "Read a customer's points history",
+        "description": "Paginated ledger, newest first (created_at DESC, sequence DESC). Ordering is fixed and there is no caller-controlled sort. An entry that has since been reversed carries reversed_by_entry_ref.",
+        "tags": ["Customer loyalty"],
+        "x-permission": "vendor.crm.loyalty.read",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProfileId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" },
+          { "$ref": "#/components/parameters/EntryTypeFilter" },
+          { "$ref": "#/components/parameters/CreatedFrom" },
+          { "$ref": "#/components/parameters/CreatedTo" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of ledger entries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/LoyaltyEntryPage" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/customers/{profileId}/loyalty/adjustments": {
+      "post": {
+        "operationId": "adjustCustomerLoyalty",
+        "summary": "Manually credit or debit a customer's points",
+        "description": "Direction carries the sign; points is always positive. The amount is bounded by the programme's manual_adjustment_limit and a reason is mandatory. The reason is recorded in the audit log only — it never appears in the ledger row, the emitted event, or any log line. A manual credit may enrol a customer who has no account; a manual debit may not, and may not overdraw.",
+        "tags": ["Customer loyalty"],
+        "x-permission": "vendor.crm.loyalty.adjust",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProfileId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AdjustLoyaltyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The posted entry and the resulting balance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/AdjustLoyaltyResponse" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/loyalty/entries/{entryId}/reverse": {
+      "post": {
+        "operationId": "reverseLoyaltyEntry",
+        "summary": "Reverse a posted ledger entry",
+        "description": "Posts a compensating REVERSAL entry; the original is never edited or deleted. Exactly one reversal can exist per entry, enforced by a unique index. Only EARN, REDEEM, ADJUSTMENT_CREDIT and ADJUSTMENT_DEBIT are reversible. Reversing a credit requires its lot to be untouched — if the points have been spent or have expired, the reversal is refused with LOYALTY_REVERSAL_POINTS_ALREADY_CONSUMED rather than silently taking points from an unrelated issuance. Reversing a debit restores the exact points to the exact lots that funded it, keeping their original expiry; anything restored past its expiry is expired again in the same transaction rather than becoming freshly spendable.",
+        "tags": ["Customer loyalty"],
+        "x-permission": "vendor.crm.loyalty.reverse",
+        "parameters": [
+          { "$ref": "#/components/parameters/EntryId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReverseLoyaltyEntryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The posted reversal entry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/LoyaltyEntry" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Vendor staff access token. Business and branch scope are resolved server-side from the session and are never read from the request."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "ProfileId": {
+        "name": "profileId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "EntryId": {
+        "name": "entryId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      },
+      "EntryTypeFilter": {
+        "name": "entry_type",
+        "in": "query",
+        "description": "Restrict the page to one ledger entry type.",
+        "schema": { "$ref": "#/components/schemas/LoyaltyEntryType" }
+      },
+      "CreatedFrom": {
+        "name": "created_from",
+        "in": "query",
+        "schema": { "type": "string", "format": "date-time" }
+      },
+      "CreatedTo": {
+        "name": "created_to",
+        "in": "query",
+        "schema": { "type": "string", "format": "date-time" }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Malformed request or missing Idempotency-Key.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Forbidden": {
+        "description": "The caller does not hold the required permission at a covering scope.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "NotFound": {
+        "description": "The customer, account or entry does not exist, or is outside the caller's reach. The two cases are deliberately indistinguishable.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Conflict": {
+        "description": "A version conflict, an idempotency-key conflict, a programme-state refusal, an insufficient balance, or an entry that cannot be reversed.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "ValidationFailed": {
+        "description": "Field-level validation failure.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "RateLimited": {
+        "description": "Too many loyalty commands from this business and staff member.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Unavailable": {
+        "description": "Loyalty writes are disabled by feature flag or the commerce kill switch.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      }
+    },
+    "schemas": {
+      "LoyaltyProgramStatus": {
+        "type": "string",
+        "enum": ["DISABLED", "ACTIVE", "PAUSED"]
+      },
+      "LoyaltyExpiryPolicy": {
+        "type": "string",
+        "enum": ["NEVER", "FIXED_DAYS"]
+      },
+      "LoyaltyAccountStatus": {
+        "type": "string",
+        "enum": ["ACTIVE", "MERGED", "REDACTED"]
+      },
+      "LoyaltyEnrollmentState": {
+        "type": "string",
+        "enum": ["NOT_ENROLLED", "ENROLLED"]
+      },
+      "LoyaltyEntryType": {
+        "type": "string",
+        "description": "EARN and REDEEM are posted by service-internal primitives for a future trusted producer; EXPIRE by the programme's own expiry rule; MERGE_IN and MERGE_OUT by an authoritative identity merge. Only EARN, REDEEM, ADJUSTMENT_CREDIT and ADJUSTMENT_DEBIT are reversible.",
+        "enum": [
+          "EARN",
+          "REDEEM",
+          "EXPIRE",
+          "ADJUSTMENT_CREDIT",
+          "ADJUSTMENT_DEBIT",
+          "REVERSAL",
+          "MERGE_IN",
+          "MERGE_OUT"
+        ]
+      },
+      "LoyaltySourceType": {
+        "type": "string",
+        "enum": ["MANUAL_ADJUSTMENT", "ORDER", "SYSTEM_EXPIRY", "REVERSAL", "IDENTITY_MERGE", "EXTERNAL"]
+      },
+      "LoyaltyAdjustmentDirection": {
+        "type": "string",
+        "enum": ["CREDIT", "DEBIT"]
+      },
+      "LoyaltyProgram": {
+        "type": "object",
+        "required": [
+          "status",
+          "points_name_singular",
+          "points_name_plural",
+          "expiry_policy",
+          "minimum_redemption_points",
+          "redemption_increment_points",
+          "manual_adjustment_limit",
+          "configured",
+          "version"
+        ],
+        "properties": {
+          "status": { "$ref": "#/components/schemas/LoyaltyProgramStatus" },
+          "points_name_singular": { "type": "string", "maxLength": 40 },
+          "points_name_plural": { "type": "string", "maxLength": 40 },
+          "expiry_policy": { "$ref": "#/components/schemas/LoyaltyExpiryPolicy" },
+          "expiry_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650,
+            "description": "Required when expiry_policy is FIXED_DAYS, absent when it is NEVER."
+          },
+          "minimum_redemption_points": { "type": "integer", "format": "int64", "minimum": 0, "maximum": 1000000000 },
+          "redemption_increment_points": { "type": "integer", "format": "int64", "minimum": 1, "maximum": 1000000000 },
+          "manual_adjustment_limit": { "type": "integer", "format": "int64", "minimum": 1, "maximum": 1000000000 },
+          "configured": {
+            "type": "boolean",
+            "description": "False for the unwritten defaults a business has before it first configures loyalty."
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "version": { "type": "integer", "format": "int64", "minimum": 0 }
+        }
+      },
+      "UpdateLoyaltyProgramRequest": {
+        "type": "object",
+        "required": ["expected_version"],
+        "properties": {
+          "status": { "$ref": "#/components/schemas/LoyaltyProgramStatus" },
+          "points_name_singular": { "type": "string", "maxLength": 40 },
+          "points_name_plural": { "type": "string", "maxLength": 40 },
+          "expiry_policy": { "$ref": "#/components/schemas/LoyaltyExpiryPolicy" },
+          "expiry_days": { "type": "integer", "minimum": 1, "maximum": 3650 },
+          "clear_expiry_days": {
+            "type": "boolean",
+            "description": "Send with expiry_policy=NEVER to drop an existing window. NEVER with a window, or FIXED_DAYS without one, is rejected as LOYALTY_INVALID_EXPIRY_POLICY."
+          },
+          "minimum_redemption_points": { "type": "integer", "format": "int64", "minimum": 0, "maximum": 1000000000 },
+          "redemption_increment_points": { "type": "integer", "format": "int64", "minimum": 1, "maximum": 1000000000 },
+          "manual_adjustment_limit": { "type": "integer", "format": "int64", "minimum": 1, "maximum": 1000000000 },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "0 for the first write; the current version thereafter."
+          }
+        }
+      },
+      "LoyaltySummary": {
+        "type": "object",
+        "required": [
+          "program_status",
+          "enrollment",
+          "points_name_singular",
+          "points_name_plural",
+          "available_points",
+          "lifetime_credited_points",
+          "lifetime_debited_points",
+          "pending_expiry_points"
+        ],
+        "properties": {
+          "program_status": { "$ref": "#/components/schemas/LoyaltyProgramStatus" },
+          "enrollment": { "$ref": "#/components/schemas/LoyaltyEnrollmentState" },
+          "account_status": { "$ref": "#/components/schemas/LoyaltyAccountStatus" },
+          "points_name_singular": { "type": "string" },
+          "points_name_plural": { "type": "string" },
+          "available_points": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "The spendable balance. Excludes anything past its expiry whether or not the sweeper has settled it."
+          },
+          "lifetime_credited_points": { "type": "integer", "format": "int64", "minimum": 0 },
+          "lifetime_debited_points": { "type": "integer", "format": "int64", "minimum": 0 },
+          "pending_expiry_points": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Already past expiry and unspendable, awaiting settlement. Surfaced so a balance about to drop can be explained rather than appearing to lose points silently."
+          },
+          "next_expiry_at": { "type": "string", "format": "date-time" },
+          "points_expiring_next": { "type": "integer", "format": "int64", "minimum": 0 },
+          "version": { "type": "integer", "format": "int64" }
+        }
+      },
+      "LoyaltyEntry": {
+        "type": "object",
+        "description": "One immutable ledger row. Command keys and producer source references are deliberately not exposed.",
+        "required": ["entry_ref", "sequence", "entry_type", "delta_points", "balance_after", "source_type", "created_at"],
+        "properties": {
+          "entry_ref": { "type": "string" },
+          "sequence": { "type": "integer", "format": "int64", "minimum": 1 },
+          "entry_type": { "$ref": "#/components/schemas/LoyaltyEntryType" },
+          "delta_points": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Signed and never zero. Positive for credits, negative for debits and expiry."
+          },
+          "balance_after": { "type": "integer", "format": "int64", "minimum": 0 },
+          "source_type": { "$ref": "#/components/schemas/LoyaltySourceType" },
+          "reason_code": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "A coarse machine code such as MANUAL_CREDIT or POINTS_EXPIRED. The operator's free-text reason is never carried here."
+          },
+          "reverses_entry_ref": { "type": "string" },
+          "reversed_by_entry_ref": { "type": "string" },
+          "created_by_staff_ref": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "LoyaltyEntryPage": {
+        "type": "object",
+        "required": ["entries", "has_more", "limit", "offset"],
+        "properties": {
+          "entries": { "type": "array", "items": { "$ref": "#/components/schemas/LoyaltyEntry" } },
+          "has_more": { "type": "boolean" },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" }
+        }
+      },
+      "AdjustLoyaltyRequest": {
+        "type": "object",
+        "required": ["direction", "points", "reason"],
+        "properties": {
+          "direction": { "$ref": "#/components/schemas/LoyaltyAdjustmentDirection" },
+          "points": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Always positive. Direction carries the sign; a negative value is rejected. Bounded by the programme's manual_adjustment_limit."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Mandatory plain-text justification. Recorded in the audit log only."
+          }
+        }
+      },
+      "AdjustLoyaltyResponse": {
+        "type": "object",
+        "required": ["entry", "summary"],
+        "properties": {
+          "entry": { "$ref": "#/components/schemas/LoyaltyEntry" },
+          "summary": { "$ref": "#/components/schemas/LoyaltySummary" }
+        }
+      },
+      "ReverseLoyaltyEntryRequest": {
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Mandatory plain-text justification. Recorded in the audit log only. Reversal is always full; partial reversal is not supported."
+          }
+        }
+      },
+      "LoyaltyErrorCode": {
+        "type": "string",
+        "enum": [
+          "LOYALTY_PROGRAM_DISABLED",
+          "LOYALTY_PROGRAM_PAUSED",
+          "LOYALTY_ACCOUNT_NOT_FOUND",
+          "LOYALTY_ACCOUNT_NOT_ACTIONABLE",
+          "LOYALTY_INSUFFICIENT_POINTS",
+          "LOYALTY_INVALID_POINTS",
+          "LOYALTY_ADJUSTMENT_LIMIT_EXCEEDED",
+          "LOYALTY_INVALID_EXPIRY_POLICY",
+          "LOYALTY_VERSION_CONFLICT",
+          "LOYALTY_IDEMPOTENCY_CONFLICT",
+          "LOYALTY_ENTRY_NOT_FOUND",
+          "LOYALTY_ENTRY_NOT_REVERSIBLE",
+          "LOYALTY_ENTRY_ALREADY_REVERSED",
+          "LOYALTY_REVERSAL_POINTS_ALREADY_CONSUMED",
+          "LOYALTY_CUSTOMER_REDACTED",
+          "LOYALTY_CUSTOMER_MERGED"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "error": {
+            "type": "object",
+            "required": ["code", "message", "request_id"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": {
+                "type": "string",
+                "description": "Safe for display. Never contains database or internal error text."
+              },
+              "request_id": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "code": { "$ref": "#/components/schemas/LoyaltyErrorCode" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

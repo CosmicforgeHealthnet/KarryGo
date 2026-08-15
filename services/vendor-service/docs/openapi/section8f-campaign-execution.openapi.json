@@ -1,0 +1,44 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Vendor CRM Campaign Execution", "version": "8F.1"},
+  "servers": [{"url": "/"}],
+  "paths": {
+    "/api/v1/vendor/crm/campaigns/{campaignId}/runs": {
+      "parameters": [{"$ref": "#/components/parameters/CampaignId"}],
+      "post": {"operationId": "createCampaignRun", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateRun"}}}}, "responses": {"201": {"description": "Run created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RunEnvelope"}}}}, "409": {"$ref": "#/components/responses/Error"}, "422": {"$ref": "#/components/responses/Error"}}},
+      "get": {"operationId": "listCampaignRuns", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Limit"}, {"$ref": "#/components/parameters/Offset"}], "responses": {"200": {"description": "Run page"}}}
+    },
+    "/api/v1/vendor/crm/campaigns/{campaignId}/runs/{runId}": {
+      "parameters": [{"$ref": "#/components/parameters/CampaignId"}, {"$ref": "#/components/parameters/RunId"}],
+      "get": {"operationId": "getCampaignRun", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Run", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RunEnvelope"}}}}, "404": {"$ref": "#/components/responses/Error"}}}
+    },
+    "/api/v1/vendor/crm/campaigns/{campaignId}/runs/{runId}/cancel": {"parameters": [{"$ref": "#/components/parameters/CampaignId"}, {"$ref": "#/components/parameters/RunId"}], "post": {"operationId": "cancelCampaignRun", "$ref": "#/components/pathItems/RunMutation"}},
+    "/api/v1/vendor/crm/campaigns/{campaignId}/runs/{runId}/pause": {"parameters": [{"$ref": "#/components/parameters/CampaignId"}, {"$ref": "#/components/parameters/RunId"}], "post": {"operationId": "pauseCampaignRun", "$ref": "#/components/pathItems/RunMutation"}},
+    "/api/v1/vendor/crm/campaigns/{campaignId}/runs/{runId}/resume": {"parameters": [{"$ref": "#/components/parameters/CampaignId"}, {"$ref": "#/components/parameters/RunId"}], "post": {"operationId": "resumeCampaignRun", "$ref": "#/components/pathItems/RunMutation"}},
+    "/api/v1/vendor/crm/campaigns/{campaignId}/runs/{runId}/deliveries": {"parameters": [{"$ref": "#/components/parameters/CampaignId"}, {"$ref": "#/components/parameters/RunId"}], "get": {"operationId": "listCampaignDeliveries", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Limit"}, {"$ref": "#/components/parameters/Offset"}], "responses": {"200": {"description": "Privacy-safe delivery page"}}}},
+    "/api/v1/vendor/crm/campaigns/{campaignId}/runs/{runId}/deliveries/{deliveryId}": {"parameters": [{"$ref": "#/components/parameters/CampaignId"}, {"$ref": "#/components/parameters/RunId"}, {"$ref": "#/components/parameters/DeliveryId"}], "get": {"operationId": "getCampaignDelivery", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Privacy-safe delivery", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeliveryEnvelope"}}}}, "404": {"$ref": "#/components/responses/Error"}}}},
+    "/api/v1/vendor/crm/campaigns/{campaignId}/runs/{runId}/deliveries/{deliveryId}/history": {"parameters": [{"$ref": "#/components/parameters/CampaignId"}, {"$ref": "#/components/parameters/RunId"}, {"$ref": "#/components/parameters/DeliveryId"}], "get": {"operationId": "getCampaignDeliveryHistory", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Limit"}, {"$ref": "#/components/parameters/Offset"}], "responses": {"200": {"description": "Append-only transition history"}}}},
+    "/internal/vendor/v1/crm/campaign-delivery-events": {"post": {"operationId": "ingestCampaignDeliveryEvent", "security": [{"serviceHmacV2": []}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeliveryEvent"}}}}, "responses": {"200": {"description": "Deduplicated event result"}, "401": {"$ref": "#/components/responses/Error"}, "403": {"$ref": "#/components/responses/Error"}, "409": {"$ref": "#/components/responses/Error"}}}}
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}, "serviceHmacV2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 with service name, timestamp and single-use nonce"}},
+    "parameters": {
+      "CampaignId": {"name": "campaignId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "RunId": {"name": "runId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "DeliveryId": {"name": "deliveryId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "maxLength": 200}},
+      "Limit": {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100}},
+      "Offset": {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0}}
+    },
+    "pathItems": {"RunMutation": {"security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["expected_version"], "properties": {"expected_version": {"type": "integer", "minimum": 1}}, "additionalProperties": false}}}}, "responses": {"200": {"description": "Updated run"}, "409": {"$ref": "#/components/responses/Error"}}}},
+    "responses": {"Error": {"description": "Platform error envelope"}},
+    "schemas": {
+      "CreateRun": {"type": "object", "required": ["snapshot_ref", "mode", "expected_version"], "properties": {"snapshot_ref": {"type": "string"}, "mode": {"type": "string", "enum": ["SEND_NOW", "SCHEDULED"]}, "scheduled_for": {"type": "string", "format": "date-time"}, "expected_version": {"type": "integer", "minimum": 1}, "template_key": {"type": "string", "maxLength": 120}, "locale": {"type": "string", "maxLength": 16}, "title": {"type": "string", "maxLength": 200}, "body": {"type": "string", "maxLength": 4000}}, "additionalProperties": false},
+      "Run": {"type": "object", "required": ["run_ref", "campaign_ref", "snapshot_ref", "status", "version"], "properties": {"run_ref": {"type": "string"}, "campaign_ref": {"type": "string"}, "campaign_version_ref": {"type": "string"}, "snapshot_ref": {"type": "string"}, "status": {"type": "string", "enum": ["SCHEDULED", "QUEUED", "RUNNING", "PAUSED", "COMPLETED", "COMPLETED_WITH_FAILURES", "CANCELLED", "FAILED"]}, "scheduled_for": {"type": "string", "format": "date-time"}, "total_deliveries": {"type": "integer"}, "handed_off_count": {"type": "integer"}, "delivered_count": {"type": "integer"}, "suppressed_count": {"type": "integer"}, "failed_count": {"type": "integer"}, "version": {"type": "integer"}}},
+      "Delivery": {"type": "object", "description": "Contains no contact destination", "properties": {"delivery_ref": {"type": "string"}, "run_ref": {"type": "string"}, "target_ref": {"type": "string"}, "channel": {"type": "string", "enum": ["EMAIL", "PUSH", "IN_APP", "SMS"]}, "status": {"type": "string", "enum": ["PENDING", "DEFERRED_QUIET_HOURS", "SUPPRESSED", "HANDED_OFF", "ACCEPTED", "DELIVERED", "FAILED_TRANSIENT", "FAILED_PERMANENT", "CANCELLED"]}, "suppression_reason": {"type": "string"}, "attribution_ref": {"type": "string"}, "consent_decision_at_handoff": {"type": "string", "enum": ["ALLOW", "DENY", "UNKNOWN"]}, "consent_eligible_at_handoff": {"type": "boolean"}, "consent_checked_at": {"type": "string", "format": "date-time"}, "consent_as_of": {"type": "string", "format": "date-time"}, "consent_source_version": {"type": "integer"}, "policy_checked_at": {"type": "string", "format": "date-time"}}},
+      "DeliveryEvent": {"type": "object", "required": ["event_id", "delivery_ref", "status", "source_version", "occurred_at"], "properties": {"event_id": {"type": "string"}, "delivery_ref": {"type": "string"}, "status": {"type": "string", "enum": ["HANDED_OFF", "ACCEPTED", "DELIVERED", "FAILED_TRANSIENT", "FAILED_PERMANENT"]}, "reason_code": {"type": "string"}, "source_version": {"type": "integer", "minimum": 1}, "occurred_at": {"type": "string", "format": "date-time"}}, "additionalProperties": false},
+      "RunEnvelope": {"type": "object", "properties": {"success": {"type": "boolean"}, "data": {"$ref": "#/components/schemas/Run"}}},
+      "DeliveryEnvelope": {"type": "object", "properties": {"success": {"type": "boolean"}, "data": {"$ref": "#/components/schemas/Delivery"}}}
+    }
+  }
+}

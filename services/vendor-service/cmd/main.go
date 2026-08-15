@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
@@ -21,7 +23,12 @@ import (
 	vendorauthrepositories "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
 
+	cloudkitchen "cosmicforge/logistics/services/vendor-service/internal/features/cloudkitchen"
 	crm "cosmicforge/logistics/services/vendor-service/internal/features/crm"
+	food "cosmicforge/logistics/services/vendor-service/internal/features/food"
+	pastry "cosmicforge/logistics/services/vendor-service/internal/features/pastry"
+	production "cosmicforge/logistics/services/vendor-service/internal/features/production"
+	shop "cosmicforge/logistics/services/vendor-service/internal/features/shop"
 	staffhttp "cosmicforge/logistics/services/vendor-service/internal/features/staff/http"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
@@ -179,12 +186,24 @@ func main() {
 	// the read surface still works and simply reports data as unavailable
 	// rather than inventing it.
 	crmFlags := crm.Flags{
-		CRMEnabled:                cfg.Flags.VendorCRMEnabled,
-		WritesEnabled:             cfg.Flags.VendorCRMWritesEnabled,
-		CustomerProjectionEnabled: cfg.Flags.VendorCRMCustomerProjectionEnabled,
-		ConsentIntegrationEnabled: cfg.Flags.VendorCRMConsentIntegrationEnabled,
-		PrivacyIntegrationEnabled: cfg.Flags.VendorCRMPrivacyIntegrationEnabled,
-		CommerceKillSwitch:        cfg.Flags.CommerceGlobalKillSwitch,
+		CRMEnabled:                    cfg.Flags.VendorCRMEnabled,
+		WritesEnabled:                 cfg.Flags.VendorCRMWritesEnabled,
+		CustomerProjectionEnabled:     cfg.Flags.VendorCRMCustomerProjectionEnabled,
+		ConsentIntegrationEnabled:     cfg.Flags.VendorCRMConsentIntegrationEnabled,
+		PrivacyIntegrationEnabled:     cfg.Flags.VendorCRMPrivacyIntegrationEnabled,
+		SegmentationEnabled:           cfg.Flags.VendorCRMSegmentationEnabled,
+		SegmentMaterializationEnabled: cfg.Flags.VendorCRMSegmentMaterializationEnabled,
+		InteractionsEnabled:           cfg.Flags.VendorCRMInteractionsEnabled,
+		TasksEnabled:                  cfg.Flags.VendorCRMTasksEnabled,
+		LoyaltyEnabled:                cfg.Flags.VendorCRMLoyaltyEnabled,
+		CampaignsEnabled:              cfg.Flags.VendorCRMCampaignsEnabled,
+		CampaignPreparationEnabled:    cfg.Flags.VendorCRMCampaignPreparationEnabled,
+		CampaignExecutionEnabled:      cfg.Flags.VendorCRMCampaignExecutionEnabled,
+		CorporateEnabled:              cfg.Flags.VendorCRMCorporateEnabled,
+		IntelligenceEnabled:           cfg.Flags.VendorCRMIntelligenceEnabled,
+		IntelligenceWorkerEnabled:     cfg.Flags.VendorCRMIntelligenceWorkerEnabled,
+		ExportsEnabled:                cfg.Flags.VendorCRMExportsEnabled,
+		CommerceKillSwitch:            cfg.Flags.CommerceGlobalKillSwitch,
 	}
 	crmService := crm.NewService(crm.Options{
 		DB:     db,
@@ -192,9 +211,87 @@ func main() {
 		Audit:  crmAuditAdapter{recorder: auditRecorder},
 		Events: events.NewDomainPublisher(outboxRepo),
 		Flags:  crmFlags,
+		Notifier: func() notifications.Notifier {
+			if cfg.NotificationURL == "" || cfg.NotificationSecret == "" {
+				return nil
+			}
+			return notificationClient
+		}(),
+		// Section 8H. A nil artifact store disables export generation and
+		// download entirely rather than falling back to local files: the
+		// alternative to a private store is no download at all.
+		Artifacts: func() crm.ArtifactStore {
+			if !cfg.Flags.VendorCRMExportsEnabled || cfg.MediaURL == "" || cfg.MediaSecret == "" {
+				return nil
+			}
+			return mediaintegration.NewArtifactStore(cfg.MediaURL, cfg.MediaSecret,
+				cfg.InternalServiceCallTimeout, 5*time.Minute)
+		}(),
+		// The same Section 5 step-up mechanism the IAM and onboarding surfaces
+		// use. A nil consumer refuses export creation and download rather than
+		// skipping the check.
+		StepUp: authService,
 	})
 	crmHandler := crm.NewHandler(crmService)
 	crmInternalHandler := crm.NewInternalHandler(crmService)
+	// Section 8B commands reuse the same Idempotency-Key store as Sections 6/7,
+	// so a retried bulk tag or segment creation replays rather than repeats.
+	crmSegmentationHandler := crm.NewSegmentationHandler(crmService, idempotencyStore)
+	crmActivityHandler := crm.NewActivityHandler(crmService, idempotencyStore, limiter)
+	crmLoyaltyHandler := crm.NewLoyaltyHandler(crmService, idempotencyStore, limiter)
+	crmCampaignHandler := crm.NewCampaignHandler(crmService, idempotencyStore, limiter)
+	crmCorporateHandler := crm.NewCorporateHandler(crmService, idempotencyStore, limiter)
+	crmIntelligenceHandler := crm.NewIntelligenceHandler(crmService, idempotencyStore)
+	crmExportHandler := crm.NewExportHandler(crmService, idempotencyStore)
+
+	// Section 9A food catalogue. Media validation reuses the same private-API
+	// client Section 7 uses for onboarding documents; with no media credentials
+	// configured the service refuses to attach a reference rather than storing
+	// an unverified one.
+	foodFlags := food.Flags{
+		CatalogueEnabled:   cfg.Flags.CommerceFoodEnabled,
+		WritesEnabled:      cfg.Flags.VendorFoodCatalogueWritesEnabled,
+		CommerceKillSwitch: cfg.Flags.CommerceGlobalKillSwitch,
+	}
+	foodService := food.NewService(food.Options{
+		DB:     db,
+		Scopes: foodScopeAdapter{evaluator: evaluator},
+		Audit:  foodAuditAdapter{recorder: auditRecorder},
+		Events: events.NewDomainPublisher(outboxRepo),
+		Flags:  foodFlags,
+		Media: func() food.MediaAuthority {
+			if cfg.MediaURL == "" || cfg.MediaSecret == "" {
+				return nil
+			}
+			return foodMediaAdapter{client: mediaintegration.NewClient(cfg.MediaURL, cfg.MediaSecret, cfg.InternalServiceCallTimeout)}
+		}(),
+	})
+	// Section 9A commands reuse the same Idempotency-Key store as Sections 6/7/8.
+	foodHandler := food.NewHandler(foodService, idempotencyStore)
+	productionFlags := production.Flags{ProductionEnabled: cfg.Flags.CommerceFoodEnabled, WritesEnabled: cfg.Flags.VendorFoodCatalogueWritesEnabled, CommerceKillSwitch: cfg.Flags.CommerceGlobalKillSwitch}
+	productionService := production.NewService(production.Options{DB: db, Scopes: productionScopeAdapter{evaluator: evaluator}, Audit: productionAuditAdapter{recorder: auditRecorder}, Events: events.NewDomainPublisher(outboxRepo), Flags: productionFlags})
+	productionHandler := production.NewHandler(productionService).UseIdempotency(idempotencyStore)
+	cloudKitchenService := cloudkitchen.NewService(db, productionService)
+	cloudKitchenHandler := cloudkitchen.NewHandler(cloudKitchenService).UseIdempotency(idempotencyStore)
+	pastryService := pastry.NewService(db, productionService)
+	pastryHandler := pastry.NewHandler(pastryService, authService).UseIdempotency(idempotencyStore)
+	shopFlags := shop.Flags{
+		ShopEnabled:        cfg.Flags.CommerceShopEnabled,
+		WritesEnabled:      cfg.Flags.VendorShopCatalogueWritesEnabled,
+		CommerceKillSwitch: cfg.Flags.CommerceGlobalKillSwitch,
+	}
+	shopService := shop.NewService(shop.Options{
+		DB: db, Scopes: shopScopeAdapter{evaluator: evaluator},
+		Audit: shopAuditAdapter{recorder: auditRecorder}, Events: events.NewDomainPublisher(outboxRepo),
+		Flags: shopFlags,
+		Media: func() shop.MediaAuthority {
+			if cfg.MediaURL == "" || cfg.MediaSecret == "" {
+				return nil
+			}
+			return shopMediaAdapter{client: mediaintegration.NewClient(cfg.MediaURL, cfg.MediaSecret, cfg.InternalServiceCallTimeout)}
+		}(),
+	})
+	shopHandler := shop.NewHandler(shopService, idempotencyStore)
 
 	accessSigner := sharedauth.NewTokenSigner(cfg.Auth.AccessTokenSecret)
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
@@ -217,6 +314,192 @@ func main() {
 			return nil
 		})
 	}
+	if cfg.Flags.CommerceFulfilmentWorkersEnabled && cfg.Flags.CommerceShopEnabled {
+		inventoryExpiryWorker := jobs.Job{Name: "shop-inventory-reservation-expiry", Interval: 30 * time.Second, Pass: func(runCtx context.Context) error {
+			if _, err := shopService.ReconcileExpiredReservations(runCtx, 200); err != nil {
+				return err
+			}
+			_, err := shopService.ReconcileExpiredLots(runCtx, 200)
+			return err
+		}}
+		inventoryAlertWorker := jobs.Job{Name: "shop-inventory-alerts", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+			_, err := shopService.GenerateInventoryAlerts(runCtx, 200)
+			return err
+		}}
+		inventoryBulkWorker := jobs.Job{Name: "shop-inventory-bulk-operations", Interval: 15 * time.Second, Pass: func(runCtx context.Context) error {
+			_, err := shopService.RunBulkOperationPass(runCtx, 10)
+			return err
+		}}
+		workers = append(workers,
+			func(runCtx context.Context) error {
+				inventoryExpiryWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+				return nil
+			},
+			func(runCtx context.Context) error {
+				inventoryAlertWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+				return nil
+			},
+			func(runCtx context.Context) error {
+				inventoryBulkWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+				return nil
+			},
+		)
+	}
+	if crmFlags.SegmentationEnabled && crmFlags.SegmentMaterializationEnabled {
+		// The segment materializer claims due evaluations under a lease, so
+		// running several instances is safe: SKIP LOCKED means two workers never
+		// evaluate the same segment, and a worker that dies simply lets its
+		// lease lapse for another to pick the run up.
+		workerID := "vendor-service-segment-materializer-" + uuid.NewString()
+		materializeJob := jobs.Job{Name: "crm-segment-materializer", Interval: 10 * time.Second, Pass: func(runCtx context.Context) error {
+			_, err := crmService.RunMaterializationPass(runCtx, workerID, 5)
+			if depth, depthErr := crmService.StaleSegmentBacklog(runCtx); depthErr == nil {
+				logging.Notice("crm_metrics", `{"crm_segment_materialization_queue_depth":%d}`, depth)
+			}
+			return err
+		}}
+		workers = append(workers, func(runCtx context.Context) error {
+			materializeJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+
+	if crmFlags.LoyaltyEnabled {
+		// The loyalty expiry sweeper needs no queue table and no lease: a lot
+		// with points left and a past expiry IS the durable job, and it stays
+		// due until a committed transaction settles it. Several instances are
+		// safe (SKIP LOCKED on the account row), a crash mid-batch simply
+		// leaves the work due, and an outage delays bookkeeping without ever
+		// letting an expired point be spent — every balance command settles
+		// expiry itself first.
+		loyaltyExpiryJob := jobs.Job{Name: "crm-loyalty-expiry", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+			_, err := crmService.RunLoyaltyExpiryPass(runCtx, crm.LoyaltyExpiryBatchSize)
+			if due, dueErr := crmService.DueExpiryLotCount(runCtx); dueErr == nil {
+				logging.Notice("crm_metrics", `{"crm_loyalty_expiration_due_lots":%d}`, due)
+			}
+			return err
+		}}
+		workers = append(workers, func(runCtx context.Context) error {
+			loyaltyExpiryJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+
+	if crmFlags.CampaignsEnabled && crmFlags.CampaignPreparationEnabled {
+		// The audience preparer claims due snapshots under a lease, so running
+		// several instances is safe: SKIP LOCKED means two workers never build
+		// the same audience, and a worker that dies simply lets its lease lapse
+		// for another to adopt. It prepares audiences and nothing else — it
+		// never contacts notification-service, because Section 8E does not
+		// deliver anything.
+		workerID := "vendor-service-campaign-preparer-" + uuid.NewString()
+		prepareJob := jobs.Job{Name: "crm-campaign-preparer", Interval: 10 * time.Second, Pass: func(runCtx context.Context) error {
+			_, err := crmService.RunCampaignPreparationPass(runCtx, workerID, 5)
+			if depth, depthErr := crmService.CampaignPreparationBacklog(runCtx); depthErr == nil {
+				logging.Notice("crm_metrics", `{"crm_campaign_preparation_queue_depth":%d}`, depth)
+			}
+			return err
+		}}
+		workers = append(workers, func(runCtx context.Context) error {
+			prepareJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+	if crmFlags.IntelligenceEnabled && crmFlags.IntelligenceWorkerEnabled {
+		// The materializer claims evaluations under a lease, so running several
+		// instances is safe. It builds a generation alongside the live one and
+		// swaps atomically: a worker that dies leaves the previous scores
+		// exactly as they were rather than emptying a dashboard.
+		workerID := "vendor-service-intelligence-materializer-" + uuid.NewString()
+		materializer := jobs.Job{Name: "crm-intelligence-materializer", Interval: 15 * time.Second,
+			Pass: func(runCtx context.Context) error {
+				_, err := crmService.RunIntelligenceMaterializer(runCtx, workerID, 3)
+				return err
+			}}
+		workers = append(workers, func(runCtx context.Context) error {
+			materializer.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+	if crmFlags.ExportsEnabled {
+		// Two jobs: one generates artifacts, one retires them. Retirement is
+		// separate and unconditional because an artifact whose retention has
+		// elapsed must stop being downloadable even if generation is wedged.
+		workerID := "vendor-service-export-generator-" + uuid.NewString()
+		generator := jobs.Job{Name: "crm-export-generator", Interval: 5 * time.Second,
+			Pass: func(runCtx context.Context) error {
+				_, err := crmService.RunExportGenerator(runCtx, workerID, 2)
+				return err
+			}}
+		retention := jobs.Job{Name: "crm-export-retention", Interval: time.Minute,
+			Pass: func(runCtx context.Context) error {
+				_, err := crmService.ExportRetentionPass(runCtx, 50)
+				return err
+			}}
+		workers = append(workers, func(runCtx context.Context) error {
+			generator.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+		workers = append(workers, func(runCtx context.Context) error {
+			retention.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+	if crmFlags.CampaignsEnabled && crmFlags.CampaignExecutionEnabled {
+		scheduler := jobs.Job{Name: "crm-campaign-scheduler", Interval: 5 * time.Second, Pass: func(runCtx context.Context) error {
+			_, err := crmService.RunCampaignSchedulerPass(runCtx, 20)
+			return err
+		}}
+		dispatcher := jobs.Job{Name: "crm-campaign-dispatcher", Interval: time.Second, Pass: func(runCtx context.Context) error {
+			_, err := crmService.RunCampaignDeliveryPass(runCtx, 100)
+			return err
+		}}
+		workers = append(workers, func(runCtx context.Context) error {
+			scheduler.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+		workers = append(workers, func(runCtx context.Context) error {
+			dispatcher.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+	if productionFlags.ProductionEnabled {
+		// Both passes are safe to run on every instance. Corporate occurrence
+		// uniqueness and quote status/expiry are durable idempotency boundaries.
+		corporateWorkerID := "vendor-cloud-kitchen-materializer-" + uuid.NewString()
+		corporateWorker := jobs.Job{Name: "cloud-kitchen-corporate-materializer", Interval: 30 * time.Second, Pass: func(runCtx context.Context) error {
+			if _, err := cloudKitchenService.MaterializeAll(runCtx, 100); err != nil {
+				return err
+			}
+			_, err := cloudKitchenService.RunOccurrenceRecoveryPass(runCtx, corporateWorkerID, 100)
+			return err
+		}}
+		quoteExpiryWorker := jobs.Job{Name: "pastry-quote-expiry", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+			if _, err := pastryService.ExpireQuotes(runCtx, 100); err != nil {
+				return err
+			}
+			_, err := productionService.ExpireHolds(runCtx, 100)
+			return err
+		}}
+		productionAlertWorker := jobs.Job{Name: "production-operational-alerts", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+			_, err := productionService.GenerateOperationalAlerts(runCtx, 200)
+			return err
+		}}
+		workers = append(workers,
+			func(runCtx context.Context) error {
+				corporateWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+				return nil
+			},
+			func(runCtx context.Context) error {
+				quoteExpiryWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+				return nil
+			},
+			func(runCtx context.Context) error {
+				productionAlertWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+				return nil
+			},
+		)
+	}
 
 	serviceapp.Run(serviceapp.Options{
 		Name:        "vendor-service",
@@ -226,8 +509,8 @@ func main() {
 			"vendor authentication: passwordless OTP login, sessions, step-up",
 			"vendor staff IAM: staff provisioning/suspension, roles, permissions, assignments",
 			"vendor business, brands, capabilities, branches and operating configuration",
-			"restaurant/cloud-kitchen/pastry/shop catalogues (planned)",
-			"CRM, inventory, purchasing, recipes/production (planned)",
+			"restaurant, cloud-kitchen, pastry and Shop management catalogues",
+			"CRM and shared production capacity; inventory, purchasing and recipes planned",
 			"commerce cart/checkout and vendor orders (planned)",
 			"promotions and vendor-owned delivery (planned)",
 			"commerce fulfilment planning (planned)",
@@ -247,15 +530,33 @@ func main() {
 			vendors.RegisterRoutes(protected, vendorHandler)
 			vendors.RegisterOnboardingRoutes(protected, vendorHandler)
 			crm.RegisterRoutes(protected, crmHandler, crmFlags)
-
-			staffhttp.RegisterInternalRoutes(group, staffService, inboundVerifier)
+			crm.RegisterSegmentationRoutes(protected, crmSegmentationHandler, crmFlags)
+			crm.RegisterActivityRoutes(protected, crmActivityHandler, crmFlags)
+			crm.RegisterLoyaltyRoutes(protected, crmLoyaltyHandler, crmFlags)
+			crm.RegisterLoyaltyTierRoutes(protected, crmLoyaltyHandler, crmFlags)
+			crm.RegisterCampaignRoutes(protected, crmCampaignHandler, crmFlags)
+			crm.RegisterCampaignExecutionRoutes(protected, crmCampaignHandler, crmFlags)
+			crm.RegisterCorporateRoutes(protected, crmCorporateHandler, crmFlags)
+			crm.RegisterIntelligenceRoutes(protected, crmIntelligenceHandler, crmFlags)
+			crm.RegisterExportRoutes(protected, crmExportHandler, crmFlags)
+			food.RegisterRoutes(protected, foodHandler, foodFlags)
+			food.RegisterOperationsRoutes(protected, foodHandler, foodFlags)
+			production.RegisterRoutes(protected, productionHandler, productionFlags)
+			cloudkitchen.RegisterRoutes(protected, cloudKitchenHandler, productionFlags)
+			pastry.RegisterRoutes(protected, pastryHandler, productionFlags)
+			shop.RegisterRoutes(protected, shopHandler, shopFlags)
 		},
 		RegisterRoot: func(router *gin.Engine) {
+			// Every internal-authority ingress is mounted here, at the engine
+			// root, never under the public vendor base the gateway forwards.
+			staffhttp.RegisterInternalRoutes(router, staffService, inboundVerifier)
 			vendors.RegisterInternalOnboardingRoutes(router, vendorHandler, inboundVerifier)
 			// Root-mounted, never under /api/v1/vendor: the CRM event ingress
 			// carries consent and privacy authority and must not be reachable
 			// through the public gateway.
 			crm.RegisterInternalRoutes(router, crmInternalHandler, inboundVerifier, crmFlags)
+			food.RegisterInternalRoutes(router, food.NewInternalHandler(foodService), inboundVerifier, foodFlags)
+			shop.RegisterInternalInventoryRoutes(router, shop.NewInventoryInternalHandler(shopService, strings.Split(cfg.ShopInternalCallers, ",")), inboundVerifier, shopFlags)
 		},
 		Workers: workers,
 	})

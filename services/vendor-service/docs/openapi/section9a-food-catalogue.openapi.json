@@ -1,0 +1,5456 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service — Section 9A: Food Catalogue Foundation",
+    "version": "1.0.0",
+    "description": "The management-side authoritative answer to \"what does this vendor branch sell\": menus, sections, items, variants, modifier groups, modifiers and item/modifier-group relationships.\n\nMANAGEMENT, NOT DISCOVERY. Every route here is behind a vendor staff session and a catalogue permission. A management GET is not customer discovery; Section 9C owns the read/consumption contract, and nothing in this document should be exposed to a customer app.\n\nMONEY IS INTEGER MINOR UNITS. Base prices, variant overrides and modifier deltas are integers in the business's own ISO-4217 currency, which is owned by Section 6 and never restated on a catalogue row. There is no floating-point money and no per-item currency anywhere in this contract.\n\nCAPABILITY BOUNDARY. Only RESTAURANT and FAST_FOOD menus exist in this section. A branch must hold the capability before a menu can be created for it, and the business, branch and capability must all be ACTIVE before that menu can be published — read from the existing Section 6/7 state rather than re-decided here.\n\nARCHIVE, NEVER DELETE. Catalogue entities are archived and retained so a future order, dispute or analytics record that names one keeps resolving. The single exception is the item/modifier-group relationship row, which carries no historical authority of its own.\n\nNOT IN THIS SECTION. No schedules, no sold-out state, no branch price or preparation overrides, no effective-price or availability resolver, no price history (Section 9B). No discovery, projection, search or internal consumption API (Section 9C). No orders, no cart, no checkout, no inventory, no dispatch and no wallet call — a catalogue price is commercial configuration, not settlement."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor",
+      "description": "Authenticated vendor surface."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Food Catalogue",
+      "description": "Section 9A restaurant and fast-food catalogue management."
+    }
+  ],
+  "paths": {
+    "/food/menus": {
+      "post": {
+        "operationId": "createFoodMenu",
+        "summary": "Create a menu",
+        "description": "Creates a DRAFT menu for one branch and one food capability. Catalogue preparation is deliberately possible while the business is still onboarding; publishing is a separate command with its own prerequisites. Only RESTAURANT and FAST_FOOD are accepted.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Menu"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMenuRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listFoodMenus",
+        "summary": "List menus",
+        "description": "Returns the menus the caller's scope reaches, newest first. A branch-scoped caller is filtered in SQL, so another branch's menus never leave the database.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/MenuPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BranchRef"
+          },
+          {
+            "$ref": "#/components/parameters/CapabilityFilter"
+          },
+          {
+            "$ref": "#/components/parameters/MenuStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/food/menus/{menuId}": {
+      "get": {
+        "operationId": "getFoodMenu",
+        "summary": "Read a menu",
+        "description": "Returns one menu. A menu outside the caller's branch scope is reported as absent rather than forbidden, so ids cannot be probed.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Menu"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateFoodMenu",
+        "summary": "Edit menu metadata",
+        "description": "Edits name and description under optimistic concurrency. Branch and capability are not editable: moving a menu between branches would silently re-home every item under it.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Menu"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMenuRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/menus/{menuId}/activate": {
+      "post": {
+        "operationId": "activateFoodMenu",
+        "summary": "Publish a menu",
+        "description": "Moves DRAFT or PAUSED to ACTIVE. Publication enforces the real Section 6/7 prerequisites: the business is ACTIVE, the branch is ACTIVE, and the branch holds the menu's capability in ACTIVE state. This section creates no second onboarding authority; it reads the existing one.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.publish",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Menu"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/menus/{menuId}/pause": {
+      "post": {
+        "operationId": "pauseFoodMenu",
+        "summary": "Pause a menu",
+        "description": "Moves ACTIVE to PAUSED. This is an administrative withdrawal of the whole menu. Scheduling and time-based availability are Section 9B and are not this state.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.publish",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Menu"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/menus/{menuId}/archive": {
+      "post": {
+        "operationId": "archiveFoodMenu",
+        "summary": "Archive a menu",
+        "description": "Retires a menu. ARCHIVED is terminal and is never reactivated: anything that already referenced the menu must keep resolving to it as it was. Nothing is deleted.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.publish",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Menu"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/menus/{menuId}/sections": {
+      "post": {
+        "operationId": "createFoodMenuSection",
+        "summary": "Create a menu section",
+        "description": "Appends a section to the end of the menu's ordering.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Section"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSectionRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listFoodMenuSections",
+        "summary": "List menu sections",
+        "description": "Returns the menu's sections in their deterministic order: live rows first, archived rows behind them, positions contiguous from zero.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SectionList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/IncludeArchived"
+          }
+        ]
+      }
+    },
+    "/food/menus/{menuId}/sections/reorder": {
+      "post": {
+        "operationId": "reorderFoodMenuSections",
+        "summary": "Reorder menu sections",
+        "description": "Applies a complete new ordering in one transaction. The request must name every live section exactly once: a partial list cannot say where the unnamed rows go, so accepting one would mean inventing an answer. Duplicates, unknown ids and ids from another menu are all refused.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SectionList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/menus/{menuId}/sections/{sectionId}": {
+      "patch": {
+        "operationId": "updateFoodMenuSection",
+        "summary": "Edit a menu section",
+        "description": "Edits a section addressed through its own menu. A section reached through the wrong menu is reported as absent.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Section"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/SectionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSectionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/menus/{menuId}/sections/{sectionId}/archive": {
+      "post": {
+        "operationId": "archiveFoodMenuSection",
+        "summary": "Archive a menu section",
+        "description": "Retires a section and archives the items under it in the same transaction, so no item is left orphaned outside the catalogue while still being referenced by id.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Section"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/SectionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/menus/{menuId}/sections/{sectionId}/items": {
+      "post": {
+        "operationId": "createFoodItem",
+        "summary": "Create a food item",
+        "description": "Appends a DRAFT item to the end of the section's ordering. All prices are integer minor units of the business's own currency (vendor_businesses.currency, reported as `currency` on the item). There is no floating-point money in this contract and no per-item currency: one currency truth, owned by Section 6.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Item"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/SectionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateItemRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listFoodItems",
+        "summary": "List a section's items",
+        "description": "Returns the section's items in deterministic order, with each item's media references resolved in one additional query rather than one per item.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ItemPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/SectionId"
+          },
+          {
+            "$ref": "#/components/parameters/IncludeArchived"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/food/menus/{menuId}/sections/{sectionId}/items/reorder": {
+      "post": {
+        "operationId": "reorderFoodItems",
+        "summary": "Reorder a section's items",
+        "description": "Applies a complete new ordering within one section, atomically. An item belonging to another section or another business is refused with the same message as an unknown id, so a reorder cannot become an oracle for what exists elsewhere.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ItemOrder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MenuId"
+          },
+          {
+            "$ref": "#/components/parameters/SectionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/items/{itemId}": {
+      "get": {
+        "operationId": "getFoodItem",
+        "summary": "Read a food item",
+        "description": "Returns one item with its currency and ordered media references. This is a management read behind a staff session: it is not customer discovery, which Section 9C owns.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Item"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateFoodItem",
+        "summary": "Edit a food item",
+        "description": "Edits an item under optimistic concurrency. Setting `status` to ACTIVE additionally requires the publish grant. ARCHIVED cannot be set here — use the archive action — and there is no SOLD_OUT: temporary availability is Section 9B. All prices are integer minor units of the business's own currency (vendor_businesses.currency, reported as `currency` on the item). There is no floating-point money in this contract and no per-item currency: one currency truth, owned by Section 6.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Item"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateItemRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/items/{itemId}/archive": {
+      "post": {
+        "operationId": "archiveFoodItem",
+        "summary": "Archive a food item",
+        "description": "Retires an item and its variants. Nothing is deleted: an order, dispute or analytics record may already name this item and those references must stay resolvable.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Item"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/items/{itemId}/media": {
+      "get": {
+        "operationId": "listFoodItemMedia",
+        "summary": "List an item's media references",
+        "description": "Returns the item's ordered opaque media references. Vendor Service stores the reference and nothing else; bytes, MIME, safety, retention and access belong to Media File Service.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/MediaList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          }
+        ]
+      },
+      "put": {
+        "operationId": "replaceFoodItemMedia",
+        "summary": "Replace an item's media references",
+        "description": "Sets the complete ordered reference list. Replace rather than add/remove, because order and the cover designation are properties of the set. Each reference is proven against Media File Service's existing private ownership API before it is stored; with no media authority configured the write is refused rather than storing an unverified reference. There is no upload route here and no byte ever passes through this service.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/MediaReplaceResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceMediaRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/items/{itemId}/variants": {
+      "post": {
+        "operationId": "createFoodItemVariant",
+        "summary": "Create a variant",
+        "description": "Adds a size/portion to an item. `price_override_minor` absent or null means the variant inherits the item's base price. All prices are integer minor units of the business's own currency (vendor_businesses.currency, reported as `currency` on the item). There is no floating-point money in this contract and no per-item currency: one currency truth, owned by Section 6.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Variant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVariantRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listFoodItemVariants",
+        "summary": "List an item's variants",
+        "description": "Returns the item's variants in deterministic order.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/VariantList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/IncludeArchived"
+          }
+        ]
+      }
+    },
+    "/food/items/{itemId}/variants/reorder": {
+      "post": {
+        "operationId": "reorderFoodItemVariants",
+        "summary": "Reorder variants",
+        "description": "Applies a complete new ordering within one item, atomically.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/VariantOrder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/items/{itemId}/variants/{variantId}": {
+      "patch": {
+        "operationId": "updateFoodItemVariant",
+        "summary": "Edit a variant",
+        "description": "Edits a variant addressed through its own item. `clear_price_override` returns the variant to inheriting the base price; without it a null override would be indistinguishable from \"leave it alone\".",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Variant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/VariantId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVariantRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/items/{itemId}/variants/{variantId}/archive": {
+      "post": {
+        "operationId": "archiveFoodItemVariant",
+        "summary": "Archive a variant",
+        "description": "Retires a variant, keeping it resolvable for anything that already references it.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Variant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/VariantId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/items/{itemId}/modifier-groups": {
+      "get": {
+        "operationId": "listFoodItemModifierGroups",
+        "summary": "List an item's modifier groups",
+        "description": "Returns the groups attached to the item, in display order, each with its definition joined in the same query.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AttachedGroupList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          }
+        ]
+      }
+    },
+    "/food/items/{itemId}/modifier-groups/reorder": {
+      "post": {
+        "operationId": "reorderFoodItemModifierGroups",
+        "summary": "Reorder an item's modifier groups",
+        "description": "Applies a complete new display order for the item's attachments, addressed by modifier group id.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AttachedGroupOrder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/items/{itemId}/modifier-groups/{groupId}": {
+      "put": {
+        "operationId": "attachFoodItemModifierGroup",
+        "summary": "Attach a modifier group to an item",
+        "description": "Links a shared, business-level group to one item. A second attachment of the same group is refused as a duplicate rather than creating a second link. An archived group and an archived item both refuse attachment. A branch-scoped actor may attach on their own branch's items: attaching is a decision about one item, not an edit of the shared definition.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Attachment"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "detachFoodItemModifierGroup",
+        "summary": "Detach a modifier group from an item",
+        "description": "Removes only the relationship row. The group itself, and every other item using it, are untouched — which is the whole point of modelling this as a relationship rather than copying the group into each item.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DetachResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/food/modifier-groups": {
+      "post": {
+        "operationId": "createFoodModifierGroup",
+        "summary": "Create a modifier group",
+        "description": "Creates a business-level reusable choice group. Selection limits are the only rule: `min_select` > 0 is what \"required\" means, and there is no separate boolean because two columns encoding one fact eventually disagree. Requires a business-wide grant, because a shared group edited from one branch would change every other branch's items.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModifierGroup"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateModifierGroupRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listFoodModifierGroups",
+        "summary": "List modifier groups",
+        "description": "Returns the business's groups. Reading is available to branch-scoped staff too, because they must be able to see which groups exist in order to attach one.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModifierGroupPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IncludeArchived"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/food/modifier-groups/{groupId}": {
+      "get": {
+        "operationId": "getFoodModifierGroup",
+        "summary": "Read a modifier group",
+        "description": "Returns one group within the caller's business.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModifierGroup"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateFoodModifierGroup",
+        "summary": "Edit a modifier group",
+        "description": "Edits a shared group under optimistic concurrency. Requires a business-wide grant.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModifierGroup"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateModifierGroupRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/modifier-groups/{groupId}/archive": {
+      "post": {
+        "operationId": "archiveFoodModifierGroup",
+        "summary": "Archive a modifier group",
+        "description": "Retires a group and its modifiers and removes every item attachment. The attachments are relationship rows with no historical authority of their own, so removing them is the correct cleanup; the group itself is archived rather than deleted.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModifierGroup"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/modifier-groups/{groupId}/modifiers": {
+      "post": {
+        "operationId": "createFoodModifier",
+        "summary": "Create a modifier",
+        "description": "Adds a choice to the end of a group's ordering. `price_delta_minor` is a non-negative surcharge in integer minor units; zero is legitimate. A negative delta is refused because a discount is a promotion, and using modifiers for one would create a hidden promotion system no promotion authority could see. All prices are integer minor units of the business's own currency (vendor_businesses.currency, reported as `currency` on the item). There is no floating-point money in this contract and no per-item currency: one currency truth, owned by Section 6.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Modifier"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateModifierRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listFoodModifiers",
+        "summary": "List a group's modifiers",
+        "description": "Returns the group's modifiers in deterministic order.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModifierList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/IncludeArchived"
+          }
+        ]
+      }
+    },
+    "/food/modifier-groups/{groupId}/modifiers/reorder": {
+      "post": {
+        "operationId": "reorderFoodModifiers",
+        "summary": "Reorder a group's modifiers",
+        "description": "Applies a complete new ordering within one group, atomically.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ModifierOrder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/modifier-groups/{groupId}/modifiers/{modifierId}": {
+      "patch": {
+        "operationId": "updateFoodModifier",
+        "summary": "Edit a modifier",
+        "description": "Edits a modifier addressed through its own group. A modifier reached through the wrong group is reported as absent.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Modifier"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/ModifierId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateModifierRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/food/modifier-groups/{groupId}/modifiers/{modifierId}/archive": {
+      "post": {
+        "operationId": "archiveFoodModifier",
+        "summary": "Archive a modifier",
+        "description": "Retires one choice, keeping it resolvable.",
+        "tags": [
+          "Food Catalogue"
+        ],
+        "x-permission": "vendor.food.catalogue.manage",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Modifier"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller holds no covering grant, or the branch is outside their scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist within this business, or is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle, archived-entity, duplicate-relationship or expected-version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Food catalogue writes are disabled by feature flag or the commerce kill switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/ModifierId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Replays the stored response for the same key and request, and reports a conflict for the same key with a different request. The same store Sections 6, 7 and 8 use; this section introduces no second mechanism.",
+        "schema": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "MenuId": {
+        "name": "menuId",
+        "in": "path",
+        "required": true,
+        "description": "Menu identifier.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "SectionId": {
+        "name": "sectionId",
+        "in": "path",
+        "required": true,
+        "description": "Menu section identifier, which must belong to the addressed menu.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ItemId": {
+        "name": "itemId",
+        "in": "path",
+        "required": true,
+        "description": "Food item identifier.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "VariantId": {
+        "name": "variantId",
+        "in": "path",
+        "required": true,
+        "description": "Variant identifier, which must belong to the addressed item.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "GroupId": {
+        "name": "groupId",
+        "in": "path",
+        "required": true,
+        "description": "Modifier group identifier.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ModifierId": {
+        "name": "modifierId",
+        "in": "path",
+        "required": true,
+        "description": "Modifier identifier, which must belong to the addressed group.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "BranchRef": {
+        "name": "branch_id",
+        "in": "query",
+        "required": false,
+        "description": "Restricts the list to one branch. A branch outside the caller's scope is refused rather than answered empty.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "CapabilityFilter": {
+        "name": "capability_type",
+        "in": "query",
+        "required": false,
+        "description": "Restricts the list to one food capability.",
+        "schema": {
+          "$ref": "#/components/schemas/FoodCapability"
+        }
+      },
+      "MenuStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Restricts the list to one lifecycle state.",
+        "schema": {
+          "$ref": "#/components/schemas/MenuStatus"
+        }
+      },
+      "IncludeArchived": {
+        "name": "include_archived",
+        "in": "query",
+        "required": false,
+        "description": "Includes archived rows, which are always ordered behind the live ones.",
+        "schema": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Page size. Every list endpoint is bounded.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50
+        }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "description": "Page offset.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+    "schemas": {
+      "FoodCapability": {
+        "type": "string",
+        "enum": [
+          "RESTAURANT",
+          "FAST_FOOD"
+        ],
+        "description": "Section 9A's exact capability boundary. CLOUD_KITCHEN, PASTRY_BAKERY, SHOP_GROCERY, MARKET and WHOLESALE are real KarryGo capabilities but are not this section's, and are refused here."
+      },
+      "MenuStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "ACTIVE",
+          "PAUSED",
+          "ARCHIVED"
+        ],
+        "description": "DRAFT is editable and unpublished. ACTIVE is the published management state. PAUSED is an administrative withdrawal, not Section 9B's sold-out or schedule state. ARCHIVED is terminal and is never reactivated."
+      },
+      "ItemStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "ACTIVE",
+          "PAUSED",
+          "ARCHIVED"
+        ],
+        "description": "The same closed lifecycle as a menu. PAUSED is administrative; a temporary sold-out condition belongs to Section 9B and cannot be expressed here."
+      },
+      "ChildStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "ARCHIVED"
+        ],
+        "description": "Sections, variants, modifier groups and modifiers are either part of the catalogue or retired from it."
+      },
+      "MetadataCode": {
+        "type": "string",
+        "pattern": "^[A-Z0-9_]{2,40}$",
+        "description": "A declarative, vendor-supplied catalogue code, normalised to upper case and de-duplicated. The narrow shape is deliberate: it can express any vendor vocabulary while making it impossible to put markup, a query or a URL into what is displayed as a dietary claim."
+      },
+      "Menu": {
+        "type": "object",
+        "required": [
+          "id",
+          "branch_id",
+          "capability_type",
+          "name",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string",
+            "description": "The branch this menu belongs to. Not editable."
+          },
+          "capability_type": {
+            "$ref": "#/components/schemas/FoodCapability"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "status": {
+            "$ref": "#/components/schemas/MenuStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Set exactly when the row is ARCHIVED; a database CHECK makes any other combination unstorable."
+          }
+        }
+      },
+      "MenuPage": {
+        "type": "object",
+        "required": [
+          "menus",
+          "pagination"
+        ],
+        "properties": {
+          "menus": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Menu"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": [
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Section": {
+        "type": "object",
+        "required": [
+          "id",
+          "menu_id",
+          "name",
+          "position",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "menu_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Deterministic display position. Live rows are always contiguous from zero, with archived rows ordered behind them."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChildStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Set exactly when the row is ARCHIVED; a database CHECK makes any other combination unstorable."
+          }
+        }
+      },
+      "SectionList": {
+        "type": "object",
+        "required": [
+          "sections"
+        ],
+        "properties": {
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Section"
+            }
+          }
+        }
+      },
+      "ItemMedia": {
+        "type": "object",
+        "required": [
+          "media_ref",
+          "position",
+          "is_primary"
+        ],
+        "properties": {
+          "media_ref": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "An opaque Media File Service reference. Vendor Service stores this string and nothing else."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Deterministic display position. Live rows are always contiguous from zero, with archived rows ordered behind them."
+          },
+          "is_primary": {
+            "type": "boolean",
+            "description": "The cover image. Exactly one per item; if the caller declares none the first entry becomes the cover."
+          }
+        }
+      },
+      "Item": {
+        "type": "object",
+        "required": [
+          "id",
+          "branch_id",
+          "menu_id",
+          "section_id",
+          "name",
+          "base_price_minor",
+          "currency",
+          "dietary_codes",
+          "allergen_codes",
+          "media",
+          "status",
+          "position",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "menu_id": {
+            "type": "string"
+          },
+          "section_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "base_price_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999,
+            "description": "The item's base price in integer minor units of `currency`. Zero is a valid price; negative and out-of-range values are refused by both the service and a database CHECK."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "The business's ISO-4217 currency, resolved from Section 6 for the response. It is not stored on the item, so nothing can disagree with the business's own currency."
+          },
+          "dietary_codes": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/components/schemas/MetadataCode"
+            },
+            "description": "Declarative vendor-supplied information. This service computes no nutrition, certifies nothing and makes no medical claim about any item."
+          },
+          "allergen_codes": {
+            "type": "array",
+            "maxItems": 24,
+            "items": {
+              "$ref": "#/components/schemas/MetadataCode"
+            },
+            "description": "Declarative vendor-supplied information, on the same terms as dietary_codes. It is not a safety guarantee."
+          },
+          "media": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "$ref": "#/components/schemas/ItemMedia"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/ItemStatus"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Deterministic display position. Live rows are always contiguous from zero, with archived rows ordered behind them."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Set exactly when the row is ARCHIVED; a database CHECK makes any other combination unstorable."
+          }
+        }
+      },
+      "ItemPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "ItemOrder": {
+        "type": "object",
+        "required": [
+          "ordered_item_ids"
+        ],
+        "properties": {
+          "ordered_item_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MediaList": {
+        "type": "object",
+        "required": [
+          "media"
+        ],
+        "properties": {
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemMedia"
+            }
+          }
+        }
+      },
+      "MediaReplaceResult": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "version",
+          "media"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemMedia"
+            }
+          }
+        }
+      },
+      "Variant": {
+        "type": "object",
+        "required": [
+          "id",
+          "item_id",
+          "name",
+          "price_override_minor",
+          "inherits_base_price",
+          "position",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "price_override_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999,
+            "nullable": true,
+            "description": "Null means the variant inherits the item's base price. A non-null value is the variant's own price in integer minor units."
+          },
+          "inherits_base_price": {
+            "type": "boolean",
+            "description": "Derived from price_override_minor rather than stored, so the two can never disagree."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Deterministic display position. Live rows are always contiguous from zero, with archived rows ordered behind them."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChildStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Set exactly when the row is ARCHIVED; a database CHECK makes any other combination unstorable."
+          }
+        }
+      },
+      "VariantList": {
+        "type": "object",
+        "required": [
+          "variants"
+        ],
+        "properties": {
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Variant"
+            }
+          }
+        }
+      },
+      "VariantOrder": {
+        "type": "object",
+        "required": [
+          "ordered_variant_ids"
+        ],
+        "properties": {
+          "ordered_variant_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ModifierGroup": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "min_select",
+          "max_select",
+          "required",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "min_select": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50,
+            "description": "Minimum selections. Greater than zero makes the group required."
+          },
+          "max_select": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "Maximum selections. Must be at least min_select."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Derived from min_select > 0 rather than stored, so a group can never claim to be optional while demanding a choice."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChildStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Set exactly when the row is ARCHIVED; a database CHECK makes any other combination unstorable."
+          }
+        }
+      },
+      "ModifierGroupPage": {
+        "type": "object",
+        "required": [
+          "modifier_groups",
+          "pagination"
+        ],
+        "properties": {
+          "modifier_groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModifierGroup"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "Modifier": {
+        "type": "object",
+        "required": [
+          "id",
+          "modifier_group_id",
+          "name",
+          "price_delta_minor",
+          "position",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "modifier_group_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "price_delta_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999,
+            "description": "A non-negative surcharge in integer minor units. Zero is legitimate. Negative is refused: a discount is a promotion, and promotions are not this domain's authority."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Deterministic display position. Live rows are always contiguous from zero, with archived rows ordered behind them."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChildStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Set exactly when the row is ARCHIVED; a database CHECK makes any other combination unstorable."
+          }
+        }
+      },
+      "ModifierList": {
+        "type": "object",
+        "required": [
+          "modifiers"
+        ],
+        "properties": {
+          "modifiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Modifier"
+            }
+          }
+        }
+      },
+      "ModifierOrder": {
+        "type": "object",
+        "required": [
+          "ordered_modifier_ids"
+        ],
+        "properties": {
+          "ordered_modifier_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Attachment": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "modifier_group_id",
+          "position",
+          "version"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string"
+          },
+          "modifier_group_id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Deterministic display position. Live rows are always contiguous from zero, with archived rows ordered behind them."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          }
+        }
+      },
+      "AttachedGroup": {
+        "type": "object",
+        "required": [
+          "modifier_group_id",
+          "position",
+          "version",
+          "group"
+        ],
+        "properties": {
+          "modifier_group_id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Deterministic display position. Live rows are always contiguous from zero, with archived rows ordered behind them."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic concurrency fence. Send it back as expected_version; a stale value is refused with FOOD_STALE_VERSION rather than silently applied."
+          },
+          "group": {
+            "$ref": "#/components/schemas/ModifierGroup"
+          }
+        }
+      },
+      "AttachedGroupList": {
+        "type": "object",
+        "required": [
+          "modifier_groups"
+        ],
+        "properties": {
+          "modifier_groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachedGroup"
+            }
+          }
+        }
+      },
+      "AttachedGroupOrder": {
+        "type": "object",
+        "required": [
+          "ordered_modifier_group_ids"
+        ],
+        "properties": {
+          "ordered_modifier_group_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DetachResult": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "modifier_group_id",
+          "detached"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string"
+          },
+          "modifier_group_id": {
+            "type": "string"
+          },
+          "detached": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateMenuRequest": {
+        "type": "object",
+        "required": [
+          "branch_id",
+          "capability_type",
+          "name"
+        ],
+        "properties": {
+          "branch_id": {
+            "type": "string"
+          },
+          "capability_type": {
+            "$ref": "#/components/schemas/FoodCapability"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "UpdateMenuRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the caller last read. Required on every mutation of an existing row."
+          }
+        }
+      },
+      "VersionedRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the caller last read. Required on every mutation of an existing row."
+          }
+        }
+      },
+      "ReorderRequest": {
+        "type": "object",
+        "required": [
+          "ordered_ids"
+        ],
+        "properties": {
+          "ordered_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "items": {
+              "type": "string"
+            },
+            "description": "Every live id in the collection, exactly once, in the new order. A partial list is refused with FOOD_INVALID_REORDER, as are duplicates and ids belonging to another parent or another business."
+          }
+        }
+      },
+      "CreateSectionRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "UpdateSectionRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the caller last read. Required on every mutation of an existing row."
+          }
+        }
+      },
+      "CreateItemRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "base_price_minor"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "base_price_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999,
+            "description": "Integer minor units of the business's currency. Zero is valid."
+          },
+          "dietary_codes": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/components/schemas/MetadataCode"
+            }
+          },
+          "allergen_codes": {
+            "type": "array",
+            "maxItems": 24,
+            "items": {
+              "$ref": "#/components/schemas/MetadataCode"
+            }
+          }
+        }
+      },
+      "UpdateItemRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "base_price_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999,
+            "description": "Integer minor units of the business's currency."
+          },
+          "dietary_codes": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/components/schemas/MetadataCode"
+            }
+          },
+          "allergen_codes": {
+            "type": "array",
+            "maxItems": 24,
+            "items": {
+              "$ref": "#/components/schemas/MetadataCode"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "PAUSED"
+            ],
+            "description": "ACTIVE additionally requires vendor.food.catalogue.publish. ARCHIVED is not settable here; use the archive action."
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the caller last read. Required on every mutation of an existing row."
+          }
+        }
+      },
+      "ReplaceMediaRequest": {
+        "type": "object",
+        "required": [
+          "media",
+          "expected_version"
+        ],
+        "properties": {
+          "media": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "type": "object",
+              "required": [
+                "media_ref"
+              ],
+              "properties": {
+                "media_ref": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "is_primary": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "description": "The complete ordered list. An empty array clears the item's media."
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the caller last read. Required on every mutation of an existing row."
+          }
+        }
+      },
+      "CreateVariantRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "price_override_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999,
+            "nullable": true
+          }
+        }
+      },
+      "UpdateVariantRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "price_override_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999
+          },
+          "clear_price_override": {
+            "type": "boolean",
+            "description": "Returns the variant to inheriting the item's base price."
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the caller last read. Required on every mutation of an existing row."
+          }
+        }
+      },
+      "CreateModifierGroupRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "max_select"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "min_select": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50,
+            "default": 0
+          },
+          "max_select": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        }
+      },
+      "UpdateModifierGroupRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "min_select": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50
+          },
+          "max_select": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the caller last read. Required on every mutation of an existing row."
+          }
+        }
+      },
+      "CreateModifierRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "price_delta_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999,
+            "description": "A non-negative surcharge in integer minor units."
+          }
+        }
+      },
+      "UpdateModifierRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "price_delta_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 99999999999,
+            "description": "A non-negative surcharge in integer minor units."
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the caller last read. Required on every mutation of an existing row."
+          }
+        }
+      },
+      "FoodErrorCode": {
+        "type": "string",
+        "enum": [
+          "FOOD_CAPABILITY_NOT_SUPPORTED",
+          "FOOD_MENU_NOT_FOUND",
+          "FOOD_MENU_NOT_EDITABLE",
+          "FOOD_MENU_NOT_PUBLISHABLE",
+          "FOOD_SECTION_NOT_FOUND",
+          "FOOD_ITEM_NOT_FOUND",
+          "FOOD_VARIANT_NOT_FOUND",
+          "FOOD_MODIFIER_GROUP_NOT_FOUND",
+          "FOOD_MODIFIER_NOT_FOUND",
+          "FOOD_STALE_VERSION",
+          "FOOD_INVALID_REORDER",
+          "FOOD_DUPLICATE_RELATIONSHIP",
+          "FOOD_ENTITY_ARCHIVED",
+          "FOOD_DUPLICATE_NAME",
+          "FOOD_MEDIA_UNAVAILABLE",
+          "FOOD_IDEMPOTENCY_CONFLICT"
+        ],
+        "description": "Stable codes carried in error.details.code alongside the platform envelope."
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "$ref": "#/components/schemas/FoodErrorCode"
+                  }
+                }
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

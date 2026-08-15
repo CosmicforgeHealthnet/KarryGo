@@ -194,6 +194,13 @@ type authorizeUploadRequest struct {
 	AllowedMIMETypes []string `json:"allowedMimeTypes"`
 	MaxSizeBytes     int64    `json:"maxSizeBytes"`
 	RetentionClass   string   `json:"retentionClass"`
+	// Visibility defaults to PRIVATE when omitted. DATA_EXPORT may never be
+	// anything else, and the use case refuses the combination rather than
+	// silently correcting it.
+	Visibility string `json:"visibility"`
+	// FileName is required for DATA_EXPORT, where the extension must pair
+	// exactly with the declared content type.
+	FileName string `json:"fileName"`
 }
 
 func (h *Handler) authorizeUpload(c *gin.Context) {
@@ -213,6 +220,8 @@ func (h *Handler) authorizeUpload(c *gin.Context) {
 		AllowedMIMETypes:   body.AllowedMIMETypes,
 		MaxSizeBytes:       body.MaxSizeBytes,
 		RetentionClass:     body.RetentionClass,
+		Visibility:         body.Visibility,
+		FileName:           body.FileName,
 		IdempotencyKey:     strings.TrimSpace(c.GetHeader(idempotencyHeader)),
 		RequestFingerprint: strings.TrimSpace(c.GetHeader(fingerprintHeader)),
 		PayloadVersion:     payloadVersion,
@@ -321,8 +330,20 @@ func (h *Handler) readContent(c *gin.Context) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	c.Header("Content-Disposition", "attachment")
+	// Everything served from the private contract is a download, never
+	// something a browser renders. The disposition names the file so it lands
+	// with the extension it was validated against, and nosniff stops a browser
+	// second-guessing the type it was given — which is what would otherwise
+	// let a crafted CSV be treated as HTML and executed in the operator's
+	// session.
+	disposition := "attachment"
+	if name := sanitizeDownloadName(object.FileName); name != "" {
+		disposition += `; filename="` + name + `"`
+	}
+	c.Header("Content-Disposition", disposition)
+	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Cache-Control", "no-store")
+	c.Header("Referrer-Policy", "no-referrer")
 	c.Data(http.StatusOK, contentType, content)
 }
 
@@ -410,6 +431,8 @@ func objectView(object *models.Object) gin.H {
 		"ownerType":             object.OwnerType,
 		"ownerReference":        object.OwnerReference,
 		"uploadPurpose":         object.UploadPurpose,
+		"visibility":            object.Visibility,
+		"fileName":              object.FileName,
 		"declaredMime":          object.DeclaredMIME,
 		"detectedMime":          object.DetectedMIME,
 		"sizeBytes":             object.SizeBytes,
@@ -477,4 +500,28 @@ func ContentFingerprint(parts ...string) string {
 		_, _ = hasher.Write([]byte{0})
 	}
 	return base64.RawURLEncoding.EncodeToString(hasher.Sum(nil))
+}
+
+// sanitizeDownloadName bounds what may appear in a Content-Disposition header.
+//
+// The stored name was validated on the way in, but a header is a different
+// context: a quote or a newline here would let a name break out of the header
+// value. Anything outside a conservative set is dropped rather than escaped,
+// because a slightly shorter filename is a far better outcome than a header
+// injection.
+func sanitizeDownloadName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 128 {
+		return ""
+	}
+	var builder strings.Builder
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		case r == '.' || r == '-' || r == '_':
+			builder.WriteRune(r)
+		}
+	}
+	return builder.String()
 }

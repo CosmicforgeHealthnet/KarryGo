@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS production_calendar_revisions;
+DROP TABLE IF EXISTS production_job_events;
+DROP TABLE IF EXISTS production_jobs;
+DROP TABLE IF EXISTS capacity_allocation_adjustments;
+DROP TABLE IF EXISTS capacity_reservation_allocations;
+DROP TABLE IF EXISTS capacity_reservations;
+DROP TABLE IF EXISTS production_blackouts;
+DROP TABLE IF EXISTS production_slots;
+DROP TABLE IF EXISTS production_slot_templates;
+DROP TABLE IF EXISTS production_capacity_rules;
+DROP TABLE IF EXISTS production_lines;
+DROP TABLE IF EXISTS production_capacity_pools;

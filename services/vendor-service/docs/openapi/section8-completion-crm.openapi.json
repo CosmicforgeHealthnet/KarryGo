@@ -1,0 +1,404 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Section 8 Completion: CRM Loyalty Tiers",
+    "version": "1.0.0",
+    "description": "Vendor-configured loyalty tiers: an ordered ladder of thresholds over the Section 8D loyalty ledger.\n\nA TIER IS DERIVED, NEVER STORED ON THE CUSTOMER. No field anywhere records that a customer is Gold. Standing is computed from the account's lifetime credited points against the current ladder every time it is read, so a reversal, an identity merge or a threshold change is reflected immediately and there is no second copy of the truth to drift. There is deliberately no operation to set a customer's tier: a grant that let a staff member type one in would make every other customer's tier unfalsifiable.\n\nTHE INPUT IS LIFETIME CREDITED POINTS, NET OF REVERSED CREDIT - not the current balance. Status recognises what a customer has done over the relationship, so redeeming points must not demote them. Expiry and ordinary redemption move the spendable balance and deliberately do not touch standing.\n\nA TIER CONFERS RECOGNITION, NOT BENEFITS. There is no discount, entitlement, multiplier or monetary field in this contract and there is no benefits engine. Points are not money; payment-wallet-service is the only monetary authority on this platform.\n\nNO_TIER AND NOT_AVAILABLE ARE DIFFERENT ANSWERS. NOT_AVAILABLE means this business has configured no ladder (or the relationship's loyalty account is redacted or merged away); NO_TIER means a ladder exists and this customer has not yet reached its first rung. Neither may be presented as the bottom tier."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor"
+    }
+  ],
+  "tags": [
+    {
+      "name": "CRM Loyalty Tiers",
+      "description": "Definition of the loyalty tier ladder for a business."
+    }
+  ],
+  "paths": {
+    "/crm/loyalty/tiers": {
+      "get": {
+        "operationId": "getLoyaltyTiers",
+        "summary": "Read the loyalty tier ladder",
+        "description": "Returns the active ladder in ascending threshold order. A business that has never configured tiers gets an empty set at version 0 rather than a 404 - that this vendor has no tiers is a valid answer to what this vendor's tiers are. The version returned is the one to send back on a write.",
+        "tags": [
+          "CRM Loyalty Tiers"
+        ],
+        "x-permission": "vendor.crm.loyalty.read",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/LoyaltyTierSet"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks vendor.crm.loyalty.read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceLoyaltyTiers",
+        "summary": "Replace the loyalty tier ladder",
+        "description": "Atomically replaces the whole ladder. Replacement rather than per-rung editing is deliberate: a ladder is only valid as a set, so an operation that moved one rung would have to either reject most edits or accept a transiently invalid ladder. Every write is therefore a transition between two valid states.\n\nRanks are DERIVED from the thresholds and must not be supplied; a caller-supplied rank could disagree with its own threshold ordering and the ladder would then have two answers to which tier is higher. Thresholds must be distinct - two rungs at the same entry point make membership ambiguous, and an ambiguous customer-facing status is worse than having no tiers at all. At most 8 tiers.\n\nSuperseded rungs are archived, not deleted, so an audit record that referenced a tier keeps something to point at. Segments that read a loyalty field are invalidated in the same transaction, because their materialised membership was computed against the old ladder.",
+        "tags": [
+          "CRM Loyalty Tiers"
+        ],
+        "x-permission": "vendor.crm.loyalty.tiers.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceLoyaltyTiersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/LoyaltyTierSet"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks vendor.crm.loyalty.tiers.manage.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CRM_LOYALTY_TIER_CONFIG_INVALID - the ladder changed since it was loaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CRM_LOYALTY_TIER_CONFIG_INVALID - duplicate key or threshold, bad key format, or more than 8 tiers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200
+        },
+        "description": "Replaying a key returns the first result rather than rewriting the ladder."
+      }
+    },
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "LoyaltyTierDefinition": {
+        "type": "object",
+        "required": [
+          "id",
+          "tier_key",
+          "display_name",
+          "minimum_lifetime_points",
+          "rank",
+          "status",
+          "version",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "tier_key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,39}$",
+            "description": "Stable machine key. Uppercase, 2-40 characters."
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "minimum_lifetime_points": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Lifetime credited points, net of reversed credit, at which this rung is reached."
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "description": "Derived from threshold order. 1 is the lowest rung."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LoyaltyTierSet": {
+        "type": "object",
+        "required": [
+          "tiers",
+          "version"
+        ],
+        "properties": {
+          "tiers": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "$ref": "#/components/schemas/LoyaltyTierDefinition"
+            },
+            "description": "Ascending threshold order. Empty when no ladder is configured."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "0 when no ladder has ever been written. Send this back on a write."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ReplaceLoyaltyTiersRequest": {
+        "type": "object",
+        "required": [
+          "tiers"
+        ],
+        "properties": {
+          "tiers": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "required": [
+                "tier_key",
+                "display_name",
+                "minimum_lifetime_points"
+              ],
+              "properties": {
+                "tier_key": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+                },
+                "display_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "minimum_lifetime_points": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              }
+            },
+            "description": "The complete ladder. An empty array removes every tier."
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Omit on a first write; send the read version thereafter so concurrent editors cannot silently overwrite one another."
+          }
+        }
+      },
+      "CustomerLoyaltyTier": {
+        "type": "object",
+        "required": [
+          "state",
+          "configured_tier_count"
+        ],
+        "description": "A relationship's derived standing, as composed into Customer 360. Not separately routable: standing is part of the customer record, not its own resource.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "NOT_AVAILABLE",
+              "NO_TIER",
+              "CURRENT"
+            ],
+            "description": "NOT_AVAILABLE: no ladder configured, or the loyalty account is redacted or merged away. NO_TIER: a ladder exists and this customer has not reached its first rung. Neither is the bottom tier."
+          },
+          "tier_key": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer"
+          },
+          "lifetime_points": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "next_tier_key": {
+            "type": "string"
+          },
+          "points_to_next_tier": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "configured_tier_count": {
+            "type": "integer"
+          },
+          "definition_set_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    }
+  }
+}

@@ -11,6 +11,9 @@ import (
 	vendorauthrepositories "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
 	crm "cosmicforge/logistics/services/vendor-service/internal/features/crm"
+	food "cosmicforge/logistics/services/vendor-service/internal/features/food"
+	production "cosmicforge/logistics/services/vendor-service/internal/features/production"
+	shop "cosmicforge/logistics/services/vendor-service/internal/features/shop"
 	staffmodels "cosmicforge/logistics/services/vendor-service/internal/features/staff/models"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
@@ -19,6 +22,34 @@ import (
 	verificationintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/verification"
 	walletintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/wallet"
 )
+
+type productionScopeAdapter struct {
+	evaluator *staffusecases.AuthorizationEvaluator
+}
+
+func (a productionScopeAdapter) ResolveScope(ctx context.Context, staffID, permission string) (production.Scope, error) {
+	grants, err := a.evaluator.EffectivePermissions(ctx, staffID)
+	if err != nil {
+		return production.Scope{}, err
+	}
+	var scope production.Scope
+	for _, grant := range grants {
+		if grant.PermissionCode != permission {
+			continue
+		}
+		if grant.BranchID == nil {
+			return production.Scope{Global: true}, nil
+		}
+		scope.BranchIDs = append(scope.BranchIDs, *grant.BranchID)
+	}
+	return scope, nil
+}
+
+type productionAuditAdapter struct{ recorder audit.Recorder }
+
+func (a productionAuditAdapter) Record(ctx context.Context, entry production.AuditEntry) error {
+	return a.recorder.Record(ctx, audit.Entry{ActorType: "vendor_staff", ActorID: entry.ActorID, Action: entry.Action, AggregateType: entry.AggregateType, AggregateID: entry.AggregateID, VendorID: entry.VendorID, BranchID: entry.BranchID, Before: entry.Before, After: entry.After, Reason: entry.Reason})
+}
 
 // This file is the composition root's set of small adapters wiring one
 // feature's port interface onto another feature's real repositories/services
@@ -197,6 +228,103 @@ func (a crmScopeAdapter) ResolveScope(ctx context.Context, staffID, permission s
 		scope.BranchIDs = append(scope.BranchIDs, *grant.BranchID)
 	}
 	return scope, nil
+}
+
+// foodScopeAdapter implements food.ScopeResolver over the Section 5
+// authorization evaluator.
+//
+// Section 9A asks the same question CRM does — at which scope is this
+// permission held — because a menu belongs to a branch and a branch-scoped
+// grant must never reach another branch's catalogue.
+type foodScopeAdapter struct {
+	evaluator *staffusecases.AuthorizationEvaluator
+}
+
+func (a foodScopeAdapter) ResolveScope(ctx context.Context, staffID, permission string) (food.Scope, error) {
+	grants, err := a.evaluator.EffectivePermissions(ctx, staffID)
+	if err != nil {
+		return food.Scope{}, err
+	}
+	var scope food.Scope
+	for _, grant := range grants {
+		if grant.PermissionCode != permission {
+			continue
+		}
+		if grant.BranchID == nil {
+			// A vendor-wide grant subsumes every branch-scoped one.
+			return food.Scope{Global: true}, nil
+		}
+		scope.BranchIDs = append(scope.BranchIDs, *grant.BranchID)
+	}
+	return scope, nil
+}
+
+// foodAuditAdapter implements food.AuditRecorder over the real recorder.
+type foodAuditAdapter struct {
+	recorder audit.Recorder
+}
+
+func (a foodAuditAdapter) Record(ctx context.Context, entry food.AuditEntry) error {
+	return a.recorder.Record(ctx, audit.Entry{
+		ActorType: "vendor_staff", ActorID: entry.ActorID, Action: entry.Action,
+		AggregateType: entry.AggregateType, AggregateID: entry.AggregateID,
+		VendorID: entry.VendorID, BranchID: entry.BranchID,
+		Before: entry.Before, After: entry.After, Reason: entry.Reason,
+	})
+}
+
+// foodMediaAdapter reuses the existing Media private-API client. Section 9A
+// adds no new media contract: it asks the same ownership question Section 7
+// already asks for onboarding documents.
+type foodMediaAdapter struct{ client *mediaintegration.Client }
+
+func (a foodMediaAdapter) GetObject(ctx context.Context, businessID, ref string) (food.MediaObject, error) {
+	o, err := a.client.GetObject(ctx, businessID, ref)
+	return food.MediaObject{ID: o.ID, OwnerReference: o.OwnerReference, UploadPurpose: o.UploadPurpose,
+		UploadStatus: o.UploadStatus, SafetyStatus: o.SafetyStatus, DeletionState: o.DeletionState,
+		SourceVersion: o.SourceVersion}, err
+}
+
+type shopScopeAdapter struct {
+	evaluator *staffusecases.AuthorizationEvaluator
+}
+
+func (a shopScopeAdapter) ResolveScope(ctx context.Context, staffID, permission string) (shop.Scope, error) {
+	grants, err := a.evaluator.EffectivePermissions(ctx, staffID)
+	if err != nil {
+		return shop.Scope{}, err
+	}
+	var scope shop.Scope
+	for _, grant := range grants {
+		if grant.PermissionCode != permission {
+			continue
+		}
+		if grant.BranchID == nil {
+			return shop.Scope{Global: true}, nil
+		}
+		scope.BranchIDs = append(scope.BranchIDs, *grant.BranchID)
+	}
+	return scope, nil
+}
+
+type shopAuditAdapter struct{ recorder audit.Recorder }
+
+func (a shopAuditAdapter) Record(ctx context.Context, entry shop.AuditEntry) error {
+	return a.recorder.Record(ctx, audit.Entry{
+		ActorType: "vendor_staff", ActorID: entry.ActorID, Action: entry.Action,
+		AggregateType: entry.AggregateType, AggregateID: entry.AggregateID,
+		VendorID: entry.VendorID, BranchID: entry.BranchID,
+		Before: entry.Before, After: entry.After, Reason: entry.Reason,
+	})
+}
+
+type shopMediaAdapter struct{ client *mediaintegration.Client }
+
+func (a shopMediaAdapter) GetObject(ctx context.Context, businessID, ref string) (shop.MediaObject, error) {
+	o, err := a.client.GetObject(ctx, businessID, ref)
+	return shop.MediaObject{ID: o.ID, OwnerReference: o.OwnerReference, UploadPurpose: o.UploadPurpose,
+		UploadStatus: o.UploadStatus, SafetyStatus: o.SafetyStatus, DeletionState: o.DeletionState,
+		SourceVersion: o.SourceVersion}, err
 }
 
 // crmAuditAdapter implements crm.AuditRecorder over the real recorder.

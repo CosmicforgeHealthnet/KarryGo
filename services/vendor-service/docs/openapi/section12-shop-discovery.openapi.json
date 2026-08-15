@@ -1,0 +1,1325 @@
+{
+  "components": {
+    "parameters": {
+      "IdempotencyKey": {
+        "in": "header",
+        "name": "Idempotency-Key",
+        "required": true,
+        "schema": {
+          "maxLength": 200,
+          "minLength": 8,
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Stable platform error envelope"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "properties": {
+          "error": {
+            "type": "object"
+          },
+          "success": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ],
+        "type": "object"
+      },
+      "InventoryBalance": {
+        "properties": {
+          "inventory_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "on_hand_quantity": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "physical_available": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "quarantined_quantity": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reserved_quantity": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "InventoryCommand": {
+        "additionalProperties": false,
+        "description": "Strict bounded command. Fields are interpreted by the selected operation; unknown fields are rejected.",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actual_measure_id": {
+            "type": "string"
+          },
+          "actual_quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "allocation_policy": {
+            "type": "string"
+          },
+          "available_from": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "batch_number": {
+            "type": "string"
+          },
+          "best_before_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "consumption_mode": {
+            "enum": [
+              "SAME_UNIT",
+              "EXACT_CONVERSION",
+              "VARIABLE_FULFILMENT"
+            ],
+            "type": "string"
+          },
+          "counted_quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cutoff_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "damaged_quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "destination_branch_id": {
+            "type": "string"
+          },
+          "destination_stock_basis_id": {
+            "type": "string"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "expected_catalogue_revision": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "expected_inventory_revision": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "expected_restock_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "expected_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "expiring_soon_hours": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "lead_time_days": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "line_id": {
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "listing_id": {
+            "type": "string"
+          },
+          "listing_ref": {
+            "type": "string"
+          },
+          "lot_number": {
+            "type": "string"
+          },
+          "lot_tracking": {
+            "type": "boolean"
+          },
+          "manufactured_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "maximum_outstanding_quantity": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "maximum_per_request": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "measure_id": {
+            "type": "string"
+          },
+          "measured_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "measured_by": {
+            "type": "string"
+          },
+          "minimum_quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "missing_quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "NONE",
+              "PREORDER",
+              "BACKORDER"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "notes": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "operation_type": {
+            "type": "string"
+          },
+          "quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "quantity_delta": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "received_quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reservation_line_id": {
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 10000,
+            "type": "array"
+          },
+          "sales_mode": {
+            "enum": [
+              "RETAIL",
+              "WHOLESALE"
+            ],
+            "type": "string"
+          },
+          "sell_unit_ref": {
+            "type": "string"
+          },
+          "source_branch_id": {
+            "type": "string"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "source_stock_basis_id": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "stock_basis_id": {
+            "type": "string"
+          },
+          "stock_basis_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "stocktake_type": {
+            "type": "string"
+          },
+          "supplier_ref": {
+            "type": "string"
+          },
+          "target_quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unit_cost_minor": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "variant_ref": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Reservation": {
+        "properties": {
+          "lines": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "HELD",
+              "CONFIRMED",
+              "COMMITTED",
+              "RELEASED",
+              "CANCELLED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Sellability": {
+        "properties": {
+          "catalogue_revision": {
+            "type": "integer"
+          },
+          "inventory_revision": {
+            "type": "integer"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "sellable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SuccessEnvelope": {
+        "properties": {
+          "data": {
+            "type": "object"
+          },
+          "success": {
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "hmacV2": {
+        "in": "header",
+        "name": "X-Service-Signature",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "description": "Section 12B authoritative vendor-owned inventory, reservations, stock operations, preorder/backorder, variable fulfilment and effective discovery. Physical stock never becomes negative. Expired or quarantined lots are not sellable. Approximate calibration is never exact reservation arithmetic. No Customer PII, Order authority, Wallet/payment, logistics execution or KarryGo dark-store inventory is implemented.",
+    "title": "KarryGo Vendor Service — Section 12 Internal Shop Contract",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/shop/branches/{branchId}/catalogue": {
+      "get": {
+        "operationId": "get_shop_branches_branchId_catalogue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Read effective Shop catalogue and inventory"
+      }
+    },
+    "/shop/branches/{branchId}/inventory/reservations": {
+      "post": {
+        "operationId": "post_shop_branches_branchId_inventory_reservations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Atomically reserve vendor-owned inventory"
+      }
+    },
+    "/shop/branches/{branchId}/inventory/reservations/{reservationId}/commit": {
+      "post": {
+        "operationId": "post_shop_branches_branchId_inventory_reservations_reservationId_commit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservationId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Commit a future-Order reservation"
+      }
+    },
+    "/shop/branches/{branchId}/inventory/reservations/{reservationId}/confirm": {
+      "post": {
+        "operationId": "post_shop_branches_branchId_inventory_reservations_reservationId_confirm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservationId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Confirm a future-Order reservation"
+      }
+    },
+    "/shop/branches/{branchId}/inventory/reservations/{reservationId}/release": {
+      "post": {
+        "operationId": "post_shop_branches_branchId_inventory_reservations_reservationId_release",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservationId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Release a future-Order reservation"
+      }
+    },
+    "/shop/branches/{branchId}/pricing/resolve": {
+      "post": {
+        "operationId": "post_shop_branches_branchId_pricing_resolve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Resolve authoritative commercial price"
+      }
+    },
+    "/shop/branches/{branchId}/products/{productId}": {
+      "get": {
+        "operationId": "get_shop_branches_branchId_products_productId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Read effective branch product detail"
+      }
+    },
+    "/shop/branches/{branchId}/revision": {
+      "get": {
+        "operationId": "get_shop_branches_branchId_revision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Read catalogue and inventory revisions"
+      }
+    },
+    "/shop/branches/{branchId}/search": {
+      "get": {
+        "operationId": "get_shop_branches_branchId_search",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Search effective Shop catalogue"
+      }
+    },
+    "/shop/branches/{branchId}/variants/{variantId}/availability": {
+      "get": {
+        "operationId": "get_shop_branches_branchId_variants_variantId_availability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variantId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Read future-Order availability preview"
+      }
+    },
+    "/shop/branches/{branchId}/variants/{variantId}/sellability": {
+      "get": {
+        "operationId": "get_shop_branches_branchId_variants_variantId_sellability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variantId",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            },
+            "description": "Successful bounded inventory response"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Read effective variant sellability"
+      }
+    }
+  },
+  "security": [
+    {
+      "hmacV2": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "/internal/vendor/v1"
+    }
+  ]
+}

@@ -17,6 +17,7 @@
 package usecases
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -110,6 +111,11 @@ type Policy struct {
 	RequireSafeForDownload bool
 	// DefaultRetention is applied to new objects when the caller names none.
 	DefaultRetention time.Duration
+	// DataExportMaxBytes is the purpose-specific ceiling for DATA_EXPORT.
+	// It is separate from MaxSizeBytes and deliberately not larger: a bulk
+	// customer export should not be able to borrow a document allowance, and
+	// raising the global limit for images should not silently raise this one.
+	DataExportMaxBytes int64
 }
 
 func (p Policy) normalized() Policy {
@@ -124,6 +130,15 @@ func (p Policy) normalized() Policy {
 	}
 	if len(p.AllowedMIMETypes) == 0 {
 		p.AllowedMIMETypes = []string{"application/pdf", "image/jpeg", "image/png", "image/webp"}
+	}
+	if p.DataExportMaxBytes <= 0 {
+		p.DataExportMaxBytes = 20 * 1024 * 1024
+	}
+	if p.DataExportMaxBytes > p.MaxSizeBytes {
+		// The purpose ceiling can be lower than the global one but never
+		// higher, so no configuration mistake turns the export path into the
+		// widest upload this service accepts.
+		p.DataExportMaxBytes = p.MaxSizeBytes
 	}
 	return p
 }
@@ -187,6 +202,8 @@ type AuthorizeUploadInput struct {
 	OwnerReference     string
 	DocumentCategory   string
 	UploadPurpose      string
+	Visibility         string
+	FileName           string
 	AllowedMIMETypes   []string
 	MaxSizeBytes       int64
 	RetentionClass     string
@@ -226,6 +243,36 @@ func (s *Service) AuthorizeUpload(ctx context.Context, input AuthorizeUploadInpu
 	case err == nil:
 		if existing.RequestFingerprint != input.RequestFingerprint {
 			return nil, fmt.Errorf("%w: idempotency key reused for a different request", ErrConflict)
+		}
+		// DATA_EXPORT upload retries have one additional safe outcome. If Media
+		// durably completed the object but the caller lost the completion
+		// response, the single-use authorization is already consumed. Return the
+		// same opaque object identity without minting another upload token; the
+		// caller can reconcile checksum, size, purpose and visibility through the
+		// ordinary scoped object read. This is purpose-scoped so existing document
+		// upload replay semantics remain unchanged.
+		if existing.UploadPurpose == models.PurposeDataExport &&
+			existing.State == models.AuthorizationConsumed {
+			object, objectErr := s.opts.Objects.GetObjectForOwner(ctx, nil,
+				input.Caller.Service, input.Caller.OrganizationID, existing.MediaObjectID)
+			if objectErr == nil && object.UploadStatus == models.UploadCompleted &&
+				object.DeletionState == models.DeletionActive &&
+				object.UploadPurpose == models.PurposeDataExport &&
+				object.Visibility == models.VisibilityPrivate &&
+				object.ChecksumSHA256 != "" {
+				return &UploadGrant{
+					AuthorizationID:  existing.ID,
+					MediaObjectID:    existing.MediaObjectID,
+					UploadPath:       uploadPathFor(existing.MediaObjectID),
+					ExpiresAt:        existing.ExpiresAt.UTC(),
+					MaxSizeBytes:     existing.MaxSizeBytes,
+					AllowedMIMETypes: existing.AllowedMIMETypes,
+					Replayed:         true,
+				}, nil
+			}
+			if objectErr != nil && !errors.Is(objectErr, repositories.ErrNotFound) {
+				return nil, objectErr
+			}
 		}
 		if !existing.Usable(s.opts.Now().UTC()) {
 			return nil, fmt.Errorf("%w: authorization is no longer usable", ErrAuthorizationGone)
@@ -270,6 +317,8 @@ func (s *Service) AuthorizeUpload(ctx context.Context, input AuthorizeUploadInpu
 		OwnerType:      input.OwnerType,
 		OwnerReference: input.OwnerReference,
 		UploadPurpose:  input.UploadPurpose,
+		Visibility:     input.Visibility,
+		FileName:       input.FileName,
 		UploadStatus:   models.UploadAuthorized,
 		SafetyStatus:   models.SafetyPending,
 		StorageBucket:  s.opts.StorageBucket,
@@ -296,6 +345,8 @@ func (s *Service) AuthorizeUpload(ctx context.Context, input AuthorizeUploadInpu
 		OwnerReference:     input.OwnerReference,
 		DocumentCategory:   input.DocumentCategory,
 		UploadPurpose:      input.UploadPurpose,
+		Visibility:         input.Visibility,
+		FileName:           input.FileName,
 		AllowedMIMETypes:   input.AllowedMIMETypes,
 		MaxSizeBytes:       input.MaxSizeBytes,
 		UploadTokenHash:    tokenHash,
@@ -370,6 +421,11 @@ func (s *Service) validateAuthorizeInput(input *AuthorizeUploadInput) error {
 	input.UploadPurpose = strings.ToUpper(strings.TrimSpace(input.UploadPurpose))
 	input.OwnerType = strings.ToUpper(strings.TrimSpace(input.OwnerType))
 	input.RetentionClass = strings.ToUpper(strings.TrimSpace(input.RetentionClass))
+	input.Visibility = strings.ToUpper(strings.TrimSpace(input.Visibility))
+	input.FileName = strings.TrimSpace(input.FileName)
+	if input.Visibility == "" {
+		input.Visibility = models.VisibilityPrivate
+	}
 	if input.RetentionClass == "" {
 		input.RetentionClass = models.RetentionStandard
 	}
@@ -390,6 +446,33 @@ func (s *Service) validateAuthorizeInput(input *AuthorizeUploadInput) error {
 		return invalid("IDEMPOTENCY_KEY_REQUIRED", "An idempotency key is required.")
 	case input.RequestFingerprint == "":
 		return invalid("FINGERPRINT_REQUIRED", "A request fingerprint is required.")
+	case !models.ValidVisibility(input.Visibility):
+		return invalid("VISIBILITY_UNSUPPORTED", "That visibility is not supported.")
+	}
+
+	// A generated data export is customer data in bulk. It is refused here as
+	// well as by a database CHECK, so neither a caller nor a future endpoint
+	// can make one publicly reachable — and the refusal does not depend on the
+	// requesting service having been careful.
+	if models.RequiresPrivateVisibility(input.UploadPurpose) &&
+		input.Visibility != models.VisibilityPrivate {
+		return invalid("VISIBILITY_MUST_BE_PRIVATE",
+			"That upload purpose may only be stored privately.")
+	}
+	// The export format is settled before any byte is accepted: the declared
+	// type must be one of exactly two, and the file name must carry the one
+	// extension that pairs with it. Deciding this at authorization time means
+	// an unusable grant is never issued.
+	if input.UploadPurpose == models.PurposeDataExport {
+		canonical, failure := validation.ExportPairing(firstMIME(input.AllowedMIMETypes), input.FileName)
+		if failure != "" {
+			return invalid(failure, "That export type, content type and file name do not agree.")
+		}
+		input.AllowedMIMETypes = []string{canonical}
+		if input.MaxSizeBytes <= 0 || input.MaxSizeBytes > s.opts.Policy.DataExportMaxBytes {
+			input.MaxSizeBytes = s.opts.Policy.DataExportMaxBytes
+		}
+		return nil
 	}
 
 	// The grant may narrow the service allowlist; it may never widen it.
@@ -521,7 +604,10 @@ func (s *Service) CompleteUpload(ctx context.Context, input CompleteUploadInput)
 		return nil, invalid(failure, validationMessage(failure))
 	}
 
-	detection := validation.Detect(validation.Head(input.Content))
+	detection := s.detect(input)
+	if authorization.UploadPurpose == models.PurposeDataExport {
+		detection, _ = s.validateDataExport(authorization, input)
+	}
 	checksum := validation.Checksum(input.Content)
 
 	if err := s.opts.Storage.Put(ctx, object.StorageObjectKey, detection.DetectedMIME, input.Content); err != nil {
@@ -652,6 +738,72 @@ func (s *Service) CompleteUpload(ctx context.Context, input CompleteUploadInput)
 	return object, nil
 }
 
+// detect classifies the received bytes for a document purpose.
+//
+// Signature detection is the rule everywhere except DATA_EXPORT, which has its
+// own path below because CSV and JSONL carry no signature to match.
+func (s *Service) detect(input CompleteUploadInput) validation.Detection {
+	return validation.Detect(validation.Head(input.Content))
+}
+
+// validateDataExport is the narrow, purpose-scoped content gate for generated
+// data exports.
+//
+// It is an ADDITION to the safety model, not a relaxation of it. Nothing here
+// trusts the declared content type: the declaration selects which claim to
+// verify, and then the bytes have to actually be that thing. In order:
+//
+//   - the declared type must be exactly text/csv or newline-delimited JSON,
+//     and the file name must carry the one extension that pairs with it;
+//   - the artifact must be within the purpose-specific ceiling, which is
+//     separate from and never larger than the global one;
+//   - anything carrying a recognised signature is refused outright, because a
+//     file with a signature is by definition not a sniff-less text format —
+//     this is what stops a PDF, PNG or ZIP arriving as text/csv;
+//   - executable and archive signatures are refused with their real reason;
+//   - and the content is then streamed through the format's own parser, so a
+//     CSV must actually parse as CSV with a consistent column count and every
+//     JSONL line must actually be one JSON value.
+//
+// HTML, SVG, JavaScript and Markdown fail at the first step: none of them is
+// an accepted declared type, and none would parse as CSV or JSONL if it were.
+func (s *Service) validateDataExport(authorization *models.UploadAuthorization,
+	input CompleteUploadInput) (validation.Detection, string) {
+	canonical, failure := validation.ExportPairing(input.DeclaredMIME, authorization.FileName)
+	if failure != "" {
+		return validation.Detection{}, failure
+	}
+	ceiling := s.opts.Policy.DataExportMaxBytes
+	if authorization.MaxSizeBytes > 0 && authorization.MaxSizeBytes < ceiling {
+		ceiling = authorization.MaxSizeBytes
+	}
+	if int64(len(input.Content)) > ceiling {
+		return validation.Detection{}, validation.ExportFailureTooLarge
+	}
+	head := validation.Head(input.Content)
+	if validation.ExportExecutableSignature(head) {
+		return validation.Detection{Executable: true}, validation.ExportFailureExecutable
+	}
+	if validation.ExportBinarySignature(head) {
+		return validation.Detection{}, validation.ExportFailureUnsupportedType
+	}
+	if validation.ExportMarkupSignature(head) {
+		// Structural parsing alone would accept a one-line HTML page as a
+		// single-column CSV. An export never opens with markup.
+		return validation.Detection{}, validation.ExportFailureUnsupportedType
+	}
+	// Streamed over the received bytes with a bounded line buffer: the parser
+	// and the character rules see the content once, and no second full copy is
+	// made to check it.
+	if failure = validation.ValidateExportContent(bytes.NewReader(input.Content),
+		canonical, ceiling); failure != "" {
+		return validation.Detection{}, failure
+	}
+	// The stored type is the canonical one, so an accepted alias spelling is
+	// never what gets served back.
+	return validation.Detection{DetectedMIME: canonical}, ""
+}
+
 // validateContent compares the received bytes against the grant and policy.
 //
 // Returns a controlled failure code, or "" when everything holds.
@@ -675,7 +827,15 @@ func (s *Service) validateContent(authorization *models.UploadAuthorization,
 		return models.FailureChecksumMismatch
 	}
 
-	detection := validation.Detect(validation.Head(input.Content))
+	if authorization.UploadPurpose == models.PurposeDataExport {
+		detection, failure := s.validateDataExport(authorization, input)
+		if detection.Executable && s.opts.Policy.ProhibitExecutableContent {
+			return models.FailureExecutableContent
+		}
+		return failure
+	}
+
+	detection := s.detect(input)
 	if detection.Executable && s.opts.Policy.ProhibitExecutableContent {
 		return models.FailureExecutableContent
 	}
@@ -841,11 +1001,19 @@ func (s *Service) AuthorizeDownload(ctx context.Context, caller Caller, id strin
 		return nil, fmt.Errorf("%w: object state %s/%s/%s", ErrNotDownloadable,
 			object.UploadStatus, object.SafetyStatus, object.DeletionState)
 	}
+	now := s.opts.Now().UTC()
+	if object.AccessExpired(now) {
+		return nil, fmt.Errorf("%w: export retention elapsed", ErrNotDownloadable)
+	}
 	if s.opts.Policy.RequireSafeForDownload && !object.SafetyConfirmed() {
 		return nil, fmt.Errorf("%w: safety status %s", ErrNotDownloadable, object.SafetyStatus)
 	}
 
-	expiresAt := s.opts.Now().UTC().Add(s.opts.Policy.DownloadTTL)
+	expiresAt := now.Add(s.opts.Policy.DownloadTTL)
+	if object.UploadPurpose == models.PurposeDataExport && object.RetentionUntil != nil &&
+		object.RetentionUntil.Before(expiresAt) {
+		expiresAt = object.RetentionUntil.UTC()
+	}
 	token := s.signDownloadToken(object.ID, caller.Service, expiresAt)
 
 	// The audit record names the grant without recording the token. That is the
@@ -893,6 +1061,9 @@ func (s *Service) ReadContent(ctx context.Context, id string, token string) ([]b
 		return nil, nil, ErrNotFound
 	}
 	if !object.Downloadable() {
+		return nil, nil, ErrNotDownloadable
+	}
+	if object.AccessExpired(s.opts.Now().UTC()) {
 		return nil, nil, ErrNotDownloadable
 	}
 	content, err := s.opts.Storage.Get(ctx, object.StorageObjectKey)
@@ -1318,4 +1489,14 @@ func uploadPathFor(objectID string) string {
 
 func contentPathFor(objectID string) string {
 	return "/objects/" + objectID + "/content"
+}
+
+// firstMIME returns the single content type an export grant may name. An
+// export grant declares exactly one; anything else is a caller that has not
+// understood the contract, and ExportPairing refuses it.
+func firstMIME(values []string) string {
+	if len(values) != 1 {
+		return ""
+	}
+	return values[0]
 }

@@ -74,6 +74,11 @@ const (
 	PurposeIncidentAttachment = "INCIDENT_ATTACHMENT"
 	PurposeDisputeAttachment  = "DISPUTE_ATTACHMENT"
 	PurposeApprovalAttachment = "APPROVAL_ATTACHMENT"
+	// PurposeDataExport is a generated, line-oriented data file rather than a
+	// document a human uploaded. It is the only purpose for which textual
+	// content is accepted, and it is accepted on a positive inspection of the
+	// bytes, never on the caller's word — see validation.ValidateExportContent.
+	PurposeDataExport = "DATA_EXPORT"
 )
 
 // ValidPurpose reports whether a purpose is one the private contract serves.
@@ -82,11 +87,33 @@ func ValidPurpose(purpose string) bool {
 	case PurposeCompanyDocument, PurposeBranchDocument, PurposeProviderDocument,
 		PurposeVehicleDocument, PurposeInsuranceDocument, PurposeComplianceDocument,
 		PurposeProofDocument, PurposeIncidentAttachment, PurposeDisputeAttachment,
-		PurposeApprovalAttachment:
+		PurposeApprovalAttachment, PurposeDataExport:
 		return true
 	default:
 		return false
 	}
+}
+
+// Object visibility.
+//
+// PUBLIC exists so the rule about DATA_EXPORT can be stated rather than merely
+// implied by the current surface having no public path. A generated export is
+// customer data in bulk and must never be reachable without an authenticated,
+// audited, short-lived grant; writing that down as a value and a constraint
+// makes it survive whatever endpoint is added next.
+const (
+	VisibilityPrivate = "PRIVATE"
+	VisibilityPublic  = "PUBLIC"
+)
+
+// ValidVisibility reports whether a value is a supported visibility.
+func ValidVisibility(value string) bool {
+	return value == VisibilityPrivate || value == VisibilityPublic
+}
+
+// RequiresPrivateVisibility reports the purposes that may only ever be private.
+func RequiresPrivateVisibility(purpose string) bool {
+	return purpose == PurposeDataExport
 }
 
 // Retention classes.
@@ -130,6 +157,8 @@ type Object struct {
 	ID                    string
 	OrganizationID        string
 	OwnerService          string
+	Visibility            string
+	FileName              string
 	OwnerType             string
 	OwnerReference        string
 	UploadPurpose         string
@@ -187,6 +216,15 @@ func (o Object) Downloadable() bool {
 	return true
 }
 
+// AccessExpired reports whether a short-lived DATA_EXPORT has passed the
+// retention instant supplied by its owning service. Existing document
+// purposes keep their established retention semantics; export retention is a
+// hard access ceiling as well as a deletion deadline.
+func (o Object) AccessExpired(now time.Time) bool {
+	return o.UploadPurpose == PurposeDataExport && o.RetentionUntil != nil &&
+		!o.RetentionUntil.After(now.UTC())
+}
+
 // SafetyConfirmed reports whether something actually vouched for the content.
 // PENDING and UNKNOWN both answer false, which is the whole point of keeping
 // them distinct from SAFE.
@@ -215,6 +253,8 @@ type UploadAuthorization struct {
 	OwnerReference     string
 	DocumentCategory   string
 	UploadPurpose      string
+	Visibility         string
+	FileName           string
 	AllowedMIMETypes   []string
 	MaxSizeBytes       int64
 	UploadTokenHash    string

@@ -25,6 +25,7 @@ import (
 	vendorauthrepositories "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
 
+	crm "cosmicforge/logistics/services/vendor-service/internal/features/crm"
 	staffhttp "cosmicforge/logistics/services/vendor-service/internal/features/staff/http"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
@@ -91,6 +92,16 @@ func buildTestRouter(t *testing.T, pool *pgxpool.Pool, redisClient *redis.Client
 	protected.Use(vendorauthhttp.RequireAuth(accessSigner, sessionRepo, staffResolverAdapter{staff: staffRepo}))
 	staffhttp.RegisterRoutes(protected, staffHandler)
 	vendors.RegisterRoutes(protected, vendorHandler)
+
+	// Section 8B is registered from the same production helper cmd/main.go
+	// calls, so this test measures the real surface rather than a test-only
+	// approximation of it.
+	crmFlags := crm.Flags{CRMEnabled: true, WritesEnabled: true, SegmentationEnabled: true, SegmentMaterializationEnabled: true, InteractionsEnabled: true, TasksEnabled: true, LoyaltyEnabled: true}
+	crmService := crm.NewService(crm.Options{DB: pool, Scopes: crmScopeAdapter{evaluator: evaluator}, Flags: crmFlags})
+	store := idempotency.NewStore(pool, time.Hour)
+	crm.RegisterSegmentationRoutes(protected, crm.NewSegmentationHandler(crmService, store), crmFlags)
+	crm.RegisterActivityRoutes(protected, crm.NewActivityHandler(crmService, store, limiter), crmFlags)
+	crm.RegisterLoyaltyRoutes(protected, crm.NewLoyaltyHandler(crmService, store, limiter), crmFlags)
 	return router
 }
 
@@ -311,4 +322,120 @@ func TestHTTP_FullLoginThenListStaff(t *testing.T) {
 		t.Fatalf("unexpected staff list: %s", list.Body.String())
 	}
 	_ = staffRepo
+}
+
+// TestHTTP_EverySection8BRouteRequiresAuthentication is the real route-parity
+// guard for Section 8B: it counts what the production registration helper
+// actually mounts, so the number in internal/section8bcontract cannot drift
+// away from the code, and it proves not one of those routes is reachable
+// without a session.
+func TestHTTP_EverySection8BRouteRequiresAuthentication(t *testing.T) {
+	pool := contractTestPool(t)
+	redisClient := contractTestRedis(t)
+	router := buildTestRouter(t, pool, redisClient)
+
+	checked := 0
+	for _, route := range router.Routes() {
+		if !strings.HasPrefix(route.Path, "/api/v1/vendor/crm/tags") &&
+			!strings.HasPrefix(route.Path, "/api/v1/vendor/crm/segments") &&
+			route.Path != "/api/v1/vendor/crm/segment-fields" {
+			continue
+		}
+		path := route.Path
+		for _, name := range []string{":tagId", ":segmentId"} {
+			path = strings.ReplaceAll(path, name, "unknown")
+		}
+		rec := doJSON(t, router, route.Method, path, map[string]any{}, "")
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without auth=%d body=%s", route.Method, path, rec.Code, rec.Body.String())
+		}
+		checked++
+	}
+	if checked != 21 {
+		t.Fatalf("checked %d Section 8B routes, want 21", checked)
+	}
+}
+
+// TestHTTP_SegmentationRoutesAreAbsentWhenDisabled proves a disabled feature has
+// no attack surface at all, rather than routes that answer 503 and thereby
+// confirm the feature exists.
+func TestHTTP_SegmentationRoutesAreAbsentWhenDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	group := router.Group("/api/v1/vendor")
+	crm.RegisterSegmentationRoutes(group, nil, crm.Flags{CRMEnabled: true, SegmentationEnabled: false})
+	for _, route := range router.Routes() {
+		if strings.Contains(route.Path, "/crm/") {
+			t.Fatalf("route %s %s was registered with segmentation disabled", route.Method, route.Path)
+		}
+	}
+}
+
+func TestHTTP_EverySection8CRouteRequiresAuthentication(t *testing.T) {
+	pool := contractTestPool(t)
+	redisClient := contractTestRedis(t)
+	router := buildTestRouter(t, pool, redisClient)
+	checked := 0
+	for _, route := range router.Routes() {
+		isActivity := strings.HasPrefix(route.Path, "/api/v1/vendor/crm/interactions") ||
+			strings.HasPrefix(route.Path, "/api/v1/vendor/crm/tasks") ||
+			strings.HasSuffix(route.Path, "/interactions") || strings.HasSuffix(route.Path, "/tasks")
+		if !isActivity {
+			continue
+		}
+		path := strings.NewReplacer(":interactionId", "unknown", ":taskId", "unknown", ":profileId", "unknown").Replace(route.Path)
+		rec := doJSON(t, router, route.Method, path, map[string]any{}, "")
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without auth=%d body=%s", route.Method, path, rec.Code, rec.Body.String())
+		}
+		checked++
+	}
+	if checked != 16 {
+		t.Fatalf("checked %d Section 8C routes, want 16", checked)
+	}
+}
+
+func TestHTTP_ActivityRoutesAreAbsentWhenDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	group := router.Group("/api/v1/vendor")
+	crm.RegisterActivityRoutes(group, nil, crm.Flags{CRMEnabled: true})
+	for _, route := range router.Routes() {
+		if strings.Contains(route.Path, "/crm/interactions") || strings.Contains(route.Path, "/crm/tasks") || strings.HasSuffix(route.Path, "/interactions") || strings.HasSuffix(route.Path, "/tasks") {
+			t.Fatalf("route %s %s registered with Section 8C disabled", route.Method, route.Path)
+		}
+	}
+}
+
+func TestHTTP_EverySection8DRouteRequiresAuthentication(t *testing.T) {
+	pool := contractTestPool(t)
+	redisClient := contractTestRedis(t)
+	router := buildTestRouter(t, pool, redisClient)
+	checked := 0
+	for _, route := range router.Routes() {
+		if !strings.Contains(route.Path, "/loyalty") {
+			continue
+		}
+		path := strings.NewReplacer(":profileId", "unknown", ":entryId", "unknown").Replace(route.Path)
+		rec := doJSON(t, router, route.Method, path, map[string]any{}, "")
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without auth=%d body=%s", route.Method, path, rec.Code, rec.Body.String())
+		}
+		checked++
+	}
+	if checked != 6 {
+		t.Fatalf("checked %d Section 8D routes, want 6", checked)
+	}
+}
+
+func TestHTTP_LoyaltyRoutesAreAbsentWhenDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	group := router.Group("/api/v1/vendor")
+	crm.RegisterLoyaltyRoutes(group, nil, crm.Flags{CRMEnabled: true})
+	for _, route := range router.Routes() {
+		if strings.Contains(route.Path, "/loyalty") {
+			t.Fatalf("route %s %s registered with Section 8D disabled", route.Method, route.Path)
+		}
+	}
 }

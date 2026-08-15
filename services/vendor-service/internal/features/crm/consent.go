@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -82,6 +83,13 @@ func (s *Service) ApplyConsent(ctx context.Context, tx pgx.Tx, actor Actor, prof
 		WHERE business_id=$3 AND id=$4
 		  AND (consent_projection_version IS NULL OR consent_projection_version <= $1)`,
 		in.SourceVersion, in.ObservedAt, actor.VendorID, profileID); err != nil {
+		return err
+	}
+	channel := strings.ToLower(string(in.Channel))
+	if err = s.invalidateSegmentsForDependencies(ctx, tx, actor.VendorID, []string{
+		"consent.marketing." + channel + ".decision",
+		"consent.marketing." + channel + ".eligible",
+	}); err != nil {
 		return err
 	}
 	return s.auditTx(ctx, tx, actor, "vendor.crm.consent_projection.changed", "crm_consent_projection", profileID, "",

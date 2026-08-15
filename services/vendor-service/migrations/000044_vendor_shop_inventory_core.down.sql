@@ -1,0 +1,12 @@
+DROP TRIGGER IF EXISTS shop_inventory_movements_immutable_trigger ON shop_inventory_movements;
+DROP FUNCTION IF EXISTS shop_inventory_movements_immutable();
+DROP TABLE IF EXISTS shop_inventory_movements;
+DROP TABLE IF EXISTS shop_inventory_reservation_allocations;
+DROP TABLE IF EXISTS shop_inventory_reservation_lines;
+DROP TABLE IF EXISTS shop_inventory_reservations;
+DROP TABLE IF EXISTS shop_inventory_receipt_lines;
+DROP TABLE IF EXISTS shop_inventory_receipts;
+DROP TABLE IF EXISTS shop_inventory_lots;
+DROP TABLE IF EXISTS shop_inventory_revisions;
+DROP TABLE IF EXISTS shop_inventory_balances;
+DROP TABLE IF EXISTS shop_inventory_stock_bases;

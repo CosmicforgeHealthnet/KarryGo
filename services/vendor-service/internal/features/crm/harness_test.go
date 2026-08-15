@@ -66,10 +66,31 @@ func newTestEnv(t *testing.T, flags Flags) *testEnv {
 	if err = database.ApplyMigrations(ctx, pool, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `TRUNCATE crm_privacy_processing_history, crm_privacy_projections,
+	if _, err = pool.Exec(ctx, `TRUNCATE crm_task_trigger_evaluations,
+		crm_relationship_signals, crm_customer_value_projections, crm_loyalty_tier_definitions,
+		crm_corporate_rfq_projections, crm_corporate_rfq_facts, crm_corporate_commercial_projections,
+		crm_customer_service_recovery_projections, crm_customer_support_facts,
+		crm_customer_item_affinities, crm_customer_category_affinities, crm_customer_order_fact_lines,
+		crm_exports,
+		crm_customer_intelligence_scores, crm_intelligence_scope_states, crm_intelligence_evaluations,
+		corporate_customer_memberships, corporate_customer_contacts,
+		corporate_customer_cost_centers, corporate_customer_locations, corporate_customer_branch_scopes,
+		corporate_customer_profiles, corporate_customer_code_counters,
+		crm_campaign_target_channels, crm_campaign_targets,
+		crm_campaign_delivery_event_inbox, crm_campaign_contact_history, crm_campaign_delivery_history,
+		crm_campaign_deliveries, crm_campaign_runs,
+		crm_campaign_audience_snapshots, crm_campaign_experiment_variants, crm_campaign_versions, crm_campaigns,
+		crm_loyalty_lot_consumptions, crm_loyalty_point_lots, crm_loyalty_entries,
+		crm_loyalty_accounts, crm_loyalty_program_configs,
+		crm_task_history, crm_tasks, crm_interaction_revisions, crm_interactions,
+		crm_segment_exclusions, crm_segment_memberships,
+		crm_segment_evaluations, crm_segment_versions, crm_segments,
+		crm_customer_tag_memberships, crm_tags,
+		crm_privacy_processing_history, crm_privacy_projections,
 		crm_consent_projections, crm_customer_order_facts, crm_customer_branch_relations,
 		crm_customer_identity_links, vendor_customer_profiles, vendor_inbox_processed_events,
-		vendor_service_nonces, vendor_outbox, vendor_audit_log, vendor_branches, vendor_businesses,
+		vendor_service_nonces, vendor_outbox, vendor_audit_log, vendor_idempotency_keys,
+		vendor_branches, vendor_businesses,
 		vendor_staff_role_assignments, vendor_staff, vendor_users RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +121,12 @@ func newTestEnv(t *testing.T, flags Flags) *testEnv {
 			t.Fatal(err)
 		}
 	}
+	for _, assignment := range []struct{ id, staff string }{{"vra_a", "vs_a"}, {"vra_b", "vs_b"}} {
+		if _, err = pool.Exec(ctx, `INSERT INTO vendor_staff_role_assignments(id,staff_id,role_id,branch_id)
+			VALUES($1,$2,'role_owner',NULL)`, assignment.id, assignment.staff); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	recorder := &recordingAudit{}
 	now := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
@@ -117,11 +144,23 @@ func newTestEnv(t *testing.T, flags Flags) *testEnv {
 // allFlagsOn is the fully-integrated configuration used by most tests.
 func allFlagsOn() Flags {
 	return Flags{
-		CRMEnabled:                true,
-		WritesEnabled:             true,
-		CustomerProjectionEnabled: true,
-		ConsentIntegrationEnabled: true,
-		PrivacyIntegrationEnabled: true,
+		CRMEnabled:                    true,
+		WritesEnabled:                 true,
+		CustomerProjectionEnabled:     true,
+		ConsentIntegrationEnabled:     true,
+		PrivacyIntegrationEnabled:     true,
+		SegmentationEnabled:           true,
+		SegmentMaterializationEnabled: true,
+		InteractionsEnabled:           true,
+		TasksEnabled:                  true,
+		LoyaltyEnabled:                true,
+		CampaignsEnabled:              true,
+		CampaignPreparationEnabled:    true,
+		CorporateEnabled:              true,
+		CampaignExecutionEnabled:      true,
+		IntelligenceEnabled:           true,
+		IntelligenceWorkerEnabled:     true,
+		ExportsEnabled:                true,
 	}
 }
 

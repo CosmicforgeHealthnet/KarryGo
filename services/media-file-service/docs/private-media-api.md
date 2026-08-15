@@ -202,6 +202,91 @@ idempotency_key)`.
 The audit trail deliberately outlives the file: evidence that a document existed
 and was destroyed is exactly what a later investigation needs.
 
+## The DATA_EXPORT purpose
+
+`DATA_EXPORT` is a narrow addition for generated data files — today, Vendor
+Service's Section 8H CRM exports. It exists because the ordinary content gate is
+signature-based, and CSV and JSONL have no magic number to match: for a document
+contract, "I could not identify these bytes" must mean rejection, and that
+answer is correct for every other purpose.
+
+It is an **addition to the safety model, not a relaxation of it**. Nothing on
+this path trusts the declared content type; the declaration only selects which
+claim gets verified, and the bytes then have to actually be that thing.
+
+**Allowed formats.** Exactly two, paired exactly:
+
+| Declared type | Canonical stored type | File extension |
+|---|---|---|
+| `text/csv` | `text/csv` | `.csv` |
+| `application/x-ndjson` | `application/x-ndjson` | `.jsonl` |
+
+No repository-established JSONL alias exists, so near-miss spellings such as
+`application/jsonl` are rejected rather than widening the contract. There is no `text/*`, no `application/*`, no
+`application/octet-stream`, and no HTML, XML, SVG, JavaScript, Markdown, PDF,
+XLSX or archive type reachable through this purpose.
+
+**Private only.** A `DATA_EXPORT` object may not be `PUBLIC`. The use case
+refuses the combination and a database `CHECK` makes it unstorable, so the rule
+does not depend on the calling service having been careful or on the current
+surface happening to have no public path.
+
+**Required request fields.** `uploadPurpose: "DATA_EXPORT"`, exactly one entry
+in `allowedMimeTypes`, a `fileName` whose extension pairs with it, and
+`visibility` omitted or `PRIVATE`. The pairing is settled at authorization time,
+so an unusable grant is never issued.
+
+**Safe-text validation.** On completion the content is streamed through a single
+bounded pass with a fixed-size line buffer, and must satisfy all of:
+
+- within the purpose ceiling (see below) and non-empty;
+- no recognised file signature — anything with one is by definition not a
+  sniff-less text format, which is what stops a PDF or PNG arriving as CSV;
+- no executable or archive signature, refused with that reason;
+- does not open with `<`, so an HTML page, SVG or PHP fragment cannot pass by
+  parsing as a one-column CSV;
+- valid UTF-8, no NUL, no C0 control characters other than tab, CR and LF;
+- **CSV**: parses as CSV with a consistent column count;
+- **JSONL**: every non-empty line is exactly one JSON *object*, so a whole-file
+  JSON array cannot masquerade as a record set.
+
+Media validates structure only. It does not know or check what the columns mean;
+CRM field semantics stay with the owning service.
+
+**Maximum size.** `MEDIA_FILE_DATA_EXPORT_MAX_BYTES`, default **20 MiB**. It is
+a purpose-specific ceiling, separate from `MEDIA_FILE_PRIVATE_MAX_UPLOAD_BYTES`
+and clamped never to exceed it, so raising the global limit for documents does
+not silently widen the export path.
+
+**Access.** Exactly as for every other private object: a short-lived
+`download-authorizations` grant, a token sent in a header rather than a query
+string, and no public or permanent URL anywhere. Content is served with the
+canonical type, `Content-Disposition: attachment` carrying the validated file
+name, `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`, so an
+artifact is delivered as a download and never rendered in an operator's browser.
+
+**Expiry and deletion.** The existing retention, deletion and sweeper semantics
+apply unchanged; export artifacts set a short `retentionUntil` (Vendor Service
+uses 24 hours) and are deleted through the ordinary deletion request. For
+`DATA_EXPORT`, that instant is also a hard access ceiling: Media refuses both a
+new download grant and a read using a previously minted token once retention
+has elapsed, even if physical deletion has not completed yet.
+
+**Idempotency and reconciliation.** The existing upload-authorization
+idempotency applies. Vendor Service keys on the export job. If a retry arrives
+after Media completed the upload but the completion response was lost, Media
+returns the same opaque object id without minting a second upload token. Vendor
+then reads the scoped object metadata and accepts it only when checksum, byte
+count, purpose, visibility and canonical MIME match. This recovery is limited
+to completed `DATA_EXPORT` objects; existing document grant replay behavior is
+unchanged.
+
+**What did not change.** Signature validation for every other purpose is
+untouched: a CSV uploaded under `COMPANY_DOCUMENT` is still refused, an
+unrecognised binary is still refused, and image and document handling is
+identical. `TestDataExport_ExistingPurposesKeepTheirOldBehaviour` and
+`TestDetect_StillRefusesTextForDocumentPurposes` exist to keep that true.
+
 ## Events
 
 Published through the transactional outbox in
@@ -277,7 +362,8 @@ Every write and worker flag defaults to `false`, and example secrets are empty.
 | `MEDIA_FILE_UPLOAD_AUTHORIZATION_TTL_SECONDS` | `900` | Upload grant lifetime |
 | `MEDIA_FILE_PRIVATE_DOWNLOAD_TTL_SECONDS` | `300` | Content grant lifetime |
 | `MEDIA_FILE_PRIVATE_MAX_UPLOAD_BYTES` | `26214400` | Size ceiling |
-| `MEDIA_FILE_PRIVATE_ALLOWED_MIME_TYPES` | `application/pdf,image/jpeg,image/png,image/webp` | Service-wide allowlist |
+| `MEDIA_FILE_PRIVATE_ALLOWED_MIME_TYPES` | `application/pdf,image/jpeg,image/png,image/webp,text/csv,application/x-ndjson` | Service-wide allowlist. The two export types are only reachable through the `DATA_EXPORT` purpose. |
+| `MEDIA_FILE_DATA_EXPORT_MAX_BYTES` | `20971520` | Purpose-specific ceiling for `DATA_EXPORT`; clamped never to exceed the global limit |
 | `MEDIA_FILE_PROHIBIT_EXECUTABLE_CONTENT` | `true` | Refuse executable signatures |
 | `MEDIA_FILE_REQUIRE_SAFE_FOR_DOWNLOAD` | `false` | Fail closed without a clean verdict |
 | `MEDIA_FILE_DEFAULT_RETENTION_SECONDS` | `0` | Default retention window |

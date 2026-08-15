@@ -32,7 +32,7 @@ var (
 
 const objectColumns = `
 	id, organization_id, owner_service, owner_type, owner_reference, upload_purpose,
-	declared_mime, detected_mime, size_bytes, checksum_sha256, signature_validation,
+	visibility, file_name, declared_mime, detected_mime, size_bytes, checksum_sha256, signature_validation,
 	captured_at, source_timestamp, capture_method, device_reference, actor_reference,
 	original_mime_type, original_size_bytes, integrity_hash,
 	upload_status, safety_status, safety_reason, scanned_at, validation_failure_code,
@@ -61,7 +61,8 @@ func scanObject(row scannable) (*models.Object, error) {
 	var object models.Object
 	err := row.Scan(
 		&object.ID, &object.OrganizationID, &object.OwnerService, &object.OwnerType,
-		&object.OwnerReference, &object.UploadPurpose, &object.DeclaredMIME, &object.DetectedMIME,
+		&object.OwnerReference, &object.UploadPurpose, &object.Visibility, &object.FileName,
+		&object.DeclaredMIME, &object.DetectedMIME,
 		&object.SizeBytes, &object.ChecksumSHA256, &object.SignatureValidation,
 		&object.CapturedAt, &object.SourceTimestamp, &object.CaptureMethod,
 		&object.DeviceReference, &object.ActorReference, &object.OriginalMIMEType,
@@ -87,12 +88,14 @@ func (r *Repository) CreateObject(ctx context.Context, q database.Querier, objec
 	row := r.querier(q).QueryRow(ctx, `
 		INSERT INTO media_objects
 			(id, organization_id, owner_service, owner_type, owner_reference, upload_purpose,
-			 declared_mime, upload_status, safety_status, storage_bucket, storage_object_key,
+			 visibility, file_name, declared_mime, upload_status, safety_status,
+			 storage_bucket, storage_object_key,
 			 retention_class, retention_until, correlation_id, causation_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		RETURNING `+objectColumns,
 		object.ID, object.OrganizationID, object.OwnerService, object.OwnerType,
-		object.OwnerReference, object.UploadPurpose, object.DeclaredMIME, object.UploadStatus,
+		object.OwnerReference, object.UploadPurpose, object.Visibility, object.FileName,
+		object.DeclaredMIME, object.UploadStatus,
 		object.SafetyStatus, object.StorageBucket, object.StorageObjectKey,
 		object.RetentionClass, object.RetentionUntil, object.CorrelationID, object.CausationID)
 
@@ -211,7 +214,8 @@ func (r *Repository) ExpireStaleUploads(ctx context.Context, q database.Querier,
 
 const authorizationColumns = `
 	id, media_object_id, organization_id, caller_service, owner_service, owner_type,
-	owner_reference, document_category, upload_purpose, allowed_mime_types, max_size_bytes,
+	owner_reference, document_category, upload_purpose, visibility, file_name,
+	allowed_mime_types, max_size_bytes,
 	upload_token_hash, state, expires_at, consumed_at, idempotency_key, request_fingerprint,
 	correlation_id, causation_id, payload_version, created_at, updated_at`
 
@@ -221,7 +225,7 @@ func scanAuthorization(row scannable) (*models.UploadAuthorization, error) {
 		&authorization.ID, &authorization.MediaObjectID, &authorization.OrganizationID,
 		&authorization.CallerService, &authorization.OwnerService, &authorization.OwnerType,
 		&authorization.OwnerReference, &authorization.DocumentCategory, &authorization.UploadPurpose,
-		&authorization.AllowedMIMETypes, &authorization.MaxSizeBytes, &authorization.UploadTokenHash,
+		&authorization.Visibility, &authorization.FileName, &authorization.AllowedMIMETypes, &authorization.MaxSizeBytes, &authorization.UploadTokenHash,
 		&authorization.State, &authorization.ExpiresAt, &authorization.ConsumedAt,
 		&authorization.IdempotencyKey, &authorization.RequestFingerprint,
 		&authorization.CorrelationID, &authorization.CausationID, &authorization.PayloadVersion,
@@ -242,14 +246,16 @@ func (r *Repository) CreateAuthorization(ctx context.Context, q database.Querier
 	row := r.querier(q).QueryRow(ctx, `
 		INSERT INTO media_upload_authorizations
 			(id, media_object_id, organization_id, caller_service, owner_service, owner_type,
-			 owner_reference, document_category, upload_purpose, allowed_mime_types,
+			 owner_reference, document_category, upload_purpose, visibility, file_name,
+			 allowed_mime_types,
 			 max_size_bytes, upload_token_hash, state, expires_at, idempotency_key,
 			 request_fingerprint, correlation_id, causation_id, payload_version)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 		RETURNING `+authorizationColumns,
 		authorization.ID, authorization.MediaObjectID, authorization.OrganizationID,
 		authorization.CallerService, authorization.OwnerService, authorization.OwnerType,
 		authorization.OwnerReference, authorization.DocumentCategory, authorization.UploadPurpose,
+		authorization.Visibility, authorization.FileName,
 		authorization.AllowedMIMETypes, authorization.MaxSizeBytes, authorization.UploadTokenHash,
 		authorization.State, authorization.ExpiresAt, authorization.IdempotencyKey,
 		authorization.RequestFingerprint, authorization.CorrelationID, authorization.CausationID,

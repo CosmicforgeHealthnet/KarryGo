@@ -1,5 +1,9 @@
 # 01 — Service Boundaries
 
+## Section 8C boundary
+
+Vendor Service owns vendor-local interaction records, corrections, CRM tasks, assignments, state, priority, due dates, and history. It does not own canonical customer identity/PII/privacy decisions, support or dispute cases, notification transport, payments, or future commerce domains. An `EMAIL`, `SMS`, or `IN_APP` interaction records a staff-observed method only; it is never proof of delivery. Section 8C performs no cross-service database read and requires no external service change.
+
 ## What Vendor Service owns
 
 Vendor businesses; vendor brands; vendor capabilities; vendor branches; vendor staff and permissions; vendor CRM; Restaurant/Food catalogues; Cloud Kitchen configuration; Pastry/Bakery catalogue and production configuration; Shop/Grocery catalogue; inventory and stock control (a vendor's own sellable-item stock); suppliers; purchasing; goods receiving; recipes/ingredients/production management; vendor promotions; customer commerce carts; commerce checkout orchestration; parent commerce orders; vendor orders; substitution workflow; variable-weight commerce state; fulfilment groups/units/parcels/plans; vendor-owned delivery and vendor-owned riders; vendor operational reports/projections.
@@ -38,3 +42,11 @@ Vendor Service is authoritative for VendorBusiness, VendorCapability, VendorBran
 ## Database ownership
 
 Vendor Service gets its own PostgreSQL database (`vendor_service`, default local port `5445`) and its own Redis instance (default local port `6390`). No cross-service foreign keys. External entities (customer_id, wallet payment reference, dispatch/taxi/hauling mission reference, verification case reference, media reference, support case reference) are stored only as opaque text references, never joined against another service's tables. See `internal/database` and `migrations/`.
+
+## Section 8B boundary
+
+Vendor Service is authoritative for its own customer tags, saved segment definitions and their immutable versions, materialized audience membership, manual exclusions, and the segmentation field registry.
+
+It is deliberately **not** authoritative for contacting anyone. Section 8B produces audiences and sends nothing: no route, permission, worker or event in it reaches notification-service, and a contract test rejects a campaign- or send-shaped route structurally. Segment membership is never permission — whatever section eventually sends must re-check consent and privacy at send time, against the state then rather than the state when the audience was built.
+
+It also holds no new external authority. Segmentation reasons entirely over data Vendor Service already owns, so it consumes no event, adds no caller allowlist entry and registers no internal route.

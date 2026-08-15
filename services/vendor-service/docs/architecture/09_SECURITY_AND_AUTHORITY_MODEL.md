@@ -1,5 +1,81 @@
 # 09 — Security and Authority Model
 
+## Section 8I certification findings
+
+Two authority defects were found by building the checks the earlier sections had
+described but never mechanised.
+
+**Internal ingress must not sit behind the public base.** Section 7 established
+this rule for the verification callback and moved that route to the engine root.
+`POST /internal/staff/provision-owner` — which creates the first Owner of a
+vendor business, and is therefore one of the highest-authority operations this
+service has — was still mounted under `/api/v1/vendor/`. It was HMAC-protected
+throughout, so this was defence in depth rather than an open door, but the rule
+exists precisely so that a gateway misconfiguration cannot become an authority
+bypass. It now mounts at the root with the other internal routes, and a test
+asserts no internal path is ever reachable under the public base.
+
+**A remote call must not hold the privacy fence.** Section 8F's notification
+handoff ran a synchronous HMAC call while holding a `FOR UPDATE` lock on the
+customer profile row — the same lock the privacy and identity-merge handlers
+take. A hanging notification-service could therefore block a redaction, which
+turns an availability problem in one service into a compliance problem in
+another. The handoff was restructured to release every lock before the network
+call. What made that safe rather than merely faster is the stable
+`NotificationRequestRef`: a retry after a crash re-sends with the same
+idempotency key, so the remote side deduplicates and the customer is not
+contacted twice.
+
+The second fix also produced a useful negative result. Moving the contact-history
+write out of the locked transaction alongside the network call broke the accepted
+frequency-cap concurrency test — two deliveries for the same customer could both
+pass the cap before either recorded a contact. The write was returned to the
+reservation transaction, under the profile lock, and the test passes again. The
+cap is now slightly conservative (a failed handoff still consumes a slot), which
+is the correct direction for a rule that exists to protect the customer.
+
+## Section 8H security model
+
+**A score is not permission.** Stated first because everything else is subordinate to it. Consent, privacy, suppression, frequency and quiet hours are decided elsewhere and are not consulted to produce a score. There is no code path from a score to a send, and a real-Postgres test drives a high-churn customer who denied marketing consent through the segment engine and proves they are not selected.
+
+**Business-wide intelligence is never shown to a branch actor.** A BUSINESS score summarises trade at branches a branch-scoped operator is not authorised to see, so they receive the BRANCH scope of a branch they hold or nothing — and they cannot order a business-wide rebuild either, because causing the figure is as good as reading it. An actor holding several branches must name one rather than being shown the first.
+
+**Unavailable is not zero, enforced structurally.** A CHECK makes a non-CURRENT score row with a number in it unstorable, and the segment compilers read scores through a subquery requiring `state='CURRENT'` so a missing score yields SQL NULL and matches no numeric comparison. Absence can therefore never be mistaken for a low score, in the database or in a rule.
+
+**No score can be written by hand.** There is no route, no permission and no column that lets a staff member declare a customer high-value or low-risk. A hand-set score would make every other score unfalsifiable, because a reader could no longer tell which numbers came from the model.
+
+**Exports are the widest disclosure this service produces, and are gated accordingly.** Four separate permissions (read, create, download, cancel), because knowing an export exists is not reading it. Step-up on creation and again on download, purpose-bound and single-use. Tenant and branch scope applied before selection, so a branch actor cannot infer business-wide totals from a row count. Closed datasets and typed filters, so no client string reaches SQL. No PII, no free-text CRM notes, no payment or notification destination in any dataset. No stored URL: access is decided live, per request, and the token outlives neither the request nor the store's short window.
+
+**Nothing partial is ever released.** `READY` has a database CHECK requiring a complete artifact, its checksum, its size, a completion instant and an expiry; promotion is a guarded update a concurrent cancellation wins; and a privacy re-certification between generation and publish refuses to release a file if any relationship stopped being exportable while it was being written.
+
+## Section 8G security model
+
+**Tenancy and nesting are enforced by the schema, not only by handlers.** Every child reaches its parent through a composite key — `(id, business_id)` for tenancy, `(id, business_id, corporate_customer_id)` for nested resources — so PostgreSQL refuses a membership naming another account's contact, or an interaction naming another vendor's site, even if application code were wrong. Every request derives its tenant and branch scope from the authenticated session; no request body can name a business.
+
+**Branch scope cannot be widened from inside it.** A branch-scoped operator sees business-wide accounts plus branch-set accounts covering a branch they hold. Replacing an account's branch set cannot extend it past the caller's own scope and cannot remove the caller's own branch, so scope is never used to escape scope.
+
+**Permissions are separated by disclosure, not by table.** Five permissions: read, account management, contacts, locations and cost centres. Linking a person to an organization is a different act from maintaining that organization's site list, so they are different grants. Corporate activity reuses Section 8C's permissions and additionally requires `vendor.crm.corporate.read`: a caller who may log interactions does not thereby learn which organizations this vendor works with.
+
+**No PII, checked twice.** No Section 8G table or response holds an email address, phone number, government ID or device token; a schema test and a wire-level test each reject one. The only address in the section is the customer organization's own site record. A redacted relationship keeps its corporate link for continuity but is marked non-actionable with its label withheld — the link survives, the person is not addressable through it.
+
+**Step-up.** Section 8G requires none. Recording who a vendor deals with neither moves money nor exports customer data, so the friction would buy nothing. Corporate ordering and Section 8H's sensitive export will each need their own decision.
+
+## Section 8E security model
+
+Tenant and branch scope are resolved server-side from the session on every campaign operation and are never read from the path or the body. A campaign outside the caller's tenant or branch is reported not-found rather than forbidden, so probing identifiers discloses nothing.
+
+Five permissions, and the split that matters is the fifth: `vendor.crm.campaigns.targets.read` is separate from `.read` because listing the customers inside an audience is a strictly larger disclosure than reading the definition that produced it. It is flagged high-risk and is not granted to CRM/Support or Analyst by default. There is deliberately no `vendor.crm.campaigns.send`: this section cannot send, and a permission naming an authority the service does not hold would be granted long before the guard rails around it existed.
+
+Branch isolation is enforced where the disclosure happens. A branch-scoped actor cannot see, preview or prepare a `BUSINESS`-scope campaign, because the audience size alone describes the whole business; and a `BRANCH` campaign may only use a `BRANCH` segment for its own branch, which is what stops a branch manager reaching business-wide customer data through a lawful-looking campaign.
+
+Privacy is engine policy, not a campaign setting. There is no `include_redacted`, no `ignore_privacy`, and no definition field that could disable it — the only suppression a vendor controls is service recovery, which does not touch privacy. Redacted, restricted, marketing-suppressed, merged and archived relationships never become targets at all; they exist only as aggregate counts, so they are absent from the one table Section 8F will read.
+
+No Section 8E table or response holds an email address, phone number, postal address, government ID or device token, and both a schema test and a wire-level test reject one. Step-up authentication is deliberately not required: planning a campaign neither sends a message nor exports customer data, so the friction would buy nothing. Section 8F's delivery and Section 8H's sensitive export will each need their own decision.
+
+## Section 8C security model
+
+Every query and mutation is tenant fenced and filtered through the established business/branch scope resolver. Branch actors cannot see business-only or other-branch rows, counts, history, search hits, or Customer 360 timestamps. Assignees must be active same-tenant staff with a role assignment covering the task scope. Corrections and task mutations use expected versions, commands use idempotency keys, and privacy/merge races serialize on the customer profile row. Plain-text validation rejects markup, data payloads, and unsafe control content; free text is excluded from audit, outbox, and structured logging.
+
 Updated after Section 5 (Authentication, Sessions and Staff IAM) implementation — this now describes the actual built model, not a plan. See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for test evidence.
 
 ## Section 7 authority and privacy
@@ -82,3 +158,46 @@ There is deliberately **no** `vendor.crm.consent.override`, `vendor.crm.privacy.
 **Privacy over consent.** Eligibility precedence is redaction > merge > marketing suppression > restriction > archival > consent unavailable > DENY > UNKNOWN/stale > ALLOW. The decision function accepts no override parameter, so fail-closed is a property of the type rather than a convention callers must remember.
 
 **Anti-resurrection.** A redacted subject's opaque reference is retained solely so a late event can be recognised and refused; it is never used for marketing, presentation, enrichment or matching. Hashing it was explicitly rejected — a hash is not anonymisation, and it would make suppression unreliable. This holds in both orderings: a late event after a redaction, and a redaction that arrives before any relationship exists.
+
+## Section 8B — the segmentation rule language
+
+The rule language is the only place in Vendor Service where a user's input shapes a database query, so it is treated as the security boundary it is.
+
+**Closed registry, not a parser.** A condition can reference only a field defined in `NewSegmentFieldRegistry`, and each field's SQL is a hand-written Go function. Field keys, operators and values never become SQL text: identifiers are never derived from input, and values are always bind parameters. There is no free-text filter, no user-chosen sort column, no JSONPath, no user-supplied regex and no escape hatch anywhere in the surface. Adding a field is a reviewed code change.
+
+**Forbidden fields are absent, not filtered.** Canonical email, phone, address, date of birth, credentials, subject references, privacy subject references, wallet balances, bank data, verification documents, support evidence and raw event payloads have no key in the registry. A test asserts their absence directly rather than asserting that a filter catches them — a filter can be bypassed; a field that does not exist cannot.
+
+**Rejections disclose nothing.** An unknown field and a forbidden field return the same code, so a rejection cannot be used to map the schema. Database errors are translated before they reach a client, because their text names tables and columns.
+
+**Complexity is bounded.** Depth, node count, OR branches, IN values, NOT depth and tag references all have configured ceilings, and exceeding one is a stable validation error rather than a query that takes the materializer down.
+
+**Privacy is enforced outside the rule.** Redacted and merged-away relationships are excluded by the engine before any vendor condition is applied, and privacy state is not a targetable field — a vendor cannot write a rule that selects redacted customers, nor one that overrides consent. Eligibility is readable but never assertable: there is no `consent.override` field, and there could not be one, because eligibility is derived rather than stored.
+
+**Unknown data cannot be mistaken for a value.** A condition over an unobserved projection compiles to SQL `NULL` and the rule is evaluated `IS TRUE`, so it matches nobody — and a `NOT` over it also matches nobody rather than selecting every customer with no data.
+
+**Branch scope reaches into the rule.** A branch-scoped segment compiles its commercial conditions against that branch's relation row rather than the business aggregate, cannot reference another branch or another branch's private tag, and cannot be previewed at business scope. Every count is branch-filtered: the member count is the disclosure, not just the sample.
+
+**Step-up.** Section 8B adds none. It builds audiences and sends nothing, so the friction would buy nothing. Campaign execution and sensitive export will need their own.
+
+## Section 12 Shop inventory security boundary
+
+Section 12 uses nine distinct Shop inventory authorities for read, receive,
+reserve, adjust, transfer, stocktake, quarantine, policy and bulk operations.
+Migration seeds grant only operationally appropriate roles; marketing, finance,
+kitchen and pastry roles do not acquire inventory mutation merely through their
+names. Every service method resolves tenant and branch scope before returning
+or locking a nested resource, including reservation transitions whose id alone
+would otherwise permit branch escape.
+
+Public writes use the shared PostgreSQL idempotency store with body fingerprint
+conflict detection. Inventory revisions and row locks serialize balances,
+reservations, quarantines, transfers, expiry and stocktakes; bounded quantities
+and non-negative database checks fail closed. Audit/outbox evidence commits in
+the same transaction as each Section 12 mutation.
+
+Internal discovery/reservation routes use HMAC v2 with exact method/path/body
+binding, approved caller identities and database-consumed nonces. An empty
+allowlist denies every caller. Wrong-tenant, wrong-branch and wrong-parent ids
+remain indistinguishable from missing records. The discovery read uses one
+repeatable-read, read-only PostgreSQL snapshot so catalogue, effective price,
+sellability and inventory revisions cannot be assembled from different states.

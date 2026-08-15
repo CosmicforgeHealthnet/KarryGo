@@ -43,6 +43,7 @@ type Config struct {
 	UploadAuthorizationTTL time.Duration
 	DownloadTTL            time.Duration
 	PrivateMaxUploadBytes  int64
+	DataExportMaxBytes     int64
 	PrivateAllowedMIME     []string
 	// ProhibitExecutableContent refuses recognised executable signatures.
 	ProhibitExecutableContent bool
@@ -97,10 +98,15 @@ func Load() Config {
 		PrivateStorageDir:     getEnv("MEDIA_FILE_PRIVATE_STORAGE_DIR", ""),
 		DownloadSecret:        []byte(getEnv("MEDIA_FILE_DOWNLOAD_SIGNING_SECRET", "")),
 
-		UploadAuthorizationTTL:    getEnvDuration("MEDIA_FILE_UPLOAD_AUTHORIZATION_TTL_SECONDS", 15*time.Minute),
-		DownloadTTL:               getEnvDuration("MEDIA_FILE_PRIVATE_DOWNLOAD_TTL_SECONDS", 5*time.Minute),
-		PrivateMaxUploadBytes:     getEnvInt64("MEDIA_FILE_PRIVATE_MAX_UPLOAD_BYTES", 25*1024*1024),
-		PrivateAllowedMIME:        getEnvList("MEDIA_FILE_PRIVATE_ALLOWED_MIME_TYPES", "application/pdf,image/jpeg,image/png,image/webp"),
+		UploadAuthorizationTTL: getEnvDuration("MEDIA_FILE_UPLOAD_AUTHORIZATION_TTL_SECONDS", 15*time.Minute),
+		DownloadTTL:            getEnvDuration("MEDIA_FILE_PRIVATE_DOWNLOAD_TTL_SECONDS", 5*time.Minute),
+		PrivateMaxUploadBytes:  getEnvInt64("MEDIA_FILE_PRIVATE_MAX_UPLOAD_BYTES", 25*1024*1024),
+		PrivateAllowedMIME: getEnvList("MEDIA_FILE_PRIVATE_ALLOWED_MIME_TYPES",
+			"application/pdf,image/jpeg,image/png,image/webp,text/csv,application/x-ndjson"),
+		// Purpose-specific ceiling for DATA_EXPORT, aligned with the Vendor
+		// Section 8H export byte cap. It is separate from the global media
+		// limit so raising one never silently raises the other.
+		DataExportMaxBytes:        getEnvInt64("MEDIA_FILE_DATA_EXPORT_MAX_BYTES", 20*1024*1024),
 		ProhibitExecutableContent: getEnvBool("MEDIA_FILE_PROHIBIT_EXECUTABLE_CONTENT", true),
 		RequireSafeForDownload:    getEnvBool("MEDIA_FILE_REQUIRE_SAFE_FOR_DOWNLOAD", false),
 		DefaultRetention:          getEnvDuration("MEDIA_FILE_DEFAULT_RETENTION_SECONDS", 0),
