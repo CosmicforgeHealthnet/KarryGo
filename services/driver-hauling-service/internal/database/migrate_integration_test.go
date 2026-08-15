@@ -40,8 +40,8 @@ func TestApplyMigrationsTracksAndReplays(t *testing.T) {
 	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM hauling_schema_migrations`).Scan(&applied); err != nil {
 		t.Fatal(err)
 	}
-	if applied != 11 {
-		t.Fatalf("applied migrations = %d, want 11", applied)
+	if applied != 12 {
+		t.Fatalf("applied migrations = %d, want 12", applied)
 	}
 	var exists bool
 	if err := pool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='hauling_organization_provider_links' AND column_name='link_id')`).Scan(&exists); err != nil {
