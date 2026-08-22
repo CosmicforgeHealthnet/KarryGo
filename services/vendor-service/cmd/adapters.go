@@ -12,7 +12,9 @@ import (
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
 	crm "cosmicforge/logistics/services/vendor-service/internal/features/crm"
 	food "cosmicforge/logistics/services/vendor-service/internal/features/food"
+	inventory "cosmicforge/logistics/services/vendor-service/internal/features/inventory"
 	production "cosmicforge/logistics/services/vendor-service/internal/features/production"
+	purchasing "cosmicforge/logistics/services/vendor-service/internal/features/purchasing"
 	shop "cosmicforge/logistics/services/vendor-service/internal/features/shop"
 	staffmodels "cosmicforge/logistics/services/vendor-service/internal/features/staff/models"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
@@ -53,12 +55,12 @@ func (a productionAuditAdapter) Record(ctx context.Context, entry production.Aud
 
 // This file is the composition root's set of small adapters wiring one
 // feature's port interface onto another feature's real repositories/services
-// — the pattern docs/architecture/03_VENDOR_SERVICE_MODULE_MAP.md documents
+// ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the pattern docs/architecture/03_VENDOR_SERVICE_MODULE_MAP.md documents
 // (mirrors fleet-partner-service's CRMPort/CatalogPort adapters). Each
 // adapter is a few lines of type conversion; none contains business logic.
 
 // userResolverAdapter implements staffusecases.UserResolver over auth's real
-// UserRepository — lets StaffService create/find login identities without
+// UserRepository ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â lets StaffService create/find login identities without
 // staff/usecases importing internal/features/auth/repositories directly.
 type userResolverAdapter struct {
 	users *vendorauthrepositories.UserRepository
@@ -129,7 +131,7 @@ func (a userResolverAdapter) ResolveOrCreateByEmail(ctx context.Context, email s
 }
 
 // staffResolverAdapter implements vendorauthusecases.StaffResolver over
-// staff's real StaffRepository — lets AuthService check staff status/
+// staff's real StaffRepository ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â lets AuthService check staff status/
 // affiliation without auth/usecases importing
 // internal/features/staff/repositories directly.
 type staffResolverAdapter struct {
@@ -184,7 +186,7 @@ func (a auditAdapter) Record(ctx context.Context, entry staffusecases.AuditEntry
 
 // staffEventAdapter implements staffusecases.EventPublisher over the real
 // transactional outbox. No consumer exists yet for these event types (see
-// docs/architecture/08_EVENT_OWNERSHIP.md) — events are appended durably and
+// docs/architecture/08_EVENT_OWNERSHIP.md) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â events are appended durably and
 // will simply accumulate as PENDING until a real Publisher/destination is
 // configured for a future section, never silently dropped.
 type staffEventAdapter struct {
@@ -233,8 +235,8 @@ func (a crmScopeAdapter) ResolveScope(ctx context.Context, staffID, permission s
 // foodScopeAdapter implements food.ScopeResolver over the Section 5
 // authorization evaluator.
 //
-// Section 9A asks the same question CRM does — at which scope is this
-// permission held — because a menu belongs to a branch and a branch-scoped
+// Section 9A asks the same question CRM does ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â at which scope is this
+// permission held ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â because a menu belongs to a branch and a branch-scoped
 // grant must never reach another branch's catalogue.
 type foodScopeAdapter struct {
 	evaluator *staffusecases.AuthorizationEvaluator
@@ -339,4 +341,185 @@ func (a crmAuditAdapter) Record(ctx context.Context, entry crm.AuditEntry) error
 		VendorID: entry.VendorID, BranchID: entry.BranchID,
 		Before: entry.Before, After: entry.After, Reason: entry.Reason,
 	})
+}
+
+type inventoryScopeAdapter struct {
+	evaluator *staffusecases.AuthorizationEvaluator
+}
+
+func (a inventoryScopeAdapter) ResolveScope(
+	ctx context.Context,
+	staffID string,
+	permission string,
+) (inventory.AccessScope, error) {
+	grants, err :=
+		a.evaluator.EffectivePermissions(
+			ctx,
+			staffID,
+		)
+
+	if err != nil {
+		return inventory.AccessScope{},
+			err
+	}
+
+	var scope inventory.AccessScope
+
+	for _, grant := range grants {
+
+		if grant.PermissionCode !=
+			permission {
+			continue
+		}
+
+		if grant.BranchID == nil {
+			return inventory.AccessScope{
+				Global: true,
+			}, nil
+		}
+
+		scope.BranchIDs =
+			append(
+				scope.BranchIDs,
+				*grant.BranchID,
+			)
+	}
+
+	return scope, nil
+}
+
+type inventoryEventAdapter struct {
+	outbox *events.OutboxRepository
+}
+
+func (a inventoryEventAdapter) PublishInventoryEvent(
+	ctx context.Context,
+	tx inventory.InventoryTransaction,
+	event inventory.Event,
+) error {
+	postgresTx, ok :=
+		tx.(inventory.PostgresTransactionAccessor)
+
+	if !ok {
+		return inventory.ErrDependencyMissing
+	}
+
+	envelope, err :=
+		events.NewEnvelope(
+			event.Type,
+			1,
+			event.AggregateType,
+			event.AggregateRef,
+			event.Revision,
+			event.BusinessID,
+			event.CorrelationID,
+			event.CausationID,
+			event.Payload,
+			false,
+		)
+
+	if err != nil {
+		return err
+	}
+
+	return a.outbox.Append(
+		ctx,
+		postgresTx.PGX(),
+		envelope,
+	)
+}
+
+type foodInventoryAvailabilityAdapter struct {
+	inventory *inventory.StockService
+}
+
+func (
+	a foodInventoryAvailabilityAdapter,
+) ResolveFoodAvailability(
+	ctx context.Context,
+	request food.InventoryAvailabilityRequest,
+) (
+	food.InventoryAvailabilityDecision,
+	error,
+) {
+	if a.inventory == nil {
+		return food.InventoryAvailabilityDecision{
+			InventoryControlled: true,
+			Support:             food.InventorySupportNotSupported,
+			Sellable:            false,
+			Reason:              "INVENTORY_AUTHORITY_NOT_CONNECTED",
+		}, nil
+	}
+
+	result, err :=
+		a.inventory.ResolveFoodAvailability(
+			ctx,
+			inventory.FoodAvailabilityRequest{
+				BusinessID: request.BusinessID,
+
+				BranchID: request.BranchID,
+
+				FoodItemRef: request.FoodItemRef,
+
+				Mode: request.Mode,
+
+				InventoryRecipeRef: request.InventoryRecipeRef,
+			},
+		)
+
+	if err != nil {
+		return food.InventoryAvailabilityDecision{},
+			err
+	}
+
+	return food.InventoryAvailabilityDecision{
+		InventoryControlled: result.InventoryControlled,
+
+		Support: result.Support,
+
+		Sellable: result.Sellable,
+
+		Reason: result.Reason,
+
+		InventoryRevision: result.InventoryRevision,
+	}, nil
+}
+
+type purchasingScopeAdapter struct {
+	evaluator *staffusecases.AuthorizationEvaluator
+}
+
+func (a purchasingScopeAdapter) ResolveScope(
+	ctx context.Context,
+	staffID string,
+	permission string,
+) (purchasing.Scope, error) {
+	grants, err := a.evaluator.EffectivePermissions(
+		ctx,
+		staffID,
+	)
+	if err != nil {
+		return purchasing.Scope{}, err
+	}
+
+	var scope purchasing.Scope
+
+	for _, grant := range grants {
+		if grant.PermissionCode != permission {
+			continue
+		}
+
+		if grant.BranchID == nil {
+			return purchasing.Scope{
+				Global: true,
+			}, nil
+		}
+
+		scope.BranchIDs = append(
+			scope.BranchIDs,
+			*grant.BranchID,
+		)
+	}
+
+	return scope, nil
 }

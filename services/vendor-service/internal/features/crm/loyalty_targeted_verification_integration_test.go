@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 // installLoyaltyEntryBarrier adds a test-only database barrier at the actual
@@ -54,26 +53,16 @@ func installLoyaltyEntryBarrier(t *testing.T, env *testEnv, entryType string, ke
 	return unlock
 }
 
+// waitForLoyaltyDBWaiters blocks until want of this test's transactions are
+// queued behind the described lock.
+//
+// advisoryOnly narrows to the test barrier's advisory lock, which is what
+// distinguishes "stopped at the barrier inside the ledger trigger" from
+// "blocked on some other row lock on the way there".
 func waitForLoyaltyDBWaiters(t *testing.T, env *testEnv, pattern string, advisoryOnly bool, want int) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		var count int
-		query := `SELECT count(*) FROM pg_stat_activity
-			WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE $1`
-		args := []any{pattern}
-		if advisoryOnly {
-			query += ` AND wait_event='advisory'`
-		}
-		if err := env.pool.QueryRow(context.Background(), query, args...).Scan(&count); err != nil {
-			t.Fatal(err)
-		}
-		if count >= want {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("PostgreSQL never exposed %d waiting transaction(s) for %q", want, pattern)
+	newLockObserver(t).await(t, want, pattern, advisoryOnly,
+		"loyalty ordering barrier never took effect")
 }
 
 func applyTargetedLoyaltyMerge(ctx context.Context, env *testEnv, sourceRef, targetRef, eventID string) error {
@@ -146,7 +135,7 @@ func TestLoyaltyTargeted_MergeVersusReversalDeterministicOrderings(t *testing.T)
 				go func() {
 					mergeDone <- applyTargetedLoyaltyMerge(ctx, env, sourceRef, targetRef, "evt_targeted_rev_first")
 				}()
-				waitForLoyaltyDBWaiters(t, env, "%SELECT id FROM vendor_customer_profiles WHERE business_id%", false, 1)
+				waitForLoyaltyDBWaiters(t, env, "%crm_identity_merge_fence%", false, 1)
 				unlock()
 				reversalErr, mergeErr = <-reversalDone, <-mergeDone
 			} else {

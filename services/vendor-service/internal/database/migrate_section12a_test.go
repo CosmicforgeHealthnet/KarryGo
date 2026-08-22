@@ -38,15 +38,35 @@ func TestSection12AMigrationReplayAndBoundary(t *testing.T) {
 	// platform-seed table while leaving its migration marked applied. Repair
 	// that test-only state by replaying the two Section 12A migrations.
 	if seeded == 0 {
-		if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
-			t.Fatal(err)
+		// Newer Vendor migrations may exist above Section 12A.
+		// Walk back to the Section 12A tip before replaying its pair.
+		for {
+			var latest string
+			if err = pool.QueryRow(ctx, `SELECT version FROM vendor_service_schema_migrations ORDER BY version DESC LIMIT 1`).Scan(&latest); err != nil {
+				t.Fatalf("read migration tip for Section 12A seed repair: %v", err)
+			}
+
+			if latest <= "000043_vendor_shop_permissions" {
+				break
+			}
+
+			if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+				t.Fatalf("rollback post-12A migration %s for seed repair: %v", latest, err)
+			}
 		}
+
 		if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
-			t.Fatal(err)
+			t.Fatalf("rollback 000043 for seed repair: %v", err)
 		}
+
+		if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+			t.Fatalf("rollback 000042 for seed repair: %v", err)
+		}
+
 		if err = ApplyMigrations(ctx, pool, "../../migrations"); err != nil {
 			t.Fatal(err)
 		}
+
 		if err = pool.QueryRow(ctx, `SELECT count(*) FROM shop_measure_definitions`).Scan(&seeded); err != nil {
 			t.Fatal(err)
 		}

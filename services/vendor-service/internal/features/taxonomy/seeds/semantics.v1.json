@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "seed_key": "KARRYGO_SEMANTICS_V1",
+  "tags": [
+    {"namespace":"FOOD","code":"SPICY","display_name":"Spicy","tag_type":"ATTRIBUTE"},
+    {"namespace":"FOOD","code":"VERY_SPICY","display_name":"Very Spicy","tag_type":"ATTRIBUTE"},
+    {"namespace":"FOOD","code":"GRILLED","display_name":"Grilled","tag_type":"PREPARATION"},
+    {"namespace":"FOOD","code":"FRIED","display_name":"Fried","tag_type":"PREPARATION"},
+    {"namespace":"FOOD","code":"BAKED","display_name":"Baked","tag_type":"PREPARATION"},
+    {"namespace":"FOOD","code":"READY_TO_EAT","display_name":"Ready to Eat","tag_type":"DISCOVERY"},
+    {"namespace":"FOOD","code":"FAMILY_SIZE","display_name":"Family Size","tag_type":"DISCOVERY"},
+    {"namespace":"FOOD","code":"SINGLE_SERVING","display_name":"Single Serving","tag_type":"DISCOVERY"},
+
+    {"namespace":"SHOP","code":"FRESH","display_name":"Fresh","tag_type":"ATTRIBUTE"},
+    {"namespace":"SHOP","code":"FROZEN","display_name":"Frozen","tag_type":"ATTRIBUTE"},
+    {"namespace":"SHOP","code":"CHILLED","display_name":"Chilled","tag_type":"ATTRIBUTE"},
+    {"namespace":"SHOP","code":"READY_TO_COOK","display_name":"Ready to Cook","tag_type":"DISCOVERY"},
+    {"namespace":"SHOP","code":"BULK_PACK","display_name":"Bulk Pack","tag_type":"DISCOVERY"},
+    {"namespace":"SHOP","code":"SINGLE_UNIT","display_name":"Single Unit","tag_type":"DISCOVERY"},
+    {"namespace":"SHOP","code":"LOCAL_PRODUCE","display_name":"Local Produce","tag_type":"ATTRIBUTE"},
+    {"namespace":"SHOP","code":"IMPORTED","display_name":"Imported","tag_type":"ATTRIBUTE"}
+  ],
+  "dietary_claims": [
+    {"namespace":"FOOD","code":"VEGETARIAN","display_name":"Vegetarian","verification_policy":"DECLARATION","risk_level":"LOW"},
+    {"namespace":"FOOD","code":"VEGAN","display_name":"Vegan","verification_policy":"DECLARATION","risk_level":"LOW"},
+    {"namespace":"FOOD","code":"HALAL","display_name":"Halal","verification_policy":"EVIDENCE_REQUIRED","risk_level":"MODERATE"},
+    {"namespace":"FOOD","code":"GLUTEN_FREE","display_name":"Gluten Free","verification_policy":"PLATFORM_VERIFIED","risk_level":"HIGH"},
+    {"namespace":"FOOD","code":"DAIRY_FREE","display_name":"Dairy Free","verification_policy":"EVIDENCE_REQUIRED","risk_level":"HIGH"},
+    {"namespace":"FOOD","code":"NUT_FREE","display_name":"Nut Free","verification_policy":"PLATFORM_VERIFIED","risk_level":"HIGH"},
+    {"namespace":"FOOD","code":"SUGAR_FREE","display_name":"Sugar Free","verification_policy":"EVIDENCE_REQUIRED","risk_level":"MODERATE"},
+    {"namespace":"FOOD","code":"LOW_SUGAR","display_name":"Low Sugar","verification_policy":"EVIDENCE_REQUIRED","risk_level":"MODERATE"},
+    {"namespace":"FOOD","code":"KETO","display_name":"Keto","verification_policy":"DECLARATION","risk_level":"LOW"},
+    {"namespace":"FOOD","code":"HIGH_PROTEIN","display_name":"High Protein","verification_policy":"EVIDENCE_REQUIRED","risk_level":"MODERATE"},
+
+    {"namespace":"SHOP","code":"VEGETARIAN","display_name":"Vegetarian","verification_policy":"DECLARATION","risk_level":"LOW"},
+    {"namespace":"SHOP","code":"VEGAN","display_name":"Vegan","verification_policy":"DECLARATION","risk_level":"LOW"},
+    {"namespace":"SHOP","code":"HALAL","display_name":"Halal","verification_policy":"EVIDENCE_REQUIRED","risk_level":"MODERATE"},
+    {"namespace":"SHOP","code":"GLUTEN_FREE","display_name":"Gluten Free","verification_policy":"PLATFORM_VERIFIED","risk_level":"HIGH"},
+    {"namespace":"SHOP","code":"DAIRY_FREE","display_name":"Dairy Free","verification_policy":"EVIDENCE_REQUIRED","risk_level":"HIGH"},
+    {"namespace":"SHOP","code":"NUT_FREE","display_name":"Nut Free","verification_policy":"PLATFORM_VERIFIED","risk_level":"HIGH"},
+    {"namespace":"SHOP","code":"SUGAR_FREE","display_name":"Sugar Free","verification_policy":"EVIDENCE_REQUIRED","risk_level":"MODERATE"},
+    {"namespace":"SHOP","code":"LOW_SUGAR","display_name":"Low Sugar","verification_policy":"EVIDENCE_REQUIRED","risk_level":"MODERATE"},
+    {"namespace":"SHOP","code":"KETO","display_name":"Keto","verification_policy":"DECLARATION","risk_level":"LOW"},
+    {"namespace":"SHOP","code":"HIGH_PROTEIN","display_name":"High Protein","verification_policy":"EVIDENCE_REQUIRED","risk_level":"MODERATE"}
+  ]
+}

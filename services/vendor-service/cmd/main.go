@@ -24,10 +24,18 @@ import (
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
 
 	cloudkitchen "cosmicforge/logistics/services/vendor-service/internal/features/cloudkitchen"
+	cost "cosmicforge/logistics/services/vendor-service/internal/features/cost"
 	crm "cosmicforge/logistics/services/vendor-service/internal/features/crm"
+	delivery "cosmicforge/logistics/services/vendor-service/internal/features/delivery"
 	food "cosmicforge/logistics/services/vendor-service/internal/features/food"
+	inventory "cosmicforge/logistics/services/vendor-service/internal/features/inventory"
+	orders "cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	pastry "cosmicforge/logistics/services/vendor-service/internal/features/pastry"
 	production "cosmicforge/logistics/services/vendor-service/internal/features/production"
+	productionbatch "cosmicforge/logistics/services/vendor-service/internal/features/productionbatch"
+	productionmaster "cosmicforge/logistics/services/vendor-service/internal/features/productionmaster"
+	purchasing "cosmicforge/logistics/services/vendor-service/internal/features/purchasing"
+	recipes "cosmicforge/logistics/services/vendor-service/internal/features/recipes"
 	shop "cosmicforge/logistics/services/vendor-service/internal/features/shop"
 	staffhttp "cosmicforge/logistics/services/vendor-service/internal/features/staff/http"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
@@ -85,8 +93,8 @@ func main() {
 
 	// idempotencyStore is wired for the first command handler that needs it;
 	// no route uses it yet (Section 5's OTP verify/session-create is
-	// naturally idempotent-safe via its own atomic consume/version guards —
-	// see internal/features/auth/usecases — rather than the Idempotency-Key
+	// naturally idempotent-safe via its own atomic consume/version guards -
+	// see internal/features/auth/usecases - rather than the Idempotency-Key
 	// header, matching hauling/dispatch's identical precedent for login
 	// flows).
 	idempotencyStore := idempotency.NewStore(db, idempotency.DefaultExpiry)
@@ -96,7 +104,7 @@ func main() {
 	// dropped) until a real destination is chosen for that event type. See
 	// internal/events and docs/architecture/08_EVENT_OWNERSHIP.md. Section 5's
 	// staff lifecycle events are appended to this same outbox (see
-	// staffEventAdapter in adapters.go) — durable now, delivered once a real
+	// staffEventAdapter in adapters.go) - durable now, delivered once a real
 	// destination/consumer exists.
 	outboxRepo := events.NewOutboxRepository(db)
 	outboxWorker := events.NewWorker(outboxRepo, events.DisabledPublisher{}, events.WorkerConfig{})
@@ -106,7 +114,7 @@ func main() {
 	// wired for the first real event consumer to use.
 	_ = events.NewInboxRepository(db)
 
-	// ─── Section 5: Authentication, Sessions and Staff IAM ──────────────────
+	// --- Section 5: Authentication, Sessions and Staff IAM ---
 
 	// Repositories.
 	userRepo := vendorauthrepositories.NewUserRepository(db)
@@ -124,7 +132,7 @@ func main() {
 	vendorService := vendors.NewService(db, vendorAuthorizationAdapter{evaluator: evaluator}, vendorAuditAdapter{recorder: auditRecorder}, events.NewDomainPublisher(outboxRepo))
 
 	// notificationClient delivers AUTHENTICATION OTPs via notification-service
-	// (email only today — see internal/features/auth/clients, phone has no
+	// (email only today - see internal/features/auth/clients, phone has no
 	// real delivery channel anywhere in the platform yet).
 	notificationClient := notifications.Client{
 		BaseURL: cfg.NotificationURL, ServiceName: "vendor-service", Secret: []byte(cfg.NotificationSecret),
@@ -292,7 +300,164 @@ func main() {
 		}(),
 	})
 	shopHandler := shop.NewHandler(shopService, idempotencyStore)
+	inventoryFlags := inventory.Flags{
+		Enabled:       cfg.Flags.VendorInventoryEnabled,
+		WritesEnabled: cfg.Flags.VendorInventoryWritesEnabled,
+	}
 
+	inventoryFoundation := inventory.NewService(
+		inventory.Dependencies{
+			Flags: inventoryFlags,
+		},
+	)
+
+	inventoryStockService := inventory.NewStockService(
+		inventory.StockOptions{
+			DB:         db,
+			Foundation: inventoryFoundation,
+			Transactions: inventory.NewPostgresTransactionBoundary(
+				db,
+			),
+			Evidence: inventory.NewPostgresEvidenceRecorder(),
+			Events: inventoryEventAdapter{
+				outbox: outboxRepo,
+			},
+		},
+	)
+
+	inventoryHandler := inventory.NewHandler(
+		inventoryStockService,
+		inventoryScopeAdapter{
+			evaluator: evaluator,
+		},
+	)
+
+	purchasingService := purchasing.NewService(
+		purchasing.Options{
+			DB: db,
+
+			Scopes: purchasingScopeAdapter{
+				evaluator: evaluator,
+			},
+
+			Events: events.NewDomainPublisher(
+				outboxRepo,
+			),
+
+			Enabled: cfg.Flags.VendorPurchasingEnabled,
+
+			WritesEnabled: cfg.Flags.VendorPurchasingEnabled,
+		},
+	)
+
+	purchasingHandler := purchasing.NewHandler(
+		purchasingService,
+		idempotencyStore,
+	)
+	purchaseOrderService :=
+		purchasing.NewPurchaseOrderService(
+			purchasingService,
+			authService,
+		)
+
+	purchaseOrderHandler :=
+		purchasing.NewPurchaseOrderHandler(
+			purchaseOrderService,
+			purchasingHandler,
+			idempotencyStore,
+		)
+	// Section 13: canonical taxonomy and Food/Shop search. Assembled in
+	// section13.go so the layering of the search stack is documented where it
+	// is built rather than buried in this function.
+	section13Components, err := buildSection13(cfg, db, redisClient, evaluator, outboxRepo, uuid.NewString())
+	if err != nil {
+		logging.Fatal("section13", "assemble taxonomy and search: %v", err)
+	}
+
+	goodsReceivingService := purchasing.NewGoodsReceivingService(
+		db,
+		purchaseOrderService,
+		inventoryStockService,
+		events.NewDomainPublisher(outboxRepo),
+	)
+
+	// Section 15D operational surface. It reuses the purchasing service's
+	// own multi-branch scope resolver rather than the inventory one,
+	// because a dashboard spans every branch the operator holds.
+	purchasingOperationsHandler := purchasing.NewOperationsHandler(
+		goodsReceivingService,
+		purchasingService,
+	)
+
+	goodsReceivingHandler := purchasing.NewGoodsReceivingHandler(
+		goodsReceivingService,
+		inventoryScopeAdapter{
+			evaluator: evaluator,
+		},
+		idempotencyStore,
+	)
+	productionMasterService := productionmaster.NewService(
+		db,
+		events.NewDomainPublisher(outboxRepo),
+	)
+
+	productionMasterHandler := productionmaster.NewHandler(
+		productionMasterService,
+		inventoryScopeAdapter{
+			evaluator: evaluator,
+		},
+		idempotencyStore,
+	)
+	recipeService := recipes.NewService(
+		db,
+		events.NewDomainPublisher(outboxRepo),
+	)
+
+	recipeHandler := recipes.NewHandler(
+		recipeService,
+		inventoryScopeAdapter{
+			evaluator: evaluator,
+		},
+		idempotencyStore,
+	)
+
+	productionBatchService := productionbatch.NewService(
+		db,
+		productionService,
+		inventoryStockService,
+	)
+	productionBatchHandler := productionbatch.NewHandler(
+		productionBatchService,
+		idempotencyStore,
+	)
+
+	// Section 16D operational cost. The purchasing reader is the ONLY link to
+	// Section 15: cost is read from vendor_purchase_cost_history, never copied
+	// into a second ledger.
+	purchasingCostReader := cost.NewPostgresPurchasingCostReader(db)
+	costResolver := cost.NewResolver(db, purchasingCostReader)
+	costEngine := cost.NewEngine(db, costResolver)
+	costService := cost.NewService(
+		db,
+		productionService,
+		costEngine,
+		costResolver,
+	)
+	costHandler := cost.NewHandler(
+		costService,
+		idempotencyStore,
+	)
+
+	// Section 17C (slice 1) Vendor Own Delivery policy. It is deliberately
+	// composed with no Dispatch/Hauling/Taxi dependency: vendor-owned delivery
+	// is independent of platform logistics, and wiring a logistics client in
+	// here would be the first step towards confusing the two.
+	deliveryService := delivery.NewService(
+		db,
+		productionService,
+		cfg.Flags.VendorOwnDeliveryEnabled,
+	)
+	deliveryHandler := delivery.NewHandler(deliveryService)
 	accessSigner := sharedauth.NewTokenSigner(cfg.Auth.AccessTokenSecret)
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	workers := []func(context.Context) error{}
@@ -314,37 +479,324 @@ func main() {
 			return nil
 		})
 	}
+	durableInventoryCoordinator := jobs.NewDurableCoordinator(db)
+	durableInventoryWorkerOwner := "vendor-service-inventory-" + uuid.NewString()
+
+	if cfg.Flags.CommerceFulfilmentWorkersEnabled && cfg.Flags.VendorInventoryEnabled {
+		genericInventoryJobs := []jobs.DurableJob{
+			{
+				Job: jobs.Job{
+					Name:     "inventory-reservation-expiry",
+					Interval: 30 * time.Second,
+					Pass: func(runCtx context.Context) error {
+						_, err := inventoryStockService.ExpireDueReservations(runCtx, 200)
+						return err
+					},
+				},
+				Coordinator: durableInventoryCoordinator,
+				Owner:       durableInventoryWorkerOwner,
+				LeaseFor:    2 * time.Minute,
+				MaxAttempts: 5,
+				RetryBase:   5 * time.Second,
+			},
+			{
+				Job: jobs.Job{
+					Name:     "inventory-lot-expiry",
+					Interval: 30 * time.Second,
+					Pass: func(runCtx context.Context) error {
+						_, err := inventoryStockService.ExpireDueLots(runCtx, 200)
+						return err
+					},
+				},
+				Coordinator: durableInventoryCoordinator,
+				Owner:       durableInventoryWorkerOwner,
+				LeaseFor:    2 * time.Minute,
+				MaxAttempts: 5,
+				RetryBase:   5 * time.Second,
+			},
+			{
+				Job: jobs.Job{
+					Name:     "inventory-stock-alerts",
+					Interval: time.Minute,
+					Pass: func(runCtx context.Context) error {
+						_, err := inventoryStockService.GenerateInventoryAlerts(runCtx, 200)
+						return err
+					},
+				},
+				Coordinator: durableInventoryCoordinator,
+				Owner:       durableInventoryWorkerOwner,
+				LeaseFor:    2 * time.Minute,
+				MaxAttempts: 5,
+				RetryBase:   5 * time.Second,
+			},
+			{
+				Job: jobs.Job{
+					Name:     "inventory-balance-reconciliation",
+					Interval: time.Minute,
+					Pass: func(runCtx context.Context) error {
+						_, err := inventoryStockService.ReconcileBalances(runCtx, 200)
+						return err
+					},
+				},
+				Coordinator: durableInventoryCoordinator,
+				Owner:       durableInventoryWorkerOwner,
+				LeaseFor:    2 * time.Minute,
+				MaxAttempts: 5,
+				RetryBase:   5 * time.Second,
+			},
+			{
+				Job: jobs.Job{
+					Name:     "inventory-backorder-reconciliation",
+					Interval: time.Minute,
+					Pass: func(runCtx context.Context) error {
+						_, err := inventoryStockService.ReconcileBackorders(runCtx, 200)
+						return err
+					},
+				},
+				Coordinator: durableInventoryCoordinator,
+				Owner:       durableInventoryWorkerOwner,
+				LeaseFor:    2 * time.Minute,
+				MaxAttempts: 5,
+				RetryBase:   5 * time.Second,
+			},
+		}
+
+		// Section 15D purchasing sweeps. Same coordinator, same lease,
+		// retry and dead-letter behaviour as every other durable job; both
+		// sweeps are idempotent because the alert store is keyed on
+		// (business_id, dedupe_key).
+		if cfg.Flags.VendorPurchasingEnabled {
+			genericInventoryJobs = append(
+				genericInventoryJobs,
+				jobs.DurableJob{
+					Job: jobs.Job{
+						Name:     "purchasing-delivery-alerts",
+						Interval: 5 * time.Minute,
+						Pass: func(runCtx context.Context) error {
+							_, err := goodsReceivingService.SweepDeliveryAlerts(runCtx, 200)
+							return err
+						},
+					},
+					Coordinator: durableInventoryCoordinator,
+					Owner:       durableInventoryWorkerOwner,
+					LeaseFor:    2 * time.Minute,
+					MaxAttempts: 5,
+					RetryBase:   5 * time.Second,
+				},
+				jobs.DurableJob{
+					Job: jobs.Job{
+						Name:     "purchasing-discrepancy-escalation",
+						Interval: 15 * time.Minute,
+						Pass: func(runCtx context.Context) error {
+							_, err := goodsReceivingService.SweepDiscrepancyEscalations(runCtx, 200)
+							return err
+						},
+					},
+					Coordinator: durableInventoryCoordinator,
+					Owner:       durableInventoryWorkerOwner,
+					LeaseFor:    5 * time.Minute,
+					MaxAttempts: 5,
+					RetryBase:   30 * time.Second,
+				},
+			)
+		}
+
+		for _, configured := range genericInventoryJobs {
+			job := configured
+
+			workers = append(
+				workers,
+				func(runCtx context.Context) error {
+					job.Run(
+						runCtx,
+						func(name string, err error) {
+							logging.Error("worker", "%s: %v", name, err)
+						},
+					)
+
+					return nil
+				},
+			)
+		}
+	}
+
+	// Section 12 Shop operational tables remain live during the compatibility
+	// bridge, so their existing passes remain scheduled through the same
+	// durable coordinator.
 	if cfg.Flags.CommerceFulfilmentWorkersEnabled && cfg.Flags.CommerceShopEnabled {
-		inventoryExpiryWorker := jobs.Job{Name: "shop-inventory-reservation-expiry", Interval: 30 * time.Second, Pass: func(runCtx context.Context) error {
-			if _, err := shopService.ReconcileExpiredReservations(runCtx, 200); err != nil {
-				return err
-			}
-			_, err := shopService.ReconcileExpiredLots(runCtx, 200)
-			return err
-		}}
-		inventoryAlertWorker := jobs.Job{Name: "shop-inventory-alerts", Interval: time.Minute, Pass: func(runCtx context.Context) error {
-			_, err := shopService.GenerateInventoryAlerts(runCtx, 200)
-			return err
-		}}
-		inventoryBulkWorker := jobs.Job{Name: "shop-inventory-bulk-operations", Interval: 15 * time.Second, Pass: func(runCtx context.Context) error {
-			_, err := shopService.RunBulkOperationPass(runCtx, 10)
-			return err
-		}}
-		workers = append(workers,
-			func(runCtx context.Context) error {
-				inventoryExpiryWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
-				return nil
+		shopInventoryCompatibilityJobs := []jobs.DurableJob{
+			{
+				Job: jobs.Job{
+					Name:     "shop-inventory-expiry-compat",
+					Interval: 30 * time.Second,
+					Pass: func(runCtx context.Context) error {
+						if _, err := shopService.ReconcileExpiredReservations(runCtx, 200); err != nil {
+							return err
+						}
+
+						_, err := shopService.ReconcileExpiredLots(runCtx, 200)
+						return err
+					},
+				},
+				Coordinator: durableInventoryCoordinator,
+				Owner:       durableInventoryWorkerOwner,
+				LeaseFor:    2 * time.Minute,
+				MaxAttempts: 5,
+				RetryBase:   5 * time.Second,
 			},
-			func(runCtx context.Context) error {
-				inventoryAlertWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
-				return nil
+			{
+				Job: jobs.Job{
+					Name:     "shop-inventory-alerts-compat",
+					Interval: time.Minute,
+					Pass: func(runCtx context.Context) error {
+						_, err := shopService.GenerateInventoryAlerts(runCtx, 200)
+						return err
+					},
+				},
+				Coordinator: durableInventoryCoordinator,
+				Owner:       durableInventoryWorkerOwner,
+				LeaseFor:    2 * time.Minute,
+				MaxAttempts: 5,
+				RetryBase:   5 * time.Second,
 			},
+			{
+				Job: jobs.Job{
+					Name:     "shop-inventory-bulk-operations",
+					Interval: 15 * time.Second,
+					Pass: func(runCtx context.Context) error {
+						_, err := shopService.RunBulkOperationPass(runCtx, 10)
+						return err
+					},
+				},
+				Coordinator: durableInventoryCoordinator,
+				Owner:       durableInventoryWorkerOwner,
+				LeaseFor:    2 * time.Minute,
+				MaxAttempts: 5,
+				RetryBase:   5 * time.Second,
+			},
+		}
+
+		for _, configured := range shopInventoryCompatibilityJobs {
+			job := configured
+
+			workers = append(
+				workers,
+				func(runCtx context.Context) error {
+					job.Run(
+						runCtx,
+						func(name string, err error) {
+							logging.Error("worker", "%s: %v", name, err)
+						},
+					)
+
+					return nil
+				},
+			)
+		}
+	}
+	// Section 17B checkout recovery. It releases stock a lapsed or crashed
+	// checkout is still holding and hands the cart back to its customer.
+	// Without it, a process that died mid-reservation would cost a vendor
+	// real sellable stock until the reservation's own TTL elapsed.
+	checkoutService := buildSection17BCheckoutService(
+		cfg,
+		db,
+		foodService,
+		shopService,
+		inventoryStockService,
+	)
+
+	// Section 17C fulfilment planning. It consumes validated Section 17B
+	// groups and the vendor's own delivery policy, and calls the logistics
+	// authorities for real quotes. Composed with no Wallet, order or payment
+	// dependency: 17C plans and quotes, it moves no money.
+	fulfilmentService := buildSection17CFulfilmentService(
+		cfg,
+		db,
+		deliveryService,
+	)
+
+	// Section 17D immutable quote lock. It freezes current checkout, product,
+	// fulfilment and funding evidence but performs no payment or order work.
+	quoteService := buildSection17DQuoteService(cfg, db)
+
+	// Section 17E order orchestration. It cuts one ParentOrder and its
+	// isolated VendorOrders from an approved quote. Composed with no Wallet
+	// or mission-execution dependency: it creates orders, not payments.
+	orderService := buildSection17EOrderService(cfg, db, evaluator, inventoryStockService, quoteService, events.NewDomainPublisher(outboxRepo))
+
+	// Section 17F durable payment recovery. Without it, a process that died
+	// mid-authorization would leave a leg whose outcome nobody ever resolves,
+	// which is how a paid checkout gets silently lost.
+	if recoveryJob, ok := section17FRecoveryJob(
+		cfg,
+		orderService,
+		durableInventoryCoordinator,
+		durableInventoryWorkerOwner,
+	); ok {
+		job := recoveryJob
+
+		workers = append(
+			workers,
 			func(runCtx context.Context) error {
-				inventoryBulkWorker.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+				job.Run(
+					runCtx,
+					func(name string, err error) {
+						logging.Error("worker", "%s: %v", name, err)
+					},
+				)
+
 				return nil
 			},
 		)
 	}
+
+	if expiryJob, ok := section17CExpiryJob(
+		cfg,
+		fulfilmentService,
+		durableInventoryCoordinator,
+		durableInventoryWorkerOwner,
+	); ok {
+		job := expiryJob
+
+		workers = append(
+			workers,
+			func(runCtx context.Context) error {
+				job.Run(
+					runCtx,
+					func(name string, err error) {
+						logging.Error("worker", "%s: %v", name, err)
+					},
+				)
+
+				return nil
+			},
+		)
+	}
+
+	if recoveryJob, ok := section17BRecoveryJob(
+		cfg,
+		checkoutService,
+		durableInventoryCoordinator,
+		durableInventoryWorkerOwner,
+	); ok {
+		job := recoveryJob
+
+		workers = append(
+			workers,
+			func(runCtx context.Context) error {
+				job.Run(
+					runCtx,
+					func(name string, err error) {
+						logging.Error("worker", "%s: %v", name, err)
+					},
+				)
+
+				return nil
+			},
+		)
+	}
+
 	if crmFlags.SegmentationEnabled && crmFlags.SegmentMaterializationEnabled {
 		// The segment materializer claims due evaluations under a lease, so
 		// running several instances is safe: SKIP LOCKED means two workers never
@@ -370,7 +822,7 @@ func main() {
 		// due until a committed transaction settles it. Several instances are
 		// safe (SKIP LOCKED on the account row), a crash mid-batch simply
 		// leaves the work due, and an outage delays bookkeeping without ever
-		// letting an expired point be spent — every balance command settles
+		// letting an expired point be spent - every balance command settles
 		// expiry itself first.
 		loyaltyExpiryJob := jobs.Job{Name: "crm-loyalty-expiry", Interval: time.Minute, Pass: func(runCtx context.Context) error {
 			_, err := crmService.RunLoyaltyExpiryPass(runCtx, crm.LoyaltyExpiryBatchSize)
@@ -389,7 +841,7 @@ func main() {
 		// The audience preparer claims due snapshots under a lease, so running
 		// several instances is safe: SKIP LOCKED means two workers never build
 		// the same audience, and a worker that dies simply lets its lease lapse
-		// for another to adopt. It prepares audiences and nothing else — it
+		// for another to adopt. It prepares audiences and nothing else - it
 		// never contacts notification-service, because Section 8E does not
 		// deliver anything.
 		workerID := "vendor-service-campaign-preparer-" + uuid.NewString()
@@ -501,6 +953,17 @@ func main() {
 		)
 	}
 
+	// Section 13: the rebuild and validate/activate workers. They run through
+	// the same jobs.Job runtime as every other Vendor worker - Section 13
+	// introduces no second scheduler.
+	for _, job := range section13Components.Workers() {
+		searchJob := job
+		workers = append(workers, func(runCtx context.Context) error {
+			searchJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "vendor-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -510,10 +973,12 @@ func main() {
 			"vendor staff IAM: staff provisioning/suspension, roles, permissions, assignments",
 			"vendor business, brands, capabilities, branches and operating configuration",
 			"restaurant, cloud-kitchen, pastry and Shop management catalogues",
-			"CRM and shared production capacity; inventory, purchasing and recipes planned",
+			"CRM and shared production capacity; inventory, suppliers and purchase-order workflow active, recipes planned",
 			"commerce cart/checkout and vendor orders (planned)",
 			"promotions and vendor-owned delivery (planned)",
 			"commerce fulfilment planning (planned)",
+			"canonical Food/Shop taxonomy: versions, vocabulary, mapping and governance",
+			"Food and Shop search projections: ranking, filters, facets, suggestions",
 		},
 		ReadyChecks: []func(context.Context) error{
 			db.Ping,
@@ -545,8 +1010,102 @@ func main() {
 			cloudkitchen.RegisterRoutes(protected, cloudKitchenHandler, productionFlags)
 			pastry.RegisterRoutes(protected, pastryHandler, productionFlags)
 			shop.RegisterRoutes(protected, shopHandler, shopFlags)
+			foodService.SetInventoryAvailabilityAuthority(
+				foodInventoryAvailabilityAdapter{
+					inventory: inventoryStockService,
+				},
+			)
+
+			inventory.RegisterRoutes(protected, inventoryHandler, inventoryFlags)
+			inventory.RegisterReservationRoutes(protected, inventoryHandler, inventoryFlags)
+			inventory.RegisterOperationalRoutes(protected, inventoryHandler, inventoryFlags)
+			purchasing.RegisterRoutes(
+				protected,
+				purchasingHandler,
+				cfg.Flags.VendorPurchasingEnabled,
+			)
+			purchasing.RegisterPurchaseOrderRoutes(
+				protected,
+				purchaseOrderHandler,
+				cfg.Flags.VendorPurchasingEnabled,
+			)
+			purchasing.RegisterGoodsReceivingRoutes(
+				protected,
+				goodsReceivingHandler,
+				cfg.Flags.VendorPurchasingEnabled,
+			)
+			productionmaster.RegisterRoutes(
+				protected,
+				productionMasterHandler,
+			)
+			recipes.RegisterRoutes(
+				protected,
+				recipeHandler,
+				cfg.Flags.VendorRecipesEnabled,
+			)
+
+			productionbatch.RegisterRoutes(
+				protected,
+				productionBatchHandler,
+				cfg.Flags.VendorRecipesEnabled,
+			)
+
+			cost.RegisterRoutes(
+				protected,
+				costHandler,
+				cfg.Flags.VendorCostEnabled,
+			)
+
+			delivery.RegisterRoutes(
+				protected,
+				deliveryHandler,
+				cfg.Flags.VendorOwnDeliveryEnabled,
+			)
+
+			purchasing.RegisterOperationsRoutes(protected, purchasingOperationsHandler, cfg.Flags.VendorPurchasingEnabled)
+			section13Components.registerVendorRoutes(protected)
+
+			// Section 17E vendor order queue and lifecycle commands.
+			orders.RegisterVendorRoutes(
+				protected,
+				orderService,
+				cfg.Flags.CommerceOrdersEnabled,
+				idempotencyStore,
+			)
+
 		},
 		RegisterRoot: func(router *gin.Engine) {
+			registerSection17ACustomerCartRoutes(
+				router,
+				cfg,
+				db,
+				foodService,
+				shopService,
+				idempotencyStore,
+			)
+			registerSection17BCheckoutRoutes(
+				router,
+				cfg,
+				checkoutService,
+				idempotencyStore,
+			)
+			registerSection17CFulfilmentRoutes(
+				router,
+				cfg,
+				fulfilmentService,
+			)
+			registerSection17DQuoteRoutes(
+				router,
+				cfg,
+				quoteService,
+				idempotencyStore,
+			)
+			registerSection17ECustomerOrderRoutes(
+				router,
+				cfg,
+				orderService,
+				idempotencyStore,
+			)
 			// Every internal-authority ingress is mounted here, at the engine
 			// root, never under the public vendor base the gateway forwards.
 			staffhttp.RegisterInternalRoutes(router, staffService, inboundVerifier)
@@ -557,6 +1116,12 @@ func main() {
 			crm.RegisterInternalRoutes(router, crmInternalHandler, inboundVerifier, crmFlags)
 			food.RegisterInternalRoutes(router, food.NewInternalHandler(foodService), inboundVerifier, foodFlags)
 			shop.RegisterInternalInventoryRoutes(router, shop.NewInventoryInternalHandler(shopService, strings.Split(cfg.ShopInternalCallers, ",")), inboundVerifier, shopFlags)
+			inventory.RegisterInternalRoutes(router, inventory.NewInternalInventoryHandler(inventoryStockService, strings.Split(cfg.InventoryInternalCallers, ",")), inboundVerifier, inventoryFlags)
+			orders.RegisterInternalLogisticsRoutes(router, orderService, inboundVerifier)
+			// Section 13 mounts two more internal-authority surfaces here: platform
+			// taxonomy administration and internal Food/Shop search. Each carries its
+			// own caller allowlist.
+			section13Components.registerInternalRoutes(router, inboundVerifier)
 		},
 		Workers: workers,
 	})

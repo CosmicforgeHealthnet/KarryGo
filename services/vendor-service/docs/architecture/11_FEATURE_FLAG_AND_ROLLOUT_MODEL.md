@@ -71,6 +71,7 @@ PAYMENT_WALLET_COMMERCE_ENABLED
 VENDOR_VERIFICATION_INTEGRATION_ENABLED
 
 COMMERCE_FULFILMENT_WORKERS_ENABLED
+COMMERCE_QUOTE_LOCK_ENABLED
 COMMERCE_GLOBAL_KILL_SWITCH
 ```
 
@@ -81,7 +82,16 @@ All default `false`. Every one is read, wired into `Config.Flags`, and unit-test
 1. **No orphaned feature flag**: any `VENDOR_*`/`COMMERCE_*` feature flag enabled while `VENDOR_SERVICE_ENABLED=false` is a configuration error, not a valid "partially enabled" state — mirrors hauling's rule that `PrivateExecutionEnabled` requires `FleetIntegrationEnabled`.
 2. **No flag without credentials**: `PAYMENT_WALLET_COMMERCE_ENABLED`, `VENDOR_VERIFICATION_INTEGRATION_ENABLED`, `DISPATCH_COMMERCE_INTEGRATION_ENABLED`, `TAXI_GOODS_DELIVERY_ENABLED`, and `HAULING_COMMERCE_INTEGRATION_ENABLED` each require their corresponding `VENDOR_<SERVICE>_URL`/`VENDOR_<SERVICE>_SECRET` pair — turning on an integration without configuring where it points to is refused at startup rather than silently no-op'ing or falling back to an insecure default, matching hauling's `Validate()` posture (no development-secret fallbacks; disabled integrations require no downstream credentials, enabled ones require explicit ones).
 
-Both rules are exercised by `internal/config/config_test.go` and pass.
+Section 17D additionally refuses `COMMERCE_QUOTE_LOCK_ENABLED=true` unless both
+`COMMERCE_CHECKOUT_ENABLED` and `COMMERCE_FULFILMENT_PLANNING_ENABLED` are on,
+and requires `COMMERCE_QUOTE_TTL_SECONDS` in `[60, 86400]`.
+
+Section 17E refuses `COMMERCE_ORDERS_ENABLED=true` unless
+`COMMERCE_QUOTE_LOCK_ENABLED` is on. An approved quote is the only thing an
+order can be cut from, so without it the surface could only ever refuse. The
+flag needs no credential: Section 17E creates orders, not payments.
+
+These rules are exercised by `internal/config` tests.
 
 ## `COMMERCE_GLOBAL_KILL_SWITCH`
 

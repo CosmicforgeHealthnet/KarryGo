@@ -685,38 +685,21 @@ func (e *testEnv) assertCurrentGenerationConsistent(t *testing.T, segmentID stri
 	}
 }
 
+// waitForBackendLock blocks until one specific backend is queued behind a lock.
+// This is the strongest identification available and is used wherever the test
+// owns the waiting connection and can read its pg_backend_pid().
 func waitForBackendLock(t *testing.T, env *testEnv, backendPID int) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		var waiting bool
-		if err := env.pool.QueryRow(context.Background(), `SELECT COALESCE((SELECT wait_event_type='Lock'
-			FROM pg_stat_activity WHERE pid=$1),false)`, backendPID).Scan(&waiting); err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("backend %d never reached the expected database lock", backendPID)
+	newLockObserver(t).awaitBackend(t, backendPID, "expected database lock")
 }
 
+// waitForGenerationFenceLock blocks until generation certification is queued
+// behind the authoritative profile lock, identified by the
+// /* crm_generation_profile_fence */ marker its statement carries.
 func waitForGenerationFenceLock(t *testing.T, env *testEnv) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		var waiting bool
-		if err := env.pool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM pg_stat_activity
-			WHERE query LIKE '%crm_generation_profile_fence%' AND wait_event_type='Lock')`).Scan(&waiting); err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("generation certification never waited on the authoritative profile lock")
+	newLockObserver(t).await(t, 1, "%crm_generation_profile_fence%", false,
+		"generation certification never waited on the authoritative profile lock")
 }
 
 // TestMaterialization_RedactionSwapFirst uses two real database transactions.

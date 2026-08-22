@@ -47,6 +47,22 @@ func TestSection12BMigrationReplayAndBoundary(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM vendor_role_permissions rp JOIN vendor_permissions p ON p.id=rp.permission_id WHERE rp.role_id='role_kitchen_pastry' AND p.category='shop_inventory'`).Scan(&kitchen); err != nil || kitchen != 0 {
 		t.Errorf("kitchen inventory authority=%d err=%v", kitchen, err)
 	}
+	// Newer Vendor migrations may exist above Section 12B.
+	// Walk back to the Section 12B tip before proving its down sequence.
+	for {
+		var latest string
+		if err = pool.QueryRow(ctx, `SELECT version FROM vendor_service_schema_migrations ORDER BY version DESC LIMIT 1`).Scan(&latest); err != nil {
+			t.Fatalf("read migration tip before Section 12B rollback: %v", err)
+		}
+
+		if latest <= "000046_vendor_shop_inventory_permissions" {
+			break
+		}
+
+		if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+			t.Fatalf("rollback post-12B migration %s: %v", latest, err)
+		}
+	}
 	for _, version := range []string{"000046", "000045", "000044"} {
 		if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
 			t.Fatalf("rollback %s: %v", version, err)

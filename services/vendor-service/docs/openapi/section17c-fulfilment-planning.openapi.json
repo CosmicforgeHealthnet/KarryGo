@@ -1,0 +1,460 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service - Section 17C fulfilment planning (customer surface)",
+    "version": "1.0.0",
+    "description": "Turns validated Section 17B vendor/branch groups into an authoritative candidate fulfilment plan.\n\nVendor Service never prices a platform delivery: every platform fee comes verbatim from the owning logistics authority's own quote (driver-dispatch-delivery-service or driver-hauling-service, both HMAC v2 with a caller allowlist and nonce replay protection). The only fee calculated here is a Vendor Own Delivery fee, because the vendor both performs and prices that delivery.\n\nTaxi is not used: driver-taxi-service has no production goods-delivery capability, the shared quote contract has no CAR class, and the class-to-service mapping refuses one.\n\nThere is no quote lock, no payment, no ParentOrder and no VendorOrder on this surface."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/commerce",
+      "description": "Customer surface. Identity comes only from the Customer Service bearer token."
+    }
+  ],
+  "tags": [
+    {
+      "name": "fulfilment-plan",
+      "description": "Customer fulfilment planning."
+    }
+  ],
+  "paths": {
+    "/checkout/{sessionId}/fulfilment-plan": {
+      "post": {
+        "tags": [
+          "fulfilment-plan"
+        ],
+        "operationId": "createFulfilmentPlan",
+        "summary": "Build the candidate fulfilment plan for a validated checkout",
+        "description": "Resolves each validated checkout group's real logistics requirement, selects a delivery authority, obtains an authoritative quote for every platform mission, and persists the plan.\n\nThe request has NO body. There is deliberately no fee, business id, branch id or customer id anywhere in this contract: a customer cannot overwrite a logistics fee, and a vendor cannot inject another vendor's pickup, because neither value is accepted as input.\n\nA plan in which some group cannot be delivered is returned with status UNSERVICEABLE and that group's explicit reason. That is a successful planning outcome, not an error: the customer must be told which vendors failed and why.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The candidate plan, planned or unserviceable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "The checkout is not in a state that can be planned - not validated, or expired."
+          },
+          "503": {
+            "description": "Planning is temporarily unavailable."
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "fulfilment-plan"
+        ],
+        "operationId": "getFulfilmentPlanForCheckout",
+        "summary": "Read the live fulfilment plan for a checkout",
+        "description": "A live plan past its expiry is reported as EXPIRED rather than as live: the quotes inside it have lapsed, so presenting it as current would present fees no authority still stands behind.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No live plan exists for this checkout."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "customerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Customer Service access token. role=customer, service=customer."
+      }
+    },
+    "parameters": {
+      "SessionId": {
+        "name": "sessionId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "The Section 17B checkout session."
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication is required."
+      }
+    },
+    "schemas": {
+      "Funding": {
+        "type": "object",
+        "description": "Attribution of a delivery charge. customer + vendor_funded + platform_funded always equals gross, so 'who actually paid for this delivery' stays answerable at settlement.",
+        "required": [
+          "gross_minor",
+          "customer_minor",
+          "vendor_funded_minor",
+          "platform_funded_minor"
+        ],
+        "properties": {
+          "gross_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "What the delivery actually costs."
+          },
+          "customer_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vendor_funded_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Absorbed by a vendor promotion, such as a free-delivery threshold."
+          },
+          "platform_funded_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "QuoteEvidence": {
+        "type": "object",
+        "description": "The logistics authority's own answer, recorded verbatim. Absent for vendor-owned delivery, which is priced by the vendor's own policy.",
+        "properties": {
+          "quote_id": {
+            "type": "string"
+          },
+          "quote_reference": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pickup_ref": {
+            "type": "string"
+          },
+          "dropoff_ref": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Mission": {
+        "type": "object",
+        "description": "One quoted execution unit - the commercial unit, one authoritative quote, one fee. A later section may split it into several physical execution missions without changing this commitment.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "PLATFORM_LOGISTICS",
+              "VENDOR_OWN_DELIVERY"
+            ]
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "DISPATCH",
+              "HAULING",
+              "VENDOR_OWN_DELIVERY"
+            ]
+          },
+          "vehicle_class": {
+            "type": "string",
+            "enum": [
+              "MOTORCYCLE",
+              "VAN",
+              "TRUCK"
+            ],
+            "description": "CAR is deliberately absent: taxi is not production-ready for goods delivery."
+          },
+          "pickup_business_id": {
+            "type": "string"
+          },
+          "pickup_branch_id": {
+            "type": "string"
+          },
+          "consolidated": {
+            "type": "boolean",
+            "description": "True when this mission covers more than one vendor group."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/QuoteEvidence"
+          },
+          "distance_km": {
+            "type": "number"
+          },
+          "estimated_minutes": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "funding": {
+            "$ref": "#/components/schemas/Funding"
+          },
+          "breakdown": {
+            "type": "object",
+            "properties": {
+              "base_minor": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "distance_minor": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "surcharge_minor": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          },
+          "fee_beneficiary": {
+            "type": "string",
+            "enum": [
+              "VENDOR",
+              "PLATFORM_PROVIDER"
+            ],
+            "description": "Derived from the authority, never configured."
+          },
+          "total_weight_grams": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "package_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "group_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The vendor groups this mission covers, so a consolidated fee is always traceable."
+          }
+        }
+      },
+      "Requirement": {
+        "type": "object",
+        "description": "The group's aggregated logistics need. Missing measurements are reported, never invented.",
+        "properties": {
+          "package_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_weight_grams": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "weight_evidence": {
+            "type": "string",
+            "enum": [
+              "COMPLETE",
+              "PARTIAL",
+              "ABSENT"
+            ],
+            "description": "PARTIAL means the total is a lower bound on the real value."
+          },
+          "total_volume_ml": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "longest_dimension_mm": {
+            "type": "integer"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "IMMEDIATE"
+            ]
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PlanGroup": {
+        "type": "object",
+        "description": "One vendor/branch group. Every checkout group appears here whether or not it can be delivered - an unserviceable one is reported with a reason rather than silently dropped.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "checkout_group_id": {
+            "type": "string"
+          },
+          "business_id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "serviceable": {
+            "type": "boolean"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "PLATFORM_LOGISTICS",
+              "VENDOR_OWN_DELIVERY"
+            ]
+          },
+          "mission_id": {
+            "type": "string"
+          },
+          "vehicle_class": {
+            "type": "string"
+          },
+          "requirement": {
+            "$ref": "#/components/schemas/Requirement"
+          },
+          "funding": {
+            "$ref": "#/components/schemas/Funding"
+          }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "checkout_session_id": {
+            "type": "string"
+          },
+          "checkout_validation_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PLANNING",
+              "PLANNED",
+              "UNSERVICEABLE",
+              "EXPIRED",
+              "SUPERSEDED",
+              "FAILED"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "SINGLE",
+              "FASTEST",
+              "BALANCED",
+              "SAVER"
+            ],
+            "description": "SINGLE is the honest answer while one authoritative plan is produced. The three named modes are only used when the optimizer genuinely selects differently."
+          },
+          "plan_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "delivery_funding": {
+            "$ref": "#/components/schemas/Funding"
+          },
+          "failure_code": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Never later than the earliest quote inside the plan."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "planned_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "missions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Mission"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanGroup"
+            }
+          }
+        }
+      },
+      "PlanEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Plan"
+          }
+        }
+      }
+    }
+  }
+}

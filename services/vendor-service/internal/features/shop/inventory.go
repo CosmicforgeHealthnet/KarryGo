@@ -238,6 +238,16 @@ func (s *Service) ConfigureStockBasis(ctx context.Context, actor Actor, scope Sc
 		if err != nil {
 			return err
 		}
+		if err := s.ensureGenericInventoryCompatibilityTx(
+			ctx,
+			tx,
+			actor,
+			out,
+			measureOwner,
+			measureFamily,
+		); err != nil {
+			return err
+		}
 		return s.record(ctx, tx, actor, evidence{action: "shop.inventory.stock_basis.configured", eventType: "shop.inventory.stock_basis.configured", aggregateType: "shop_inventory_stock_basis", aggregateID: out.ID, branchID: branchID, version: out.Version, after: out, payload: out})
 	})
 	return out, err

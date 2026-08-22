@@ -386,6 +386,24 @@ func (s *BookingService) startMatchGoroutine(bookingID string, pickupLat, pickup
 	}()
 }
 
+// StartCommerceMatching begins matching for a booking created by the Section
+// 17F commerce mission contract.
+//
+// It is the same matcher every other booking uses. The commerce path needs an
+// exported entry point because the booking is created by that feature's own
+// transaction rather than by CreateBooking, and starting matching in-process
+// keeps the customer from waiting for a sweep. The existing match-recovery
+// worker remains the safety net: a booking left in pending_match by a crash is
+// re-adopted regardless of whether this call ever ran.
+func (s *BookingService) StartCommerceMatching(
+	_ context.Context, bookingID string, pickupLat, pickupLng float64,
+) {
+	if s == nil || bookingID == "" {
+		return
+	}
+	s.startMatchGoroutine(bookingID, pickupLat, pickupLng)
+}
+
 // cancelMatch stops the active matching goroutine for a booking, if any.
 func (s *BookingService) cancelMatch(bookingID string) {
 	if handle, ok := s.activeMatches.LoadAndDelete(bookingID); ok {

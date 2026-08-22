@@ -1,0 +1,867 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Section 13 Vendor Taxonomy",
+    "version": "1.0.0",
+    "description": "Section 13 vendor-facing canonical taxonomy classification. A vendor reads the published taxonomy and manages the classification of resources inside their own vendor/business/branch scope. Every source-addressed operation resolves ownership from the owning catalogue table; business_ref and branch_ref are never taken from the request. Global taxonomy authoring and publication are NOT here - they are platform capabilities on the internal HMAC-v2 surface. Requires vendor.taxonomy.read; mapping replacement requires vendor.taxonomy.mapping.manage."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/taxonomy/namespaces/{namespaceCode}/classifications": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_classifications",
+        "summary": "Read the full classification of one owned resource",
+        "description": "Mappings, semantic tag assignments and dietary claim assignments for one of the caller's own catalogue resources, in one response.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "query",
+            "name": "source_type",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD_ITEM",
+                "SHOP_PRODUCT",
+                "SHOP_VARIANT"
+              ]
+            },
+            "description": "Bounded vendor source vocabulary. The type decides the namespace, so a Food type is never classifiable inside SHOP."
+          },
+          {
+            "in": "query",
+            "name": "source_ref",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Identifier of the vendor's own catalogue resource. Ownership is resolved from the owning catalogue table; another vendor's reference returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/dietary-claim-assignments": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_dietary_claim_assignments",
+        "summary": "Read dietary claim assignments and verification state",
+        "description": "Bounded list of dietary claim assignments for an owned resource, each with its declared status, evidence reference and verification/expiry timestamps.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "query",
+            "name": "source_type",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD_ITEM",
+                "SHOP_PRODUCT",
+                "SHOP_VARIANT"
+              ]
+            },
+            "description": "Bounded vendor source vocabulary. The type decides the namespace, so a Food type is never classifiable inside SHOP."
+          },
+          {
+            "in": "query",
+            "name": "source_ref",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Identifier of the vendor's own catalogue resource. Ownership is resolved from the owning catalogue table; another vendor's reference returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/dietary-claims": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_dietary_claims",
+        "summary": "Read the dietary claim catalogue",
+        "description": "Bounded list of active dietary claims with the verification policy each one requires, so a vendor can see what evidence a claim will need before declaring it.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/facets": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_facets",
+        "summary": "Browse published facets",
+        "description": "Bounded list of the published version's facets.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/mappings": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_mappings",
+        "summary": "Read taxonomy mappings for an owned resource",
+        "description": "Bounded list of active mappings for a source resource the caller owns.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "query",
+            "name": "source_type",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD_ITEM",
+                "SHOP_PRODUCT",
+                "SHOP_VARIANT"
+              ]
+            },
+            "description": "Bounded vendor source vocabulary. The type decides the namespace, so a Food type is never classifiable inside SHOP."
+          },
+          {
+            "in": "query",
+            "name": "source_ref",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Identifier of the vendor's own catalogue resource. Ownership is resolved from the owning catalogue table; another vendor's reference returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "put_api_v1_vendor_taxonomy_namespaces_namespaceCode_mappings",
+        "summary": "Replace the facet mappings of an owned resource",
+        "description": "Idempotent replacement of every mapping a resource holds inside one facet. business_ref and branch_ref are NOT accepted in the body: the server resolves them from the source resource's authoritative ownership, and sending them is a 400.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Command reference for idempotent replay."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceFacetMappingsRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/nodes": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_nodes",
+        "summary": "Browse published nodes",
+        "description": "Bounded list of the published version's nodes, optionally restricted to one facet.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "query",
+            "name": "facet_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Restrict to one facet of the published version."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/nodes/{nodeId}": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_nodes_nodeId",
+        "summary": "Read one node with its vocabulary",
+        "description": "Returns the node plus its aliases, synonyms and related terms. A node from another version or namespace is not visible here.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Canonical node identifier. Must belong to the addressed namespace and version."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/published-version": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_published_version",
+        "summary": "Read the published taxonomy version",
+        "description": "Returns the currently published canonical version for the namespace. Vendors classify against published versions only; drafts are platform state.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/tag-assignments": {
+      "get": {
+        "operationId": "get_api_v1_vendor_taxonomy_namespaces_namespaceCode_tag_assignments",
+        "summary": "Read semantic tag assignments for an owned resource",
+        "description": "Bounded list of semantic tag assignments for a source resource the caller owns.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "query",
+            "name": "source_type",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD_ITEM",
+                "SHOP_PRODUCT",
+                "SHOP_VARIANT"
+              ]
+            },
+            "description": "Bounded vendor source vocabulary. The type decides the namespace, so a Food type is never classifiable inside SHOP."
+          },
+          {
+            "in": "query",
+            "name": "source_ref",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Identifier of the vendor's own catalogue resource. Ownership is resolved from the owning catalogue table; another vendor's reference returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "hmacV2": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature"
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Stable platform error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "EmptyCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "No body fields. The command's subject comes from the path and its actor from the verified caller."
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MappingCandidate": {
+        "type": "object",
+        "required": [
+          "node_code",
+          "mapping_type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "node_code": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "mapping_type": {
+            "type": "string",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "DERIVED"
+            ]
+          },
+          "confidence_basis": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "RULE",
+              "INFERRED"
+            ]
+          },
+          "confidence_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "ReplaceFacetMappingsRequest": {
+        "type": "object",
+        "required": [
+          "facet_code",
+          "source_type",
+          "source_ref",
+          "mappings"
+        ],
+        "additionalProperties": false,
+        "description": "business_ref and branch_ref are deliberately absent. Unknown fields are rejected, so an attempt to supply either is a 400 rather than a silently ignored field.",
+        "properties": {
+          "facet_code": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "FOOD_ITEM",
+              "SHOP_PRODUCT",
+              "SHOP_VARIANT"
+            ]
+          },
+          "source_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "mappings": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/MappingCandidate"
+            }
+          }
+        }
+      },
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

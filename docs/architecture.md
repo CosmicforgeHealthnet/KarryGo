@@ -4,6 +4,14 @@ This document is a handoff guide for continuing development in this monorepo. It
 
 Section 7 contract correction: Vendor verification uses the exact status vocabulary `NOT_STARTED`, `IN_PROGRESS`, `PENDING_REVIEW`, `VERIFIED`, `REJECTED`, `EXPIRED`, `SUSPENDED`; plain `PENDING` belongs only to unrelated worker/outbox state. Verification callbacks reach Vendor Service directly at root-level `POST /internal/vendor/v1/verification-events` under HMAC v2 and are not exposed by API Gateway.
 
+Vendor commerce is implemented through Section 17D. Vendor Service owns the
+customer cart, checkout validation/Inventory holds, fulfilment-plan evidence
+and the expiring immutable quote the customer approves. The quote binds
+product-price versions, address/allocation, delivery-plan quote references,
+funding and disclosure into a versioned fingerprint and is append-only. It is
+not a payment or an order: Wallet authorization, ParentOrder/VendorOrder and
+execution missions begin only in later sections.
+
 ## System Overview
 
 Karry Go is a logistics platform with multiple client apps and a Go microservice backend. The repository is organized as a monorepo so shared contracts, UI packages, and service helpers can evolve together.

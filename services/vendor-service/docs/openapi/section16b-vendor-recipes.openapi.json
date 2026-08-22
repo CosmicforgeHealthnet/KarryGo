@@ -1,0 +1,133 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Vendor Recipes - Section 16B",
+    "version": "16B"
+  },
+  "paths": {
+    "/api/v1/vendor/recipes": {
+      "get": {
+        "summary": "List Vendor recipes"
+      },
+      "post": {
+        "summary": "Create typed Food/Pastry/Cloud Kitchen recipe"
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}": {
+      "get": {
+        "summary": "Get recipe"
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/archive": {
+      "post": {
+        "summary": "Archive recipe after active version has been retired",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions": {
+      "get": {
+        "summary": "List immutable recipe version history"
+      },
+      "post": {
+        "summary": "Create new DRAFT recipe version"
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}": {
+      "get": {
+        "summary": "Read recipe version with Ingredient and Packaging requirements"
+      },
+      "put": {
+        "summary": "Update DRAFT yield/waste definition",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/components": {
+      "put": {
+        "summary": "Replace DRAFT Ingredient BOM",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/packaging": {
+      "put": {
+        "summary": "Replace DRAFT Packaging requirements",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/validate": {
+      "post": {
+        "summary": "Validate activation readiness without changing state"
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/activate": {
+      "post": {
+        "summary": "Atomically retire previous ACTIVE version and activate this DRAFT",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/retire": {
+      "post": {
+        "summary": "Retire an ACTIVE recipe version",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/scale": {
+      "post": {
+        "summary": "Calculate exact scaled planning requirements without mutating Inventory"
+      }
+    }
+  }
+}

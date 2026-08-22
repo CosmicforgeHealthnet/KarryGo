@@ -180,7 +180,7 @@ func TestSection9BCertificationDatabaseFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	source, err := env.service.GetAvailabilitySource(ctx, actor, globalScope(), item.ID)
-	if err != nil || source.Mode != SourceInventoryLinked || InventoryAvailabilitySupport != "NOT_PRESENT" {
+	if err != nil || source.Mode != SourceInventoryLinked || InventoryAvailabilitySupport != InventorySupportNotSupported {
 		t.Fatalf("inventory seam: %+v %v", source, err)
 	}
 	if _, err = env.service.SetItemAvailability(ctx, actor, globalScope(), item.ID, SetAvailabilityInput{Status: OperationalAvailable, ExpectedVersion: 1}); err != nil {

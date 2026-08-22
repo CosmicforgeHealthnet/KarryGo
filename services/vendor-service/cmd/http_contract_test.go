@@ -125,8 +125,33 @@ func contractTestPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("apply migrations: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := pool.Exec(ctx, `TRUNCATE vendor_sessions, vendor_otp_challenges, vendor_staff, vendor_users RESTART IDENTITY CASCADE`); err != nil {
-		t.Fatalf("truncate: %v", err)
+	// Keep HTTP contract tests isolated without TRUNCATE ... CASCADE on
+	// shared Vendor root/authority tables. Such truncation can cascade
+	// into unrelated domains and remove platform-owned Shop seed data.
+	if _, err := pool.Exec(ctx, `DELETE FROM vendor_sessions`); err != nil {
+		t.Fatalf("clean sessions: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM vendor_otp_challenges`); err != nil {
+		t.Fatalf("clean otp challenges: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		DELETE FROM vendor_staff_role_assignments
+		WHERE id = 'vsa-http-1'
+		   OR staff_id = 'staff-http-1'
+	`); err != nil {
+		t.Fatalf("clean HTTP contract role assignment: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		DELETE FROM vendor_staff
+		WHERE id = 'staff-http-1'
+	`); err != nil {
+		t.Fatalf("clean HTTP contract staff: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		DELETE FROM vendor_users
+		WHERE email IN ('contract@example.com', 'http-owner@example.com')
+	`); err != nil {
+		t.Fatalf("clean HTTP contract users: %v", err)
 	}
 	return pool
 }
@@ -265,7 +290,7 @@ func TestHTTP_FullLoginThenListStaff(t *testing.T) {
 
 	// Provision an owner directly via the internal usecase layer (bypassing
 	// the internal HTTP route, which needs HMAC signing not worth
-	// reproducing here — the internal route's own wiring is exercised by
+	// reproducing here â€” the internal route's own wiring is exercised by
 	// staffhttp.RegisterInternalRoutes being reachable from cmd/main.go,
 	// already proven by `go build ./...` succeeding on that wiring).
 	staffRepo := staffrepositories.NewStaffRepository(pool)

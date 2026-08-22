@@ -20,7 +20,7 @@ import (
 // moves money.
 //
 // Every value is loaded from the database. The client supplies references and
-// context — which item, which variant, which modifiers — and this service
+// context â€” which item, which variant, which modifiers â€” and this service
 // supplies the numbers. A caller-supplied price is never trusted, because that
 // is how a client ends up choosing what it pays.
 
@@ -96,7 +96,7 @@ func latestPriceVersionRef(ctx context.Context, q querier, businessID, subjectTy
 // Precedence, deterministic and tested: an explicit variant price is the base;
 // otherwise a branch base-price override is the base; otherwise the item's own
 // base price. A variant with no price of its own inherits whatever the branch
-// layer resolved — but a variant WITH an explicit price does not have the
+// layer resolved â€” but a variant WITH an explicit price does not have the
 // branch override added on top of it, because an absolute price is absolute.
 func (s *Service) ResolvePrice(ctx context.Context, actor Actor, scope Scope, itemID string, in ResolvePriceInput) (ResolvedPrice, error) {
 	item, err := s.scopedItem(ctx, actor, scope, itemID)
@@ -195,8 +195,8 @@ func (s *Service) ResolvePrice(ctx context.Context, actor Actor, scope Scope, it
 //
 // One set-based query loads every selected modifier together with the
 // attachment that authorises it, so selecting twenty modifiers costs one query
-// rather than twenty. Anything the query does not return — a foreign modifier,
-// one from a group that is not attached, one belonging to another business —
+// rather than twenty. Anything the query does not return â€” a foreign modifier,
+// one from a group that is not attached, one belonging to another business â€”
 // is refused with the same message, because a price preview must not become an
 // oracle for what exists elsewhere.
 func (s *Service) resolveModifiers(ctx context.Context, actor Actor, item Item, refs []string) ([]PriceComponent, int64, error) {
@@ -364,8 +364,8 @@ type sellabilityGraph struct {
 
 // ResolveSellability answers the central Section 9B question, and fails closed.
 //
-// The layers are evaluated in one fixed order — business, branch, capability,
-// menu, schedule, section, item, operational override, inventory — and a lower
+// The layers are evaluated in one fixed order â€” business, branch, capability,
+// menu, schedule, section, item, operational override, inventory â€” and a lower
 // layer can only ever deny. Nothing below can resurrect a denial above it: an
 // AVAILABLE override does not un-archive an item, a matching schedule does not
 // reopen a closed branch, and an inventory source saying yes does not activate
@@ -419,7 +419,7 @@ func (s *Service) ResolveSellability(ctx context.Context, actor Actor, scope Sco
 		EvaluatedAt: at, BranchID: item.BranchID, Timezone: graph.branchTimezone,
 		MenuRef: item.MenuID, SectionRef: item.SectionID, ItemRef: item.ID,
 		OperationalStatus: availability.Effective(at), AvailabilityVersion: availability.Version,
-		AvailabilityMode: source.Mode, InventoryAvailabilitySupport: InventoryAvailabilitySupport,
+		AvailabilityMode: source.Mode, InventoryAvailabilitySupport: InventorySupportNotConfigured,
 		CatalogueRevision: revision,
 	}
 
@@ -469,7 +469,7 @@ func (s *Service) ResolveSellability(ctx context.Context, actor Actor, scope Sco
 	if item.Status != StatusActive {
 		return deny(ReasonItemNotActive, "The item is not active.")
 	}
-	// 9. Operational override — the only layer the kitchen controls, and the
+	// 9. Operational override â€” the only layer the kitchen controls, and the
 	// only one that can deny an otherwise-sellable item.
 	switch availability.Effective(at) {
 	case OperationalSoldOut:
@@ -477,13 +477,41 @@ func (s *Service) ResolveSellability(ctx context.Context, actor Actor, scope Sco
 	case OperationalPaused:
 		return deny(ReasonItemPaused, availabilityDetail(availability, "The item is temporarily paused."))
 	}
-	// 10. Inventory seam. Linked with no authority to ask is not sellable.
+	// 10. Inventory seam.
+	//
+	// MANUAL is deliberately independent of inventory.
+	//
+	// INVENTORY_LINKED delegates to the generic Inventory authority. If the
+	// future recipe authority is absent, unresolved or unsupported, the answer
+	// remains fail-closed.
 	if source.Mode == SourceInventoryLinked {
-		if InventoryAvailabilitySupport != "AVAILABLE" {
-			return deny(ReasonInventorySourceGone,
-				"This item is linked to inventory, and no inventory availability source is connected.")
+		decision := s.resolveInventoryAvailability(
+			ctx,
+			item,
+			source,
+		)
+
+		result.InventoryAvailabilitySupport =
+			decision.Support
+
+		if !decision.Sellable {
+			switch decision.Support {
+			case InventorySupportNotConfigured,
+				InventorySupportNotSupported,
+				InventorySupportUnknown:
+
+				return deny(
+					ReasonInventorySourceGone,
+					"Inventory-linked availability cannot currently be resolved authoritatively.",
+				)
+
+			default:
+				return deny(
+					ReasonInventoryEmpty,
+					"Inventory reports this item as unavailable.",
+				)
+			}
 		}
-		return deny(ReasonInventoryEmpty, "Inventory reports this item as unavailable.")
 	}
 
 	result.Sellable = true

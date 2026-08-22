@@ -18,6 +18,8 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/authority"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	bookingfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking"
+	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
+	dispatchcommercequote "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercequote"
 	identityhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/identity/http"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	notificationhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/notifications/http"
@@ -30,6 +32,8 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/commercemission"
+	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
@@ -121,6 +125,61 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	)
 	availability.RegisterRoutes(engine, authService.TokenUsecase(), cfg.InternalServiceKey, availabilityHandler)
 	availability.StartSubscribers(context.Background(), redisClient, availabilityRepository, availabilityLiveStore)
+
+	// The internal commerce delivery-quote contract (Vendor Service Section
+	// 17C). It answers serviceability and price for a route; it creates no
+	// booking and reserves no rider, so it sits with the read-shaped private
+	// surfaces rather than the execution ones.
+	//
+	// It gets its OWN verifier trusting exactly one caller with exactly one
+	// secret. Sharing the fleet verifier would have made a second caller
+	// presentable at every private surface's door, relying on each allowlist
+	// to turn it away; a separate verifier means the commerce secret opens
+	// nothing else even if an allowlist is later widened by mistake.
+	//
+	// Registration is skipped entirely when no vendor secret is configured, so
+	// a deployment that does not serve commerce quotes exposes no route to
+	// probe rather than one that answers 401 and confirms it exists.
+	if len(cfg.VendorServiceSecret) > 0 {
+		dispatchcommercequote.Register(
+			engine.Group("/api/v1/internal"),
+			dispatchcommercequote.NewHandler(dispatchcommercequote.New(
+				dispatchcommercequote.Options{
+					Store:    dispatchcommercequote.NewRepository(db),
+					Live:     availabilityLiveStore,
+					RadiusKM: cfg.AvailabilityRadiusKM,
+					TTL:      cfg.CommerceQuoteTTL,
+				},
+			)),
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller},
+		)
+	}
+
+	// The internal commerce mission contract (Vendor Service Section 17F).
+	// Unlike the quote surface above this one EXECUTES: it creates a real
+	// booking and starts rider matching for a fee the customer has already
+	// paid. It therefore needs the request service, and is skipped entirely
+	// without it rather than accepting missions nothing would ever match.
+	if len(cfg.VendorServiceSecret) > 0 && requestService != nil {
+		dispatchcommercemission.Register(
+			engine.Group("/api/v1/internal"),
+			dispatchcommercemission.NewHandler(dispatchcommercemission.New(
+				dispatchcommercemission.Options{
+					Store:     dispatchcommercemission.NewRepository(db),
+					Broadcast: requestService,
+				},
+			)),
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercemission.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercemission.SignatureCaller},
+		)
+	}
 
 	if requestService != nil {
 		requestfeature.RegisterRoutes(engine, authService.TokenUsecase(), requestfeature.NewHandler(requestService))

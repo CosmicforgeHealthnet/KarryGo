@@ -1,0 +1,23 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Vendor Order Lifecycle", "version": "18.0.0"},
+  "paths": {
+    "/api/v1/commerce/substitutions/{proposalId}": {"get": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/commerce/substitutions/{proposalId}/approve": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/commerce/substitutions/{proposalId}/reject": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/delivered": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/delivering": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/availability": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/substitutions": {"post": {"responses": {"201": {"description": "Created"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/pack": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/pickup": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/preparing": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/ready-for-pickup": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/ready_for_pickup": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/reject": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/start_picking": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/start_preparing": {"post": {"responses": {"200": {"description": "OK"}}}},
+    "/internal/vendor/v1/commerce/logistics-events": {"post": {"description": "Authenticated Dispatch/Hauling lifecycle evidence ingress; not public.", "responses": {"200": {"description": "OK"}, "401": {"description": "Invalid service authentication"}, "403": {"description": "Caller or mission forbidden"}}}}
+  }
+}

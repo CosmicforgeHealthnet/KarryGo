@@ -134,6 +134,11 @@ func main() {
 			customerhttp.RegisterCustomerRoutes(group, authService)
 			profilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
 			savedlocationhttp.RegisterSavedLocationRoutes(group, savedLocationService, authService.AccessSigner())
+			savedlocationhttp.RegisterInternalRoutes(
+				group,
+				savedLocationService,
+				serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+			)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner())
 			identityhttp.RegisterIdentityRoutes(group, profileService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 		},

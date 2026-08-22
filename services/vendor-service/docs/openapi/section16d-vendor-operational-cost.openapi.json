@@ -1,0 +1,90 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Section 16D Operational Cost",
+    "version": "16D-implementation"
+  },
+  "paths": {
+    "/api/v1/vendor/cost/highest-cost-subjects": {
+      "get": {
+        "summary": "Highest-cost ingredients and packaging"
+      }
+    },
+    "/api/v1/vendor/cost/policies": {
+      "get": {
+        "summary": "List operational cost policies"
+      },
+      "post": {
+        "summary": "Create an operational cost policy"
+      }
+    },
+    "/api/v1/vendor/cost/policies/{policyId}": {
+      "get": {
+        "summary": "Read one operational cost policy"
+      },
+      "put": {
+        "summary": "Update a cost policy (If-Match required)"
+      }
+    },
+    "/api/v1/vendor/cost/policies/{policyId}/archive": {
+      "post": {
+        "summary": "Archive a cost policy (If-Match required)"
+      }
+    },
+    "/api/v1/vendor/cost/snapshots/{snapshotId}/components": {
+      "get": {
+        "summary": "Component-level cost evidence for one snapshot"
+      }
+    },
+    "/api/v1/vendor/production-cost/batches/{batchId}": {
+      "get": {
+        "summary": "Read expected and actual production cost"
+      }
+    },
+    "/api/v1/vendor/production-cost/batches/{batchId}/actual": {
+      "post": {
+        "summary": "Calculate and store actual production cost"
+      }
+    },
+    "/api/v1/vendor/production-cost/batches/{batchId}/expected": {
+      "post": {
+        "summary": "Calculate and store expected production cost"
+      }
+    },
+    "/api/v1/vendor/production-cost/batches/{batchId}/variance": {
+      "get": {
+        "summary": "Expected-versus-actual production cost variance"
+      }
+    },
+    "/api/v1/vendor/production-cost/history": {
+      "get": {
+        "summary": "Production cost snapshot history"
+      }
+    },
+    "/api/v1/vendor/recipe-cost/recipes/{recipeId}": {
+      "get": {
+        "summary": "Preview estimated COGS for the recipe's ACTIVE version"
+      }
+    },
+    "/api/v1/vendor/recipe-cost/recipes/{recipeId}/history": {
+      "get": {
+        "summary": "Recipe cost snapshot history"
+      }
+    },
+    "/api/v1/vendor/recipe-cost/versions/{versionId}": {
+      "get": {
+        "summary": "Preview estimated COGS for one recipe version"
+      }
+    },
+    "/api/v1/vendor/recipe-cost/versions/{versionId}/latest": {
+      "get": {
+        "summary": "Latest immutable recipe cost snapshot"
+      }
+    },
+    "/api/v1/vendor/recipe-cost/versions/{versionId}/snapshots": {
+      "post": {
+        "summary": "Create an immutable recipe cost snapshot"
+      }
+    }
+  }
+}

@@ -358,3 +358,34 @@ func TestLoad_Section12AFlagsDefaultOff(t *testing.T) {
 		t.Fatal("Section 12A flags must default off")
 	}
 }
+
+// TestValidate_OrdersRequireTheQuoteLock keeps Section 17E from being enabled
+// without the approved agreement it is the only legal source of. Without the
+// quote lock it would be a surface with nothing it could ever order.
+func TestValidate_OrdersRequireTheQuoteLock(t *testing.T) {
+	cfg := withAuthSecrets(Load())
+	cfg.Flags.VendorServiceEnabled = true
+	cfg.Flags.CommerceOrdersEnabled = true
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected an error: orders enabled without the Section 17D quote lock")
+	}
+
+	cfg.Flags.CommerceShopEnabled = true
+	cfg.Flags.VendorInventoryEnabled = true
+	cfg.Flags.VendorInventoryWritesEnabled = true
+	cfg.Flags.CommerceCheckoutEnabled = true
+	cfg.Flags.VendorOwnDeliveryEnabled = true
+	cfg.Flags.CommerceFulfilmentPlanningEnabled = true
+	cfg.Flags.CommerceQuoteLockEnabled = true
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("orders with the full Section 17 chain must validate: %v", err)
+	}
+}
+
+// TestLoad_Section17EFlagDefaultsOff pins the safe default: a new deployment
+// creates no order until deliberately switched on.
+func TestLoad_Section17EFlagDefaultsOff(t *testing.T) {
+	if Load().Flags.CommerceOrdersEnabled {
+		t.Fatal("COMMERCE_ORDERS_ENABLED must default off")
+	}
+}

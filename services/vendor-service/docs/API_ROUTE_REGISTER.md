@@ -46,7 +46,7 @@ Section 7 adds 19 public Vendor routes and 1 internal Vendor route: 20 new, 73 c
 
 Human-readable master catalogue of every Vendor Commerce route, across every affected service. `docs/openapi/` is the machine-readable authority; this index is cross-checked by the Section 5 and Section 6 route-parity contract tests.
 
-All routes below are mounted under `/api/v1/vendor` (`shared/go/serviceapp`'s `APIBase`). `GET /health`, `GET /ready`, `GET /api/v1/vendor/meta` also exist — platform-standard infrastructure every service gets for free, not listed here.
+All routes below are mounted under `/api/v1/vendor` (`shared/go/serviceapp`'s `APIBase`). `GET /health`, `GET /ready`, `GET /api/v1/vendor/meta` also exist â€” platform-standard infrastructure every service gets for free, not listed here.
 
 ## Columns
 
@@ -56,27 +56,27 @@ Service | Method | Path | Public/Internal/Admin | Auth | Permission | Purpose | 
 
 | Service | Method | Path | Public/Internal/Admin | Auth | Permission | Purpose | Main response | Idempotency? | expectedVersion? | Feature flag | Section | OpenAPI file | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| vendor-service | POST | /auth/start | Public | none | — | Start passwordless OTP login | challenge_id, expires_in | No (challenge-id/resend semantics own idempotency) | No | none (core auth, always on) | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | POST | /auth/resend | Public | none | — | Resend the active OTP challenge | challenge_id, expires_in | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | POST | /auth/verify | Public | none | — | Verify OTP, issue tokens (or request vendor choice) | access_token, refresh_token, staff_id, vendor_id | No (atomic consume-once guard) | No | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | POST | /auth/refresh | Public | refresh token | — | Rotate a refresh session | access_token, refresh_token | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | POST | /auth/logout | Public | refresh token | — | Revoke a refresh session + its step-up grants | logged_out: true | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | POST | /auth/step-up/start | Authenticated | vendor staff bearer | — | Start step-up authentication for a high-risk operation | challenge_id, expires_in | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | POST | /auth/step-up/verify | Authenticated | vendor staff bearer | — | Verify step-up OTP, issue a single-use grant | grant_id, expires_in | No (atomic consume-once guard) | No | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | GET | /staff | Authenticated | vendor staff bearer | vendor.staff.read | List staff at the caller's vendor | staff[] | — | — | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | GET | /staff/:id | Authenticated | vendor staff bearer | vendor.staff.read | Read one staff member (vendor-scoped) | staff detail | — | — | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | POST | /auth/start | Public | none | â€” | Start passwordless OTP login | challenge_id, expires_in | No (challenge-id/resend semantics own idempotency) | No | none (core auth, always on) | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | POST | /auth/resend | Public | none | â€” | Resend the active OTP challenge | challenge_id, expires_in | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | POST | /auth/verify | Public | none | â€” | Verify OTP, issue tokens (or request vendor choice) | access_token, refresh_token, staff_id, vendor_id | No (atomic consume-once guard) | No | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | POST | /auth/refresh | Public | refresh token | â€” | Rotate a refresh session | access_token, refresh_token | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | POST | /auth/logout | Public | refresh token | â€” | Revoke a refresh session + its step-up grants | logged_out: true | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | POST | /auth/step-up/start | Authenticated | vendor staff bearer | â€” | Start step-up authentication for a high-risk operation | challenge_id, expires_in | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | POST | /auth/step-up/verify | Authenticated | vendor staff bearer | â€” | Verify step-up OTP, issue a single-use grant | grant_id, expires_in | No (atomic consume-once guard) | No | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | GET | /staff | Authenticated | vendor staff bearer | vendor.staff.read | List staff at the caller's vendor | staff[] | â€” | â€” | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | GET | /staff/:id | Authenticated | vendor staff bearer | vendor.staff.read | Read one staff member (vendor-scoped) | staff detail | â€” | â€” | none | 5 | section5-auth-staff-iam | VERIFIED |
 | vendor-service | POST | /staff | Authenticated | vendor staff bearer | vendor.staff.manage | Invite a new staff member | staff detail | No (409 on already-staff) | No | none | 5 | section5-auth-staff-iam | VERIFIED |
 | vendor-service | PUT | /staff/:id/suspend | Authenticated | vendor staff bearer | vendor.staff.suspend | Suspend a staff member, revoke their sessions | suspended: true | No | Yes | none | 5 | section5-auth-staff-iam | VERIFIED |
 | vendor-service | PUT | /staff/:id/reactivate | Authenticated | vendor staff bearer | vendor.staff.suspend | Reactivate a suspended staff member | reactivated: true | No | Yes | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | GET | /staff/:id/roles | Authenticated | vendor staff bearer | vendor.staff.read | List a staff member's active role assignments | assignments[] | — | — | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | GET | /permissions | Authenticated | vendor staff bearer | vendor.roles.read | List the global permission catalogue | permissions[] | — | — | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | GET | /roles | Authenticated | vendor staff bearer | vendor.roles.read | List system role templates + this vendor's custom roles | roles[] | — | — | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | GET | /roles/:id | Authenticated | vendor staff bearer | vendor.roles.read | Read one role + its permission codes | role detail | — | — | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | GET | /staff/:id/roles | Authenticated | vendor staff bearer | vendor.staff.read | List a staff member's active role assignments | assignments[] | â€” | â€” | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | GET | /permissions | Authenticated | vendor staff bearer | vendor.roles.read | List the global permission catalogue | permissions[] | â€” | â€” | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | GET | /roles | Authenticated | vendor staff bearer | vendor.roles.read | List system role templates + this vendor's custom roles | roles[] | â€” | â€” | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | GET | /roles/:id | Authenticated | vendor staff bearer | vendor.roles.read | Read one role + its permission codes | role detail | â€” | â€” | none | 5 | section5-auth-staff-iam | VERIFIED |
 | vendor-service | POST | /roles | Authenticated | vendor staff bearer | vendor.roles.manage | Create a vendor-scoped custom role | role detail | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
 | vendor-service | PUT | /roles/:id/permissions | Authenticated | vendor staff bearer | vendor.roles.manage | Replace a custom role's full permission set | updated: true | No | Yes | none | 5 | section5-auth-staff-iam | VERIFIED |
 | vendor-service | POST | /roles/:id/assign | Authenticated | vendor staff bearer | vendor.roles.assign | Assign a role to a staff member, optionally branch-scoped | assignment detail | No (409 on duplicate active assignment) | No | none | 5 | section5-auth-staff-iam | VERIFIED |
 | vendor-service | DELETE | /assignments/:id | Authenticated | vendor staff bearer | vendor.roles.assign | Revoke a staff role assignment | unassigned: true | No | No | none | 5 | section5-auth-staff-iam | VERIFIED |
-| vendor-service | POST | /internal/staff/provision-owner | Internal | shared/go/serviceauth HMAC | — | Provision the first staff member (Owner) for a new vendor business | staff detail | Yes (idempotent by vendor_id+identifier) | No | none | 5 | section5-auth-staff-iam | VERIFIED |
+| vendor-service | POST | /internal/staff/provision-owner | Internal | shared/go/serviceauth HMAC | â€” | Provision the first staff member (Owner) for a new vendor business | staff detail | Yes (idempotent by vendor_id+identifier) | No | none | 5 | section5-auth-staff-iam | VERIFIED |
 
 ### Section 6 registered routes
 
@@ -145,11 +145,11 @@ Section 8A adds **no** step-up requirement: the reads are ordinary, and archive/
 
 Twenty-one vendor-facing operations and **no** internal ones, described by `section8b-crm-tags-segmentation.openapi.json`. All paths are relative to `/api/v1/vendor`. Section 8B consumes no external authority, so it introduces no signed callback: every input it acts on already belongs to Vendor Service.
 
-**Authority boundary.** Section 8B produces audiences and nothing else. There is no route that sends a message, schedules a campaign, or grants marketing permission, and no permission that could later be read as one. Segment membership is never proof of consent — whatever section eventually does the sending must re-check consent and privacy at send time. `internal/section8bcontract` asserts this structurally, so a campaign-shaped route or a `send` permission fails the build.
+**Authority boundary.** Section 8B produces audiences and nothing else. There is no route that sends a message, schedules a campaign, or grants marketing permission, and no permission that could later be read as one. Segment membership is never proof of consent â€” whatever section eventually does the sending must re-check consent and privacy at send time. `internal/section8bcontract` asserts this structurally, so a campaign-shaped route or a `send` permission fails the build.
 
 **Rule safety.** Dynamic membership comes from a validated JSON rule language. A rule can only name a field published by `GET /crm/segment-fields`; field keys, operators and values are checked against a closed registry and reach the database only as bind parameters. There is no field, operator, sort or filter anywhere in this surface that accepts SQL, a column name or a raw predicate.
 
-**Branch scope.** A `BUSINESS`-scope tag or segment requires a vendor-wide grant. A branch-scoped caller cannot create one, see one in a list or by id, or preview at business scope — the member count is itself a disclosure. A branch-scoped rule reads that branch's slice of every commercial fact rather than the business total. Customer 360 applies the narrower classification rule: branch callers receive only their permitted branches' tags and segments, never BUSINESS or other-branch classification.
+**Branch scope.** A `BUSINESS`-scope tag or segment requires a vendor-wide grant. A branch-scoped caller cannot create one, see one in a list or by id, or preview at business scope â€” the member count is itself a disclosure. A branch-scoped rule reads that branch's slice of every commercial fact rather than the business total. Customer 360 applies the narrower classification rule: branch callers receive only their permitted branches' tags and segments, never BUSINESS or other-branch classification.
 
 | Service | Method | Path | Surface | Auth | Permission | Purpose | Idempotency / concurrency | Flag | Status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -177,7 +177,7 @@ Twenty-one vendor-facing operations and **no** internal ones, described by `sect
 
 **Permissions.** Five, not one per endpoint: `vendor.crm.tags.read`, `vendor.crm.tags.manage`, `vendor.crm.segments.read`, `vendor.crm.segments.manage`, `vendor.crm.segments.members.read`. Bulk tagging is the same authority as tagging, and previewing or materializing is the same authority as reading or managing a definition; splitting those apart would only create ways for a role to be half-granted. Listing a segment's actual members is separate, because naming the customers in an audience is a strictly larger disclosure than reading the audience's definition and size.
 
-## Section 8C — interactions and tasks
+## Section 8C â€” interactions and tasks
 
 | Service | Method | Exact path | Exposure | Auth | Permission | Purpose | Command contract | Flag | Status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -202,7 +202,7 @@ Section 8C adds exactly six permissions: `vendor.crm.interactions.read`, `vendor
 
 **Step-up.** Section 8B adds none. Nothing here sends a message or exports customer data, so the friction would buy nothing. Campaign execution (8E/8F) and sensitive export (8H) will need their own.
 
-## Section 8D — loyalty points
+## Section 8D â€” loyalty points
 
 | Service | Method | Exact path | Exposure | Auth | Permission | Purpose | Command contract | Flag | Status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -217,11 +217,11 @@ Section 8C adds exactly six permissions: `vendor.crm.interactions.read`, `vendor
 
 Section 8D adds exactly four permissions: `vendor.crm.loyalty.read`, `vendor.crm.loyalty.manage`, `vendor.crm.loyalty.adjust`, and `vendor.crm.loyalty.reverse`. Adjust and reverse are flagged high-risk and are granted only to Owner, General Manager and CRM/Support; Branch Manager, Marketing, Analyst/Auditor and Finance receive read only; kitchen, inventory, procurement and rider receive nothing.
 
-**No earn or redeem endpoint, and no internal route.** The earning and redemption engines exist as service-internal domain primitives (`CreditPoints`, `DebitPoints`) awaiting a trusted producer. Publishing either as a vendor-callable endpoint would let any authorised staff member name their own points total — a far larger authority than the bounded, reason-carrying manual adjustment above. No internal HTTP route is registered because no producer contract exists to receive on yet; the Vendor Order domain is Section 9 work.
+**No earn or redeem endpoint, and no internal route.** The earning and redemption engines exist as service-internal domain primitives (`CreditPoints`, `DebitPoints`) awaiting a trusted producer. Publishing either as a vendor-callable endpoint would let any authorised staff member name their own points total â€” a far larger authority than the bounded, reason-carrying manual adjustment above. No internal HTTP route is registered because no producer contract exists to receive on yet; the Vendor Order domain is Section 9 work.
 
-**Step-up.** Section 8D adds none, and does not reuse the Section 7 mechanism. The abuse risk on a manual adjustment is bounded by the programme's own configurable limit, by a dedicated high-risk permission, by a mandatory audited reason and by full reversibility — none of which is true of the bank-detail changes step-up exists to guard.
+**Step-up.** Section 8D adds none, and does not reuse the Section 7 mechanism. The abuse risk on a manual adjustment is bounded by the programme's own configurable limit, by a dedicated high-risk permission, by a mandatory audited reason and by full reversibility â€” none of which is true of the bank-detail changes step-up exists to guard.
 
-## Section 8E — campaign intelligence and the audience engine
+## Section 8E â€” campaign intelligence and the audience engine
 
 | Service | Method | Exact path | Exposure | Auth | Permission | Purpose | Command contract | Flag | Status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -242,9 +242,9 @@ Section 8E adds exactly five permissions: `vendor.crm.campaigns.read`, `vendor.c
 
 **Step-up.** Section 8E adds none. Planning a campaign neither sends a message nor exports customer data, so the friction would buy nothing; Section 8F's actual delivery and Section 8H's sensitive export will each need their own decision.
 
-Add one row per route the moment it is registered in code. A route existing in code but missing here is a documentation-gate failure. Contract packages verify 21 Section 5, 32 Section 6, 20 Section 7, 7 Section 8A, 21 Section 8B, 16 Section 8C, 6 Section 8D, and 10 Section 8E operations — **133 cumulative Vendor routes**. `cmd`'s HTTP contract tests also verify the production registration helpers, while each Section contract enforces bidirectional OpenAPI parity.
+Add one row per route the moment it is registered in code. A route existing in code but missing here is a documentation-gate failure. Contract packages verify 21 Section 5, 32 Section 6, 20 Section 7, 7 Section 8A, 21 Section 8B, 16 Section 8C, 6 Section 8D, and 10 Section 8E operations â€” **133 cumulative Vendor routes**. `cmd`'s HTTP contract tests also verify the production registration helpers, while each Section contract enforces bidirectional OpenAPI parity.
 
-## Section 8F — campaign execution
+## Section 8F â€” campaign execution
 
 | Method | Exact path | Exposure | Permission | Contract |
 |---|---|---|---|---|
@@ -261,7 +261,7 @@ Add one row per route the moment it is registered in code. A route existing in c
 
 Section 8F adds nine public operations and one internal operation: **143 cumulative Vendor routes**. Historical reads remain available with execution disabled; mutations and workers fail/stand down safely. Execution/run management are high-risk capabilities with idempotency, optimistic concurrency, audit, rate limits, and kill switches. No generic CRM per-request step-up consumer exists, so no new ad hoc step-up mechanism was invented.
 
-## Section 8G — corporate customer CRM
+## Section 8G â€” corporate customer CRM
 
 Base path for every row below: `/crm/corporate-customers`. All are public (authenticated vendor surface), bearer auth, tenant-scoped from the session, and gated by `VENDOR_CRM_ENABLED` + `VENDOR_CRM_CORPORATE_ENABLED`; mutations additionally require `VENDOR_CRM_WRITES_ENABLED`.
 
@@ -317,9 +317,9 @@ Section 8G adds exactly five permissions: `vendor.crm.corporate.read`, `vendor.c
 
 **Step-up.** Section 8G adds none. Recording who a vendor deals with neither moves money nor exports customer data; corporate ordering and Section 8H's sensitive export will each need their own decision.
 
-Contract packages verify 21 Section 5, 32 Section 6, 20 Section 7, 7 Section 8A, 21 Section 8B, 16 Section 8C, 6 Section 8D, 10 Section 8E, 10 Section 8F, and 41 Section 8G operations — **184 cumulative Vendor routes** (41 new public, 0 new internal).
+Contract packages verify 21 Section 5, 32 Section 6, 20 Section 7, 7 Section 8A, 21 Section 8B, 16 Section 8C, 6 Section 8D, 10 Section 8E, 10 Section 8F, and 41 Section 8G operations â€” **184 cumulative Vendor routes** (41 new public, 0 new internal).
 
-## Section 8H — CRM intelligence and secure exports
+## Section 8H â€” CRM intelligence and secure exports
 
 All rows are public (authenticated vendor surface), bearer auth, tenant-scoped from the session. Intelligence routes are gated by `VENDOR_CRM_ENABLED` + `VENDOR_CRM_INTELLIGENCE_ENABLED`; export routes by `VENDOR_CRM_ENABLED` + `VENDOR_CRM_EXPORTS_ENABLED`. Commands additionally require `VENDOR_CRM_WRITES_ENABLED`.
 
@@ -346,9 +346,9 @@ Section 8H adds exactly six permissions: `vendor.crm.intelligence.read`, `vendor
 
 **Step-up.** Section 8H is the first CRM section to consume the Section 5 elevation. Export creation and export download each require their own fresh, purpose-bound, single-use grant; a grant taken for one cannot be spent on the other, and a spent grant cannot be replayed. Intelligence reads and rebuilds do not require step-up: recomputing a heuristic neither moves money nor releases customer data.
 
-Contract packages verify 21 Section 5, 32 Section 6, 20 Section 7, 7 Section 8A, 21 Section 8B, 16 Section 8C, 6 Section 8D, 10 Section 8E, 10 Section 8F, 41 Section 8G, 10 Section 8H, and 2 Section 8 completion operations — **196 cumulative Vendor routes** (2 new public, 0 new internal in the completion).
+Contract packages verify 21 Section 5, 32 Section 6, 20 Section 7, 7 Section 8A, 21 Section 8B, 16 Section 8C, 6 Section 8D, 10 Section 8E, 10 Section 8F, 41 Section 8G, 10 Section 8H, and 2 Section 8 completion operations â€” **196 cumulative Vendor routes** (2 new public, 0 new internal in the completion).
 
-## Section 8I — final route certification
+## Section 8I â€” final route certification
 
 Section 8I adds **zero** public routes and **zero** internal routes. The final
 Vendor surface is **196 routes**, and that figure is no longer maintained by
@@ -394,14 +394,14 @@ through the path the public gateway forwards, asserted by
 | 8 completion | `section8-completion-crm.openapi.json` | 2 |
 | | **Total** | **196** |
 
-## Section 9A — Food catalogue foundation
+## Section 9A â€” Food catalogue foundation
 
 All public paths below are relative to `/api/v1/vendor`, sit behind the
 authenticated Vendor staff session, and are described by
 `section9a-food-catalogue.openapi.json`. Every mutation accepts the shared
 `Idempotency-Key` header and every mutation of an existing row requires
 `expected_version`. **Section 9A registers zero internal routes**: nothing
-outside this service produces a menu, and Section 9C — not this section — owns
+outside this service produces a menu, and Section 9C â€” not this section â€” owns
 the read/consumption contract other services will use.
 
 Registration is gated by `COMMERCE_FOOD_ENABLED`; mutations additionally require
@@ -460,7 +460,7 @@ to their own branches); Kitchen/Pastry receives read and manage but not publish,
 because keeping the menu accurate is the job and deciding the branch is open for
 it is not; Analyst/Auditor receives read only. Marketing, CRM/Support, Finance,
 Procurement, Shop/Inventory and Vendor Rider receive nothing. **None of the three
-is high-risk and none requires step-up** — editing a menu is not a bank change,
+is high-risk and none requires step-up** â€” editing a menu is not a bank change,
 and marking it so would dilute step-up where it genuinely matters.
 
 **Modifier groups are business-level definitions, not per-branch copies.** A
@@ -477,7 +477,7 @@ rather than storing an unverified reference.
 
 Contract packages verify 21 Section 5, 32 Section 6, 20 Section 7, 7 Section 8A,
 21 Section 8B, 16 Section 8C, 6 Section 8D, 10 Section 8E, 10 Section 8F, 41
-Section 8G, 10 Section 8H, 2 Section 8 completion and 39 Section 9A operations —
+Section 8G, 10 Section 8H, 2 Section 8 completion and 39 Section 9A operations â€”
 **283 cumulative Vendor routes** (20 new public management routes added for the
 shared Sections 10/11 production surface).
 The Section 8I global guard in `internal/crmcontract` is unchanged and still
@@ -690,7 +690,7 @@ expected version; production-job transitions use a positive `If-Match`.
 | vendor-service | POST | /api/v1/vendor/production/alerts/{alertId}/acknowledge | Public | bearer | vendor.production.operate | Acknowledge production alert | VERIFIED |
 | vendor-service | POST | /api/v1/vendor/production/alerts/{alertId}/resolve | Public | bearer | vendor.production.operate | Resolve production alert | VERIFIED |
 
-## Section 12A — Shop catalogue and commercial management
+## Section 12A â€” Shop catalogue and commercial management
 
 All routes below are authenticated Vendor management APIs. Mutations require the shared `Idempotency-Key`; there are no inventory, availability, stock, reservation, Order, Wallet, customer-discovery, or logistics-execution routes in Part A.
 
@@ -738,7 +738,7 @@ All routes below are authenticated Vendor management APIs. Mutations require the
 | GET | /api/v1/vendor/shop/listings/{listingId}/resolved-price |
 | GET | /api/v1/vendor/shop/price-history |
 
-## Section 12B — Vendor-owned inventory and effective Shop discovery
+## Section 12B â€” Vendor-owned inventory and effective Shop discovery
 
 The management surface has 42 routes. Every mutation uses the shared Vendor idempotency contract. The 11 internal routes are root-mounted under `/internal/vendor/v1`, require HMAC v2, a single-use nonce, and an explicit caller allowlist.
 
@@ -797,3 +797,637 @@ The management surface has 42 routes. Every mutation uses the shared Vendor idem
 | POST | /internal/vendor/v1/shop/branches/{branchId}/inventory/reservations/{reservationId}/confirm |
 | POST | /internal/vendor/v1/shop/branches/{branchId}/inventory/reservations/{reservationId}/commit |
 | POST | /internal/vendor/v1/shop/branches/{branchId}/inventory/reservations/{reservationId}/release |
+
+## Section 13 registered routes
+
+Section 13 adds 60 routes: 10 authenticated vendor classification routes under `/api/v1/vendor`, and 50 root-mounted internal routes under `/internal/vendor/v1`. Cumulative Vendor surface after Section 13: **556 routes** (496 at the close of Section 12 plus 60). The count is asserted from production route registration by `internal/crmcontract`, never from this table.
+
+Two authority models are in play and they are deliberately not interchangeable:
+
+- **Vendor bearer + IAM** classifies the caller's OWN catalogue. `business_ref` and `branch_ref` are never read from the request; they are resolved from the owning catalogue table, so another vendor's `source_ref` returns 404 rather than their classification.
+- **Internal serviceauth HMAC-v2** (caller allowlist + timestamp + durable nonce + body digest + method/URI binding) owns the global vocabulary and all of search. No vendor role grants `vendor.taxonomy.platform.admin`, `vendor.search.ranking.admin` or `vendor.search.projection.admin`, and no bearer route exists to grant them on.
+
+### Section 13 vendor taxonomy (`section13-taxonomy.openapi.json`)
+
+| Service | Method | Path | Surface | Auth | Permission | Purpose | Idempotency / concurrency | Flag | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/classifications | Public | bearer | vendor.taxonomy.read | Full classification of one owned resource | read | taxonomy | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/dietary-claim-assignments | Public | bearer | vendor.taxonomy.read | Dietary claim assignments and verification state | read | taxonomy | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/dietary-claims | Public | bearer | vendor.taxonomy.read | Dietary claim catalogue and verification policies | read | taxonomy | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/facets | Public | bearer | vendor.taxonomy.read | Browse published facets | read | taxonomy | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/mappings | Public | bearer | vendor.taxonomy.read | Mappings for an owned resource | read | taxonomy | VERIFIED |
+| vendor-service | PUT | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/mappings | Public | bearer | vendor.taxonomy.mapping.manage | Replace facet mappings for an owned resource | Idempotency-Key; server-resolved scope | taxonomy writes | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/nodes | Public | bearer | vendor.taxonomy.read | Browse published nodes | read | taxonomy | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/nodes/{nodeId} | Public | bearer | vendor.taxonomy.read | Read one node with its vocabulary | read | taxonomy | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/published-version | Public | bearer | vendor.taxonomy.read | Read the published canonical version | read | taxonomy | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/taxonomy/namespaces/{namespaceCode}/tag-assignments | Public | bearer | vendor.taxonomy.read | Semantic tag assignments for an owned resource | read | taxonomy | VERIFIED |
+
+### Section 13 platform taxonomy administration (`section13-taxonomy-admin.openapi.json`)
+
+All rows: Internal surface, HMAC v2 + caller allowlist + nonce, capability `vendor.taxonomy.platform.admin` (platform-only, granted to no vendor role), flag `taxonomy`. Mutations require `Idempotency-Key`; facet and node updates additionally take `If-Match` for the expected revision.
+
+| Service | Method | Path | Purpose | Status |
+|---|---|---|---|---|
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/dietary-claim-assignments | Assign a dietary claim | VERIFIED |
+| vendor-service | PUT | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/facet-mappings | Replace facet mappings at platform scope | VERIFIED |
+| vendor-service | PATCH | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/facets/{facetId} | Update a facet | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/facets/{facetId}/archive | Archive a facet | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/facets/{facetId}/restore | Restore a facet | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/governance-cases | Open a governance case | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/governance-cases/{caseId} | Read a governance case | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/governance-cases/{caseId}/transition | Transition a governance case | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/mappings | Create a platform-scope mapping | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/mappings/{mappingId} | Read a mapping | VERIFIED |
+| vendor-service | PATCH | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/nodes/{nodeId} | Update a node | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/nodes/{nodeId}/archive | Archive a node | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/nodes/{nodeId}/restore | Restore a node | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/publication-history | Append-only publication evidence | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/seed-runs | Append-only seed run evidence | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/seed-status | Seed status and published version (read-only; seeds are never re-run over HTTP) | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/semantic-seed | Apply a governed semantic vocabulary bundle | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/tag-assignments | Assign a semantic tag | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions | List taxonomy versions | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions | Create a draft version | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/clone-active | Clone the active version into a new draft | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId} | Read one version | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/authority-vocabulary | List governed authority vocabulary | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/compare | Diff two versions of the same namespace | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/draft | Inspect a draft | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/facets | List a version's facets | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/facets | Create a facet | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/nodes | List a version's nodes | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/nodes | Create a node | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/nodes/{nodeId}/terms | List a node's aliases, synonyms and related terms | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/publish | Publish a draft; retires the previous published version atomically | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/retire | Retire a published version | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/validate | Validate a draft with the exact publication predicate (read-only) | VERIFIED |
+
+### Section 13 internal Food/Shop search (`section13-search.openapi.json`)
+
+All rows: Internal surface, HMAC v2 + caller allowlist + nonce, capability `vendor.search.read`, flag `search`. Reads only - no route here can reserve stock, price an order or authorise a purchase. The ACTIVE generation is resolved server-side and cannot be supplied by a caller.
+
+| Service | Method | Path | Purpose | Status |
+|---|---|---|---|---|
+| vendor-service | POST | /internal/vendor/v1/search/food | Ranked Food search at the ACTIVE generation | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/search/food/facets | Bounded Food facets from the same engine as search | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/search/food/suggestions | Bounded Food suggestions; no personalization | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/search/shop | Ranked Shop search at the ACTIVE generation | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/search/shop/facets | Bounded Shop facets from the same engine as search | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/search/shop/suggestions | Bounded Shop suggestions; no personalization | VERIFIED |
+
+### Section 13 ranking and projection administration (`section13-search-projection.openapi.json`)
+
+All rows: Internal surface, HMAC v2 + caller allowlist + nonce, flag `search admin`. Ranking rows require `vendor.search.ranking.admin`; projection rows require `vendor.search.projection.admin`. Both are platform-only capabilities.
+
+| Service | Method | Path | Capability | Purpose | Status |
+|---|---|---|---|---|---|
+| vendor-service | GET | /internal/vendor/v1/search/projection-health | vendor.search.projection.admin | Bounded projection health; cache health reported separately | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/search/projection-jobs/{jobId}/replay | vendor.search.projection.admin | Replay a dead-letter projection job | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/search/projections/{namespaceCode}/active-generation | vendor.search.projection.admin | Read the active generation | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/search/projections/{namespaceCode}/generations/{generation} | vendor.search.projection.admin | Bounded generation status and evidence | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/search/projections/{namespaceCode}/generations/{generation}/activate | vendor.search.projection.admin | Activate a READY generation and retire its base, atomically | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/search/projections/{namespaceCode}/generations/{generation}/retire | vendor.search.projection.admin | Retire a superseded generation | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/search/projections/{namespaceCode}/generations/{generation}/retry | vendor.search.projection.admin | Retry a failed rebuild | VERIFIED |
+| vendor-service | POST | /internal/vendor/v1/search/projections/{namespaceCode}/rebuilds | vendor.search.projection.admin | Request a full or scoped rebuild | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/search/ranking-profiles/{namespaceCode} | vendor.search.ranking.admin | List ranking profiles | VERIFIED |
+| vendor-service | GET | /internal/vendor/v1/search/ranking-profiles/{namespaceCode}/{profileCode} | vendor.search.ranking.admin | Read one ranking profile | VERIFIED |
+| vendor-service | PATCH | /internal/vendor/v1/search/ranking-profiles/{namespaceCode}/{profileCode} | vendor.search.ranking.admin | Update weights within validated bounds; commercial boost stays below exact-name relevance | VERIFIED |
+
+## Section 14 â€” Generic Inventory authority
+
+Section 14 makes Inventory the platform's stock authority: inventory item
+identity and stock basis, balances, lots, an append-only movement ledger,
+all-or-nothing reservations, stocktakes, branch transfers, quarantine, reorder
+rules and alerts. Shop keeps ownership of products, variants, listings and
+catalogue measurement configuration, and its Section 12B inventory routes above
+remain live and unchanged; the two surfaces are bridged by inventory item
+identity rather than merged, so no Section 12B route was retired here.
+
+The management surface has 27 public routes. Every mutation accepts the shared
+Vendor `Idempotency-Key` contract. Branch-bound reads and writes resolve the
+Vendor tenant from the authenticated session and the branch from the path; a
+request body can never assert either.
+
+The 7 internal routes are root-mounted under `/internal/vendor/v1`, require
+HMAC v2, a single-use durably-consumed nonce, and an explicit caller allowlist
+that fails closed when empty. They carry stock-mutation authority on behalf of
+another service and are deliberately absent from the public vendor base.
+
+Machine-readable contract: `docs/openapi/section14-vendor-inventory.openapi.json`.
+
+Not registered here, by section boundary: suppliers and purchase orders
+(Section 15), recipes and production (Section 16), and commerce orders,
+checkout, payment or logistics (Section 17 and later). Reorder rules raise a
+restocking signal only; they never create a purchase order.
+
+### Section 14 public Vendor Inventory routes
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | /api/v1/vendor/inventory/alerts/{alertId}/acknowledge | Acknowledge an alert |
+| POST | /api/v1/vendor/inventory/alerts/{alertId}/resolve | Resolve an alert |
+| GET | /api/v1/vendor/inventory/branches/{branchId}/alerts | List branch inventory alerts |
+| GET | /api/v1/vendor/inventory/branches/{branchId}/balances | List branch stock balances |
+| GET | /api/v1/vendor/inventory/branches/{branchId}/movements | Read the branch movement ledger |
+| GET | /api/v1/vendor/inventory/branches/{branchId}/revision | Read the branch inventory revision |
+| GET | /api/v1/vendor/inventory/items/{inventoryItemId}/availability | Read one item's availability |
+| PUT | /api/v1/vendor/inventory/items/{inventoryItemId}/reorder-rule | Set an item's reorder rule |
+| GET | /api/v1/vendor/inventory/items/{inventoryItemId}/sellability | Read one item's sellability decision |
+| POST | /api/v1/vendor/inventory/quarantines | Quarantine stock |
+| POST | /api/v1/vendor/inventory/quarantines/{quarantineId}/dispose | Dispose quarantined stock |
+| POST | /api/v1/vendor/inventory/quarantines/{quarantineId}/release | Release quarantined stock |
+| POST | /api/v1/vendor/inventory/reservations | Create an all-or-nothing stock reservation |
+| GET | /api/v1/vendor/inventory/reservations/{reservationId} | Read a reservation |
+| POST | /api/v1/vendor/inventory/reservations/{reservationId}/cancel | Cancel a reservation |
+| POST | /api/v1/vendor/inventory/reservations/{reservationId}/commit | Commit a reservation into consumed stock |
+| POST | /api/v1/vendor/inventory/reservations/{reservationId}/confirm | Confirm a held reservation |
+| POST | /api/v1/vendor/inventory/reservations/{reservationId}/release | Release a reservation back to available stock |
+| POST | /api/v1/vendor/inventory/stocktakes | Open a stocktake and snapshot expected quantities |
+| POST | /api/v1/vendor/inventory/stocktakes/{stocktakeId}/cancel | Cancel an unposted stocktake |
+| PUT | /api/v1/vendor/inventory/stocktakes/{stocktakeId}/items/{inventoryItemId}/count | Record a counted quantity |
+| POST | /api/v1/vendor/inventory/stocktakes/{stocktakeId}/post | Post a stocktake and apply corrections |
+| POST | /api/v1/vendor/inventory/transfers | Create a branch-to-branch stock transfer |
+| POST | /api/v1/vendor/inventory/transfers/{transferId}/approve | Approve a draft transfer |
+| POST | /api/v1/vendor/inventory/transfers/{transferId}/cancel | Cancel a transfer |
+| POST | /api/v1/vendor/inventory/transfers/{transferId}/dispatch | Dispatch a transfer |
+| POST | /api/v1/vendor/inventory/transfers/{transferId}/receive | Receive a dispatched transfer |
+
+### Section 14 internal Inventory routes (HMAC v2)
+
+| Method | Path | Operation |
+|---|---|---|
+| GET | /internal/vendor/v1/inventory/branches/{branchId}/items/{inventoryItemId}/availability | Read item availability for a trusted service |
+| POST | /internal/vendor/v1/inventory/branches/{branchId}/reservations | Reserve stock on behalf of a trusted service |
+| GET | /internal/vendor/v1/inventory/branches/{branchId}/reservations/{reservationId} | Read a reservation for a trusted service |
+| POST | /internal/vendor/v1/inventory/branches/{branchId}/reservations/{reservationId}/commit | Commit a reservation for a trusted service |
+| POST | /internal/vendor/v1/inventory/branches/{branchId}/reservations/{reservationId}/confirm | Confirm a reservation for a trusted service |
+| POST | /internal/vendor/v1/inventory/branches/{branchId}/reservations/{reservationId}/release | Release a reservation for a trusted service |
+| GET | /internal/vendor/v1/inventory/branches/{branchId}/revision | Read the branch inventory revision for a trusted service |
+
+## Section 15 â€” Suppliers, Purchasing and Goods Receiving
+
+Section 15 owns the purchasing record: suppliers and supplier products with
+exact purchase-unit conversion, purchase orders and configurable approval
+policies, goods receiving with inspection and discrepancies, immutable
+purchase-cost evidence, and the Section 15D operational layer (dashboards,
+supplier performance, outstanding deliveries and alerts).
+
+Generic Inventory (Section 14) remains the sole physical stock authority.
+Receiving posts the **accepted** quantity and nothing else; damaged, rejected,
+short and wrong-item quantities become discrepancy evidence and never become
+sellable stock. Posting is exactly-once per goods receipt.
+
+Purchasing records commercial cost and never moves money. No route below
+creates a wallet transaction, ledger entry, payout or payment.
+
+All 56 routes are authenticated Vendor management APIs under
+`/api/v1/vendor/purchasing`. Section 15 registers no internal HMAC route: no
+other service drives purchasing. Mutations accept the shared `Idempotency-Key`;
+mutations on a versioned aggregate additionally honour `If-Match`.
+
+Machine-readable contract:
+`docs/openapi/section15-vendor-purchasing.openapi.json`.
+
+| Method | Path | Operation | Permission |
+|---|---|---|---|
+| GET | /api/v1/vendor/purchasing/alerts | Read alerts | `vendor.purchasing.dashboard.read` |
+| POST | /api/v1/vendor/purchasing/alerts/{alertId}/acknowledge | Acknowledge alerts alertId | `vendor.purchasing.manage` |
+| POST | /api/v1/vendor/purchasing/alerts/{alertId}/resolve | Resolve alerts alertId | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/approval-policy | Read approval policy | `vendor.purchasing.read` |
+| PUT | /api/v1/vendor/purchasing/approval-policy | Replace approval policy | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/dashboard | Read dashboard | `vendor.purchasing.dashboard.read` |
+| GET | /api/v1/vendor/purchasing/goods-receipts | Read goods receipts | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/goods-receipts | Create goods receipts | `vendor.purchasing.receive` |
+| GET | /api/v1/vendor/purchasing/goods-receipts/{receiptId} | Read goods receipts receiptId | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/goods-receipts/{receiptId}/confirm | Confirm goods receipts receiptId | `vendor.purchasing.receive` |
+| GET | /api/v1/vendor/purchasing/goods-receipts/{receiptId}/documents | Read goods receipts receiptId documents | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/goods-receipts/{receiptId}/documents | Create goods receipts receiptId documents | `vendor.purchasing.receive` |
+| PUT | /api/v1/vendor/purchasing/goods-receipts/{receiptId}/inspection | Replace goods receipts receiptId inspection | `vendor.purchasing.receive` |
+| POST | /api/v1/vendor/purchasing/goods-receipts/{receiptId}/reverse | Reverse goods receipts receiptId | `vendor.purchasing.receive` |
+| GET | /api/v1/vendor/purchasing/outstanding-deliveries | Read outstanding deliveries | `vendor.purchasing.dashboard.read` |
+| GET | /api/v1/vendor/purchasing/purchase-cost-history | Read purchase cost history | `vendor.purchasing.cost.read` |
+| GET | /api/v1/vendor/purchasing/purchase-orders | Read purchase orders | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/purchase-orders | Create purchase orders | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId} | Read purchase orders purchaseOrderId | `vendor.purchasing.read` |
+| PATCH | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId} | Update purchase orders purchaseOrderId | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId}/approvals | Read purchase orders purchaseOrderId approvals | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId}/approve | Approve purchase orders purchaseOrderId | `vendor.purchasing.approve` |
+| POST | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId}/cancel | Cancel purchase orders purchaseOrderId | `vendor.purchasing.manage` |
+| POST | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId}/close | Close purchase orders purchaseOrderId | `vendor.purchasing.manage` |
+| PUT | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId}/lines | Replace purchase orders purchaseOrderId lines | `vendor.purchasing.manage` |
+| POST | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId}/order | Order purchase orders purchaseOrderId | `vendor.purchasing.manage` |
+| POST | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId}/reject | Reject purchase orders purchaseOrderId | `vendor.purchasing.approve` |
+| POST | /api/v1/vendor/purchasing/purchase-orders/{purchaseOrderId}/submit | Submit purchase orders purchaseOrderId | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/receiving-policies/branches/{branchId} | Read receiving policies branches branchId | `vendor.purchasing.read` |
+| PUT | /api/v1/vendor/purchasing/receiving-policies/branches/{branchId} | Replace receiving policies branches branchId | `vendor.purchasing.receive` |
+| GET | /api/v1/vendor/purchasing/supplier-categories | Read supplier categories | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/supplier-categories | Create supplier categories | `vendor.purchasing.manage` |
+| PATCH | /api/v1/vendor/purchasing/supplier-categories/{categoryId} | Update supplier categories categoryId | `vendor.purchasing.manage` |
+| POST | /api/v1/vendor/purchasing/supplier-categories/{categoryId}/archive | Archive supplier categories categoryId | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/supplier-discrepancies | Read supplier discrepancies | `vendor.purchasing.read` |
+| GET | /api/v1/vendor/purchasing/supplier-discrepancies/{discrepancyId} | Read supplier discrepancies discrepancyId | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/supplier-discrepancies/{discrepancyId}/approve | Approve supplier discrepancies discrepancyId | `vendor.purchasing.discrepancies.manage` |
+| POST | /api/v1/vendor/purchasing/supplier-discrepancies/{discrepancyId}/reject | Reject supplier discrepancies discrepancyId | `vendor.purchasing.discrepancies.manage` |
+| POST | /api/v1/vendor/purchasing/supplier-discrepancies/{discrepancyId}/resolve | Resolve supplier discrepancies discrepancyId | `vendor.purchasing.discrepancies.manage` |
+| GET | /api/v1/vendor/purchasing/suppliers | Read suppliers | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/suppliers | Create suppliers | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/suppliers/{supplierId} | Read suppliers supplierId | `vendor.purchasing.read` |
+| PATCH | /api/v1/vendor/purchasing/suppliers/{supplierId} | Update suppliers supplierId | `vendor.purchasing.manage` |
+| POST | /api/v1/vendor/purchasing/suppliers/{supplierId}/archive | Archive suppliers supplierId | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/suppliers/{supplierId}/contacts | Read suppliers supplierId contacts | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/suppliers/{supplierId}/contacts | Create suppliers supplierId contacts | `vendor.purchasing.manage` |
+| PATCH | /api/v1/vendor/purchasing/suppliers/{supplierId}/contacts/{contactId} | Update suppliers supplierId contacts contactId | `vendor.purchasing.manage` |
+| POST | /api/v1/vendor/purchasing/suppliers/{supplierId}/contacts/{contactId}/archive | Archive suppliers supplierId contacts contactId | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/suppliers/{supplierId}/performance | Read suppliers supplierId performance | `vendor.purchasing.performance.read` |
+| GET | /api/v1/vendor/purchasing/suppliers/{supplierId}/products | Read suppliers supplierId products | `vendor.purchasing.read` |
+| POST | /api/v1/vendor/purchasing/suppliers/{supplierId}/products | Create suppliers supplierId products | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/suppliers/{supplierId}/products/{supplierProductId} | Read suppliers supplierId products supplierProductId | `vendor.purchasing.read` |
+| PATCH | /api/v1/vendor/purchasing/suppliers/{supplierId}/products/{supplierProductId} | Update suppliers supplierId products supplierProductId | `vendor.purchasing.manage` |
+| POST | /api/v1/vendor/purchasing/suppliers/{supplierId}/products/{supplierProductId}/archive | Archive suppliers supplierId products supplierProductId | `vendor.purchasing.manage` |
+| GET | /api/v1/vendor/purchasing/suppliers/{supplierId}/terms | Read suppliers supplierId terms | `vendor.purchasing.read` |
+| PUT | /api/v1/vendor/purchasing/suppliers/{supplierId}/terms | Replace suppliers supplierId terms | `vendor.purchasing.manage` |
+
+<!-- SECTION 16B RECIPES -->
+## Section 16B routes
+
+POST /api/v1/vendor/recipes
+GET /api/v1/vendor/recipes
+GET /api/v1/vendor/recipes/:recipeId
+POST /api/v1/vendor/recipes/:recipeId/archive
+
+POST /api/v1/vendor/recipes/:recipeId/versions
+GET /api/v1/vendor/recipes/:recipeId/versions
+GET /api/v1/vendor/recipes/:recipeId/versions/:versionId
+PUT /api/v1/vendor/recipes/:recipeId/versions/:versionId
+
+PUT /api/v1/vendor/recipes/:recipeId/versions/:versionId/components
+PUT /api/v1/vendor/recipes/:recipeId/versions/:versionId/packaging
+
+POST /api/v1/vendor/recipes/:recipeId/versions/:versionId/validate
+POST /api/v1/vendor/recipes/:recipeId/versions/:versionId/activate
+POST /api/v1/vendor/recipes/:recipeId/versions/:versionId/retire
+POST /api/v1/vendor/recipes/:recipeId/versions/:versionId/scale
+
+<!-- SECTION16C_IMPLEMENTATION -->
+## Section 16C routes
+
+- GET `/production-batches`
+- POST `/production-batches`
+- GET `/production-batches/:batchId`
+- POST `/production-batches/:batchId/preview`
+- POST `/production-batches/:batchId/plan`
+- POST `/production-batches/:batchId/inventory-adjustments`
+- POST `/production-batches/:batchId/start`
+- POST `/production-batches/:batchId/actual-consumption`
+- POST `/production-batches/:batchId/waste`
+- POST `/production-batches/:batchId/complete`
+- POST `/production-batches/:batchId/cancel`
+- GET `/production-batches/:batchId/inventory`
+- GET `/production-batches/:batchId/output`
+- GET `/production-stock-policies/branches/:branchId`
+- PUT `/production-stock-policies/branches/:branchId`
+
+Permissions:
+
+- `vendor.production.read`
+- `vendor.production.manage`
+- `vendor.production.operate`
+- `vendor.production.waste.record`
+- `vendor.production.prepared_stock`
+
+All public paths are relative to `/api/v1/vendor`.
+Mutation routes use the existing durable Idempotency-Key middleware.
+Versioned mutations use `If-Match`.
+
+## Section 16 route completion (16A-16D)
+
+Every route below is registered in the live router. Sections 16A-16C were live from their own
+sections but were not all recorded here; Section 16D adds the operational cost surface.
+Absolute paths are used so the route-register gate can match them.
+
+### Section 16A - ingredient and packaging master data
+
+Master data, branch configuration, unit conversions and Inventory mapping.
+
+- GET `/api/v1/vendor/ingredients`
+- POST `/api/v1/vendor/ingredients`
+- GET `/api/v1/vendor/ingredients/{ingredientId}`
+- PUT `/api/v1/vendor/ingredients/{ingredientId}`
+- POST `/api/v1/vendor/ingredients/{ingredientId}/archive`
+- GET `/api/v1/vendor/ingredients/{ingredientId}/branches/{branchId}`
+- PUT `/api/v1/vendor/ingredients/{ingredientId}/branches/{branchId}`
+- GET `/api/v1/vendor/ingredients/{ingredientId}/conversions`
+- POST `/api/v1/vendor/ingredients/{ingredientId}/conversions`
+- PUT `/api/v1/vendor/ingredients/{ingredientId}/conversions/{conversionId}`
+- GET `/api/v1/vendor/packaging-materials`
+- POST `/api/v1/vendor/packaging-materials`
+- GET `/api/v1/vendor/packaging-materials/{packagingId}`
+- PUT `/api/v1/vendor/packaging-materials/{packagingId}`
+- POST `/api/v1/vendor/packaging-materials/{packagingId}/archive`
+- GET `/api/v1/vendor/packaging-materials/{packagingId}/branches/{branchId}`
+- PUT `/api/v1/vendor/packaging-materials/{packagingId}/branches/{branchId}`
+- GET `/api/v1/vendor/packaging-materials/{packagingId}/conversions`
+- POST `/api/v1/vendor/packaging-materials/{packagingId}/conversions`
+- PUT `/api/v1/vendor/packaging-materials/{packagingId}/conversions/{conversionId}`
+
+### Section 16C - production batches and stock policies
+
+Production batch lifecycle, reservation, consumption, waste and prepared-stock output.
+
+- GET `/api/v1/vendor/production-batches`
+- POST `/api/v1/vendor/production-batches`
+- GET `/api/v1/vendor/production-batches/{batchId}`
+- POST `/api/v1/vendor/production-batches/{batchId}/actual-consumption`
+- POST `/api/v1/vendor/production-batches/{batchId}/cancel`
+- POST `/api/v1/vendor/production-batches/{batchId}/complete`
+- GET `/api/v1/vendor/production-batches/{batchId}/inventory`
+- POST `/api/v1/vendor/production-batches/{batchId}/inventory-adjustments`
+- GET `/api/v1/vendor/production-batches/{batchId}/output`
+- POST `/api/v1/vendor/production-batches/{batchId}/plan`
+- POST `/api/v1/vendor/production-batches/{batchId}/preview`
+- POST `/api/v1/vendor/production-batches/{batchId}/start`
+- POST `/api/v1/vendor/production-batches/{batchId}/waste`
+- GET `/api/v1/vendor/production-stock-policies/branches/{branchId}`
+- PUT `/api/v1/vendor/production-stock-policies/branches/{branchId}`
+
+### Section 16D - operational cost
+
+Operational cost only. Reads require `vendor.cost.read`; production cost reads require `vendor.production.cost.read`; policy mutations require `vendor.cost.policy.manage` plus an `If-Match` version. `role_kitchen_pastry` holds none of these, so kitchen and pastry staff keep every recipe and production permission without gaining cost visibility. Nothing on this surface touches Wallet, accounting or selling price.
+
+- GET `/api/v1/vendor/cost/highest-cost-subjects`
+- GET `/api/v1/vendor/cost/policies`
+- POST `/api/v1/vendor/cost/policies`
+- GET `/api/v1/vendor/cost/policies/{policyId}`
+- PUT `/api/v1/vendor/cost/policies/{policyId}`
+- POST `/api/v1/vendor/cost/policies/{policyId}/archive`
+- GET `/api/v1/vendor/cost/snapshots/{snapshotId}/components`
+- GET `/api/v1/vendor/production-cost/batches/{batchId}`
+- POST `/api/v1/vendor/production-cost/batches/{batchId}/actual`
+- POST `/api/v1/vendor/production-cost/batches/{batchId}/expected`
+- GET `/api/v1/vendor/production-cost/batches/{batchId}/variance`
+- GET `/api/v1/vendor/production-cost/history`
+- GET `/api/v1/vendor/recipe-cost/recipes/{recipeId}`
+- GET `/api/v1/vendor/recipe-cost/recipes/{recipeId}/history`
+- GET `/api/v1/vendor/recipe-cost/versions/{versionId}`
+- GET `/api/v1/vendor/recipe-cost/versions/{versionId}/latest`
+- POST `/api/v1/vendor/recipe-cost/versions/{versionId}/snapshots`
+
+## Section 17A — Customer cart
+
+The customer-owned FOOD and SHOP cart. Contract:
+`docs/openapi/section17a-customer-cart.openapi.json`.
+
+<!-- SECTION18_VENDOR_ORDER_LIFECYCLE -->
+## Section 18 - Vendor Order Lifecycle
+
+Section 18 extends the Section 17 ParentOrder/VendorOrder authority with
+explicit food and shop preparation states, immutable-line picking outcomes,
+customer-scoped substitution decisions, isolated rejection/refund evidence,
+and monotonic Dispatch/Hauling delivery events. The root-mounted logistics
+evidence ingress below is internal-only and HMAC protected. Vendor Own Delivery remains a
+separate authenticated path and never creates a platform mission.
+
+| Method | Path |
+|---|---|
+| GET | /api/v1/commerce/substitutions/{proposalId} |
+| POST | /api/v1/commerce/substitutions/{proposalId}/approve |
+| POST | /api/v1/commerce/substitutions/{proposalId}/reject |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/reject |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/preparing |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/start_preparing |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/picking |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/start_picking |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/pack |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/ready-for-pickup |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/ready_for_pickup |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/pickup |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/delivering |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/delivered |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/availability |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/substitutions |
+| POST | /internal/vendor/v1/commerce/logistics-events | HMAC v2; Dispatch/Hauling execution evidence only |
+
+Machine-readable contract: `docs/openapi/section18-vendor-order-lifecycle.openapi.json`.
+
+These rows are recorded here so the service-wide contract gate in
+`internal/crmcontract` can see Section 17 at all: until Section 17B neither
+half of Section 17 was registered in that gate, so its route figure excluded
+both and the Section 17 specifications read as phantom operations.
+
+Customer identity comes only from the Customer Service bearer token. Cart
+commands additionally require `Idempotency-Key`, and mutations require
+`If-Match` carrying the current cart version.
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | /api/v1/commerce/carts | Create or return the live cart for a domain |
+| GET | /api/v1/commerce/carts/{cartId} | Read one cart |
+| GET | /api/v1/commerce/carts/{cartId}/groups | Read a Shop cart grouped by vendor branch |
+| POST | /api/v1/commerce/carts/{cartId}/items | Add an item |
+| PATCH | /api/v1/commerce/carts/{cartId}/items/{itemId} | Change an item quantity |
+| DELETE | /api/v1/commerce/carts/{cartId}/items/{itemId} | Remove an item |
+| DELETE | /api/v1/commerce/carts/{cartId}/items | Clear the cart |
+| PUT | /api/v1/commerce/carts/{cartId}/delivery-address | Set the delivery address |
+| DELETE | /api/v1/commerce/carts/{cartId}/delivery-address | Remove the delivery address |
+| PUT | /api/v1/commerce/carts/{cartId}/receiver | Set the third-party receiver |
+| DELETE | /api/v1/commerce/carts/{cartId}/receiver | Remove the third-party receiver |
+| POST | /api/v1/commerce/carts/{cartId}/abandon | Abandon the cart |
+
+## Section 17B — Commerce checkout validation and Inventory reservation
+
+Section 17B turns an ACTIVE Section 17A cart into a validated checkout
+candidate. Every line is re-resolved against its owning authority — Food
+through Section 9, Shop through Section 12, stock through the Section 14
+generic Inventory authority — and Shop groups hold real physical stock
+(reservation source type `CHECKOUT`) for a configurable TTL. Search is
+discovery only and is not consulted here.
+
+**There is no quote, no quote lock, no logistics price, no payment, no
+ParentOrder and no VendorOrder on this surface.** Those belong to Section 17C
+and later; the contract package refuses such a path structurally rather than
+by convention.
+
+Customer identity comes only from the Customer Service bearer token: no route,
+parameter or field in this section names a customer. `If-Match` carries the
+cart version the checkout is requested against and is required.
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | /api/v1/commerce/checkout-sessions | Validate a cart and reserve the stock it needs |
+| GET | /api/v1/commerce/checkout-sessions/{sessionId} | Read one checkout session |
+| POST | /api/v1/commerce/checkout-sessions/{sessionId}/cancel | Abandon a checkout candidate and release its stock |
+
+Contract: `docs/openapi/section17b-commerce-checkout.openapi.json`.
+
+
+## Section 17C — Fulfilment planning and logistics integration
+
+Section 17C turns validated Section 17B vendor/branch groups into an
+authoritative candidate fulfilment plan: which authority delivers each group,
+what that delivery actually costs, who funded it, and — for anything that
+cannot be delivered — an explicit reason.
+
+**Vendor Service never prices a platform delivery.** Every platform fee comes
+from the owning logistics authority's own quote endpoint
+(`POST /api/v1/internal/commerce/quotes` on driver-dispatch-delivery-service,
+`POST /api/v1/hauling/internal/commerce/quotes` on driver-hauling-service),
+both behind HMAC v2 with a caller allowlist and nonce replay protection. Those
+routes belong to those services' registers, not this one. The only fee this
+service calculates is a Vendor Own Delivery fee, because the vendor both
+performs and prices that delivery.
+
+**Taxi is not used.** driver-taxi-service has no production goods-delivery
+capability; the shared quote contract has no CAR class and
+`fulfilment.ServiceFor` refuses one, so no taxi route can be reached from here.
+
+**There is no quote lock, no payment, no ParentOrder and no VendorOrder on this
+surface.** Those belong to 17D and later.
+
+Customer identity comes only from the Customer Service bearer token. The
+customer request contract carries no fee, no business id and no branch id, so a
+customer cannot overwrite a logistics fee and a vendor cannot inject another
+vendor's pickup. The vendor policy surface is Vendor staff IAM, branch-scoped,
+and requires `If-Match`.
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | /api/v1/commerce/checkout/{sessionId}/fulfilment-plan | Build the candidate fulfilment plan for a validated checkout |
+| GET | /api/v1/commerce/checkout/{sessionId}/fulfilment-plan | Read the live fulfilment plan for a checkout |
+| GET | /api/v1/vendor/delivery/branches/{branchId}/policy | Read a branch Vendor Own Delivery policy |
+| PUT | /api/v1/vendor/delivery/branches/{branchId}/policy | Configure a branch Vendor Own Delivery policy |
+
+Contracts, one per server base — a single document declaring both would force
+every reader to special-case which paths are absolute, and the service-wide
+phantom-operation gate does not special-case:
+`docs/openapi/section17c-fulfilment-planning.openapi.json` (customer) and
+`docs/openapi/section17c-vendor-delivery-policy.openapi.json` (vendor staff).
+
+
+## Section 17D - Pricing, Promotions & Immutable Quote Lock
+
+Customer identity comes only from the Customer Service bearer token. Quotes
+bind authoritative cart, address, pricing, Inventory allocation, fulfilment,
+delivery funding and commercial adjustment evidence. Changed material creates
+a new immutable version; expired quotes require customer reapproval. This
+surface creates no payment, ParentOrder or VendorOrder.
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | /api/v1/commerce/checkout/{sessionId}/quotes | Create an immutable quote for the selected fulfilment plan |
+| GET | /api/v1/commerce/quotes/{quoteId} | Read customer-owned historical quote evidence |
+| POST | /api/v1/commerce/quotes/{quoteId}/approve | Approve the exact unexpired quote fingerprint |
+
+Contract: `docs/openapi/section17d-immutable-checkout-quote.openapi.json`.
+
+
+## Section 17E - ParentOrder & Multi-Vendor VendorOrders
+
+One customer commerce purchase becomes exactly one ParentOrder and one
+financially and operationally isolated VendorOrder per vendor/branch
+allocation. Creation is idempotent per approved quote: the exact agreement can
+only ever produce one ParentOrder, and a retry returns the existing one with
+200 instead of creating a second. **This surface creates no payment operation,
+moves no money and executes no logistics mission.** Those belong to 17F and
+later.
+
+Customer identity comes only from the Customer Service bearer token. Vendor
+identity and branch scope come only from the Vendor staff session, never from a
+request body or path. Every lifecycle command requires `If-Match` carrying the
+version the caller read.
+
+Customer surface:
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | /api/v1/commerce/quotes/{quoteId}/orders | Create the ParentOrder and its VendorOrders from one approved quote |
+| GET | /api/v1/commerce/orders | List the customer's own purchases |
+| GET | /api/v1/commerce/orders/{orderId} | Read one purchase with every vendor allocation |
+| POST | /api/v1/commerce/vendor-orders/{vendorOrderId}/cancel | Withdraw from one vendor allocation without touching its siblings |
+
+Vendor staff surface (`vendor.orders.read` / `vendor.orders.manage`, both
+already seeded in Section 5; Section 17E adds no permission):
+
+| Method | Path | Operation | Permission |
+|---|---|---|---|
+| GET | /api/v1/vendor/commerce/orders | The acting vendor's queue within its branch scope | vendor.orders.read |
+| GET | /api/v1/vendor/commerce/orders/{vendorOrderId} | Read one of the vendor's own allocations | vendor.orders.read |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/accept | Begin preparation | vendor.orders.manage |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/ready | Mark ready for collection | vendor.orders.manage |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/handover | Record that the goods left the branch | vendor.orders.manage |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/deliver | Confirm a vendor-executed delivery (403 for platform-executed) | vendor.orders.manage |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/complete | Complete and request Wallet settlement for this isolated leg | vendor.orders.manage |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/cancel | Cancel and request Wallet refund for this isolated leg | vendor.orders.manage |
+
+Contract: `docs/openapi/section17e-parent-vendor-orders.openapi.json`.
+
+
+## Section 17F - Payment Binding, Commercial Changes & Total Price Guarantee
+
+Binds a payment operation to the exact customer-approved Section 17D quote and
+the Section 17E allocation set. Material customer changes create a linked
+replacement quote and require explicit approval. **Vendor Commerce is not a money authority:**
+`payment-wallet-service` performs every financial effect, and this surface only
+asks and records. It never fabricates a payment status, edits a ledger,
+computes a balance or settles vendor funds.
+
+One payment leg per VendorOrder, plus one platform leg for the order-level fee
+and tax. That split is forced by the real Wallet contract, which settles and
+refunds an intent as a whole to a single provider - a single parent intent
+could never refund one vendor while settling another.
+
+Both routes exist only when a money authority is configured
+(`PAYMENT_WALLET_COMMERCE_ENABLED` with `VENDOR_WALLET_URL` and
+`VENDOR_WALLET_SECRET`). A deployment without one exposes no payment surface at
+all rather than routes that can only answer 503.
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | /api/v1/commerce/quotes/{quoteId}/payment | Bind and start payment for an approved quote |
+| GET | /api/v1/commerce/orders/{orderId}/payment | Read the payment operation bound to one purchase |
+| POST | /api/v1/commerce/orders/{orderId}/commercial-changes | Request a material customer change and create a replacement quote |
+| GET | /api/v1/commerce/orders/{orderId}/commercial-changes/{changeId} | Read the durable change/replacement quote chain |
+| POST | /api/v1/commerce/commercial-changes/{changeId}/approve | Explicitly approve the replacement quote and apply its Wallet delta |
+| POST | /api/v1/commerce/commercial-changes/{changeId}/reject | Reject a replacement quote without moving money |
+
+The start body carries only `quote_fingerprint`. It accepts no amount,
+currency, allocation, vendor, provider, intent reference or payment status:
+every one of those is read from the stored order, so a tampered request has
+nothing to tamper with.
+
+Contract: `docs/openapi/section17f-payment-binding.openapi.json`.
+
+**Fulfilment activation adds no public route.** Once a payment is held, stock
+finalization and logistics mission creation happen through the durable
+`commerce-payment-recovery` worker and the activation step it drives - not
+through a customer or vendor command. There is deliberately nothing a client
+can call to confirm stock or dispatch a vehicle.
+
+Two NEW internal routes were added to other services for this (see
+`PLATFORM_SERVICE_CHANGE_REGISTER.md`):
+
+| Service | Method | Path | Auth |
+|---|---|---|---|
+| driver-dispatch-delivery-service | POST | /api/v1/internal/commerce/missions | HMAC v2 + allowlist + nonce |
+| driver-hauling-service | POST | /api/v1/hauling/internal/commerce/missions | HMAC v2 + allowlist + nonce |
+
+
+<!-- SECTION17A_CUSTOMER_CART -->
+## Section 17A - Customer Cart Routes
+
+| Method | Path |
+|---|---|
+| POST | /api/v1/commerce/carts |
+| GET | /api/v1/commerce/carts/:cartId |
+| GET | /api/v1/commerce/carts/:cartId/groups |
+| POST | /api/v1/commerce/carts/:cartId/items |
+| PATCH | /api/v1/commerce/carts/:cartId/items/:itemId |
+| DELETE | /api/v1/commerce/carts/:cartId/items/:itemId |
+| DELETE | /api/v1/commerce/carts/:cartId/items |
+| PUT | /api/v1/commerce/carts/:cartId/delivery-address |
+| DELETE | /api/v1/commerce/carts/:cartId/delivery-address |
+| PUT | /api/v1/commerce/carts/:cartId/receiver |
+| DELETE | /api/v1/commerce/carts/:cartId/receiver |
+| POST | /api/v1/commerce/carts/:cartId/abandon |
+
+Machine-readable contract:
+`docs/openapi/section17a-customer-cart.openapi.json`.

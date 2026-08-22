@@ -28,7 +28,7 @@ const (
 )
 
 // Schedule labels are descriptive. Availability is decided by the configured
-// days and clock times, never by the label — there is no hard-coded idea of
+// days and clock times, never by the label â€” there is no hard-coded idea of
 // when "breakfast" is, because that is the vendor's decision.
 const (
 	ScheduleBreakfast = "BREAKFAST"
@@ -50,7 +50,7 @@ const (
 // InventoryAvailabilitySupport reports whether any authoritative inventory
 // source exists for this flow. It is a constant because the honest answer is
 // currently a constant; no code path fabricates availability from it.
-const InventoryAvailabilitySupport = "NOT_PRESENT"
+const InventoryAvailabilitySupport = InventorySupportNotSupported
 
 // Price-history subjects and change reasons.
 const (
@@ -378,7 +378,7 @@ type PriceHistoryOptions struct {
 // groups currently attached to it.
 //
 // It is one query rather than four round trips, and every branch of the union
-// is constrained by the caller's business — history is not a cross-tenant query
+// is constrained by the caller's business â€” history is not a cross-tenant query
 // surface, and an item id from another business simply matches nothing.
 func (s *Service) ListItemPriceHistory(ctx context.Context, actor Actor, scope Scope, itemID string, opts PriceHistoryOptions) ([]PriceVersion, bool, error) {
 	item, err := loadItem(ctx, s.db, actor.VendorID, itemID, false)

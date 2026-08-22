@@ -47,7 +47,7 @@ func TestCorporateConcurrency_ContactCreateVersusRedaction(t *testing.T) {
 				CorporateContactInput{CustomerProfileRef: person.ID})
 			created <- createErr
 		}()
-		waitForBlockedTransaction(t, env.pool)
+		waitForBlockedTransaction(t, env)
 		if err = privacyTx.Commit(ctx); err != nil {
 			t.Fatalf("commit privacy: %v", err)
 		}
@@ -96,7 +96,7 @@ func TestCorporateConcurrency_ContactCreateVersusRedaction(t *testing.T) {
 				SourceService: "customer-service", SourceVersion: 1, PrivacySubjectRef: "cus_erased",
 				Action: PrivacyActionRedact, ObservedAt: env.now})
 		}()
-		waitForBlockedTransaction(t, env.pool)
+		waitForBlockedTransaction(t, env)
 		if err = createTx.Commit(ctx); err != nil {
 			t.Fatalf("commit the contact: %v", err)
 		}
@@ -141,7 +141,7 @@ func TestCorporateConcurrency_ContactCreateVersusIdentityMerge(t *testing.T) {
 		merged <- env.applyLink(t, businessA, "vs_a",
 			linkInput("evt_race_merge", guestSubject("gst_1"), customerSubject("cus_1"), 4))
 	}()
-	waitForBlockedTransaction(t, env.pool)
+	waitForBlockedTransaction(t, env)
 	if err = createTx.Commit(ctx); err != nil {
 		t.Fatalf("commit the contact: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestCorporateConcurrency_MembershipAndActivityVersusMerge(t *testing.T) {
 		merged <- env.applyLink(t, businessA, "vs_a",
 			linkInput("evt_membership_merge", guestSubject("gst_1"), customerSubject("cus_1"), 4))
 	}()
-	waitForBlockedTransaction(t, env.pool)
+	waitForBlockedTransaction(t, env)
 	if err = membershipTx.Commit(ctx); err != nil {
 		t.Fatalf("commit the membership: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestCorporateConcurrency_ArchiveVersusTaskCreate(t *testing.T) {
 			CreateCorporateTaskInput{Title: "Work on an archived account"})
 		created <- createErr
 	}()
-	waitForBlockedTransaction(t, env.pool)
+	waitForBlockedTransaction(t, env)
 	if err = archiveTx.Commit(ctx); err != nil {
 		t.Fatalf("commit the archive: %v", err)
 	}

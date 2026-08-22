@@ -4,9 +4,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // These are real-PostgreSQL concurrency tests. The ordering in each is forced
@@ -14,27 +11,21 @@ import (
 // test that passes because one goroutine happened to be slower proves nothing
 // about production, where the timing will be different.
 
-// waitForBlockedTransaction polls until some backend is waiting on a lock. It
-// is a condition, not a delay: the test proceeds the instant the other
-// transaction is genuinely blocked, and fails rather than continuing blind if
-// that never happens.
-func waitForBlockedTransaction(t *testing.T, pool interface {
-	QueryRow(context.Context, string, ...any) pgx.Row
-}) {
+// waitForBlockedTransaction blocks until one of this test's own transactions is
+// genuinely queued behind another's lock. It is a condition, not a delay: it
+// returns the instant the wait is real, and fails with the observed lock state
+// if it never becomes real.
+//
+// Scoping matters here. This used to ask the whole server for any backend in
+// wait_event_type='Lock', which unrelated activity could satisfy, and it spun
+// without sleeping through the same pool the blocked transactions were holding
+// connections in. Observation now runs on its own connection and is restricted
+// to backends tagged crmTestAppName in this database. See
+// concurrency_observation_test.go.
+func waitForBlockedTransaction(t *testing.T, env *testEnv) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) {
-		var blocked bool
-		if err := pool.QueryRow(context.Background(),
-			`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND state='active')`).
-			Scan(&blocked); err != nil {
-			t.Fatalf("check for a blocked transaction: %v", err)
-		}
-		if blocked {
-			return
-		}
-	}
-	t.Fatal("no transaction ever blocked on a lock; the fence is not doing what this test assumes")
+	newLockObserver(t).await(t, 1, "", false,
+		"the fence is not doing what this test assumes")
 }
 
 // runPreparationWithHook drives one claimed preparation through the same steps
@@ -171,7 +162,7 @@ func TestCampaignConcurrency_RedactionCommittingFirstIsSeenByCertification(t *te
 		defer close(done)
 		env.runPreparations(t)
 	}()
-	waitForBlockedTransaction(t, env.pool)
+	waitForBlockedTransaction(t, env)
 
 	if err = privacyTx.Commit(ctx); err != nil {
 		t.Fatalf("commit privacy: %v", err)
@@ -225,7 +216,7 @@ func TestCampaignConcurrency_RedactionCommittingSecondRevokesImmediately(t *test
 				Action: PrivacyActionRedact, ObservedAt: env.now,
 			})
 		}()
-		waitForBlockedTransaction(t, env.pool)
+		waitForBlockedTransaction(t, env)
 	})
 	if err = <-redacted; err != nil {
 		t.Fatalf("redaction after promotion: %v", err)
@@ -270,7 +261,7 @@ func TestCampaignConcurrency_MergeDuringPreparationLeavesOneActionableRow(t *tes
 			merged <- env.applyLink(t, businessA, "vs_a",
 				linkInput("evt_merge_race", guestSubject("gst_1"), customerSubject("cus_1"), 4))
 		}()
-		waitForBlockedTransaction(t, env.pool)
+		waitForBlockedTransaction(t, env)
 	})
 	if err = <-merged; err != nil {
 		t.Fatalf("merge after promotion: %v", err)

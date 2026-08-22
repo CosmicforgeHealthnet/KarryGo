@@ -12,7 +12,7 @@ import (
 
 // TestMigrationReplay applies every migration, verifies the foundation table
 // is reachable, rolls back the LATEST migration determined by querying the
-// tracker (never a hardcoded migration name/position — a fixed assumption
+// tracker (never a hardcoded migration name/position â€” a fixed assumption
 // here is exactly the bug class this runner exists to avoid, see
 // docs/architecture/12_MIGRATION_OWNERSHIP.md), verifies its down file
 // actually undid the change, then reapplies and verifies consistency. Skips
@@ -39,7 +39,7 @@ func TestMigrationReplay(t *testing.T) {
 	}
 	// A shared external test database may carry rows left behind by another
 	// package's tests run earlier in the same `go test -p 1 ./...` invocation
-	// (each package is independently correct in isolation — see
+	// (each package is independently correct in isolation â€” see
 	// docs/IMPLEMENTATION_STATUS.md's Section 5 entry for this exact,
 	// documented test-infrastructure caveat). Clearing dependent Section 5
 	// rows here keeps this migration-runner test robust regardless of what
@@ -111,11 +111,51 @@ func TestMigrationReplay(t *testing.T) {
 	if !lastVersionApplied {
 		t.Fatalf("expected %s to be tracked again after reapply", last.Version)
 	}
+
+	// TestMigrationReplay deliberately performs destructive shared-database
+	// cleanup above using TRUNCATE ... CASCADE so that rollback can be tested
+	// regardless of rows left by earlier integration packages. That cascade
+	// can also empty platform-owned seed tables introduced by older migrations
+	// while those migrations remain recorded as already applied.
+	//
+	// Before returning, restore a pristine all-migrations-applied database.
+	// This prevents later packages in `go test -p 1 ./...` from inheriting a
+	// schema whose migration tracker is current but whose immutable/platform
+	// seed data was removed by this test.
+	if _, err := pool.Exec(ctx, `DROP SCHEMA public CASCADE`); err != nil {
+		t.Fatalf("reset shared migration-test schema: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `CREATE SCHEMA public`); err != nil {
+		t.Fatalf("recreate shared migration-test schema: %v", err)
+	}
+	if err := ApplyMigrations(ctx, pool, dir); err != nil {
+		t.Fatalf("restore shared migration-test database: %v", err)
+	}
+	if err := MigrationsCurrent(ctx, pool, dir); err != nil {
+		t.Fatalf("restored migration-test database is not current: %v", err)
+	}
+
+	// Section 12A's controlled measurement catalogue is a useful canary for
+	// destructive CASCADE leakage because later Shop integration tests depend
+	// on it while it is owned by an earlier migration.
+	var restoredMeasureDefinitions int
+	if err := pool.QueryRow(ctx, `
+        SELECT count(*)
+        FROM shop_measure_definitions
+    `).Scan(&restoredMeasureDefinitions); err != nil {
+		t.Fatalf("verify restored measurement seed: %v", err)
+	}
+	if restoredMeasureDefinitions < 40 {
+		t.Fatalf(
+			"shared migration-test database restoration incomplete: measurement definitions=%d",
+			restoredMeasureDefinitions,
+		)
+	}
 }
 
 // TestSection5SchemaExists is a focused, migration-position-independent check
 // that Section 5's own tables and seed data exist once all migrations are
-// applied — unlike TestMigrationReplay, this does not care which migration
+// applied â€” unlike TestMigrationReplay, this does not care which migration
 // number introduced them, so it never needs updating when a later section
 // adds more migrations on top.
 func TestSection5SchemaExists(t *testing.T) {
@@ -167,12 +207,54 @@ func TestSection5SchemaExists(t *testing.T) {
 		t.Fatalf("expected 11 default role families, got %d", systemRoleCount)
 	}
 
+	// Owner holds every VENDOR-SCOPED permission.
+	//
+	// This assertion used to be "Owner holds every permission", which was true
+	// while every permission in the catalogue was a vendor capability. Section
+	// 13 introduced the platform capabilities - global taxonomy publication,
+	// ranking administration and projection administration - which are
+	// deliberately granted to no vendor role, Owner included, because they
+	// decide how every vendor on the marketplace is classified and ranked.
+	//
+	// The check is therefore split rather than relaxed: Owner must hold all of
+	// one set and none of the other. That is a stronger statement than the
+	// original count comparison, and it fails if a future migration either
+	// forgets to grant Owner a new vendor capability or sweeps a platform one
+	// into a vendor role.
+	platformOnly := []string{
+		"vendor.taxonomy.platform.admin",
+		"vendor.search.ranking.admin",
+		"vendor.search.projection.admin",
+	}
+
+	var vendorScopedCount int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM vendor_permissions WHERE code <> ALL($1)`, platformOnly,
+	).Scan(&vendorScopedCount); err != nil {
+		t.Fatalf("count vendor-scoped permissions: %v", err)
+	}
+
 	var ownerPermissionCount int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM vendor_role_permissions WHERE role_id = 'role_owner'`).Scan(&ownerPermissionCount); err != nil {
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM vendor_role_permissions WHERE role_id = 'role_owner'`,
+	).Scan(&ownerPermissionCount); err != nil {
 		t.Fatalf("count owner permissions: %v", err)
 	}
-	if ownerPermissionCount != permissionCount {
-		t.Fatalf("expected Owner to hold every permission (%d), got %d", permissionCount, ownerPermissionCount)
+	if ownerPermissionCount != vendorScopedCount {
+		t.Fatalf("expected Owner to hold every vendor-scoped permission (%d of %d catalogued), got %d",
+			vendorScopedCount, permissionCount, ownerPermissionCount)
+	}
+
+	var ownerPlatformGrants int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM vendor_role_permissions rp
+           JOIN vendor_permissions p ON p.id = rp.permission_id
+          WHERE rp.role_id = 'role_owner' AND p.code = ANY($1)`, platformOnly,
+	).Scan(&ownerPlatformGrants); err != nil {
+		t.Fatalf("count owner platform grants: %v", err)
+	}
+	if ownerPlatformGrants != 0 {
+		t.Fatalf("Owner holds %d platform-only capabilities; it must hold none", ownerPlatformGrants)
 	}
 }
 
@@ -212,11 +294,25 @@ func TestSection6SchemaAndPermissionCatalogue(t *testing.T) {
 // A section's rollback test has to step past every section stacked on top of it
 // first. Doing that by walking down to a named version, rather than by listing
 // the later versions by name, means adding a new section never requires editing
-// an older section's test — a list like that goes stale silently and turns into
+// an older section's test â€” a list like that goes stale silently and turns into
 // a confusing failure in unrelated code.
 func rollbackUntilRemoved(t *testing.T, ctx context.Context, pool *pgxpool.Pool, version string) {
 	t.Helper()
-	for step := 0; step < 64; step++ {
+
+	// The bound is derived from how many migrations are actually tracked, not
+	// from a constant. A fixed cap is the exact bug this package's own doc
+	// comment warns about: 64 was ample when it was written and silently
+	// became too small the moment the repository grew past it, turning a
+	// healthy rollback into a confusing failure in unrelated code. Rolling
+	// back can never need more steps than there are applied migrations, and
+	// the loop also stops the moment it stops making progress.
+	var applied int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM vendor_service_schema_migrations`).Scan(&applied); err != nil {
+		t.Fatalf("count applied migrations: %v", err)
+	}
+
+	for step := 0; step <= applied; step++ {
 		var tracked bool
 		if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM vendor_service_schema_migrations WHERE version=$1)`, version).Scan(&tracked); err != nil {
 			t.Fatalf("check %s: %v", version, err)
@@ -228,7 +324,7 @@ func rollbackUntilRemoved(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 			t.Fatalf("rollback towards %s: %v", version, err)
 		}
 	}
-	t.Fatalf("%s was still tracked after 64 rollbacks", version)
+	t.Fatalf("%s was still tracked after rolling back all %d applied migrations", version, applied)
 }
 
 func TestSection7MigrationsRollbackAndReapplyAsAPair(t *testing.T) {
@@ -496,7 +592,7 @@ func TestSection8BMigrationsRollbackAndReapplyAsAPair(t *testing.T) {
 	}
 
 	// Tenancy: every Section 8B child reaches its parent through the composite
-	// (id, business_id) key, so PostgreSQL — not only the HTTP layer — refuses a
+	// (id, business_id) key, so PostgreSQL â€” not only the HTTP layer â€” refuses a
 	// tag pointing at another business's customer.
 	for _, constraint := range []string{
 		"crm_tag_branch_fk", "crm_tag_membership_tag_fk", "crm_tag_membership_profile_fk",
@@ -651,7 +747,7 @@ func TestSection8CMigrationsRollbackAndReapplyAsAPair(t *testing.T) {
 
 // TestSection8DMigrationsRollbackAndReapplyAsAPair proves the loyalty schema
 // and its permissions install, roll back cleanly to the accepted Section 8C
-// baseline, and reapply — and that rolling 8D back damages nothing behind it.
+// baseline, and reapply â€” and that rolling 8D back damages nothing behind it.
 func TestSection8DMigrationsRollbackAndReapplyAsAPair(t *testing.T) {
 	dsn := os.Getenv("VENDOR_SERVICE_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -842,8 +938,8 @@ func TestSection8DMigrationsRollbackAndReapplyAsAPair(t *testing.T) {
 	// What is still genuinely unbuilt stays out. Campaigns landed in Section 8E
 	// and loyalty tiers in the Section 8 completion, so neither is a marker of
 	// future work any more; a direct send permission and a rewards engine still
-	// are. Sending is worker-driven under Section 8F's own grants — there is no
-	// permission that hands a staff member a send button — and rewards would be
+	// are. Sending is worker-driven under Section 8F's own grants â€” there is no
+	// permission that hands a staff member a send button â€” and rewards would be
 	// a commerce feature, because a tier that conferred value would make points
 	// money and payment-wallet-service owns money.
 	var future int

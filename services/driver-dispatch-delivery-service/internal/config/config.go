@@ -43,8 +43,16 @@ type Config struct {
 	// decisions and to verify provider acceptance. When the secret is empty
 	// the marketplace clients fall back to their fail-closed variants rather
 	// than half-working: an unconfigured deployment must refuse, not guess.
-	FleetServiceURL     string
-	FleetServiceSecret  []byte
+	FleetServiceURL    string
+	FleetServiceSecret []byte
+
+	// VendorServiceSecret is the shared HMAC secret Vendor Service signs its
+	// commerce quote requests with. Empty means this deployment does not serve
+	// commerce quotes at all, and the route is not registered.
+	VendorServiceSecret []byte
+
+	// CommerceQuoteTTL is how long an issued commerce delivery quote stands.
+	CommerceQuoteTTL    time.Duration
 	FleetServiceCaller  string
 	FleetServiceTimeout time.Duration
 
@@ -147,6 +155,8 @@ func Load() (Config, error) {
 		AvailabilityRadiusKM:       getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
 		FleetServiceURL:            getEnv("FLEET_PARTNER_SERVICE_URL", ""),
 		FleetServiceSecret:         []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
+		VendorServiceSecret:        []byte(getEnv("VENDOR_SERVICE_SECRET", "")),
+		CommerceQuoteTTL:           time.Duration(getEnvInt("COMMERCE_QUOTE_TTL_SECONDS", 900)) * time.Second,
 		FleetServiceCaller:         getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-dispatch-delivery-service"),
 		FleetServiceTimeout:        time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
 

@@ -34,7 +34,29 @@ type Config struct {
 	// ShopInternalCallers is the explicit comma-separated HMAC caller
 	// allowlist for the Section 12 internal discovery/reservation contract.
 	// Possessing a configured secret alone does not enable Shop authority.
-	ShopInternalCallers string
+	ShopInternalCallers      string
+	InventoryInternalCallers string
+
+	// TaxonomyInternalCallers and SearchInternalCallers are the Section 13I
+	// allowlists for the two root-mounted internal surfaces. They are kept
+	// apart from each other on purpose: administering the global taxonomy and
+	// reading search results are different authorities, and a service that
+	// needs to run a discovery query has no reason to be able to publish a new
+	// canonical vocabulary for every vendor on the platform.
+	TaxonomyInternalCallers string
+	SearchInternalCallers   string
+
+	// Checkout is Section 17B's timing surface. The reservation TTL is
+	// required configuration: holding a customer's stock for a duration
+	// nobody chose is exactly what the section forbids.
+	Checkout CheckoutConfig
+
+	// Fulfilment is Section 17C's planning surface: quote timeout, plan TTL,
+	// the consolidation bound and the expiry sweep period.
+	Fulfilment FulfilmentConfig
+
+	// Quote is Section 17D's immutable checkout quote timing surface.
+	Quote QuoteConfig
 
 	// Flags is the full feature-flag/kill-switch surface. Every high-risk
 	// flag defaults to false/disabled until its implementation section is
@@ -56,11 +78,54 @@ type Config struct {
 	DispatchURL, DispatchSecret         string
 	TaxiURL, TaxiSecret                 string
 	HaulingURL, HaulingSecret           string
+	CustomerURL, CustomerSecret         string
+	CustomerAccessTokenSecret           []byte
 	InternalServiceCallTimeout          time.Duration
-
 	// Auth is Section 5's (Authentication, Sessions and Staff IAM)
 	// configuration surface.
 	Auth AuthConfig
+}
+
+// CheckoutConfig is Section 17B's timing configuration.
+type CheckoutConfig struct {
+	// ReservationTTL is how long a validated checkout candidate holds real
+	// physical stock. Nothing in Section 17B hardcodes it.
+	ReservationTTL time.Duration
+
+	// StrandedGrace is how long a checkout may sit mid-reservation before
+	// recovery treats it as abandoned by a dead process and releases
+	// whatever it might be holding.
+	StrandedGrace time.Duration
+
+	// RecoveryInterval is the background sweep period.
+	RecoveryInterval time.Duration
+}
+
+// FulfilmentConfig is Section 17C's planning configuration.
+type FulfilmentConfig struct {
+	// QuoteTimeout bounds one call to a logistics authority. It is short: a
+	// customer is waiting, and a slow authority must make the group
+	// unserviceable rather than hang the checkout.
+	QuoteTimeout time.Duration
+
+	// PlanTTL bounds a plan independently of its quotes. The effective expiry
+	// is always the earlier of this and the soonest quote inside the plan.
+	PlanTTL time.Duration
+
+	// ConsolidationRadiusMeters is how close two vendor pickups must be before
+	// one mission may cover both. It is deliberately tight: no logistics
+	// authority models a multi-pickup mission today, so consolidating distant
+	// pickups would price a route nobody can drive.
+	ConsolidationRadiusMeters int
+
+	// ExpiryInterval is the background sweep period for lapsed plans.
+	ExpiryInterval time.Duration
+}
+
+// QuoteConfig bounds how long an immutable commercial agreement may be
+// approved. Its effective expiry is also capped by checkout and fulfilment.
+type QuoteConfig struct {
+	TTL time.Duration
 }
 
 // AuthConfig is Section 5's configuration: token signing, OTP policy, rate
@@ -77,7 +142,7 @@ type AuthConfig struct {
 	OTPMaxAttempts int
 	OTPMaxResends  int
 	// OTPDebug returns the raw code in the API response instead of sending
-	// it — a non-production-only shortcut (Config.Validate refuses it when
+	// it Ã¢â‚¬â€ a non-production-only shortcut (Config.Validate refuses it when
 	// AppEnv=production). Never logged either way (Section 5 rule 11).
 	OTPDebug bool
 
@@ -153,8 +218,14 @@ type FeatureFlags struct {
 	VendorCRMIntelligenceWorkerEnabled bool
 	VendorCRMExportsEnabled            bool
 	VendorInventoryEnabled             bool
+	VendorInventoryWritesEnabled       bool
 	VendorPurchasingEnabled            bool
 	VendorRecipesEnabled               bool
+	// VendorCostEnabled is Section 16D's master switch. It is separate from
+	// VendorRecipesEnabled on purpose: a vendor can run recipes and production
+	// without exposing what its inputs cost, which is the same separation the
+	// Section 16D permissions enforce at the IAM layer.
+	VendorCostEnabled bool
 
 	// CommerceFoodEnabled is Section 9A's master switch: with it false no food
 	// catalogue route is registered at all. VendorFoodCatalogueWritesEnabled
@@ -179,8 +250,41 @@ type FeatureFlags struct {
 	PaymentWalletCommerceEnabled         bool
 	VendorVerificationIntegrationEnabled bool
 
-	CommerceFulfilmentWorkersEnabled bool
-	CommerceGlobalKillSwitch         bool
+	// CommerceCheckoutEnabled is Section 17B's master switch. Checkout is
+	// separable from the cart on purpose: Section 17A's cart can be exposed
+	// on its own, and standing checkout down must never take the cart with
+	// it. CommerceCheckoutRecoveryEnabled additionally gates the background
+	// sweep that releases lapsed and orphaned stock holds.
+	CommerceCheckoutEnabled         bool
+	CommerceCheckoutRecoveryEnabled bool
+
+	// CommerceFulfilmentPlanningEnabled is Section 17C's master switch.
+	// Planning depends on checkout, so it may not be enabled without it.
+	CommerceFulfilmentPlanningEnabled bool
+	CommerceFulfilmentWorkersEnabled  bool
+	// CommerceQuoteLockEnabled exposes Section 17D immutable commercial
+	// quote creation and approval. It depends on Sections 17B and 17C.
+	CommerceQuoteLockEnabled bool
+	// CommerceOrdersEnabled exposes Section 17E ParentOrder and VendorOrder
+	// orchestration. An order can only be cut from an approved Section 17D
+	// quote, so it may not be enabled without the quote lock.
+	CommerceOrdersEnabled    bool
+	CommerceGlobalKillSwitch bool
+
+	// Section 13 canonical taxonomy and search. VendorTaxonomyEnabled is the
+	// master switch for both the vendor classification surface and the
+	// platform administration surface; taxonomy writes are separable so the
+	// vocabulary can be exposed read-only during rollout.
+	//
+	// VendorSearchEnabled gates the internal Food/Shop search contract, and
+	// VendorSearchAdminEnabled additionally gates ranking and projection
+	// generation administration. Standing administration down leaves search
+	// answering normally from the ACTIVE generation: a frozen rebuild pipeline
+	// must never take discovery offline.
+	VendorTaxonomyEnabled       bool
+	VendorTaxonomyWritesEnabled bool
+	VendorSearchEnabled         bool
+	VendorSearchAdminEnabled    bool
 }
 
 // Load reads configuration from the environment. It never panics; call
@@ -199,8 +303,12 @@ func Load() Config {
 			DB:       getEnvInt("VENDOR_REDIS_DB", 0),
 		},
 
-		ServiceSecrets:      os.Getenv("VENDOR_SERVICE_SECRETS"),
-		ShopInternalCallers: os.Getenv("VENDOR_SHOP_INTERNAL_CALLERS"),
+		ServiceSecrets:           os.Getenv("VENDOR_SERVICE_SECRETS"),
+		ShopInternalCallers:      os.Getenv("VENDOR_SHOP_INTERNAL_CALLERS"),
+		InventoryInternalCallers: os.Getenv("VENDOR_INVENTORY_INTERNAL_CALLERS"),
+
+		TaxonomyInternalCallers: os.Getenv("VENDOR_TAXONOMY_INTERNAL_CALLERS"),
+		SearchInternalCallers:   os.Getenv("VENDOR_SEARCH_INTERNAL_CALLERS"),
 
 		Flags: FeatureFlags{
 			VendorServiceEnabled:          getEnvBool("VENDOR_SERVICE_ENABLED", false),
@@ -227,9 +335,11 @@ func Load() Config {
 			VendorCRMIntelligenceWorkerEnabled: getEnvBool("VENDOR_CRM_INTELLIGENCE_WORKER_ENABLED", false),
 			VendorCRMExportsEnabled:            getEnvBool("VENDOR_CRM_EXPORTS_ENABLED", false),
 
-			VendorInventoryEnabled:  getEnvBool("VENDOR_INVENTORY_ENABLED", false),
-			VendorPurchasingEnabled: getEnvBool("VENDOR_PURCHASING_ENABLED", false),
-			VendorRecipesEnabled:    getEnvBool("VENDOR_RECIPES_ENABLED", false),
+			VendorInventoryEnabled:       getEnvBool("VENDOR_INVENTORY_ENABLED", false),
+			VendorInventoryWritesEnabled: getEnvBool("VENDOR_INVENTORY_WRITES_ENABLED", false),
+			VendorPurchasingEnabled:      getEnvBool("VENDOR_PURCHASING_ENABLED", false),
+			VendorRecipesEnabled:         getEnvBool("VENDOR_RECIPES_ENABLED", false),
+			VendorCostEnabled:            getEnvBool("VENDOR_COST_ENABLED", false),
 
 			CommerceFoodEnabled:              getEnvBool("COMMERCE_FOOD_ENABLED", false),
 			VendorFoodCatalogueWritesEnabled: getEnvBool("VENDOR_FOOD_CATALOGUE_WRITES_ENABLED", false),
@@ -249,8 +359,19 @@ func Load() Config {
 			PaymentWalletCommerceEnabled:         getEnvBool("PAYMENT_WALLET_COMMERCE_ENABLED", false),
 			VendorVerificationIntegrationEnabled: getEnvBool("VENDOR_VERIFICATION_INTEGRATION_ENABLED", false),
 
-			CommerceFulfilmentWorkersEnabled: getEnvBool("COMMERCE_FULFILMENT_WORKERS_ENABLED", false),
-			CommerceGlobalKillSwitch:         getEnvBool("COMMERCE_GLOBAL_KILL_SWITCH", false),
+			CommerceCheckoutEnabled:         getEnvBool("COMMERCE_CHECKOUT_ENABLED", false),
+			CommerceCheckoutRecoveryEnabled: getEnvBool("COMMERCE_CHECKOUT_RECOVERY_ENABLED", false),
+
+			CommerceFulfilmentPlanningEnabled: getEnvBool("COMMERCE_FULFILMENT_PLANNING_ENABLED", false),
+			CommerceFulfilmentWorkersEnabled:  getEnvBool("COMMERCE_FULFILMENT_WORKERS_ENABLED", false),
+			CommerceQuoteLockEnabled:          getEnvBool("COMMERCE_QUOTE_LOCK_ENABLED", false),
+			CommerceOrdersEnabled:             getEnvBool("COMMERCE_ORDERS_ENABLED", false),
+			CommerceGlobalKillSwitch:          getEnvBool("COMMERCE_GLOBAL_KILL_SWITCH", false),
+
+			VendorTaxonomyEnabled:       getEnvBool("VENDOR_TAXONOMY_ENABLED", false),
+			VendorTaxonomyWritesEnabled: getEnvBool("VENDOR_TAXONOMY_WRITES_ENABLED", false),
+			VendorSearchEnabled:         getEnvBool("VENDOR_SEARCH_ENABLED", false),
+			VendorSearchAdminEnabled:    getEnvBool("VENDOR_SEARCH_ADMIN_ENABLED", false),
 		},
 
 		WalletURL: os.Getenv("VENDOR_WALLET_URL"), WalletSecret: os.Getenv("VENDOR_WALLET_SECRET"),
@@ -263,7 +384,26 @@ func Load() Config {
 		DispatchURL: os.Getenv("VENDOR_DISPATCH_URL"), DispatchSecret: os.Getenv("VENDOR_DISPATCH_SECRET"),
 		TaxiURL: os.Getenv("VENDOR_TAXI_URL"), TaxiSecret: os.Getenv("VENDOR_TAXI_SECRET"),
 		HaulingURL: os.Getenv("VENDOR_HAULING_URL"), HaulingSecret: os.Getenv("VENDOR_HAULING_SECRET"),
+		CustomerURL: os.Getenv("VENDOR_CUSTOMER_URL"), CustomerSecret: os.Getenv("VENDOR_CUSTOMER_SECRET"),
+		CustomerAccessTokenSecret:  []byte(os.Getenv("VENDOR_CUSTOMER_ACCESS_TOKEN_SECRET")),
 		InternalServiceCallTimeout: time.Duration(getEnvInt("VENDOR_INTERNAL_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+
+		Checkout: CheckoutConfig{
+			ReservationTTL:   time.Duration(getEnvInt("COMMERCE_CHECKOUT_RESERVATION_TTL_SECONDS", 600)) * time.Second,
+			StrandedGrace:    time.Duration(getEnvInt("COMMERCE_CHECKOUT_STRANDED_GRACE_SECONDS", 120)) * time.Second,
+			RecoveryInterval: time.Duration(getEnvInt("COMMERCE_CHECKOUT_RECOVERY_INTERVAL_SECONDS", 30)) * time.Second,
+		},
+
+		Fulfilment: FulfilmentConfig{
+			QuoteTimeout:              time.Duration(getEnvInt("COMMERCE_FULFILMENT_QUOTE_TIMEOUT_SECONDS", 8)) * time.Second,
+			PlanTTL:                   time.Duration(getEnvInt("COMMERCE_FULFILMENT_PLAN_TTL_SECONDS", 900)) * time.Second,
+			ConsolidationRadiusMeters: getEnvInt("COMMERCE_FULFILMENT_CONSOLIDATION_RADIUS_METERS", 150),
+			ExpiryInterval:            time.Duration(getEnvInt("COMMERCE_FULFILMENT_EXPIRY_INTERVAL_SECONDS", 60)) * time.Second,
+		},
+
+		Quote: QuoteConfig{
+			TTL: time.Duration(getEnvInt("COMMERCE_QUOTE_TTL_SECONDS", 300)) * time.Second,
+		},
 
 		Auth: AuthConfig{
 			AccessTokenSecret:  []byte(os.Getenv("VENDOR_AUTH_ACCESS_TOKEN_SECRET")),
@@ -362,9 +502,14 @@ func (c Config) Validate() error {
 			c.Flags.VendorCRMIntelligenceEnabled ||
 			c.Flags.VendorCRMExportsEnabled ||
 			c.Flags.VendorInventoryEnabled || c.Flags.VendorPurchasingEnabled || c.Flags.VendorRecipesEnabled ||
+			c.Flags.VendorCostEnabled ||
 			c.Flags.CommerceFoodEnabled || c.Flags.VendorFoodCatalogueWritesEnabled ||
 			c.Flags.CommerceShopEnabled || c.Flags.VendorShopCatalogueWritesEnabled || c.Flags.CommerceMultiVendorEnabled ||
-			c.Flags.CommerceVariableWeightEnabled || c.Flags.CommerceBulkRFQEnabled || c.Flags.VendorOwnDeliveryEnabled
+			c.Flags.CommerceVariableWeightEnabled || c.Flags.CommerceBulkRFQEnabled || c.Flags.VendorOwnDeliveryEnabled ||
+			c.Flags.VendorTaxonomyEnabled || c.Flags.VendorSearchEnabled ||
+			c.Flags.CommerceCheckoutEnabled || c.Flags.CommerceCheckoutRecoveryEnabled ||
+			c.Flags.CommerceFulfilmentPlanningEnabled || c.Flags.CommerceFulfilmentWorkersEnabled ||
+			c.Flags.CommerceQuoteLockEnabled || c.Flags.CommerceOrdersEnabled
 		if anyFeature {
 			problems = append(problems, "VENDOR_SERVICE_ENABLED must be true when any VENDOR_* or COMMERCE_* feature flag is enabled")
 		}
@@ -391,8 +536,127 @@ func (c Config) Validate() error {
 	if c.Flags.VendorFoodCatalogueWritesEnabled && !c.Flags.CommerceFoodEnabled {
 		problems = append(problems, "COMMERCE_FOOD_ENABLED must be true when VENDOR_FOOD_CATALOGUE_WRITES_ENABLED=true")
 	}
+
+	// Section 13: the master switch gates both taxonomy surfaces, and writes
+	// need a vocabulary to write into.
+	if c.Flags.VendorTaxonomyWritesEnabled && !c.Flags.VendorTaxonomyEnabled {
+		problems = append(problems, "VENDOR_TAXONOMY_ENABLED must be true when VENDOR_TAXONOMY_WRITES_ENABLED=true")
+	}
+	if c.Flags.VendorSearchAdminEnabled && !c.Flags.VendorSearchEnabled {
+		problems = append(problems, "VENDOR_SEARCH_ENABLED must be true when VENDOR_SEARCH_ADMIN_ENABLED=true")
+	}
+
+	// An internal surface with no caller allowlist is a surface every caller is
+	// refused from. That is safe but silent: it looks enabled, answers 403 to
+	// everyone, and the misconfiguration only shows up as a mysterious outage in
+	// whichever service was meant to consume it. Fail at startup instead.
+	if c.Flags.VendorTaxonomyEnabled && strings.TrimSpace(c.TaxonomyInternalCallers) == "" {
+		problems = append(problems, "VENDOR_TAXONOMY_INTERNAL_CALLERS is required when VENDOR_TAXONOMY_ENABLED=true")
+	}
+	if c.Flags.VendorSearchEnabled && strings.TrimSpace(c.SearchInternalCallers) == "" {
+		problems = append(problems, "VENDOR_SEARCH_INTERNAL_CALLERS is required when VENDOR_SEARCH_ENABLED=true")
+	}
 	if c.Flags.VendorShopCatalogueWritesEnabled && !c.Flags.CommerceShopEnabled {
 		problems = append(problems, "COMMERCE_SHOP_ENABLED must be true when VENDOR_SHOP_CATALOGUE_WRITES_ENABLED=true")
+	}
+
+	// Section 17B. Checkout validates against Food and Shop and holds stock
+	// through Section 14, so enabling it without a commerce domain to
+	// validate, or without the Inventory writes a hold requires, would be a
+	// surface that can only ever refuse.
+	if c.Flags.CommerceCheckoutEnabled {
+		if !c.Flags.CommerceFoodEnabled && !c.Flags.CommerceShopEnabled {
+			problems = append(problems, "COMMERCE_FOOD_ENABLED or COMMERCE_SHOP_ENABLED must be true when COMMERCE_CHECKOUT_ENABLED=true")
+		}
+
+		if c.Flags.CommerceShopEnabled &&
+			(!c.Flags.VendorInventoryEnabled || !c.Flags.VendorInventoryWritesEnabled) {
+			problems = append(problems, "VENDOR_INVENTORY_ENABLED and VENDOR_INVENTORY_WRITES_ENABLED must be true when COMMERCE_CHECKOUT_ENABLED=true with COMMERCE_SHOP_ENABLED=true")
+		}
+
+		if c.Checkout.ReservationTTL < 60*time.Second ||
+			c.Checkout.ReservationTTL > 24*time.Hour {
+			problems = append(problems, "COMMERCE_CHECKOUT_RESERVATION_TTL_SECONDS must be between 60 and 86400")
+		}
+
+		if c.Checkout.StrandedGrace <= 0 ||
+			c.Checkout.StrandedGrace >= c.Checkout.ReservationTTL {
+			problems = append(problems, "COMMERCE_CHECKOUT_STRANDED_GRACE_SECONDS must be positive and shorter than COMMERCE_CHECKOUT_RESERVATION_TTL_SECONDS")
+		}
+
+		if c.Checkout.RecoveryInterval < 5*time.Second ||
+			c.Checkout.RecoveryInterval > time.Hour {
+			problems = append(problems, "COMMERCE_CHECKOUT_RECOVERY_INTERVAL_SECONDS must be between 5 and 3600")
+		}
+	}
+
+	if c.Flags.CommerceCheckoutRecoveryEnabled && !c.Flags.CommerceCheckoutEnabled {
+		problems = append(problems, "COMMERCE_CHECKOUT_ENABLED must be true when COMMERCE_CHECKOUT_RECOVERY_ENABLED=true")
+	}
+
+	// Section 17C. Planning consumes validated Section 17B groups, so it
+	// cannot be enabled without checkout. It must also have at least one
+	// delivery authority available, or it would be a surface whose only
+	// possible answer is "no delivery option available".
+	if c.Flags.CommerceFulfilmentPlanningEnabled {
+		if !c.Flags.CommerceCheckoutEnabled {
+			problems = append(problems, "COMMERCE_CHECKOUT_ENABLED must be true when COMMERCE_FULFILMENT_PLANNING_ENABLED=true")
+		}
+
+		if !c.Flags.VendorOwnDeliveryEnabled &&
+			!c.Flags.DispatchCommerceIntegrationEnabled &&
+			!c.Flags.HaulingCommerceIntegrationEnabled {
+			problems = append(problems, "at least one of VENDOR_OWN_DELIVERY_ENABLED, DISPATCH_COMMERCE_INTEGRATION_ENABLED or HAULING_COMMERCE_INTEGRATION_ENABLED must be true when COMMERCE_FULFILMENT_PLANNING_ENABLED=true")
+		}
+
+		if c.Fulfilment.QuoteTimeout < time.Second ||
+			c.Fulfilment.QuoteTimeout > time.Minute {
+			problems = append(problems, "COMMERCE_FULFILMENT_QUOTE_TIMEOUT_SECONDS must be between 1 and 60")
+		}
+
+		if c.Fulfilment.PlanTTL < 60*time.Second ||
+			c.Fulfilment.PlanTTL > 24*time.Hour {
+			problems = append(problems, "COMMERCE_FULFILMENT_PLAN_TTL_SECONDS must be between 60 and 86400")
+		}
+
+		// A wide consolidation radius would merge pickups no single mission
+		// can serve, producing a fee for a route nobody can drive. Two
+		// kilometres is already generous for "the same market".
+		if c.Fulfilment.ConsolidationRadiusMeters < 1 ||
+			c.Fulfilment.ConsolidationRadiusMeters > 2000 {
+			problems = append(problems, "COMMERCE_FULFILMENT_CONSOLIDATION_RADIUS_METERS must be between 1 and 2000")
+		}
+
+		if c.Fulfilment.ExpiryInterval < 5*time.Second ||
+			c.Fulfilment.ExpiryInterval > time.Hour {
+			problems = append(problems, "COMMERCE_FULFILMENT_EXPIRY_INTERVAL_SECONDS must be between 5 and 3600")
+		}
+	}
+
+	if c.Flags.CommerceFulfilmentWorkersEnabled &&
+		!c.Flags.CommerceFulfilmentPlanningEnabled {
+		problems = append(problems, "COMMERCE_FULFILMENT_PLANNING_ENABLED must be true when COMMERCE_FULFILMENT_WORKERS_ENABLED=true")
+	}
+
+	// Section 17D freezes the approved output of Sections 17B and 17C. It
+	// cannot safely exist without both authorities, and its TTL is bounded so
+	// stale product prices and delivery quotes never become long-lived offers.
+	if c.Flags.CommerceQuoteLockEnabled {
+		if !c.Flags.CommerceCheckoutEnabled {
+			problems = append(problems, "COMMERCE_CHECKOUT_ENABLED must be true when COMMERCE_QUOTE_LOCK_ENABLED=true")
+		}
+		if !c.Flags.CommerceFulfilmentPlanningEnabled {
+			problems = append(problems, "COMMERCE_FULFILMENT_PLANNING_ENABLED must be true when COMMERCE_QUOTE_LOCK_ENABLED=true")
+		}
+		if c.Quote.TTL < time.Minute || c.Quote.TTL > 24*time.Hour {
+			problems = append(problems, "COMMERCE_QUOTE_TTL_SECONDS must be between 60 and 86400")
+		}
+	}
+
+	// Section 17E cuts an order from an approved Section 17D quote. Without
+	// the quote lock it would be a surface with nothing it could ever order.
+	if c.Flags.CommerceOrdersEnabled && !c.Flags.CommerceQuoteLockEnabled {
+		problems = append(problems, "COMMERCE_QUOTE_LOCK_ENABLED must be true when COMMERCE_ORDERS_ENABLED=true")
 	}
 	if c.Flags.VendorCRMLoyaltyEnabled && !c.Flags.VendorCRMEnabled {
 		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_LOYALTY_ENABLED=true")
@@ -447,7 +711,7 @@ func (c Config) Validate() error {
 		problems = append(problems, "VENDOR_NOTIFICATION_URL and VENDOR_NOTIFICATION_SECRET are required when VENDOR_CRM_CAMPAIGN_EXECUTION_ENABLED=true")
 	}
 
-	// Auth secrets are always required — authentication is core infrastructure,
+	// Auth secrets are always required Ã¢â‚¬â€ authentication is core infrastructure,
 	// not a toggleable feature (unlike VENDOR_SERVICE_ENABLED's commerce
 	// features), matching every other service's unconditional token-secret
 	// requirement (see e.g. hauling's Validate()).

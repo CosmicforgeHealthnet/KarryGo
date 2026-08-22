@@ -23,6 +23,8 @@ import (
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
 
+	haulingcommercemission "cosmicforge/logistics/services/hauling-service/internal/features/commercemission"
+	haulingcommercequote "cosmicforge/logistics/services/hauling-service/internal/features/commercequote"
 	fleetauthority "cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority"
 	identityhttp "cosmicforge/logistics/services/hauling-service/internal/features/identity/http"
 	notificationhttp "cosmicforge/logistics/services/hauling-service/internal/features/notifications/http"
@@ -39,6 +41,8 @@ import (
 	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
 
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/commercemission"
+	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/providercompat"
@@ -242,6 +246,53 @@ func main() {
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
 			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+
+			// The internal commerce delivery-quote contract (Vendor Service
+			// Section 17C). It answers serviceability and price for a route;
+			// it creates no booking and matches no provider.
+			//
+			// Registration is skipped entirely when this deployment holds no
+			// secret for the vendor caller, so a deployment that does not
+			// serve commerce quotes exposes no route to probe rather than one
+			// that answers 401 and confirms it exists.
+			if _, trusted := serviceauth.ParseSecrets(cfg.ServiceSecrets)[commercequote.SignatureCaller]; trusted {
+				haulingcommercequote.Register(
+					group,
+					haulingcommercequote.NewHandler(haulingcommercequote.New(
+						haulingcommercequote.Options{
+							Store:        haulingcommercequote.NewRepository(db),
+							Availability: availabilityStore,
+							Trucks:       commerceTruckLookup{trucks: truckRepo},
+							MaxRadiusKm:  cfg.MatchMaxRadiusKm,
+							TTL:          cfg.CommerceQuoteTTL,
+						},
+					)),
+					db,
+					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+					[]string{commercequote.SignatureCaller},
+				)
+			}
+
+			// The internal commerce mission contract (Vendor Service Section
+			// 17F). Unlike the quote surface above this one EXECUTES: it
+			// creates a real booking and starts provider matching for a fee
+			// the customer has already paid. It is skipped without a booking
+			// service rather than accepting hauls nothing would ever match.
+			if _, trusted := serviceauth.ParseSecrets(cfg.ServiceSecrets)[commercemission.SignatureCaller]; trusted &&
+				bookingService != nil {
+				haulingcommercemission.Register(
+					group,
+					haulingcommercemission.NewHandler(haulingcommercemission.New(
+						haulingcommercemission.Options{
+							Store:   haulingcommercemission.NewRepository(db),
+							Matcher: bookingService,
+						},
+					)),
+					db,
+					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+					[]string{commercemission.SignatureCaller},
+				)
+			}
 			fleetauthority.Register(group, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			restrictions.Register(group, restrictionService, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			privateexecution.Register(group, privateexecution.NewHandler(privateExecutionService),
@@ -274,6 +325,26 @@ func (t truckLookup) GetTruck(ctx context.Context, truckID string) (bookinguseca
 		return bookingusecases.TruckInfo{}, err
 	}
 	return bookingusecases.TruckInfo{
+		TruckType:  truck.TruckType,
+		CapacityKg: truck.CapacityKg,
+		Status:     truck.Status,
+	}, nil
+}
+
+// commerceTruckLookup adapts the same truck repository to the commerce quote
+// service's own narrow lookup, so a quote applies exactly the truck-capacity
+// and truck-type filters the matcher will later apply. A quote issued on
+// looser rules than the matcher enforces is a quote that cannot be filled.
+type commerceTruckLookup struct {
+	trucks providerprofilerepositories.TruckRepository
+}
+
+func (t commerceTruckLookup) GetTruck(ctx context.Context, truckID string) (haulingcommercequote.TruckInfo, error) {
+	truck, err := t.trucks.GetByIDAnywhere(ctx, truckID)
+	if err != nil {
+		return haulingcommercequote.TruckInfo{}, err
+	}
+	return haulingcommercequote.TruckInfo{
 		TruckType:  truck.TruckType,
 		CapacityKg: truck.CapacityKg,
 		Status:     truck.Status,

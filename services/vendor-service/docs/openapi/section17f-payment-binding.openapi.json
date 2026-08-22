@@ -1,0 +1,320 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service Section 17F Payment Binding, Commercial Changes and Total Price Guarantee",
+    "version": "17F",
+    "description": "Binds payment and customer commercial changes to immutable Section 17D/17E evidence. Material changes create a replacement quote and require explicit approval; payment-wallet-service performs every financial effect. One payment leg per VendorOrder preserves refund and settlement isolation."
+  },
+  "servers": [{ "url": "/api/v1/commerce" }],
+  "security": [{ "customerBearer": [] }],
+  "paths": {
+    "/orders/{orderId}/commercial-changes": {
+      "post": {
+        "operationId": "requestCommerceCommercialChange",
+        "summary": "Request a customer commercial change and create a replacement quote",
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }, { "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CommercialChangeRequest" } } } },
+        "responses": { "201": { "$ref": "#/components/responses/ChangeResponse" }, "400": { "$ref": "#/components/responses/ErrorResponse" }, "401": { "$ref": "#/components/responses/ErrorResponse" }, "404": { "$ref": "#/components/responses/ErrorResponse" }, "409": { "$ref": "#/components/responses/ErrorResponse" } }
+      }
+    },
+    "/orders/{orderId}/commercial-changes/{changeId}": {
+      "get": {
+        "operationId": "getCommerceCommercialChange",
+        "summary": "Read a customer commercial change and replacement quote chain",
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }, { "$ref": "#/components/parameters/ChangeId" }],
+        "responses": { "200": { "$ref": "#/components/responses/ChangeResponse" }, "401": { "$ref": "#/components/responses/ErrorResponse" }, "404": { "$ref": "#/components/responses/ErrorResponse" } }
+      }
+    },
+    "/commercial-changes/{changeId}/approve": {
+      "post": {
+        "operationId": "approveCommerceCommercialChange",
+        "summary": "Explicitly approve the replacement quote and apply its Wallet delta",
+        "parameters": [{ "$ref": "#/components/parameters/ChangeId" }, { "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApproveCommercialChangeRequest" } } } },
+        "responses": { "200": { "$ref": "#/components/responses/ChangeResponse" }, "400": { "$ref": "#/components/responses/ErrorResponse" }, "401": { "$ref": "#/components/responses/ErrorResponse" }, "409": { "$ref": "#/components/responses/ErrorResponse" }, "503": { "$ref": "#/components/responses/ErrorResponse" } }
+      }
+    },
+    "/commercial-changes/{changeId}/reject": {
+      "post": {
+        "operationId": "rejectCommerceCommercialChange",
+        "summary": "Reject a replacement quote without moving money",
+        "parameters": [{ "$ref": "#/components/parameters/ChangeId" }, { "$ref": "#/components/parameters/IdempotencyKey" }],
+        "responses": { "200": { "$ref": "#/components/responses/ChangeResponse" }, "401": { "$ref": "#/components/responses/ErrorResponse" }, "404": { "$ref": "#/components/responses/ErrorResponse" }, "409": { "$ref": "#/components/responses/ErrorResponse" } }
+      }
+    },
+    "/quotes/{quoteId}/payment": {
+      "post": {
+        "operationId": "startCommercePayment",
+        "summary": "Bind and start payment for an approved quote",
+        "description": "Creates the ParentOrder exactly once (or finds the existing one), binds a payment operation to the approved quote, version, fingerprint, totals, currency, customer and commercial allocation set, and asks the money authority to hold one leg per VendorOrder. Idempotent: a retry reuses the same operation and the same deterministic leg keys, so no duplicate financial or order effect is created. Refused if the quote is expired, no longer approved, its stock reservation was released, its checkout was revalidated, the fingerprint does not match, or an operation already exists bound to a different agreement.",
+        "parameters": [
+          { "$ref": "#/components/parameters/QuoteId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StartPaymentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The order and its bound payment operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data"],
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "required": ["order", "payment"],
+                      "properties": {
+                        "order": { "type": "object" },
+                        "payment": {
+                          "$ref": "#/components/schemas/PaymentOperation"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" },
+          "503": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/orders/{orderId}/payment": {
+      "get": {
+        "operationId": "getCommercePayment",
+        "summary": "Read the payment operation bound to one purchase",
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "responses": {
+          "200": {
+            "description": "The bound payment operation and its legs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data"],
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/PaymentOperation" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "customerBearer": { "type": "http", "scheme": "bearer" }
+    },
+    "parameters": {
+      "QuoteId": {
+        "name": "quoteId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "OrderId": {
+        "name": "orderId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "ChangeId": {
+        "name": "changeId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": { "type": "string" }
+      }
+    },
+    "schemas": {
+      "StartPaymentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["quote_fingerprint"],
+        "description": "Accepts only the approved fingerprint the client is committing to. It accepts no amount, currency, allocation, vendor, provider or payment reference: every one of those is read from the stored order, so there is nothing for a tampered request to change.",
+        "properties": {
+          "quote_fingerprint": { "type": "string" }
+        }
+      },
+      "CommercialChangeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["checkout_session_id", "fulfilment_plan_id"],
+        "description": "Only new authoritative checkout and fulfilment references are accepted. Customer identity, amounts, allocations and fingerprints are server-resolved.",
+        "properties": {
+          "checkout_session_id": { "type": "string" },
+          "fulfilment_plan_id": { "type": "string" }
+        }
+      },
+      "ApproveCommercialChangeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["quote_fingerprint"],
+        "properties": { "quote_fingerprint": { "type": "string" } }
+      },
+      "CommercialChange": {
+        "type": "object",
+        "description": "Durable original-order to replacement-quote chain and Wallet adjustment outcome.",
+        "properties": {
+          "change_id": { "type": "string" }, "parent_order_id": { "type": "string" },
+          "original_quote": { "$ref": "#/components/schemas/PaymentBinding" },
+          "replacement_quote": { "type": "object" }, "delta_minor": { "type": "integer", "format": "int64" },
+          "state": { "type": "string" }, "wallet_status": { "type": "string" }, "version": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PaymentState": {
+        "type": "string",
+        "description": "Derived from the legs, never asserted. A partially-held payment can never report itself as HELD.",
+        "enum": [
+          "PENDING_PAYMENT",
+          "AUTHORIZING",
+          "HELD",
+          "FAILED",
+          "COMPENSATING",
+          "COMPENSATED"
+        ]
+      },
+      "PaymentBinding": {
+        "type": "object",
+        "description": "The exact commercial agreement this payment operation is bound to. A materially different input is a different binding and is refused under the same operation.",
+        "required": [
+          "quote_id",
+          "quote_version",
+          "quote_fingerprint",
+          "quoted_total_minor",
+          "max_authorized_total_minor",
+          "currency",
+          "allocation_fingerprint"
+        ],
+        "properties": {
+          "quote_id": { "type": "string" },
+          "quote_version": { "type": "integer", "format": "int64" },
+          "quote_fingerprint": { "type": "string" },
+          "quoted_total_minor": { "type": "integer", "format": "int64" },
+          "max_authorized_total_minor": { "type": "integer", "format": "int64" },
+          "currency": { "type": "string" },
+          "customer_id": { "type": "string" },
+          "allocation_fingerprint": {
+            "type": "string",
+            "description": "Binds the commercial allocation set itself, so moving one vendor's share to another is a different binding even when the total is unchanged."
+          }
+        }
+      },
+      "PaymentLeg": {
+        "type": "object",
+        "description": "One payment leg. A VENDOR leg pays exactly one VendorOrder's own share and names that vendor as beneficiary; the PLATFORM leg pays the parent-scope fee and tax and names no vendor.",
+        "required": ["payment_leg_id", "scope", "amount_minor", "currency", "status"],
+        "properties": {
+          "payment_leg_id": { "type": "string" },
+          "scope": { "type": "string", "enum": ["VENDOR", "PLATFORM"] },
+          "vendor_order_id": { "type": "string" },
+          "business_id": { "type": "string" },
+          "amount_minor": { "type": "integer", "format": "int64" },
+          "currency": { "type": "string" },
+          "intent_reference": {
+            "type": "string",
+            "description": "The money authority's own reference. Recorded, never generated here."
+          },
+          "intent_id": { "type": "string" },
+          "authority_status": {
+            "type": "string",
+            "description": "The raw status payment-wallet-service reported, kept verbatim. An unrecognised answer is never treated as success."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "HELD", "SETTLED", "REFUNDED", "FAILED"]
+          },
+          "failure_reason": { "type": "string" },
+          "refunded_minor": { "type": "integer", "format": "int64" },
+          "settled_minor": { "type": "integer", "format": "int64" },
+          "version": { "type": "integer", "format": "int64" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PaymentOperation": {
+        "type": "object",
+        "required": [
+          "payment_operation_id",
+          "parent_order_id",
+          "binding",
+          "payment_method",
+          "state",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "payment_operation_id": { "type": "string" },
+          "parent_order_id": { "type": "string" },
+          "binding": { "$ref": "#/components/schemas/PaymentBinding" },
+          "payment_method": { "type": "string", "enum": ["wallet"] },
+          "state": { "$ref": "#/components/schemas/PaymentState" },
+          "failure_code": { "type": "string" },
+          "version": { "type": "integer", "format": "int64" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "settled_at": { "type": "string", "format": "date-time" },
+          "terminal_at": { "type": "string", "format": "date-time" },
+          "legs": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PaymentLeg" }
+          }
+        }
+      }
+    },
+    "responses": {
+      "ChangeResponse": {
+        "description": "Commercial change projection.",
+        "content": { "application/json": { "schema": { "type": "object", "required": ["success", "data"], "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/CommercialChange" } } } } }
+      },
+      "ErrorResponse": {
+        "description": "Standard error envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["success", "error"],
+              "properties": {
+                "success": { "type": "boolean", "enum": [false] },
+                "error": {
+                  "type": "object",
+                  "required": ["code", "message"],
+                  "properties": {
+                    "code": { "type": "string" },
+                    "message": { "type": "string" },
+                    "request_id": { "type": "string" },
+                    "fields": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

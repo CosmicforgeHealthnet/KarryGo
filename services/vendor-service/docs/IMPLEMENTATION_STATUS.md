@@ -1,6 +1,351 @@
+<!-- SECTION17F_PAYMENT_BINDING -->
+## Section 17F - Payment Binding, Total Price Guarantee and Recovery
+
+**Status: IMPLEMENTED.** Independent final certification has NOT been run; this
+entry records what was built and verified, not a Section 17 GO.
+
+Migrations `000081_vendor_commerce_payment_binding`,
+`000082_vendor_commerce_fulfilment_activation` and
+`000083_vendor_commerce_change_adjustments`, plus the payment, fulfilment and
+commercial-change files in `internal/features/orders`, bind a payment
+operation to the exact approved agreement and make the whole path resilient to
+retries, crashes and post-payment replanning.
+
+**Wallet authority.** Vendor Commerce fabricates no payment status, edits no
+ledger, computes no balance and settles no vendor funds. Every financial effect
+is performed by payment-wallet-service through the existing
+`shared/go/walletclient` contracts. An unrecognised authority answer is never
+treated as success, and an authority ERROR is treated as an UNKNOWN outcome
+rather than a decided one - a timeout may still have moved money, so recovery
+asks rather than guesses.
+
+**One payment leg per VendorOrder.** Forced by the real Wallet contract:
+`CompleteJob` settles a whole intent to one provider and requires `held`, and a
+partial refund moves the intent to `part_refunded`, so a single parent intent
+could never refund one vendor while settling another. Splitting at creation
+makes multi-vendor refund isolation structural. A separate platform leg carries
+the order-level fee and tax, which belong to no vendor.
+
+**Binding.** A payment operation carries quote id, version, fingerprint, quoted
+total, max authorized total, currency, customer and an allocation fingerprint
+over the whole commercial allocation set. Moving one vendor's share to another
+changes the binding even when the total does not, and an operation already
+bound to a different agreement is refused rather than reused. Every amount is
+read from the stored order; the request body carries only the fingerprint the
+client commits to.
+
+**Order-first flow.** The ParentOrder is created (exactly once, from an
+approved quote) BEFORE any money is asked for, so each leg names a real
+VendorOrder and there is no window where money exists for an order that was
+never created. Expired quotes, released stock reservations and revalidated
+checkouts are all refused before the money authority is called.
+
+**Crash recovery.** Every leg row is committed before the first authority call.
+A durable `commerce-payment-recovery` job (leases, retry, replay) reconciles
+every unresolved leg by asking the authority: a leg with a reference is READ,
+never re-paid; a leg without one is retried under its original deterministic
+key. Past a deadline an unanswerable leg stops holding stock. An operation that
+can never complete has every held leg refunded THROUGH the Wallet authority and
+only then becomes terminal - it is never closed out while the customer's money
+is still held. The same sweep resumes fulfilment activation stranded at the
+payment-held boundary.
+
+**Inventory finalization.** Explicit `inventory_state` per allocation, never
+inferred: HELD while only reserved, CONFIRMED once payment is held, COMMITTED
+on completion, RELEASED on cancellation. Stock is never double-committed, and
+cancelling one allocation releases only its own unconsumed reservation.
+
+**Fulfilment creation.** Platform-executed allocations get one logistics
+mission per Section 17C plan mission (so a consolidated delivery stays one
+mission at one fee). Vendor-owned delivery gets NO platform mission - the
+vendor is the executor and its own delivery state tracks that work. **Taxi is
+never an executor:** it is not a value of the shared contract's Service type
+and the database refuses it.
+
+**Total price guarantee.** A mission is created for the fee the customer
+already paid, and `commercemission.VerifyMission` refuses any authority answer
+whose fee differs in either direction. An internal mission split is a platform
+cost and cannot raise a customer charge.
+
+New shared package `shared/go/commercemission` and NEW internal ingress in
+driver-dispatch-delivery-service (`000041`) and driver-hauling-service (`013`),
+both behind HMAC v2 + allowlist + nonce and allowlisted to `vendor-service`
+alone. See `PLATFORM_SERVICE_CHANGE_REGISTER.md`.
+
+Two payment routes and four customer commercial-change routes are gated on a
+wired money authority (752-route fully enabled surface). No route exists to
+confirm stock or dispatch a vehicle: activation is worker-driven only.
+
+Verified with real-Postgres integration tests for payment binding, idempotent
+and concurrent starts, expiry/fingerprint/quote-swap/rebinding refusals, partial
+authorization, crash recovery, compensation, inventory finalization timing,
+mission idempotency, vendor-own delivery and Taxi exclusion; pure unit tests for
+binding, leg planning and state derivation; contract tests for both new shared
+packages; and migration apply/rollback/reapply for both new migrations.
+
+**17F closure.** A material customer change creates a distinct immutable
+replacement quote through the existing Section 17D authority, records the
+original/replacement chain, requires explicit approval and authorizes only the
+server-derived delta through Wallet. A rejected or expired replacement quote
+cannot move money. The cheaper-replan policy compares the customer-facing
+delivery commitment with the eligible final customer charge (never internal
+provider operating cost) and issues one deterministic Wallet partial refund;
+unknown Wallet outcomes remain recoverable. Terminal VendorOrders now settle or
+refund their own isolated Wallet leg, so cancellation of A cannot block or
+redirect settlement of B or C. Original quotes remain immutable.
+
+
+<!-- SECTION17E_PARENT_VENDOR_ORDERS -->
+## Section 17E - ParentOrder and Multi-Vendor VendorOrders
+
+**Status: IMPLEMENTED.**
+
+Migration `000080_vendor_commerce_orders` and `internal/features/orders` turn
+one approved, unexpired Section 17D quote into exactly one ParentOrder and one
+financially and operationally isolated VendorOrder per vendor/branch
+allocation. Five tables: `commerce_parent_orders`, `commerce_vendor_orders`,
+`commerce_vendor_order_lines`, `commerce_order_allocations` and
+`commerce_order_events`.
+
+Every commercial figure is copied from the frozen quote; nothing recomputes a
+historical price from the live catalogue. The ParentOrder preserves the
+customer, receiver, delivery address, quote, quote fingerprint, quote version,
+currency, customer-approved total, funding breakdown and price disclosure. The
+receiver is the one piece Section 17D does not fingerprint, so it is read from
+the cart under the exact cart version the quote binds - a receiver change bumps
+that version and a cart in checkout is immutable, so a changed contact can
+never be snapshotted onto an order the customer approved before the change.
+Delivery authority is read from the quote's own frozen mission snapshot, never
+from the live plan row, because it decides who gets paid.
+
+Multi-vendor financial isolation is a pure allocation engine
+(`allocation.go`) that keeps `customer_payable_minor` and
+`vendor_payable_minor` distinct per VendorOrder and asserts that every vendor's
+customer payable plus parent-scope fee/tax equals the approved total exactly -
+an imbalance creates no order at all. A vendor-funded benefit on a
+multi-vendor quote is REFUSED rather than split, because Section 17D's
+adjustment carries no vendor identity and splitting it would make one vendor
+pay for another's promotion. Platform, delivery-subsidy and other-approved
+benefit is spread by largest remainder, which costs no vendor anything. Fee and
+tax stay parent-scope platform money. `commerce_order_allocations` records every
+part as its own attributable row (type, beneficiary, funder, amount), so "who
+actually paid for this delivery" is answerable by reading rows. Delivery money
+never lands on a vendor payable unless the vendor executed the delivery, both in
+code and by database CHECK.
+
+Each VendorOrder owns its own Section 14 reservation relationship, its own
+logistics mission reference, its own vendor-own-delivery state and its own
+status: `CREATED → PREPARING → READY → HANDED_OVER → DELIVERED → COMPLETED`,
+with `CANCELLED` from any non-terminal state. Transitions are a pure function of
+one order's own state. A vendor may confirm delivery only for a delivery it
+executed; a platform-executed delivery returns 403 because its confirmation
+belongs to the logistics authority that performed it, which Section 17F wires.
+A customer may withdraw from one VendorOrder up to `PREPARING` only.
+
+The ParentOrder state is always derived from the children and recomputed inside
+the same transaction with the parent locked: all completed -> COMPLETED, all
+cancelled -> CANCELLED, all terminal but mixed -> PARTIALLY_COMPLETED, otherwise
+CREATED or IN_PROGRESS. A mixed outcome is never hidden.
+
+Completion prepares a settlement allocation and cancellation prepares a refund
+allocation; parent-scope fee/tax becomes refundable only on whole-purchase
+cancellation. Section 17F consumes these isolated allocations through Wallet
+after the lifecycle commit, with recovery if the authority outcome is unknown.
+The Section 17E creation path itself still creates no payment intent and never
+writes `payment_operation_ref`.
+
+Exactly-once creation is a database constraint (`UNIQUE(quote_id)`), not a
+convention: a retry returns the existing order with 200 and duplicates no order,
+vendor order, line or allocation. Creation is one transaction, so a failed
+VendorOrder leaves no ParentOrder falsely claiming success, and a per-quote
+advisory lock makes concurrent creations converge. Transitions carry an
+`If-Match` version guard and lock the parent.
+
+Twelve routes gated by `COMMERCE_ORDERS_ENABLED` (which requires
+`COMMERCE_QUOTE_LOCK_ENABLED`): four customer and eight vendor staff. The
+vendor surface uses `vendor.orders.read` and `vendor.orders.manage`, both
+already seeded in Section 5 - Section 17E adds no permission and no role
+mapping. The customer create body accepts only the approved fingerprint, never
+a price, fee, discount, funding split, vendor id, branch id or payment
+reference.
+
+Verified with 20 real-Postgres integration tests (Food single-vendor, multi
+-vendor Shop isolation, idempotent and concurrent creation, released-stock and
+revalidated-checkout refusal, immutability, historical-snapshot survival,
+independent lifecycles with a mixed PARTIALLY_COMPLETED outcome, platform
+-delivery refusal, whole-cancellation refund, stale-version conflict,
+concurrent sibling transitions, tenant/IDOR isolation, customer cancellation
+limits, append-only evidence and a no-payment assertion), 24 pure unit tests
+for the allocation engine and lifecycle, 6 handler contract tests, migration
+apply/rollback/reapply, Section 17E router/OpenAPI contract parity and the
+752-route service-wide contract gate. Model documented in
+`docs/architecture/20_ORDER_ORCHESTRATION.md`. Section 17F extends this order
+surface with Wallet-bound payment, fulfilment activation, commercial-change
+requotes and durable adjustment recovery.
+
+
+<!-- SECTION17D_IMMUTABLE_QUOTE -->
+## Section 17D - Pricing, Promotions and Immutable Quote Lock
+
+**Status: IMPLEMENTED.**
+
+Migration `000079_vendor_immutable_checkout_quote` and
+`internal/features/checkoutquote` create the exact customer-approved
+commercial agreement from authoritative Section 17B checkout evidence and the
+selected Section 17C plan. The quote snapshots cart/customer/address versions,
+online product prices and price references, variable-measure bounds,
+vendor/branch groups, Inventory reservations, logistics quote evidence,
+delivery funding, commercial adjustments, disclosure and exact/max totals.
+
+The material fingerprint is deterministic and the final quote fingerprint
+also binds `quote_version`. All quote, child, approval and event rows reject
+UPDATE/DELETE at the database. Same material converges on one quote under a
+per-checkout advisory lock; changed material creates the next version and old
+quotes remain readable without recomputation. Approval re-reads and
+fingerprints the current checkout/address/allocation/plan evidence, rejects
+stale or expired agreements and records append-only approval evidence.
+
+Three customer-bearer routes are feature-gated by
+`COMMERCE_QUOTE_LOCK_ENABLED`: create, read and approve. Both commands use the
+customer idempotency boundary. Their strict request bodies accept only a
+fulfilment-plan id or quote fingerprint, never prices, fees, discounts,
+funding, customer, vendor or branch authority.
+
+Funding distinguishes customer, vendor, platform, delivery-subsidy and other
+approved benefit sources. Vendor/platform delivery subsidies from 17C are
+preserved, online-price disclosure explicitly makes no physical-store parity
+claim, and variable-weight maximums come only from Section 17B's bounded
+measurement/tolerance result. `AssessReplan` prepares the later-section policy:
+a cheaper replacement may release/refund the difference when payment supports
+it; an increase always requires a new customer approval. It moves no money.
+
+Verified with unit/HTTP tests, real-Postgres immutable/history/expiry/stale
+source/customer-isolation/multi-vendor/concurrency tests, migration
+apply/rollback/reapply, Section 17D router/OpenAPI contract parity and the
+734-route service-wide contract gate. No Wallet, payment, ParentOrder,
+VendorOrder or execution mission was added; Section 17E has not started.
+
+
+<!-- SECTION17C_FULFILMENT_PLANNING -->
+## Section 17C - Fulfilment Planning and Logistics Integration
+
+**Status: IMPLEMENTED.**
+
+Turns validated Section 17B vendor/branch groups into an authoritative
+candidate fulfilment plan.
+
+### What was built
+
+Vendor Service:
+- `internal/features/delivery` - Vendor Own Delivery policy (migration 000077):
+  per-branch reach, charge, minimum-order and free-delivery rules, plus the
+  pure charge evaluation built on them. Two vendor-staff routes.
+- `internal/features/fulfilment` - logistics metadata aggregation, vehicle-class
+  selection, consolidation, quoting, the plan aggregate and its persistence
+  (migration 000078). Two customer routes.
+- `internal/platform/geo` - service-local great-circle helper. Deliberately not
+  taken from `shared/go/dispatchpricing`: that package is the dispatch FARE
+  formula, and a vendor-owned charge or a service-area test must never be
+  coupled to a platform fare model.
+
+Cross-service (the authoritative quote, which did not exist before):
+- `shared/go/commercequote` - one contract for three services. Schema, HMAC
+  client, and caller-side verification of the authority's answer.
+- `driver-dispatch-delivery-service` - `POST /api/v1/internal/commerce/quotes`
+  (migration 000040), priced with `shared/go/dispatchpricing`.
+- `driver-hauling-service` - `POST /api/v1/hauling/internal/commerce/quotes`
+  (migration 012), priced with hauling's own fare model, owning both VAN and
+  TRUCK.
+
+### Decisions worth carrying forward
+
+**No fake fee, enforced by the database.** A platform mission may not carry a
+fee without an authority quote id and expiry; an unserviceable group may carry
+no fee, no mission and no authority; a platform delivery fee may not be
+assigned to the vendor; and customer + vendor-funded + platform-funded must
+equal gross on every mission and every group. These are CHECK constraints, so
+a future refactor that bypasses the planner still cannot store a fee nobody
+stands behind. `cmd/section17c_plan_test.go` writes raw SQL to prove each one.
+
+**Consolidation is bounded by a real logistics constraint.** Neither dispatch
+nor hauling models a multi-pickup mission, so merging two distant pickups would
+produce a fee for a route nobody can drive. Groups consolidate only when their
+pickups are co-located (`COMMERCE_FULFILMENT_CONSOLIDATION_RADIUS_METERS`,
+default 150 m - the two-traders-in-one-market case), share a class and an
+urgency, carry no separation conflict, and still fit the class combined. When
+they do, the cluster is quoted ONCE for its real combined load, and the fee is
+attributed back across the groups with shares that provably sum to the mission
+total.
+
+**`mode` is `SINGLE`.** The section forbids presenting three equivalent options
+under different labels. The enum carries FASTEST/BALANCED/SAVER for when the
+optimizer genuinely selects differently; today it does not, and saying so is
+the honest answer.
+
+**Taxi is unreachable by construction.** `shared/go/commercequote` has no CAR
+class, `fulfilment.classRank` gives CAR no rank so it cannot be selected,
+`fulfilment.ServiceFor(VehicleCar)` errors, no taxi client is wired, and
+`internal/section17ccontract` asserts all of it. A vendor CAR hint floors the
+load at VAN rather than being silently downgraded.
+
+**Sell-unit conversion, not variant mass.** A Shop line resolves its weight
+through the ordered sell unit. "2 kg of rice" off a 50 kg sack weighs 2 kg;
+using the variant's net weight would overstate it twenty-five times and put a
+small order in a truck. `EXACT` is authoritative, `CALIBRATED_APPROXIMATE`
+contributes but never claims a measured value (Section 12 forbids treating a
+calibration as exact), `NONE` invents nothing.
+
+**Missing evidence is reported, never invented.** Weight, volume and dimension
+each carry COMPLETE/PARTIAL/ABSENT, so a plan never claims a measured total it
+does not have, and a lower-bound total is visibly a lower bound.
+
+**An authority fault is not a refusal.** A timeout or a 5xx makes the group
+unserviceable with `LOGISTICS_AUTHORITY_UNAVAILABLE`; it never falls back to a
+Vendor Service estimate, because no such estimate exists. Both quote services
+answer 503 rather than "serviceable: false" when they cannot check, so a caller
+told "no rider" always learns a fact about riders.
+
+### Verified
+
+- Real-Postgres migration replay (apply, verify, rollback, verify the tables
+  are gone, reapply) with 000077 and 000078.
+- `shared/go/commercequote`, dispatch and hauling quote suites.
+- Vendor Service unit suites for the vendor-own evaluation, the aggregation,
+  vehicle selection, and the planner (including mixed vendor/platform plans,
+  consolidation both ways, and every refusal path).
+- Real-Postgres adapter tests for the catalogue and branch reads, including
+  tenant isolation in both directions.
+- Real-Postgres plan-persistence tests, including raw-SQL constraint probes.
+- `internal/section17ccontract` router/OpenAPI/route-register parity.
+- `internal/crmcontract`, the service-wide gate. It caught two real problems
+  before this section closed, both worth recording because the same shape has
+  recurred: the Section 17C routes were not registered in its stand-in router
+  (the identical hole Sections 14I, 16D and 17B each had to close, and it
+  reported the four documented operations as phantom), and the original single
+  OpenAPI document declared two server bases, which that gate correctly
+  resolved into `/api/v1/commerce/api/v1/vendor/...`. The document is now split
+  one-per-base and the routes are registered; the accepted surface moved from
+  727 to 731.
+- The full isolated regression runner (`go run ./tools/vendor-test-runner`),
+  49/49 packages.
+
+### Known limits, stated rather than left to be discovered
+
+- **Consolidation is co-location-only.** A genuinely multi-pickup mission needs
+  a multi-pickup contract from dispatch or hauling, which neither has. The plan
+  schema already supports one quoted mission covering several groups, so the
+  commercial commitment survives when 17F splits it into execution missions.
+- **Optimizer modes are not implemented.** `mode` exists and is always SINGLE.
+- **No platform delivery promotion exists**, so `platform_funded_minor` is
+  always zero today. It is modelled anyway so the funding invariant is stated
+  in full rather than rediscovered when one is added.
+- **Quote consumption is not implemented here.** 17C persists the authority
+  quote id, reference, revision, endpoint handles and expiry; presenting them
+  back to the authority at mission-creation time is 17F's work.
+
 # Implementation Status
 
-## Section 7 — Onboarding, KYB, Verification and Activation
+## Section 7 â€” Onboarding, KYB, Verification and Activation
 
 **Status: VERIFIED; GO with explicitly fail-closed external deployment dependencies.**
 
@@ -17,42 +362,42 @@ The cross-service VerificationStatus contract is exactly `NOT_STARTED`, `IN_PROG
 
 Per-section tracker for Vendor Service. Allowed statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IMPLEMENTED`, `VERIFIED`, `GO`.
 
-## Section 0 — Architecture / Foundation
+## Section 0 â€” Architecture / Foundation
 
 - **Scope**: repository audit; service scaffold; own database/Redis config; migration runner/convention; health/ready/meta; structured logging; standard error handling; service-auth foundation; outbox/inbox/job architecture skeleton; feature-flag configuration; mandatory documentation structure; architecture decision docs; module boundaries for later sections; no fake OpenAPI routes; baseline tests.
 - **Status**: **VERIFIED**
-- **Code paths changed**: `services/vendor-service/` (new — `cmd/main.go`, `internal/config`, `internal/database`, `internal/events`, `internal/platform/idempotency`, `internal/audit`, `internal/jobs`, `internal/integrations/*` (11 reserved boundaries), `internal/features/*` (23 reserved boundaries), `internal/architecture_test.go`); `go.work` (added `./services/vendor-service`); `CLAUDE.md` (service listing, ports, databases, this session's log entry)
+- **Code paths changed**: `services/vendor-service/` (new â€” `cmd/main.go`, `internal/config`, `internal/database`, `internal/events`, `internal/platform/idempotency`, `internal/audit`, `internal/jobs`, `internal/integrations/*` (11 reserved boundaries), `internal/features/*` (23 reserved boundaries), `internal/architecture_test.go`); `go.work` (added `./services/vendor-service`); `CLAUDE.md` (service listing, ports, databases, this session's log entry)
 - **Migrations**: `000001_vendor_service_foundation`, `000002_events_outbox_inbox`, `000003_idempotency_keys` (all with `.up.sql`/`.down.sql`)
-- **Routes**: none (intentional — no fake routes for unimplemented features)
+- **Routes**: none (intentional â€” no fake routes for unimplemented features)
 - **Events**: none produced yet (outbox/inbox infrastructure exists, unused)
-- **Workers**: none started yet (outbox worker constructed, not run — no destination configured)
-- **Tests**: `internal/config/config_test.go` (6 tests — defaults, validation rules), `internal/database/migrate_test.go` (real-Postgres gated, migration replay: apply/rollback/reapply, run live and passing), `internal/architecture_test.go` (feature-boundary import guardrail)
-- **Affected services**: none modified (only new `internal/integrations/*` doc.go boundaries describing future calls — see [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md))
-- **Documentation updated**: this file; [README.md](README.md); [UI_UX_REQUIREMENTS.md](UI_UX_REQUIREMENTS.md); [FRONTEND_REQUIREMENTS.md](FRONTEND_REQUIREMENTS.md); [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md); [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md); `architecture/00`–`12`
+- **Workers**: none started yet (outbox worker constructed, not run â€” no destination configured)
+- **Tests**: `internal/config/config_test.go` (6 tests â€” defaults, validation rules), `internal/database/migrate_test.go` (real-Postgres gated, migration replay: apply/rollback/reapply, run live and passing), `internal/architecture_test.go` (feature-boundary import guardrail)
+- **Affected services**: none modified (only new `internal/integrations/*` doc.go boundaries describing future calls â€” see [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md))
+- **Documentation updated**: this file; [README.md](README.md); [UI_UX_REQUIREMENTS.md](UI_UX_REQUIREMENTS.md); [FRONTEND_REQUIREMENTS.md](FRONTEND_REQUIREMENTS.md); [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md); [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md); `architecture/00`â€“`12`
 - **Remaining gaps**: none for this section's own scope. See "Future sections" below for what is intentionally not yet started.
-- **Acceptance result**: `go build ./...`, `go vet ./...`, `gofmt -l .` all clean; `go test ./...` all pass (config + architecture-boundary tests unconditionally; migration-replay test verified live against real Postgres in this session, then confirmed to skip cleanly without a configured test database — both paths exercised).
+- **Acceptance result**: `go build ./...`, `go vet ./...`, `gofmt -l .` all clean; `go test ./...` all pass (config + architecture-boundary tests unconditionally; migration-replay test verified live against real Postgres in this session, then confirmed to skip cleanly without a configured test database â€” both paths exercised).
 
-## Section 5 — Authentication, Sessions and Staff IAM
+## Section 5 â€” Authentication, Sessions and Staff IAM
 
 - **Scope**: passwordless OTP login (start/resend/verify), refresh sessions (rotation/revocation), logout, step-up authentication, staff provisioning/invitation/suspension/reactivation, roles (11 system role families + vendor-scoped custom roles), a global capability-string permission catalogue (35 permissions), role-permission mappings, branch-scoped staff-role assignments, a real authorization evaluator (deny-by-default, permission-string-only, branch-scope-aware), repository-level tenant isolation, real Postgres-backed audit trail, rate limiting, HTTP API, OpenAPI + route-parity test.
 - **Status**: **VERIFIED**
-- **Code paths changed**: `services/vendor-service/internal/features/auth/{models,repositories,usecases,clients,http}` (real implementation, replacing the Foundation phase's `doc.go` boundary); `internal/features/staff/{models,repositories,usecases,http}` (same); `internal/platform/ratelimit` (new); `internal/platform/authctx` (new — shared request-context carrier, not feature-owned, since both `auth` and `staff` need it without importing each other's `http` package); `internal/audit/postgres_recorder.go` (new, `internal/audit/audit.go` extended with `BranchID`/`Reason`); `internal/config/config.go` (`AuthConfig`, `RateLimitConfig`, validation rules); `cmd/main.go` (full wiring), `cmd/adapters.go` (new — cross-feature port adapters), `cmd/http_contract_test.go` (new)
-- **Migrations**: `000004_vendor_auth_iam` (`vendor_users`, `vendor_staff`, `vendor_otp_challenges`, `vendor_sessions`, `vendor_step_up_grants`, `vendor_permissions`, `vendor_roles`, `vendor_role_permissions`, `vendor_staff_role_assignments`, `vendor_audit_log`), `000005_vendor_default_permissions_and_roles` (35 seeded permissions, 11 seeded system role families + mappings) — both with `.up.sql`/`.down.sql`, verified apply/rollback/reapply against real Postgres
-- **Routes**: 21 (see [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md) and `docs/openapi/section5-auth-staff-iam.openapi.json`) — 5 public auth routes, 2 authenticated step-up routes, 12 authenticated staff/role/permission routes, 1 internal HMAC-protected provisioning route, 0 fake/future routes
-- **Events**: `vendor.staff.created`, `.suspended`, `.reactivated`, `.roles_changed`, `vendor.role.changed` — appended to the real durable outbox (`internal/events`) on every mutation; no consumer/destination exists yet (see [architecture/08](architecture/08_EVENT_OWNERSHIP.md)) so they accumulate as `PENDING`, never silently dropped
-- **Workers**: none started (outbox worker remains unstarted, matching Section 0's decision — no destination is configured yet)
-- **Tests**: 50 test functions across 8 packages, all passing — `internal/features/auth/models` (11 unit tests: OTP state machine, session, step-up binding), `internal/features/auth/usecases` (13 real-Postgres integration tests: full login lifecycle, expired/resend/lockout/concurrent-verify-once, suspended-staff-blocks-login-and-refresh, multi-vendor selection without burning the OTP, step-up binding precision, logout revokes step-up grants, **raw OTP never persisted**, **raw OTP never logged**), `internal/features/staff/usecases` (8 real-Postgres integration tests: provision+invite+branch-scoped-assignment, **tenant isolation/IDOR**, **privilege-escalation prevention**, **branch-scope-escape prevention**, **role-name-alone-does-not-authorize**, **high-risk-role-requires-step-up**, duplicate-assignment prevention, suspend/reactivate with version-conflict + audit trail), `cmd` (4 real-Postgres+Redis HTTP contract tests: full login→list-staff through the real production router, validation-error envelope, 401-without-a-valid-token), `internal/section5contract` (2 OpenAPI/route-parity tests), `internal/database` (extended migration-replay + schema-existence tests)
-- **A real bug found and fixed by this test suite**: the seeded Branch Manager role initially granted only `vendor.staff.read`, not `.manage`, silently contradicting the specification's "branch staff where permitted" — caught by `TestIAM_BranchScopedActorCannotEscapeBranch` failing on the in-branch-delegation-should-succeed half of the assertion, fixed in migration `000005` before it was ever "accepted" history (same session, not yet committed)
-- **Affected services**: none modified. `notification-service` needs a config-only allowlist addition (`vendor-service` in `NOTIFICATION_SERVICE_SECRETS`) before real email OTP delivery works — tracked in [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md) #3, still `NOT_STARTED` (not this service's code to change)
+- **Code paths changed**: `services/vendor-service/internal/features/auth/{models,repositories,usecases,clients,http}` (real implementation, replacing the Foundation phase's `doc.go` boundary); `internal/features/staff/{models,repositories,usecases,http}` (same); `internal/platform/ratelimit` (new); `internal/platform/authctx` (new â€” shared request-context carrier, not feature-owned, since both `auth` and `staff` need it without importing each other's `http` package); `internal/audit/postgres_recorder.go` (new, `internal/audit/audit.go` extended with `BranchID`/`Reason`); `internal/config/config.go` (`AuthConfig`, `RateLimitConfig`, validation rules); `cmd/main.go` (full wiring), `cmd/adapters.go` (new â€” cross-feature port adapters), `cmd/http_contract_test.go` (new)
+- **Migrations**: `000004_vendor_auth_iam` (`vendor_users`, `vendor_staff`, `vendor_otp_challenges`, `vendor_sessions`, `vendor_step_up_grants`, `vendor_permissions`, `vendor_roles`, `vendor_role_permissions`, `vendor_staff_role_assignments`, `vendor_audit_log`), `000005_vendor_default_permissions_and_roles` (35 seeded permissions, 11 seeded system role families + mappings) â€” both with `.up.sql`/`.down.sql`, verified apply/rollback/reapply against real Postgres
+- **Routes**: 21 (see [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md) and `docs/openapi/section5-auth-staff-iam.openapi.json`) â€” 5 public auth routes, 2 authenticated step-up routes, 12 authenticated staff/role/permission routes, 1 internal HMAC-protected provisioning route, 0 fake/future routes
+- **Events**: `vendor.staff.created`, `.suspended`, `.reactivated`, `.roles_changed`, `vendor.role.changed` â€” appended to the real durable outbox (`internal/events`) on every mutation; no consumer/destination exists yet (see [architecture/08](architecture/08_EVENT_OWNERSHIP.md)) so they accumulate as `PENDING`, never silently dropped
+- **Workers**: none started (outbox worker remains unstarted, matching Section 0's decision â€” no destination is configured yet)
+- **Tests**: 50 test functions across 8 packages, all passing â€” `internal/features/auth/models` (11 unit tests: OTP state machine, session, step-up binding), `internal/features/auth/usecases` (13 real-Postgres integration tests: full login lifecycle, expired/resend/lockout/concurrent-verify-once, suspended-staff-blocks-login-and-refresh, multi-vendor selection without burning the OTP, step-up binding precision, logout revokes step-up grants, **raw OTP never persisted**, **raw OTP never logged**), `internal/features/staff/usecases` (8 real-Postgres integration tests: provision+invite+branch-scoped-assignment, **tenant isolation/IDOR**, **privilege-escalation prevention**, **branch-scope-escape prevention**, **role-name-alone-does-not-authorize**, **high-risk-role-requires-step-up**, duplicate-assignment prevention, suspend/reactivate with version-conflict + audit trail), `cmd` (4 real-Postgres+Redis HTTP contract tests: full loginâ†’list-staff through the real production router, validation-error envelope, 401-without-a-valid-token), `internal/section5contract` (2 OpenAPI/route-parity tests), `internal/database` (extended migration-replay + schema-existence tests)
+- **A real bug found and fixed by this test suite**: the seeded Branch Manager role initially granted only `vendor.staff.read`, not `.manage`, silently contradicting the specification's "branch staff where permitted" â€” caught by `TestIAM_BranchScopedActorCannotEscapeBranch` failing on the in-branch-delegation-should-succeed half of the assertion, fixed in migration `000005` before it was ever "accepted" history (same session, not yet committed)
+- **Affected services**: none modified. `notification-service` needs a config-only allowlist addition (`vendor-service` in `NOTIFICATION_SERVICE_SECRETS`) before real email OTP delivery works â€” tracked in [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md) #3, still `NOT_STARTED` (not this service's code to change)
 - **Documentation updated**: this file; [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md); [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md); [FRONTEND_REQUIREMENTS.md](FRONTEND_REQUIREMENTS.md); [UI_UX_REQUIREMENTS.md](UI_UX_REQUIREMENTS.md); [architecture/09_SECURITY_AND_AUTHORITY_MODEL.md](architecture/09_SECURITY_AND_AUTHORITY_MODEL.md) (updated from the Foundation phase's planned model to the actual implemented one); `docs/openapi/section5-auth-staff-iam.openapi.json` (new)
 - **Remaining gaps, disclosed**:
-  - **Phone-number OTP delivery has no real channel** — confirmed no SMS capability exists anywhere in the platform (`shared/go/notifications`' channel set is exactly push/email/websocket/in_app). Email delivery is real; phone returns a clear `service_unavailable` error outside debug mode rather than silently failing or unsafely falling back to logging the raw code (unlike customer-service's existing `LoggingOTPSender`, which does log the raw code in debug mode — a pattern deliberately NOT replicated here per this task's own rule 11). Recorded as a platform-wide gap, not a Vendor Service defect.
+  - **Phone-number OTP delivery has no real channel** â€” confirmed no SMS capability exists anywhere in the platform (`shared/go/notifications`' channel set is exactly push/email/websocket/in_app). Email delivery is real; phone returns a clear `service_unavailable` error outside debug mode rather than silently failing or unsafely falling back to logging the raw code (unlike customer-service's existing `LoggingOTPSender`, which does log the raw code in debug mode â€” a pattern deliberately NOT replicated here per this task's own rule 11). Recorded as a platform-wide gap, not a Vendor Service defect.
   - **`notification-service` caller allowlist** not yet updated (config-only change on another service, out of this section's own code).
-  - **Section 6 (Business/Branch) does not exist yet**, so `vendor_id`/`branch_id` remain opaque text throughout, exactly as the architecture phase specified — no fake CRUD was added.
-  - **Security scenario coverage**: 50 real tests cover every category from the task's security-test list (OTP lifecycle, rate-limit wiring present, step-up binding, IAM tenant isolation/escalation/branch-scope/step-up-gating, audit) at representative depth; not literally all ~47 enumerated scenarios have a dedicated test (e.g. Redis-unavailable degraded-mode behavior and a few narrower rate-limit-bucket-isolation cases are implemented in code — `ratelimit.Limiter` fails closed via `apperrors.Unavailable`, never open — but not independently tested here for time).
-- **Acceptance result**: `go build ./...`, `go vet ./...`, `gofmt -l .` all clean. Full suite run with `go test -p 1 ./...` (packages serialized to avoid shared-test-database DDL contention across packages — a test-infrastructure requirement, not a product defect; each package was also independently verified against its own isolated database) — all 50 tests pass, zero failures, zero skips (both `VENDOR_SERVICE_TEST_DATABASE_URL` and `VENDOR_SERVICE_TEST_REDIS_ADDR` were set for this run).
+  - **Section 6 (Business/Branch) does not exist yet**, so `vendor_id`/`branch_id` remain opaque text throughout, exactly as the architecture phase specified â€” no fake CRUD was added.
+  - **Security scenario coverage**: 50 real tests cover every category from the task's security-test list (OTP lifecycle, rate-limit wiring present, step-up binding, IAM tenant isolation/escalation/branch-scope/step-up-gating, audit) at representative depth; not literally all ~47 enumerated scenarios have a dedicated test (e.g. Redis-unavailable degraded-mode behavior and a few narrower rate-limit-bucket-isolation cases are implemented in code â€” `ratelimit.Limiter` fails closed via `apperrors.Unavailable`, never open â€” but not independently tested here for time).
+- **Acceptance result**: `go build ./...`, `go vet ./...`, `gofmt -l .` all clean. Full suite run with `go test -p 1 ./...` (packages serialized to avoid shared-test-database DDL contention across packages â€” a test-infrastructure requirement, not a product defect; each package was also independently verified against its own isolated database) â€” all 50 tests pass, zero failures, zero skips (both `VENDOR_SERVICE_TEST_DATABASE_URL` and `VENDOR_SERVICE_TEST_REDIS_ADDR` were set for this run).
 
-## Sections 10/11 — Shared Production, Cloud Kitchen, and Pastry/Bakery
+## Sections 10/11 â€” Shared Production, Cloud Kitchen, and Pastry/Bakery
 
 - **Status**: **GO**. Backend implementation is complete; no frontend was created.
 - **Schema**: migrations `000033` through `000041`; current tip `000041_vendor_sections10_11_integrity_alerts`. The schema includes shared pools/lines/rules/templates/slots/blackouts, multi-pool reservations and allocations, production jobs/history/alerts, Cloud Kitchen packages/bands/version history/plans/occurrences, and Pastry products/options/specifications/quotes/accepted snapshots/conversion intents/milestones/history.
@@ -65,11 +410,11 @@ Per-section tracker for Vendor Service. Allowed statuses: `NOT_STARTED`, `IN_PRO
 - **Authority boundary**: `ORDER_AUTHORITY=NOT_PRESENT`; accepted cake quotes create only a durable conversion intent. No payment, Wallet, inventory-stock, dispatch, taxi, hauling, route, fee, ETA, or handover credential is created.
 - **Contract handoff**: [SECTION10_11_HANDOFF.md](SECTION10_11_HANDOFF.md), [sections10-11-production.openapi.json](openapi/sections10-11-production.openapi.json), and [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md).
 
-## Future sections (NOT_STARTED — listed for roadmap visibility only, per the module map)
+## Future sections (NOT_STARTED â€” listed for roadmap visibility only, per the module map)
 
 | Section (indicative, not binding numbering) | Feature(s) | Depends on |
 |---|---|---|
-| Vendor identity/business | `vendors`, `capabilities` | — |
+| Vendor identity/business | `vendors`, `capabilities` | â€” |
 | Brands/branches | `brands`, `branches` | Vendor identity |
 | CRM | `crm` | Vendor identity |
 | Catalogues (Food/Cloud Kitchen/Pastry/Shop) | `catalog`, `food`, `cloud_kitchen`, `pastry`, `shop` | Branches, capabilities |
@@ -84,7 +429,7 @@ Per-section tracker for Vendor Service. Allowed statuses: `NOT_STARTED`, `IN_PRO
 | Finance projection | `finance_projection` | `integrations/wallet` |
 | Vendor analytics | `analytics` (feature) | Orders, fulfilment |
 
-Each of these is expected to follow the specification's own "Preferred backend feature order" (domain model/usecase tests → repository/client interfaces → migration + repository implementation → HTTP DTOs/handlers/routes → config/wiring → shared client updates → integration/handler tests), and to update this file, [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md), [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md), [FRONTEND_REQUIREMENTS.md](FRONTEND_REQUIREMENTS.md), and [UI_UX_REQUIREMENTS.md](UI_UX_REQUIREMENTS.md) as its own definition-of-done, per [README.md](README.md)'s documentation gate.
+Each of these is expected to follow the specification's own "Preferred backend feature order" (domain model/usecase tests â†’ repository/client interfaces â†’ migration + repository implementation â†’ HTTP DTOs/handlers/routes â†’ config/wiring â†’ shared client updates â†’ integration/handler tests), and to update this file, [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md), [PLATFORM_SERVICE_CHANGE_REGISTER.md](PLATFORM_SERVICE_CHANGE_REGISTER.md), [FRONTEND_REQUIREMENTS.md](FRONTEND_REQUIREMENTS.md), and [UI_UX_REQUIREMENTS.md](UI_UX_REQUIREMENTS.md) as its own definition-of-done, per [README.md](README.md)'s documentation gate.
 
 ## Section 6 - Vendor Business, Brands, Capabilities and Branches
 
@@ -118,13 +463,13 @@ Relationships are created **only** from an authenticated authoritative event. Th
 
 | Capability | Result | Evidence |
 |---|---|---|
-| `CUSTOMER_CONSENT_SUPPORT` | **NOT_PRESENT** | No consent concept anywhere in customer-service. notification-service's `notification_preferences` is a delivery toggle (`enabled boolean DEFAULT true`, no purpose, no source version, defaults opt-in) owned by the delivery service, not a marketing-consent authority — mapping it to ALLOW would be exactly the forbidden widening. |
+| `CUSTOMER_CONSENT_SUPPORT` | **NOT_PRESENT** | No consent concept anywhere in customer-service. notification-service's `notification_preferences` is a delivery toggle (`enabled boolean DEFAULT true`, no purpose, no source version, defaults opt-in) owned by the delivery service, not a marketing-consent authority â€” mapping it to ALLOW would be exactly the forbidden widening. |
 | `CUSTOMER_PRIVACY_EVENT_SUPPORT` | **NOT_PRESENT** | No delete/restrict/redact/suppression concept in customer-service. |
 | `CUSTOMER_IDENTITY_MERGE_SUPPORT` | **NOT_PRESENT** | No identity-link, guest-upgrade or account-merge concept in customer-service. |
 | `CUSTOMER_PRESENTATION_SUPPORT` | **PARTIAL, unusable as-is** | `GET /internal/customers/:id` (HMAC) exists but returns `phone` and `email` alongside `name`. There is no PII-free presentation contract, so `safe_display_label` is left permanently null rather than populated from a payload that carries contact data. |
 | `ORDER_CRM_PROJECTION_SUPPORT` | **NOT_PRESENT** | `internal/features/orders` is still a reserved `doc.go` boundary; no vendor commerce order publisher exists. The projection interface, ingestion contract, dedupe, source-version rules and rebuild path are implemented and fixture-tested; the live integration stays disabled. |
 | `SUPPORT_INTERACTION_PROJECTION_SUPPORT` | NOT_PRESENT | Not needed by 8A (interactions are 8C); recorded for later packages. |
-| `NOTIFICATION_REFERENCE_DELIVERY_SUPPORT` | PARTIAL | push/email/websocket/in_app exist; no SMS sender. 8A sends nothing. SMS **consent** remains representable even though SMS **delivery** does not exist — the two are separate concerns. |
+| `NOTIFICATION_REFERENCE_DELIVERY_SUPPORT` | PARTIAL | push/email/websocket/in_app exist; no SMS sender. 8A sends nothing. SMS **consent** remains representable even though SMS **delivery** does not exist â€” the two are separate concerns. |
 | `MEDIA_EXPORT_SUPPORT` | Not applicable to 8A | Exports are 8H. |
 
 Consequence, stated plainly: with no consent authority wired, every marketing decision reads UNKNOWN and every channel is ineligible. That is the designed fail-closed outcome, not a defect.
@@ -135,7 +480,7 @@ Consequence, stated plainly: with no consent authority wired, every marketing de
 
 Every CRM table is tenant-scoped in PostgreSQL, not merely in middleware: each carries `business_id` and reaches its parent through a composite `(id, business_id)` foreign key, so a child row can never be attached across tenants. Vocabularies, money non-negativity, the one-primary-subject-reference invariant, the merge-state/privacy-state agreement, and the "redacted iff redacted_at" rule are all real CHECK constraints.
 
-**No privacy tombstone table was added.** The redacted profile row *is* the suppression record: it retains its opaque subject reference (and nothing else usable), which is the minimum needed to recognise a late event and refuse recreation. Hashing that reference would not make the subject anonymous — it would only make suppression unreliable.
+**No privacy tombstone table was added.** The redacted profile row *is* the suppression record: it retains its opaque subject reference (and nothing else usable), which is the minimum needed to recognise a late event and refuse recreation. Hashing that reference would not make the subject anonymous â€” it would only make suppression unreliable.
 
 ### Behaviour worth calling out
 
@@ -150,7 +495,7 @@ Every CRM table is tenant-scoped in PostgreSQL, not merely in middleware: each c
 
 ### IAM
 
-Five permissions added in `000011`: `vendor.crm.customers.read`, `.customers.manage`, `.customer360.read`, `.consent.read`, `.privacy.read`. Mapped to Owner, General Manager, CRM/Support (full 8A surface); Marketing (safe read + consent eligibility only — no privacy read, no lifecycle); Branch Manager (read only, branch-scoped by its Section 5 assignment); Analyst/Auditor (read only, including privacy for compliance review). Finance, Kitchen/Pastry, Shop/Inventory, Procurement and Vendor Rider are deliberately unmapped.
+Five permissions added in `000011`: `vendor.crm.customers.read`, `.customers.manage`, `.customer360.read`, `.consent.read`, `.privacy.read`. Mapped to Owner, General Manager, CRM/Support (full 8A surface); Marketing (safe read + consent eligibility only â€” no privacy read, no lifecycle); Branch Manager (read only, branch-scoped by its Section 5 assignment); Analyst/Auditor (read only, including privacy for compliance review). Finance, Kitchen/Pastry, Shop/Inventory, Procurement and Vendor Rider are deliberately unmapped.
 
 No `vendor.crm.consent.override`, `vendor.crm.privacy.override` or `vendor.crm.identity.force_merge` permission exists, and a migration test asserts none is ever introduced.
 
@@ -160,22 +505,22 @@ No `vendor.crm.consent.override`, `vendor.crm.privacy.override` or `vendor.crm.i
 
 ### Known dependencies (real, not hypothetical)
 
-1. **No consent authority** — needed before any marketing feature (8E/8F) can target anyone. Until then eligibility is uniformly false.
-2. **No privacy authority** — the redaction engine is built and tested but nothing currently instructs it.
-3. **No identity-merge authority** — guest-to-customer linking cannot occur in production yet.
-4. **No vendor commerce order publisher** — every commercial figure stays `NOT_AVAILABLE`. This is the dependency that makes CRM useful, and it belongs to the order section.
-5. **No PII-free customer presentation contract** — `safe_display_label` stays null; a client needing display identity must ask the customer authority directly.
+1. **No consent authority** â€” needed before any marketing feature (8E/8F) can target anyone. Until then eligibility is uniformly false.
+2. **No privacy authority** â€” the redaction engine is built and tested but nothing currently instructs it.
+3. **No identity-merge authority** â€” guest-to-customer linking cannot occur in production yet.
+4. **No vendor commerce order publisher** â€” every commercial figure stays `NOT_AVAILABLE`. This is the dependency that makes CRM useful, and it belongs to the order section.
+5. **No PII-free customer presentation contract** â€” `safe_display_label` stays null; a client needing display identity must ask the customer authority directly.
 
 ### Not started
 
-At the time Section 8A closed: Section 8B and everything after it. Section 8B has since been implemented — see its own entry below.
+At the time Section 8A closed: Section 8B and everything after it. Section 8B has since been implemented â€” see its own entry below.
 
 ## External dependencies blocking full activation (not blocking further Vendor Service sections)
 
-- **PENDING_EXTERNAL_DEPENDENCY — LOGISTICS OTP/QR** (see [architecture/07_EXISTING_OTP_QR_INTEGRATION.md](architecture/07_EXISTING_OTP_QR_INTEGRATION.md)): blocks only final confirmed-handover activation of platform-delivery fulfilment units.
+- **PENDING_EXTERNAL_DEPENDENCY â€” LOGISTICS OTP/QR** (see [architecture/07_EXISTING_OTP_QR_INTEGRATION.md](architecture/07_EXISTING_OTP_QR_INTEGRATION.md)): blocks only final confirmed-handover activation of platform-delivery fulfilment units.
 - **Vendor admin review product**: Verification's Vendor authority and signed callback/read-back paths are implemented, but `admin-backoffice-service` remains a scaffold with no operator work queue/UI. Formal cases remain honestly `PENDING_REVIEW` until an authorized admin-service caller decides them.
 
-## Section 8B — Tags & Advanced Segmentation Engine
+## Section 8B â€” Tags & Advanced Segmentation Engine
 
 **Status: IMPLEMENTED; GO.**
 
@@ -187,19 +532,19 @@ Vendor-defined customer tags, a safe JSON segmentation DSL with a closed field/o
 
 ### What was built
 
-- **Migrations** `000012_vendor_section8b_tags_segments` and `000013_vendor_section8b_permissions` add seven tables — `crm_tags`, `crm_customer_tag_memberships`, `crm_segments`, `crm_segment_versions`, `crm_segment_evaluations`, `crm_segment_memberships`, `crm_segment_exclusions` — and five permissions. Migration tip is now `000013`.
+- **Migrations** `000012_vendor_section8b_tags_segments` and `000013_vendor_section8b_permissions` add seven tables â€” `crm_tags`, `crm_customer_tag_memberships`, `crm_segments`, `crm_segment_versions`, `crm_segment_evaluations`, `crm_segment_memberships`, `crm_segment_exclusions` â€” and five permissions. Migration tip is now `000013`.
 - **21 public routes**, 0 internal. Cumulative Vendor surface: **101**. Documented in `openapi/section8b-crm-tags-segmentation.openapi.json` and pinned by `internal/section8bcontract`; `cmd`'s HTTP contract test independently counts what the production registration helper actually mounts, so the two cannot drift.
 - **Code**: `internal/features/crm/segment_rules.go` (DSL, validation, canonicalisation, hashing, explanations), `segment_registry.go` (field/operator registry and the SQL compilers), `segments.go` (definitions and versions), `segment_membership.go` (static membership, exclusions, member reads), `segment_eval.go` (preview, materialization, worker, invalidation), `segment_privacy.go` (privacy and merge handlers), `tags.go`, `segments_http.go`. Two Section 8A files gained an extension point each: `privacy.go` registers the new handlers, `customer360.go` composes the new blocks.
 
 ### Design decisions worth recording
 
-**The rule language is the entire attack surface, so it is a closed registry, not a parser.** A condition can only name a field that exists in `NewSegmentFieldRegistry`, and each field's SQL is a hand-written Go function in one file. Field keys, operators and values never become SQL text — values travel as bind parameters and identifiers are never derived from input. There is no free-text filter, no user-chosen sort column and no escape hatch anywhere in the surface. A rejection for an unknown field and a rejection for a forbidden one are the same error, so a probe learns nothing about the schema.
+**The rule language is the entire attack surface, so it is a closed registry, not a parser.** A condition can only name a field that exists in `NewSegmentFieldRegistry`, and each field's SQL is a hand-written Go function in one file. Field keys, operators and values never become SQL text â€” values travel as bind parameters and identifiers are never derived from input. There is no free-text filter, no user-chosen sort column and no escape hatch anywhere in the surface. A rejection for an unknown field and a rejection for a forbidden one are the same error, so a probe learns nothing about the schema.
 
 **Unknown is not zero, and SQL's three-valued logic enforces it.** Every commercial condition compiles to `CASE WHEN <observed> THEN (<expr>) ELSE NULL END`, and the whole rule is wrapped in `IS TRUE`. A relationship with no observed commercial data therefore matches neither `count >= 2` nor `count < 2`, and a `NOT` over such a condition does not resurrect it. This is native SQL semantics rather than bolted-on filtering, which is why it holds at every nesting level. Deployment-level missing sources are reported in preview `unavailable_fields`; an individual row that lacks observed data is simply `NOT_AVAILABLE` for evaluation and does not expose a per-customer reason.
 
 **Consent eligibility exists in two places and a test proves they agree.** `MarketingEligibility` in Go remains the single definition of the policy; `consentEligibleCompiler` is its set-based twin. A real-Postgres test seeds allow/deny/unknown/expired relationships and asserts the segment answer matches Section 8A's own eligibility answer for every one, so drift between them fails the build rather than quietly mis-targeting customers.
 
-**A failed rebuild never empties an audience.** Materialization writes a new generation alongside the live one and swaps in a single committed transaction. A failure at any point before the swap leaves the previous membership exactly as it was, and the segment reports `STALE` with an error code rather than a count of zero. An empty audience reads as "nobody qualifies"; a stale one reads as "this is out of date" — only one of those is recoverable by the person looking at it.
+**A failed rebuild never empties an audience.** Materialization writes a new generation alongside the live one and swaps in a single committed transaction. A failure at any point before the swap leaves the previous membership exactly as it was, and the segment reports `STALE` with an error code rather than a count of zero. An empty audience reads as "nobody qualifies"; a stale one reads as "this is out of date" â€” only one of those is recoverable by the person looking at it.
 
 **Privacy and merge win every materialization race, in both orderings.** The swap transaction locks all candidate profile rows in stable id order and re-evaluates the complete compiled rule before changing the live-generation pointer. Privacy actions and identity merge use the same row locks. If privacy/merge commits first, certification excludes the relationship; if swap commits first, the following privacy/merge transaction removes or transfers its membership and repairs counts. A crash during the fenced swap rolls back the pointer and membership changes together.
 
@@ -215,14 +560,14 @@ Vendor-defined customer tags, a safe JSON segmentation DSL with a closed field/o
 
 ### Deliberate scope choices
 
-- **Computed traits are a versioned code registry, not a table.** Every registered field declares its key, label/description, type, source, scopes, operators, nullable/branch/privacy behavior, availability predicate, hand-written query compiler, deterministic explanation renderer, and field-contract version. No persisted trait table was added because these values are deterministic functions of Section 8A projections. No `VIP`, `Churn Risk` or `High Value` system tag was invented — those are segment logic, and scoring belongs to 8H.
+- **Computed traits are a versioned code registry, not a table.** Every registered field declares its key, label/description, type, source, scopes, operators, nullable/branch/privacy behavior, availability predicate, hand-written query compiler, deterministic explanation renderer, and field-contract version. No persisted trait table was added because these values are deterministic functions of Section 8A projections. No `VIP`, `Churn Risk` or `High Value` system tag was invented â€” those are segment logic, and scoring belongs to 8H.
 - **No purpose/marketing-intent field on a segment.** It would not change privacy or consent enforcement, so it would be metadata pretending to be a control.
 - **Archived tag names are reusable; archived tag identifiers are not.** A new tag with a reused name gets a new id, so historical membership and audit stay unambiguous.
 - **`GenerationRetainer` is a port with a no-op default.** Section 8E implements it to pin the generation a campaign launched against; building the seam now is what stops cleanup from deleting an audience a campaign is still reconciling against later.
 
 ### Completion-audit fixes
 
-1. **The canonical rule form did not re-parse.** Values were serialised as arrays and durations as raw seconds, so a stored definition failed revalidation at rebuild time — silently, long after the rule was accepted. Fixed by making the canonical form emit exactly the shapes the validator accepts, and pinned by a round-trip test over every value type.
+1. **The canonical rule form did not re-parse.** Values were serialised as arrays and durations as raw seconds, so a stored definition failed revalidation at rebuild time â€” silently, long after the rule was accepted. Fixed by making the canonical form emit exactly the shapes the validator accepts, and pinned by a round-trip test over every value type.
 2. **Parameter typing in the generation insert.** A bigint parameter was first used inside a text concatenation, so Postgres inferred `text` and pgx could not encode it. Fixed with explicit casts. The evaluation clock also moved from the database's `now()` to the service clock, so a run is reproducible and testable rather than dependent on container time.
 3. **Lease renewal and replay were incomplete.** The worker claimed a lease but did not renew it during a long generation build, and a dead-letter had no operator recovery method. Materialization now heartbeats the lease, uses a unique worker identity per process, and exposes the code-level `ReplayMaterialization` hook. Tests prove renewal and dead-letter replay.
 4. **Projection invalidation stopped at `STALE`.** Tag changes were marked stale but not durably enqueued, and commercial, consent, archive/restore, and merge changes did not consistently trigger the dependent audience rebuild. Invalidation now marks and queues in the same transaction, with field-level dependency selection where possible and tenant-wide restaking only for implicit profile-state/merge effects.
@@ -234,7 +579,7 @@ Vendor-defined customer tags, a safe JSON segmentation DSL with a closed field/o
 
 **257 top-level test functions across the service, 0 failures, 0 skips**, run with real Postgres and real Redis (`go test -p 1 ./... -count=1`) on a freshly created database after the targeted correctness pass. Section 8B contributes:
 
-- **Rule DSL (unit)**: structural rejections, operator/type compatibility, every value-type rejection, all six complexity limits plus the ceiling being usable, canonical-hash stability, canonical round-trip, deterministic explanations, and the security set — SQL injected through field names, operators and values, unmapped column names, forbidden personal fields proven absent from the registry, and the registry proven not to leak table or column names.
+- **Rule DSL (unit)**: structural rejections, operator/type compatibility, every value-type rejection, all six complexity limits plus the ceiling being usable, canonical-hash stability, canonical round-trip, deterministic explanations, and the security set â€” SQL injected through field names, operators and values, unmapped column names, forbidden personal fields proven absent from the registry, and the registry proven not to leak table or column names.
 - **Tags (real Postgres)**: normalisation and duplicate collapse, reserved namespaces, control/invisible/markup rejection, branch scope enforcement, cross-branch invisibility, cross-tenant isolation, all-or-nothing bulk semantics, bulk ceiling, archive clearing membership, version conflicts, branch-relationship requirement, and branch-scoped member counts.
 - **Segments (real Postgres)**: static and dynamic lifecycles, terminal archive, static-only and dynamic-only refusals, preview counts and samples, the unknown-versus-zero matrix including negation, branch-scoped preview and the business-scope refusal, privacy exclusion, tag- and branch-reference scope enforcement, cross-tenant isolation, business-segment invisibility to branch actors, and version conflicts.
 - **Materialization (real Postgres)**: first build, failure preserving the last good audience, dead-lettering and code-level replay, lease exclusivity, heartbeat renewal and adoption after expiry, partial-generation discard, fenced redaction and merge races in both commit orderings, crash rollback and recovery during the fenced swap, exclusion subtraction surviving rebuilds, rule-edit versioning, transactional dependency-scoped invalidation/enqueue (including commercial and profile-creation changes), duplicate-request collapsing, archive dropping membership, branch-scoped figures, a shared evaluation instant, single-generation reads, the disabled-worker behaviour, two concurrent workers producing one audience, generation cleanup, the retention port pinning a generation, and the consent cross-check against Section 8A.
@@ -254,17 +599,17 @@ Pagination default 50 / max 200. Bulk batch default 100 / max 500. Rule limits: 
 
 Unchanged from Section 8A, and none new. Segmentation runs entirely over Vendor-owned data, so it needs no external service. What it inherits:
 
-1. **No vendor commerce order publisher** — every commercial field reports as unobserved, so commercial rules match nobody. This is the dependency that makes segmentation useful, and it belongs to the order section.
-2. **No consent authority** — consent fields are unavailable, so a marketing-eligibility rule matches nobody. Fail-closed by design.
-3. **No privacy or identity-merge authority** — the handlers are built and tested against fixtures; nothing currently instructs them in production.
+1. **No vendor commerce order publisher** â€” every commercial field reports as unobserved, so commercial rules match nobody. This is the dependency that makes segmentation useful, and it belongs to the order section.
+2. **No consent authority** â€” consent fields are unavailable, so a marketing-eligibility rule matches nobody. Fail-closed by design.
+3. **No privacy or identity-merge authority** â€” the handlers are built and tested against fixtures; nothing currently instructs them in production.
 
-Section 8B's own flags default off, and `VENDOR_CRM_SEGMENTATION_ENABLED` requires `VENDOR_CRM_ENABLED`, which `VENDOR_CRM_SEGMENT_MATERIALIZATION_ENABLED` in turn requires — validated at startup, so a half-enabled configuration is a boot failure rather than a runtime surprise.
+Section 8B's own flags default off, and `VENDOR_CRM_SEGMENTATION_ENABLED` requires `VENDOR_CRM_ENABLED`, which `VENDOR_CRM_SEGMENT_MATERIALIZATION_ENABLED` in turn requires â€” validated at startup, so a half-enabled configuration is a boot failure rather than a runtime surprise.
 
 ### Not started
 
 At the Section 8C boundary, Sections 8D-8I had not started. Section 8D is now implemented below; Sections 8E (campaign intelligence), 8F (campaign execution), 8G (corporate CRM), 8H (intelligence/exports), 8I (final CRM integration), and everything in Section 9 onwards remain not started. No table, route, permission, flag, worker, or event for those sections was created; Section 8C contains no notification delivery, support-ticket authority, frontend, or future commerce domain.
 
-## Section 8C — interactions, timeline, and CRM tasks
+## Section 8C â€” interactions, timeline, and CRM tasks
 
 **Status: IMPLEMENTED and PostgreSQL-verified.** Section 8C extends `internal/features/crm` with Vendor-local relationship interactions, append-only corrections, staff follow-up tasks, immutable task history, privacy/merge handlers, bounded Customer 360 activity, and 16 public HTTP operations. It creates no internal route and changes no external service.
 
@@ -331,15 +676,15 @@ Known deployment dependencies remain explicit: Customer Service must eventually 
 
 **Known dependencies, disclosed rather than fabricated.** No consent authority publishes to this platform yet, so with the integration flag off every channel is correctly ineligible and a prepared audience contacts nobody - the section is built to be safe in exactly that state rather than to pretend otherwise. No vendor commerce order publisher exists, so commercial segment rules still match nobody (inherited from Section 8B, unchanged here). Section 8E preview correctly has no contact history; Section 8F now owns the real handoff history used for frequency enforcement. The pre-existing `go test -p 1 ./...` serialisation caveat documented under Section 5 still applies to the shared external test database.
 
-## Section 8F — campaign execution and Notification handoff
+## Section 8F â€” campaign execution and Notification handoff
 
 **Status: IMPLEMENTED and PostgreSQL-verified.** Migrations `000020_vendor_crm_campaign_execution` and `000021_vendor_section8f_permissions` add durable runs, deliveries, append-only transition history, contact history, delivery-event dedupe, four permissions, nine public operations, and one internal HMAC ingress. The execution flag defaults false.
 
 Run creation binds the current `PREPARED` snapshot and exact immutable version. Workers use `SKIP LOCKED`; every handoff rechecks current consent, privacy/identity, service recovery, quiet hours, frequency, cancellation/pause, and channel availability under database fences. Notification receives an opaque customer reference and fixed delivery idempotency key, never destination PII. `HANDED_OFF` is distinct from `DELIVERED`. SMS is suppressed because the real Notification contract has no SMS channel. The current Notification Service has no delivery-event producer, so the secured Vendor receiver is implemented but production callbacks remain a disclosed dependency.
 
-Adversarial tests cover corrected current-generation exclusions, consent withdrawal, privacy after snapshot, quiet-hour boundaries, sequential and concurrent frequency caps, cancellation, kill-switch behavior, Notification timeout retry identity, and event dedupe/out-of-order protection. Migration tests cover fresh replay and 8E-to-8F rollback/reapply. Sections 5–8E remain in the full serial regression gate.
+Adversarial tests cover corrected current-generation exclusions, consent withdrawal, privacy after snapshot, quiet-hour boundaries, sequential and concurrent frequency caps, cancellation, kill-switch behavior, Notification timeout retry identity, and event dedupe/out-of-order protection. Migration tests cover fresh replay and 8E-to-8F rollback/reapply. Sections 5â€“8E remain in the full serial regression gate.
 
-## Section 8G — corporate customer CRM
+## Section 8G â€” corporate customer CRM
 
 **Status: IMPLEMENTED and PostgreSQL-verified.** Migrations `000022_vendor_crm_corporate_customers` and `000023_vendor_section8g_permissions` add seven tables (code counters, profiles, branch scopes, locations, cost centres, contacts, memberships), an additive corporate subject on the Section 8C interaction and task tables, five permissions and 41 public operations. No internal route. The corporate flag defaults false and requires `VENDOR_CRM_ENABLED`.
 
@@ -347,21 +692,21 @@ Adversarial tests cover corrected current-generation exclusions, consent withdra
 
 **What it does not own, and cannot express.** No corporate order, invoice, credit, budget, contract, quotation, wallet, catalogue entitlement, approval workflow, RFM/churn score or export. A cost centre carries no budget, limit, currency or balance. The lifecycle contains no commercial state, and the migration test asserts the absence directly rather than trusting review.
 
-**Isolation is structural.** Every child reaches its parent through a composite key: `(id, business_id)` for tenancy and `(id, business_id, corporate_customer_id)` for nested resources, so PostgreSQL — not only the HTTP layer — refuses a membership pointing at another account's contact, or an interaction naming another vendor's site. Branch-scoped operators see business-wide accounts plus branch-set accounts covering a branch they hold, and cannot widen an account past their own scope.
+**Isolation is structural.** Every child reaches its parent through a composite key: `(id, business_id)` for tenancy and `(id, business_id, corporate_customer_id)` for nested resources, so PostgreSQL â€” not only the HTTP layer â€” refuses a membership pointing at another account's contact, or an interaction naming another vendor's site. Branch-scoped operators see business-wide accounts plus branch-set accounts covering a branch they hold, and cannot widen an account past their own scope.
 
 **Concurrency is proved by lock-ordered races, not by timing.** Six deterministic tests pin contact creation against redaction (both commit orderings), contact creation against identity merge, membership and activity against merge, archive against task creation, complete against cancel, and two simultaneous primary-contact promotions. Each blocks the second transaction on a real row lock and asserts the surviving state, so a passing run is evidence rather than a fast machine.
 
 **Section 8C was extended, not modified.** `customer_profile_id`/`original_profile_id` became nullable under `crm_interaction_subject_ck` and `crm_task_subject_ck`; Go structs kept `string` fields with SQL `COALESCE`, so no accepted Section 8C call site changed and the full 8C suite passes unaltered. The 8G rollback restores both columns to `NOT NULL` and drops the corporate columns, which the migration test asserts.
 
-**Known dependencies, disclosed rather than fabricated.** No corporate ordering, invoicing or credit domain exists on this platform, so `MEMBERSHIP_ROLE=APPROVER` is a CRM label and approves nothing — deliberately, because an approval that authorises nothing is safer than one that appears to. Corporate accounts are not customers of `customer-service`: the organization exists only inside this vendor's tenancy, and only its people are platform customers. The pre-existing `go test -p 1 ./...` serialisation caveat documented under Section 5 still applies to the shared external test database.
+**Known dependencies, disclosed rather than fabricated.** No corporate ordering, invoicing or credit domain exists on this platform, so `MEMBERSHIP_ROLE=APPROVER` is a CRM label and approves nothing â€” deliberately, because an approval that authorises nothing is safer than one that appears to. Corporate accounts are not customers of `customer-service`: the organization exists only inside this vendor's tenancy, and only its people are platform customers. The pre-existing `go test -p 1 ./...` serialisation caveat documented under Section 5 still applies to the shared external test database.
 
-## Section 8H — CRM intelligence, analytics and secure exports
+## Section 8H â€” CRM intelligence, analytics and secure exports
 
 **Status: IMPLEMENTED and PostgreSQL-verified.** Migrations `000024_vendor_crm_intelligence_exports` and `000025_vendor_section8h_permissions` add four tables (evaluations, scope states, customer scores, exports), six permissions and 10 public operations. No internal route. Both feature flags default false.
 
-**The models.** `RFM_V1` scores recency, frequency and monetary as scope-relative quintiles computed from PostgreSQL `cume_dist`, so equal inputs always receive equal scores and a rerun over unchanged facts is byte-identical. `CHURN_V1` is an integer 0-100 heuristic derived from how overdue a relationship is against its own observed purchase cadence, plus absolute inactivity and engagement depth. Both carry a model version and a definition hash taken over a canonical descriptor, so changing a threshold — or changing what the model claims to do — changes its identity and a queued run stamped with the old one is superseded rather than writing scores under a hash that no longer exists.
+**The models.** `RFM_V1` scores recency, frequency and monetary as scope-relative quintiles computed from PostgreSQL `cume_dist`, so equal inputs always receive equal scores and a rerun over unchanged facts is byte-identical. `CHURN_V1` is an integer 0-100 heuristic derived from how overdue a relationship is against its own observed purchase cadence, plus absolute inactivity and engagement depth. Both carry a model version and a definition hash taken over a canonical descriptor, so changing a threshold â€” or changing what the model claims to do â€” changes its identity and a queued run stamped with the old one is superseded rather than writing scores under a hash that no longer exists.
 
-**What the models refuse to do.** A relationship with no commercial projection is `SOURCE_NOT_AVAILABLE`. One with a single observed order is `INSUFFICIENT_HISTORY`, never high churn risk — the rule that stops a follow-up list filling with people who arrived yesterday. A scored cohort below five members is `INSUFFICIENT_COHORT`, because a quintile over three people reads exactly like a quintile over thousands.
+**What the models refuse to do.** A relationship with no commercial projection is `SOURCE_NOT_AVAILABLE`. One with a single observed order is `INSUFFICIENT_HISTORY`, never high churn risk â€” the rule that stops a follow-up list filling with people who arrived yesterday. A scored cohort below five members is `INSUFFICIENT_COHORT`, because a quintile over three people reads exactly like a quintile over thousands.
 
 **Generation safety.** Reuses the Section 8B shape: a durable evaluation row is the job, the generation is built alongside the live one, and the swap is a single transaction that re-certifies against privacy and recomputes counts from the survivors. A forced-failure test proves the previous generation stays live and current, and that no row from the failed generation is ever `is_current`.
 
@@ -391,20 +736,20 @@ EXPORT STORAGE:
 - Artifact expiry: approximately 24 hours. Vendor supplies the same `retentionUntil` to Media, refuses and marks expired jobs, and invokes Media's existing idempotent deletion semantics on expiry/cancellation/failure cleanup.
 - Media migrations: `000004_data_export_artifacts` adds visibility/file-name metadata, private-only checks and the export-retention index; no existing table semantics are weakened.
 - Media tests: validator and real-PostgreSQL contract coverage proves private CSV/JSONL success; PUBLIC, wrong extension/MIME, unsupported alias, binary/NUL/control/invalid UTF-8, malformed/oversized content and HTML/SVG/executable bypass refusal; existing-purpose regression; short-lived private attachment access; completed-upload reconciliation; and deletion denial.
-- Vendor↔Media contract: generated CSV/JSONL is checksum-verified, uploaded as private `DATA_EXPORT` under the stable export id, retained for 24 hours, and reconciled after an ambiguous completion. `READY` occurs only after verified persistence; storage failure remains non-READY; Step-Up gates download; expired artifacts are refused and deleted. Adapter tests also pin Media retention and deletion-idempotency headers.
+- Vendorâ†”Media contract: generated CSV/JSONL is checksum-verified, uploaded as private `DATA_EXPORT` under the stable export id, retained for 24 hours, and reconciled after an ambiguous completion. `READY` occurs only after verified persistence; storage failure remains non-READY; Step-Up gates download; expired artifacts are refused and deleted. Adapter tests also pin Media retention and deletion-idempotency headers.
 - Final support status: `AVAILABLE`
 - Result: `PRIVATE_EXPORT_ARTIFACT_SUPPORT = AVAILABLE`
 
 EXTERNAL SERVICES:
 
-- media-file-service: `MINIMAL SECTION 8H CHANGE — DATA_EXPORT private CSV/JSONL artifact support`
+- media-file-service: `MINIMAL SECTION 8H CHANGE â€” DATA_EXPORT private CSV/JSONL artifact support`
 - All other external services: unchanged; no other concrete Section 8H requirement needs a cross-service modification.
 
 **Two clock bugs the tests caught pre-commit.** The artifact expiry and the privacy fence were both computed from the service clock and compared against database-written values; on any host whose clock differs slightly that would have published artifacts past their retention and made every export look like it raced a redaction. Both now read the database clock, which is the one that stamped the values they are compared against.
 
-**Known dependencies, disclosed rather than fabricated.** No vendor commerce order publisher exists, so a production deployment will legitimately report `NOT_AVAILABLE` for every score until authoritative order facts arrive — the section is built to be honest in exactly that state rather than to fill it with zeros. `media-file-service` required one minimal change to accept an export artifact (see the change register). The pre-existing `go test -p 1 ./...` serialisation caveat documented under Section 5 still applies to the shared external test database.
+**Known dependencies, disclosed rather than fabricated.** No vendor commerce order publisher exists, so a production deployment will legitimately report `NOT_AVAILABLE` for every score until authoritative order facts arrive â€” the section is built to be honest in exactly that state rather than to fill it with zeros. `media-file-service` required one minimal change to accept an export artifact (see the change register). The pre-existing `go test -p 1 ./...` serialisation caveat documented under Section 5 still applies to the shared external test database.
 
-## Section 8I — final CRM integration, hardening and acceptance
+## Section 8I â€” final CRM integration, hardening and acceptance
 
 **Status: CERTIFIED.** No new CRM module, no new public or internal route, no new
 migration. Vendor surface remains **194 routes**, migration tip remains
@@ -442,14 +787,14 @@ certification, the marketing-suppression semantics test, and two live-schema
 authority scans proving CRM holds no canonical customer PII and loyalty holds no
 monetary column.
 
-**Known dependencies remain external, documented and fail-closed** — see the
+**Known dependencies remain external, documented and fail-closed** â€” see the
 dependency matrix in `PLATFORM_SERVICE_CHANGE_REGISTER.md`. No production path
 fabricates an unavailable external truth.
 
 
 ---
 
-## Section 8 completion — remaining original Section 8 requirements
+## Section 8 completion â€” remaining original Section 8 requirements
 
 Sections 8A-8I delivered the CRM architecture. This final-completion pass audited the ORIGINAL
 Section 8 specification line by line against what was actually built and
@@ -467,7 +812,7 @@ now `000028`.
 
 ### What is COMPLETE and active
 
-**8.4 Loyalty tiers** — implemented end to end and active today, with no
+**8.4 Loyalty tiers** â€” implemented end to end and active today, with no
 external producer required. A vendor defines an ordered ladder of at most 8
 thresholds; a customer's standing is DERIVED at read time from the Section 8D
 ledger and never stored, so a credit, a reversal, an identity merge or a
@@ -476,14 +821,14 @@ second copy of the truth to drift.
 
 Decisions worth recording:
 
-- **The input is lifetime credited points, net of reversed credit** — not the
+- **The input is lifetime credited points, net of reversed credit** â€” not the
   spendable balance. The original specification permitted either and required
   the choice be made and documented. Status recognises what a customer has done
   over the relationship, so redeeming points must not demote them. A test pins
   this: a customer who earns 1200 and redeems 1000 keeps their rung, and a
   customer whose credit is *reversed* surrenders it.
 - **That quantity is computed from the ledger entries, not from the account's
-  `lifetime_credited_points` column** — a correction a test forced. Section 8D's
+  `lifetime_credited_points` column** â€” a correction a test forced. Section 8D's
   ledger is immutable, so reversing a credit posts a compensating REVERSAL entry
   rather than decrementing the counter; reading the counter would have let a
   credit posted in error confer permanent status, which is exactly what a
@@ -518,7 +863,7 @@ Decisions worth recording:
 needs, with the availability semantics and tenant-composite keys the accepted
 sections use. The Go projections, consumers, workers and read models over
 them are active behind the existing flags. These tables are not inert: their
-nothing reads from them, so no surface reports a fabricated value — but neither
+nothing reads from them, so no surface reports a fabricated value â€” but neither
 facts remain unavailable until their authoritative service sends them; no path
 fabricates a value.
 
@@ -557,20 +902,20 @@ with no loyalty account was told their state was NO_TIER but was not told which
 rung they were climbing toward, so the record answered half the question a CRM
 user opens it to ask.
 
-## Section 9A — Food Catalogue Foundation — IMPLEMENTED / TESTED
+## Section 9A â€” Food Catalogue Foundation â€” IMPLEMENTED / TESTED
 
 Section 9A answers one question: **what does this vendor branch sell?** It is
 the management-side authoritative catalogue and nothing else.
 
 | Section | Scope | Status |
 |---|---|---|
-| 9A | Food catalogue foundation — menus, sections, items, variants, modifier groups, modifiers, relationships | **IMPLEMENTED / TESTED** |
+| 9A | Food catalogue foundation â€” menus, sections, items, variants, modifier groups, modifiers, relationships | **IMPLEMENTED / TESTED** |
 | 9B | Pricing, availability, scheduling and operational profiles | **IMPLEMENTED / TESTED** |
 | 9C | Discovery, integration and final Section 9 acceptance | **IMPLEMENTED / TESTED** |
 
-### Section 9B — Pricing, Availability, Scheduling & Operational Profiles
+### Section 9B â€” Pricing, Availability, Scheduling & Operational Profiles
 
-### Section 9C — Discovery and integration
+### Section 9C â€” Discovery and integration
 
 Section 9C is read-only service-facing composition. Catalogue/search, revision,
 sellability and price-resolution routes are mounted only under
@@ -581,7 +926,7 @@ freshness markers. It reuses the Section 9B sellability and pricing authorities;
 no migration or external service change was required. The global route surface is
 262 operations (257 pre-9C plus five internal discovery routes).
 
-### Sections 10/11 — production foundation and management surface
+### Sections 10/11 â€” production foundation and management surface
 
 Migration `000033_vendor_production_foundation` establishes the shared capacity
 engine for Cloud Kitchen and Pastry/Bakery. Migrations `000034` through
@@ -606,8 +951,8 @@ regression and route/OpenAPI drift guard pass.
 
 ### What exists
 
-`internal/features/food` implements the hierarchy — menu → section → item →
-{variants, attached modifier groups → modifiers} — over eight tables created by
+`internal/features/food` implements the hierarchy â€” menu â†’ section â†’ item â†’
+{variants, attached modifier groups â†’ modifiers} â€” over eight tables created by
 `000029_vendor_food_catalogue`, with three permissions seeded by
 `000030_vendor_section9a_permissions`. Thirty-nine public management routes are
 registered under `/api/v1/vendor/food`; **zero internal routes**, because
@@ -644,9 +989,9 @@ Load-bearing decisions, each with a test that fails if it is reversed:
 ### What is deliberately absent
 
 No schedules, sold-out state, branch price or preparation overrides, effective
-price/availability resolver or price history — those are 9B, and the schema
+price/availability resolver or price history â€” those are 9B, and the schema
 takes them additively. No discovery, projection, search or internal consumption
-API — that is 9C. No orders, cart, checkout, inventory, dispatch or wallet call:
+API â€” that is 9C. No orders, cart, checkout, inventory, dispatch or wallet call:
 a catalogue price is commercial configuration, not settlement.
 
 The item and menu lifecycles cannot express `SOLD_OUT`; a contract test fails if
@@ -658,7 +1003,7 @@ one is added, so 9B's availability engine cannot be half-invented here.
 - Migrations `000029`/`000030` apply on the Section 8 tip, replay on a fresh
   database, and roll back and reapply without touching Sections 5-8. The
   structural guard asserts the ownership keys, the deferred position
-  constraints, the query indexes and the permission seed — and that the database
+  constraints, the query indexes and the permission seed â€” and that the database
   itself refuses a non-food capability, a negative price, an impossible
   selection range and an archived row without `archived_at`.
 - The Section 8I global drift guard (`internal/crmcontract`) passes at **235
@@ -686,7 +1031,7 @@ items behind, reachable by id but attached to a section no longer in the
 catalogue. Archival now cascades to the items in the same transaction, and
 `TestSection_CreateListReorderArchive` fails if it stops doing so.
 
-## Section 12A — Advanced Shop / Grocery / Market / Wholesale: IMPLEMENTED
+## Section 12A â€” Advanced Shop / Grocery / Market / Wholesale: IMPLEMENTED
 
 Section 12A implements the Vendor management and commercial foundation only.
 The fully enabled production router now contains **443 routes**, including 58
@@ -726,7 +1071,7 @@ Part A deliberately introduced none of the inventory authority subsequently
 implemented by Section 12B. No Order, Wallet/payment or logistics execution
 authority is present in either part.
 
-## Section 12B — Shop inventory, availability and discovery: IMPLEMENTED
+## Section 12B â€” Shop inventory, availability and discovery: IMPLEMENTED
 
 Section 12B completes the Vendor-owned Shop operational authority. Migration
 tip is `000046_vendor_shop_inventory_permissions`; the fully enabled router has
@@ -759,3 +1104,852 @@ Authority boundary: Vendor owns catalogue, inventory and availability truth,
 not customer Orders, checkout, payment/Wallet settlement, purchasing/suppliers,
 or Dispatch/Taxi/Hauling execution. Internal reservation callers must provide
 their own source reference; a reservation is not an Order or payment promise.
+
+## Section 13 â€” Catalogue, Taxonomy and Search
+
+**Status: VERIFIED; GO.** Subsections 13Aâ€“13I are implemented, and every
+Section 13 hard gate previously deferred was executed in 13I against real
+PostgreSQL. See [architecture/14_CATALOGUE_TAXONOMY_SEARCH.md](architecture/14_CATALOGUE_TAXONOMY_SEARCH.md)
+for the end-to-end reference and
+[SECTION13_FINAL_CERTIFICATION_REPORT.md](SECTION13_FINAL_CERTIFICATION_REPORT.md)
+for the evidence.
+
+| Subsection | Scope | Status |
+|---|---|---|
+| 13A | Canonical taxonomy foundation â€” namespaces, versions, facets, nodes, publication lifecycle, change history, idempotent commands | VERIFIED |
+| 13B | Food/Shop seeds and Nigerian vocabulary â€” fingerprinted seed bundles, aliases, synonyms, authority vocabulary, append-only seed evidence | VERIFIED |
+| 13C | Mapping, semantic tags, dietary claims and governance â€” typed mappings against published versions, facet-mapping replacement, claim verification policy, governance workflow | VERIFIED |
+| 13D | Separate Food/Shop search projections â€” generation-keyed denormalised documents, Unicode-aware normalisation preserving Nigerian terms | VERIFIED |
+| 13E | Search engine â€” exact/prefix/full-text/alias/synonym/bounded-typo matching, bounded ranking, filters, facets, suggestions, stable cursor pagination | VERIFIED |
+| 13F | Operational signals â€” availability, serviceability, trust, reliability; checkout revalidation; `UNKNOWN` never upgraded | VERIFIED |
+| 13G | Redis cache and incremental projection â€” revision-keyed cache identity, event idempotency, stale-event rejection, PostgreSQL fallback | VERIFIED |
+| 13H | Rebuild generations, workers and recovery â€” build-alongside, atomic activation, lease-based workers, retry, dead-letter replay | VERIFIED |
+| 13I | APIs, IAM/HMAC, security, scale, OpenAPI and final certification | VERIFIED |
+
+### Migrations
+
+Section 13 owns `000047`â€“`000059`. The tip after 13I is **000059**
+(`000059_vendor_taxonomy_search_permissions`), which adds the Section 13
+permission vocabulary and its role grants. Every migration is paired up/down and
+replays cleanly; none contains `CREATE EXTENSION`.
+
+### Routes
+
+Section 13 adds **60 routes**, taking the fully-enabled Vendor surface to
+**556**. The count is asserted from production route registration by
+`internal/crmcontract`, not from prose.
+
+- 10 authenticated vendor classification routes under `/api/v1/vendor/taxonomy`
+- 33 root-mounted platform taxonomy administration routes
+- 6 root-mounted internal Food/Shop search routes
+- 11 root-mounted ranking and projection administration routes
+
+All 50 internal routes use the existing certified `shared/go/serviceauth`
+HMAC-v2 contract with an explicit caller allowlist and durable nonce replay
+protection through `vendor_service_nonces`. No new authentication mechanism was
+created.
+
+### Three defects found and fixed during 13I
+
+These were genuine, previously-undetected defects in Sections 13D, 13H and the
+13D test fixture. They are recorded here rather than quietly repaired because
+each represents a class of failure worth remembering.
+
+1. **Projection rejected documents with empty optional vocabulary (13D, product
+   defect).** The document builders bound Go `nil` slices to `NOT NULL` array
+   columns, so a Food item not yet on a menu, or a Shop variant without a
+   barcode, failed projection outright and silently never became discoverable.
+   Both are ordinary catalogue states. Fixed in the builders so the invariant
+   holds for every backend.
+
+2. **Concurrent generation activation surfaced as an opaque 500 (13H, product
+   defect).** Activation runs at `SERIALIZABLE` and snapshots at the
+   advisory-lock statement, so the loser of an activation race could be aborted
+   with SQLSTATE 40001 instead of returning the intended domain conflict. The
+   invariant held â€” only one generation activated â€” but the API reported an
+   internal error for a routine race. Serialization failures now map to
+   `ErrGenerationActivationConflict`; the isolation level was deliberately left
+   at `SERIALIZABLE`.
+
+3. **13D hard gate could not run (test defect).** Its projection reset used
+   `TRUNCATE` without `CASCADE` and predated the Section 13E term tables that
+   hold a foreign key onto the documents. The gate had been failing at setup.
+
+### Production rebuild closure (Section 13 final)
+
+The previous certification recorded one non-blocking limitation: full-rebuild
+workers were not started, because Section 13H's `SearchFullRebuildSource` port
+had no concrete implementation. **That gap is now closed.** A privileged rebuild
+request progresses on its own from `BUILDING` to `ACTIVE` against the real
+authoritative Food and Shop domains.
+
+**Authoritative rebuild source â€” `internal/searchrebuild`.** A new
+composition-level package implements `SearchFullRebuildSource` by reading the
+domains that own each value: Food items, menus, prices and availability from
+Section 9; Shop products, variants, listings, sell units, identifiers and
+inventory balances from Section 12; canonical classification, vocabulary,
+semantic tags and dietary claims from Sections 13Aâ€“13C; business verification
+(trust) from Section 7; branch geography (serviceability) from Section 6.
+
+It never reads `food_search_documents`, `shop_search_documents`, the search term
+tables or Redis. That is the property that makes a rebuild a recovery mechanism
+rather than a copy: if the projection were its own source, a corrupted
+projection would rebuild into an identically corrupted one. The gate proves it
+by corrupting the live projection before rebuilding and checking the result
+matches the catalogue instead.
+
+The package sits outside `internal/features` because a rebuild bridges five
+features at once, and because `internal/architecture_test.go` forbids one
+feature importing another's repositories.
+
+**Bounded, restart-safe iteration.** Batches are keyset-paginated over immutable
+primary keys (`food_items.id`, `shop_branch_listings.id`), never OFFSET â€” an
+OFFSET scan over a mutable catalogue silently skips and duplicates rows as data
+shifts beneath a long rebuild. The batch ceiling stays at the certified 200.
+Every enrichment is a bulk `= ANY($1)` over the batch, so query count per batch
+is constant regardless of batch size; the gate measures this and observed zero
+growth between a 1-document batch and a 7-document batch. The checkpoint is the
+last id of the previous batch, so a worker that dies resumes where it stopped.
+
+**Workers started.** `cmd/section13.go` builds two `ProjectionWorker`s and
+`cmd/main.go` starts them through the existing `jobs.Job` runtime â€” no second
+scheduler. One claims `FULL_REBUILD`/`SCOPED_REBUILD` with a two-minute lease
+and a claim batch of one; the other claims `GENERATION_VALIDATE_ACTIVATE` with a
+30-second lease and a claim batch of five, so a long rebuild holding its lease
+never delays activating a generation that has already finished. Both are gated
+on `VENDOR_SEARCH_ADMIN_ENABLED`, and standing them down freezes rebuilds
+without taking discovery offline.
+
+**Unknown stays unknown.** Reliability has no authoritative source anywhere in
+Vendor Service, so every rebuilt document carries reliability `UNKNOWN` with no
+basis points rather than an invented perfect score. There is no authoritative
+promotion source either, so a rebuild never promotes anything.
+
+### Three further defects found and fixed by the closure gates
+
+1. **A completed build could never become READY (product defect, 13H).**
+   `CompleteGenerationBuild` recorded the completion but enqueued nothing, so a
+   finished rebuild sat at `BUILDING` forever with no job left to validate it â€”
+   the exact symptom the previous limitation described, and it would have
+   persisted even with a source implemented. Completion, its evidence and the
+   follow-on `GENERATION_VALIDATE_ACTIVATE` job now commit in one transaction,
+   so a crash between them cannot strand a generation. The job is deduplicated
+   on `(namespace, generation)`.
+
+2. **A signal with unknown reliability could not be stored at all (product
+   defect, 13F).** `ApplyOperationalSignals` bound nullable basis-point
+   parameters whose only appearances were inside `jsonb_build_object` and
+   `COALESCE`, so PostgreSQL could not infer their type and the statement failed
+   with "could not determine data type" whenever they were NULL. NULL basis
+   points are the *normal* shape for reliability â€” Section 13F requires unknown
+   to stay unknown â€” so the one case the section mandates was the one case that
+   could not be written. Every parameter in both signal statements is now
+   explicitly typed.
+
+3. **Operational signals could not be applied alongside a rebuild.** Signals are
+   applied by document id, which only the projector knew how to derive.
+   `FoodSearchDocumentID`/`ShopSearchDocumentID` now export that derivation, so
+   a caller producing a document and its signals in one pass uses the same
+   function rather than reimplementing the hash.
+
+### Closure evidence
+
+| Gate | Result |
+|---|---|
+| Real Food rebuild end-to-end (domain â†’ BUILDING â†’ READY â†’ ACTIVE, previous RETIRED) | PASS |
+| Real Shop rebuild end-to-end | PASS |
+| Rebuild reads the domain, not the projection (corruption gate) | PASS |
+| Old generation keeps serving while the rebuild runs | PASS |
+| Rebuild failure preserves the ACTIVE generation; retry completes | PASS |
+| Unvalidated generation can never be activated | PASS |
+| Bounded keyset batching, no repeats, checkpoint advances | PASS |
+| No per-document query growth | PASS |
+| Rebuild runs with no Redis at all | PASS |
+| HMAC-v2 rebuild request drives BUILDING â†’ ACTIVE through the real API | PASS |
+| Unsigned rebuild request rejected and queues nothing | PASS |
+| Scale: 1,507 Food documents rebuilt in bounded batches of â‰¤200 | PASS |
+| Rebuild keyset scan is index-capable | PASS |
+
+### Test infrastructure note
+
+`tools/vendor-test-runner` now accepts an optional package-name substring as an
+argument, so one gate can be re-run in isolation during development. Each
+selected package still gets its own freshly migrated database cloned from the
+same template; the full regression is what runs with no argument, and
+certification always runs the full regression.
+## Section 14A - Inventory Architecture & Generic Domain Foundation
+
+**Status: IMPLEMENTED; certification pending.**
+
+The existing reserved `internal/features/inventory` boundary is now an
+implemented generic Inventory application/domain foundation.
+
+Section 14A establishes:
+
+- tenant-scoped Inventory actors
+- business/branch scope
+- Inventory Item Resolver port
+- Inventory Evidence Recorder port
+- Inventory Event Publisher port
+- deterministic Inventory Clock
+- transaction boundary
+- generic Inventory feature controls
+
+The certified Section 12 Shop inventory implementation remains operational and
+has not been migrated, renamed or redirected.
+
+No generic stock tables, generic Inventory HTTP routes or Food inventory
+implementation are introduced by Section 14A.
+
+
+## Section 14B-14I - Generic Inventory: stock authority, operations and certification
+
+Section 14 is implemented and certified. Generic Inventory is now the stock
+authority for the Vendor Service.
+
+| Part | Scope | Status |
+|---|---|---|
+| 14A | Generic Inventory architecture and domain foundation | IMPLEMENTED |
+| 14B | Generic inventory item identity and stock basis | IMPLEMENTED |
+| 14C | Shop compatibility bridge | IMPLEMENTED |
+| 14D | Core stock, lots and the movement ledger | IMPLEMENTED |
+| 14E | All-or-nothing reservations and concurrency | IMPLEMENTED |
+| 14F | Stocktakes, transfers, quarantine, reorder and alerts | IMPLEMENTED |
+| 14G | Food inventory seam (fail-closed) | IMPLEMENTED |
+| 14H | Workers, IAM and internal HMAC contracts | IMPLEMENTED |
+| 14I | Scale, security, migration, OpenAPI and certification | CERTIFIED |
+
+Migration range: `000060` - `000066`. Migration tip after Section 14I is
+`000066`; Section 14I added no new migration.
+
+### What Inventory owns, and what it does not
+
+Inventory owns generic inventory item identity, stock basis, balances, lots,
+movements, reservations, stocktakes, transfers, quarantine, reorder rules,
+alerts, inventory revision and expiry state.
+
+Shop remains the owner of products, variants, listings, sell units and
+catalogue measurement configuration. The certified Section 12B Shop inventory
+surface is unchanged and still live; Section 14 bridges to it through inventory
+item identity rather than absorbing it. Generic Inventory does not import Shop
+domain or repository code, and the dependency runs one way only: Shop depends
+on Inventory.
+
+### Certified invariants
+
+- PostgreSQL is authoritative. Neither the Inventory nor the Shop feature
+  package references Redis at all, so Redis being unavailable cannot change,
+  invent or lose a balance.
+- Available quantity never becomes negative, and quarantined and expired stock
+  is excluded from it.
+- The movement ledger is append-only. A database trigger refuses every UPDATE
+  and DELETE unconditionally, including from a caller already holding the
+  authorized-mutation session flag.
+- Physical stock tables refuse any write that did not arrive through an
+  authorized inventory mutation.
+- Reservations are all-or-nothing and idempotent on
+  `(source_type, source_ref)` plus a request fingerprint. Replaying a request
+  returns the current durable reservation state; the same reference with a
+  different fingerprint is a conflict.
+- A stale stocktake snapshot cannot overwrite newer stock truth.
+- Transfers refuse to move stock between items that do not share a stock
+  identity, because the quantity would not mean the same thing at both ends.
+- `INVENTORY_LINKED` Food availability fails closed. There is no HYBRID mode,
+  and recipe authority remains a Section 16 seam.
+
+### Section 14I certification results
+
+Every gate below ran against real PostgreSQL 16 and real Redis through
+`scripts/test-vendor-isolated.ps1` / `tools/vendor-test-runner`, which gives
+each test package its own database cloned from a freshly migrated template.
+
+- Full Vendor Service regression: 37/37 packages pass.
+- Section 12B Shop regression: passes, including the Shop inventory
+  concurrency, security, bulk, discovery and internal-contract suites.
+- Migration certification: empty database to tip, rollback of the tip, and
+  reapply; Section 14's stock schema survives the rollback and
+  `vendor_job_controls` is genuinely dropped rather than merely untracked.
+- Movement immutability: certified against the running database, not from
+  reading the migration text.
+- Tenant, branch and nested-identifier isolation: certified against the real
+  service and the real database.
+- Concurrency: the Section 14E and 14F PostgreSQL race matrices execute and
+  pass; these were pending a test database until Section 14I.
+- Scale: 21,000 generic inventory items, 21,000 balances, 63,000 movements,
+  6,996 lots, 3,000 reservations, 3,000 reorder rules, 1,800 alerts across 4
+  businesses and 12 branches.
+- Query plans: all eleven hot paths use index scans at that scale, sub
+  millisecond. No index was added, because no plan justified one.
+- Route parity: live router = OpenAPI = API route register, enforced by
+  `internal/section14contract`.
+
+### Defects found and fixed during Section 14I
+
+1. **Migrations could not apply to an empty database.** `000063` used
+   `CREATE OR REPLACE VIEW` to change `inventory_balance_availability` columns
+   from numeric to bigint, which PostgreSQL refuses. The chain aborted at
+   `000063`, so no fresh environment could ever reach the tip and no
+   database-backed Section 14 test could run. Fixed by dropping and recreating
+   the view, which is what `000063`'s own down file already did correctly. A
+   new migration could not have fixed this, because the chain died before
+   reaching it.
+2. **Stocktake creation was impossible whenever the snapshot returned rows.**
+   `CreateStocktake` executed an INSERT inside an open `rows.Next()` loop on
+   the same connection; pgx refuses this with `conn busy`. Fixed by reading the
+   snapshot to completion before writing any line. The same interleave pattern
+   was then swept for across the whole Inventory package and is now absent.
+3. **A stale Section 9B assertion** still expected the pre-Section-14 constant
+   `NOT_PRESENT` for the Food inventory seam, which Section 14G had renamed to
+   `NOT_SUPPORTED`. The test was updated to the current seam vocabulary.
+4. **Two Section 14F transfer fixtures** built a destination stock basis that
+   did not share the source's stock identity and had no enabled sell unit. The
+   production guards were correct and were left alone; the fixtures were
+   corrected.
+
+### Known limitations
+
+- Generic receipt operations (`CreateReceipt`, `PostReceipt`,
+  `CancelReceipt`) exist on the generic stock service and are certified at the
+  service layer, but are deliberately not exposed as generic public routes.
+  Goods receiving reaches HTTP through the Section 12B Shop surface, and no
+  duplicate generic route was added purely for symmetry.
+- Reorder rules carry an opaque `supplier_ref` only. Supplier and purchase
+  order authority belongs to Section 15.
+- `RecipeAvailabilityResolver` remains an unimplemented seam. Section 16 owns
+  recipe authority.
+- Five tracked test files under `internal/database` and most of
+  `internal/features/shop` are stored with CRLF line endings, so a bare
+  `gofmt -l` on Windows lists them. Their content is correctly formatted; this
+  is a checkout artifact, not a formatting defect.
+
+
+## Section 15 - Suppliers, Purchasing and Goods Receiving
+
+Section 15 is implemented and certified.
+
+| Part | Scope | Status |
+|---|---|---|
+| 15A | Suppliers, contacts, terms, supplier products | IMPLEMENTED |
+| 15B | Purchase orders and approval policies | IMPLEMENTED |
+| 15C | Goods receiving, Inventory posting, discrepancies | IMPLEMENTED |
+| 15D | Operations, APIs, workers, scale and certification | CERTIFIED |
+
+Migration range: `000067` - `000070`. Migration tip after Section 15D is
+`000070_vendor_purchasing_operations`.
+
+Routes: 56, all authenticated under `/api/v1/vendor/purchasing`. No internal
+HMAC surface: no other service drives purchasing.
+
+### What Section 15D added
+
+- `vendor_purchasing_alerts` plus the operational indexes the 15D read paths
+  need, and two new read permissions
+  (`vendor.purchasing.performance.read`, `vendor.purchasing.dashboard.read`).
+- Supplier performance derived from purchasing evidence, with honest
+  insufficient-history semantics.
+- Purchasing dashboards, outstanding-delivery views and operational alerts,
+  built as indexed queries rather than projection tables.
+- Two durable workers on the existing job coordinator.
+- Six operational routes, the Section 15 OpenAPI contract, the route register
+  block, and `internal/section15contract`.
+
+### Defects found and fixed during 15D certification
+
+1. **Every goods-receipt reversal failed (P0).** The reversal movement insert
+   applied a unary minus to an untyped bind parameter (`-$6`). PostgreSQL
+   cannot resolve `- unknown` and refused the statement, and the caller wrapped
+   the failure as "reversal unsafe" - so a plumbing fault read as a legitimate
+   business refusal. Fixed by casting before negating.
+2. **Reversal could not reconcile the purchase order (P0).**
+   `reconcilePOReceivingAfterReversalTx` ran a query inside an open
+   `rows.Next()` loop on the same transaction; pgx refuses that with
+   `conn busy`. Fixed by reading the line set to completion first.
+3. **Purchased stock could not be sold (P0).** Goods receiving created an
+   inventory lot only for lot- or expiry-tracked items. Generic Inventory
+   allocates reservations and adjustments out of lots, so stock received from a
+   supplier for a simple item sat on the balance, read as available, and could
+   not be reserved or adjusted. Fixed by creating a lot for every posted line,
+   matching Section 14's own Receive. Lot *metadata* is still required only for
+   genuinely tracked items.
+4. **Section 15 was invisible to the service-wide contract.** Its 56 routes
+   were live but absent from every specification, from the route register and
+   from `internal/crmcontract`'s router - the same hole Section 14I found and
+   fixed for Section 14. Closed; the accepted surface moved from 590 to 646.
+
+### Certification results
+
+All against real PostgreSQL 16.
+
+- 26 Section 15 tests pass, including the canonical discrepancy example
+  (ordered 100, delivered 98, accepted 90, damaged 5, rejected 3, short 2 ->
+  Inventory +90), three-receipt partial receiving, exactly-once confirmation
+  under six concurrent racers, lot/expiry pass-through, cost variance leaving
+  the approved order untouched, and append-only cost history.
+- Cross-vendor isolation across twelve probes, all using identifiers that
+  really exist and really belong to another business.
+- Branch isolation, including refusing a branch filter outside the caller's
+  scope.
+- No wallet mutation, checked both at runtime and by grepping the purchasing
+  source for wallet and payment client references.
+- Scale: 52,000 purchase orders, 156,000 order lines, 39,000 goods receipts,
+  26,000 supplier products, 14,000 discrepancies, 9,000 cost observations.
+- Query plans: all 15 hot paths on index scans, sub-millisecond.
+
+### Known limitations
+
+- Supplier performance rates need at least three observations before they
+  report a value. Below that they are `INSUFFICIENT_HISTORY` with a null value,
+  which is deliberate.
+- `hours_online`-style operator metrics and a cost-variance approval UI are not
+  part of the backend surface.
+- Financial settlement remains a separate, future authority. Purchasing records
+  cost and never pays anyone.
+
+<!-- SECTION 16B RECIPES -->
+## Section 16B
+
+Implemented:
+
+- Recipe master
+- RecipeVersion
+- Ingredient BOM
+- Packaging requirements
+- typed Food/Pastry/Cloud Kitchen targets
+- exact normalization
+- expected yield
+- expected waste
+- deterministic scale calculations
+- transactional activation
+- historical immutability
+- IAM
+- audit/outbox
+- public Vendor APIs
+
+Certification remains deferred under the current implementation-first workflow.
+
+<!-- SECTION16C_IMPLEMENTATION -->
+## Section 16C implementation
+
+Status: IMPLEMENTED — CERTIFICATION DEFERRED.
+
+Implemented backend:
+
+- ProductionBatch DRAFT / PLANNED / IN_PROGRESS / COMPLETED / CANCELLED / FAILED.
+- frozen RecipeVersion Ingredient and Packaging requirements;
+- exact Section 16B waste/yield scaling semantics;
+- Section 14 atomic controlled-stock reservation;
+- explicit Inventory top-up for actual use above the original reservation;
+- actual Ingredient / Packaging consumption;
+- immutable actual-waste evidence;
+- production-time Packaging consumption policy;
+- ON_DEMAND / BATCH_STOCK;
+- PRODUCTION_COMPONENT prepared-stock output;
+- exactly-once Inventory finalization;
+- capacity/job reference to the existing Sections 10/11 production engine;
+- tenant and branch authorization;
+- audit/outbox events;
+- command idempotency;
+- optimistic version checks.
+
+Not implemented here: Section 16D COGS/cost analytics and final Section 16
+certification.
+
+## Section 16D - Operational cost, COGS and production variance
+
+**Status: IMPLEMENTED.** Section 16D is the operational cost layer over
+Sections 15/16A/16B/16C, and the phase that carries the final Section 16
+certification.
+
+### What was built
+
+`internal/features/cost` (about 3,800 lines): exact money arithmetic, a narrow
+Section 15 purchase-cost read port, three cost strategies, cost policy
+management with OCC/audit/outbox, the recipe COGS engine, production
+expected/actual/variance, immutable snapshot persistence with component-level
+evidence, bounded read models, and 17 HTTP routes.
+
+Migration `000074_vendor_operational_cost`: `vendor_cost_policies`,
+`vendor_cost_snapshots`, `vendor_cost_snapshot_components`, database-level
+snapshot immutability triggers, production-cost uniqueness and command
+idempotency constraints, three permissions and their role grants.
+
+### Defects found and fixed during this phase
+
+**The 34 "phantom" Section 16 OpenAPI operations were a test-harness gap, not a
+product defect.** `internal/crmcontract`'s `buildProductionRouter` never
+registered `productionmaster`, `recipes` or `productionbatch`, although
+`cmd/main.go` had registered all three since their own sections. The gate was
+therefore measuring a router that was missing Section 16 entirely - the same
+class of hole Section 14I had closed for Section 14. Registering those routes
+in the stand-in router resolved it; the historical claim should not be carried
+forward.
+
+**The migration rollback helper had a hardcoded 64-step cap.** With 74
+migrations, `rollbackUntilRemoved` could not reach an early version. It now
+derives its bound from the number of applied migrations, so the bug cannot
+recur the next time the repository grows - replacing 64 with a larger constant
+would only have deferred it.
+
+### Route surface
+
+The accepted Vendor surface moved from 646 to **712**: 646 at the close of
+Section 15, plus the 49 Section 16A/16B/16C routes that were live but
+unregistered in the gate, plus Section 16D's 17. The figure is measured from
+production route registration, never targeted.
+
+### Known limitations, stated rather than hidden
+
+- **No end-to-end purchase-evidence fixture.** The REVERSAL cancellation rule
+  is asserted against the real Section 15 table and the SQL predicate, and the
+  weighted-average and currency rules are asserted through a reader stub. A
+  fixture that drives a full goods-receipt through Section 15's receiving
+  pipeline to produce genuine `OBSERVED`/`REVERSAL` rows would be stronger and
+  is not present.
+- **Recipe and production costing are not yet exercised end-to-end against a
+  seeded recipe and batch.** The engines are unit- and schema-tested; a
+  fixture that seeds a full 16A/16B/16C chain and asserts a specific COGS
+  figure is not present.
+- **No scale fixtures or query-plan evidence for the cost paths.** Indexes were
+  designed for the documented access patterns and exist in migration 000074,
+  but no thousands-scale corpus has been built and no EXPLAIN output has been
+  captured for the cost queries.
+- **Concurrency is enforced structurally rather than by race test.** The
+  uniqueness constraints that make duplicate production cost evidence
+  impossible are asserted to exist; a test that races two finalizations is not
+  present.
+
+`go test -p 1 ./...` remains unsupported for this service. The canonical full
+integration regression is `go run ./tools/vendor-test-runner`; see docs/README.md.
+
+### Section 16D - final certification gates closed
+
+The five gates the previous pass left unevidenced are now closed.
+
+**End-to-end 16A -> 16D.** A synthetic chain seeded through every section's own
+constraints - ingredient and packaging master data, branch inventory mapping,
+a recipe version composed while DRAFT and then activated, a frozen production
+batch, Section 15 purchase evidence on a real purchasing spine - with exact
+assertions: recipe COGS 2520, production expected 2520 (asserted NOT to be the
+2698 a second waste gross-up would give), production actual 2730, variance
++210, per-unit 252, per-serving 315. Historical immutability proven against a
+live price change: a fresh preview moves, the stored snapshot's total,
+component unit cost and source evidence reference do not.
+
+**REVERSAL through the real Section 15 pipeline.**
+`internal/features/purchasing/section16d_cost_evidence_test.go` orders,
+receives, inspects, confirms and then reverses actual goods receipts through
+the Section 15 services, and asserts the Section 16D contract against the
+result: latest cost falls back from 900 to the surviving 500, the weighted
+average moves from 700 to exactly 500 (the reversed observation contributes
+neither quantity nor cost), and once every receipt is reversed the reader
+reports absence rather than zero. A fully rejected delivery never becomes cost
+evidence at all.
+
+**Concurrency.** Six races on real transactions, released from a barrier with
+no sleep anywhere: simultaneous recipe snapshot (one row, both callers get the
+same id, component evidence intact), duplicate production expected and actual
+(exactly one record each, retry converges), policy and manual-cost OCC (exactly
+one winner, one version conflict, no lost update, exactly one audit and one
+outbox row), and historical reads held stable through 5 concurrent policy
+edits. **5 consecutive full passes.**
+
+**Scale and query plans.** A 165,000-row synthetic corpus and twelve captured
+plans - see `docs/architecture/19A_OPERATIONAL_COST_QUERY_PLANS.md`.
+
+**One real defect found by the query-plan gate and fixed.** The highest-cost
+ingredients read hash-joined its bounded snapshot window against the entire
+component table: 36.8ms and growing with total evidence rather than with the
+window. An index nested loop measured 4.9ms, so the better plan existed and the
+planner was not choosing it; an explicit id array, a LATERAL join and a
+MATERIALIZED CTE all failed to move it. Fixed with a covering index added to
+migration `000074` (unreleased and local-only at the time) plus splitting the
+read into two bounded queries: **24.8ms -> 3.1ms**, now bounded by the window.
+
+**One test defect found and fixed.** `TestSection16DMigrationApplyRollbackReapply`
+assumed 000074 was the migration tip. It is not any more - `000075` landed
+during this work - so it now rolls back until Section 16D is removed using the
+generic helper, the same lesson as the hardcoded 64-step cap.
+
+## Section 17B - Checkout validation and Inventory reservation
+
+**Status: IMPLEMENTED.** Section 17B turns an ACTIVE Section 17A cart into a
+validated checkout candidate. It is not a quote, not an authorization and not
+an order: there is no quote lock, no logistics price, no payment, no
+ParentOrder and no VendorOrder anywhere in it, and the contract package refuses
+such a path structurally rather than by convention.
+
+### What was built
+
+`internal/features/checkout` (about 2,700 lines): the checkout session
+aggregate, authoritative line revalidation, vendor/branch grouping, the
+Section 14 reservation coordinator with deterministic compensation, TTL and
+crash recovery, variable-weight money preparation, and three customer routes.
+
+`internal/features/cart/checkout_transitions.go`: the ACTIVE <->
+CHECKOUT_IN_PROGRESS transitions. Cart status is cart-owned state, so the
+transition lives in the cart feature even though checkout is what drives it.
+
+`internal/features/inventory/source_lookup.go`: two Section 14 reads checkout
+needs and Section 14 did not yet expose - `FindReservationBySource`, which is
+how a crashed coordinator finds a hold it never recorded the identity of, and
+`ResolveShopVariantItem`, which turns a Shop catalogue selection into the
+generic Inventory identity a reservation is made against.
+
+`cmd/section17b_adapters.go` and `cmd/section17b.go`: the composition root.
+Food, Shop and Inventory are reached only through the narrow ports in
+`checkout/ports.go`, so the feature package imports none of them.
+
+Migration `000076_vendor_commerce_checkout`: `commerce_checkout_sessions`,
+`commerce_checkout_groups`, `commerce_checkout_lines`,
+`commerce_checkout_events`, and two new actions on the Section 17A cart
+history vocabulary. Contract:
+`docs/openapi/section17b-commerce-checkout.openapi.json`.
+
+### The decisions that shaped it
+
+**Section 14 is the stock authority, and only Section 14.** Section 14's own
+certification says so. Shop's Section 12B inventory surface remains live and
+unchanged, and Section 17B neither reads nor writes it. That has a practical
+consequence worth stating plainly: the two ledgers are still separate during
+the compatibility bridge, so a Shop variant that has stock in the Section 12B
+tables and none in the generic ones will fail checkout. That is fail-closed,
+and it is the correct reading of "generic Inventory is now the stock
+authority", but a deployment mid-migration must finish the bridge before
+enabling `COMMERCE_CHECKOUT_ENABLED`.
+
+**Shop answers the catalogue; Section 14 answers the stock.** Section 12B's
+`ResolveSellability` blends both into one boolean, so the adapter splits them
+and drops Shop's stock verdict - asking two ledgers the same question is how a
+checkout ends up holding stock one of them never had.
+
+The split is an allowlist of the six answers Section 17B may defer
+(`SELLABLE` plus the five stock outcomes), and a refusal of everything else,
+rather than a list of catalogue denials to reject. That direction is the
+point: Shop owns its reason vocabulary and may grow it, and a denylist would
+let a reason code added later fall through and sell. A unit test pins the
+deferred set, including an invented future code, so widening it has to be a
+deliberate edit.
+
+**Food reserves nothing.** Its production architecture exposes availability,
+not a reservation interface: `ResolveSellability` already answers business,
+branch, capability, menu, service window, section, item, operational state and
+the fail-closed `INVENTORY_LINKED` seam as one decision. Section 17B enforces
+that decision - which is the actual change, because Section 17A deliberately
+lets an unsellable item sit in a cart. Reserving raw Shop stock on Food's
+behalf would have been inventing a contract that does not exist. A database
+CHECK makes a Food group carrying a reservation unstorable.
+
+**The reservation basis fails closed rather than guessing.** There are exactly
+two answers this platform can defend today: a `VARIABLE_FULFILMENT` basis
+reserves in its own stock measure (the same basis an actual fulfilment
+measurement is later compared against), and a `SAME_UNIT` basis whose measure
+is the sell unit's measure at a whole-unit fraction reserves one-for-one -
+which is how the Section 12B sellability engine already compares a requested
+quantity. `EXACT_CONVERSION`, a fractional sell unit and a mismatched measure
+all refuse. Section 14 explicitly declines to invent conversion values and
+Section 12 keeps measurement authority, so a checkout that derived one would be
+reserving a number that means something else. A test drives a half-paint sell
+unit and asserts the refusal.
+
+**Multi-vendor atomicity is compensation, not one transaction.** Section 14
+owns one transaction per reservation, so cross-group atomicity cannot be a
+single database transaction without reaching inside it. Instead each group row
+and its reservation source reference are committed BEFORE the first Inventory
+call. After that commit there is always a durable key naming every reservation
+that might exist, which is what makes both compensation and crash recovery
+possible - and what makes every retry idempotent, because Section 14 keys
+reservations on `(source_type, source_ref)`. The end state is always every
+required group RESERVED, or FAILED with no hold left behind.
+
+**A validation refusal is a session, not an error envelope.** The per-line
+reason codes are what a customer needs in order to fix the cart, and an error
+envelope cannot carry them. Errors are reserved for cart preconditions
+(not ACTIVE, empty, no delivery address, stale version) and for an authority
+that could not answer at all.
+
+**A price change is reported, never silently applied to a quote.** The
+candidate is quoted from the authoritative price, the cart snapshot is kept
+beside it, and `price_changed` says so. Creating the final immutable quote is
+Section 17D's decision.
+
+**The TTL is configuration, never a constant.** `NewService` refuses to build
+without one inside `[1 minute, 24 hours]`, and `Config.Validate` refuses to
+start the service on a value outside `[60, 86400]` seconds or on a stranded
+grace that is not shorter than the TTL. The `.env.example` default is 600
+seconds; nothing in the code path assumes it.
+
+### Concurrency and recovery, proved on real PostgreSQL
+
+Every gate below runs against real PostgreSQL, the real Section 17A cart
+service, the real Section 12 Shop catalogue, the real Section 14 Inventory
+authority and the real production adapters from `cmd/section17b_adapters.go`.
+A checkout that only ever reserved from a fake would prove nothing about the
+one property this section exists for.
+
+- **Two customers, three units, both want three.** Released from one barrier:
+  exactly one VALIDATED, exactly one FAILED with `STOCK_UNAVAILABLE`,
+  available lands on zero, and the balance invariant
+  (`reserved + quarantined <= on_hand`, none negative) holds.
+- **The same customer runs checkout twice.** The second request returns the
+  same session; the stock is held once.
+- **Cart mutation during validation.** The authoritative reads happen without
+  the cart row lock; the lock path re-asserts the version and refuses anything
+  that moved underneath it. Nothing is held for the refused attempt.
+- **Stock written down between cart and checkout**, through Section 14's own
+  adjustment authority: refused cleanly, no partial hold.
+- **Multi-vendor partial failure.** Vendor A succeeds, vendor B cannot; A is
+  compensated, both balances are exactly as they started, the cart is ACTIVE.
+- **Reservation expiry vs validation.** The TTL is reached by moving an
+  injected clock, never by sleeping. A read never reports an out-of-date hold
+  as valid, the stock returns, the cart is handed back, and an immediate retry
+  produces a new session.
+- **The sweep with nobody watching.** No request touches the session; the
+  recovery pass still releases the hold, and running it twice changes nothing.
+- **A crash mid-coordination.** The session is forced into the exact shape a
+  dead process leaves - still VALIDATING, coordination IN_PROGRESS, the hold
+  real but its identity never recorded - and recovery finds it from the source
+  reference alone, releases it, records what it found, and hands back the cart.
+  The mirror case is also pinned: a coordination that started a second ago is
+  not swept out from under itself.
+- **Self-healing without Section 17B at all.** Section 14's own
+  reservation-expiry worker releases a lapsed checkout hold with no checkout
+  code involved.
+- **Customer isolation**, at both the service and the transport boundary: a
+  guessed session id returns 404 to a read and to a cancel, and the owner's
+  hold survives the attempt. The wire shape carries no customer identity.
+
+### The service-wide contract gate now sees Section 17
+
+`internal/crmcontract` builds its stand-in router from the same `Register*`
+helpers `cmd/main.go` calls and holds it against every OpenAPI document and the
+route register in both directions. It registered neither Section 17A's cart nor
+Section 17B's checkout, so its figure excluded both and the Section 17
+specifications read as 15 phantom operations - the same class of hole Section
+14I and Section 16D each had to close before it. Both customer commerce
+surfaces are now registered there and the accepted figure moves from **712 to
+727**, derived from production route registration rather than targeted. Section
+17B additionally pins its own surface in `internal/section17bcontract`, the
+established per-section three-way gate.
+
+Closing it required adding the twelve Section 17A cart rows to
+`docs/API_ROUTE_REGISTER.md`. Those routes were already live and already
+specified; only the register entry was missing.
+
+### One real defect and two behaviours the tests corrected
+
+**A suspended vendor could sell.** Section 17B's required checkout sequence
+puts "validate Vendor active" and "validate branch active" ahead of
+catalogue, price and stock. Food's resolver answers both as part of one
+sellability decision, so the Food path was correct - but Shop's
+`requireShopBranch` reads the branch status into a variable and never
+inspects it, admits a branch capability in `DRAFT` or `PAUSED`, and never
+reads the `vendor_businesses` row at all. Section 17B had inherited that path
+and assumed it covered steps 2 and 3. It did not: a vendor set to `SUSPENDED`
+with its catalogue rows untouched validated a checkout and held real stock.
+
+Four tests were written first and all four failed against the original
+adapter. The Shop adapter now asserts business `ACTIVE`, branch `ACTIVE` and
+an `ACTIVE` Shop branch capability itself, before anything commercial is
+read, and reports the same `BUSINESS_INACTIVE` / `BRANCH_INACTIVE` /
+`CAPABILITY_INACTIVE` vocabulary Food already used - one reason code per
+fact, whichever domain the line came from. Section 12's own behaviour is
+deliberately unchanged: admitting a draft capability is right for a vendor
+still building a catalogue, and wrong only for selling from one.
+
+`markValidated` set the coordination state to `COMPLETE` unconditionally, so a
+Food session that never coordinated anything claimed it had finished
+coordination it never started. It now only advances a state that was actually
+`IN_PROGRESS`.
+
+The OpenAPI document described `Idempotency-Key` as optional. The shared
+customer-command middleware requires it on every command on this base, and the
+HTTP test found the mismatch; the specification now says required, and a test
+asserts the 400.
+
+### Known limitations, stated rather than hidden
+
+- **No scale fixtures or query-plan evidence.** The indexes in migration
+  `000076` were designed for the documented access patterns - the one-live-
+  session-per-cart guard, the TTL sweep, the stranded-coordination sweep and
+  the recovery lookup - and each is a partial index over exactly the predicate
+  its query uses. No thousands-scale corpus has been built and no EXPLAIN
+  output captured.
+- **Food capacity is not consulted, because nothing links a Food item to a
+  capacity pool.** Section 10/11 capacity reservation requires an explicit
+  pool, window and allocation, none of which is derivable from a Food
+  catalogue item for a customer order. Food's `INVENTORY_LINKED` seam is the
+  production/availability authority that does exist, and it is enforced.
+- **A refused validation still persists a session row.** That is deliberate -
+  the per-line reasons are evidence a client can re-read - but nothing prunes
+  them, so a hot retry loop accumulates rows. Retention is unaddressed.
+- **`EXACT_CONVERSION` Shop stock bases cannot be checked out.** See the
+  fail-closed rule above. Supporting them needs a conversion authority that
+  does not exist anywhere in this platform today.
+
+### Verification
+
+`go build ./...`, `go vet ./...` and `gofmt` clean. Migration `000076` was
+applied, rolled back and reapplied against real PostgreSQL, and its down file
+was verified to actually drop what the up file created.
+
+The canonical isolated regression - `go run ./tools/vendor-test-runner`, one
+freshly migrated database per test package - was run on the final tree:
+**46/46 packages pass, 76 migrations in the template.** That figure includes
+the two service-wide gates (`internal/crmcontract` at 727 routes,
+`internal/section17bcontract`), the Section 17B `cmd` integration suite, and
+every pre-existing section's own suite. It therefore also closes the gap the
+Section 17A entry below records: 17A deferred the full runner because 17B was
+concurrently in flight, and this run covers both.
+
+`go test -p 1 ./...` remains unsupported for this service. The canonical full
+integration regression is `go run ./tools/vendor-test-runner`; see
+docs/README.md.
+
+
+<!-- SECTION17A_CUSTOMER_CART -->
+## Section 17A - Customer Cart Foundation
+
+**Status: IMPLEMENTED; GO.**
+
+Certified:
+- Customer Service bearer identity ownership
+- cross-customer IDOR protection
+- Vendor staff/customer principal separation
+- Food/Shop cart separation
+- Food single-business/single-branch restriction
+- Shop multi-business/multi-branch grouping
+- catalogue/price/version snapshot evidence
+- variable-measure cart metadata
+- immutable Customer Service address snapshot
+- optional third-party receiver
+- customer-scoped idempotency and replay
+- optimistic concurrency and stale-version conflict
+- transactional cart mutation history
+- transactional commerce.cart.* vendor_outbox publication
+- transaction rollback when event publication fails
+- migration 000075 through dedicated certification database
+- exactly 12 customer-commerce operations
+- OpenAPI/router parity
+- Customer Service, Food, Shop and Inventory targeted regressions
+
+The full Vendor cmd test package and full Vendor regression runner were
+intentionally excluded from this closure because Section 17B was concurrently
+under active implementation. Section 17A was certified independently so
+unfinished Section 17B test files cannot create false Section 17A failures.
+
+## Section 18 - Vendor Order Lifecycle
+
+Implemented on top of Section 17: food and Shop VendorOrder state transitions,
+optimistic concurrency, rejection isolation, immutable-line picking outcomes,
+customer-scoped substitution proposals and decisions, cheaper-substitution
+adjustment evidence, Wallet refund-state projection, and monotonic
+Dispatch/Hauling event synchronization. Vendor Own Delivery remains separate
+from platform logistics. Corrective migrations
+`000085_vendor_order_lifecycle_remediation`,
+`000086_inventory_partial_finalization`, and
+`000087_vendor_order_event_actor_types` add payment-to-vendor evidence, refund
+amount/OCC state, authenticated logistics ingress, authoritative partial stock
+finalisation, and the explicit lifecycle event actors emitted by payment and
+vendor operations; the Section 18 OpenAPI/register entries describe the live
+surface. The canonical isolated Vendor regression is green at 54/54 packages,
+including the five formerly blocked Section 17A PostgreSQL tests.

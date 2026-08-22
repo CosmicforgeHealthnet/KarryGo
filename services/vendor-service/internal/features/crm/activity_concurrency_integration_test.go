@@ -9,20 +9,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// waitForActivityFenceLock blocks until an 8C write is queued behind the shared
+// profile lock, identified by the /* crm_activity_profile_fence */ marker the
+// production statement carries and restricted to this test's own backends.
 func waitForActivityFenceLock(t *testing.T, env *testEnv) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		var waiting bool
-		if err := env.pool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE query LIKE '%crm_activity_profile_fence%' AND wait_event_type='Lock')`).Scan(&waiting); err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("8C write never reached the shared profile lock")
+	newLockObserver(t).await(t, 1, "%crm_activity_profile_fence%", false,
+		"8C write never reached the shared profile lock")
 }
 
 func TestActivityConcurrency_InteractionCorrectionConflict(t *testing.T) {

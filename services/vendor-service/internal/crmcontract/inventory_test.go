@@ -31,24 +31,69 @@ import (
 	vendorauthhttp "cosmicforge/logistics/services/vendor-service/internal/features/auth/http"
 	vendorauthrepositories "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/services/vendor-service/internal/features/cart"
+	"cosmicforge/logistics/services/vendor-service/internal/features/checkout"
+	"cosmicforge/logistics/services/vendor-service/internal/features/checkoutquote"
 	"cosmicforge/logistics/services/vendor-service/internal/features/cloudkitchen"
+	"cosmicforge/logistics/services/vendor-service/internal/features/cost"
 	"cosmicforge/logistics/services/vendor-service/internal/features/crm"
+	"cosmicforge/logistics/services/vendor-service/internal/features/delivery"
 	"cosmicforge/logistics/services/vendor-service/internal/features/food"
+	"cosmicforge/logistics/services/vendor-service/internal/features/fulfilment"
+	"cosmicforge/logistics/services/vendor-service/internal/features/inventory"
+	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	"cosmicforge/logistics/services/vendor-service/internal/features/pastry"
 	"cosmicforge/logistics/services/vendor-service/internal/features/production"
+	"cosmicforge/logistics/services/vendor-service/internal/features/productionbatch"
+	"cosmicforge/logistics/services/vendor-service/internal/features/productionmaster"
+	"cosmicforge/logistics/services/vendor-service/internal/features/purchasing"
+	"cosmicforge/logistics/services/vendor-service/internal/features/recipes"
+	"cosmicforge/logistics/services/vendor-service/internal/features/searchprojection"
 	"cosmicforge/logistics/services/vendor-service/internal/features/shop"
 	staffhttp "cosmicforge/logistics/services/vendor-service/internal/features/staff/http"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
+	"cosmicforge/logistics/services/vendor-service/internal/features/taxonomy"
 	"cosmicforge/logistics/services/vendor-service/internal/features/vendors"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
 )
 
 // ExpectedRouteCount is the accepted fully-enabled Vendor surface at the close
-// of final Section 12: the 443-route Section 12A surface plus 42 public
-// inventory routes and 11 root-mounted HMAC discovery/reservation routes.
-// The figure is asserted against production route
-// registration rather than counted from prose.
-const ExpectedRouteCount = 496
+// of Section 16: the 646-route Section 15 surface, plus the 49 Section
+// 16A/16B/16C routes, plus Section 16D's 17 operational cost routes.
+//
+// The Section 16A/16B/16C routes were live in cmd/main.go from their own
+// sections but were never registered in this gate's stand-in router, which is
+// why it reported 34 Section 16 OpenAPI operations as phantom: the routes
+// existed, this router simply did not mount them. Registering them in
+// buildProductionRouter closed that hole, exactly as Section 14I closed the
+// identical one for Section 14.
+//
+// Section 17 was invisible to this gate until Section 17B: neither the
+// Section 17A cart nor the Section 17B checkout was registered here, so the
+// figure excluded both and their specifications read as 15 phantom
+// operations. Registering the two customer commerce surfaces closes the same
+// hole Section 14I and Section 16D each had to close before it.
+//
+// Section 17C adds four: two customer planning routes under the commerce base
+// and two Vendor Own Delivery policy routes under the vendor base. Registering
+// them here is the same hole Section 14I, Section 16D and Section 17B each had
+// to close - and this gate caught it, reporting the four as phantom before
+// they were mounted.
+
+// Section 17D adds three customer quote routes: create, historical read and
+// explicit fingerprint approval.
+//
+// Section 17E adds twelve more: four customer order routes (create from an
+// approved quote, list, read and the customer's own single-vendor withdrawal)
+// and eight vendor staff routes (the queue, one order, and the six lifecycle
+// commands).
+//
+// Section 17F adds two: the customer payment-binding start and its read. They
+// exist only when a money authority is wired, and a fully enabled deployment
+// has one. The accepted fully enabled surface is 752.
+//
+// The figure is measured from production route registration, never targeted.
+const ExpectedRouteCount = 769
 
 // allFlagsOn enables every CRM module, because the inventory must describe the
 // full surface a fully-enabled deployment exposes.
@@ -118,11 +163,110 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	shopFlags := shop.Flags{ShopEnabled: true, WritesEnabled: true}
 	shop.RegisterRoutes(protected, shop.NewHandler(shop.NewService(shop.Options{Flags: shopFlags}), store), shopFlags)
 
+	// Section 14: the generic Inventory authority. Shop keeps its own
+	// Section 12B inventory surface above; these are the generic routes.
+	inventoryFlags := inventory.Flags{Enabled: true, WritesEnabled: true}
+	inventoryHandler := inventory.NewHandler(nil, nil)
+	inventory.RegisterRoutes(protected, inventoryHandler, inventoryFlags)
+	inventory.RegisterReservationRoutes(protected, inventoryHandler, inventoryFlags)
+	inventory.RegisterOperationalRoutes(protected, inventoryHandler, inventoryFlags)
+
+	// Section 15: suppliers, purchasing and goods receiving. Live in
+	// cmd/main.go since 15A but never registered here, so this service-wide
+	// gate could not see any of its 56 routes until 15D.
+	purchasingBase := purchasing.NewHandler(nil, nil)
+	purchasing.RegisterRoutes(protected, purchasingBase, true)
+	purchasing.RegisterPurchaseOrderRoutes(protected,
+		purchasing.NewPurchaseOrderHandler(nil, purchasingBase, nil), true)
+	purchasing.RegisterGoodsReceivingRoutes(protected,
+		purchasing.NewGoodsReceivingHandler(nil, nil, nil), true)
+	purchasing.RegisterOperationsRoutes(protected,
+		purchasing.NewOperationsHandler(nil, nil), true)
+
+	// Section 16A/16B/16C: production master data, recipes and production
+	// batches. These have been live in cmd/main.go since their own sections,
+	// but were never registered here - which is why this gate reported 34
+	// Section 16 OpenAPI operations as phantom. The routes existed; this
+	// stand-in router simply did not mount them. Registering them makes the
+	// gate measure the real surface again.
+	productionMasterHandler := productionmaster.NewHandler(
+		productionmaster.NewService(nil, nil), nil, store)
+	productionmaster.RegisterRoutes(protected, productionMasterHandler)
+
+	recipes.RegisterRoutes(protected,
+		recipes.NewHandler(recipes.NewService(nil, nil), nil, store), true)
+
+	productionbatch.RegisterRoutes(protected,
+		productionbatch.NewHandler(nil, store), true)
+
+	// Section 16D: operational cost.
+	cost.RegisterRoutes(protected, cost.NewHandler(nil, store), true)
+
+	// Section 17C: the Vendor Own Delivery policy surface. It belongs to the
+	// vendor staff base rather than the customer commerce one, which is why
+	// its OpenAPI document is separate from the planning contract.
+	delivery.RegisterRoutes(
+		protected,
+		delivery.NewHandler(delivery.NewService(nil, nil, true)),
+		true,
+	)
+
+	// Section 17E: the vendor order queue and its lifecycle commands. Like the
+	// delivery policy above it belongs to the vendor staff base, because it is
+	// driven by vendor staff IAM rather than by a customer token.
+	orders.RegisterVendorRoutes(protected, &orders.Service{}, true)
+
+	// Section 13: canonical taxonomy classification (vendor) plus the two
+	// root-mounted internal surfaces registered below.
+	taxonomyFlags := taxonomy.Flags{TaxonomyEnabled: true, WritesEnabled: true}
+	taxonomyService := taxonomy.NewService(taxonomy.NewRepository(nil), nil)
+	taxonomyAccess := taxonomy.NewVendorAccess(nil, nil)
+	taxonomy.RegisterRoutes(protected, taxonomy.NewHandler(taxonomyService, taxonomyAccess, taxonomyFlags), taxonomyFlags)
+
+	// Section 17: the customer commerce surfaces. They are root-mounted under
+	// /api/v1/commerce rather than under the vendor base, because they are
+	// driven by a Customer Service bearer token and not by vendor staff IAM.
+	customerCommerce := router.Group("/api/v1/commerce")
+	customerSigner := sharedauth.NewTokenSigner([]byte("inventory-only"))
+
+	cart.RegisterCustomerRoutes(customerCommerce, &cart.Service{}, customerSigner, store)
+	checkout.RegisterCustomerRoutes(customerCommerce, &checkout.Service{}, customerSigner, store, true)
+	fulfilment.RegisterCustomerRoutes(
+		customerCommerce,
+		fulfilment.NewHandler(&fulfilment.PlanningService{}),
+		customerSigner,
+		true,
+	)
+	checkoutquote.RegisterCustomerRoutes(
+		customerCommerce,
+		&checkoutquote.Service{},
+		customerSigner,
+		store,
+		true,
+	)
+	orders.RegisterCustomerRoutes(
+		customerCommerce,
+		&orders.Service{},
+		customerSigner,
+		store,
+		true,
+		// Section 17F: the fully-enabled surface includes payment.
+		true,
+	)
+
 	staffhttp.RegisterInternalRoutes(router, nil, verifier)
 	vendors.RegisterInternalOnboardingRoutes(router, vendorHandler, verifier)
 	crm.RegisterInternalRoutes(router, crm.NewInternalHandler(crmService), verifier, flags)
 	food.RegisterInternalRoutes(router, foodInternalHandler, verifier, foodFlags)
 	shop.RegisterInternalInventoryRoutes(router, shop.NewInventoryInternalHandler(shop.NewService(shop.Options{Flags: shopFlags}), []string{"order-service"}), verifier, shopFlags)
+	taxonomy.RegisterInternalRoutes(router, taxonomy.NewInternalHandler(taxonomyService, []string{"admin-backoffice-service"}, nil, taxonomyFlags), verifier, taxonomyFlags)
+	inventory.RegisterInternalRoutes(router, inventory.NewInternalInventoryHandler(
+		nil, []string{"order-service"}), verifier, inventoryFlags)
+	orders.RegisterInternalLogisticsRoutes(router, &orders.Service{}, verifier)
+	searchFlags := searchprojection.Flags{SearchEnabled: true, AdminEnabled: true}
+	searchprojection.RegisterInternalSearchRoutes(router, searchprojection.NewInternalHandler(searchprojection.InternalHandlerOptions{
+		Callers: []string{"order-service"}, Flags: searchFlags,
+	}), verifier, searchFlags)
 	return router
 }
 

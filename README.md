@@ -47,6 +47,10 @@ Shared platform services live alongside them:
 - services/media-file-service
 - services/admin-backoffice-service
 - services/analytics-service
+- services/vendor-service: Vendor commerce backend through Section 17F,
+  including customer cart/checkout, authoritative fulfilment planning,
+  immutable quote approval, isolated Wallet payment legs, durable fulfilment
+  activation, customer commercial changes and cheaper-replan refunds
 
 Shared Go platform code lives in `shared/go`, including the standard Cosmicforge Logistics
 API error envelope and HTTP middleware. See `docs/microservices-architecture.md`

@@ -67,8 +67,8 @@ type AuditEntry struct {
 }
 
 // AuditRecorder writes an audit entry. Section 9A does not use it for its own
-// mutations — those are written inside the mutation's transaction (see
-// auditTx) so state and evidence commit together — it exists for the same
+// mutations ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â those are written inside the mutation's transaction (see
+// auditTx) so state and evidence commit together ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â it exists for the same
 // port shape the rest of the service uses.
 type AuditRecorder interface {
 	Record(context.Context, AuditEntry) error
@@ -120,13 +120,14 @@ func (f Flags) writesAllowed() bool { return f.WritesEnabled && !f.CommerceKillS
 // Service is the Section 9A application layer. Every ownership, capability and
 // lifecycle decision lives here or in the database, never in a handler.
 type Service struct {
-	db     *pgxpool.Pool
-	scopes ScopeResolver
-	audit  AuditRecorder
-	events EventPublisher
-	media  MediaAuthority
-	flags  Flags
-	now    func() time.Time
+	db        *pgxpool.Pool
+	scopes    ScopeResolver
+	audit     AuditRecorder
+	events    EventPublisher
+	media     MediaAuthority
+	inventory InventoryAvailabilityAuthority
+	flags     Flags
+	now       func() time.Time
 }
 
 // Options configures a Service.
@@ -138,8 +139,9 @@ type Options struct {
 	Flags  Flags
 	// Media proves a media reference is an active, completed object owned by
 	// this business. Nil refuses media attachment outright rather than storing
-	// an unverified reference — an unchecked reference is worse than none.
-	Media MediaAuthority
+	// an unverified reference ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â an unchecked reference is worse than none.
+	Media     MediaAuthority
+	Inventory InventoryAvailabilityAuthority
 	// Now is injectable so archival timestamps are deterministic in tests.
 	Now func() time.Time
 }
@@ -150,7 +152,7 @@ func NewService(opts Options) *Service {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	return &Service{db: opts.DB, scopes: opts.Scopes, audit: opts.Audit, events: opts.Events,
-		media: opts.Media, flags: opts.Flags, now: now}
+		media: opts.Media, inventory: opts.Inventory, flags: opts.Flags, now: now}
 }
 
 // FlagSet exposes the configured flags for route registration and tests.
@@ -213,7 +215,7 @@ func (s *Service) requireWrites() error {
 // price authority to do that. So any mutation that establishes a price
 // (including an explicit zero) or changes an existing one additionally
 // requires vendor.food.pricing.manage,
-// checked per field rather than per route — one endpoint that edits a name and
+// checked per field rather than per route ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â one endpoint that edits a name and
 // a price must not hand pricing power to whoever may edit the name.
 func (s *Service) requirePricingAuthority(ctx context.Context, actor Actor, branchID string) error {
 	scope, err := s.Authorize(ctx, actor, PermPricingManage)

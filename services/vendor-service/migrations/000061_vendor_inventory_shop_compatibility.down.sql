@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS inventory_shop_compat_backfill_batches;
+DROP TABLE IF EXISTS inventory_shop_compat_backfill_jobs;
+
+DROP INDEX IF EXISTS inventory_items_shop_variant_identity_uq;

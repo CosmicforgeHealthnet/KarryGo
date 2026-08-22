@@ -1,0 +1,256 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service - Section 17C Vendor Own Delivery policy",
+    "version": "1.0.0",
+    "description": "The vendor-configured delivery policy one branch offers on its own riders/fleet, as an alternative to platform Dispatch/Hauling execution.\n\nIt configures reach, charge and the minimum/free rules only. It never configures who is paid: vendor-owned delivery pays the vendor and platform delivery pays the executing provider, derived from the execution authority.\n\nThis document is separate from the customer planning contract because the two surfaces have different server bases and different principals. One document cannot honestly declare both."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor",
+      "description": "Vendor staff surface. Scope is resolved server-side from the session on every request."
+    }
+  ],
+  "tags": [
+    {
+      "name": "delivery-policy",
+      "description": "Vendor Own Delivery policy."
+    }
+  ],
+  "paths": {
+    "/delivery/branches/{branchId}/policy": {
+      "get": {
+        "tags": [
+          "delivery-policy"
+        ],
+        "operationId": "getVendorDeliveryPolicy",
+        "summary": "Read a branch Vendor Own Delivery policy",
+        "description": "Requires vendor.delivery.policy.read at a scope covering the branch. The tenant comes from the authenticated session; a caller-supplied business id is not read at all.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BranchId"
+          }
+        ],
+        "security": [
+          {
+            "vendorStaffBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The policy. ETag carries its version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No policy for this branch, or the branch is out of scope. Deliberately the same answer, so a probe cannot tell them apart."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "delivery-policy"
+        ],
+        "operationId": "putVendorDeliveryPolicy",
+        "summary": "Configure a branch Vendor Own Delivery policy",
+        "description": "Requires vendor.delivery.policy.manage at a scope covering the branch, and If-Match carrying the current version (0 for a first create).\n\nmax_delivery_radius_meters may only NARROW the Section 6 branch service area; the planner takes the minimum of the two, so a vendor can never widen its reach from here. The policy configures no beneficiary: vendor-owned delivery pays the vendor and platform delivery pays the executing provider, derived from the execution authority.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BranchId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "security": [
+          {
+            "vendorStaffBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored policy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "The actor does not hold the permission for this branch."
+          },
+          "404": {
+            "description": "The branch does not belong to this tenant."
+          },
+          "409": {
+            "description": "Version conflict."
+          },
+          "422": {
+            "description": "Validation failed."
+          },
+          "503": {
+            "description": "VENDOR_OWN_DELIVERY_ENABLED is off."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "vendorStaffBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Vendor staff access token. Scope is resolved server-side from the session on every request."
+      }
+    },
+    "parameters": {
+      "BranchId": {
+        "name": "branchId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "The policy version this write is made against. 0 means 'I expect no policy yet'."
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication is required."
+      }
+    },
+    "schemas": {
+      "PolicyInput": {
+        "type": "object",
+        "description": "No business_id: the tenant comes from the authenticated session. No beneficiary: that is derived from the execution authority.",
+        "required": [
+          "currency"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{3}$"
+          },
+          "base_fee_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "per_km_fee_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "minimum_order_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "A serviceability rule, not a surcharge: below it this vendor does not deliver at all."
+          },
+          "free_delivery_threshold_minor": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Null means this vendor never gives free delivery, which differs from a threshold of zero. Free delivery is a vendor-funded promotion; the delivery still costs what it costs."
+          },
+          "max_delivery_radius_meters": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Narrowing-only override of the branch service area."
+          },
+          "max_package_weight_grams": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "estimated_minutes_base": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_minutes_per_km": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "Policy": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PolicyInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "branch_id": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "version": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        ]
+      },
+      "PolicyEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Policy"
+          }
+        }
+      }
+    }
+  }
+}

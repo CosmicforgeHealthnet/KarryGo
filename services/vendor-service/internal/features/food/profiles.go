@@ -482,9 +482,20 @@ type AvailabilitySourceView struct {
 // alongside the configuration, so an operator who links an item can see
 // immediately that nothing is there to answer for it yet.
 func AvailabilitySourceViewOf(s AvailabilitySource) AvailabilitySourceView {
-	return AvailabilitySourceView{ItemID: s.ItemID, Mode: s.Mode,
-		InventoryRecipeRef: s.InventoryRecipeRef, SourceSupport: InventoryAvailabilitySupport,
-		UpdatedAt: s.UpdatedAt, Version: s.Version}
+	support := InventorySupportNotConfigured
+
+	if s.Mode == SourceInventoryLinked {
+		support = InventoryAvailabilitySupport
+	}
+
+	return AvailabilitySourceView{
+		ItemID:             s.ItemID,
+		Mode:               s.Mode,
+		InventoryRecipeRef: s.InventoryRecipeRef,
+		SourceSupport:      support,
+		UpdatedAt:          s.UpdatedAt,
+		Version:            s.Version,
+	}
 }
 
 const sourceCols = `item_id,business_id,mode,inventory_recipe_ref,created_at,updated_at,version`
@@ -534,8 +545,8 @@ type SetAvailabilitySourceInput struct {
 // INVENTORY_LINKED requires an opaque recipe reference and, until a real
 // inventory authority exists, makes the item unsellable. That is deliberate:
 // linking an item to inventory says "do not sell this unless inventory agrees",
-// and a missing inventory service is not agreement. The write is allowed —
-// operators must be able to configure ahead of the integration — but the
+// and a missing inventory service is not agreement. The write is allowed â€”
+// operators must be able to configure ahead of the integration â€” but the
 // consequence is visible in the resolver immediately.
 func (s *Service) SetAvailabilitySource(ctx context.Context, actor Actor, scope Scope, itemID string, in SetAvailabilitySourceInput) (AvailabilitySource, error) {
 	if err := s.requireWrites(); err != nil {

@@ -1,0 +1,692 @@
+{
+    "schema_version":  1,
+    "namespace_code":  "SHOP",
+    "seed_key":  "KARRYGO_SHOP_V1",
+    "facets":  [
+                   {
+                       "code":  "CATEGORY",
+                       "display_name":  "Shop Category",
+                       "description":  "Canonical Shop discovery category hierarchy.",
+                       "structure_type":  "HIERARCHICAL",
+                       "position":  10,
+                       "metadata":  {
+                                        "discovery_namespace":  "SHOP"
+                                    }
+                   }
+               ],
+    "nodes":  [
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FOODSTUFF",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Foodstuff",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FRESH_PRODUCE",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Fresh Produce",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_PROTEIN",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Protein",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_COOKING_ESSENTIALS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Cooking Essentials",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FROZEN_CHILLED",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Frozen \u0026 Chilled",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  50,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_BEVERAGES",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Beverages",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  60,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_DAIRY_EGGS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Dairy \u0026 Eggs",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  70,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_PACKAGED_GROCERY",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Packaged Grocery",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  80,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_BULK_WHOLESALE",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Bulk / Wholesale",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  90,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FOODSTUFF_RICE_GRAINS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Rice \u0026 Grains",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FOODSTUFF",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FOODSTUFF_BEANS_PULSES",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Beans \u0026 Pulses",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FOODSTUFF",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FOODSTUFF_GARRI_CASSAVA",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Garri \u0026 Cassava",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FOODSTUFF",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FOODSTUFF_YAM_TUBERS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Yam \u0026 Tubers",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FOODSTUFF",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FOODSTUFF_PLANTAIN",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Plantain",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FOODSTUFF",
+                      "position":  50,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FRESH_PRODUCE_VEGETABLES",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Vegetables",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FRESH_PRODUCE",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FRESH_PRODUCE_FRUITS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Fruits",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FRESH_PRODUCE",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_PROTEIN_MEAT_POULTRY",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Meat \u0026 Poultry",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_PROTEIN",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_PROTEIN_FISH_SEAFOOD",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Fish \u0026 Seafood",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_PROTEIN",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_COOKING_ESSENTIALS_COOKING_OILS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Cooking Oils",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_COOKING_ESSENTIALS",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_COOKING_ESSENTIALS_SPICES_SEASONING",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Spices \u0026 Seasoning",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_COOKING_ESSENTIALS",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_COOKING_ESSENTIALS_FLOUR_BAKING",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Flour \u0026 Baking",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_COOKING_ESSENTIALS",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FROZEN_CHILLED_FROZEN_FOODS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Frozen Foods",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FROZEN_CHILLED",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_BEVERAGES_DRINKS_WATER",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Drinks \u0026 Water",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_BEVERAGES",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_DAIRY_EGGS_DAIRY",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Dairy",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_DAIRY_EGGS",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_DAIRY_EGGS_EGGS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Eggs",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_DAIRY_EGGS",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_PACKAGED_GROCERY_CANNED_FOODS",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Canned Foods",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_PACKAGED_GROCERY",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_PACKAGED_GROCERY_PACKAGED_GROCERIES",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Packaged Groceries",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_PACKAGED_GROCERY",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_BULK_WHOLESALE_FOODSTUFF",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Bulk / Wholesale Foodstuff",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_BULK_WHOLESALE",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CATEGORY"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FOODSTUFF_GARRI_CASSAVA_GARRI",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Garri",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FOODSTUFF_GARRI_CASSAVA",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "PRODUCT_CONCEPT",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FRESH_PRODUCE_VEGETABLES_OKRA",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Okra",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FRESH_PRODUCE_VEGETABLES",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "PRODUCT_CONCEPT",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_PROTEIN_MEAT_POULTRY_PONMO",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Ponmo",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_PROTEIN_MEAT_POULTRY",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "PRODUCT_CONCEPT",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "SHOP_CATEGORY_FOODSTUFF_BEANS_PULSES_GROUNDNUT",
+                      "facet_code":  "CATEGORY",
+                      "display_name":  "Groundnut",
+                      "description":  "",
+                      "parent_code":  "SHOP_CATEGORY_FOODSTUFF_BEANS_PULSES",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "PRODUCT_CONCEPT",
+                                       "market":  "NG"
+                                   }
+                  }
+              ],
+    "authority_vocabulary":  [
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_paint",
+                                     "authority_code":  "PAINT",
+                                     "term":  "Paint",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  true
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_paint_rubber",
+                                     "authority_code":  "PAINT_RUBBER",
+                                     "term":  "Paint Rubber",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  true
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_derica",
+                                     "authority_code":  "DERICA",
+                                     "term":  "Derica",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_mudu",
+                                     "authority_code":  "MUDU",
+                                     "term":  "Mudu",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_congo",
+                                     "authority_code":  "CONGO",
+                                     "term":  "Congo",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_tiya",
+                                     "authority_code":  "TIYA",
+                                     "term":  "Tiya",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_kobiowu",
+                                     "authority_code":  "KOBIOWU",
+                                     "term":  "Kobiowu",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_basket",
+                                     "authority_code":  "BASKET",
+                                     "term":  "Basket",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_bowl",
+                                     "authority_code":  "BOWL",
+                                     "term":  "Bowl",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_basin",
+                                     "authority_code":  "BASIN",
+                                     "term":  "Basin",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_bunch",
+                                     "authority_code":  "BUNCH",
+                                     "term":  "Bunch",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_tuber",
+                                     "authority_code":  "TUBER",
+                                     "term":  "Tuber",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_bag",
+                                     "authority_code":  "BAG",
+                                     "term":  "Bag",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_sack",
+                                     "authority_code":  "SACK",
+                                     "term":  "Sack",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_carton",
+                                     "authority_code":  "CARTON",
+                                     "term":  "Carton",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_crate",
+                                     "authority_code":  "CRATE",
+                                     "term":  "Crate",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 },
+                                 {
+                                     "authority_type":  "SECTION12_MEASUREMENT",
+                                     "authority_ref":  "smd_jerrycan",
+                                     "authority_code":  "JERRYCAN",
+                                     "term":  "Jerrycan",
+                                     "locale":  "en-NG",
+                                     "region":  "NG",
+                                     "metadata":  {
+                                                      "authority":  "SECTION_12",
+                                                      "source_table":  "shop_measure_definitions",
+                                                      "read_only_reference":  true,
+                                                      "search_namespace":  "SHOP",
+                                                      "fractional_composition":  false
+                                                  }
+                                 }
+                             ],
+    "terms":  [
+                  {
+                      "namespace_code":  "SHOP",
+                      "node_code":  "SHOP_CATEGORY_FOODSTUFF_GARRI_CASSAVA_GARRI",
+                      "term":  "Gari",
+                      "relationship_type":  "ALIAS",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "namespace_code":  "SHOP",
+                      "node_code":  "SHOP_CATEGORY_FRESH_PRODUCE_VEGETABLES_OKRA",
+                      "term":  "Okro",
+                      "relationship_type":  "ALIAS",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG",
+                                       "regional_spelling":  true
+                                   }
+                  },
+                  {
+                      "namespace_code":  "SHOP",
+                      "node_code":  "SHOP_CATEGORY_PROTEIN_MEAT_POULTRY_PONMO",
+                      "term":  "Kpomo",
+                      "relationship_type":  "ALIAS",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG",
+                                       "contextual":  true
+                                   }
+                  },
+                  {
+                      "namespace_code":  "SHOP",
+                      "node_code":  "SHOP_CATEGORY_PROTEIN_MEAT_POULTRY_PONMO",
+                      "term":  "Kanda",
+                      "relationship_type":  "ALIAS",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG",
+                                       "contextual":  true
+                                   }
+                  },
+                  {
+                      "namespace_code":  "SHOP",
+                      "node_code":  "SHOP_CATEGORY_FOODSTUFF_BEANS_PULSES_GROUNDNUT",
+                      "term":  "Peanut",
+                      "relationship_type":  "SYNONYM",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG"
+                                   }
+                  }
+              ]
+}

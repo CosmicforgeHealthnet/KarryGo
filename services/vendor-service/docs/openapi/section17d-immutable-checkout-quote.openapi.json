@@ -1,0 +1,160 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service Section 17D Immutable Checkout Quote",
+    "version": "17D",
+    "description": "Customer-scoped immutable commercial quote creation, retrieval and approval. This surface creates no payment or order."
+  },
+  "servers": [{ "url": "/api/v1/commerce" }],
+  "security": [{ "customerBearer": [] }],
+  "paths": {
+    "/checkout/{sessionId}/quotes": {
+      "post": {
+        "operationId": "createImmutableCheckoutQuote",
+        "summary": "Create an immutable quote from current authoritative checkout and fulfilment evidence",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateQuoteRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "$ref": "#/components/responses/QuoteResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/quotes/{quoteId}": {
+      "get": {
+        "operationId": "getImmutableCheckoutQuote",
+        "summary": "Read a customer-owned historical quote without recomputation",
+        "parameters": [{ "$ref": "#/components/parameters/QuoteId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/QuoteResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/quotes/{quoteId}/approve": {
+      "post": {
+        "operationId": "approveImmutableCheckoutQuote",
+        "summary": "Approve the exact unexpired quote fingerprint",
+        "parameters": [
+          { "$ref": "#/components/parameters/QuoteId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ApproveQuoteRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/QuoteResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "customerBearer": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "parameters": {
+      "SessionId": { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
+      "QuoteId": { "name": "quoteId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
+      "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1 } }
+    },
+    "schemas": {
+      "CreateQuoteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fulfilment_plan_id"],
+        "properties": { "fulfilment_plan_id": { "type": "string", "minLength": 1 } }
+      },
+      "ApproveQuoteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["quote_fingerprint"],
+        "properties": { "quote_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+      },
+      "MoneyBreakdown": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Attributable customer, vendor, platform, delivery-subsidy and other-approved funding amounts in currency minor units."
+      },
+      "Quote": {
+        "type": "object",
+        "required": [
+          "quote_id", "quote_version", "quote_fingerprint", "cart_ref", "cart_version",
+          "customer_ref", "address_snapshot", "expires_at", "quoted_total_minor",
+          "max_authorized_total_minor", "selected_fulfilment_mode", "product_subtotal_minor",
+          "delivery_subtotal_minor", "fee_subtotal_minor", "tax_subtotal_minor",
+          "discount_total_minor", "final_payable_minor", "funding_breakdown",
+          "price_disclosure_snapshot", "vendor_branch_groups", "lines", "logistics_quotes"
+        ],
+        "properties": {
+          "quote_id": { "type": "string" },
+          "quote_version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "quote_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "checkout_session_id": { "type": "string" },
+          "checkout_validation_revision": { "type": "integer", "format": "int64" },
+          "cart_ref": { "type": "string" },
+          "cart_version": { "type": "integer", "format": "int64" },
+          "customer_ref": { "type": "string" },
+          "fulfilment_plan_ref": { "type": "string" },
+          "fulfilment_plan_revision": { "type": "integer", "format": "int64" },
+          "fulfilment_plan_version": { "type": "integer", "format": "int64" },
+          "currency": { "type": "string" },
+          "selected_fulfilment_mode": { "type": "string", "enum": ["SINGLE", "FASTEST", "BALANCED", "SAVER"] },
+          "address_snapshot": { "type": "object" },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "product_subtotal_minor": { "type": "integer", "format": "int64" },
+          "max_product_subtotal_minor": { "type": "integer", "format": "int64" },
+          "delivery_subtotal_minor": { "type": "integer", "format": "int64" },
+          "fee_subtotal_minor": { "type": "integer", "format": "int64" },
+          "tax_subtotal_minor": { "type": "integer", "format": "int64" },
+          "discount_total_minor": { "type": "integer", "format": "int64" },
+          "subsidy_total_minor": { "type": "integer", "format": "int64" },
+          "final_payable_minor": { "type": "integer", "format": "int64" },
+          "quoted_total_minor": { "type": "integer", "format": "int64" },
+          "max_authorized_total_minor": { "type": "integer", "format": "int64" },
+          "funding_breakdown": { "$ref": "#/components/schemas/MoneyBreakdown" },
+          "price_disclosure_snapshot": { "type": "object" },
+          "vendor_branch_groups": { "type": "array", "items": { "type": "object" } },
+          "lines": { "type": "array", "items": { "type": "object" } },
+          "logistics_quotes": { "type": "array", "items": { "type": "object" } },
+          "commercial_adjustments": { "type": "array", "items": { "type": "object" } },
+          "state": { "type": "string", "enum": ["QUOTED", "APPROVED", "EXPIRED"] },
+          "approved_at": { "type": "string", "format": "date-time" },
+          "expired": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "QuoteEnvelope": {
+        "type": "object",
+        "required": ["success", "data"],
+        "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/Quote" } }
+      },
+      "ErrorEnvelope": { "type": "object", "additionalProperties": true }
+    },
+    "responses": {
+      "QuoteResponse": { "description": "Immutable quote", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QuoteEnvelope" } } } },
+      "ErrorResponse": { "description": "Request refused", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+    }
+  }
+}
