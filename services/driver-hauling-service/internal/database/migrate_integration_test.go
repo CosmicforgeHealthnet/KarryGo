@@ -63,4 +63,3 @@ func TestApplyMigrationsTracksAndReplays(t *testing.T) {
 		t.Fatal("restriction authority migration was not applied")
 	}
 }
-
