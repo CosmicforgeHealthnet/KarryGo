@@ -5,79 +5,21 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  FileText,
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
   XCircle,
+  Minus,
+  X,
   AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  Trash,
-  Trash2 as TrashIcon,
-  Archive,
-  Calendar as CalendarIcon,
-  AlertTriangle as AlertTriangleIcon,
-  Info as InfoIcon,
+  Shield,
   Save,
+  Trash2,
   Undo,
-  Timer,
-  Hourglass,
-  Ban,
-  AlertOctagon as AlertOctagonIcon,
-  ShieldAlert as ShieldAlertIcon,
+  History,
+  ChevronUp,
+  ChevronDown,
+  FileCheck,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -182,16 +124,28 @@ const MOCK_RETENTION_DATA: Record<string, DocumentRetention> = {
   },
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   NotScheduled: { bg: "bg-surface-2", text: "text-ink-500", icon: <Minus className="h-4 w-4" /> },
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <ClockIcon className="h-4 w-4" /> },
+  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-4 w-4" /> },
   InProgress: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCw className="h-4 w-4" /> },
   Completed: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
   Cancelled: { bg: "bg-surface-2", text: "text-ink-500", icon: <X className="h-4 w-4" /> },
 };
 
-const EXECUTION_STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type ExecutionStatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const EXECUTION_STATUS_STYLES: Record<string, ExecutionStatusStyle> = {
   Success: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
   Cancelled: { bg: "bg-surface-2", text: "text-ink-500", icon: <X className="h-4 w-4" /> },
@@ -202,12 +156,12 @@ export default function DocumentRetentionPage() {
   const router = useRouter();
   const documentId = params.documentId as string;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<DocumentRetention | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [showHistory, setShowHistory] = useState(true);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [confirmText, setConfirmText] = useState("");
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [showHistory, setShowHistory] = useState<boolean>(true);
+  const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
+  const [confirmText, setConfirmText] = useState<string>("");
 
   useEffect(() => {
     const loadData = async () => {
@@ -237,7 +191,7 @@ export default function DocumentRetentionPage() {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
         <div className="rounded-full bg-surface-2 p-4">
-          <FileClock className="h-8 w-8 text-ink-400" />
+          <Clock className="h-8 w-8 text-ink-400" />
         </div>
         <h3 className="mt-3 text-[15px] font-semibold text-ink-950">Retention data not found</h3>
         <p className="mt-1 text-sm text-ink-500">No retention data found for this document.</p>
@@ -253,7 +207,7 @@ export default function DocumentRetentionPage() {
 
   const statusStyle = STATUS_STYLES[data.deletionStatus] || STATUS_STYLES.NotScheduled;
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -267,7 +221,7 @@ export default function DocumentRetentionPage() {
     return `${diffDay}d ago`;
   };
 
-  const formatDateTime = (date: string | null) => {
+  const formatDateTime = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleString("en-GB", {
@@ -279,7 +233,7 @@ export default function DocumentRetentionPage() {
     });
   };
 
-  const formatDate = (date: string | null) => {
+  const formatDate = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -315,6 +269,14 @@ export default function DocumentRetentionPage() {
     toast("Retention period updated (mock)");
   };
 
+  const toast = (message: string) => {
+    const t = document.createElement("div");
+    t.className = "fixed bottom-6 right-6 z-50 rounded-xl bg-ink-950 px-5 py-3 text-sm text-white shadow-xl";
+    t.textContent = message;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+  };
+
   return (
     <div className="space-y-5">
       {/* ===== HEADER ===== */}
@@ -342,7 +304,7 @@ export default function DocumentRetentionPage() {
             </span>
             {data.legalHoldActive && (
               <span className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-red-bg text-red">
-                <ShieldAlertIcon className="h-3.5 w-3.5" />
+                <AlertOctagon className="h-3.5 w-3.5" />
                 Legal Hold
               </span>
             )}
@@ -378,7 +340,7 @@ export default function DocumentRetentionPage() {
           <div className="mt-1 flex items-center gap-2">
             {data.legalHoldActive ? (
               <span className="flex items-center gap-1 text-sm font-semibold text-red">
-                <AlertOctagonIcon className="h-4 w-4" />
+                <AlertOctagon className="h-4 w-4" />
                 Active
               </span>
             ) : (
@@ -394,7 +356,7 @@ export default function DocumentRetentionPage() {
           <div className="mt-1 text-sm font-medium text-ink-950">
             {data.deletionScheduled ? (
               <span className="flex items-center gap-1 text-amber">
-                <ClockIcon className="h-4 w-4" />
+                <Clock className="h-4 w-4" />
                 {data.scheduledDeletionDate ? formatDate(data.scheduledDeletionDate) : "Pending"}
               </span>
             ) : (
@@ -412,7 +374,7 @@ export default function DocumentRetentionPage() {
         <div className="rounded-2xl border border-red/20 bg-red-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-red-bg p-2 flex-shrink-0">
-              <AlertOctagonIcon className="h-5 w-5 text-red" />
+              <AlertOctagon className="h-5 w-5 text-red" />
             </div>
             <div className="flex-1">
               <h4 className="text-sm font-semibold text-red">Deletion Blockers</h4>
@@ -438,7 +400,7 @@ export default function DocumentRetentionPage() {
               onClick={handlePlaceLegalHold}
               className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg px-4 py-2.5 text-sm font-medium text-red hover:bg-red/10 transition-colors"
             >
-              <ShieldAlertIcon className="h-4 w-4" />
+              <AlertOctagon className="h-4 w-4" />
               Place Legal Hold
             </button>
           )}
@@ -463,7 +425,7 @@ export default function DocumentRetentionPage() {
               onClick={handleScheduleDeletion}
               className="flex items-center gap-2 rounded-xl bg-red px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-red/20 hover:bg-red/90 transition-colors"
             >
-              <TrashIcon className="h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
               Schedule Deletion
             </button>
           )}
@@ -484,7 +446,7 @@ export default function DocumentRetentionPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center gap-3 text-red">
-              <AlertOctagonIcon className="h-6 w-6" />
+              <AlertOctagon className="h-6 w-6" />
               <h3 className="text-lg font-semibold">Confirm Deletion</h3>
             </div>
             <p className="mt-2 text-sm text-ink-600">
@@ -583,7 +545,7 @@ export default function DocumentRetentionPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <FileClock className="h-4 w-4" />
+          <Clock className="h-4 w-4" />
           DAT-05 · Document Retention · {data.documentReference}
         </span>
         <span className="flex items-center gap-1.5">

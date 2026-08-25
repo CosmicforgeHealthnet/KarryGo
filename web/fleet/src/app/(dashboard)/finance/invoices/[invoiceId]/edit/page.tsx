@@ -36,7 +36,6 @@ import {
   Calendar,
   Package,
   Truck,
-  CreditCard as CreditCardIcon,
   Plus,
   Trash2,
   Edit3,

@@ -8,44 +8,14 @@ import {
   Shield,
   RefreshCw,
   Clock,
-  CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  FileText,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
   AlertOctagon,
-  MoreHorizontal,
-  User,
-  Car,
-  FileCheck,
-  XCircle,
-  Flag,
-  UserCheck,
-  UserX,
-  MapPin,
-  Clock as ClockIcon,
-  Briefcase,
-  Phone,
-  Mail,
-  AlertCircle as AlertCircleIcon,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -233,13 +203,13 @@ const MOCK_INCIDENTS: Incident[] = [
 ];
 
 const TYPE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Accident: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircleIcon className="h-3.5 w-3.5" /> },
+  Accident: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   NearMiss: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   PropertyDamage: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   SafetyIncident: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-3.5 w-3.5" /> },
   SecurityIncident: { bg: "bg-purple-bg", text: "text-purple", icon: <Shield className="h-3.5 w-3.5" /> },
-  VehicleIncident: { bg: "bg-blue-bg", text: "text-blue", icon: <Car className="h-3.5 w-3.5" /> },
-  Other: { bg: "bg-surface-2", text: "text-ink-500", icon: <MoreHorizontal className="h-3.5 w-3.5" /> },
+  VehicleIncident: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+  Other: { bg: "bg-surface-2", text: "text-ink-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
 };
 
 const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
@@ -265,7 +235,7 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; i
     bg: "bg-surface-2",
     text: "text-ink-500",
     dot: "bg-ink-400",
-    icon: <Info className="h-3.5 w-3.5" />,
+    icon: <AlertCircle className="h-3.5 w-3.5" />,
   },
 };
 
@@ -379,7 +349,6 @@ export default function IncidentsPage() {
   // Stats
   const totalOpen = data.filter((d) => d.status === "Open" || d.status === "Investigating").length;
   const totalCritical = data.filter((d) => d.severity === "Critical").length;
-  const totalHigh = data.filter((d) => d.severity === "High").length;
   const totalResolved = data.filter((d) => d.status === "Resolved" || d.status === "Closed").length;
   const totalUrgent = data.filter((d) => d.priority === "Urgent").length;
 
@@ -411,10 +380,6 @@ export default function IncidentsPage() {
             <RefreshCw className="h-3 w-3" />
             {secondsAgo}s
           </button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white">
-            <Download className="h-3.5 w-3.5" />
-            Export
-          </button>
           <button
             onClick={goToCreateIncident}
             className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90"
@@ -426,7 +391,7 @@ export default function IncidentsPage() {
       </div>
 
       {/* ===== STATS ===== */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
           <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Total</div>
           <div className="text-lg font-bold text-ink-950">{data.length}</div>
@@ -438,10 +403,6 @@ export default function IncidentsPage() {
         <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
           <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Critical</div>
           <div className="text-lg font-bold text-red">{totalCritical}</div>
-        </div>
-        <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Urgent Priority</div>
-          <div className="text-lg font-bold text-red">{totalUrgent}</div>
         </div>
         <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
           <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Resolved</div>
@@ -470,7 +431,7 @@ export default function IncidentsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <Tag className="h-4 w-4 text-ink-400" />
+          <AlertCircle className="h-4 w-4 text-ink-400" />
           {selectedType}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -498,7 +459,7 @@ export default function IncidentsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <FileCheck className="h-4 w-4 text-ink-400" />
+          <AlertCircle className="h-4 w-4 text-ink-400" />
           {selectedStatus}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -578,17 +539,15 @@ export default function IncidentsPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm min-w-[1100px]">
+            <table className="w-full border-collapse text-sm min-w-[900px]">
               <thead>
                 <tr className="bg-surface-2/70">
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Incident</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Type</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Severity</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Status</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Priority</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Branch</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Age</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500"></th>
                 </tr>
               </thead>
               <tbody>
@@ -596,13 +555,12 @@ export default function IncidentsPage() {
                   const typeStyle = TYPE_STYLES[item.type] || TYPE_STYLES.Other;
                   const severityStyle = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.Medium;
                   const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Open;
-                  const priorityStyle = PRIORITY_STYLES[item.priority] || PRIORITY_STYLES.Normal;
 
                   return (
                     <tr
                       key={item.id}
                       onClick={() => goToIncidentDetail(item.id)}
-                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer group"
+                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium text-ink-950 text-xs">{item.title}</div>
@@ -626,18 +584,8 @@ export default function IncidentsPage() {
                           {item.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${priorityStyle.bg} ${priorityStyle.text}`}>
-                          {item.priority}
-                        </span>
-                      </td>
                       <td className="px-4 py-3 text-ink-600 text-xs">{item.branch}</td>
                       <td className="px-4 py-3 text-ink-500 text-xs">{formatTime(item.createdAt)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="text-ink-400 group-hover:text-primary transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}

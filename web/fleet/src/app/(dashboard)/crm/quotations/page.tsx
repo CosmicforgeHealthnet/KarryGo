@@ -24,7 +24,6 @@ import {
   MoreHorizontal,
   CalendarDays,
   Download,
-  FileText as FileTextIcon,
   Plus,
   DollarSign,
   Building2,
@@ -228,7 +227,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
     bg: "bg-blue-bg",
     text: "text-blue",
     dot: "bg-blue",
-    icon: <FileTextIcon className="h-3.5 w-3.5" />,
+    icon: <FileText className="h-3.5 w-3.5" />,
   },
   Issued: {
     bg: "bg-amber-bg",

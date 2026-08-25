@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const MOCK_VALID_CODE = "123456";
@@ -11,7 +11,7 @@ type SubmitState =
   | { status: "submitting" }
   | { status: "error"; kind: "invalid" | "expired" };
 
-export default function ReverifyPage() {
+function ReverifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -126,6 +126,14 @@ export default function ReverifyPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function ReverifyPage() {
+  return (
+    <Suspense fallback={null}>
+      <ReverifyContent />
+    </Suspense>
   );
 }
 

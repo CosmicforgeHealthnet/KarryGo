@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const MOCK_VALID_CODE = "123456";
@@ -12,7 +12,7 @@ type SubmitState =
   | { status: "submitting" }
   | { status: "error"; kind: "invalid" | "expired" | "access_denied" };
 
-export default function VerifyPage() {
+function VerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const destination = searchParams.get("destination") ?? "your contact";
@@ -121,6 +121,14 @@ export default function VerifyPage() {
         {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
       </button>
     </form>
+  );
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyContent />
+    </Suspense>
   );
 }
 

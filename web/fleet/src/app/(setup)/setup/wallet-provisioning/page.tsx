@@ -8,123 +8,9 @@ import {
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  ArrowRight,
-  ArrowLeft,
   X,
   Wallet,
-  Building2,
-  User,
-  Briefcase,
-  ShieldCheck,
-  FileText,
-  FileCheck,
-  ListChecks,
-  Check,
-  Info,
-  Tag,
-  Calendar,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  MoreHorizontal,
-  Mail,
-  Phone,
-  MapPin,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FolderOpen,
-  Lock,
-  EyeOff,
-  AlertOctagon,
-  FileSignature,
-  Folder,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
-  DownloadCloud,
-  RotateCw,
-  Undo2,
-  Redo2,
-  SkipForward,
-  SkipBack,
-  FastForward,
-  Rewind,
-  PlayCircle,
-  PauseCircle,
-  StopCircle,
-  Inbox,
-  MailOpen,
-  MailX,
-  MailCheck,
-  MailWarning,
-  Archive,
-  ArchiveRestore,
-  Trash,
-  Trash2 as TrashIcon,
-  Server,
-  Cpu,
-  Home,
-  Settings as SettingsIcon,
-  UserPlus,
-  UserMinus,
-  HelpCircle,
-  Car,
-  Truck,
-  Package as PackageIcon,
-  Warehouse,
-  Shield,
-  Users,
-  Building2 as Building2Icon,
-  MapPin as MapPinIcon,
-  HardDrive,
-  Database,
-  Cloud,
-  Ship,
-  Plane,
-  Train,
-  Bike,
-  Save,
-  CreditCard,
-  Banknote,
-  DollarSign,
-  Coins,
+  ArrowRight,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -151,7 +37,13 @@ const MOCK_WALLET_STATE: WalletProvisioningState = {
   notes: "Wallet provisioning in progress. This may take a few moments.",
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-5 w-5" /> },
   InProgress: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCw className="h-5 w-5" /> },
   Provisioned: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-5 w-5" /> },
@@ -161,10 +53,10 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
 
 export default function WalletProvisioningPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<WalletProvisioningState | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [isRetrying, setIsRetrying] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [isRetrying, setIsRetrying] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -226,7 +118,7 @@ export default function WalletProvisioningPage() {
   const isComplete = data.status === "Provisioned";
   const isFailed = data.status === "Failed";
 
-  const formatTime = (date: string | null) => {
+  const formatTime = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     const now = new Date();

@@ -29,7 +29,6 @@ import {
   Send,
   Edit3,
   XCircle,
-  CreditCard,
   Building2,
   Hash,
   Tag,
@@ -38,11 +37,9 @@ import {
   Calendar,
   Package,
   Truck,
-  CreditCard as CreditCardIcon,
   Receipt,
   ThumbsUp,
   ThumbsDown,
-  Info,
 } from "lucide-react";
 
 type ExpenseDetail = {

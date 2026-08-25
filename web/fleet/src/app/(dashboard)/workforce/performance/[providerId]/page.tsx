@@ -46,7 +46,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
 } from "recharts";
 
 type DeclineHistory = {
@@ -83,7 +82,6 @@ type MetricInput = {
   source: string;
 };
 
-// Mock data
 const MOCK_DATA = {
   providerId: "P-044",
   name: "Peter Okafor",
@@ -194,10 +192,11 @@ const MOCK_DATA = {
   ],
 };
 
-const CATEGORY_STYLES: Record<
-  DeclineHistory["reasonCategory"],
-  { bg: string; text: string; dot: string }
-> = {
+type CategoryStyles = {
+  [key: string]: { bg: string; text: string; dot: string };
+};
+
+const CATEGORY_STYLES: CategoryStyles = {
   Safety: { bg: "bg-red-50", text: "text-red-600", dot: "bg-red-500" },
   Availability: { bg: "bg-blue-50", text: "text-blue-600", dot: "bg-blue-500" },
   Operational: { bg: "bg-amber-50", text: "text-amber-600", dot: "bg-amber-500" },
@@ -214,15 +213,15 @@ export default function ProviderPerformanceDetailPage() {
   const params = useParams();
   const providerId = params.providerId as string;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<typeof MOCK_DATA | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState("This Month");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [showFilters, setShowFilters] = useState(false);
-  const [showExportDropdown, setShowExportDropdown] = useState(false);
-  const [searchDeclines, setSearchDeclines] = useState("");
-  const [showAllDeclines, setShowAllDeclines] = useState(false);
-  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("This Month");
+  const [selectedBranch, setSelectedBranch] = useState<string>("All branches");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
+  const [showExportDropdown, setShowExportDropdown] = useState<boolean>(false);
+  const [searchDeclines, setSearchDeclines] = useState<string>("");
+  const [showAllDeclines, setShowAllDeclines] = useState<boolean>(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
   const [expandedDecline, setExpandedDecline] = useState<string | null>(null);
 
   const exportRef = useRef<HTMLDivElement>(null);
@@ -305,15 +304,35 @@ export default function ProviderPerformanceDetailPage() {
     setSearchDeclines("");
   };
 
-  // Chart data for Recharts
   const chartData = data.weeklyTrend.map((item) => ({
     week: item.week,
     value: item.value,
   }));
 
+  const tooltipFormatter = (value: string | number | readonly (string | number)[] | undefined) => {
+    if (value === undefined) return ["0%", "Acceptance Rate"];
+    if (typeof value === 'string') {
+      const numValue = parseFloat(value);
+      return [isNaN(numValue) ? "0%" : `${numValue}%`, "Acceptance Rate"];
+    }
+    if (typeof value === 'number') {
+      return [`${value}%`, "Acceptance Rate"];
+    }
+    if (Array.isArray(value)) {
+      const firstVal = value[0];
+      if (typeof firstVal === 'number') {
+        return [`${firstVal}%`, "Acceptance Rate"];
+      }
+      if (typeof firstVal === 'string') {
+        const numValue = parseFloat(firstVal);
+        return [isNaN(numValue) ? "0%" : `${numValue}%`, "Acceptance Rate"];
+      }
+    }
+    return ["0%", "Acceptance Rate"];
+  };
+
   return (
     <div className="space-y-6 pb-8">
-      {/* ===== HEADER ===== */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -393,7 +412,6 @@ export default function ProviderPerformanceDetailPage() {
         </div>
       </div>
 
-      {/* ===== PERIOD SELECTOR ===== */}
       <div className="flex flex-wrap items-center gap-1 rounded-xl border border-line bg-white/70 p-1">
         {PERIODS.map((period) => (
           <button
@@ -414,7 +432,6 @@ export default function ProviderPerformanceDetailPage() {
         </div>
       </div>
 
-      {/* ===== FILTERS - SAME STYLE AS WORKFORCE PAGE ===== */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => {
@@ -458,7 +475,6 @@ export default function ProviderPerformanceDetailPage() {
         )}
       </div>
 
-      {/* ===== FILTER DRAWER - SAME STYLE AS WORKFORCE PAGE ===== */}
       {showFilters && (
         <div className="rounded-xl border border-line bg-white/70 p-3.5 shadow-sm backdrop-blur-xl">
           <div className="flex flex-wrap items-center gap-6">
@@ -490,9 +506,7 @@ export default function ProviderPerformanceDetailPage() {
         </div>
       )}
 
-      {/* ===== MAIN GRID ===== */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* ===== CHART - Using Recharts ===== */}
         <div className="lg:col-span-3">
           <div className="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -543,7 +557,7 @@ export default function ProviderPerformanceDetailPage() {
                       padding: "8px 12px",
                     }}
                     labelStyle={{ color: "#9CA3AF", fontSize: "10px" }}
-                    formatter={(value: number) => [`${value}%`, "Acceptance Rate"]}
+                    formatter={tooltipFormatter}
                     cursor={{ stroke: "#D1D5DB", strokeWidth: 1, strokeDasharray: "4 4" }}
                   />
                   <Area
@@ -585,7 +599,6 @@ export default function ProviderPerformanceDetailPage() {
           </div>
         </div>
 
-        {/* ===== CATEGORY SCORES ===== */}
         <div className="lg:col-span-2">
           <div className="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-6">
             <h3 className="text-sm font-semibold text-ink-950">
@@ -622,9 +635,7 @@ export default function ProviderPerformanceDetailPage() {
         </div>
       </div>
 
-      {/* ===== METRIC INPUTS + DECLINE HISTORY ===== */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* ===== METRIC INPUTS ===== */}
         <div className="lg:col-span-2">
           <div className="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-6">
             <div className="flex items-center justify-between">
@@ -668,7 +679,7 @@ export default function ProviderPerformanceDetailPage() {
                         <div
                           className="h-full rounded-full bg-green"
                           style={{
-                            width: `${parseInt(metric.value)}%`,
+                            width: `${parseInt(metric.value as string)}%`,
                           }}
                         />
                       </div>
@@ -688,7 +699,6 @@ export default function ProviderPerformanceDetailPage() {
           </div>
         </div>
 
-        {/* ===== DECLINE HISTORY ===== */}
         <div className="lg:col-span-3">
           <div className="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -739,7 +749,7 @@ export default function ProviderPerformanceDetailPage() {
             ) : (
               <div className="mt-4 space-y-2">
                 {displayedDeclines.map((decline) => {
-                  const style = CATEGORY_STYLES[decline.reasonCategory];
+                  const style = CATEGORY_STYLES[decline.reasonCategory] || CATEGORY_STYLES.Other;
                   const isExpanded = expandedDecline === decline.id;
                   return (
                     <div
@@ -806,7 +816,6 @@ export default function ProviderPerformanceDetailPage() {
         </div>
       </div>
 
-      {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
           <Info className="h-4 w-4" />

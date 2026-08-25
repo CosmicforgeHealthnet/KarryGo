@@ -10,40 +10,21 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
   Users,
-  Building2,
   Tag,
-  Calendar,
   Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
   MoreHorizontal,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
   Link2,
-  ExternalLink,
-  MessageCircle,
-  UserCheck,
-  UserX,
-  Clock as ClockIcon,
+  Lock,
+  Shield,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -423,7 +404,7 @@ export default function CommunicationThreadsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <MessageCircle className="h-4 w-4 text-ink-400" />
+          <MessageSquare className="h-4 w-4 text-ink-400" />
           {selectedStatus}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>

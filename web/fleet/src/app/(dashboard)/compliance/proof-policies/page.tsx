@@ -10,50 +10,17 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
   FileText,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  AlertOctagon,
-  MoreHorizontal,
-  User,
-  Car,
   FileCheck,
-  XCircle,
-  Flag,
-  UserCheck,
-  UserX,
-  MapPin,
-  Clock as ClockIcon,
-  Briefcase,
-  Phone,
-  Mail,
   FileSignature,
   FolderOpen,
-  FileSearch,
-  FileJson,
-  FileImage,
-  FileVideo,
-  Mic,
-  Link2,
-  ExternalLink,
+  MapPin,
+  Briefcase,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -265,11 +232,11 @@ const MOCK_POLICIES: ProofPolicy[] = [
 const PROOF_TYPE_ICONS: Record<string, React.ReactNode> = {
   OTP: <FileCheck className="h-3.5 w-3.5" />,
   Signature: <FileSignature className="h-3.5 w-3.5" />,
-  Photo: <FileImage className="h-3.5 w-3.5" />,
-  Scan: <FileSearch className="h-3.5 w-3.5" />,
+  Photo: <FileText className="h-3.5 w-3.5" />,
+  Scan: <FileText className="h-3.5 w-3.5" />,
   Location: <MapPin className="h-3.5 w-3.5" />,
-  Video: <FileVideo className="h-3.5 w-3.5" />,
-  Audio: <Mic className="h-3.5 w-3.5" />,
+  Video: <FileText className="h-3.5 w-3.5" />,
+  Audio: <FileText className="h-3.5 w-3.5" />,
   Document: <FolderOpen className="h-3.5 w-3.5" />,
 };
 
@@ -290,7 +257,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
     bg: "bg-surface-2",
     text: "text-ink-500",
     dot: "bg-ink-400",
-    icon: <Archive className="h-3.5 w-3.5" />,
+    icon: <Clock className="h-3.5 w-3.5" />,
   },
   Superseded: {
     bg: "bg-blue-bg",
@@ -430,10 +397,6 @@ export default function ProofPoliciesPage() {
           >
             <RefreshCw className="h-3 w-3" />
             {secondsAgo}s
-          </button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white">
-            <Download className="h-3.5 w-3.5" />
-            Export
           </button>
           <button
             onClick={goToCreatePolicy}
@@ -580,7 +543,7 @@ export default function ProofPoliciesPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm min-w-[1100px]">
+            <table className="w-full border-collapse text-sm min-w-[1000px]">
               <thead>
                 <tr className="bg-surface-2/70">
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Policy</th>
@@ -589,7 +552,6 @@ export default function ProofPoliciesPage() {
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Verification</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Version</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Branch</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500"></th>
                 </tr>
               </thead>
               <tbody>
@@ -601,7 +563,7 @@ export default function ProofPoliciesPage() {
                     <tr
                       key={item.id}
                       onClick={() => goToPolicyDetail(item.id)}
-                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer group"
+                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium text-ink-950 text-xs">{item.name}</div>
@@ -638,11 +600,6 @@ export default function ProofPoliciesPage() {
                       </td>
                       <td className="px-4 py-3 text-ink-600 text-xs font-mono">v{item.version}</td>
                       <td className="px-4 py-3 text-ink-600 text-xs">{item.branch}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="text-ink-400 group-hover:text-primary transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}

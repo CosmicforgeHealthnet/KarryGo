@@ -12,78 +12,25 @@ import {
   AlertCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
-  Users,
-  FileText,
-  Plus,
-  Building2,
   User,
   Mail,
   Phone,
-  MapPin,
-  Briefcase,
-  Tag,
   Info,
-  FileCheck,
-  Calendar,
   XCircle,
-  Activity,
-  ListChecks,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
   ClipboardList,
-  BookOpen,
-  FileSignature,
-  FolderOpen,
   ChevronDown,
   ChevronUp,
-  Download,
-  Printer,
   ExternalLink,
-  MoreHorizontal,
-  Edit3,
-  Trash2,
-  UserCheck,
-  UserX,
   Check,
-  X,
-  Flag,
-  EyeOff,
   UserCog,
   MessageSquare,
-  Paperclip,
   Link2,
-  Send,
-  Phone as PhoneIcon,
-  Car,
-  Briefcase as BriefcaseIcon,
-  AlertCircle as AlertCircleIcon,
   Shield,
-  Clock as ClockIcon2,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  UserCog as UserCogIcon,
-  FileSearch as FileSearchIcon,
-  ClipboardList as ClipboardListIcon,
-  BookOpen as BookOpenIcon,
-  ArrowUp,
-  ArrowDown,
-  Gauge,
-  Target,
-  TrendingUp,
-  TrendingDown,
-  Activity as ActivityIcon,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  AlertOctagon as AlertOctagonIcon,
-  LifeBuoy,
   Settings,
+  BellRing,
+  HelpCircle,
+  Gauge,
+  ArrowUp,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -409,15 +356,17 @@ const MOCK_ESCALATION_DATA: Record<string, EscalationDetail> = {
   },
 };
 
+// ==================== STYLES ====================
+
 const SEVERITY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Critical: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagonIcon className="h-4 w-4" /> },
+  Critical: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-4 w-4" /> },
   High: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-4 w-4" /> },
   Medium: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-4 w-4" /> },
   Low: { bg: "bg-surface-2", text: "text-ink-500", icon: <Info className="h-4 w-4" /> },
 };
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
-  Active: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertOctagonIcon className="h-4 w-4" /> },
+  Active: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertOctagon className="h-4 w-4" /> },
   Acknowledged: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <Check className="h-4 w-4" /> },
   InProgress: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <RefreshCw className="h-4 w-4" /> },
   Escalated: { bg: "bg-purple-bg", text: "text-purple", dot: "bg-purple", icon: <ArrowUp className="h-4 w-4" /> },
@@ -426,10 +375,10 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
 };
 
 const SOURCE_TYPE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Incident: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagonIcon className="h-4 w-4" /> },
+  Incident: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-4 w-4" /> },
   SafetyReport: { bg: "bg-amber-bg", text: "text-amber", icon: <Shield className="h-4 w-4" /> },
-  SupportCase: { bg: "bg-blue-bg", text: "text-blue", icon: <LifeBuoy className="h-4 w-4" /> },
-  QualityCase: { bg: "bg-purple-bg", text: "text-purple", icon: <ClipboardCheck className="h-4 w-4" /> },
+  SupportCase: { bg: "bg-blue-bg", text: "text-blue", icon: <HelpCircle className="h-4 w-4" /> },
+  QualityCase: { bg: "bg-purple-bg", text: "text-purple", icon: <ClipboardList className="h-4 w-4" /> },
   SLA: { bg: "bg-green-bg", text: "text-green", icon: <Gauge className="h-4 w-4" /> },
   Compliance: { bg: "bg-red-bg", text: "text-red", icon: <Shield className="h-4 w-4" /> },
   System: { bg: "bg-surface-2", text: "text-ink-500", icon: <Settings className="h-4 w-4" /> },
@@ -445,9 +394,11 @@ const NOTIFICATION_STATUS_STYLES: Record<string, { bg: string; text: string; ico
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
   Email: <Mail className="h-3.5 w-3.5" />,
   SMS: <Phone className="h-3.5 w-3.5" />,
-  Push: <Bell className="h-3.5 w-3.5" />,
+  Push: <BellRing className="h-3.5 w-3.5" />,
   InApp: <MessageSquare className="h-3.5 w-3.5" />,
 };
+
+// ==================== COMPONENT ====================
 
 export default function EscalationDetailPage() {
   const params = useParams();
@@ -488,7 +439,7 @@ export default function EscalationDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
         <div className="rounded-full bg-surface-2 p-4">
-          <AlertOctagonIcon className="h-8 w-8 text-ink-400" />
+          <AlertOctagon className="h-8 w-8 text-ink-400" />
         </div>
         <h3 className="mt-3 text-[15px] font-semibold text-ink-950">Escalation not found</h3>
         <p className="mt-1 text-sm text-ink-500">No escalation found with this ID.</p>
@@ -539,9 +490,9 @@ export default function EscalationDetailPage() {
       case "StatusChange":
         return <RefreshCw className="h-4 w-4 text-amber" />;
       case "Assignment":
-        return <UserCogIcon className="h-4 w-4 text-purple" />;
+        return <UserCog className="h-4 w-4 text-purple" />;
       case "Notification":
-        return <Bell className="h-4 w-4 text-blue" />;
+        return <BellRing className="h-4 w-4 text-blue" />;
       case "Acknowledgment":
         return <Check className="h-4 w-4 text-green" />;
       case "Resolution":
@@ -554,15 +505,15 @@ export default function EscalationDetailPage() {
   };
 
   const handleAcknowledge = () => {
-    toast("Escalation acknowledged (mock)");
+    console.log("Escalation acknowledged (mock)");
   };
 
   const handleResolve = () => {
-    toast("Escalation resolved (mock)");
+    console.log("Escalation resolved (mock)");
   };
 
   const handleEscalate = () => {
-    toast("Escalation escalated to next level (mock)");
+    console.log("Escalation escalated to next level (mock)");
   };
 
   return (
@@ -739,7 +690,7 @@ export default function EscalationDetailPage() {
         >
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-blue-bg p-2">
-              <Bell className="h-4 w-4 text-blue" />
+              <BellRing className="h-4 w-4 text-blue" />
             </div>
             <div>
               <span className="font-semibold text-ink-950">Notifications</span>
@@ -758,7 +709,7 @@ export default function EscalationDetailPage() {
             <div className="space-y-2">
               {data.notifications.map((notification) => {
                 const statusStyle = NOTIFICATION_STATUS_STYLES[notification.status] || NOTIFICATION_STATUS_STYLES.Sent;
-                const channelIcon = CHANNEL_ICONS[notification.channel] || <Bell className="h-3.5 w-3.5" />;
+                const channelIcon = CHANNEL_ICONS[notification.channel] || <BellRing className="h-3.5 w-3.5" />;
 
                 return (
                   <div
@@ -879,7 +830,7 @@ export default function EscalationDetailPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <AlertOctagonIcon className="h-4 w-4" />
+          <AlertOctagon className="h-4 w-4" />
           COM-10 · Escalation Detail · {data.reference}
         </span>
         <span className="flex items-center gap-1.5">

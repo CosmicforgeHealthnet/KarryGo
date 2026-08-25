@@ -5,70 +5,31 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ClipboardCheck,
   RefreshCw,
   Clock,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
-  Users,
-  FileText,
-  Plus,
-  Building2,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Tag,
   Info,
-  FileCheck,
-  Calendar,
   XCircle,
-  Activity,
-  ListChecks,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
   ClipboardList,
-  BookOpen,
-  FileSignature,
-  FolderOpen,
   ChevronDown,
   ChevronUp,
   Download,
-  Printer,
   ExternalLink,
   MoreHorizontal,
   Edit3,
-  Trash2,
-  UserCheck,
-  UserX,
-  AlertOctagon,
   Check,
-  X,
   Flag,
-  EyeOff,
   UserCog,
   MessageSquare,
   Paperclip,
-  Link2,
-  Send,
-  Phone as PhoneIcon,
-  Car,
-  Briefcase as BriefcaseIcon,
-  AlertCircle as AlertCircleIcon,
+  AlertOctagon,
   Shield,
-  Clock as ClockIcon2,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  UserCog as UserCogIcon,
-  FileSearch as FileSearchIcon,
-  ClipboardList as ClipboardListIcon,
-  BookOpen as BookOpenIcon,
+  Plus,
+  FileText,
+  ClipboardCheck,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -355,9 +316,11 @@ const MOCK_QUALITY_CASE_DATA: Record<string, QualityCaseDetail> = {
   },
 };
 
+// ==================== STYLES ====================
+
 const CATEGORY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   Complaint: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-4 w-4" /> },
-  NonConformance: { bg: "bg-purple-bg", text: "text-purple", icon: <XCircleIcon className="h-4 w-4" /> },
+  NonConformance: { bg: "bg-purple-bg", text: "text-purple", icon: <XCircle className="h-4 w-4" /> },
   ProcessFailure: { bg: "bg-amber-bg", text: "text-amber", icon: <RefreshCw className="h-4 w-4" /> },
   ServiceFailure: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertTriangle className="h-4 w-4" /> },
   CustomerExperience: { bg: "bg-green-bg", text: "text-green", icon: <User className="h-4 w-4" /> },
@@ -374,16 +337,16 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; icon: React.Re
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
   Open: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertCircle className="h-4 w-4" /> },
-  Investigating: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <FileSearchIcon className="h-4 w-4" /> },
-  UnderReview: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <ClipboardListIcon className="h-4 w-4" /> },
+  Investigating: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <FileText className="h-4 w-4" /> },
+  UnderReview: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <ClipboardList className="h-4 w-4" /> },
   Resolved: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: <CheckCircle2 className="h-4 w-4" /> },
-  Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <XCircleIcon className="h-4 w-4" /> },
+  Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <XCircle className="h-4 w-4" /> },
 };
 
 const ROOT_CAUSE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   Unknown: { bg: "bg-surface-2", text: "text-ink-500", icon: <Info className="h-4 w-4" /> },
   Identified: { bg: "bg-amber-bg", text: "text-amber", icon: <Flag className="h-4 w-4" /> },
-  Confirmed: { bg: "bg-blue-bg", text: "text-blue", icon: <CheckCircleIcon className="h-4 w-4" /> },
+  Confirmed: { bg: "bg-blue-bg", text: "text-blue", icon: <Check className="h-4 w-4" /> },
   Resolved: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
 };
 
@@ -393,6 +356,8 @@ const ACTION_STATUS_STYLES: Record<string, { bg: string; text: string; dot: stri
   Completed: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
   Verified: { bg: "bg-purple-bg", text: "text-purple", dot: "bg-purple" },
 };
+
+// ==================== COMPONENT ====================
 
 export default function QualityCaseDetailPage() {
   const params = useParams();
@@ -493,7 +458,7 @@ export default function QualityCaseDetailPage() {
       case "StatusChange":
         return <RefreshCw className="h-4 w-4 text-amber" />;
       case "Assignment":
-        return <UserCogIcon className="h-4 w-4 text-purple" />;
+        return <UserCog className="h-4 w-4 text-purple" />;
       case "Note":
         return <MessageSquare className="h-4 w-4 text-blue" />;
       case "Evidence":
@@ -563,7 +528,7 @@ export default function QualityCaseDetailPage() {
             Edit
           </button>
           <button className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90">
-            <ClipboardListIcon className="h-3.5 w-3.5" />
+            <ClipboardList className="h-3.5 w-3.5" />
             Create Action
           </button>
         </div>
@@ -624,7 +589,7 @@ export default function QualityCaseDetailPage() {
           >
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-blue-bg p-2">
-                <FileSearchIcon className="h-4 w-4 text-blue" />
+                <FileText className="h-4 w-4 text-blue" />
               </div>
               <div>
                 <span className="font-semibold text-ink-950">Investigation</span>
@@ -695,7 +660,7 @@ export default function QualityCaseDetailPage() {
           >
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-green-bg p-2">
-                <ClipboardListIcon className="h-4 w-4 text-green" />
+                <ClipboardList className="h-4 w-4 text-green" />
               </div>
               <div>
                 <span className="font-semibold text-ink-950">Corrective Actions</span>

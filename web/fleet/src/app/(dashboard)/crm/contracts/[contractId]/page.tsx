@@ -7,53 +7,21 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   FileCheck,
-  TrendingUp,
-  TrendingDown,
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  Eye,
   ArrowRight,
-  Sparkles,
   Users,
-  MapPin,
-  Briefcase,
   CalendarDays,
-  MoreHorizontal,
   Download,
   FileText,
-  Printer,
   User,
-  DollarSign,
-  Send,
   Edit3,
   XCircle,
-  CreditCard,
-  Building2,
-  Hash,
-  Tag,
   Mail,
   Phone,
   Calendar,
-  Package,
-  Truck,
-  CreditCard as CreditCardIcon,
-  Receipt,
-  ThumbsUp,
-  ThumbsDown,
-  Info,
-  FileCheck as FileCheckIcon,
-  HandCoins,
-  Link2,
-  Copy,
-  Check,
-  FileText as FileTextIcon,
-  Calendar as CalendarIcon,
-  Shield,
-  Award,
-  FileSignature,
-  PenTool,
+  Plus,
 } from "lucide-react";
 
 type ContractDetail = {
@@ -161,7 +129,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
     bg: "bg-blue-bg",
     text: "text-blue",
     dot: "bg-blue",
-    icon: <FileTextIcon className="h-4 w-4" />,
+    icon: <FileText className="h-4 w-4" />,
   },
   Active: {
     bg: "bg-green-bg",
@@ -185,7 +153,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
     bg: "bg-amber-bg",
     text: "text-amber",
     dot: "bg-amber",
-    icon: <CalendarIcon className="h-4 w-4" />,
+    icon: <Calendar className="h-4 w-4" />,
   },
 };
 
@@ -252,7 +220,6 @@ export default function ContractDetailPage() {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(data.amount);
-  const isActive = data.status === "Active";
   const isEditable = data.status === "Draft";
   const isTerminated = data.status === "Terminated";
 
@@ -500,7 +467,7 @@ export default function ContractDetailPage() {
               {data.documents.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between rounded-lg border border-line p-2.5 transition hover:bg-surface-2">
                   <div className="flex items-center gap-2">
-                    <FileTextIcon className="h-4 w-4 text-ink-400" />
+                    <FileText className="h-4 w-4 text-ink-400" />
                     <div>
                       <div className="text-sm font-medium text-ink-950">{doc.name}</div>
                       <div className="text-xs text-ink-500">{doc.type} · {doc.uploadedBy}</div>
@@ -574,7 +541,7 @@ export default function ContractDetailPage() {
                   className="flex w-full items-center justify-between rounded-xl border border-line bg-white/70 px-4 py-2.5 text-[12.5px] font-medium text-ink-700 transition hover:bg-white"
                 >
                   <span className="flex items-center gap-2">
-                    <FileTextIcon className="h-4 w-4" />
+                    <FileText className="h-4 w-4" />
                     View Quotation
                   </span>
                   <ArrowRight className="h-4 w-4 text-ink-400" />
@@ -586,7 +553,7 @@ export default function ContractDetailPage() {
                   className="flex w-full items-center justify-between rounded-xl border border-line bg-white/70 px-4 py-2.5 text-[12.5px] font-medium text-ink-700 transition hover:bg-white"
                 >
                   <span className="flex items-center gap-2">
-                    <FileCheckIcon className="h-4 w-4" />
+                    <FileCheck className="h-4 w-4" />
                     View SLA
                   </span>
                   <ArrowRight className="h-4 w-4 text-ink-400" />

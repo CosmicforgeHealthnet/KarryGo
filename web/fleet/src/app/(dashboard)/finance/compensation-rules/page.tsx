@@ -9,6 +9,7 @@ import {
   Search,
   RefreshCw,
   Filter,
+  Archive,
   SlidersHorizontal,
   X,
   ChevronDown,

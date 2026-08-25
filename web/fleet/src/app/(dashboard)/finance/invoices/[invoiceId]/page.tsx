@@ -38,7 +38,6 @@ import {
   Calendar,
   Package,
   Truck,
-  CreditCard as CreditCardIcon,
 } from "lucide-react";
 
 type InvoiceDetail = {
@@ -547,7 +546,7 @@ export default function InvoiceDetailPage() {
                 className="flex w-full items-center justify-between rounded-xl border border-line bg-white/70 px-4 py-2.5 text-[12.5px] font-medium text-ink-700 transition hover:bg-white"
               >
                 <span className="flex items-center gap-2">
-                  <CreditCardIcon className="h-4 w-4" />
+                  <CreditCard className="h-4 w-4" />
                   View Receivables
                 </span>
                 <ArrowRight className="h-4 w-4 text-ink-400" />

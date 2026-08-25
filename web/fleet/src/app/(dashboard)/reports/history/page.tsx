@@ -5,171 +5,19 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  History,
   RefreshCw,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
+  Download,
   Search,
-  Filter,
+  FileText,
+  ChevronDown,
+  CheckCircle2,
   SlidersHorizontal,
   X,
-  ChevronDown,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FileText,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
+  History,
+  Clock,
   XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FilePdf as FilePdfIcon,
-  FileJson as FileJsonIcon,
-  FileCsv,
-  FileXml,
-  FileSpreadsheet as FileSpreadsheetIcon2,
-  FileJson as FileJsonIcon2,
-  FilePdf as FilePdfIcon2,
-  FileCsv as FileCsvIcon,
-  FileXml as FileXmlIcon,
-  FileText as FileTextIcon2,
-  File as FileIcon,
-  FileArchive as FileArchiveIcon,
-  FileImage as FileImageIcon,
-  FileJson as FileJsonIcon3,
-  FilePdf as FilePdfIcon3,
-  FileSpreadsheet as FileSpreadsheetIcon3,
-  FolderOpen as FolderOpenIcon,
-  Shield as ShieldIcon,
-  Lock as LockIcon,
-  EyeOff as EyeOffIcon,
-  AlertOctagon as AlertOctagonIcon,
-  FileCheck as FileCheckIcon,
-  FileSignature as FileSignatureIcon,
-  Folder as FolderIcon,
-  HardDrive as HardDriveIcon,
-  Database as DatabaseIcon,
-  Cloud as CloudIcon,
-  GitBranch as GitBranchIcon,
-  FileUser as FileUserIcon,
-  FileKey as FileKeyIcon,
-  FileClock as FileClockIcon,
-  FileX as FileXIcon,
-  FileMinus as FileMinusIcon,
-  FilePlus as FilePlusIcon,
-  FileCog as FileCogIcon,
-  FileCheck2 as FileCheck2Icon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  Gauge as GaugeIcon,
-  Target as TargetIcon,
-  Activity as ActivityIcon,
-  BarChart as BarChartIcon,
-  LineChart as LineChartIcon,
-  PieChart as PieChartIcon,
-  Percent as PercentIcon,
-  Timer as TimerIcon,
-  Award as AwardIcon,
-  Sparkles as SparklesIcon,
-  Globe as GlobeIcon,
-  FilterX as FilterXIcon,
-  LayoutGrid as LayoutGridIcon,
-  LayoutList as LayoutListIcon,
-  Sliders as SlidersIcon,
-  ArrowUp as ArrowUpIcon,
-  ArrowDown as ArrowDownIcon,
-  Zap as ZapIcon,
-  Flame as FlameIcon,
-  Medal as MedalIcon,
-  Star as StarIcon,
-  BookOpen as BookOpenIcon,
-  Book as BookIcon,
-  FileText as FileTextIcon3,
-  FileSpreadsheet as FileSpreadsheetIcon4,
-  FilePdf as FilePdfIcon4,
-  FileJson as FileJsonIcon4,
-  FileCsv as FileCsvIcon2,
-  FileXml as FileXmlIcon2,
   DownloadCloud,
-  FileSpreadsheet as FileSpreadsheetIcon5,
-  FileJson as FileJsonIcon5,
-  FileCsv as FileCsvIcon3,
-  FileXml as FileXmlIcon3,
-  FilePdf as FilePdfIcon5,
-  History as HistoryIcon,
+  Eye,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -360,24 +208,36 @@ const MOCK_HISTORY: HistoryItem[] = [
   },
 ];
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   Completed: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-3.5 w-3.5" /> },
-  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <ClockIcon className="h-3.5 w-3.5" /> },
+  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-3.5 w-3.5" /> },
   Generating: { bg: "bg-amber-bg", text: "text-amber", icon: <RefreshCw className="h-3.5 w-3.5" /> },
 };
 
-const TYPE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type TypeStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const TYPE_STYLES: Record<string, TypeStyle> = {
   Report: { bg: "bg-blue-bg", text: "text-blue", icon: <FileText className="h-3.5 w-3.5" /> },
   Export: { bg: "bg-purple-bg", text: "text-purple", icon: <DownloadCloud className="h-3.5 w-3.5" /> },
 };
 
 const FORMAT_ICONS: Record<string, React.ReactNode> = {
-  PDF: <FilePdfIcon className="h-3.5 w-3.5 text-red" />,
-  Excel: <FileSpreadsheetIcon className="h-3.5 w-3.5 text-green" />,
-  CSV: <FileCsvIcon className="h-3.5 w-3.5 text-blue" />,
-  JSON: <FileJsonIcon className="h-3.5 w-3.5 text-amber" />,
-  HTML: <FileTextIcon className="h-3.5 w-3.5 text-purple" />,
+  PDF: <FileText className="h-3.5 w-3.5 text-red" />,
+  Excel: <FileText className="h-3.5 w-3.5 text-green" />,
+  CSV: <FileText className="h-3.5 w-3.5 text-blue" />,
+  JSON: <FileText className="h-3.5 w-3.5 text-amber" />,
+  HTML: <FileText className="h-3.5 w-3.5 text-purple" />,
 };
 
 const TYPE_FILTERS = ["All", "Report", "Export"];
@@ -386,14 +246,14 @@ const BRANCH_FILTERS = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
 
 export default function ReportHistoryPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<HistoryItem[]>([]);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [search, setSearch] = useState("");
-  const [selectedType, setSelectedType] = useState("All");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [showFilters, setShowFilters] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [search, setSearch] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<string>("All");
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
+  const [selectedBranch, setSelectedBranch] = useState<string>("All branches");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -451,7 +311,7 @@ export default function ReportHistoryPage() {
     (selectedStatus !== "All" ? 1 : 0) +
     (selectedBranch !== "All branches" ? 1 : 0);
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -465,7 +325,7 @@ export default function ReportHistoryPage() {
     return `${diffDay}d ago`;
   };
 
-  const formatDate = (date: string | null) => {
+  const formatDate = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -611,7 +471,7 @@ export default function ReportHistoryPage() {
       {filteredData.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
           <div className="rounded-full bg-surface-2 p-4">
-            <HistoryIcon className="h-8 w-8 text-ink-400" />
+            <History className="h-8 w-8 text-ink-400" />
           </div>
           <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No history found</h3>
           <p className="mt-1 text-sm text-ink-500">No history items match your current filters.</p>
@@ -699,7 +559,7 @@ export default function ReportHistoryPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <HistoryIcon className="h-4 w-4" />
+          <History className="h-4 w-4" />
           RPT-08 · Report/Export History
         </span>
         <span className="flex items-center gap-1.5">
@@ -709,4 +569,8 @@ export default function ReportHistoryPage() {
       </div>
     </div>
   );
+}
+
+function toast(message: string) {
+  console.log(message);
 }

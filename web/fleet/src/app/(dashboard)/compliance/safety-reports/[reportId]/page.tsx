@@ -8,56 +8,26 @@ import {
   Shield,
   RefreshCw,
   Clock,
-  CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
-  Users,
   FileText,
   Plus,
-  Building2,
   User,
-  Mail,
-  Phone,
   MapPin,
-  Briefcase,
-  Tag,
-  Info,
-  FileCheck,
-  Calendar,
-  XCircle,
-  Activity,
-  ListChecks,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
   ClipboardList,
-  BookOpen,
-  FileSignature,
-  FolderOpen,
-  ChevronDown,
-  ChevronUp,
+  FileSearch,
   Download,
-  Printer,
   ExternalLink,
-  MoreHorizontal,
   Edit3,
-  Trash2,
-  UserCheck,
-  UserX,
   AlertOctagon,
-  Check,
-  X,
   Flag,
   EyeOff,
   UserCog,
   MessageSquare,
   Paperclip,
-  Link2,
   Send,
-  Phone as PhoneIcon,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -323,7 +293,7 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; i
     bg: "bg-surface-2",
     text: "text-ink-500",
     dot: "bg-ink-400",
-    icon: <Info className="h-3.5 w-3.5" />,
+    icon: <AlertCircle className="h-3.5 w-3.5" />,
   },
 };
 
@@ -429,23 +399,6 @@ export default function SafetyReportDetailPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "Open":
-        return <AlertCircle className="h-4 w-4" />;
-      case "UnderReview":
-        return <Eye className="h-4 w-4" />;
-      case "Assigned":
-        return <UserCog className="h-4 w-4" />;
-      case "Resolved":
-        return <CheckCircle2 className="h-4 w-4" />;
-      case "Closed":
-        return <Check className="h-4 w-4" />;
-      default:
-        return <Info className="h-4 w-4" />;
-    }
   };
 
   return (

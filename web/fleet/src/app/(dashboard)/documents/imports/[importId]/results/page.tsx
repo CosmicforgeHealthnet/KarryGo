@@ -5,116 +5,21 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowRight,
   RefreshCw,
   Clock,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
   ArrowLeft,
   Search,
   Filter,
-  SlidersHorizontal,
   X,
   ChevronDown,
-  Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
   Edit3,
-  Trash2,
   Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FileText,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
   XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  UploadCloud,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FileJson as FileJsonIcon,
-  FileCsv,
-  FileXml,
-  FileText as FileTextIcon2,
-  AlertCircle as AlertCircleIcon,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  AlertTriangle as AlertTriangleIcon,
-  RefreshCw as RefreshCwIcon,
-  Info as InfoIcon,
-  Table,
-  Columns,
-  Split,
-  Merge,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Type,
-  Hash,
-  Calendar as CalendarIcon,
-  DollarSign,
-  Percent,
-  Link,
-  Unlink,
-  Play,
-  Save,
-  FileSpreadsheet as FileSpreadsheetIcon2,
-  FileCog as FileCogIcon2,
   RotateCw,
-  Undo2,
-  Redo2,
-  FileCheck as FileCheckIcon2,
-  FileX as FileXIcon2,
-  FileMinus as FileMinusIcon2,
-  FilePlus as FilePlusIcon2,
-  FileCog as FileCogIcon3,
-  FileCheck2 as FileCheck2Icon2,
-  AlertCircle as AlertCircleIcon2,
-  CheckCircle as CheckCircleIcon2,
-  XCircle as XCircleIcon2,
-  AlertTriangle as AlertTriangleIcon2,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -298,7 +203,21 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
 const COMMIT_STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   Success: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-3.5 w-3.5" /> },
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <ClockIcon className="h-3.5 w-3.5" /> },
+  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-3.5 w-3.5" /> },
+};
+
+// ===== SIMPLE TOAST FUNCTION =====
+const toast = (message: string) => {
+  if (typeof window !== "undefined") {
+    const toastEl = document.createElement("div");
+    toastEl.className = "fixed bottom-4 right-4 bg-ink-950 text-white px-4 py-2 rounded-xl text-sm shadow-lg z-50 animate-in slide-in-from-bottom-5";
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => toastEl.remove(), 300);
+    }, 3000);
+  }
 };
 
 export default function ImportResultsPage() {
@@ -341,7 +260,7 @@ export default function ImportResultsPage() {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
         <div className="rounded-full bg-surface-2 p-4">
-          <FileCheck2 className="h-8 w-8 text-ink-400" />
+          <CheckCircle2 className="h-8 w-8 text-ink-400" />
         </div>
         <h3 className="mt-3 text-[15px] font-semibold text-ink-950">Results not found</h3>
         <p className="mt-1 text-sm text-ink-500">No results found for this import.</p>
@@ -547,7 +466,7 @@ export default function ImportResultsPage() {
       {filteredResults.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
           <div className="rounded-full bg-surface-2 p-4">
-            <FileCheck2 className="h-8 w-8 text-ink-400" />
+            <CheckCircle2 className="h-8 w-8 text-ink-400" />
           </div>
           <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No results match your filters</h3>
           <p className="mt-1 text-sm text-ink-500">Try adjusting your filters.</p>
@@ -646,7 +565,7 @@ export default function ImportResultsPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <FileCheck2 className="h-4 w-4" />
+          <CheckCircle2 className="h-4 w-4" />
           DAT-10 · Import Row Results · {data.importReference}
         </span>
         <span className="flex items-center gap-1.5">

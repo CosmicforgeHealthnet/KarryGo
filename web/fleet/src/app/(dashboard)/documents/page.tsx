@@ -41,18 +41,10 @@ import {
   Link2,
   ExternalLink,
   File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
   FolderOpen,
   Shield,
   Lock,
   EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
   AlertOctagon,
   FileCheck,
   FileSignature,
@@ -308,10 +300,10 @@ const MOCK_DOCUMENTS: Document[] = [
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   PDF: <File className="h-3.5 w-3.5" />,
-  Image: <FileImage className="h-3.5 w-3.5" />,
-  Spreadsheet: <FileSpreadsheet className="h-3.5 w-3.5" />,
-  Document: <FileTextIcon className="h-3.5 w-3.5" />,
-  Archive: <FileArchive className="h-3.5 w-3.5" />,
+  Image: <File className="h-3.5 w-3.5" />,
+  Spreadsheet: <File className="h-3.5 w-3.5" />,
+  Document: <FileText className="h-3.5 w-3.5" />,
+  Archive: <File className="h-3.5 w-3.5" />,
   Other: <File className="h-3.5 w-3.5" />,
 };
 
@@ -319,15 +311,15 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
   Uploaded: { bg: "bg-primary-bg", text: "text-primary", dot: "bg-primary", icon: <Cloud className="h-3.5 w-3.5" /> },
   Scanning: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <RefreshCw className="h-3.5 w-3.5" /> },
   Verified: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  Rejected: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <XCircle className="h-3.5 w-3.5" /> },
-  Expired: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <ClockIcon className="h-3.5 w-3.5" /> },
+  Rejected: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+  Expired: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <Clock className="h-3.5 w-3.5" /> },
   Archived: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <Folder className="h-3.5 w-3.5" /> },
 };
 
 const VERIFICATION_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <ClockIcon className="h-3.5 w-3.5" /> },
+  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-3.5 w-3.5" /> },
   Verified: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  Rejected: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-3.5 w-3.5" /> },
+  Rejected: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   NotRequired: { bg: "bg-surface-2", text: "text-ink-500", icon: <Minus className="h-3.5 w-3.5" /> },
 };
 
@@ -421,8 +413,8 @@ export default function DocumentLibraryPage() {
       {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1>Document Library</h1>
-          <p className="mt-1.5">
+          <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">Document Library</h1>
+          <p className="mt-1.5 text-sm text-ink-600">
             Document type, owner/subject, status, visibility, verification, retention, expiry and latest version.
           </p>
         </div>
@@ -473,7 +465,7 @@ export default function DocumentLibraryPage() {
         <div className="rounded-lg border border-line bg-white p-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-bg text-red">
-              <XCircle className="h-[18px] w-[18px]" />
+              <AlertCircle className="h-[18px] w-[18px]" />
             </div>
             <span className="text-xs font-semibold text-ink-600">Expired</span>
           </div>

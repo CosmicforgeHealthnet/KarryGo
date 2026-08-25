@@ -11,56 +11,24 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
   Users,
   FileText,
   Plus,
-  Building2,
   User,
-  Mail,
-  Phone,
   MapPin,
-  Briefcase,
-  Tag,
   Info,
-  FileCheck,
-  Calendar,
-  XCircle,
-  Activity,
-  ListChecks,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
-  ClipboardList,
-  BookOpen,
-  FileSignature,
-  FolderOpen,
   ChevronDown,
   ChevronUp,
   Download,
-  Printer,
-  ExternalLink,
   MoreHorizontal,
   Edit3,
-  Trash2,
-  UserCheck,
-  UserX,
   AlertOctagon,
-  Check,
-  X,
-  Flag,
-  EyeOff,
   UserCog,
   MessageSquare,
   Paperclip,
-  Link2,
-  Send,
-  Phone as PhoneIcon,
   Car,
-  Briefcase as BriefcaseIcon,
-  AlertCircle as AlertCircleIcon,
+  Briefcase,
+  ClipboardList,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -464,7 +432,7 @@ const MOCK_INCIDENT_DATA: Record<string, IncidentDetail> = {
 };
 
 const TYPE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Accident: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircleIcon className="h-4 w-4" /> },
+  Accident: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-4 w-4" /> },
   NearMiss: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-4 w-4" /> },
   PropertyDamage: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-4 w-4" /> },
   SafetyIncident: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-4 w-4" /> },
@@ -727,7 +695,7 @@ export default function IncidentDetailPage() {
         <div className="rounded-xl border border-line bg-white p-4 shadow-sm">
           <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Investigation</div>
           <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-ink-950">
-            <FileSearch className="h-4 w-4 text-ink-400" />
+            <FileText className="h-4 w-4 text-ink-400" />
             {data.investigation?.status || "Not started"}
           </div>
           {data.investigation?.lead && (
@@ -832,7 +800,7 @@ export default function IncidentDetailPage() {
                       <div key={trip.id} className="rounded-lg border border-line p-2.5">
                         <div className="flex items-center gap-2">
                           <div className="rounded-full bg-green-bg p-1.5">
-                            <BriefcaseIcon className="h-3.5 w-3.5 text-green" />
+                            <Briefcase className="h-3.5 w-3.5 text-green" />
                           </div>
                           <div>
                             <div className="text-xs font-medium text-ink-950 font-mono">{trip.reference}</div>

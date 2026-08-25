@@ -5,76 +5,18 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  FileText,
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
   XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
+  Minus,
+  Edit3,
+  ExternalLink,
   History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  UserCheck,
-  UserX,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
-  ClipboardList,
-  BookOpen,
-  FileSignature as FileSignatureIcon,
-  Verified,
+  ChevronUp,
+  ChevronDown,
+  FileCheck,
+  Info,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -205,14 +147,26 @@ const MOCK_VERIFICATION_DATA: Record<string, DocumentVerification> = {
   },
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <ClockIcon className="h-4 w-4" /> },
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
+  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-4 w-4" /> },
   Verified: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Rejected: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
   NotRequired: { bg: "bg-surface-2", text: "text-ink-500", icon: <Minus className="h-4 w-4" /> },
 };
 
-const RECOMMENDED_ACTION_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type RecommendedActionStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const RECOMMENDED_ACTION_STYLES: Record<string, RecommendedActionStyle> = {
   Verify: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Reject: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
   RequestChanges: { bg: "bg-amber-bg", text: "text-amber", icon: <Edit3 className="h-4 w-4" /> },
@@ -225,12 +179,12 @@ export default function DocumentVerificationPage() {
   const router = useRouter();
   const documentId = params.documentId as string;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<DocumentVerification | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [verificationNotes, setVerificationNotes] = useState("");
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [verificationNotes, setVerificationNotes] = useState<string>("");
   const [verificationAction, setVerificationAction] = useState<"verify" | "reject" | null>(null);
-  const [showHistory, setShowHistory] = useState(true);
+  const [showHistory, setShowHistory] = useState<boolean>(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -277,7 +231,7 @@ export default function DocumentVerificationPage() {
   const statusStyle = STATUS_STYLES[data.currentVerificationStatus] || STATUS_STYLES.Pending;
   const recommendedStyle = RECOMMENDED_ACTION_STYLES[data.recommendedAction] || RECOMMENDED_ACTION_STYLES.NoAction;
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -291,7 +245,7 @@ export default function DocumentVerificationPage() {
     return `${diffDay}d ago`;
   };
 
-  const formatDateTime = (date: string | null) => {
+  const formatDateTime = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleString("en-GB", {
@@ -305,7 +259,7 @@ export default function DocumentVerificationPage() {
 
   const getActionIcon = (action: string) => {
     switch (action) {
-      case "Requested": return <ClockIcon className="h-4 w-4 text-amber" />;
+      case "Requested": return <Clock className="h-4 w-4 text-amber" />;
       case "Verified": return <CheckCircle2 className="h-4 w-4 text-green" />;
       case "Rejected": return <XCircle className="h-4 w-4 text-red" />;
       case "Reopened": return <RefreshCw className="h-4 w-4 text-blue" />;
@@ -335,6 +289,14 @@ export default function DocumentVerificationPage() {
 
   const handleRequestChanges = () => {
     toast("Changes requested (mock)");
+  };
+
+  const toast = (message: string) => {
+    const t = document.createElement("div");
+    t.className = "fixed bottom-6 right-6 z-50 rounded-xl bg-ink-950 px-5 py-3 text-sm text-white shadow-xl";
+    t.textContent = message;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
   };
 
   return (
@@ -426,7 +388,7 @@ export default function DocumentVerificationPage() {
         <div className="rounded-2xl border border-amber/20 bg-amber-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-amber-bg p-2 flex-shrink-0">
-              <ClockIcon className="h-5 w-5 text-amber" />
+              <Clock className="h-5 w-5 text-amber" />
             </div>
             <div className="flex-1">
               <h4 className="text-sm font-semibold text-amber">Pending Verification Requests</h4>

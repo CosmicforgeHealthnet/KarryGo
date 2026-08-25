@@ -9,45 +9,19 @@ import {
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  FileText,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
   ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  AlertOctagon,
-  MoreHorizontal,
-  User,
-  Car,
   FileCheck,
   XCircle,
   Flag,
-  UserCheck,
-  UserX,
-  MapPin,
-  Clock as ClockIcon,
-  Briefcase,
-  Phone,
-  Mail,
   ClipboardList,
   Link2,
-  ExternalLink,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -279,7 +253,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
     bg: "bg-purple-bg",
     text: "text-purple",
     dot: "bg-purple",
-    icon: <ShieldCheck className="h-3.5 w-3.5" />,
+    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
   },
   Cancelled: {
     bg: "bg-surface-2",
@@ -551,7 +525,8 @@ export default function CorrectiveActionsPage() {
                 ))}
               </div>
             </div>
-            <button              onClick={clearFilters}
+            <button
+              onClick={clearFilters}
               className="rounded-lg border border-line px-3.5 py-1.5 text-[11px] font-medium text-ink-600 hover:bg-white transition-colors"
             >
               Clear all

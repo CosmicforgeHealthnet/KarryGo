@@ -5,69 +5,32 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  LifeBuoy,
   RefreshCw,
   Clock,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
   Users,
-  FileText,
-  Plus,
-  Building2,
   User,
   Mail,
   Phone,
-  MapPin,
-  Briefcase,
   Tag,
   Info,
-  FileCheck,
-  Calendar,
   XCircle,
-  Activity,
-  ListChecks,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
-  ClipboardList,
-  BookOpen,
-  FileSignature,
-  FolderOpen,
   ChevronDown,
   ChevronUp,
-  Download,
-  Printer,
   ExternalLink,
   MoreHorizontal,
   Edit3,
-  Trash2,
-  UserCheck,
-  UserX,
   AlertOctagon,
-  Check,
-  X,
-  Flag,
-  EyeOff,
   UserCog,
   MessageSquare,
   Paperclip,
   Link2,
   Send,
-  Phone as PhoneIcon,
-  Car,
-  Briefcase as BriefcaseIcon,
-  AlertCircle as AlertCircleIcon,
-  Ticket,
-  HelpCircle,
   Shield,
-  Clock as ClockIcon2,
-  CheckCircle,
-  XCircle as XCircleIcon,
-  UserCog as UserCogIcon,
+  HelpCircle,
+  Lock,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -352,11 +315,11 @@ const MOCK_CASE_DATA: Record<string, SupportCaseDetail> = {
 
 const CATEGORY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   Technical: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-4 w-4" /> },
-  Operational: { bg: "bg-amber-bg", text: "text-amber", icon: <Briefcase className="h-4 w-4" /> },
+  Operational: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertCircle className="h-4 w-4" /> },
   Billing: { bg: "bg-green-bg", text: "text-green", icon: <Tag className="h-4 w-4" /> },
   Provider: { bg: "bg-purple-bg", text: "text-purple", icon: <Users className="h-4 w-4" /> },
   Customer: { bg: "bg-red-bg", text: "text-red", icon: <User className="h-4 w-4" /> },
-  Fleet: { bg: "bg-amber-bg", text: "text-amber", icon: <Car className="h-4 w-4" /> },
+  Fleet: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertCircle className="h-4 w-4" /> },
   Compliance: { bg: "bg-red-bg", text: "text-red", icon: <Shield className="h-4 w-4" /> },
   Other: { bg: "bg-surface-2", text: "text-ink-500", icon: <MoreHorizontal className="h-4 w-4" /> },
 };
@@ -372,10 +335,12 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
   Open: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertCircle className="h-4 w-4" /> },
   InProgress: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <RefreshCw className="h-4 w-4" /> },
   Escalated: { bg: "bg-purple-bg", text: "text-purple", dot: "bg-purple", icon: <AlertOctagon className="h-4 w-4" /> },
-  AwaitingResponse: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <ClockIcon2 className="h-4 w-4" /> },
+  AwaitingResponse: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <Clock className="h-4 w-4" /> },
   Resolved: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: <CheckCircle2 className="h-4 w-4" /> },
-  Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <XCircleIcon className="h-4 w-4" /> },
+  Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <XCircle className="h-4 w-4" /> },
 };
+
+// ==================== COMPONENT ====================
 
 export default function SupportCaseDetailPage() {
   const params = useParams();
@@ -424,7 +389,7 @@ export default function SupportCaseDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
         <div className="rounded-full bg-surface-2 p-4">
-          <LifeBuoy className="h-8 w-8 text-ink-400" />
+          <HelpCircle className="h-8 w-8 text-ink-400" />
         </div>
         <h3 className="mt-3 text-[15px] font-semibold text-ink-950">Case not found</h3>
         <p className="mt-1 text-sm text-ink-500">No support case found with this ID.</p>
@@ -469,7 +434,7 @@ export default function SupportCaseDetailPage() {
 
   const handleSendMessage = () => {
     if (!newMessage.trim()) return;
-    toast("Message sent (mock)");
+    // toast notification would go here
     setNewMessage("");
   };
 
@@ -487,7 +452,7 @@ export default function SupportCaseDetailPage() {
       case "StatusChange":
         return <RefreshCw className="h-4 w-4 text-amber" />;
       case "Assignment":
-        return <UserCogIcon className="h-4 w-4 text-purple" />;
+        return <UserCog className="h-4 w-4 text-purple" />;
       case "Note":
         return <MessageSquare className="h-4 w-4 text-blue" />;
       case "Attachment":
@@ -552,7 +517,7 @@ export default function SupportCaseDetailPage() {
             Edit
           </button>
           <button className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90">
-            <UserCogIcon className="h-3.5 w-3.5" />
+            <UserCog className="h-3.5 w-3.5" />
             Assign
           </button>
         </div>
@@ -564,10 +529,10 @@ export default function SupportCaseDetailPage() {
           <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Source</div>
           <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-ink-950">
             {data.source === "Email" && <Mail className="h-4 w-4 text-ink-400" />}
-            {data.source === "Phone" && <PhoneIcon className="h-4 w-4 text-ink-400" />}
+            {data.source === "Phone" && <Phone className="h-4 w-4 text-ink-400" />}
             {data.source === "InApp" && <MessageSquare className="h-4 w-4 text-ink-400" />}
             {data.source === "API" && <Link2 className="h-4 w-4 text-ink-400" />}
-            {data.source === "Internal" && <UserCogIcon className="h-4 w-4 text-ink-400" />}
+            {data.source === "Internal" && <UserCog className="h-4 w-4 text-ink-400" />}
             {data.source}
           </div>
           <div className="mt-0.5 text-xs text-ink-500">Created {formatTime(data.createdAt)}</div>
@@ -804,7 +769,7 @@ export default function SupportCaseDetailPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <LifeBuoy className="h-4 w-4" />
+          <HelpCircle className="h-4 w-4" />
           COM-05 · Support Case Detail · {data.reference}
         </span>
         <span className="flex items-center gap-1.5">

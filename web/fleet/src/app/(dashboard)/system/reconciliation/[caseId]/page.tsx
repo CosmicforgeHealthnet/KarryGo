@@ -7,267 +7,23 @@ import { useParams, useRouter } from "next/navigation";
 import {
   GitMerge,
   RefreshCw,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
   ArrowLeft,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FileText,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
+  CheckCircle2,
+  Clock,
   FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FilePdf as FilePdfIcon,
-  FileJson as FileJsonIcon,
-  FileCsv,
-  FileXml,
-  FileSpreadsheet as FileSpreadsheetIcon2,
-  FileJson as FileJsonIcon2,
-  FilePdf as FilePdfIcon2,
-  FileCsv as FileCsvIcon,
-  FileXml as FileXmlIcon,
-  FileText as FileTextIcon2,
-  File as FileIcon,
-  FileArchive as FileArchiveIcon,
-  FileImage as FileImageIcon,
-  FileJson as FileJsonIcon3,
-  FilePdf as FilePdfIcon3,
-  FileSpreadsheet as FileSpreadsheetIcon3,
-  FolderOpen as FolderOpenIcon,
-  Shield as ShieldIcon,
-  Lock as LockIcon,
-  EyeOff as EyeOffIcon,
-  AlertOctagon as AlertOctagonIcon,
-  FileCheck as FileCheckIcon,
-  FileSignature as FileSignatureIcon,
-  Folder as FolderIcon,
-  HardDrive as HardDriveIcon,
-  Database as DatabaseIcon,
-  Cloud as CloudIcon,
-  History as HistoryIcon,
-  GitBranch as GitBranchIcon,
-  FileUser as FileUserIcon,
-  FileKey as FileKeyIcon,
-  FileClock as FileClockIcon,
-  FileX as FileXIcon,
-  FileMinus as FileMinusIcon,
-  FilePlus as FilePlusIcon,
-  FileCog as FileCogIcon,
-  FileCheck2 as FileCheck2Icon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  Gauge as GaugeIcon,
-  Target as TargetIcon,
-  Activity as ActivityIcon,
-  BarChart as BarChartIcon,
-  LineChart as LineChartIcon,
-  PieChart as PieChartIcon,
-  Percent as PercentIcon,
-  Timer as TimerIcon,
-  Award as AwardIcon,
-  Sparkles as SparklesIcon,
-  Globe as GlobeIcon,
-  FilterX as FilterXIcon,
-  LayoutGrid as LayoutGridIcon,
-  LayoutList as LayoutListIcon,
-  Sliders as SlidersIcon,
-  ArrowUp as ArrowUpIcon,
-  ArrowDown as ArrowDownIcon,
-  Zap as ZapIcon,
-  Flame as FlameIcon,
-  Medal as MedalIcon,
-  Star as StarIcon,
-  BookOpen as BookOpenIcon,
-  Book as BookIcon,
-  FileText as FileTextIcon3,
-  FileSpreadsheet as FileSpreadsheetIcon4,
-  FilePdf as FilePdfIcon4,
-  FileJson as FileJsonIcon4,
-  FileCsv as FileCsvIcon2,
-  FileXml as FileXmlIcon2,
-  DownloadCloud,
-  FileSpreadsheet as FileSpreadsheetIcon5,
-  FileJson as FileJsonIcon5,
-  FileCsv as FileCsvIcon3,
-  FileXml as FileXmlIcon3,
-  FilePdf as FilePdfIcon5,
-  GitMerge as GitMergeIcon,
-  GitPullRequest as GitPullRequestIcon,
-  GitBranch as GitBranchIcon2,
-  GitCommit as GitCommitIcon,
-  GitPullRequestClosed as GitPullRequestClosedIcon,
-  AlertCircle as AlertCircleIcon,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  Info as InfoIcon,
-  RefreshCw as RefreshCwIcon,
-  Clock as ClockIcon2,
-  CheckCircle2 as CheckCircle2Icon,
-  AlertTriangle as AlertTriangleIcon,
-  Eye as EyeIcon,
-  ArrowRight as ArrowRightIcon,
-  ArrowLeft as ArrowLeftIcon,
-  Users as UsersIcon,
-  Building2 as Building2Icon,
-  Tag as TagIcon,
-  Calendar as CalendarIcon,
-  ListChecks as ListChecksIcon,
-  Download as DownloadIcon,
-  Printer as PrinterIcon,
-  Edit3 as Edit3Icon,
-  Trash2 as Trash2Icon,
-  Check as CheckIcon,
-  MoreHorizontal as MoreHorizontalIcon,
-  User as UserIcon,
-  Mail as MailIcon,
-  Phone as PhoneIcon,
-  MapPin as MapPinIcon,
-  Briefcase as BriefcaseIcon,
-  Send as SendIcon,
-  Paperclip as PaperclipIcon,
-  Link2 as Link2Icon,
-  ExternalLink as ExternalLinkIcon,
-  FileText as FileTextIcon4,
-  File as FileIcon2,
-  FileArchive as FileArchiveIcon2,
-  FileImage as FileImageIcon2,
-  FileJson as FileJsonIcon6,
-  FilePdf as FilePdfIcon6,
-  FileSpreadsheet as FileSpreadsheetIcon6,
-  FolderOpen as FolderOpenIcon2,
-  Shield as ShieldIcon2,
-  Lock as LockIcon2,
-  EyeOff as EyeOffIcon2,
-  AlertOctagon as AlertOctagonIcon2,
-  FileCheck as FileCheckIcon2,
-  FileSignature as FileSignatureIcon2,
-  Folder as FolderIcon2,
-  HardDrive as HardDriveIcon2,
-  Database as DatabaseIcon2,
-  Cloud as CloudIcon2,
-  History as HistoryIcon2,
-  GitBranch as GitBranchIcon2,
-  FileUser as FileUserIcon2,
-  FileKey as FileKeyIcon2,
-  FileClock as FileClockIcon2,
-  FileX as FileXIcon2,
-  FileMinus as FileMinusIcon2,
-  FilePlus as FilePlusIcon2,
-  FileCog as FileCogIcon2,
-  FileCheck2 as FileCheck2Icon2,
-  TrendingUp as TrendingUpIcon2,
-  TrendingDown as TrendingDownIcon2,
-  Gauge as GaugeIcon2,
-  Target as TargetIcon2,
-  Activity as ActivityIcon2,
-  BarChart as BarChartIcon2,
-  LineChart as LineChartIcon2,
-  PieChart as PieChartIcon2,
-  Percent as PercentIcon2,
-  Timer as TimerIcon2,
-  Award as AwardIcon2,
-  Sparkles as SparklesIcon2,
-  Globe as GlobeIcon2,
-  FilterX as FilterXIcon2,
-  LayoutGrid as LayoutGridIcon2,
-  LayoutList as LayoutListIcon2,
-  Sliders as SlidersIcon2,
-  ArrowUp as ArrowUpIcon2,
-  ArrowDown as ArrowDownIcon2,
-  Zap as ZapIcon2,
-  Flame as FlameIcon2,
-  Medal as MedalIcon2,
-  Star as StarIcon2,
-  BookOpen as BookOpenIcon2,
-  Book as BookIcon2,
-  FileText as FileTextIcon5,
-  FileSpreadsheet as FileSpreadsheetIcon7,
-  FilePdf as FilePdfIcon7,
-  FileJson as FileJsonIcon7,
-  FileCsv as FileCsvIcon4,
-  FileXml as FileXmlIcon4,
-  DownloadCloud as DownloadCloudIcon,
-  FileSpreadsheet as FileSpreadsheetIcon8,
-  FileJson as FileJsonIcon8,
-  FileCsv as FileCsvIcon5,
-  FileXml as FileXmlIcon5,
-  FilePdf as FilePdfIcon8,
+  GitPullRequest,
+  AlertTriangle,
+  XCircle,
+  GitBranch,
+  AlertCircle,
+  CheckCircle,
+  AlertOctagon,
+  Info,
+  History,
+  ChevronUp,
+  ChevronDown,
+  Database,
+  Search,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -406,38 +162,68 @@ const MOCK_DETAIL_DATA: Record<string, ReconciliationDetail> = {
   },
 };
 
-const DISCREPANCY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type DiscrepancyStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const DISCREPANCY_STYLES: Record<string, DiscrepancyStyle> = {
   Missing: { bg: "bg-red-bg", text: "text-red", icon: <FileX className="h-4 w-4" /> },
   Mismatch: { bg: "bg-amber-bg", text: "text-amber", icon: <GitPullRequest className="h-4 w-4" /> },
-  Stale: { bg: "bg-blue-bg", text: "text-blue", icon: <ClockIcon className="h-4 w-4" /> },
+  Stale: { bg: "bg-blue-bg", text: "text-blue", icon: <Clock className="h-4 w-4" /> },
   Corrupted: { bg: "bg-purple-bg", text: "text-purple", icon: <AlertTriangle className="h-4 w-4" /> },
   VerificationFailed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
   SyncGap: { bg: "bg-amber-bg", text: "text-amber", icon: <GitBranch className="h-4 w-4" /> },
 };
 
-const STATE_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
+type StateStyle = {
+  bg: string;
+  text: string;
+  dot: string;
+  icon: React.ReactNode;
+};
+
+const STATE_STYLES: Record<string, StateStyle> = {
   Open: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertCircle className="h-4 w-4" /> },
-  Investigating: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <FileSearch className="h-4 w-4" /> },
-  PendingResolution: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <ClockIcon className="h-4 w-4" /> },
+  Investigating: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <Search className="h-4 w-4" /> },
+  PendingResolution: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <Clock className="h-4 w-4" /> },
   Resolved: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <CheckCircle className="h-4 w-4" /> },
   Failed: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <XCircle className="h-4 w-4" /> },
 };
 
-const SEVERITY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type SeverityStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const SEVERITY_STYLES: Record<string, SeverityStyle> = {
   Critical: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-4 w-4" /> },
   High: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-4 w-4" /> },
   Medium: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-4 w-4" /> },
   Low: { bg: "bg-surface-2", text: "text-ink-500", icon: <Info className="h-4 w-4" /> },
 };
 
-const ATTEMPT_STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Success: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
-  Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <ClockIcon className="h-4 w-4" /> },
+type AttemptStatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
 };
 
-const METADATA_STATUS_STYLES: Record<string, { bg: string; text: string }> = {
+const ATTEMPT_STATUS_STYLES: Record<string, AttemptStatusStyle> = {
+  Success: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
+  Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
+  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-4 w-4" /> },
+};
+
+type MetadataStatusStyle = {
+  bg: string;
+  text: string;
+};
+
+const METADATA_STATUS_STYLES: Record<string, MetadataStatusStyle> = {
   Match: { bg: "bg-green-bg", text: "text-green" },
   Mismatch: { bg: "bg-red-bg", text: "text-red" },
   Missing: { bg: "bg-amber-bg", text: "text-amber" },
@@ -448,11 +234,11 @@ export default function ReconciliationCaseDetailPage() {
   const router = useRouter();
   const caseId = params.caseId as string;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<ReconciliationDetail | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [showAttempts, setShowAttempts] = useState(true);
-  const [showMetadata, setShowMetadata] = useState(true);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [showAttempts, setShowAttempts] = useState<boolean>(true);
+  const [showMetadata, setShowMetadata] = useState<boolean>(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -500,7 +286,7 @@ export default function ReconciliationCaseDetailPage() {
   const stateStyle = STATE_STYLES[data.state] || STATE_STYLES.Open;
   const severityStyle = SEVERITY_STYLES[data.severity] || SEVERITY_STYLES.Medium;
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -514,7 +300,7 @@ export default function ReconciliationCaseDetailPage() {
     return `${diffDay}d ago`;
   };
 
-  const formatDateTime = (date: string | null) => {
+  const formatDateTime = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleString("en-GB", {
@@ -785,4 +571,8 @@ export default function ReconciliationCaseDetailPage() {
       </div>
     </div>
   );
+}
+
+function toast(message: string) {
+  console.log(message);
 }

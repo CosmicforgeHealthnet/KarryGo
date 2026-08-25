@@ -5,70 +5,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FileText,
   RefreshCw,
-  Clock,
+  X,
+  Upload,
+  File,
+  FileText,
+  Shield,
   CheckCircle2,
   AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
-  Search,
-  Filter,
-  SlidersHorizontal,
-  X,
-  ChevronDown,
-  Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  Upload,
-  UploadCloud,
-  FileUp,
-  Image,
-  FileType,
-  FileVideo,
-  FileAudio,
-  Archive,
-  FileCode,
+  Clock,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -106,12 +51,26 @@ const RETENTION_PERIODS = [
   "1 year", "2 years", "3 years", "5 years", "7 years", "10 years", "Indefinite"
 ];
 
+// ===== SIMPLE TOAST FUNCTION =====
+const toast = (message: string) => {
+  if (typeof window !== "undefined") {
+    const toastEl = document.createElement("div");
+    toastEl.className = "fixed bottom-4 right-4 bg-ink-950 text-white px-4 py-2 rounded-xl text-sm shadow-lg z-50 animate-in slide-in-from-bottom-5";
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => toastEl.remove(), 300);
+    }, 3000);
+  }
+};
+
 export default function DocumentUploadPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "scanning" | "complete" | "error">("idle");
-  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
 
   const [formData, setFormData] = useState<UploadState>({
     file: null,
@@ -126,8 +85,8 @@ export default function DocumentUploadPage() {
     retentionPeriod: "3 years",
   });
 
-  const [tagInput, setTagInput] = useState("");
-  const [dragActive, setDragActive] = useState(false);
+  const [tagInput, setTagInput] = useState<string>("");
+  const [dragActive, setDragActive] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -222,13 +181,13 @@ export default function DocumentUploadPage() {
   const getFileIcon = (type: string) => {
     switch (type) {
       case "PDF": return <File className="h-12 w-12 text-red" />;
-      case "Image": return <Image className="h-12 w-12 text-blue" />;
-      case "Spreadsheet": return <FileSpreadsheet className="h-12 w-12 text-green" />;
-      case "Document": return <FileTextIcon className="h-12 w-12 text-blue" />;
-      case "Archive": return <Archive className="h-12 w-12 text-amber" />;
-      case "Video": return <FileVideo className="h-12 w-12 text-purple" />;
-      case "Audio": return <FileAudio className="h-12 w-12 text-blue" />;
-      case "Code": return <FileCode className="h-12 w-12 text-ink-950" />;
+      case "Image": return <File className="h-12 w-12 text-blue" />;
+      case "Spreadsheet": return <File className="h-12 w-12 text-green" />;
+      case "Document": return <FileText className="h-12 w-12 text-blue" />;
+      case "Archive": return <File className="h-12 w-12 text-amber" />;
+      case "Video": return <File className="h-12 w-12 text-purple" />;
+      case "Audio": return <File className="h-12 w-12 text-blue" />;
+      case "Code": return <File className="h-12 w-12 text-ink-950" />;
       default: return <File className="h-12 w-12 text-ink-400" />;
     }
   };
@@ -309,7 +268,7 @@ export default function DocumentUploadPage() {
             ) : (
               <>
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-2">
-                  <UploadCloud className="h-8 w-8 text-ink-400" />
+                  <Upload className="h-8 w-8 text-ink-400" />
                 </div>
                 <h3 className="text-sm font-medium text-ink-950">
                   Drop your file here or click to browse

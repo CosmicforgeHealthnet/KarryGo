@@ -11,35 +11,12 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  FileText,
-  ShieldAlert,
-  ShieldCheck,
-  ShieldQuestion,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
   AlertOctagon,
-  MoreHorizontal,
-  User,
-  Car,
-  FileCheck,
-  XCircle,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -50,7 +27,7 @@ type Restriction = {
   subjectType: "Provider" | "Asset" | "Document" | "Location";
   subjectId: string;
   subjectName: string;
-  type: "Safety" | "Document" | "Training" | "Qualification" | "Compliance" | "Inspection";
+  type: "Safety" | "Document" | "Training" | "Qualification" | "Compliance" | "Inspection" | "Maintenance";
   severity: "Critical" | "High" | "Medium" | "Low";
   reason: string;
   source: string;
@@ -262,7 +239,7 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; i
     bg: "bg-surface-2",
     text: "text-ink-500",
     dot: "bg-ink-400",
-    icon: <Info className="h-3.5 w-3.5" />,
+    icon: <AlertCircle className="h-3.5 w-3.5" />,
   },
 };
 
@@ -273,13 +250,6 @@ const CLEARANCE_STYLES: Record<string, { bg: string; text: string; dot: string }
   Expired: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400" },
 };
 
-const SUBJECT_TYPE_ICONS: Record<string, React.ReactNode> = {
-  Provider: <Users className="h-3.5 w-3.5" />,
-  Asset: <Car className="h-3.5 w-3.5" />,
-  Document: <FileText className="h-3.5 w-3.5" />,
-  Location: <Building2 className="h-3.5 w-3.5" />,
-};
-
 const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
   Safety: { bg: "bg-red-bg", text: "text-red" },
   Document: { bg: "bg-blue-bg", text: "text-blue" },
@@ -287,12 +257,13 @@ const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
   Qualification: { bg: "bg-purple-bg", text: "text-purple" },
   Compliance: { bg: "bg-amber-bg", text: "text-amber" },
   Inspection: { bg: "bg-surface-2", text: "text-ink-500" },
+  Maintenance: { bg: "bg-blue-bg", text: "text-blue" },
 };
 
 const SEVERITY_FILTERS = ["All", "Critical", "High", "Medium", "Low"];
 const CLEARANCE_FILTERS = ["All", "Active", "PendingClearance", "Cleared", "Expired"];
 const SUBJECT_FILTERS = ["All", "Provider", "Asset", "Document", "Location"];
-const TYPE_FILTERS = ["All", "Safety", "Document", "Training", "Qualification", "Compliance", "Inspection"];
+const TYPE_FILTERS = ["All", "Safety", "Document", "Training", "Qualification", "Compliance", "Inspection", "Maintenance"];
 const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
 
 export default function RestrictionsPage() {
@@ -426,10 +397,6 @@ export default function RestrictionsPage() {
           >
             <RefreshCw className="h-3 w-3" />
             {secondsAgo}s
-          </button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white">
-            <Download className="h-3.5 w-3.5" />
-            Export
           </button>
           <button
             onClick={goToCreateRestriction}
@@ -616,7 +583,7 @@ export default function RestrictionsPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm min-w-[1100px]">
+            <table className="w-full border-collapse text-sm min-w-[900px]">
               <thead>
                 <tr className="bg-surface-2/70">
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Reference</th>
@@ -626,21 +593,19 @@ export default function RestrictionsPage() {
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">State</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Branch</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Age</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500"></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredData.map((item) => {
                   const severityStyle = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.Medium;
                   const clearanceStyle = CLEARANCE_STYLES[item.clearanceState] || CLEARANCE_STYLES.Active;
-                  const subjectIcon = SUBJECT_TYPE_ICONS[item.subjectType] || SUBJECT_TYPE_ICONS.Document;
                   const typeStyle = TYPE_STYLES[item.type] || TYPE_STYLES.Compliance;
 
                   return (
                     <tr
                       key={item.id}
                       onClick={() => goToRestrictionDetail(item.id)}
-                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer group"
+                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div className="font-mono text-[11px] font-medium text-ink-950">{item.reference}</div>
@@ -648,7 +613,6 @@ export default function RestrictionsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-ink-400">{subjectIcon}</span>
                           <div>
                             <div className="text-xs font-medium text-ink-950">{item.subjectName}</div>
                             <div className="text-[9px] text-ink-500 font-mono">{item.subjectId}</div>
@@ -674,11 +638,6 @@ export default function RestrictionsPage() {
                       </td>
                       <td className="px-4 py-3 text-ink-600 text-xs">{item.branch}</td>
                       <td className="px-4 py-3 text-ink-500 text-xs">{formatTime(item.createdAt)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="text-ink-400 group-hover:text-primary transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}

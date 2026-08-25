@@ -8,42 +8,21 @@ import {
   Shield,
   RefreshCw,
   Clock,
-  CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
   FileText,
   FileSearch,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
   Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  AlertOctagon,
-  MoreHorizontal,
-  User,
-  Car,
   FileCheck,
-  XCircle,
   Flag,
   EyeOff,
-  UserCheck,
-  UserX,
-  MapPin,
-  Clock as ClockIcon,
+  AlertOctagon,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -587,7 +566,6 @@ export default function SafetyReportsPage() {
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Branch</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Age</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Evidence</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500"></th>
                 </tr>
               </thead>
               <tbody>
@@ -600,7 +578,7 @@ export default function SafetyReportsPage() {
                     <tr
                       key={item.id}
                       onClick={() => goToReportDetail(item.id)}
-                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer group"
+                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium text-ink-950 text-xs">{item.title}</div>
@@ -646,11 +624,6 @@ export default function SafetyReportsPage() {
                         ) : (
                           <span className="text-ink-400">—</span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="text-ink-400 group-hover:text-primary transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
                       </td>
                     </tr>
                   );

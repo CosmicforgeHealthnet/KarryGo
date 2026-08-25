@@ -13,127 +13,41 @@ import {
   AlertTriangle,
   Eye,
   ArrowRight,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Users,
   Building2,
   Tag,
-  Calendar,
   Info,
-  ListChecks,
   Download,
   Printer,
   Edit3,
-  Trash2,
-  Check,
   MoreHorizontal,
   User,
   Mail,
   Phone,
   MapPin,
   Briefcase,
-  Send,
   Paperclip,
   Link2,
   ExternalLink,
   FileText,
   File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
   Shield,
   Lock,
   EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
   AlertOctagon,
   FileCheck,
-  FileSignature,
   Folder,
   HardDrive,
   Database,
   Cloud,
   History,
   GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  Search as SearchIcon,
-  Filter as FilterIcon,
-  SlidersHorizontal as SlidersHorizontalIcon,
-  X as XIcon,
-  ChevronDown as ChevronDownIcon,
-  Plus as PlusIcon,
-  Users as UsersIcon,
-  Building2 as Building2Icon,
-  Tag as TagIcon,
-  Calendar as CalendarIcon,
-  Info as InfoIcon,
-  ListChecks as ListChecksIcon,
-  Download as DownloadIcon,
-  Printer as PrinterIcon,
-  Edit3 as Edit3Icon,
-  Trash2 as Trash2Icon,
-  Check as CheckIcon,
-  MoreHorizontal as MoreHorizontalIcon,
-  User as UserIcon,
-  Mail as MailIcon,
-  Phone as PhoneIcon,
-  MapPin as MapPinIcon,
-  Briefcase as BriefcaseIcon,
-  Send as SendIcon,
-  Paperclip as PaperclipIcon,
-  Link2 as Link2Icon,
-  ExternalLink as ExternalLinkIcon,
-  FileText as FileTextIcon2,
-  File as FileIcon,
-  FileArchive as FileArchiveIcon,
-  FileImage as FileImageIcon,
-  FileJson as FileJsonIcon,
-  FilePdf as FilePdfIcon,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FolderOpen as FolderOpenIcon,
-  Shield as ShieldIcon,
-  Lock as LockIcon,
-  EyeOff as EyeOffIcon,
-  AlertOctagon as AlertOctagonIcon,
-  FileCheck as FileCheckIcon,
-  FileSignature as FileSignatureIcon,
-  Folder as FolderIcon,
-  HardDrive as HardDriveIcon,
-  Database as DatabaseIcon,
-  Cloud as CloudIcon,
-  History as HistoryIcon,
-  GitBranch as GitBranchIcon,
-  FileUser as FileUserIcon,
-  FileKey as FileKeyIcon,
-  FileClock as FileClockIcon,
-  FileX as FileXIcon,
-  FileMinus as FileMinusIcon,
-  FilePlus as FilePlusIcon,
-  FileCog as FileCogIcon,
-  FileCheck2 as FileCheck2Icon,
+  Package,
+  HelpCircle,
   Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  XCircle as XCircleIcon,
-  CheckCircle as CheckCircleIcon,
-  AlertTriangle as AlertTriangleIcon,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -383,23 +297,23 @@ const MOCK_SEARCH_RESULTS: SearchResult[] = [
 ];
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-  Customer: <UsersIcon className="h-3.5 w-3.5" />,
-  Provider: <UserIcon className="h-3.5 w-3.5" />,
-  Staff: <UserIcon className="h-3.5 w-3.5" />,
-  Asset: <FileIcon className="h-3.5 w-3.5" />,
-  Trip: <MapPinIcon className="h-3.5 w-3.5" />,
-  Order: <BriefcaseIcon className="h-3.5 w-3.5" />,
+  Customer: <Users className="h-3.5 w-3.5" />,
+  Provider: <User className="h-3.5 w-3.5" />,
+  Staff: <User className="h-3.5 w-3.5" />,
+  Asset: <File className="h-3.5 w-3.5" />,
+  Trip: <MapPin className="h-3.5 w-3.5" />,
+  Order: <Briefcase className="h-3.5 w-3.5" />,
   Shipment: <Package className="h-3.5 w-3.5" />,
   Package: <Package className="h-3.5 w-3.5" />,
-  Manifest: <ListChecksIcon className="h-3.5 w-3.5" />,
-  Route: <GitBranchIcon className="h-3.5 w-3.5" />,
-  Incident: <AlertTriangleIcon className="h-3.5 w-3.5" />,
-  Compliance: <ShieldIcon className="h-3.5 w-3.5" />,
-  Document: <FileTextIcon className="h-3.5 w-3.5" />,
-  Invoice: <FileTextIcon className="h-3.5 w-3.5" />,
-  Warehouse: <Building2Icon className="h-3.5 w-3.5" />,
-  Fulfilment: <CheckCircleIcon className="h-3.5 w-3.5" />,
-  Support: <LifeBuoy className="h-3.5 w-3.5" />,
+  Manifest: <FileText className="h-3.5 w-3.5" />,
+  Route: <GitBranch className="h-3.5 w-3.5" />,
+  Incident: <AlertTriangle className="h-3.5 w-3.5" />,
+  Compliance: <Shield className="h-3.5 w-3.5" />,
+  Document: <FileText className="h-3.5 w-3.5" />,
+  Invoice: <FileText className="h-3.5 w-3.5" />,
+  Warehouse: <Building2 className="h-3.5 w-3.5" />,
+  Fulfilment: <CheckCircle2 className="h-3.5 w-3.5" />,
+  Support: <HelpCircle className="h-3.5 w-3.5" />,
 };
 
 const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
@@ -424,6 +338,20 @@ const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
 
 const TYPE_FILTERS = ["All", "Customer", "Provider", "Staff", "Asset", "Trip", "Order", "Shipment", "Package", "Manifest", "Route", "Incident", "Compliance", "Document", "Invoice", "Warehouse", "Fulfilment", "Support"];
 const BRANCH_FILTERS = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
+
+// ===== SIMPLE TOAST FUNCTION =====
+const toast = (message: string) => {
+  if (typeof window !== "undefined") {
+    const toastEl = document.createElement("div");
+    toastEl.className = "fixed bottom-4 right-4 bg-ink-950 text-white px-4 py-2 rounded-xl text-sm shadow-lg z-50 animate-in slide-in-from-bottom-5";
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => toastEl.remove(), 300);
+    }, 3000);
+  }
+};
 
 export default function EnterpriseSearchPage() {
   const router = useRouter();
@@ -466,7 +394,6 @@ export default function EnterpriseSearchPage() {
         return matchesQuery && matchesType && matchesBranch;
       });
 
-      // Sort by relevance
       results.sort((a, b) => b.relevance - a.relevance);
 
       setData(results);
@@ -541,7 +468,7 @@ export default function EnterpriseSearchPage() {
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="flex-1 relative">
             <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-              <SearchIcon className="h-4 w-4 text-ink-400" />
+              <Search className="h-4 w-4 text-ink-400" />
             </div>
             <input
               type="text"
@@ -556,7 +483,7 @@ export default function EnterpriseSearchPage() {
                 onClick={clearSearch}
                 className="absolute inset-y-0 right-0 flex items-center pr-4"
               >
-                <XIcon className="h-4 w-4 text-ink-400 hover:text-ink-600 transition-colors" />
+                <X className="h-4 w-4 text-ink-400 hover:text-ink-600 transition-colors" />
               </button>
             )}
           </div>
@@ -569,7 +496,7 @@ export default function EnterpriseSearchPage() {
                   : "border-line bg-white/70 text-ink-600 shadow-sm hover:bg-white"
               }`}
             >
-              <SlidersHorizontalIcon className="h-4 w-4" />
+              <SlidersHorizontal className="h-4 w-4" />
               Filters
               {hasActiveFilters && (
                 <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-white">
@@ -593,7 +520,7 @@ export default function EnterpriseSearchPage() {
                 </>
               ) : (
                 <>
-                  <SearchIcon className="h-4 w-4" />
+                  <Search className="h-4 w-4" />
                   Search
                 </>
               )}
@@ -663,7 +590,7 @@ export default function EnterpriseSearchPage() {
           ) : data.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
               <div className="rounded-full bg-surface-2 p-4">
-                <SearchIcon className="h-8 w-8 text-ink-400" />
+                <Search className="h-8 w-8 text-ink-400" />
               </div>
               <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No results found</h3>
               <p className="mt-1 text-sm text-ink-500">
@@ -688,7 +615,7 @@ export default function EnterpriseSearchPage() {
               </div>
               <div className="space-y-3">
                 {data.map((result) => {
-                  const typeIcon = TYPE_ICONS[result.type] || <FileTextIcon className="h-3.5 w-3.5" />;
+                  const typeIcon = TYPE_ICONS[result.type] || <FileText className="h-3.5 w-3.5" />;
                   const typeStyle = TYPE_STYLES[result.type] || TYPE_STYLES.Document;
 
                   return (
@@ -711,12 +638,12 @@ export default function EnterpriseSearchPage() {
                           <div className="mt-0.5 text-xs text-ink-500">{result.description}</div>
                           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-ink-500">
                             <span className="flex items-center gap-1">
-                              <MapPinIcon className="h-3 w-3" />
+                              <MapPin className="h-3 w-3" />
                               {result.branch}
                             </span>
                             <span className="text-ink-300">|</span>
                             <span className="flex items-center gap-1">
-                              <ClockIcon className="h-3 w-3" />
+                              <Clock className="h-3 w-3" />
                               Updated {formatTime(result.updatedAt)}
                             </span>
                             <span className="text-ink-300">|</span>
@@ -753,7 +680,7 @@ export default function EnterpriseSearchPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <SearchIcon className="h-4 w-4" />
+          <Search className="h-4 w-4" />
           DAT-07 · Enterprise Search
         </span>
         <span className="flex items-center gap-1.5">

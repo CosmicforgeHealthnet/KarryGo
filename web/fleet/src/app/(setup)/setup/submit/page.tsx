@@ -9,124 +9,10 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  AlertTriangle,
-  ArrowRight,
-  ArrowLeft,
-  X,
-  FileCheck,
-  Building2,
-  User,
-  Briefcase,
-  ShieldCheck,
-  Wallet,
-  FileText,
-  ListChecks,
-  Check,
-  Info,
-  Tag,
-  Calendar,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  MoreHorizontal,
-  Mail,
-  Phone,
-  MapPin,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FolderOpen,
-  Lock,
-  EyeOff,
   AlertOctagon,
-  FileSignature,
-  Folder,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
-  DownloadCloud,
-  RotateCw,
-  Undo2,
-  Redo2,
-  SkipForward,
-  SkipBack,
-  FastForward,
-  Rewind,
-  PlayCircle,
-  PauseCircle,
-  StopCircle,
-  Inbox,
-  MailOpen,
-  MailX,
-  MailCheck,
-  MailWarning,
-  Archive,
-  ArchiveRestore,
-  Trash,
-  Trash2 as TrashIcon,
-  Server,
-  Cpu,
-  Home,
-  Settings as SettingsIcon,
-  UserPlus,
-  UserMinus,
-  HelpCircle,
-  Car,
-  Truck,
-  Package as PackageIcon,
-  Warehouse,
-  Shield,
-  Users,
-  Building2 as Building2Icon,
-  MapPin as MapPinIcon,
-  HardDrive,
-  Database,
-  Cloud,
-  Ship,
-  Plane,
-  Train,
-  Bike,
-  Save,
-  CreditCard,
-  Banknote,
-  DollarSign,
-  Coins,
-  Send as SendIcon,
-  FileCheck as FileCheckIcon2,
+  FileCheck,
+  ListChecks,
+  Send,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -171,7 +57,13 @@ const MOCK_SUBMIT_STATE: SubmitState = {
   ],
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   Complete: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Incomplete: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-4 w-4" /> },
   Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-4 w-4" /> },
@@ -180,10 +72,10 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
 
 export default function SubmitForReviewPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<SubmitState | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -244,7 +136,7 @@ export default function SubmitForReviewPage() {
   const isComplete = data.isApproved;
   const isSubmitted = data.isSubmitted;
 
-  const formatDate = (date: string | null) => {
+  const formatDate = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -418,7 +310,7 @@ export default function SubmitForReviewPage() {
                 </>
               ) : (
                 <>
-                  <SendIcon className="h-4 w-4" />
+                  <Send className="h-4 w-4" />
                   Submit for Review
                 </>
               )}

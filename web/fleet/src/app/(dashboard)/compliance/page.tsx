@@ -6,11 +6,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Shield,
-  TrendingUp,
-  TrendingDown,
-  RefreshCw,
   Clock,
-  CheckCircle2,
   AlertCircle,
   Eye,
   ArrowRight,
@@ -22,7 +18,6 @@ import {
   AlertTriangle,
   Info,
   FileCheck,
-  ShieldAlert,
   ListChecks,
   FileSearch,
   ClipboardList,
@@ -140,8 +135,8 @@ export default function ComplianceOverviewPage() {
       {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1>Compliance Overview</h1>
-          <p className="mt-1.5">
+          <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">Compliance Overview</h1>
+          <p className="mt-1.5 text-sm text-ink-600">
             Organization, provider and asset compliance status, upcoming expiries, restrictions and unresolved issues.
           </p>
         </div>
@@ -158,7 +153,7 @@ export default function ComplianceOverviewPage() {
         <div className="rounded-lg border border-line bg-white p-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-bg text-red">
-              <ShieldAlert className="h-[18px] w-[18px]" />
+              <AlertCircle className="h-[18px] w-[18px]" />
             </div>
             <span className="text-xs font-semibold text-ink-600">Active Restrictions</span>
           </div>
@@ -213,7 +208,7 @@ export default function ComplianceOverviewPage() {
             { label: "Requirements", icon: ListChecks, path: "/compliance/requirements" },
             { label: "Provider Compliance", icon: Users, path: "/compliance/providers" },
             { label: "Asset Compliance", icon: Building2, path: "/compliance/assets" },
-            { label: "Restrictions", icon: ShieldAlert, path: "/compliance/restrictions" },
+            { label: "Restrictions", icon: AlertCircle, path: "/compliance/restrictions" },
             { label: "Safety Reports", icon: FileSearch, path: "/compliance/safety-reports" },
             { label: "Incidents", icon: AlertTriangle, path: "/compliance/incidents" },
             { label: "Corrective Actions", icon: ClipboardList, path: "/compliance/corrective-actions" },

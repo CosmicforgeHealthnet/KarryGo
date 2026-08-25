@@ -11,50 +11,13 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  FileText,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
   AlertOctagon,
-  MoreHorizontal,
-  User,
-  Car,
-  FileCheck,
-  XCircle,
-  Flag,
-  UserCheck,
-  UserX,
-  MapPin,
-  Clock as ClockIcon,
-  Briefcase,
-  Phone,
-  Mail,
   BookOpen,
-  ExternalLink,
-  Link2,
-  FileSearch,
-  ClipboardList,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSignature,
-  FolderOpen,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -329,10 +292,10 @@ const TYPE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactN
   Incident: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   Accident: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-3.5 w-3.5" /> },
   NearMiss: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
-  Hazard: { bg: "bg-amber-bg", text: "text-amber", icon: <Flag className="h-3.5 w-3.5" /> },
-  SafetyConcern: { bg: "bg-purple-bg", text: "text-purple", icon: <ShieldAlert className="h-3.5 w-3.5" /> },
+  Hazard: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  SafetyConcern: { bg: "bg-purple-bg", text: "text-purple", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   Regulatory: { bg: "bg-green-bg", text: "text-green", icon: <BookOpen className="h-3.5 w-3.5" /> },
-  Authority: { bg: "bg-blue-bg", text: "text-blue", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
+  Authority: { bg: "bg-blue-bg", text: "text-blue", icon: <Shield className="h-3.5 w-3.5" /> },
 };
 
 const VERIFICATION_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
@@ -358,7 +321,7 @@ const VERIFICATION_STYLES: Record<string, { bg: string; text: string; dot: strin
     bg: "bg-red-bg",
     text: "text-red",
     dot: "bg-red",
-    icon: <XCircle className="h-3.5 w-3.5" />,
+    icon: <AlertCircle className="h-3.5 w-3.5" />,
   },
   Expired: {
     bg: "bg-surface-2",
@@ -493,10 +456,6 @@ export default function SafetyReferencePage() {
           >
             <RefreshCw className="h-3 w-3" />
             {secondsAgo}s
-          </button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white">
-            <Download className="h-3.5 w-3.5" />
-            Export
           </button>
           <button
             onClick={goToCreateReference}
@@ -643,7 +602,7 @@ export default function SafetyReferencePage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm min-w-[1100px]">
+            <table className="w-full border-collapse text-sm min-w-[1000px]">
               <thead>
                 <tr className="bg-surface-2/70">
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Reference</th>
@@ -653,7 +612,6 @@ export default function SafetyReferencePage() {
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Branch</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Related</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Age</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500"></th>
                 </tr>
               </thead>
               <tbody>
@@ -665,7 +623,7 @@ export default function SafetyReferencePage() {
                     <tr
                       key={item.id}
                       onClick={() => goToReferenceDetail(item.id)}
-                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer group"
+                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium text-ink-950 text-xs">{item.title}</div>
@@ -708,11 +666,6 @@ export default function SafetyReferencePage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-ink-500 text-xs">{formatTime(item.createdAt)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="text-ink-400 group-hover:text-primary transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}

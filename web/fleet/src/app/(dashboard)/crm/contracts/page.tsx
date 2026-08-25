@@ -14,42 +14,14 @@ import {
   ChevronDown,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  Eye,
   ArrowRight,
-  Sparkles,
-  TrendingUp,
-  TrendingDown,
-  Users,
-  MoreHorizontal,
   CalendarDays,
-  Download,
   FileText,
   Plus,
   DollarSign,
   Building2,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Tag,
-  Shield,
-  CreditCard,
-  Receipt,
-  Star,
-  UserPlus,
-  Send,
-  Edit3,
-  Trash2,
-  Zap,
-  Target,
-  PieChart,
-  BarChart3,
-  FileCheck as FileCheckIcon,
-  HandCoins,
   Calendar,
-  Check,
   XCircle,
 } from "lucide-react";
 
@@ -567,9 +539,6 @@ export default function ContractsPage() {
                       </div>
                     </div>
                   </div>
-                  <button className="flex-shrink-0 text-ink-300 hover:text-ink-600 transition-colors">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
                 </div>
 
                 <div className="relative z-10 mt-2">

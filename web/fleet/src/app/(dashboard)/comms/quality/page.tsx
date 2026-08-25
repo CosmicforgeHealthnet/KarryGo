@@ -12,48 +12,22 @@ import {
   AlertCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
   Check,
   MoreHorizontal,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  MessageCircle,
-  UserCheck,
-  UserX,
-  Clock as ClockIcon,
+  Tag,
+  Info,
   AlertOctagon,
   Shield,
-  Flag,
-  UserCog,
-  CheckCircle,
   XCircle,
-  Clock as ClockIcon2,
   FileSearch,
   ClipboardList,
-  BookOpen,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -303,6 +277,8 @@ const MOCK_QUALITY_CASES: QualityCase[] = [
   },
 ];
 
+// ==================== STYLES ====================
+
 const CATEGORY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   Complaint: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   NonConformance: { bg: "bg-purple-bg", text: "text-purple", icon: <XCircle className="h-3.5 w-3.5" /> },
@@ -335,10 +311,9 @@ const ROOT_CAUSE_STYLES: Record<string, { bg: string; text: string }> = {
   Resolved: { bg: "bg-green-bg", text: "text-green" },
 };
 
-const CATEGORY_FILTERS = ["All", "Complaint", "NonConformance", "ProcessFailure", "ServiceFailure", "CustomerExperience", "Safety", "Other"];
-const SEVERITY_FILTERS = ["All", "Critical", "High", "Medium", "Low"];
-const STATUS_FILTERS = ["All", "Open", "Investigating", "UnderReview", "Resolved", "Closed"];
 const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
+
+// ==================== COMPONENT ====================
 
 export default function QualityCasesPage() {
   const router = useRouter();

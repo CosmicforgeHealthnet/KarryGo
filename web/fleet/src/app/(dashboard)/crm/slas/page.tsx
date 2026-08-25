@@ -8,16 +8,13 @@ import {
   Award,
   Search,
   RefreshCw,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Clock,
   CheckCircle2,
-  AlertCircle,
   Eye,
   ArrowRight,
-  Sparkles,
   TrendingUp,
   TrendingDown,
   Users,
@@ -26,35 +23,12 @@ import {
   Download,
   FileText,
   Plus,
-  DollarSign,
   Building2,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Tag,
-  Shield,
-  CreditCard,
-  Receipt,
-  Star,
-  UserPlus,
-  Send,
-  Edit3,
-  Trash2,
-  Zap,
-  Target,
-  PieChart,
-  BarChart3,
-  FileCheck as FileCheckIcon,
-  HandCoins,
   Calendar,
-  Check,
-  XCircle,
-  Activity,
-  LineChart,
-  BarChart,
+  Target,
   Gauge,
+  Filter,
 } from "lucide-react";
 
 type SLA = {
@@ -237,7 +211,14 @@ const SLAS: SLA[] = [
   },
 ];
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  dot: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   Draft: {
     bg: "bg-blue-bg",
     text: "text-blue",
@@ -260,11 +241,17 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
     bg: "bg-amber-bg",
     text: "text-amber",
     dot: "bg-amber",
-    icon: <Archive className="h-3.5 w-3.5" />,
+    icon: <Clock className="h-3.5 w-3.5" />,
   },
 };
 
-const DIRECTION_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type DirectionStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const DIRECTION_STYLES: Record<string, DirectionStyle> = {
   Higher: { bg: "bg-green-bg", text: "text-green", icon: <TrendingUp className="h-3.5 w-3.5" /> },
   Lower: { bg: "bg-red-bg", text: "text-red", icon: <TrendingDown className="h-3.5 w-3.5" /> },
 };
@@ -274,13 +261,13 @@ const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
 
 export default function SLAPage() {
   const router = useRouter();
-  const [search, setSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [showFilters, setShowFilters] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
+  const [selectedBranch, setSelectedBranch] = useState<string>("All branches");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<SLA[]>([]);
-  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
 
   useEffect(() => {
     const loadData = async () => {

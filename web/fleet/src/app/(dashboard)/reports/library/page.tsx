@@ -7,92 +7,21 @@ import { useRouter } from "next/navigation";
 import {
   Library,
   RefreshCw,
-  Clock,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
   Search,
+  BookOpen,
+  FileText,
   SlidersHorizontal,
   X,
-  ChevronDown,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FileText,
-  File,
-  FileArchive,
-  FileImage,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
+  Clock,
   XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
   Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
   Car,
+  Users,
   Wallet,
+  Shield,
+  ArrowRight,
+  File,
 } from "lucide-react";
 
 type Report = {
@@ -261,7 +190,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
   Available: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   Generating: { bg: "bg-amber-bg", text: "text-amber", icon: <RefreshCw className="h-3.5 w-3.5" /> },
   Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-3.5 w-3.5" /> },
-  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <ClockIcon className="h-3.5 w-3.5" /> },
+  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-3.5 w-3.5" /> },
 };
 
 const CATEGORY_FILTERS = ["All", "Operations", "Fleet", "Workforce", "Finance", "Customer", "Compliance", "Custom"];
@@ -270,13 +199,13 @@ const STATUS_FILTERS = ["All", "Available", "Generating", "Failed", "Expired"];
 
 export default function ReportsLibraryPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<Report[]>([]);
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [selectedFormat, setSelectedFormat] = useState("All");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-  const [showFilters, setShowFilters] = useState(false);
+  const [search, setSearch] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedFormat, setSelectedFormat] = useState<string>("All");
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -320,7 +249,7 @@ export default function ReportsLibraryPage() {
     (selectedFormat !== "All" ? 1 : 0) +
     (selectedStatus !== "All" ? 1 : 0);
 
-  const formatTime = (date: string | null) => {
+  const formatTime = (date: string | null): string => {
     if (!date) return "Never";
     const d = new Date(date);
     const now = new Date();
@@ -351,8 +280,8 @@ export default function ReportsLibraryPage() {
       {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1>Reports Library</h1>
-          <p className="mt-1.5">Available ordinary reports, description, last run and permitted scope.</p>
+          <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">Reports Library</h1>
+          <p className="mt-1.5 text-sm text-ink-600">Available ordinary reports, description, last run and permitted scope.</p>
         </div>
       </div>
 

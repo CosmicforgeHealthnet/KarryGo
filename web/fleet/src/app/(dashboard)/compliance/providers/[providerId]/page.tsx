@@ -11,45 +11,15 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
-  Users,
   FileText,
-  Plus,
-  Building2,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Tag,
-  Info,
-  FileCheck,
   Calendar,
-  XCircle,
-  Activity,
-  ListChecks,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
-  ClipboardList,
-  BookOpen,
-  FileSignature,
-  FolderOpen,
   ChevronDown,
   ChevronUp,
-  Download,
-  Printer,
-  ExternalLink,
-  MoreHorizontal,
   Edit3,
-  Trash2,
-  UserCheck,
-  UserX,
   AlertOctagon,
-  Check,
-  X,
+  Search,
+  ListChecks,
+  Info,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -345,7 +315,7 @@ const REQUIREMENT_STATUS_STYLES: Record<string, { bg: string; text: string; dot:
     bg: "bg-red-bg",
     text: "text-red",
     dot: "bg-red",
-    icon: <XCircle className="h-3.5 w-3.5" />,
+    icon: <AlertOctagon className="h-3.5 w-3.5" />,
   },
   Pending: {
     bg: "bg-blue-bg",
@@ -404,7 +374,6 @@ export default function ProviderCompliancePage() {
   useEffect(() => {
     const loadData = async () => {
       await new Promise((resolve) => setTimeout(resolve, 600));
-      // Use mock data based on providerId, fallback to P-044
       const mockData = MOCK_PROVIDER_DATA[providerId] || MOCK_PROVIDER_DATA["P-044"];
       setData(mockData);
       setLoading(false);
@@ -465,10 +434,10 @@ export default function ProviderCompliancePage() {
   });
 
   const overallStatusStyle = {
-    Compliant: { bg: "bg-green-bg", text: "text-green", icon: <ShieldCheck className="h-5 w-5" /> },
-    Warning: { bg: "bg-amber-bg", text: "text-amber", icon: <ShieldAlert className="h-5 w-5" /> },
-    NonCompliant: { bg: "bg-red-bg", text: "text-red", icon: <ShieldAlert className="h-5 w-5" /> },
-    Pending: { bg: "bg-blue-bg", text: "text-blue", icon: <ShieldQuestion className="h-5 w-5" /> },
+    Compliant: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-5 w-5" /> },
+    Warning: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-5 w-5" /> },
+    NonCompliant: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-5 w-5" /> },
+    Pending: { bg: "bg-blue-bg", text: "text-blue", icon: <Clock className="h-5 w-5" /> },
   }[data.overallStatus] || { bg: "bg-surface-2", text: "text-ink-500", icon: <Shield className="h-5 w-5" /> };
 
   const formatDate = (date: string | null) => {
@@ -532,14 +501,6 @@ export default function ProviderCompliancePage() {
           >
             <RefreshCw className="h-3 w-3" />
             {secondsAgo}s
-          </button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white">
-            <Download className="h-3.5 w-3.5" />
-            Export
-          </button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white">
-            <Printer className="h-3.5 w-3.5" />
-            Print
           </button>
         </div>
       </div>
@@ -641,7 +602,7 @@ export default function ProviderCompliancePage() {
           >
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-red-bg p-2">
-                <ShieldAlert className="h-4 w-4 text-red" />
+                <AlertOctagon className="h-4 w-4 text-red" />
               </div>
               <div>
                 <span className="font-semibold text-ink-950">Active Restrictions</span>
@@ -882,7 +843,6 @@ export default function ProviderCompliancePage() {
                                   <button className="flex items-center gap-1 text-primary hover:underline">
                                     <FileText className="h-4 w-4" />
                                     {req.evidenceRef}
-                                    <ExternalLink className="h-3 w-3" />
                                   </button>
                                 ) : (
                                   <span className="text-ink-400">No evidence attached</span>
@@ -906,7 +866,7 @@ export default function ProviderCompliancePage() {
                           <div className="mt-3 flex flex-wrap gap-2">
                             {req.restrictionImpact && (
                               <button className="rounded-lg border border-red/20 bg-red-bg px-3 py-1.5 text-[11px] font-medium text-red transition hover:bg-red/10">
-                                <ShieldAlert className="inline h-3.5 w-3.5 mr-1" />
+                                <AlertOctagon className="inline h-3.5 w-3.5 mr-1" />
                                 Resolve Block
                               </button>
                             )}

@@ -9,65 +9,22 @@ import {
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
   Edit3,
-  Trash2,
-  Check,
   MoreHorizontal,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
   Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
+  File,
   Folder,
-  HardDrive,
-  Database,
   Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
+  XCircle,
+  Minus,
   Upload,
+  History,
   ChevronUp,
   ChevronDown,
-  Minus,
+  Info,
+  Printer,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -205,26 +162,36 @@ const MOCK_DOCUMENT_DATA: Record<string, DocumentDetail> = {
   },
 };
 
-const TYPE_ICONS: Record<string, React.ReactNode> = {
+type TypeStyle = {
+  icon: React.ReactNode;
+};
+
+const TYPE_ICONS: Record<string, TypeStyle["icon"]> = {
   PDF: <File className="h-8 w-8 text-red" />,
-  Image: <FileImage className="h-8 w-8 text-blue" />,
-  Spreadsheet: <FileSpreadsheet className="h-8 w-8 text-green" />,
-  Document: <FileTextIcon className="h-8 w-8 text-blue" />,
-  Archive: <FileArchive className="h-8 w-8 text-amber" />,
+  Image: <FileText className="h-8 w-8 text-blue" />,
+  Spreadsheet: <FileText className="h-8 w-8 text-green" />,
+  Document: <FileText className="h-8 w-8 text-blue" />,
+  Archive: <FileText className="h-8 w-8 text-amber" />,
   Other: <File className="h-8 w-8 text-ink-400" />,
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   Uploaded: { bg: "bg-blue-bg", text: "text-blue", icon: <Cloud className="h-4 w-4" /> },
   Scanning: { bg: "bg-amber-bg", text: "text-amber", icon: <RefreshCw className="h-4 w-4" /> },
   Verified: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Rejected: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
-  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <ClockIcon className="h-4 w-4" /> },
+  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-4 w-4" /> },
   Archived: { bg: "bg-surface-2", text: "text-ink-500", icon: <Folder className="h-4 w-4" /> },
 };
 
-const VERIFICATION_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <ClockIcon className="h-4 w-4" /> },
+const VERIFICATION_STYLES: Record<string, StatusStyle> = {
+  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-4 w-4" /> },
   Verified: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Rejected: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
   NotRequired: { bg: "bg-surface-2", text: "text-ink-500", icon: <Minus className="h-4 w-4" /> },
@@ -249,10 +216,10 @@ export default function DocumentDetailPage() {
   const router = useRouter();
   const documentId = params.documentId as string;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<DocumentDetail | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [showHistory, setShowHistory] = useState(true);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [showHistory, setShowHistory] = useState<boolean>(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -300,7 +267,7 @@ export default function DocumentDetailPage() {
   const statusStyle = STATUS_STYLES[data.status] || STATUS_STYLES.Uploaded;
   const verificationStyle = VERIFICATION_STYLES[data.verificationStatus] || VERIFICATION_STYLES.Pending;
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -314,13 +281,13 @@ export default function DocumentDetailPage() {
     return `${diffDay}d ago`;
   };
 
-  const formatDate = (date: string | null) => {
+  const formatDate = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   };
 
-  const formatDateTime = (date: string | null) => {
+  const formatDateTime = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleString("en-GB", {
@@ -339,7 +306,7 @@ export default function DocumentDetailPage() {
       case "Verified": return <CheckCircle2 className="h-4 w-4 text-green" />;
       case "Rejected": return <XCircle className="h-4 w-4 text-red" />;
       case "Archived": return <Folder className="h-4 w-4 text-ink-400" />;
-      case "Expired": return <ClockIcon className="h-4 w-4 text-ink-400" />;
+      case "Expired": return <Clock className="h-4 w-4 text-ink-400" />;
       case "Downloaded": return <Download className="h-4 w-4 text-blue" />;
       default: return <Info className="h-4 w-4 text-ink-400" />;
     }
@@ -533,7 +500,7 @@ export default function DocumentDetailPage() {
             onClick={handleReplace}
             className="flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink-700 hover:bg-white transition-colors"
           >
-            <FilePlus className="h-4 w-4" />
+            <FileText className="h-4 w-4" />
             Replace Document
           </button>
           {data.status !== "Archived" && (

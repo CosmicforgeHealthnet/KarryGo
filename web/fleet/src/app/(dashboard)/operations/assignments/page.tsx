@@ -1,193 +1,183 @@
-﻿// src/app/(dashboard)/operations/assignments/page.tsx
+﻿// src/app/(dashboard)/finance/page.tsx
 
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  Search,
-  Package,
-  Truck,
+  LayoutDashboard,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
   Clock,
-  SlidersHorizontal,
-  X,
-  ChevronUp,
-  ChevronDown,
+  CheckCircle2,
+  AlertCircle,
   ArrowRight,
+  Wallet,
+  Users,
+  Download,
+  CreditCard,
+  Receipt,
+  Briefcase,
+  PieChart,
+  AlertTriangle,
+  Coins,
+  Scale,
+  ChartNoAxesCombined,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
-type Assignment = {
-  id: string;
-  offerId: string;
-  provider: string;
-  asset: string;
-  branch: string;
-  status: "Pending response" | "Accepted" | "Declined" | "Expired" | "In Progress" | "Completed";
-  deadline: string;
-  created: string;
+type FinanceDashboardData = {
+  summary: {
+    totalRevenue: number;
+    totalExpenses: number;
+    netProfit: number;
+    receivables: number;
+    overdue: number;
+    payrollTotal: number;
+    budgetUtilization: number;
+  };
+  recentInvoices: {
+    id: string;
+    reference: string;
+    customer: string;
+    amount: number;
+    status: "Paid" | "Pending" | "Overdue" | "Draft";
+    dueDate: string;
+    date: string;
+  }[];
+  monthlyTrend: {
+    month: string;
+    revenue: number;
+    expenses: number;
+  }[];
+  payrollSummary: {
+    period: string;
+    totalAmount: number;
+    providerCount: number;
+    status: "Calculated" | "Approved" | "Posted" | "Pending";
+  };
+  reconciliationExceptions: {
+    id: string;
+    type: string;
+    description: string;
+    severity: "Critical" | "High" | "Medium" | "Low";
+    timestamp: string;
+  }[];
 };
 
-const ASSIGNMENTS: Assignment[] = [
-  {
-    id: "ASN-731968",
-    offerId: "MKT-24062",
-    provider: "Peter Okafor",
-    asset: "Bike BR-88",
-    branch: "Ikeja",
-    status: "Pending response",
-    deadline: "12 min",
-    created: "2026-08-24 09:30",
+const MOCK_DATA: FinanceDashboardData = {
+  summary: {
+    totalRevenue: 18420000,
+    totalExpenses: 8400000,
+    netProfit: 10020000,
+    receivables: 6840000,
+    overdue: 1200000,
+    payrollTotal: 2800000,
+    budgetUtilization: 78,
   },
-  {
-    id: "ASN-731967",
-    offerId: "MKT-24073",
-    provider: "Chinedu Uche",
-    asset: "Bike BR-20",
-    branch: "Lekki",
-    status: "Accepted",
-    deadline: "45 min",
-    created: "2026-08-24 08:15",
+  recentInvoices: [
+    { id: "INV-001", reference: "INV-2026-001", customer: "Charitos Hospital", amount: 1280000, status: "Paid", dueDate: "2026-08-15", date: "2026-08-01" },
+    { id: "INV-002", reference: "INV-2026-002", customer: "Oakfield Stores", amount: 840000, status: "Pending", dueDate: "2026-08-30", date: "2026-08-10" },
+    { id: "INV-003", reference: "INV-2026-003", customer: "Greenline Foods", amount: 2100000, status: "Overdue", dueDate: "2026-07-31", date: "2026-07-15" },
+    { id: "INV-004", reference: "INV-2026-004", customer: "Solaris Construction", amount: 560000, status: "Draft", dueDate: "2026-09-15", date: "2026-08-20" },
+  ],
+  monthlyTrend: [
+    { month: "Jan", revenue: 1200000, expenses: 800000 },
+    { month: "Feb", revenue: 1400000, expenses: 850000 },
+    { month: "Mar", revenue: 1600000, expenses: 900000 },
+    { month: "Apr", revenue: 1500000, expenses: 880000 },
+    { month: "May", revenue: 1800000, expenses: 950000 },
+    { month: "Jun", revenue: 2000000, expenses: 1000000 },
+    { month: "Jul", revenue: 2200000, expenses: 1050000 },
+    { month: "Aug", revenue: 2400000, expenses: 1100000 },
+  ],
+  payrollSummary: {
+    period: "August 2026",
+    totalAmount: 2800000,
+    providerCount: 12,
+    status: "Calculated",
   },
-  {
-    id: "ASN-731966",
-    offerId: "MKT-24079",
-    provider: "Amina Yusuf",
-    asset: "Van VN-04",
-    branch: "Ikeja",
-    status: "Declined",
-    deadline: "Expired",
-    created: "2026-08-24 07:00",
-  },
-  {
-    id: "ASN-731965",
-    offerId: "MKT-24081",
-    provider: "Musa Bello",
-    asset: "Truck TR-12",
-    branch: "Apapa",
-    status: "In Progress",
-    deadline: "1.2 hrs",
-    created: "2026-08-24 06:30",
-  },
-  {
-    id: "ASN-731964",
-    offerId: "MKT-24069",
-    provider: "Kabiru Ahmed",
-    asset: "Van VN-04",
-    branch: "Apapa",
-    status: "Completed",
-    deadline: "Completed",
-    created: "2026-08-23 16:00",
-  },
-  {
-    id: "ASN-731963",
-    offerId: "MKT-24058",
-    provider: "Peter Okafor",
-    asset: "Bike BR-88",
-    branch: "Ikeja",
-    status: "Expired",
-    deadline: "Expired",
-    created: "2026-08-23 14:30",
-  },
-];
-
-const STATUS_STYLES: Record<Assignment["status"], { bg: string; text: string; dot: string }> = {
-  "Pending response": { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber" },
-  Accepted: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
-  Declined: { bg: "bg-red-bg", text: "text-red", dot: "bg-red" },
-  Expired: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400" },
-  "In Progress": { bg: "bg-primary-bg", text: "text-primary", dot: "bg-primary" },
-  Completed: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
+  reconciliationExceptions: [
+    { id: "REC-001", type: "Payment Gateway", description: "Invoice INV-002 payment pending confirmation", severity: "High", timestamp: "2 hours ago" },
+    { id: "REC-002", type: "Wallet Sync", description: "Provider wallet balance mismatch for P-029", severity: "Medium", timestamp: "4 hours ago" },
+    { id: "REC-003", type: "Payroll", description: "Payroll period approval pending", severity: "Low", timestamp: "1 day ago" },
+  ],
 };
 
-const STATUS_OPTIONS = ["All", "Pending response", "Accepted", "Declined", "Expired", "In Progress", "Completed"];
-const BRANCH_OPTIONS = ["All", "Ikeja", "Lekki", "Apapa", "Yaba"];
-
-type SortField = "status" | "deadline" | "provider" | "id";
-type SortDirection = "asc" | "desc";
-
-const STATUS_ORDER = {
-  "Pending response": 0,
-  Accepted: 1,
-  "In Progress": 2,
-  Completed: 3,
-  Declined: 4,
-  Expired: 5,
+const INVOICE_STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
+  Paid: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
+  Pending: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber" },
+  Overdue: { bg: "bg-red-bg", text: "text-red", dot: "bg-red" },
+  Draft: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400" },
 };
 
-export default function AssignmentsListPage() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [branchFilter, setBranchFilter] = useState("All");
-  const [showFilters, setShowFilters] = useState(false);
-  const [sortField, setSortField] = useState<SortField>("status");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
+  Critical: { bg: "bg-red-bg", text: "text-red", dot: "bg-red" },
+  High: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber" },
+  Medium: { bg: "bg-primary-bg", text: "text-primary", dot: "bg-primary" },
+  Low: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400" },
+};
+
+const formatValue = (value: number | string | Array<number | string>) => {
+  const num = typeof value === "string" ? parseFloat(value) : Array.isArray(value) ? Number(value[0]) : value;
+  return `₦${(num / 1000000).toFixed(1)}M`;
+};
+
+export default function FinanceDashboardPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<FinanceDashboardData | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
+    const loadData = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setData(MOCK_DATA);
+      setLoading(false);
+    };
+    loadData();
   }, []);
 
-  const filtered = ASSIGNMENTS.filter((a) => {
-    const matchesSearch =
-      search.trim() === "" ||
-      a.id.toLowerCase().includes(search.toLowerCase()) ||
-      a.offerId.toLowerCase().includes(search.toLowerCase()) ||
-      a.provider.toLowerCase().includes(search.toLowerCase());
-
-    const matchesStatus = statusFilter === "All" || a.status === statusFilter;
-    const matchesBranch = branchFilter === "All" || a.branch === branchFilter;
-
-    return matchesSearch && matchesStatus && matchesBranch;
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    let aVal: string | number = a[sortField];
-    let bVal: string | number = b[sortField];
-
-    if (sortField === "status") {
-      aVal = STATUS_ORDER[a.status];
-      bVal = STATUS_ORDER[b.status];
-    }
-
-    if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-    if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
-    return 0;
-  });
-
-  const hasActiveFilters = statusFilter !== "All" || branchFilter !== "All" || search !== "";
-
-  const clearFilters = () => {
-    setSearch("");
-    setStatusFilter("All");
-    setBranchFilter("All");
-  };
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  };
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ChevronUp className="h-3 w-3 text-ink-300" />;
-    return sortDirection === "asc" ? (
-      <ChevronUp className="h-3 w-3 text-primary" />
-    ) : (
-      <ChevronDown className="h-3 w-3 text-primary" />
-    );
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   };
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1400px] py-12">
+      <div className="py-12">
         <div className="flex items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="ml-3">Loading assignments...</p>
+          <span className="ml-3 text-sm text-ink-600">Loading finance dashboard...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line bg-white py-14">
+        <div className="rounded-full bg-surface-2 p-4">
+          <LayoutDashboard className="h-8 w-8 text-ink-400" />
+        </div>
+        <h3 className="mt-3 text-sm font-semibold text-ink-950">Finance data unavailable</h3>
+        <p className="mt-1 text-sm text-ink-500">Unable to load finance dashboard data.</p>
+        <button className="mt-3.5 rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors">
+          <RefreshCw className="inline h-3.5 w-3.5 mr-1" />
+          Refresh
+        </button>
       </div>
     );
   }
@@ -195,274 +185,352 @@ export default function AssignmentsListPage() {
   return (
     <div className="space-y-5">
       {/* ── Header ── */}
-      <div>
-        <h1>Assignments</h1>
-        <p className="mt-1.5">
-          All company assignments. Pending response items require attention.
-        </p>
-      </div>
-
-      {/* ── Stats ── */}
-      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4 lg:grid-cols-6">
-        <StatCard label="Total" value={ASSIGNMENTS.length} tone="blue" />
-        <StatCard
-          label="Pending"
-          value={ASSIGNMENTS.filter((a) => a.status === "Pending response").length}
-          tone="amber"
-        />
-        <StatCard
-          label="Accepted"
-          value={ASSIGNMENTS.filter((a) => a.status === "Accepted").length}
-          tone="green"
-        />
-        <StatCard
-          label="In Progress"
-          value={ASSIGNMENTS.filter((a) => a.status === "In Progress").length}
-          tone="blue"
-        />
-        <StatCard
-          label="Declined"
-          value={ASSIGNMENTS.filter((a) => a.status === "Declined").length}
-          tone="red"
-        />
-        <StatCard
-          label="Expired"
-          value={ASSIGNMENTS.filter((a) => a.status === "Expired").length}
-          tone="neutral"
-        />
-      </div>
-
-      {/* ── Toolbar ── */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-white px-3 sm:max-w-xs">
-          <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-500" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search assignments..."
-            className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-500"
-          />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">Finance Dashboard</h1>
+          <p className="mt-1.5 text-sm text-ink-600">
+            Invoices, receivables, expenses, payroll, budgets, and reconciliation.
+          </p>
         </div>
-
-        <div className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-700 whitespace-nowrap">
-          <span className="text-ink-400">Status:</span>
-          {statusFilter}
-          <span className="text-ink-300">·</span>
-          <span className="text-ink-400">Branch:</span>
-          {branchFilter}
-        </div>
-
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors whitespace-nowrap ${
-            showFilters || hasActiveFilters
-              ? "border-primary bg-primary-bg text-primary"
-              : "border-line bg-white text-ink-700 hover:bg-surface-2"
-          }`}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filters
-          {(statusFilter !== "All" || branchFilter !== "All") && (
-            <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-white">
-              {(statusFilter !== "All" ? 1 : 0) + (branchFilter !== "All" ? 1 : 0)}
-            </span>
-          )}
-        </button>
-
-        {hasActiveFilters && (
-          <button
-            onClick={clearFilters}
-            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-500 hover:bg-surface-2 transition-colors whitespace-nowrap"
-          >
-            <X className="h-3.5 w-3.5" />
-            Clear
+        <div className="flex items-center gap-2.5">
+          <button className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-white px-3.5 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2">
+            <Download className="h-3.5 w-3.5" />
+            Export
           </button>
-        )}
-
-        <span className="ml-auto text-sm text-ink-500 whitespace-nowrap">
-          {sorted.length} assignments
-        </span>
+        </div>
       </div>
 
-      {/* ── Filter drawer ── */}
-      {showFilters && (
+      {/* ── Summary Cards ── */}
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
         <div className="rounded-lg border border-line bg-white p-4">
-          <div className="flex flex-wrap items-center gap-6">
-            <div>
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.06em] text-ink-500">Status</span>
-              <div className="flex flex-wrap gap-1.5">
-                {STATUS_OPTIONS.map((status) => {
-                  const style = status !== "All" ? STATUS_STYLES[status as Assignment["status"]] : null;
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => setStatusFilter(status)}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
-                        statusFilter === status
-                          ? style
-                            ? `${style.bg} ${style.text}`
-                            : "bg-primary text-white"
-                          : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  );
-                })}
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-bg text-green">
+              <TrendingUp className="h-[18px] w-[18px]" />
             </div>
-            <div>
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.06em] text-ink-500">Branch</span>
-              <div className="flex flex-wrap gap-1.5">
-                {BRANCH_OPTIONS.map((branch) => (
-                  <button
-                    key={branch}
-                    onClick={() => setBranchFilter(branch)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
-                      branchFilter === branch
-                        ? "bg-primary text-white"
-                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                    }`}
-                  >
-                    {branch}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={clearFilters}
-              className="rounded-md border border-line px-3.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface-2 transition-colors whitespace-nowrap"
-            >
-              Clear all
-            </button>
+            <span className="text-xs font-semibold text-ink-600">Revenue</span>
+          </div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">
+            {formatCurrency(data.summary.totalRevenue)}
+          </div>
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-green">
+            <TrendingUp className="h-3 w-3" />
+            +12% this month
           </div>
         </div>
-      )}
+        <div className="rounded-lg border border-line bg-white p-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-bg text-red">
+              <TrendingDown className="h-[18px] w-[18px]" />
+            </div>
+            <span className="text-xs font-semibold text-ink-600">Expenses</span>
+          </div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">
+            {formatCurrency(data.summary.totalExpenses)}
+          </div>
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-red">
+            <TrendingDown className="h-3 w-3" />
+            +5% this month
+          </div>
+        </div>
+        <div className="rounded-lg border border-line bg-white p-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-bg text-primary">
+              <Wallet className="h-[18px] w-[18px]" />
+            </div>
+            <span className="text-xs font-semibold text-ink-600">Net Profit</span>
+          </div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">
+            {formatCurrency(data.summary.netProfit)}
+          </div>
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-green">
+            <TrendingUp className="h-3 w-3" />
+            +18% this month
+          </div>
+        </div>
+        <div className="rounded-lg border border-line bg-white p-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-bg text-primary">
+              <PieChart className="h-[18px] w-[18px]" />
+            </div>
+            <span className="text-xs font-semibold text-ink-600">Budget Utilization</span>
+          </div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">
+            {data.summary.budgetUtilization}%
+          </div>
+          <div className="mt-1.5 h-1.5 w-24 rounded-full bg-surface-3 overflow-hidden">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${data.summary.budgetUtilization}%` }} />
+          </div>
+        </div>
+      </div>
 
-      {/* ── Table ── */}
-      <div className="overflow-x-auto rounded-lg border border-line bg-white">
-        <table className="w-full border-collapse text-left">
-          <thead>
-            <tr className="border-b border-line bg-surface-1">
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("id")} className="flex items-center gap-1 hover:text-ink-700">
-                  Assignment <SortIcon field="id" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">Offer</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("provider")} className="flex items-center gap-1 hover:text-ink-700">
-                  Provider <SortIcon field="provider" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">Asset</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">Branch</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("status")} className="flex items-center gap-1 hover:text-ink-700">
-                  Status <SortIcon field="status" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("deadline")} className="flex items-center gap-1 hover:text-ink-700">
-                  Deadline <SortIcon field="deadline" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 text-right whitespace-nowrap">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-ink-500">
-                  <div className="flex flex-col items-center gap-2">
-                    <Package className="h-8 w-8 text-ink-300" />
-                    <p className="font-medium">No assignments match your filters</p>
-                    <button onClick={clearFilters} className="text-sm text-primary hover:underline">
-                      Clear filters
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              sorted.map((a) => {
-                const statusStyle = STATUS_STYLES[a.status];
-                const isPending = a.status === "Pending response";
+      {/* ── Second Row ── */}
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
+        <div
+          onClick={() => router.push("/finance/receivables")}
+          className="rounded-lg border border-line bg-white p-4 transition-colors hover:bg-surface-2 cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-bg text-primary">
+              <CreditCard className="h-[18px] w-[18px]" />
+            </div>
+            <span className="text-xs font-semibold text-ink-600">Receivables</span>
+          </div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">
+            {formatCurrency(data.summary.receivables)}
+          </div>
+          <div className="mt-1.5 text-[10px] text-ink-500">42 open invoices</div>
+        </div>
+        <div
+          onClick={() => router.push("/finance/receivables?status=Overdue")}
+          className="rounded-lg border border-line bg-white p-4 transition-colors hover:bg-surface-2 cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-bg text-red">
+              <AlertCircle className="h-[18px] w-[18px]" />
+            </div>
+            <span className="text-xs font-semibold text-ink-600">Overdue</span>
+          </div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-red">
+            {formatCurrency(data.summary.overdue)}
+          </div>
+          <div className="mt-1.5 text-[10px] text-red">7 invoices overdue</div>
+        </div>
+        <div
+          onClick={() => router.push("/finance/payroll")}
+          className="rounded-lg border border-line bg-white p-4 transition-colors hover:bg-surface-2 cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-bg text-amber">
+              <Users className="h-[18px] w-[18px]" />
+            </div>
+            <span className="text-xs font-semibold text-ink-600">Payroll</span>
+          </div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">
+            {formatCurrency(data.summary.payrollTotal)}
+          </div>
+          <div className="mt-1.5 text-[10px] text-ink-500">{data.payrollSummary.status}</div>
+        </div>
+        <div
+          onClick={() => router.push("/finance/reconciliation")}
+          className="rounded-lg border border-line bg-white p-4 transition-colors hover:bg-surface-2 cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-bg text-amber">
+              <AlertTriangle className="h-[18px] w-[18px]" />
+            </div>
+            <span className="text-xs font-semibold text-ink-600">Exceptions</span>
+          </div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-amber">
+            {data.reconciliationExceptions.length}
+          </div>
+          <div className="mt-1.5 text-[10px] text-ink-500">Need attention</div>
+        </div>
+      </div>
 
+      {/* ── Main Grid ── */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[2fr_1fr]">
+        {/* ── Left Column ── */}
+        <div className="space-y-5">
+          {/* Monthly Trend Chart */}
+          <div className="rounded-lg border border-line bg-white p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-[0.06em] text-ink-500">Trend</div>
+                <div className="text-sm font-semibold text-ink-950">Revenue & Expenses</div>
+              </div>
+              <span className="text-xs text-ink-400">Last 8 months</span>
+            </div>
+            <div className="w-full min-h-[220px] h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.monthlyTrend} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#8A8FA3" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#8A8FA3" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₦${(v / 1000000).toFixed(1)}M`} />
+              <Tooltip
+  contentStyle={{
+    borderRadius: 8,
+    border: "1px solid #E5E7EB",
+    fontSize: 12,
+    boxShadow: "none",
+  }}
+  formatter={(value) => formatValue(value as number | string | Array<number | string>)}
+/>
+                  <Bar dataKey="revenue" fill="#139a5d" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="expenses" fill="#c81e33" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-3 flex justify-center gap-4 text-xs text-ink-500">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-green" />
+                Revenue
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-red" />
+                Expenses
+              </span>
+            </div>
+          </div>
+
+          {/* Recent Invoices */}
+          <div className="rounded-lg border border-line bg-white p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-[0.06em] text-ink-500">Recent</div>
+                <div className="text-sm font-semibold text-ink-950">Invoices</div>
+              </div>
+              <button
+                onClick={() => router.push("/finance/invoices")}
+                className="text-xs font-medium text-primary transition-colors hover:text-primary-hover flex items-center gap-1"
+              >
+                View all <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {data.recentInvoices.map((invoice) => {
+                const statusStyle = INVOICE_STATUS_STYLES[invoice.status] || INVOICE_STATUS_STYLES.Draft;
                 return (
-                  <tr key={a.id} className="border-b border-line transition-colors hover:bg-surface-1/50">
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <div>
-                        <span className="font-mono font-semibold text-ink-950">{a.id}</span>
-                        <div className="text-xs text-ink-500">{a.created}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <Link href={`/operations/marketplace/${a.offerId}`} className="font-mono text-sm text-primary hover:underline">
-                        {a.offerId}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
+                  <div
+                    key={invoice.id}
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-line p-3 transition-colors hover:bg-surface-2"
+                    onClick={() => router.push(`/finance/invoices/${invoice.id}`)}
+                  >
+                    <div>
                       <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
-                          {a.provider.split(" ").map((n) => n[0]).join("")}
-                        </div>
-                        <span className="text-sm font-medium text-ink-950">{a.provider}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <Truck className="h-3.5 w-3.5 text-ink-400" />
-                        <span className="text-sm text-ink-700">{a.asset}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap text-sm text-ink-700">{a.branch}</td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
-                        {a.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className={`h-3.5 w-3.5 ${isPending ? "text-amber" : "text-ink-400"}`} />
-                        <span className={`text-sm font-medium ${isPending ? "text-amber" : "text-ink-600"}`}>
-                          {a.deadline}
+                        <span className="font-mono text-xs text-ink-950">{invoice.reference}</span>
+                        <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
+                          {invoice.status}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                      <Link
-                        href={`/operations/assignments/${a.id}`}
-                        className="inline-flex items-center gap-1 rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface-2 transition-colors"
-                      >
-                        View
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    </td>
-                  </tr>
+                      <div className="text-xs text-ink-500">{invoice.customer}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-ink-950">{formatCurrency(invoice.amount)}</div>
+                      <div className="text-[10px] text-ink-400">Due: {invoice.dueDate}</div>
+                    </div>
+                  </div>
                 );
-              })
-            )}
-          </tbody>
-        </table>
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right Column ── */}
+        <div className="space-y-5">
+          {/* Quick Navigation */}
+          <div className="rounded-lg border border-line bg-white p-5">
+            <div className="text-xs font-medium uppercase tracking-[0.06em] text-ink-500 mb-3">Navigate</div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "Invoices", icon: Receipt, path: "/finance/invoices" },
+                { label: "Receivables", icon: CreditCard, path: "/finance/receivables" },
+                { label: "Expenses", icon: Wallet, path: "/finance/expenses" },
+                { label: "Payroll", icon: Users, path: "/finance/payroll" },
+                { label: "Budgets", icon: PieChart, path: "/finance/budgets" },
+                { label: "Reconciliation", icon: RefreshCw, path: "/finance/reconciliation" },
+                { label: "Compensation", icon: Scale, path: "/finance/compensation-rules" },
+                { label: "Wallet", icon: Coins, path: "/wallet" },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => router.push(item.path)}
+                  className="flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-surface-2"
+                >
+                  <item.icon className="h-4 w-4 text-ink-400" />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Payroll Summary */}
+          <div className="rounded-lg border border-line bg-white p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-[0.06em] text-ink-500">Summary</div>
+                <div className="text-sm font-semibold text-ink-950">Payroll</div>
+              </div>
+              <button
+                onClick={() => router.push("/finance/payroll")}
+                className="text-xs font-medium text-primary transition-colors hover:text-primary-hover flex items-center gap-1"
+              >
+                View <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between border-b border-line pb-2">
+                <span className="text-ink-500">Period</span>
+                <span className="font-medium text-ink-950">{data.payrollSummary.period}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-line pb-2">
+                <span className="text-ink-500">Total</span>
+                <span className="font-semibold text-ink-950">{formatCurrency(data.payrollSummary.totalAmount)}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-line pb-2">
+                <span className="text-ink-500">Providers</span>
+                <span className="font-medium text-ink-950">{data.payrollSummary.providerCount}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-ink-500">Status</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                  data.payrollSummary.status === "Posted" ? "bg-green-bg text-green" :
+                  data.payrollSummary.status === "Approved" ? "bg-primary-bg text-primary" :
+                  data.payrollSummary.status === "Calculated" ? "bg-amber-bg text-amber" :
+                  "bg-surface-2 text-ink-500"
+                }`}>
+                  {data.payrollSummary.status}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Exceptions */}
+          <div className="rounded-lg border border-line bg-white p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-[0.06em] text-ink-500">Issues</div>
+                <div className="text-sm font-semibold text-ink-950">Exceptions</div>
+              </div>
+              <button
+                onClick={() => router.push("/finance/reconciliation")}
+                className="text-xs font-medium text-primary transition-colors hover:text-primary-hover flex items-center gap-1"
+              >
+                View all <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {data.reconciliationExceptions.map((exc) => {
+                const severityStyle = SEVERITY_STYLES[exc.severity] || SEVERITY_STYLES.Medium;
+                return (
+                  <div
+                    key={exc.id}
+                    className="flex items-start gap-2.5 rounded-lg border border-line p-2.5 transition-colors hover:bg-surface-2"
+                  >
+                    <AlertTriangle className={`h-4 w-4 flex-shrink-0 mt-0.5 ${
+                      exc.severity === "Critical" ? "text-red" :
+                      exc.severity === "High" ? "text-amber" :
+                      "text-primary"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-ink-950">{exc.description}</div>
+                      <div className="flex items-center gap-2 text-[10px] text-ink-400">
+                        <span>{exc.type}</span>
+                        <span className="text-ink-300">·</span>
+                        <span>{exc.timestamp}</span>
+                      </div>
+                    </div>
+                    <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${severityStyle.bg} ${severityStyle.text}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${severityStyle.dot}`} />
+                      {exc.severity}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, tone }: { label: string; value: number; tone: "blue" | "amber" | "green" | "red" | "neutral" }) {
-  const colorMap = {
-    blue: "bg-primary-bg text-primary",
-    amber: "bg-amber-bg text-amber",
-    green: "bg-green-bg text-green",
-    red: "bg-red-bg text-red",
-    neutral: "bg-surface-2 text-ink-600",
-  };
-
-  return (
-    <div className="rounded-lg border border-line bg-white p-3.5 transition-colors hover:border-ink-300">
-      <div className="text-xs font-medium text-ink-500">{label}</div>
-      <div className={`mt-1 text-xl font-bold ${colorMap[tone]}`}>{value}</div>
     </div>
   );
 }

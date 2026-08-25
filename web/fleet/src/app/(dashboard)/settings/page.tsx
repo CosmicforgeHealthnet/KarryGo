@@ -5,72 +5,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Settings,
-  RefreshCw,
-  Monitor,
-  Clock,
+  Users,
+  Shield,
   CheckCircle2,
-  AlertCircle,
+  Lock,
+  Building2,
+  Database,
+  Link2,
+  Monitor,
   AlertTriangle,
   ArrowRight,
-  Users,
-  Building2,
-  Link2,
-  Shield,
-  Lock,
-  Database,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  FileText,
-  File,
-  FolderOpen,
-  EyeOff,
-  XCircle,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
-  Car,
-  Wallet,
 } from "lucide-react";
 
 type SettingSection = {
@@ -157,7 +101,13 @@ const SETTING_SECTIONS: SettingSection[] = [
   },
 ];
 
-const COLOR_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+type ColorStyle = {
+  bg: string;
+  text: string;
+  border: string;
+};
+
+const COLOR_STYLES: Record<string, ColorStyle> = {
   blue: { bg: "bg-primary-bg", text: "text-primary", border: "border-primary/20" },
   green: { bg: "bg-green-bg", text: "text-green", border: "border-green/20" },
   amber: { bg: "bg-amber-bg", text: "text-amber", border: "border-amber/20" },
@@ -168,7 +118,7 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; border: string }>
 
 export default function SettingsDashboardPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -193,8 +143,8 @@ export default function SettingsDashboardPage() {
     <div className="space-y-5">
       {/* ── Header ── */}
       <div>
-        <h1>Settings</h1>
-        <p className="mt-1.5">Manage organization settings, staff, security, and integrations.</p>
+        <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">Settings</h1>
+        <p className="mt-1.5 text-sm text-ink-600">Manage organization settings, staff, security, and integrations.</p>
       </div>
 
       {/* ── Settings Grid ── */}

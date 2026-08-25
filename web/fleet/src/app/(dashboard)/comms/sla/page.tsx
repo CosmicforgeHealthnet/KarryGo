@@ -12,58 +12,18 @@ import {
   AlertCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  MessageCircle,
-  UserCheck,
-  UserX,
-  Clock as ClockIcon,
-  AlertOctagon,
-  Shield,
-  Flag,
-  UserCog,
-  CheckCircle,
-  XCircle,
-  Clock as ClockIcon2,
-  FileSearch,
-  ClipboardList,
-  BookOpen,
   Target,
-  TrendingUp,
-  TrendingDown,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
   Timer,
   Award,
+  AlertOctagon,
+  XCircle,
+  FileCheck,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -327,11 +287,13 @@ const MOCK_SLA_MEASUREMENTS: SLAMeasurement[] = [
   },
 ];
 
+// ==================== STYLES ====================
+
 const METRIC_ICONS: Record<string, React.ReactNode> = {
   OnTimeDelivery: <Timer className="h-3.5 w-3.5" />,
   PickupTime: <Clock className="h-3.5 w-3.5" />,
   ResponseTime: <Gauge className="h-3.5 w-3.5" />,
-  TransitTime: <Activity className="h-3.5 w-3.5" />,
+  TransitTime: <Timer className="h-3.5 w-3.5" />,
   DamageRate: <AlertTriangle className="h-3.5 w-3.5" />,
   CancellationRate: <XCircle className="h-3.5 w-3.5" />,
   CustomerSatisfaction: <Award className="h-3.5 w-3.5" />,
@@ -351,10 +313,9 @@ const EVIDENCE_STYLES: Record<string, { bg: string; text: string; icon: React.Re
   Pending: { bg: "bg-blue-bg", text: "text-blue", icon: <Clock className="h-3.5 w-3.5" /> },
 };
 
-const METRIC_FILTERS = ["All", "OnTimeDelivery", "PickupTime", "ResponseTime", "TransitTime", "DamageRate", "CancellationRate", "CustomerSatisfaction"];
-const RESULT_FILTERS = ["All", "MET", "BREACHED", "UNKNOWN", "IN_PROGRESS"];
-const EVIDENCE_FILTERS = ["All", "Complete", "Partial", "Missing", "Pending"];
 const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
+
+// ==================== COMPONENT ====================
 
 export default function SLAMeasurementsPage() {
   const router = useRouter();

@@ -8,231 +8,8 @@ import {
   Download,
   RefreshCw,
   Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
-  Search,
-  Filter,
-  SlidersHorizontal,
   X,
-  ChevronDown,
-  Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download as DownloadIcon,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
   FileText,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  DownloadCloud,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FileJson as FileJsonIcon,
-  FileCsv,
-  FileXml,
-  FileText as FileTextIcon2,
-  AlertCircle as AlertCircleIcon,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  AlertTriangle as AlertTriangleIcon,
-  RefreshCw as RefreshCwIcon,
-  Info as InfoIcon,
-  Table,
-  Columns,
-  Split,
-  Merge,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Type,
-  Hash,
-  Calendar as CalendarIcon,
-  DollarSign,
-  Percent,
-  Link,
-  Unlink,
-  Play,
-  Save,
-  FileSpreadsheet as FileSpreadsheetIcon2,
-  FileCog as FileCogIcon2,
-  RotateCw,
-  Undo2,
-  Redo2,
-  FileCheck as FileCheckIcon2,
-  FileX as FileXIcon2,
-  FileMinus as FileMinusIcon2,
-  FilePlus as FilePlusIcon2,
-  FileCog as FileCogIcon3,
-  FileCheck2 as FileCheck2Icon2,
-  AlertCircle as AlertCircleIcon2,
-  CheckCircle as CheckCircleIcon2,
-  XCircle as XCircleIcon2,
-  AlertTriangle as AlertTriangleIcon2,
-  FileSpreadsheet as FileSpreadsheetIcon3,
-  FileJson as FileJsonIcon2,
-  FileCsv as FileCsvIcon,
-  FileXml as FileXmlIcon,
-  Filter as FilterIcon,
-  SlidersHorizontal as SlidersHorizontalIcon,
-  X as XIcon,
-  ChevronDown as ChevronDownIcon,
-  Plus as PlusIcon,
-  Users as UsersIcon,
-  Building2 as Building2Icon,
-  Tag as TagIcon,
-  Calendar as CalendarIcon2,
-  Info as InfoIcon2,
-  ListChecks as ListChecksIcon,
-  Download as DownloadIcon2,
-  Printer as PrinterIcon,
-  Edit3 as Edit3Icon,
-  Trash2 as Trash2Icon,
-  Check as CheckIcon,
-  MoreHorizontal as MoreHorizontalIcon,
-  User as UserIcon2,
-  Mail as MailIcon,
-  Phone as PhoneIcon,
-  MapPin as MapPinIcon,
-  Briefcase as BriefcaseIcon,
-  Send as SendIcon,
-  Paperclip as PaperclipIcon,
-  Link2 as Link2Icon,
-  ExternalLink as ExternalLinkIcon,
-  FileText as FileTextIcon3,
-  File as FileIcon,
-  FileArchive as FileArchiveIcon,
-  FileImage as FileImageIcon,
-  FileJson as FileJsonIcon,
-  FilePdf as FilePdfIcon,
-  FileSpreadsheet as FileSpreadsheetIcon4,
-  FolderOpen as FolderOpenIcon,
-  Shield as ShieldIcon,
-  Lock as LockIcon,
-  EyeOff as EyeOffIcon,
-  AlertOctagon as AlertOctagonIcon,
-  FileCheck as FileCheckIcon,
-  FileSignature as FileSignatureIcon,
-  Folder as FolderIcon,
-  HardDrive as HardDriveIcon,
-  Database as DatabaseIcon,
-  Cloud as CloudIcon,
-  History as HistoryIcon,
-  GitBranch as GitBranchIcon,
-  FileUser as FileUserIcon,
-  FileKey as FileKeyIcon,
-  FileClock as FileClockIcon,
-  FileX as FileXIcon,
-  FileMinus as FileMinusIcon,
-  FilePlus as FilePlusIcon,
-  FileCog as FileCogIcon,
-  FileCheck2 as FileCheck2Icon,
-  FileSpreadsheet as FileSpreadsheetIcon5,
-  FileJson as FileJsonIcon3,
-  FileCsv as FileCsvIcon2,
-  FileXml as FileXmlIcon2,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  XCircle as XCircleIcon,
-  CheckCircle as CheckCircleIcon,
-  AlertTriangle as AlertTriangleIcon,
-  ArrowRight as ArrowRightIcon,
-  ArrowLeft as ArrowLeftIcon,
-  Send as SendIcon2,
-  Paperclip as PaperclipIcon2,
-  Link2 as Link2Icon2,
-  ExternalLink as ExternalLinkIcon2,
-  FileText as FileTextIcon4,
-  File as FileIcon2,
-  FileArchive as FileArchiveIcon2,
-  FileImage as FileImageIcon2,
-  FileJson as FileJsonIcon4,
-  FilePdf as FilePdfIcon2,
-  FileSpreadsheet as FileSpreadsheetIcon6,
-  FolderOpen as FolderOpenIcon2,
-  Shield as ShieldIcon2,
-  Lock as LockIcon2,
-  EyeOff as EyeOffIcon2,
-  AlertOctagon as AlertOctagonIcon2,
-  FileCheck as FileCheckIcon3,
-  FileSignature as FileSignatureIcon2,
-  Folder as FolderIcon2,
-  HardDrive as HardDriveIcon2,
-  Database as DatabaseIcon2,
-  Cloud as CloudIcon2,
-  History as HistoryIcon2,
-  GitBranch as GitBranchIcon2,
-  FileUser as FileUserIcon2,
-  FileKey as FileKeyIcon2,
-  FileClock as FileClockIcon2,
-  FileX as FileXIcon3,
-  FileMinus as FileMinusIcon3,
-  FilePlus as FilePlusIcon3,
-  FileCog as FileCogIcon4,
-  FileCheck2 as FileCheck2Icon3,
-  FileSpreadsheet as FileSpreadsheetIcon7,
-  FileJson as FileJsonIcon5,
-  FileCsv as FileCsvIcon3,
-  FileXml as FileXmlIcon3,
-  Sparkles as SparklesIcon,
-  Globe as GlobeIcon,
-  FilterX as FilterXIcon,
-  LayoutGrid as LayoutGridIcon,
-  LayoutList as LayoutListIcon,
-  Sliders as SlidersIcon,
-  XCircle as XCircleIcon3,
-  CheckCircle as CheckCircleIcon3,
-  AlertTriangle as AlertTriangleIcon3,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -260,20 +37,34 @@ const DATASETS = [
 ];
 
 const FORMATS = [
-  { value: "CSV", icon: <FileCsvIcon className="h-4 w-4" /> },
-  { value: "Excel", icon: <FileSpreadsheetIcon className="h-4 w-4" /> },
-  { value: "JSON", icon: <FileJsonIcon className="h-4 w-4" /> },
-  { value: "PDF", icon: <FilePdfIcon className="h-4 w-4" /> },
-  { value: "XML", icon: <FileXmlIcon className="h-4 w-4" /> },
+  { value: "CSV", icon: <FileText className="h-4 w-4" /> },
+  { value: "Excel", icon: <FileText className="h-4 w-4" /> },
+  { value: "JSON", icon: <FileText className="h-4 w-4" /> },
+  { value: "PDF", icon: <FileText className="h-4 w-4" /> },
+  { value: "XML", icon: <FileText className="h-4 w-4" /> },
 ];
 
 const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
 const SCOPES = ["All", "Branch", "Department", "User"];
 
+// Simple toast function
+const toast = (message: string) => {
+  if (typeof window !== "undefined") {
+    const toastEl = document.createElement("div");
+    toastEl.className = "fixed bottom-4 right-4 bg-ink-950 text-white px-4 py-2 rounded-xl text-sm shadow-lg z-50 animate-in slide-in-from-bottom-5";
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => toastEl.remove(), 300);
+    }, 3000);
+  }
+};
+
 export default function CreateExportPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
   const [config, setConfig] = useState<ExportConfig>({
     dataset: "Orders",
     format: "CSV",
@@ -291,7 +82,7 @@ export default function CreateExportPage() {
     requireVerification: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
@@ -465,7 +256,8 @@ export default function CreateExportPage() {
                 <label className="text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
                   Scope Value <span className="text-red">*</span>
                 </label>
-                <input                  type="text"
+                <input
+                  type="text"
                   value={config.scopeValue}
                   onChange={(e) => setConfig((prev) => ({ ...prev, scopeValue: e.target.value }))}
                   placeholder="Enter scope value..."
@@ -642,7 +434,7 @@ export default function CreateExportPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <DownloadCloud className="h-4 w-4" />
+          <Download className="h-4 w-4" />
           DAT-12 · Create Export
         </span>
         <span className="flex items-center gap-1.5">

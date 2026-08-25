@@ -8,129 +8,12 @@ import {
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  ArrowRight,
-  ArrowLeft,
-  Save,
   X,
-  FileText,
+  AlertCircle,
   Upload,
+  ArrowRight,
+  FileText,
   Trash2,
-  Eye,
-  Download,
-  FileCheck,
-  File,
-  FilePdf,
-  FileImage,
-  FileSpreadsheet,
-  FileArchive,
-  ListChecks,
-  Building2,
-  User,
-  Briefcase,
-  ShieldCheck,
-  Wallet,
-  FileCheck as FileCheckIcon,
-  Check,
-  Info,
-  Tag,
-  Calendar,
-  Printer,
-  Edit3,
-  MoreHorizontal,
-  Mail,
-  Phone,
-  MapPin,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FolderOpen,
-  Lock,
-  EyeOff,
-  AlertOctagon,
-  FileSignature,
-  Folder,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
-  DownloadCloud,
-  RotateCw,
-  Undo2,
-  Redo2,
-  SkipForward,
-  SkipBack,
-  FastForward,
-  Rewind,
-  PlayCircle,
-  PauseCircle,
-  StopCircle,
-  Inbox,
-  MailOpen,
-  MailX,
-  MailCheck,
-  MailWarning,
-  Archive,
-  ArchiveRestore,
-  Trash,
-  Trash2 as TrashIcon,
-  Server,
-  Cpu,
-  Home,
-  Settings as SettingsIcon,
-  UserPlus,
-  UserMinus,
-  HelpCircle,
-  Car,
-  Truck,
-  Package as PackageIcon,
-  Warehouse,
-  Shield,
-  Users,
-  Building2 as Building2Icon,
-  MapPin as MapPinIcon,
-  HardDrive,
-  Database,
-  Cloud,
-  Ship,
-  Plane,
-  Train,
-  Bike,
-  UploadCloud,
-  File as FileIcon,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -201,7 +84,13 @@ const MOCK_DOCUMENTS: BusinessDocument[] = [
   },
 ];
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   Uploaded: { bg: "bg-blue-bg", text: "text-blue", icon: <Upload className="h-3.5 w-3.5" /> },
   Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-3.5 w-3.5" /> },
   Verified: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
@@ -209,7 +98,12 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
   Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
 };
 
-const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
+type TypeStyle = {
+  bg: string;
+  text: string;
+};
+
+const TYPE_STYLES: Record<string, TypeStyle> = {
   Registration: { bg: "bg-blue-bg", text: "text-blue" },
   Tax: { bg: "bg-purple-bg", text: "text-purple" },
   Insurance: { bg: "bg-green-bg", text: "text-green" },
@@ -220,10 +114,10 @@ const TYPE_STYLES: Record<string, { bg: string; text: string }> = {
 
 export default function BusinessDocumentsPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<BusinessDocument[]>([]);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -268,7 +162,7 @@ export default function BusinessDocumentsPage() {
     );
   }
 
-  const formatDate = (date: string | null) => {
+  const formatDate = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });

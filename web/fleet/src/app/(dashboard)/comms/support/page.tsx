@@ -5,54 +5,26 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  LifeBuoy,
   RefreshCw,
   Clock,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  Users,
-  Building2,
   Tag,
-  Calendar,
   Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
   MoreHorizontal,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  MessageCircle,
-  UserCheck,
-  UserX,
-  Clock as ClockIcon,
-  HelpCircle,
-  Ticket,
-  AlertOctagon,
   Shield,
-  Flag,
-  UserCog,
-  CheckCircle,
+  AlertOctagon,
   XCircle,
-  Clock as ClockIcon2,
+  HelpCircle,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -326,11 +298,11 @@ const MOCK_SUPPORT_CASES: SupportCase[] = [
 
 const CATEGORY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   Technical: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-  Operational: { bg: "bg-amber-bg", text: "text-amber", icon: <Briefcase className="h-3.5 w-3.5" /> },
+  Operational: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   Billing: { bg: "bg-green-bg", text: "text-green", icon: <Tag className="h-3.5 w-3.5" /> },
-  Provider: { bg: "bg-purple-bg", text: "text-purple", icon: <Users className="h-3.5 w-3.5" /> },
+  Provider: { bg: "bg-purple-bg", text: "text-purple", icon: <User className="h-3.5 w-3.5" /> },
   Customer: { bg: "bg-red-bg", text: "text-red", icon: <User className="h-3.5 w-3.5" /> },
-  Fleet: { bg: "bg-amber-bg", text: "text-amber", icon: <Car className="h-3.5 w-3.5" /> },
+  Fleet: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   Compliance: { bg: "bg-red-bg", text: "text-red", icon: <Shield className="h-3.5 w-3.5" /> },
   Other: { bg: "bg-surface-2", text: "text-ink-500", icon: <MoreHorizontal className="h-3.5 w-3.5" /> },
 };
@@ -346,7 +318,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
   Open: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   InProgress: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <RefreshCw className="h-3.5 w-3.5" /> },
   Escalated: { bg: "bg-purple-bg", text: "text-purple", dot: "bg-purple", icon: <AlertOctagon className="h-3.5 w-3.5" /> },
-  AwaitingResponse: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <ClockIcon2 className="h-3.5 w-3.5" /> },
+  AwaitingResponse: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <Clock className="h-3.5 w-3.5" /> },
   Resolved: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <XCircle className="h-3.5 w-3.5" /> },
 };
@@ -573,7 +545,7 @@ export default function SupportCasesPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <LifeBuoy className="h-4 w-4 text-ink-400" />
+          <HelpCircle className="h-4 w-4 text-ink-400" />
           {selectedStatus}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -642,7 +614,7 @@ export default function SupportCasesPage() {
       {filteredData.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
           <div className="rounded-full bg-surface-2 p-4">
-            <LifeBuoy className="h-8 w-8 text-ink-400" />
+            <HelpCircle className="h-8 w-8 text-ink-400" />
           </div>
           <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No support cases found</h3>
           <p className="mt-1 text-sm text-ink-500">No cases match your current filters.</p>
@@ -725,7 +697,7 @@ export default function SupportCasesPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <LifeBuoy className="h-4 w-4" />
+          <HelpCircle className="h-4 w-4" />
           COM-04 · Platform Support Cases
         </span>
         <span className="flex items-center gap-1.5">

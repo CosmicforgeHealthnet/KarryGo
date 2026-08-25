@@ -8,62 +8,18 @@ import {
   ListChecks,
   Search,
   RefreshCw,
-  Filter,
   SlidersHorizontal,
-  Archive,
   X,
   ChevronDown,
   Clock,
   CheckCircle2,
   AlertCircle,
-  Eye,
-  ArrowRight,
-  Sparkles,
-  TrendingUp,
-  TrendingDown,
-  Users,
-  MoreHorizontal,
-  CalendarDays,
-  Download,
+  Shield,
   FileText,
   Plus,
-  DollarSign,
   Building2,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Tag,
-  Shield,
-  CreditCard,
-  Receipt,
-  Star,
-  UserPlus,
-  Send,
-  Edit3,
-  Trash2,
-  Zap,
-  Target,
-  PieChart,
-  BarChart3,
-  FileCheck,
-  HandCoins,
-  Calendar,
-  Check,
-  XCircle,
-  Activity,
-  LineChart,
-  BarChart,
-  Gauge,
-  ShieldAlert,
-  ShieldCheck,
-  ShieldQuestion,
-  FileSearch,
-  ClipboardList,
-  BookOpen,
-  FileSignature,
-  FolderOpen,
+  Users,
+  Archive,
 } from "lucide-react";
 
 type ComplianceRequirement = {
@@ -401,7 +357,7 @@ export default function ComplianceRequirementsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <Filter className="h-4 w-4 text-ink-400" />
+          <AlertCircle className="h-4 w-4 text-ink-400" />
           {selectedStatus}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -429,7 +385,7 @@ export default function ComplianceRequirementsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <Tag className="h-4 w-4 text-ink-400" />
+          <FileText className="h-4 w-4 text-ink-400" />
           {selectedType}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -568,7 +524,6 @@ export default function ComplianceRequirementsPage() {
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Status</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Validity</th>
                   <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Branch</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500"></th>
                 </tr>
               </thead>
               <tbody>
@@ -581,7 +536,7 @@ export default function ComplianceRequirementsPage() {
                     <tr
                       key={item.id}
                       onClick={() => goToRequirementDetail(item.id)}
-                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer group"
+                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium text-ink-950">{item.name}</div>
@@ -606,11 +561,6 @@ export default function ComplianceRequirementsPage() {
                       </td>
                       <td className="px-4 py-3 text-ink-600">{item.validityPeriod}</td>
                       <td className="px-4 py-3 text-ink-600">{item.branch}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="text-ink-400 group-hover:text-primary transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}

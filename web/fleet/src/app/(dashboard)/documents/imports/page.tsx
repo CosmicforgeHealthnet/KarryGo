@@ -10,80 +10,24 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  XCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
   FileText,
+  Briefcase,
+  Package,
+  User,
+  Users,
   File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
   Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  UploadCloud,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FileJson as FileJsonIcon,
-  FileCsv,
-  FileXml,
-  FileText as FileTextIcon2,
-  AlertCircle as AlertCircleIcon,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  AlertTriangle as AlertTriangleIcon,
-  RefreshCw as RefreshCwIcon,
-  Info as InfoIcon,
+  Tag,
+  Link2,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -271,12 +215,12 @@ const MOCK_IMPORTS: ImportJob[] = [
 ];
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Queued: { bg: "bg-surface-2", text: "text-ink-500", icon: <ClockIcon className="h-3.5 w-3.5" /> },
-  Running: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCwIcon className="h-3.5 w-3.5" /> },
-  Validating: { bg: "bg-amber-bg", text: "text-amber", icon: <CheckCircle className="h-3.5 w-3.5" /> },
+  Queued: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-3.5 w-3.5" /> },
+  Running: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCw className="h-3.5 w-3.5" /> },
+  Validating: { bg: "bg-amber-bg", text: "text-amber", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   Mapping: { bg: "bg-purple-bg", text: "text-purple", icon: <Link2 className="h-3.5 w-3.5" /> },
-  Processing: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCwIcon className="h-3.5 w-3.5" /> },
-  Partial: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangleIcon className="h-3.5 w-3.5" /> },
+  Processing: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCw className="h-3.5 w-3.5" /> },
+  Partial: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   Completed: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-3.5 w-3.5" /> },
   Cancelled: { bg: "bg-surface-2", text: "text-ink-500", icon: <X className="h-3.5 w-3.5" /> },
@@ -286,12 +230,12 @@ const IMPORT_TYPE_ICONS: Record<string, React.ReactNode> = {
   Orders: <Briefcase className="h-3.5 w-3.5" />,
   Shipments: <Package className="h-3.5 w-3.5" />,
   Packages: <Package className="h-3.5 w-3.5" />,
-  Providers: <UserIcon className="h-3.5 w-3.5" />,
-  Assets: <FileIcon className="h-3.5 w-3.5" />,
-  Customers: <UsersIcon className="h-3.5 w-3.5" />,
+  Providers: <User className="h-3.5 w-3.5" />,
+  Assets: <File className="h-3.5 w-3.5" />,
+  Customers: <Users className="h-3.5 w-3.5" />,
   Inventory: <Database className="h-3.5 w-3.5" />,
   Pricing: <Tag className="h-3.5 w-3.5" />,
-  Other: <FileTextIcon className="h-3.5 w-3.5" />,
+  Other: <FileText className="h-3.5 w-3.5" />,
 };
 
 const STATUS_FILTERS = ["All", "Queued", "Running", "Validating", "Mapping", "Processing", "Partial", "Completed", "Failed", "Cancelled"];
@@ -459,7 +403,7 @@ export default function GenericImportsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <ClockIcon className="h-4 w-4 text-ink-400" />
+          <Clock className="h-4 w-4 text-ink-400" />
           {selectedStatus}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -473,7 +417,7 @@ export default function GenericImportsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <FileTextIcon className="h-4 w-4 text-ink-400" />
+          <FileText className="h-4 w-4 text-ink-400" />
           {selectedType}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -510,7 +454,7 @@ export default function GenericImportsPage() {
       {filteredData.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
           <div className="rounded-full bg-surface-2 p-4">
-            <UploadCloud className="h-8 w-8 text-ink-400" />
+            <Upload className="h-8 w-8 text-ink-400" />
           </div>
           <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No imports found</h3>
           <p className="mt-1 text-sm text-ink-500">No imports match your current filters.</p>
@@ -604,7 +548,7 @@ export default function GenericImportsPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <UploadCloud className="h-4 w-4" />
+          <Upload className="h-4 w-4" />
           DAT-08 · Generic Imports
         </span>
         <span className="flex items-center gap-1.5">

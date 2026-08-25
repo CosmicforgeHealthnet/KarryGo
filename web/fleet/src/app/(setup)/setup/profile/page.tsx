@@ -5,123 +5,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  User,
   RefreshCw,
-    Clock,
-  Eye,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  ArrowRight,
-  ArrowLeft,
-  Save,
+  Clock,
   X,
-  Building2,
-  Mail,
-  Phone,
-  Briefcase,
-  FileText,
-  ShieldCheck,
-  Wallet,
-  FileCheck,
-  ListChecks,
-  Check,
-  Info,
-  Tag,
-  Calendar,
-  Download,
-  Printer,
+  CheckCircle2,
   Edit3,
-  Trash2,
-  MoreHorizontal,
-  MapPin,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FolderOpen,
   Lock,
-  EyeOff,
-  AlertOctagon,
-  FileSignature,
-  Folder,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
-  DownloadCloud,
-  RotateCw,
-  Undo2,
-  Redo2,
-  SkipForward,
-  SkipBack,
-  FastForward,
-  Rewind,
-  PlayCircle,
-  PauseCircle,
-  StopCircle,
-  Inbox,
-  MailOpen,
-  MailX,
-  MailCheck,
-  MailWarning,
-  Archive,
-  ArchiveRestore,
-  Trash,
-  Trash2 as TrashIcon,
-  Server,
-  Cpu,
-  Home,
-  Settings as SettingsIcon,
-  UserPlus,
-  UserMinus,
-  HelpCircle,
-  Car,
-  Truck,
-  Package as PackageIcon,
-  Warehouse,
-  Shield,
-  Users,
-  Building2 as Building2Icon,
-  MapPin as MapPinIcon,
-  HardDrive,
-  Database,
-  Cloud,
-  Ship,
-  Plane,
-  Train,
-  Bike,
+  Eye,
+  Save,
+  Building2,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -176,7 +68,13 @@ const MOCK_PROFILE: CompanyProfile = {
   taxId: "TAX-2026-001",
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   Active: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-4 w-4" /> },
   Suspended: { bg: "bg-red-bg", text: "text-red", icon: <X className="h-4 w-4" /> },
@@ -184,7 +82,13 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
   Approved: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
 };
 
-const ELIGIBILITY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type EligibilityStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const ELIGIBILITY_STYLES: Record<string, EligibilityStyle> = {
   Editable: { bg: "bg-green-bg", text: "text-green", icon: <Edit3 className="h-4 w-4" /> },
   Locked: { bg: "bg-red-bg", text: "text-red", icon: <Lock className="h-4 w-4" /> },
   ReviewRequired: { bg: "bg-amber-bg", text: "text-amber", icon: <Eye className="h-4 w-4" /> },
@@ -192,13 +96,13 @@ const ELIGIBILITY_STYLES: Record<string, { bg: string; text: string; icon: React
 
 export default function CompanyProfilePage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<CompanyProfile | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [isEditing, setIsEditing] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
   const [formData, setFormData] = useState<CompanyProfile | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {

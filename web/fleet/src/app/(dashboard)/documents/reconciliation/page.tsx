@@ -12,76 +12,16 @@ import {
   AlertCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
-  Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
   Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  RefreshCcw,
-  RefreshCw as RefreshCwIcon,
   GitPullRequest,
   GitCommit,
-  GitBranch as GitBranchIcon,
-  GitMerge,
-  GitPullRequestClosed,
-  AlertTriangle as AlertTriangleIcon,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  Info as InfoIcon,
+  GitBranch,
+  RefreshCcw,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -285,24 +225,24 @@ const MOCK_RECONCILIATION_CASES: ReconciliationCase[] = [
 ];
 
 const DISCREPANCY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Missing: { bg: "bg-red-bg", text: "text-red", icon: <FileX className="h-3.5 w-3.5" /> },
+  Missing: { bg: "bg-red-bg", text: "text-red", icon: <FileText className="h-3.5 w-3.5" /> },
   Mismatch: { bg: "bg-amber-bg", text: "text-amber", icon: <GitPullRequest className="h-3.5 w-3.5" /> },
-  Stale: { bg: "bg-blue-bg", text: "text-blue", icon: <ClockIcon className="h-3.5 w-3.5" /> },
-  Corrupted: { bg: "bg-purple-bg", text: "text-purple", icon: <AlertTriangleIcon className="h-3.5 w-3.5" /> },
-  VerificationFailed: { bg: "bg-red-bg", text: "text-red", icon: <XCircleIcon className="h-3.5 w-3.5" /> },
+  Stale: { bg: "bg-blue-bg", text: "text-blue", icon: <Clock className="h-3.5 w-3.5" /> },
+  Corrupted: { bg: "bg-purple-bg", text: "text-purple", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  VerificationFailed: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
 };
 
 const STATE_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
   Open: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-  Investigating: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <FileSearch className="h-3.5 w-3.5" /> },
-  PendingResolution: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <ClockIcon className="h-3.5 w-3.5" /> },
+  Investigating: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <FileText className="h-3.5 w-3.5" /> },
+  PendingResolution: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <Clock className="h-3.5 w-3.5" /> },
   Resolved: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <CheckCircle className="h-3.5 w-3.5" /> },
-  Failed: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <XCircle className="h-3.5 w-3.5" /> },
+  Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  Failed: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
 };
 
 const SEVERITY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Critical: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-3.5 w-3.5" /> },
+  Critical: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   High: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   Medium: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   Low: { bg: "bg-surface-2", text: "text-ink-500", icon: <Info className="h-3.5 w-3.5" /> },
@@ -311,6 +251,20 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; icon: React.Re
 const DISCREPANCY_FILTERS = ["All", "Missing", "Mismatch", "Stale", "Corrupted", "VerificationFailed"];
 const STATE_FILTERS = ["All", "Open", "Investigating", "PendingResolution", "Resolved", "Closed", "Failed"];
 const SEVERITY_FILTERS = ["All", "Critical", "High", "Medium", "Low"];
+
+// ===== SIMPLE TOAST FUNCTION =====
+const toast = (message: string) => {
+  if (typeof window !== "undefined") {
+    const toastEl = document.createElement("div");
+    toastEl.className = "fixed bottom-4 right-4 bg-ink-950 text-white px-4 py-2 rounded-xl text-sm shadow-lg z-50 animate-in slide-in-from-bottom-5";
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => toastEl.remove(), 300);
+    }, 3000);
+  }
+};
 
 export default function DocumentReconciliationPage() {
   const router = useRouter();
@@ -496,7 +450,7 @@ export default function DocumentReconciliationPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <GitBranchIcon className="h-4 w-4 text-ink-400" />
+          <GitBranch className="h-4 w-4 text-ink-400" />
           {selectedState}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>

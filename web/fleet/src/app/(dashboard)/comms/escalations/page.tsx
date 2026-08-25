@@ -2,71 +2,33 @@
 
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertOctagon,
   RefreshCw,
   Clock,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
   Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
   Link2,
-  ExternalLink,
-  MessageCircle,
-  UserCheck,
-  UserX,
-  Clock as ClockIcon,
-  Shield,
   Flag,
-  UserCog,
-  CheckCircle,
-  XCircle,
-  Clock as ClockIcon2,
-  FileSearch,
-  ClipboardList,
-  BookOpen,
+  Shield,
   Gauge,
-  Target,
-  TrendingUp,
-  TrendingDown,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
   AlertOctagon as AlertOctagonIcon,
   ArrowUp,
-  ArrowDown,
+  Settings,
+  HelpCircle,
+  ClipboardList,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -288,7 +250,7 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; icon: React.Re
   Critical: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagonIcon className="h-3.5 w-3.5" /> },
   High: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   Medium: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-  Low: { bg: "bg-surface-2", text: "text-ink-500", icon: <Info className="h-3.5 w-3.5" /> },
+  Low: { bg: "bg-surface-2", text: "text-ink-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
 };
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
@@ -297,22 +259,19 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; ico
   InProgress: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <RefreshCw className="h-3.5 w-3.5" /> },
   Escalated: { bg: "bg-purple-bg", text: "text-purple", dot: "bg-purple", icon: <ArrowUp className="h-3.5 w-3.5" /> },
   Resolved: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <XCircle className="h-3.5 w-3.5" /> },
+  Closed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
 };
 
 const SOURCE_TYPE_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   Incident: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagonIcon className="h-3.5 w-3.5" /> },
   SafetyReport: { bg: "bg-amber-bg", text: "text-amber", icon: <Shield className="h-3.5 w-3.5" /> },
-  SupportCase: { bg: "bg-blue-bg", text: "text-blue", icon: <LifeBuoy className="h-3.5 w-3.5" /> },
-  QualityCase: { bg: "bg-purple-bg", text: "text-purple", icon: <ClipboardCheck className="h-3.5 w-3.5" /> },
+  SupportCase: { bg: "bg-blue-bg", text: "text-blue", icon: <HelpCircle className="h-3.5 w-3.5" /> },
+  QualityCase: { bg: "bg-purple-bg", text: "text-purple", icon: <ClipboardList className="h-3.5 w-3.5" /> },
   SLA: { bg: "bg-green-bg", text: "text-green", icon: <Gauge className="h-3.5 w-3.5" /> },
   Compliance: { bg: "bg-red-bg", text: "text-red", icon: <Shield className="h-3.5 w-3.5" /> },
   System: { bg: "bg-surface-2", text: "text-ink-500", icon: <Settings className="h-3.5 w-3.5" /> },
 };
 
-const SEVERITY_FILTERS = ["All", "Critical", "High", "Medium", "Low"];
-const STATUS_FILTERS = ["All", "Active", "Acknowledged", "InProgress", "Escalated", "Resolved", "Closed"];
-const SOURCE_FILTERS = ["All", "Incident", "SafetyReport", "SupportCase", "QualityCase", "SLA", "Compliance", "System"];
 const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
 
 export default function EscalationsPage() {
@@ -406,7 +365,6 @@ export default function EscalationsPage() {
   const totalActive = data.filter((d) => d.status === "Active" || d.status === "Acknowledged" || d.status === "InProgress").length;
   const totalCritical = data.filter((d) => d.severity === "Critical").length;
   const totalEscalated = data.filter((d) => d.status === "Escalated").length;
-  const totalResolved = data.filter((d) => d.status === "Resolved" || d.status === "Closed").length;
 
   const goToEscalationDetail = (id: string) => {
     router.push(`/comms/escalations/${id}`);

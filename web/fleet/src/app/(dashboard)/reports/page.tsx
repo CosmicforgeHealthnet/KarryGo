@@ -5,167 +5,20 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
   RefreshCw,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
-  Search,
-  Filter,
-  SlidersHorizontal,
-  X,
-  ChevronDown,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FileText,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
+  Calendar,
   ArrowUp,
   ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  Users as UsersIcon,
-  Building2 as Building2Icon,
-  Tag as TagIcon,
-  Calendar as CalendarIcon,
-  Info as InfoIcon,
-  ListChecks as ListChecksIcon,
-  Download as DownloadIcon,
-  Printer as PrinterIcon,
-  Edit3 as Edit3Icon,
-  Trash2 as Trash2Icon,
-  Check as CheckIcon,
-  MoreHorizontal as MoreHorizontalIcon,
-  User as UserIcon,
-  Mail as MailIcon,
-  Phone as PhoneIcon,
-  MapPin as MapPinIcon,
-  Briefcase as BriefcaseIcon,
-  Send as SendIcon,
-  Paperclip as PaperclipIcon,
-  Link2 as Link2Icon,
-  ExternalLink as ExternalLinkIcon,
-  FileText as FileTextIcon2,
-  File as FileIcon,
-  FileArchive as FileArchiveIcon,
-  FileImage as FileImageIcon,
-  FileJson as FileJsonIcon,
-  FilePdf as FilePdfIcon,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FolderOpen as FolderOpenIcon,
-  Shield as ShieldIcon,
-  Lock as LockIcon,
-  EyeOff as EyeOffIcon,
-  AlertOctagon as AlertOctagonIcon,
-  FileCheck as FileCheckIcon,
-  FileSignature as FileSignatureIcon,
-  Folder as FolderIcon,
-  HardDrive as HardDriveIcon,
-  Database as DatabaseIcon,
-  Cloud as CloudIcon,
-  History as HistoryIcon,
-  GitBranch as GitBranchIcon,
-  FileUser as FileUserIcon,
-  FileKey as FileKeyIcon,
-  FileClock as FileClockIcon,
-  FileX as FileXIcon,
-  FileMinus as FileMinusIcon,
-  FilePlus as FilePlusIcon,
-  FileCog as FileCogIcon,
-  FileCheck2 as FileCheck2Icon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  Gauge as GaugeIcon,
-  Target as TargetIcon,
-  Activity as ActivityIcon,
-  BarChart as BarChartIcon,
-  LineChart as LineChartIcon,
-  PieChart as PieChartIcon,
-  Percent as PercentIcon,
-  Timer as TimerIcon,
-  Award as AwardIcon,
-  Sparkles as SparklesIcon,
-  Globe as GlobeIcon,
-  FilterX as FilterXIcon,
-  LayoutGrid as LayoutGridIcon,
-  LayoutList as LayoutListIcon,
-  Sliders as SlidersIcon,
-  ArrowUp as ArrowUpIcon,
-  ArrowDown as ArrowDownIcon,
-  Zap as ZapIcon,
-  Flame as FlameIcon,
-  Medal as MedalIcon,
-  Star as StarIcon,
+  ArrowRight,
+  Activity,
+  AlertTriangle,
+  Building2,
+  Eye,
+  Clock,
+  LayoutDashboard,
+  Users,
+  Car,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -214,7 +67,7 @@ const MOCK_METRICS: Metric[] = [
     value: "128",
     change: 12,
     trend: "up",
-    icon: <ActivityIcon className="h-5 w-5" />,
+    icon: <Activity className="h-5 w-5" />,
     color: "blue",
     subtitle: "Across 4 branches",
   },
@@ -223,7 +76,7 @@ const MOCK_METRICS: Metric[] = [
     value: "84",
     change: 91,
     trend: "up",
-    icon: <UsersIcon className="h-5 w-5" />,
+    icon: <Users className="h-5 w-5" />,
     color: "green",
     subtitle: "12 currently busy",
   },
@@ -304,12 +157,20 @@ const MOCK_EXCEPTIONS: Exception[] = [
   { id: "EX-004", type: "Low", title: "Document expiry - P-052", source: "Compliance", time: "2d ago" },
 ];
 
+const COLOR_CLASSES: Record<string, string> = {
+  blue: "bg-blue-bg text-blue",
+  green: "bg-green-bg text-green",
+  amber: "bg-amber-bg text-amber",
+  red: "bg-red-bg text-red",
+  purple: "bg-purple-bg text-purple",
+};
+
 export default function ExecutiveDashboardPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [timeRange, setTimeRange] = useState("Today");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [selectedBranch, setSelectedBranch] = useState<string>("All branches");
+  const [timeRange, setTimeRange] = useState<string>("Today");
 
   useEffect(() => {
     const loadData = async () => {
@@ -333,7 +194,7 @@ export default function ExecutiveDashboardPage() {
     );
   }
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -347,17 +208,7 @@ export default function ExecutiveDashboardPage() {
     return `${diffDay}d ago`;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "InProgress": return "success";
-      case "AtPickup": return "info";
-      case "EnRoute": return "warning";
-      case "Delivered": return "success";
-      default: return "neutral";
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: string): string => {
     switch (status) {
       case "InProgress": return "In Transit";
       case "AtPickup": return "At Pickup";
@@ -400,37 +251,27 @@ export default function ExecutiveDashboardPage() {
 
       {/* ===== METRICS ===== */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        {MOCK_METRICS.map((metric) => {
-          const colorClasses = {
-            blue: "bg-blue-bg text-blue",
-            green: "bg-green-bg text-green",
-            amber: "bg-amber-bg text-amber",
-            red: "bg-red-bg text-red",
-            purple: "bg-purple-bg text-purple",
-          };
-
-          return (
-            <div key={metric.label} className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className={`rounded-full p-2 ${colorClasses[metric.color]}`}>
-                  {metric.icon}
-                </div>
-                <div className={`flex items-center gap-0.5 text-xs font-semibold ${
-                  metric.trend === "up" ? "text-green" :
-                  metric.trend === "down" ? "text-red" :
-                  "text-ink-500"
-                }`}>
-                  {metric.trend === "up" && <ArrowUp className="h-3 w-3" />}
-                  {metric.trend === "down" && <ArrowDown className="h-3 w-3" />}
-                  {metric.change}%
-                </div>
+        {MOCK_METRICS.map((metric) => (
+          <div key={metric.label} className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className={`rounded-full p-2 ${COLOR_CLASSES[metric.color]}`}>
+                {metric.icon}
               </div>
-              <div className="mt-2 text-lg font-bold text-ink-950">{metric.value}</div>
-              <div className="text-[10px] font-medium text-ink-500">{metric.label}</div>
-              <div className="text-[9px] text-ink-400">{metric.subtitle}</div>
+              <div className={`flex items-center gap-0.5 text-xs font-semibold ${
+                metric.trend === "up" ? "text-green" :
+                metric.trend === "down" ? "text-red" :
+                "text-ink-500"
+              }`}>
+                {metric.trend === "up" && <ArrowUp className="h-3 w-3" />}
+                {metric.trend === "down" && <ArrowDown className="h-3 w-3" />}
+                {metric.change}%
+              </div>
             </div>
-          );
-        })}
+            <div className="mt-2 text-lg font-bold text-ink-950">{metric.value}</div>
+            <div className="text-[10px] font-medium text-ink-500">{metric.label}</div>
+            <div className="text-[9px] text-ink-400">{metric.subtitle}</div>
+          </div>
+        ))}
       </div>
 
       {/* ===== ACTIVE WORK + EXCEPTIONS ===== */}

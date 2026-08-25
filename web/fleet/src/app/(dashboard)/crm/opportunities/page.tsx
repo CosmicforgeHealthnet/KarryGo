@@ -15,36 +15,18 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Eye,
   ArrowRight,
-  Sparkles,
-  TrendingUp,
-  TrendingDown,
   Building2,
   MoreHorizontal,
   CalendarDays,
-  Download,
   FileText,
   Plus,
   DollarSign,
   User,
   Mail,
   Phone,
-  MapPin,
-  Briefcase,
-  Tag,
-  Shield,
-  CreditCard,
-  Receipt,
-  Star,
-  UserPlus,
-  Send,
-  Edit3,
-  Trash2,
   Zap,
-  Target as TargetIcon,
-  PieChart,
-  BarChart3,
+  HandCoins,
 } from "lucide-react";
 
 type Opportunity = {
@@ -209,7 +191,7 @@ const STAGE_STYLES: Record<string, { bg: string; text: string; dot: string; icon
     bg: "bg-blue-bg",
     text: "text-blue",
     dot: "bg-blue",
-    icon: <TargetIcon className="h-3.5 w-3.5" />,
+    icon: <Target className="h-3.5 w-3.5" />,
   },
   Qualification: {
     bg: "bg-amber-bg",
@@ -322,7 +304,6 @@ export default function OpportunitiesPage() {
   const wonCount = data.filter((d) => d.stage === "Closed Won").length;
   const lostCount = data.filter((d) => d.stage === "Closed Lost").length;
   const openCount = totalOpportunities - wonCount - lostCount;
-  const totalExpectedValue = data.reduce((acc, d) => acc + d.expectedValue, 0);
   const weightedValue = data.reduce((acc, d) => acc + (d.expectedValue * d.probability / 100), 0);
 
   return (
@@ -599,7 +580,7 @@ export default function OpportunitiesPage() {
                     <span className="font-semibold text-ink-950">{formattedValue}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[12px] text-ink-500">
-                    <TargetIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                    <Target className="h-3.5 w-3.5 flex-shrink-0" />
                     <span className="font-semibold text-ink-950">{item.probability}%</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[12px] text-ink-500">

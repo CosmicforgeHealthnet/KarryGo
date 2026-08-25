@@ -129,7 +129,7 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string }>
 
 export default function FinanceDashboardPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<FinanceDashboardData | null>(null);
 
   useEffect(() => {
@@ -141,13 +141,17 @@ export default function FinanceDashboardPage() {
     loadData();
   }, []);
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat("en-NG", {
       style: "currency",
       currency: "NGN",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const formatValue = (value: number): string => {
+    return `₦${(value / 1000000).toFixed(1)}M`;
   };
 
   if (loading) {
@@ -182,8 +186,8 @@ export default function FinanceDashboardPage() {
       {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1>Finance Dashboard</h1>
-          <p className="mt-1.5">
+          <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">Finance Dashboard</h1>
+          <p className="mt-1.5 text-sm text-ink-600">
             Invoices, receivables, expenses, payroll, budgets, and reconciliation.
           </p>
         </div>
@@ -326,7 +330,7 @@ export default function FinanceDashboardPage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[2fr_1fr]">
         {/* ── Left Column ── */}
         <div className="space-y-5">
-          {/* Monthly Trend Chart — FULLY RESPONSIVE */}
+          {/* Monthly Trend Chart */}
           <div className="rounded-lg border border-line bg-white p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -348,7 +352,7 @@ export default function FinanceDashboardPage() {
                       fontSize: 12,
                       boxShadow: "none",
                     }}
-                    formatter={(value: number) => [`₦${(value / 1000000).toFixed(1)}M`, ""]}
+                    formatter={(value) => formatValue(value as number)}
                   />
                   <Bar dataKey="revenue" fill="#139a5d" radius={[4, 4, 0, 0]} maxBarSize={32} />
                   <Bar dataKey="expenses" fill="#c81e33" radius={[4, 4, 0, 0]} maxBarSize={32} />

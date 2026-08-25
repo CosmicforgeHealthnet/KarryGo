@@ -6,41 +6,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
-  RefreshCw,
+  UserPlus,
+  UserCheck,
   Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
+  UserX,
   Search,
   SlidersHorizontal,
   X,
-  ChevronDown,
-  Plus,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
   Building2,
-  Shield,
-  Lock,
-  UserPlus,
-  UserMinus,
-  UserCheck,
-  UserX,
-  AlertOctagon,
+  Eye,
 } from "lucide-react";
 
 type StaffMember = {
@@ -175,7 +149,13 @@ const MOCK_STAFF: StaffMember[] = [
   },
 ];
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
+type StatusStyle = {
+  bg: string;
+  text: string;
+  dot: string;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
   Active: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
   Pending: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber" },
   Suspended: { bg: "bg-red-bg", text: "text-red", dot: "bg-red" },
@@ -183,7 +163,12 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   Inactive: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400" },
 };
 
-const INVITATION_STYLES: Record<string, { bg: string; text: string }> = {
+type InvitationStyle = {
+  bg: string;
+  text: string;
+};
+
+const INVITATION_STYLES: Record<string, InvitationStyle> = {
   Sent: { bg: "bg-primary-bg", text: "text-primary" },
   Accepted: { bg: "bg-green-bg", text: "text-green" },
   Expired: { bg: "bg-red-bg", text: "text-red" },
@@ -196,12 +181,12 @@ const BRANCH_FILTERS = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
 
 export default function StaffDirectoryPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<StaffMember[]>([]);
-  const [search, setSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [showFilters, setShowFilters] = useState(false);
+  const [search, setSearch] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
+  const [selectedBranch, setSelectedBranch] = useState<string>("All branches");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -243,7 +228,7 @@ export default function StaffDirectoryPage() {
 
   const filterCount = (selectedStatus !== "All" ? 1 : 0) + (selectedBranch !== "All branches" ? 1 : 0);
 
-  const formatTime = (date: string | null) => {
+  const formatTime = (date: string | null): string => {
     if (!date) return "Never";
     const d = new Date(date);
     const now = new Date();
@@ -274,8 +259,8 @@ export default function StaffDirectoryPage() {
       {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1>Staff Directory</h1>
-          <p className="mt-1.5">
+          <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">Staff Directory</h1>
+          <p className="mt-1.5 text-sm text-ink-600">
             Staff name, status, primary scope, role summary, branch/department and invitation state.
           </p>
         </div>

@@ -5,122 +5,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Building2,
   RefreshCw,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  ArrowRight,
-  ArrowLeft,
   Save,
-  X,
-  User,
-  Mail,
-  Phone,
-  Briefcase,
-  FileText,
-  ShieldCheck,
-  Wallet,
-  FileCheck,
-  ListChecks,
-  Check,
-  Info,
-  Tag,
-  Calendar,
-  Download,
-  Printer,
-  Edit3,
-  Trash2,
-  MoreHorizontal,
-  MapPin,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  FolderOpen,
-  Lock,
-  EyeOff,
-  AlertOctagon,
-  FileSignature,
-  Folder,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  ArrowUp,
-  ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  BookOpen,
-  Book,
-  DownloadCloud,
-  RotateCw,
-  Undo2,
-  Redo2,
-  SkipForward,
-  SkipBack,
-  FastForward,
-  Rewind,
-  PlayCircle,
-  PauseCircle,
-  StopCircle,
-  Inbox,
-  MailOpen,
-  MailX,
-  MailCheck,
-  MailWarning,
-  Archive,
-  ArchiveRestore,
-  Trash,
-  Trash2 as TrashIcon,
-  Server,
-  Cpu,
-  Home,
-  Settings as SettingsIcon,
-  UserPlus,
-  UserMinus,
-  HelpCircle,
-  Car,
-  Truck,
-  Package as PackageIcon,
-  Warehouse,
-  Shield,
-  Users,
-  Building2 as Building2Icon,
-  MapPin as MapPinIcon,
-  HardDrive,
-  Database,
-  Cloud,
-  Ship,
-  Plane,
-  Train,
-  Bike,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -147,8 +33,8 @@ const CURRENCIES = ["NGN", "GHS", "KES", "ZAR", "EGP", "MAD", "USD", "EUR"];
 
 export default function CreateCompanyPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
   const [formData, setFormData] = useState<CompanyFormData>({
     legalName: "",
     tradingName: "",
@@ -162,7 +48,7 @@ export default function CreateCompanyPage() {
     ownerPhone: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
@@ -429,6 +315,5 @@ export default function CreateCompanyPage() {
 }
 
 function toast(message: string) {
-  // Simple toast mock
   console.log(message);
 }

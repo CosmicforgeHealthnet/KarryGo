@@ -15,21 +15,11 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Eye,
-  ArrowRight,
-  Sparkles,
   MoreHorizontal,
   Plus,
-  User,
   Mail,
   Phone,
-  Briefcase,
-  Star,
-  Edit3,
-  Trash2,
   Send,
-  UserCheck,
-  UserX,
 } from "lucide-react";
 
 type Contact = {

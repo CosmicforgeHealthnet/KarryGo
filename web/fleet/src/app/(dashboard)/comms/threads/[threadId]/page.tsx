@@ -10,55 +10,28 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
-  Search,
   Users,
-  Building2,
   Tag,
-  Calendar,
   Info,
-  ListChecks,
   Download,
-  Printer,
   Edit3,
-  Trash2,
   Check,
   MoreHorizontal,
   User,
   Mail,
   Phone,
-  MapPin,
-  Briefcase,
   Send,
   Paperclip,
   Link2,
   ExternalLink,
-  MessageCircle,
-  UserCheck,
-  UserX,
-  Clock as ClockIcon,
   Lock,
   Shield,
   ChevronDown,
   ChevronUp,
   Reply,
-  Forward,
-  Copy,
-  Pin,
-  Star,
-  Flag,
-  Smile,
-  Mic,
   Image,
-  File,
-  AtSign,
-  Hash,
-  X,
-  CheckCheck,
-  Clock as ClockIcon2,
   AlertOctagon,
+  CheckCheck,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -276,12 +249,14 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
 };
 
 const MESSAGE_STATUS_ICONS: Record<string, React.ReactNode> = {
-  Sending: <ClockIcon2 className="h-3.5 w-3.5 text-ink-400" />,
+  Sending: <Clock className="h-3.5 w-3.5 text-ink-400" />,
   Sent: <Check className="h-3.5 w-3.5 text-ink-400" />,
   Delivered: <CheckCheck className="h-3.5 w-3.5 text-ink-400" />,
   Read: <CheckCheck className="h-3.5 w-3.5 text-blue" />,
   Failed: <AlertOctagon className="h-3.5 w-3.5 text-red" />,
 };
+
+// ==================== COMPONENT ====================
 
 export default function ThreadDetailPage() {
   const params = useParams();
@@ -374,7 +349,6 @@ export default function ThreadDetailPage() {
   const handleSendMessage = () => {
     if (!newMessage.trim()) return;
     // Mock send
-    toast("Message sent (mock)");
     setNewMessage("");
   };
 

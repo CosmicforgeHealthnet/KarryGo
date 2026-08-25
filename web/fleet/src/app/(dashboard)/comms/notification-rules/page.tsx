@@ -12,51 +12,21 @@ import {
   AlertCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
-  Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
-  MessageCircle,
-  UserCheck,
-  UserX,
-  Clock as ClockIcon,
-  BellRing,
-  BellOff,
-  Zap,
-  Shield,
-  Globe,
-  Smartphone,
-  Mail as MailIcon,
-  MessageSquare as MessageSquareIcon,
+  Tag,
+  Info,
   AlertOctagon,
-  Settings,
   ToggleLeft,
   ToggleRight,
-  EyeOff,
+  Smartphone,
+  MessageSquare,
+  Mail,
+  Globe,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -297,7 +267,12 @@ const MOCK_RULES: NotificationRule[] = [
   },
 ];
 
-const EVENT_CATEGORY_STYLES: Record<string, { bg: string; text: string }> = {
+type EventCategoryStyle = {
+  bg: string;
+  text: string;
+};
+
+const EVENT_CATEGORY_STYLES: Record<string, EventCategoryStyle> = {
   Operations: { bg: "bg-blue-bg", text: "text-blue" },
   Safety: { bg: "bg-red-bg", text: "text-red" },
   Compliance: { bg: "bg-purple-bg", text: "text-purple" },
@@ -306,7 +281,13 @@ const EVENT_CATEGORY_STYLES: Record<string, { bg: string; text: string }> = {
   Workforce: { bg: "bg-surface-2", text: "text-ink-500" },
 };
 
-const SEVERITY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+type SeverityStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const SEVERITY_STYLES: Record<string, SeverityStyle> = {
   Urgent: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-3.5 w-3.5" /> },
   High: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   Medium: { bg: "bg-blue-bg", text: "text-blue", icon: <AlertCircle className="h-3.5 w-3.5" /> },
@@ -315,10 +296,10 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; icon: React.Re
 };
 
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
-  Email: <MailIcon className="h-3.5 w-3.5" />,
+  Email: <Mail className="h-3.5 w-3.5" />,
   SMS: <Smartphone className="h-3.5 w-3.5" />,
   Push: <Bell className="h-3.5 w-3.5" />,
-  InApp: <MessageSquareIcon className="h-3.5 w-3.5" />,
+  InApp: <MessageSquare className="h-3.5 w-3.5" />,
   Webhook: <Globe className="h-3.5 w-3.5" />,
 };
 
@@ -329,15 +310,15 @@ const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
 
 export default function NotificationRulesPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<NotificationRule[]>([]);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [selectedSeverity, setSelectedSeverity] = useState("All");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [showFilters, setShowFilters] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [search, setSearch] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedSeverity, setSelectedSeverity] = useState<string>("All");
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
+  const [selectedBranch, setSelectedBranch] = useState<string>("All branches");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -399,7 +380,7 @@ export default function NotificationRulesPage() {
     (selectedStatus !== "All" ? 1 : 0) +
     (selectedBranch !== "All branches" ? 1 : 0);
 
-  const formatTime = (date: string | null) => {
+  const formatTime = (date: string | null): string => {
     if (!date) return "Never";
     const d = new Date(date);
     const now = new Date();
@@ -417,7 +398,6 @@ export default function NotificationRulesPage() {
   // Stats
   const totalEnabled = data.filter((d) => d.enabled).length;
   const totalUrgent = data.filter((d) => d.severity === "Urgent").length;
-  const totalHigh = data.filter((d) => d.severity === "High").length;
   const totalOperations = data.filter((d) => d.eventCategory === "Operations").length;
 
   const goToRuleDetail = (id: string) => {

@@ -5,17 +5,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowRight,
   RefreshCw,
   Clock,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowLeft,
-  Search,
-  Filter,
-  SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
@@ -42,18 +36,10 @@ import {
   ExternalLink,
   FileText,
   File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
   FolderOpen,
   Shield,
   Lock,
   EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
   XCircle,
   AlertOctagon,
   FileCheck,
@@ -64,26 +50,7 @@ import {
   Cloud,
   History,
   GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  UploadCloud,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FileJson as FileJsonIcon,
-  FileCsv,
-  FileXml,
-  FileText as FileTextIcon2,
-  AlertCircle as AlertCircleIcon,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  AlertTriangle as AlertTriangleIcon,
-  RefreshCw as RefreshCwIcon,
-  Info as InfoIcon,
+  Save,
   Table,
   Columns,
   Split,
@@ -93,15 +60,21 @@ import {
   AlignRight,
   Type,
   Hash,
-  Calendar as CalendarIcon,
   DollarSign,
   Percent,
   Link,
   Unlink,
   Play,
-  Save,
-  FileSpreadsheet as FileSpreadsheetIcon2,
-  FileCog as FileCogIcon2,
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  Search,
+  Filter,
+  SlidersHorizontal,
+  FileSearch,
+  ClipboardList,
+  BookOpen,
+  RotateCw,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -202,6 +175,20 @@ const MOCK_MAPPING_DATA: Record<string, ImportMappingData> = {
     status: "Invalid",
     sourceFreshness: "2026-08-20T14:30:00Z",
   },
+};
+
+// ===== SIMPLE TOAST FUNCTION =====
+const toast = (message: string) => {
+  if (typeof window !== "undefined") {
+    const toastEl = document.createElement("div");
+    toastEl.className = "fixed bottom-4 right-4 bg-ink-950 text-white px-4 py-2 rounded-xl text-sm shadow-lg z-50 animate-in slide-in-from-bottom-5";
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => toastEl.remove(), 300);
+    }, 3000);
+  }
 };
 
 export default function ImportMappingPage() {
@@ -363,7 +350,7 @@ export default function ImportMappingPage() {
             {data.status === "Ready" && <CheckCircle2 className="h-5 w-5 text-green" />}
             {data.status === "Invalid" && <XCircle className="h-5 w-5 text-red" />}
             {data.status === "Validating" && <RefreshCw className="h-5 w-5 text-amber animate-spin" />}
-            {data.status === "Draft" && <ClockIcon className="h-5 w-5 text-ink-400" />}
+            {data.status === "Draft" && <Clock className="h-5 w-5 text-ink-400" />}
             {data.status === "Valid" && <CheckCircle2 className="h-5 w-5 text-green" />}
             <div>
               <div className="text-sm font-semibold text-ink-950">
@@ -372,7 +359,7 @@ export default function ImportMappingPage() {
                 {data.status === "Ready" && " — Ready to commit"}
               </div>
               <div className="text-xs text-ink-500">
-                {data.validRows} valid rows, {data.invalidRows} invalid rows
+                {data.validationSummary.validRows} valid rows, {data.validationSummary.invalidRows} invalid rows
               </div>
             </div>
           </div>
@@ -432,7 +419,6 @@ export default function ImportMappingPage() {
                     <select
                       value={col.targetField}
                       onChange={(e) => {
-                        // Mock update
                         toast(`Field mapped to ${e.target.value}`);
                       }}
                       className="rounded-lg border border-line bg-white px-2 py-1 text-xs text-ink-950 outline-none focus:border-primary"
@@ -524,5 +510,3 @@ export default function ImportMappingPage() {
     </div>
   );
 }
-
-

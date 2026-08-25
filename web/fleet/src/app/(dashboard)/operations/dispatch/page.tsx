@@ -13,7 +13,12 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
-const TONE = {
+// ✅ FIX: Add type for TONE
+type ToneStyles = {
+  [key: string]: { dot: string; text: string; bg: string };
+};
+
+const TONE: ToneStyles = {
   neutral: { dot: "bg-ink-400", text: "text-ink-600", bg: "bg-surface-2" },
   warning: { dot: "bg-amber", text: "text-amber", bg: "bg-amber-bg" },
   info: { dot: "bg-accent", text: "text-accent", bg: "bg-accent-bg" },
@@ -22,7 +27,15 @@ const TONE = {
   done: { dot: "bg-ink-400", text: "text-ink-500", bg: "bg-surface-2" },
 };
 
-const PIPELINE = [
+// ✅ FIX: Add type for Pipeline items
+type PipelineItem = {
+  key: string;
+  label: string;
+  count: number;
+  tone: string;
+};
+
+const PIPELINE: PipelineItem[] = [
   { key: "unassigned", label: "Unassigned", count: 3, tone: "neutral" },
   { key: "awaiting", label: "Awaiting", count: 2, tone: "warning" },
   { key: "ready", label: "Ready", count: 2, tone: "info" },
@@ -31,7 +44,27 @@ const PIPELINE = [
   { key: "completed", label: "Completed", count: 24, tone: "done" },
 ];
 
-const COLUMNS = [
+
+type Job = {
+  id: string;
+  title: string;
+  route: string;
+  provider: string | null;
+  meta: string;
+  time: string;
+  critical?: boolean;
+};
+
+type Column = {
+  key: string;
+  title: string;
+  tone: string;
+  action: string;
+  live?: boolean;
+  jobs: Job[];
+};
+
+const COLUMNS: Column[] = [
   {
     key: "unassigned",
     title: "Unassigned",
@@ -108,16 +141,17 @@ export default function DispatchBoardPage() {
     <div className="space-y-5">
       {/* ── Header ── */}
       <div>
-        <h1>Dispatch board</h1>
-        <p className="mt-1.5">
+        <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">Dispatch board</h1>
+        <p className="mt-1.5 text-sm text-ink-600">
           Branch-scoped board across unassigned, pending provider response, ready, active, exception and completed work.
         </p>
       </div>
 
       {/* ── Pipeline flow strip ── */}
       <div className="grid grid-cols-3 gap-2 rounded-lg border border-line bg-white p-3 sm:grid-cols-6">
-        {PIPELINE.map((stage, i) => {
-          const tone = TONE[stage.tone];
+        {PIPELINE.map((stage) => {
+    
+          const tone = TONE[stage.tone] || TONE.neutral;
           const flagged = stage.key === "exception";
           return (
             <div key={stage.key} className="flex items-center">
@@ -160,7 +194,8 @@ export default function DispatchBoardPage() {
       {/* ── Board ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {COLUMNS.map((col) => {
-          const tone = TONE[col.tone];
+        
+          const tone = TONE[col.tone] || TONE.neutral;
           const jobs = col.jobs.filter(
             (j) =>
               search.trim() === "" ||

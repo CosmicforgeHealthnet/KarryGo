@@ -66,7 +66,9 @@ export default function ProviderDetailLayout({
   const provider = PROVIDER_DETAIL;
 
   const basePath = `/providers/${providerId}`;
-  const statusStyle = STATUS_STYLES[provider.status] || STATUS_STYLES.Offline;
+
+  // ✅ FIX: Use 'availability' instead of 'status'
+  const statusStyle = STATUS_STYLES[provider.availability] || STATUS_STYLES.Offline;
   const eligibilityStyle = ELIGIBILITY_STYLES[provider.eligibility] || ELIGIBILITY_STYLES.Eligible;
 
   return (
@@ -74,11 +76,11 @@ export default function ProviderDetailLayout({
       {/* ── Header ── */}
       <div>
         <div className="flex items-center gap-2.5 flex-wrap">
-          <h1>{provider.name}</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">{provider.name}</h1>
           <span className="font-mono text-sm text-ink-400">{providerId}</span>
           <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
-            {provider.status}
+            {provider.availability}
           </span>
           <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${eligibilityStyle.bg} ${eligibilityStyle.text}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${eligibilityStyle.dot}`} />

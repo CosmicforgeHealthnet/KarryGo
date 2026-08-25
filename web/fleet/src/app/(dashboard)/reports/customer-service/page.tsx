@@ -5,268 +5,18 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Users,
   RefreshCw,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Eye,
-  ArrowRight,
-  Search,
-  Filter,
-  SlidersHorizontal,
-  X,
-  ChevronDown,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
   Download,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
+  Calendar,
+  Users,
   FileText,
-  File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  TrendingUp,
-  TrendingDown,
-  Gauge,
-  Target,
-  Activity,
-  BarChart,
-  LineChart,
-  PieChart,
-  Percent,
-  Timer,
-  Award,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
+  AlertTriangle,
   ArrowUp,
   ArrowDown,
-  Zap,
-  Flame,
-  Medal,
-  Star,
-  Users as UsersIcon,
-  Building2 as Building2Icon,
-  Tag as TagIcon,
-  Calendar as CalendarIcon,
-  Info as InfoIcon,
-  ListChecks as ListChecksIcon,
-  Download as DownloadIcon,
-  Printer as PrinterIcon,
-  Edit3 as Edit3Icon,
-  Trash2 as Trash2Icon,
-  Check as CheckIcon,
-  MoreHorizontal as MoreHorizontalIcon,
-  User as UserIcon,
-  Mail as MailIcon,
-  Phone as PhoneIcon,
-  MapPin as MapPinIcon,
-  Briefcase as BriefcaseIcon,
-  Send as SendIcon,
-  Paperclip as PaperclipIcon,
-  Link2 as Link2Icon,
-  ExternalLink as ExternalLinkIcon,
-  FileText as FileTextIcon2,
-  File as FileIcon,
-  FileArchive as FileArchiveIcon,
-  FileImage as FileImageIcon,
-  FileJson as FileJsonIcon,
-  FilePdf as FilePdfIcon,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FolderOpen as FolderOpenIcon,
-  Shield as ShieldIcon,
-  Lock as LockIcon,
-  EyeOff as EyeOffIcon,
-  AlertOctagon as AlertOctagonIcon,
-  FileCheck as FileCheckIcon,
-  FileSignature as FileSignatureIcon,
-  Folder as FolderIcon,
-  HardDrive as HardDriveIcon,
-  Database as DatabaseIcon,
-  Cloud as CloudIcon,
-  History as HistoryIcon,
-  GitBranch as GitBranchIcon,
-  FileUser as FileUserIcon,
-  FileKey as FileKeyIcon,
-  FileClock as FileClockIcon,
-  FileX as FileXIcon,
-  FileMinus as FileMinusIcon,
-  FilePlus as FilePlusIcon,
-  FileCog as FileCogIcon,
-  FileCheck2 as FileCheck2Icon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  Gauge as GaugeIcon,
-  Target as TargetIcon,
-  Activity as ActivityIcon,
-  BarChart as BarChartIcon,
-  LineChart as LineChartIcon,
-  PieChart as PieChartIcon,
-  Percent as PercentIcon,
-  Timer as TimerIcon,
-  Award as AwardIcon,
-  Sparkles as SparklesIcon,
-  Globe as GlobeIcon,
-  FilterX as FilterXIcon,
-  LayoutGrid as LayoutGridIcon,
-  LayoutList as LayoutListIcon,
-  Sliders as SlidersIcon,
-  ArrowUp as ArrowUpIcon,
-  ArrowDown as ArrowDownIcon,
-  Zap as ZapIcon,
-  Flame as FlameIcon,
-  Medal as MedalIcon,
-  Star as StarIcon,
-  Calendar as CalendarIcon2,
-  Clock as ClockIcon2,
-  UserCheck as UserCheckIcon,
-  UserX as UserXIcon,
-  UserPlus as UserPlusIcon,
-  UserMinus as UserMinusIcon,
-  Gem,
-  Package,
-  Wallet,
-  Briefcase as BriefcaseIcon2,
-  FileCheck as FileCheckIcon2,
-  Shield as ShieldIcon2,
-  Lock as LockIcon2,
-  EyeOff as EyeOffIcon2,
-  AlertOctagon as AlertOctagonIcon2,
-  FileCheck as FileCheckIcon3,
-  FileSignature as FileSignatureIcon2,
-  Folder as FolderIcon2,
-  HardDrive as HardDriveIcon2,
-  Database as DatabaseIcon2,
-  Cloud as CloudIcon2,
-  History as HistoryIcon2,
-  GitBranch as GitBranchIcon2,
-  FileUser as FileUserIcon2,
-  FileKey as FileKeyIcon2,
-  FileClock as FileClockIcon2,
-  FileX as FileXIcon2,
-  FileMinus as FileMinusIcon2,
-  FilePlus as FilePlusIcon2,
-  FileCog as FileCogIcon2,
-  FileCheck2 as FileCheck2Icon2,
-  TrendingUp as TrendingUpIcon2,
-  TrendingDown as TrendingDownIcon2,
-  Gauge as GaugeIcon2,
-  Target as TargetIcon2,
-  Activity as ActivityIcon2,
-  BarChart as BarChartIcon2,
-  LineChart as LineChartIcon2,
-  PieChart as PieChartIcon2,
-  Percent as PercentIcon2,
-  Timer as TimerIcon2,
-  Award as AwardIcon2,
-  Sparkles as SparklesIcon2,
-  Globe as GlobeIcon2,
-  FilterX as FilterXIcon2,
-  LayoutGrid as LayoutGridIcon2,
-  LayoutList as LayoutListIcon2,
-  Sliders as SlidersIcon2,
-  ArrowUp as ArrowUpIcon2,
-  ArrowDown as ArrowDownIcon2,
-  Zap as ZapIcon2,
-  Flame as FlameIcon2,
-  Medal as MedalIcon2,
-  Star as StarIcon2,
-  Gem as GemIcon,
-  Package as PackageIcon,
-  Wallet as WalletIcon,
-  Briefcase as BriefcaseIcon3,
-  FileCheck as FileCheckIcon4,
-  Shield as ShieldIcon3,
-  Lock as LockIcon3,
-  EyeOff as EyeOffIcon3,
-  AlertOctagon as AlertOctagonIcon3,
-  FileCheck as FileCheckIcon5,
-  FileSignature as FileSignatureIcon3,
-  Folder as FolderIcon3,
-  HardDrive as HardDriveIcon3,
-  Database as DatabaseIcon3,
-  Cloud as CloudIcon3,
-  History as HistoryIcon3,
-  GitBranch as GitBranchIcon3,
-  FileUser as FileUserIcon3,
-  FileKey as FileKeyIcon3,
-  FileClock as FileClockIcon3,
-  FileX as FileXIcon3,
-  FileMinus as FileMinusIcon3,
-  FilePlus as FilePlusIcon3,
-  FileCog as FileCogIcon3,
-  FileCheck2 as FileCheck2Icon3,
-  TrendingUp as TrendingUpIcon3,
-  TrendingDown as TrendingDownIcon3,
-  Gauge as GaugeIcon3,
-  Target as TargetIcon3,
-  Activity as ActivityIcon3,
-  BarChart as BarChartIcon3,
-  LineChart as LineChartIcon3,
-  PieChart as PieChartIcon3,
-  Percent as PercentIcon3,
-  Timer as TimerIcon3,
-  Award as AwardIcon3,
-  Sparkles as SparklesIcon3,
-  Globe as GlobeIcon3,
-  FilterX as FilterXIcon3,
-  LayoutGrid as LayoutGridIcon3,
-  LayoutList as LayoutListIcon3,
-  Sliders as SlidersIcon3,
-  ArrowUp as ArrowUpIcon3,
-  ArrowDown as ArrowDownIcon3,
-  Zap as ZapIcon3,
-  Flame as FlameIcon3,
-  Medal as MedalIcon3,
-  Star as StarIcon3,
+  ArrowRight,
+  Target,
+  Eye,
+  Clock,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -423,11 +173,38 @@ const MOCK_SLA_STATUS: SLAStatus[] = [
   },
 ];
 
+type SlaStyle = {
+  bg: string;
+  text: string;
+  label: string;
+};
+
+const getSlaStatusStyle = (status: string): SlaStyle => {
+  switch (status) {
+    case "MET":
+      return { bg: "bg-green-bg", text: "text-green", label: "MET" };
+    case "BREACHED":
+      return { bg: "bg-red-bg", text: "text-red", label: "BREACHED" };
+    case "UNKNOWN":
+      return { bg: "bg-amber-bg", text: "text-amber", label: "UNKNOWN" };
+    default:
+      return { bg: "bg-surface-2", text: "text-ink-500", label: status };
+  }
+};
+
+const COLOR_CLASSES: Record<string, string> = {
+  blue: "bg-blue-bg text-blue",
+  green: "bg-green-bg text-green",
+  amber: "bg-amber-bg text-amber",
+  red: "bg-red-bg text-red",
+  purple: "bg-purple-bg text-purple",
+};
+
 export default function CustomerServiceDashboardPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [selectedPeriod, setSelectedPeriod] = useState("Q3 2026");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("Q3 2026");
 
   useEffect(() => {
     const loadData = async () => {
@@ -451,7 +228,7 @@ export default function CustomerServiceDashboardPage() {
     );
   }
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -463,19 +240,6 @@ export default function CustomerServiceDashboardPage() {
     if (diffMin < 60) return `${diffMin}m ago`;
     if (diffHr < 24) return `${diffHr}h ago`;
     return `${diffDay}d ago`;
-  };
-
-  const getSlaStatusStyle = (status: string) => {
-    switch (status) {
-      case "MET":
-        return { bg: "bg-green-bg", text: "text-green", label: "MET" };
-      case "BREACHED":
-        return { bg: "bg-red-bg", text: "text-red", label: "BREACHED" };
-      case "UNKNOWN":
-        return { bg: "bg-amber-bg", text: "text-amber", label: "UNKNOWN" };
-      default:
-        return { bg: "bg-surface-2", text: "text-ink-500", label: status };
-    }
   };
 
   return (
@@ -511,37 +275,27 @@ export default function CustomerServiceDashboardPage() {
 
       {/* ===== METRICS ===== */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        {MOCK_CUSTOMER_METRICS.map((metric) => {
-          const colorClasses = {
-            blue: "bg-blue-bg text-blue",
-            green: "bg-green-bg text-green",
-            amber: "bg-amber-bg text-amber",
-            red: "bg-red-bg text-red",
-            purple: "bg-purple-bg text-purple",
-          };
-
-          return (
-            <div key={metric.label} className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className={`rounded-full p-2 ${colorClasses[metric.color]}`}>
-                  {metric.icon}
-                </div>
-                <div className={`flex items-center gap-0.5 text-xs font-semibold ${
-                  metric.trend === "up" ? "text-green" :
-                  metric.trend === "down" ? "text-red" :
-                  "text-ink-500"
-                }`}>
-                  {metric.trend === "up" && <ArrowUp className="h-3 w-3" />}
-                  {metric.trend === "down" && <ArrowDown className="h-3 w-3" />}
-                  {metric.change}%
-                </div>
+        {MOCK_CUSTOMER_METRICS.map((metric) => (
+          <div key={metric.label} className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className={`rounded-full p-2 ${COLOR_CLASSES[metric.color]}`}>
+                {metric.icon}
               </div>
-              <div className="mt-2 text-lg font-bold text-ink-950">{metric.value}</div>
-              <div className="text-[10px] font-medium text-ink-500">{metric.label}</div>
-              <div className="text-[9px] text-ink-400">{metric.subtitle}</div>
+              <div className={`flex items-center gap-0.5 text-xs font-semibold ${
+                metric.trend === "up" ? "text-green" :
+                metric.trend === "down" ? "text-red" :
+                "text-ink-500"
+              }`}>
+                {metric.trend === "up" && <ArrowUp className="h-3 w-3" />}
+                {metric.trend === "down" && <ArrowDown className="h-3 w-3" />}
+                {metric.change}%
+              </div>
             </div>
-          );
-        })}
+            <div className="mt-2 text-lg font-bold text-ink-950">{metric.value}</div>
+            <div className="text-[10px] font-medium text-ink-500">{metric.label}</div>
+            <div className="text-[9px] text-ink-400">{metric.subtitle}</div>
+          </div>
+        ))}
       </div>
 
       {/* ===== CUSTOMER ACTIVITY TABLE ===== */}

@@ -9,116 +9,23 @@ import {
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
   Eye,
   ArrowRight,
   Search,
-  Filter,
   SlidersHorizontal,
   X,
   ChevronDown,
   Plus,
   Users,
-  Building2,
-  Tag,
-  Calendar,
-  Info,
-  ListChecks,
-  Printer,
-  Edit3,
-  Trash2,
-  Check,
-  MoreHorizontal,
   User,
-  Mail,
-  Phone,
-  MapPin,
   Briefcase,
-  Send,
-  Paperclip,
-  Link2,
-  ExternalLink,
+  Package,
   FileText,
   File,
-  FileArchive,
-  FileImage,
-  FileJson,
-  FilePdf,
-  FileSpreadsheet,
-  FileText as FileTextIcon,
-  FolderOpen,
-  Shield,
-  Lock,
-  EyeOff,
-  Clock as ClockIcon,
-  CheckCircle,
-  XCircle,
-  AlertOctagon,
-  FileCheck,
-  FileSignature,
-  Folder,
-  HardDrive,
   Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  DownloadCloud,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FileJson as FileJsonIcon,
-  FileCsv,
-  FileXml,
-  FileText as FileTextIcon2,
-  AlertCircle as AlertCircleIcon,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  AlertTriangle as AlertTriangleIcon,
-  RefreshCw as RefreshCwIcon,
-  Info as InfoIcon,
-  Table,
-  Columns,
-  Split,
-  Merge,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Type,
-  Hash,
-  Calendar as CalendarIcon,
-  DollarSign,
-  Percent,
-  Link,
-  Unlink,
-  Play,
-  Save,
-  FileSpreadsheet as FileSpreadsheetIcon2,
-  FileCog as FileCogIcon2,
-  RotateCw,
-  Undo2,
-  Redo2,
-  FileCheck as FileCheckIcon2,
-  FileX as FileXIcon2,
-  FileMinus as FileMinusIcon2,
-  FilePlus as FilePlusIcon2,
-  FileCog as FileCogIcon3,
-  FileCheck2 as FileCheck2Icon2,
-  AlertCircle as AlertCircleIcon2,
-  CheckCircle as CheckCircleIcon2,
-  XCircle as XCircleIcon2,
-  AlertTriangle as AlertTriangleIcon2,
-  Download as DownloadIcon,
-  FileSpreadsheet as FileSpreadsheetIcon3,
-  FileJson as FileJsonIcon2,
-  FileCsv as FileCsvIcon,
-  FileXml as FileXmlIcon,
+  MapPin,
+  ChartNoAxesCombined,
+  AlertCircle,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -289,14 +196,20 @@ const MOCK_EXPORTS: ExportJob[] = [
   },
 ];
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Queued: { bg: "bg-surface-2", text: "text-ink-500", icon: <ClockIcon className="h-3.5 w-3.5" /> },
-  Processing: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCwIcon className="h-3.5 w-3.5" /> },
-  Generating: { bg: "bg-amber-bg", text: "text-amber", icon: <FileTextIcon className="h-3.5 w-3.5" /> },
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
+  Queued: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-3.5 w-3.5" /> },
+  Processing: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCw className="h-3.5 w-3.5" /> },
+  Generating: { bg: "bg-amber-bg", text: "text-amber", icon: <FileText className="h-3.5 w-3.5" /> },
   Ready: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   Completed: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-3.5 w-3.5" /> },
-  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <ClockIcon className="h-3.5 w-3.5" /> },
+  Failed: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-3.5 w-3.5" /> },
   Cancelled: { bg: "bg-surface-2", text: "text-ink-500", icon: <X className="h-3.5 w-3.5" /> },
 };
 
@@ -304,28 +217,42 @@ const DATASET_ICONS: Record<string, React.ReactNode> = {
   Orders: <Briefcase className="h-3.5 w-3.5" />,
   Shipments: <Package className="h-3.5 w-3.5" />,
   Packages: <Package className="h-3.5 w-3.5" />,
-  Providers: <UserIcon className="h-3.5 w-3.5" />,
-  Assets: <FileIcon className="h-3.5 w-3.5" />,
-  Customers: <UsersIcon className="h-3.5 w-3.5" />,
+  Providers: <User className="h-3.5 w-3.5" />,
+  Assets: <File className="h-3.5 w-3.5" />,
+  Customers: <Users className="h-3.5 w-3.5" />,
   Inventory: <Database className="h-3.5 w-3.5" />,
-  Trips: <MapPinIcon className="h-3.5 w-3.5" />,
-  Invoices: <FileTextIcon className="h-3.5 w-3.5" />,
-  Reports: <Chart className="h-3.5 w-3.5" />,
-  Other: <FileTextIcon className="h-3.5 w-3.5" />,
+  Trips: <MapPin className="h-3.5 w-3.5" />,
+  Invoices: <FileText className="h-3.5 w-3.5" />,
+  Reports: <ChartNoAxesCombined className="h-3.5 w-3.5" />,
+  Other: <FileText className="h-3.5 w-3.5" />,
 };
 
 const STATUS_FILTERS = ["All", "Queued", "Processing", "Generating", "Ready", "Completed", "Failed", "Expired", "Cancelled"];
 const DATASET_FILTERS = ["All", "Orders", "Shipments", "Packages", "Providers", "Assets", "Customers", "Inventory", "Trips", "Invoices", "Reports", "Other"];
 
+// Simple toast function
+const toast = (message: string) => {
+  if (typeof window !== "undefined") {
+    const toastEl = document.createElement("div");
+    toastEl.className = "fixed bottom-4 right-4 bg-ink-950 text-white px-4 py-2 rounded-xl text-sm shadow-lg z-50 animate-in slide-in-from-bottom-5";
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => toastEl.remove(), 300);
+    }, 3000);
+  }
+};
+
 export default function ExportsPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<ExportJob[]>([]);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [search, setSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-  const [selectedDataset, setSelectedDataset] = useState("All");
-  const [showFilters, setShowFilters] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [search, setSearch] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
+  const [selectedDataset, setSelectedDataset] = useState<string>("All");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -377,7 +304,7 @@ export default function ExportsPage() {
 
   const filterCount = (selectedStatus !== "All" ? 1 : 0) + (selectedDataset !== "All" ? 1 : 0);
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -479,7 +406,7 @@ export default function ExportsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <ClockIcon className="h-4 w-4 text-ink-400" />
+          <Clock className="h-4 w-4 text-ink-400" />
           {selectedStatus}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -493,7 +420,7 @@ export default function ExportsPage() {
           }}
           className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
         >
-          <FileTextIcon className="h-4 w-4 text-ink-400" />
+          <FileText className="h-4 w-4 text-ink-400" />
           {selectedDataset}
           <ChevronDown className="h-4 w-4 text-ink-400" />
         </button>
@@ -530,7 +457,7 @@ export default function ExportsPage() {
       {filteredData.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
           <div className="rounded-full bg-surface-2 p-4">
-            <DownloadCloud className="h-8 w-8 text-ink-400" />
+            <Download className="h-8 w-8 text-ink-400" />
           </div>
           <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No exports found</h3>
           <p className="mt-1 text-sm text-ink-500">No exports match your current filters.</p>
@@ -625,7 +552,7 @@ export default function ExportsPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <DownloadCloud className="h-4 w-4" />
+          <Download className="h-4 w-4" />
           DAT-11 · Exports
         </span>
         <span className="flex items-center gap-1.5">

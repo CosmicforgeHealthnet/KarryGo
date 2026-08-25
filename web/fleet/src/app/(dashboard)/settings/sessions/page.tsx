@@ -41,7 +41,7 @@ const MOCK_SESSIONS: Session[] = [
 ];
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState(MOCK_SESSIONS);
+  const [sessions, setSessions] = useState<Session[]>(MOCK_SESSIONS);
   const [revoking, setRevoking] = useState<string | null>(null);
 
   async function handleRevoke(session: Session) {

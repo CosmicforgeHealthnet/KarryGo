@@ -7,41 +7,15 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Users,
-  TrendingUp,
-  TrendingDown,
   RefreshCw,
   Clock,
   CheckCircle2,
   AlertCircle,
   Eye,
   ArrowRight,
-  Sparkles,
-  Briefcase,
-  MoreHorizontal,
-  CalendarDays,
-  Download,
   FileText,
-  Printer,
-  User,
-  DollarSign,
   Send,
-  Edit3,
   XCircle,
-  CreditCard,
-  Building2,
-  Hash,
-  Tag,
-  Mail,
-  Phone,
-  Calendar,
-  Package,
-  Truck,
-  CreditCard as CreditCardIcon,
-  Receipt,
-  ThumbsUp,
-  ThumbsDown,
-  Info,
-  Calculator,
   Save,
   FileCheck,
 } from "lucide-react";
@@ -313,7 +287,7 @@ export default function PayrollReviewPage() {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
         <div className="rounded-full bg-surface-2 p-4">
-          <Calculator className="h-8 w-8 text-ink-400" />
+          <FileText className="h-8 w-8 text-ink-400" />
         </div>
         <h3 className="mt-3 text-[15px] font-semibold text-ink-950">Payroll period not found</h3>
         <p className="mt-1 text-sm text-ink-500">The payroll period you're looking for doesn't exist.</p>
@@ -336,7 +310,6 @@ export default function PayrollReviewPage() {
   }).format(data.totalAmount);
 
   const isCalculated = data.status === "Calculated";
-  const isApproved = data.status === "Approved";
   const isDraft = data.status === "Draft";
 
   const handleRecalculate = () => {
@@ -433,7 +406,7 @@ export default function PayrollReviewPage() {
               onClick={handleRecalculate}
               className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90"
             >
-              <Calculator className="h-3.5 w-3.5" />
+              <RefreshCw className="h-3.5 w-3.5" />
               Calculate
             </button>
           )}
@@ -600,7 +573,7 @@ export default function PayrollReviewPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <Calculator className="h-4 w-4" />
+          <FileText className="h-4 w-4" />
           FIN-11 · Payroll Calculation Review
         </span>
         <span className="flex items-center gap-1.5">

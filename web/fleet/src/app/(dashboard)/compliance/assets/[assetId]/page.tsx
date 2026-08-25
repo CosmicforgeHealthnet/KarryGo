@@ -12,40 +12,24 @@ import {
   AlertCircle,
   AlertTriangle,
   Eye,
-  ArrowRight,
   Building2,
   FileText,
-  Plus,
   Calendar,
   XCircle,
-  Activity,
   ListChecks,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
-  ClipboardList,
   Download,
-  Printer,
   ExternalLink,
   Edit3,
-  Trash2,
-  Check,
-  X,
   Wrench,
-  Gauge,
-  Fuel,
   Car,
   Info,
   ChevronDown,
   ChevronUp,
   Search,
-  Tag,
   User,
   MapPin,
-  CalendarDays,
-  FileCheck,
   AlertOctagon,
+  ShieldCheck,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -446,9 +430,9 @@ export default function AssetCompliancePage() {
 
   const overallStatusStyle = {
     Compliant: { bg: "bg-green-bg", text: "text-green", icon: <ShieldCheck className="h-5 w-5" /> },
-    Warning: { bg: "bg-amber-bg", text: "text-amber", icon: <ShieldAlert className="h-5 w-5" /> },
-    NonCompliant: { bg: "bg-red-bg", text: "text-red", icon: <ShieldAlert className="h-5 w-5" /> },
-    Pending: { bg: "bg-blue-bg", text: "text-blue", icon: <ShieldQuestion className="h-5 w-5" /> },
+    Warning: { bg: "bg-amber-bg", text: "text-amber", icon: <AlertTriangle className="h-5 w-5" /> },
+    NonCompliant: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-5 w-5" /> },
+    Pending: { bg: "bg-blue-bg", text: "text-blue", icon: <Clock className="h-5 w-5" /> },
   }[data.overallStatus] || { bg: "bg-surface-2", text: "text-ink-500", icon: <Shield className="h-5 w-5" /> };
 
   const formatDate = (date: string | null) => {
@@ -517,10 +501,6 @@ export default function AssetCompliancePage() {
           <button className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white">
             <Download className="h-3.5 w-3.5" />
             Export
-          </button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white">
-            <Printer className="h-3.5 w-3.5" />
-            Print
           </button>
         </div>
       </div>
@@ -646,7 +626,7 @@ export default function AssetCompliancePage() {
           >
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-red-bg p-2">
-                <ShieldAlert className="h-4 w-4 text-red" />
+                <AlertOctagon className="h-4 w-4 text-red" />
               </div>
               <div>
                 <span className="font-semibold text-ink-950">Active Restrictions</span>
@@ -911,7 +891,7 @@ export default function AssetCompliancePage() {
                           <div className="mt-3 flex flex-wrap gap-2">
                             {req.restrictionImpact && (
                               <button className="rounded-lg border border-red/20 bg-red-bg px-3 py-1.5 text-[11px] font-medium text-red transition hover:bg-red/10">
-                                <ShieldAlert className="inline h-3.5 w-3.5 mr-1" />
+                                <AlertOctagon className="inline h-3.5 w-3.5 mr-1" />
                                 Resolve Block
                               </button>
                             )}

@@ -11,149 +11,14 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Eye,
-  ArrowRight,
-  Users,
   FileText,
-  Plus,
-  Building2,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Tag,
-  Info,
-  FileCheck,
-  Calendar,
-  XCircle,
-  Activity,
-  ListChecks,
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  FileSearch,
-  ClipboardList,
-  BookOpen,
-  FileSignature,
-  FolderOpen,
-  ChevronDown,
-  ChevronUp,
-  Download as DownloadIcon,
-  Printer,
-  ExternalLink,
-  MoreHorizontal,
-  Edit3,
-  Trash2,
-  UserCheck,
-  UserX,
-  AlertOctagon,
-  Check,
-  X,
-  Flag,
-  EyeOff,
-  UserCog,
-  MessageSquare,
-  Paperclip,
-  Link2,
-  Send,
-  Phone as PhoneIcon,
-  Car,
-  Briefcase as BriefcaseIcon,
-  AlertCircle as AlertCircleIcon,
-  Shield,
-  Clock as ClockIcon2,
-  CheckCircle as CheckCircleIcon,
-  XCircle as XCircleIcon,
-  UserCog as UserCogIcon,
-  FileSearch as FileSearchIcon,
-  ClipboardList as ClipboardListIcon,
-  BookOpen as BookOpenIcon,
-  DownloadCloud,
-  FileSpreadsheet,
-  FileJson,
-  FileCsv,
-  FileXml,
-  FilePdf,
-  FileSpreadsheet as FileSpreadsheetIcon,
-  FileJson as FileJsonIcon,
-  FileCsv as FileCsvIcon,
-  FileXml as FileXmlIcon,
-  FilePdf as FilePdfIcon,
-  RefreshCw as RefreshCwIcon,
-  Clock as ClockIcon3,
-  CheckCircle2 as CheckCircle2Icon,
-  XCircle as XCircleIcon2,
-  AlertTriangle as AlertTriangleIcon,
-  Info as InfoIcon,
+  ArrowLeft,
   RotateCw,
-  Undo2,
-  Redo2,
-  Save,
-  FileText as FileTextIcon,
-  Folder,
-  HardDrive,
-  Database,
-  Cloud,
-  History,
-  GitBranch,
-  FileUser,
-  FileKey,
-  FileClock,
-  FileX,
-  FileMinus,
-  FilePlus,
-  FileCog,
-  FileCheck2,
-  Sparkles,
-  Globe,
-  FilterX,
-  LayoutGrid,
-  LayoutList,
-  Sliders,
-  XCircle as XCircleIcon3,
-  CheckCircle as CheckCircleIcon2,
-  AlertTriangle as AlertTriangleIcon2,
-  ArrowRight as ArrowRightIcon,
-  ArrowLeft as ArrowLeftIcon,
-  Send as SendIcon,
-  Paperclip as PaperclipIcon,
-  Link2 as Link2Icon,
-  ExternalLink as ExternalLinkIcon,
-  FileText as FileTextIcon2,
-  File as FileIcon,
-  FileArchive as FileArchiveIcon,
-  FileImage as FileImageIcon,
-  FileJson as FileJsonIcon2,
-  FilePdf as FilePdfIcon2,
-  FileSpreadsheet as FileSpreadsheetIcon2,
-  FolderOpen as FolderOpenIcon,
-  Shield as ShieldIcon,
-  Lock as LockIcon,
-  EyeOff as EyeOffIcon,
-  AlertOctagon as AlertOctagonIcon,
-  FileCheck as FileCheckIcon,
-  FileSignature as FileSignatureIcon,
-  Folder as FolderIcon,
-  HardDrive as HardDriveIcon,
-  Database as DatabaseIcon,
-  Cloud as CloudIcon,
-  History as HistoryIcon,
-  GitBranch as GitBranchIcon,
-  FileUser as FileUserIcon,
-  FileKey as FileKeyIcon,
-  FileClock as FileClockIcon,
-  FileX as FileXIcon,
-  FileMinus as FileMinusIcon,
-  FilePlus as FilePlusIcon,
-  FileCog as FileCogIcon,
-  FileCheck2 as FileCheck2Icon,
-  DownloadCloud as DownloadCloudIcon,
-  FileSpreadsheet as FileSpreadsheetIcon3,
-  FileJson as FileJsonIcon3,
-  FileCsv as FileCsvIcon2,
-  FileXml as FileXmlIcon2,
-  FilePdf as FilePdfIcon3,
+  Printer,
+  Share2,
+  X,
+  XCircle,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -294,23 +159,43 @@ const MOCK_EXPORT_DATA: Record<string, ExportDetail> = {
   },
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Queued: { bg: "bg-surface-2", text: "text-ink-500", icon: <ClockIcon3 className="h-4 w-4" /> },
-  Processing: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCwIcon className="h-4 w-4" /> },
-  Generating: { bg: "bg-amber-bg", text: "text-amber", icon: <FileTextIcon className="h-4 w-4" /> },
+type StatusStyle = {
+  bg: string;
+  text: string;
+  icon: React.ReactNode;
+};
+
+const STATUS_STYLES: Record<string, StatusStyle> = {
+  Queued: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-4 w-4" /> },
+  Processing: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCw className="h-4 w-4" /> },
+  Generating: { bg: "bg-amber-bg", text: "text-amber", icon: <FileText className="h-4 w-4" /> },
   Ready: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Completed: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Failed: { bg: "bg-red-bg", text: "text-red", icon: <XCircle className="h-4 w-4" /> },
-  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <ClockIcon3 className="h-4 w-4" /> },
+  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-4 w-4" /> },
   Cancelled: { bg: "bg-surface-2", text: "text-ink-500", icon: <X className="h-4 w-4" /> },
 };
 
 const FORMAT_ICONS: Record<string, React.ReactNode> = {
-  CSV: <FileCsvIcon2 className="h-5 w-5 text-green" />,
-  Excel: <FileSpreadsheetIcon3 className="h-5 w-5 text-green" />,
-  JSON: <FileJsonIcon3 className="h-5 w-5 text-amber" />,
-  PDF: <FilePdfIcon3 className="h-5 w-5 text-red" />,
-  XML: <FileXmlIcon2 className="h-5 w-5 text-blue" />,
+  CSV: <FileText className="h-5 w-5 text-green" />,
+  Excel: <FileText className="h-5 w-5 text-green" />,
+  JSON: <FileText className="h-5 w-5 text-amber" />,
+  PDF: <FileText className="h-5 w-5 text-red" />,
+  XML: <FileText className="h-5 w-5 text-blue" />,
+};
+
+// Simple toast function
+const toast = (message: string) => {
+  if (typeof window !== "undefined") {
+    const toastEl = document.createElement("div");
+    toastEl.className = "fixed bottom-4 right-4 bg-ink-950 text-white px-4 py-2 rounded-xl text-sm shadow-lg z-50 animate-in slide-in-from-bottom-5";
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => toastEl.remove(), 300);
+    }, 3000);
+  }
 };
 
 export default function ExportDetailPage() {
@@ -318,11 +203,10 @@ export default function ExportDetailPage() {
   const router = useRouter();
   const exportId = params.exportId as string;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<ExportDetail | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [showHistory, setShowHistory] = useState(true);
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -352,7 +236,7 @@ export default function ExportDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
         <div className="rounded-full bg-surface-2 p-4">
-          <DownloadCloud className="h-8 w-8 text-ink-400" />
+          <Download className="h-8 w-8 text-ink-400" />
         </div>
         <h3 className="mt-3 text-[15px] font-semibold text-ink-950">Export not found</h3>
         <p className="mt-1 text-sm text-ink-500">No export found with this ID.</p>
@@ -367,9 +251,9 @@ export default function ExportDetailPage() {
   }
 
   const statusStyle = STATUS_STYLES[data.status] || STATUS_STYLES.Queued;
-  const formatIcon = FORMAT_ICONS[data.format] || <FileTextIcon className="h-5 w-5 text-ink-400" />;
+  const formatIcon = FORMAT_ICONS[data.format] || <FileText className="h-5 w-5 text-ink-400" />;
 
-  const formatTime = (date: string) => {
+  const formatTime = (date: string): string => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -383,7 +267,7 @@ export default function ExportDetailPage() {
     return `${diffDay}d ago`;
   };
 
-  const formatDateTime = (date: string | null) => {
+  const formatDateTime = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleString("en-GB", {
@@ -395,7 +279,7 @@ export default function ExportDetailPage() {
     });
   };
 
-  const formatDate = (date: string | null) => {
+  const formatDate = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -659,7 +543,7 @@ export default function ExportDetailPage() {
       {/* ===== FOOTER ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <span className="flex items-center gap-2">
-          <DownloadCloud className="h-4 w-4" />
+          <Download className="h-4 w-4" />
           DAT-13 · Export Detail · {data.reference}
         </span>
         <span className="flex items-center gap-1.5">
@@ -669,4 +553,4 @@ export default function ExportDetailPage() {
       </div>
     </div>
   );
-} 
+}
