@@ -129,8 +129,8 @@ export default function AuthLayout({
   if (isSignIn) {
     return (
       <div className="flex min-h-screen bg-white">
-        <div className="flex w-full flex-col justify-center px-6 sm:px-12 lg:w-[54%] lg:px-20 xl:px-28">
-          <div className="mb-12 flex items-center gap-2.5">
+        <div className="relative flex w-full flex-col justify-center px-6 sm:px-12 lg:w-[54%] lg:px-20 xl:px-28">
+          <div className="absolute left-6 top-8 flex items-center gap-2.5 sm:left-12 lg:left-20 xl:left-28">
             <Image
               src="/images/fleet-logo.png"
               alt="KarryGo Fleet OS"
