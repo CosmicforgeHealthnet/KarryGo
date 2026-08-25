@@ -40,17 +40,17 @@ export default function SignInPage() {
 
   return (
     <div>
-      <h1 className="font-display text-[36px] font-light leading-tight tracking-[-0.02em] text-ink-950">
+      <h1 className="font-display text-[40px] font-light leading-tight tracking-[-0.02em] text-ink-950">
         Sign in
       </h1>
-      <p className="mt-2 text-[14px] text-ink-600">
+      <p className="mt-3 text-[16px] text-ink-600">
         Enter your work email or phone to continue.
       </p>
 
       <form onSubmit={handleSubmit} noValidate className="mt-9">
         <label
           htmlFor="identifier"
-          className="mb-2 block text-[12px] font-medium uppercase tracking-wide text-ink-500"
+          className="mb-2 block text-[13px] font-medium uppercase tracking-wide text-ink-500"
         >
           Email or phone number
         </label>
@@ -65,11 +65,11 @@ export default function SignInPage() {
           }}
           placeholder="you@company.com"
           disabled={submitting}
-          className="w-full border-b border-line bg-transparent py-3 text-[16px] text-ink-950 outline-none transition placeholder:text-ink-500/60 focus:border-primary disabled:opacity-50"
+          className="w-full border-b border-line bg-transparent py-3 text-[18px] text-ink-950 outline-none transition placeholder:text-ink-500/60 focus:border-primary disabled:opacity-50"
         />
 
         {state.status === "error" && (
-          <p role="alert" className="mt-2.5 text-[13px] text-red">
+          <p role="alert" className="mt-2.5 text-[14px] text-red">
             {state.kind === "invalid" &&
               "Enter a valid email address or phone number."}
             {state.kind === "rate_limited" &&
@@ -82,13 +82,13 @@ export default function SignInPage() {
         <button
           type="submit"
           disabled={submitting || identifier.length === 0}
-          className="mt-7 w-full rounded-md bg-primary px-4 py-3.5 text-[14px] font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-7 w-full rounded-md bg-primary px-4 py-3.5 text-[15px] font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           {submitting ? "Sending code…" : "Continue"}
         </button>
       </form>
 
-      <p className="mt-8 text-[12.5px] leading-relaxed text-ink-500">
+      <p className="mt-8 text-[13.5px] leading-relaxed text-ink-500">
         We&apos;ll send a one-time code to confirm it&apos;s you. Your contact
         details are never shared with other organizations.
       </p>
