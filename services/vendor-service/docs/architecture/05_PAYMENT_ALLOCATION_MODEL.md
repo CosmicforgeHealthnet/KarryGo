@@ -70,3 +70,13 @@ The actual delivery cost and the identity of who ultimately funded each part of 
 ## What this phase does not do
 
 No allocation is computed, no payment intent is created, and no checkout exists yet. This document fixes the model every later commerce-checkout and fulfilment-settlement section must implement against, and confirms the model is buildable on `payment-wallet-service` as it exists today without requiring that service to be redesigned.
+
+## Implemented settlement and refund boundary
+
+Later Commerce implementation now realizes this model with one Wallet intent,
+immutable VendorOrder allocations and allocation-local release/refund
+operations. Vendor Service stores versioned policy evidence only. Wallet owns
+all ledger movement and cumulative caps; Dispatch/Hauling own platform-provider
+completion and identity; Inventory owns exact AUTO_REFUND stock release; and
+Support owns ambiguous adjudication. Refund recovery reads frozen snapshots and
+Wallet operation state, never current prices or caller-supplied amounts.

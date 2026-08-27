@@ -2,7 +2,9 @@
 // Section 17B vendor/branch groups into an authoritative candidate fulfilment
 // plan.
 //
-// Section 17C builds this in slices. What is implemented here so far:
+// Section 17C and the delivery-policy extension build this in slices. The
+// package now also records smart-hybrid owner/fallback evidence, preserves
+// customer delivery-price guarantees, and guards post-custody takeover.
 //
 //   - requirements.go — aggregation of ACTUAL logistics metadata per vendor
 //     group (weight, volume, dimensions, package count, handling and

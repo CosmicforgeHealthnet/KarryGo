@@ -17,6 +17,7 @@ type VendorAllocation struct {
 	QuoteGroupRef string
 	BusinessID    string
 	BranchID      string
+	Domain        string
 
 	ProductSubtotalMinor    int64
 	MaxProductSubtotalMinor int64
@@ -117,6 +118,7 @@ func ComputeAllocation(source QuoteSource) (AllocationPlan, error) {
 			QuoteGroupRef:               group.QuoteGroupRef,
 			BusinessID:                  group.BusinessID,
 			BranchID:                    group.BranchID,
+			Domain:                      group.Domain,
 			ProductSubtotalMinor:        group.ProductSubtotalMinor,
 			MaxProductSubtotalMinor:     group.MaxProductSubtotalMinor,
 			DeliveryResponsibility:      group.DeliveryResponsibility,
@@ -162,9 +164,8 @@ func ComputeAllocation(source QuoteSource) (AllocationPlan, error) {
 // Attribution rule, applied to discounts:
 //
 //   - a single-vendor quote attributes everything to that one vendor;
-//   - a vendor-funded benefit on a multi-vendor quote is REFUSED, because
-//     Section 17D's adjustment carries no vendor identity and splitting it
-//     would make vendor B pay for vendor A's promotion;
+//   - a vendor-funded benefit on a multi-vendor quote must carry the immutable
+//     business/branch identity of its sponsoring campaign;
 //   - a platform, delivery-subsidy or other-approved benefit costs no vendor
 //     anything, so it is spread deterministically by largest remainder.
 //
@@ -238,6 +239,31 @@ func discountWeights(vendors []VendorAllocation, scope string) ([]int64, error) 
 
 // attribute returns each vendor's share of one adjustment.
 func attribute(vendors []VendorAllocation, adjustment AdjustmentSource, weights []int64) ([]int64, error) {
+	if adjustment.BusinessID != "" {
+		targetWeights := make([]int64, len(weights))
+		matched := false
+		firstMatch := -1
+		var targetTotal int64
+		for i, vendor := range vendors {
+			if vendor.BusinessID == adjustment.BusinessID && (adjustment.BranchID == "" || vendor.BranchID == adjustment.BranchID) {
+				targetWeights[i] = weights[i]
+				matched = true
+				if firstMatch < 0 {
+					firstMatch = i
+				}
+				targetTotal += weights[i]
+			}
+		}
+		if !matched {
+			return nil, ErrNotAttributable
+		}
+		if targetTotal == 0 {
+			shares := make([]int64, len(weights))
+			shares[firstMatch] = adjustment.AmountMinor
+			return shares, nil
+		}
+		return distribute(adjustment.AmountMinor, targetWeights)
+	}
 	if len(vendors) == 1 {
 		return []int64{adjustment.AmountMinor}, nil
 	}

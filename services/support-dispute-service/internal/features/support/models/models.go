@@ -2,6 +2,8 @@ package supportmodels
 
 import "time"
 
+import "cosmicforge/logistics/shared/go/supportcase"
+
 type SenderType string
 
 const (
@@ -132,6 +134,12 @@ type Complaint struct {
 	OrganizationReference *string
 	SourceIdempotencyKey  *string
 	SourceVersion         int64
+	CommerceCategory      supportcase.Category
+	CommerceContext       supportcase.Context
+	RequestFingerprint    string
+	ResolutionType        string
+	ResolutionVersion     int64
+	FinancialActionRef    string
 
 	// UnreadCount is populated only by list/get queries that join the chat
 	// table; it is the number of messages the requester has not yet read.

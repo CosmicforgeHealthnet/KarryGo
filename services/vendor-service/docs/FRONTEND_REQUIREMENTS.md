@@ -2,7 +2,7 @@
 
 Plain-language backend contract handoff for the future frontend team (Vendor Flutter app, and the commerce surfaces added to the Customer app). No frontend code.
 
-**Status: Backend work through Sections 12A and 12B is implemented.** No frontend was built. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [SECTION10_11_HANDOFF.md](SECTION10_11_HANDOFF.md), and [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md).
+**Status: Backend work through Sections 12A, 12B and Section 20 production operations is implemented.** No frontend was built. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [SECTION10_11_HANDOFF.md](SECTION10_11_HANDOFF.md), and [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md).
 
 **Section 7 contract correction:** future clients must recognize exactly `NOT_STARTED`, `IN_PROGRESS`, `PENDING_REVIEW`, `VERIFIED`, `REJECTED`, `EXPIRED`, `SUSPENDED`. Plain `PENDING` is not a VerificationStatus. `PENDING_REVIEW` is unsatisfied and activation-blocking when its requirement applies. The root-level `/internal/vendor/v1/verification-events` callback is service-only and must never be called or exposed by frontend code.
 
@@ -1253,7 +1253,7 @@ dispatch.
 
 
 <!-- SECTION17A_CUSTOMER_CART -->
-## Section 17C - Fulfilment planning frontend contract
+## Section 17C - Fulfilment planning and smart hybrid delivery frontend contract
 
 Two customer calls and two vendor-staff calls.
 
@@ -1317,6 +1317,14 @@ Two fields need careful UI copy:
 The form has no beneficiary field and must not add one: who receives the
 delivery fee is derived from who performs the delivery.
 
+For HYBRID, display the selected owner and bounded trigger (`DISTANCE_OVERFLOW`,
+`TIME_OVERFLOW`, `CAPACITY_OVERFLOW`, `VEHICLE_OVERFLOW`, `SLA_OVERFLOW`, or
+`OWN_RIDER_FIRST`). Show the accepted customer delivery-price guarantee beside
+the actual logistics evidence; a fallback must never silently raise the
+customer contribution. Before custody, fallback is a replan of the same
+VendorOrder/parcel. After custody, show transfer/return-required state until
+authoritative handover evidence exists.
+
 ## Section 17A - Customer Cart Frontend Contract
 
 Base path: `/api/v1/commerce`.
@@ -1350,3 +1358,361 @@ Substitution proposals show the frozen replacement snapshot, price delta and
 expiry; customer responses use the authenticated customer session and are
 safe to retry. Never show a platform-delivered order as vendor-confirmed
 pickup/delivery, and treat Wallet refund states as pending until confirmed.
+
+Shop picking additions: use `GET /vendor/commerce/orders/{vendorOrderId}/picking-queue`
+for the immutable ordered line snapshot. Render `FULL_AVAILABLE`,
+`PARTIAL_AVAILABLE`, or `OUT_OF_STOCK`, every structured quality preference and
+its `MET`/`PARTIAL`/`NOT_AVAILABLE`/`SUBSTITUTE` result, the remaining quantity,
+and the frozen substitution policy. Variable-weight/count lines must show the
+estimate, hard maximum, actual quantity, exact final amount and financial state;
+packing is disabled while a case, quality result, inventory finalization,
+reapproval, or Wallet operation is unresolved.
+## Section 21 commerce
+
+Group ordering must display the organizer-paid model and never collect split
+participant payment. Participant links are scoped/expiring and selections are
+frozen when the organizer closes the group. Scheduled orders display desired
+delivery separately from production ready-by and logistics activation. RFQ
+screens display immutable quote revisions and the accepted CheckoutQuote
+reference. Advanced RFQ screens expose counter-offer revisions, payment policy,
+deposit status, cancellation/refund policy and authoritative conversion status.
+Corporate recurring feeding screens expose pause/resume/cancel controls and
+future occurrence/proposal evidence without implying early driver assignment.
+
+## Promotions and delivery funding
+
+The Vendor management routes are listed in `API_ROUTE_REGISTER.md`; campaign
+create/update/status/coupon commands require the authenticated staff scope and
+current `If-Match` where documented. The client sends rules, never a computed
+discount, funding amount, customer identity or Platform approval. Coupon codes
+are accepted only by the existing CheckoutQuote create body as `coupon_code`;
+the final quote is authoritative and may reject an exhausted, paused, stale or
+foreign campaign.
+
+Render `promotion_snapshot` and `delivery_funding_snapshot` from the quote/
+order response as immutable receipt evidence. Show `gross_minor`,
+`customer_minor`, `vendor_funded_minor` and `platform_funded_minor` separately.
+An automatic HYBRID fallback does not authorize a higher customer charge; a
+customer-requested higher service level continues through the existing
+commercial-change/reapproval flow. Wallet funding operations are internal and
+must never appear as a frontend mutation.
+
+## Vendor Finance
+
+Use the six `/api/v1/vendor/finance` routes documented in
+`openapi/vendor-finance.openapi.json`. Amounts are integer minor units; format
+them for display but never calculate available, pending or withdrawable funds
+client-side. Wallet's response is authoritative. Show pending earnings,
+available payable, transaction/adjustment history, masked bank accounts, and
+withdrawal status/read-back without exposing ledger account IDs.
+
+Adding or changing a bank account continues to use the existing onboarding
+bank flow with purpose `finance.bank_change`. Before a withdrawal, run the
+existing step-up flow with purpose `finance.withdrawal`, then send its one-time
+`grant_id` as `step_up_grant_id` plus a stable `Idempotency-Key`. After an
+ambiguous response, read the withdrawal list/status; never infer failure or
+submit a differently keyed duplicate.
+
+## Commerce settlement and refund projection
+
+No frontend was implemented. Future customer/Vendor clients must render the
+server projection, not infer money movement from an order event:
+
+- `REFUND_PENDING` means Wallet movement is unresolved or a released-party liability is pending.
+- `UNKNOWN` means the authority call was ambiguous and recovery/read-back is in progress.
+- `PARTIALLY_REFUNDED` and `REFUNDED` are shown only after Wallet read-back.
+- Item-unavailable, cheaper replacement, lower measured amount and cheaper replan copy must describe the exact affected difference, never the gross order.
+- A customer-caused/replannable delivery failure shows no automatic refund. An ambiguous or prepared-Food case links Support review and must not be labelled refunded.
+
+Clients send no refund amount, beneficiary, funding source, provider identity,
+or allocation id. Customer-initiated address/service changes continue through
+the replacement quote and explicit approval flow before any additional hold.
+
+## Fulfilment group, parcel and mission model
+
+Backend only. No frontend was implemented.
+
+### Readiness
+
+| Surface | Readiness | Note |
+|---|---|---|
+| Delivery plan + plan history | READY | `GET /fulfilment/groups/{groupId}`, `.../plans` |
+| Packages (parcels) + manifest | READY | list, read, pack, amend before handover |
+| Package custody timeline | READY | `GET /fulfilment/parcels/{parcelId}/custody` |
+| Pickup readiness | READY | `PUT /fulfilment/units/{unitId}/readiness` |
+| Own delivery missions + rider assignment + execution | READY | `/fulfilment/vendor-missions/...` |
+| Platform delivery status | READY (read-only projection) | inside the group response |
+| Return initiation + return status | READY | `POST /fulfilment/parcels/{parcelId}/returns` |
+| Handover OTP/QR action on a vendor mission | PARTIAL | the mission carries a `handover_ref`; the credential itself is issued and verified by its owning authority, not by this service |
+| Provider transfer display | PARTIAL | modelled and safe to render, but no logistics authority emits a transfer event yet |
+| **Taxi commerce delivery** | **DEFERRED** | `driver-taxi-service` has no commerce mission ingress. Do not build a Taxi option; selecting it is refused server-side |
+
+### Vocabulary for the interface
+
+Use business language, not table names.
+
+| Show | Means |
+|---|---|
+| Delivery plan | the plan version currently in force |
+| Plan changed | a new plan version was appended; the previous one is still readable |
+| Packages | parcels, each with its own reference the customer can be told |
+| Pickup status | the unit's readiness |
+| Own delivery | a VendorMission — the vendor's own rider |
+| KarryGo delivery | a platform mission projection |
+| Delivery status | the projected status, with the time it was last reported |
+| Return | the same package coming back — never a new package |
+
+### Rules the interface must respect
+
+- **Every mutation needs `If-Match`** with the version last read, except packing
+  and return initiation, which need `Idempotency-Key`. Retry with the same key
+  rather than issuing a second request.
+- **A package reference never changes.** If the interface shows a new reference
+  after a replan or a return, something is wrong on the client side.
+- **Platform delivery is read-only.** There is no control anywhere that sets a
+  KarryGo mission's status; that belongs to the executing service.
+- **A manifest is not editable after handover.** The API answers
+  `FULFILMENT_PARCEL_SEALED`; present it as "already collected", not as an error
+  the user can retry.
+- **An order may have several deliveries.** Never present a multi-mission group
+  as a single delivery — say how many and show each one's progress.
+- **In a shared order, a vendor sees only its own units and packages.** The API
+  filters this; the interface must not attempt to fetch more.
+
+---
+
+## Delivery Requirement and Vehicle Selection
+
+No frontend was implemented. Contract notes for whoever builds it.
+
+### Where the data comes from
+
+No new endpoint. `requirement_decisions` is returned on each plan version by
+the plan reads that already exist:
+
+- `GET /api/v1/vendor/fulfilment/groups/{groupId}` (current plan)
+- `GET /api/v1/vendor/fulfilment/groups/{groupId}/plans` (full history)
+
+### Shape
+
+Each decision carries:
+
+| Field | Use |
+|---|---|
+| `minimum_physical_class` | what the load actually needs; may be `CAR` |
+| `selected_vehicle_class` / `selected_service` | what will run it; never `CAR` |
+| `executable` | false means nothing can currently run it |
+| `primary_reason` | one controlled code — the headline |
+| `supporting_reasons` | ordered controlled codes — the detail |
+| `candidates` | every class considered, each with its own outcome |
+| `measurement_state` | `ESTIMATED` or `CONFIRMED` |
+| `measurement_source` | catalogue, vendor, packing scale or derived |
+| `policy_version` | the rules in force when it was decided |
+
+### Rules for the client
+
+1. **Never re-derive a vehicle class in the client.** The server owns safety
+   thresholds. A client that computes its own class will eventually disagree
+   with the delivery that actually ran, and it will be the customer who finds
+   out.
+
+2. **Map reason codes to copy; never render the code.** The vocabulary is
+   closed and stable, so a lookup table is safe. An unmapped code should fall
+   back to generic copy rather than leaking `PACKAGE_DIMENSION_EXCEEDED` into
+   a customer's screen.
+
+3. **`minimum_physical_class` and `selected_vehicle_class` differing is normal
+   and worth showing to operators.** It usually means the right vehicle exists
+   but cannot be run — today, the disabled taxi integration. Do not treat it
+   as an error.
+
+4. **Treat `measurement_state` as load-bearing.** An estimate presented as a
+   measurement is how a vendor is blamed for a figure they never gave.
+
+5. **A plan version change is not a price change.** Section 24 governs price;
+   an escalation carries no charge, and the UI must not imply one.
+
+6. **Do not expose thresholds or `policy_version` to customers or vendors.**
+   They are operator and support vocabulary.
+
+
+## Multi-vendor consolidation and basket optimization
+
+### Planning with a preference
+
+`POST /api/v1/commerce/checkout/{sessionId}/fulfilment-plan` takes an optional
+`{"fulfilment_preference": "FASTEST"|"BALANCED"|"SAVER"}`.
+
+1. **Send nothing to get the default.** An absent body means BALANCED. An
+   unrecognised value is a 422, not a silent default.
+2. **Re-plan when the customer changes preference.** The mode is part of the
+   plan and part of the quote fingerprint, so a plan built for SAVER cannot be
+   approved as FASTEST.
+3. **Read `candidates` for the explanation.** `status` is `SELECTED`,
+   `REJECTED` or `INELIGIBLE`, and the three are genuinely different:
+   `INELIGIBLE` means a constraint refused it and no price would have changed
+   the outcome.
+4. **`MULTI_STOP_UNSUPPORTED` is expected, not an error.** It is today's
+   runtime limitation and it will appear regularly. Surface it as an
+   explanation of the split, never as a failure.
+5. **Do not show `policy_version`, thresholds or fingerprints to customers.**
+   They are operator and support vocabulary.
+
+### Basket optimization
+
+1. **Everything except acceptance is free of consequence.** Calling
+   `/basket/optimize` or `/basket/cart/optimize` repeatedly costs nothing and
+   changes nothing. Do not build confirmation dialogs around them.
+2. **A proposal has an expiry.** Show it, and re-run rather than letting a
+   stale Accept fail. `409` on acceptance means it expired or the cart moved -
+   both are recoverable by re-optimizing, and neither should read as an error
+   the customer caused.
+3. **Acceptance is idempotent.** `replayed: true` means this had already
+   happened and the same `cart_version` is being returned. Treat it as success.
+4. **`requote_required` is always true.** After acceptance, run the normal
+   checkout quote. The proposal's totals were an estimate; the quote is the
+   money.
+5. **Budget is `final_delivered_total_minor`.** Never evaluate
+   `merchandise_total_minor` against the customer's budget - the API does not,
+   and a UI that did would tell them something the backend disagrees with.
+6. **Handle `no_complete_basket` separately from `fits_budget: false`.** One
+   means "nothing available", the other means "too expensive". Rendering both
+   as one state loses the difference that tells the customer what to do.
+7. **`quality_variant_unavailable_reason` is normal.** The catalogue carries no
+   ordinal quality signal for most goods, so the QUALITY_BALANCED variant is
+   usually absent. Do not treat it as a gap to fill client-side.
+8. **`search_truncated` should be surfaced to operators, not customers.** It
+   means the bounded search stopped early. Customers do not need it; the team
+   tuning the bounds does.
+9. **`quoted_available_quantity` is not a reservation.** Nothing is held.
+   Checkout revalidates, and a UI promising availability from this field will
+   be wrong sometimes.
+
+### Recurring baskets
+
+1. **`expected_version` is required on every edit**, as a query parameter or an
+   `If-Match` header. A `409` means somebody else changed it - re-read and
+   re-present rather than retrying.
+2. **`timezone` is required and must be an IANA name.** Send the customer's
+   own zone, not the device's UTC offset.
+3. **An auto-approving policy requires `ceiling_minor`.** The API refuses the
+   combination rather than silently downgrading, so the form must collect both
+   together.
+4. **`day_of_month` is capped at 28.** Offer 1-28 only, and explain it: a
+   monthly basket on the 31st would skip February.
+5. **Generation states are not order states.** `PROPOSED` and
+   `AWAITING_APPROVAL` need the customer; `AUTO_APPROVED` means the occurrence
+   was inside their own configured bound. **None of them means anything has
+   been bought or charged.**
+6. **Show `comparison` on every occurrence**, including when
+   `same_vendor_plan_available` is false - "your usual shops cannot supply this
+   today" is information, and an empty comparison silently omits it.
+7. **`material_changes` drives the approval prompt.** A vendor change and a
+   product change are different sentences to a customer, and the field
+   distinguishes them.
+
+## Dispatch multi-pickup delivery
+
+The customer UI continues to consume the Vendor fulfilment/order projection;
+it must not call Dispatch's internal Commerce API directly. A selected
+multi-pickup mission needs an ordered pickup timeline, one Vendor/branch and
+manifest summary per logical stop, parcel count, delivery mode, promised-by
+time and bounded runtime reason. Co-located Vendors may share one map pin but
+must remain separate pickup rows.
+
+Show `NO_PROVIDER_QUEUED` as matching in progress, not as delivery failure.
+Show `SLA_EXHAUSTED`, receiver unavailable, rescheduled, return required,
+transfer required and returned as distinct states. Never infer a refund or
+settlement from them; those appear only after the existing Vendor/Wallet policy
+projection decides them.
+
+Pickup handover uses the provider/Vendor stop credential; delivery handover
+reuses the established Dispatch customer verification-code flow. Do not show
+an OTP before Dispatch has issued it, do not merge codes across stops, and do
+not treat a replayed response as a second pickup.
+
+## Vendor Rider Mode
+
+The Vendor-owned Rider contract is documented in
+`docs/handoffs/VENDOR_RIDER_MODE.md`. It is a restricted Vendor-staff surface,
+not a marketplace-provider surface. Secure VendorMission pickup, receiver
+completion and return remain dependency-gated until a Vendor-compatible
+handover authority is approved and wired; the UI must not treat Dispatch's own
+mission credential as interchangeable.
+
+## Dispatch evidence, exceptions, returns and transfer
+
+Customer and Vendor frontends consume Vendor's existing order/fulfilment
+projection and must not call Dispatch provider/internal routes. Provider-app
+work is a separate handoff: exact stop manifest confirmation, private media
+upload, controlled-camera UX, exception reason/recovery selection,
+product-class return presentation and the two-provider transfer challenge.
+
+Clients cannot set custodian, provider replacement, financial allocation,
+refund, additional fee or completion. `409` policy/state failures require a
+read-back, not a blind retry. Replayed idempotent responses are success. Media
+references remain opaque and private; evidence bytes never travel in mission
+JSON.
+
+## Realtime notifications and confidence ETA
+
+The customer order ETA response preserves the existing `allocations` array and
+adds `missions`. Render each mission independently as `earliest_at–latest_at`;
+never collapse a split delivery into one precise time. Show `confidence` as a
+controlled LOW/MEDIUM/HIGH label, retain the accepted promise separately, and
+use `delay_state` for risk/delay messaging. On reconnect or any source-version
+gap, read back `GET /api/v1/commerce/orders/{orderId}/eta`; realtime payloads
+are hints, not client-side authority.
+
+Vendor order detail may expose its scoped current ETA, provider-arrival range
+and delay state. The UI must not calculate ETA from coordinates, replace an
+authoritative route, select notification recipients/templates, or infer
+delivery from a push. Vendor Rider mission updates are realtime notification
+intents only; the existing Section 31 secure-handover dependency remains
+visible and fail-closed. No frontend is implemented by Section 36.
+## Section 39 Analytics Dashboard Handoff
+
+Future UI may consume Analytics Service, not Vendor Service, for operational
+dashboard cards:
+
+- sales, order count and AOV with explicit window and `data_as_of`
+- inventory, stock-out, turnover, waste/expiry and purchase-cost trends
+- supplier on-time, short-delivery and damage metrics where source data exists
+- preparation/picking, acceptance, cancellation and refund-reason metrics
+- own-rider versus platform fulfilment performance
+- Cloud Kitchen/Pastry utilization and RFQ conversion
+- CRM cohorts: NEW, REPEAT, LAPSED, HIGH_VALUE
+- reliability score with component values, status, trend, window and
+  calculation version
+- demand/stock-out intelligence clearly labeled as estimates
+- price benchmarks only when aggregate sample sufficiency is met
+
+The UI must state that operational analytics are decision-support data, not
+audited accounting statements. Reliability is not a star rating, not
+verification status and not popularity.
+
+Order Guarantee must not be shown as active. Its backend status is
+`FUTURE_DISABLED`.
+
+## Section 40 Security, Privacy And Compliance Handoff
+
+Frontend work is documentation-only for Section 40. Render only fields returned
+by the backend; do not infer hidden customer, receiver, provider, bank,
+verification or support-evidence data from opaque references.
+
+- Authorization failures should be shown as controlled unavailable/forbidden
+  states without revealing whether another tenant's object exists.
+- Rate-limit responses require cooldown/retry UX; do not expose account
+  existence through different copy. Search, quote creation, support/report
+  creation and expensive Analytics reads may return HTTP 429.
+- Media refs are not public URLs. Request signed/time-bound access through the
+  media-file-service flow. A ref can still be rejected for evidence attachment
+  when it is not bound to the exact mission/Parcel; prompt for a fresh upload
+  rather than retrying the foreign ref.
+- Price benchmark cards must handle suppressed low-sample cohorts and must not
+  try to reconstruct competitor identities or exact prices client-side.
+- Restricted/prohibited goods return a controlled backend policy rejection.
+  Pharmacy/medicine Vendor Commerce is backend-excluded. Do not add a UI
+  override, hidden category, import bypass or “admin enable” path.
+- OTP/handover screens must respect server retry, cooldown, expiry and replay
+  states; do not locally generate or persist challenge secrets.

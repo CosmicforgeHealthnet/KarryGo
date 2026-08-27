@@ -13,6 +13,7 @@ type WorkerConfig struct {
 	BatchSize       int
 	Interval, Lease time.Duration
 	MaxAttempts     int
+	EventType       string
 }
 
 func (c WorkerConfig) normalized() WorkerConfig {
@@ -54,7 +55,13 @@ func (w *Worker) RunPass(ctx context.Context) error {
 		return ErrPublisherNotConfigured
 	}
 	_, _ = w.repo.RecoverExpiredLeases(ctx)
-	records, err := w.repo.ClaimBatch(ctx, w.config.Owner, w.config.Lease, w.config.BatchSize)
+	var records []OutboxRecord
+	var err error
+	if w.config.EventType != "" {
+		records, err = w.repo.ClaimBatchForEventType(ctx, w.config.Owner, w.config.Lease, w.config.BatchSize, w.config.EventType)
+	} else {
+		records, err = w.repo.ClaimBatch(ctx, w.config.Owner, w.config.Lease, w.config.BatchSize)
+	}
 	if err != nil {
 		return err
 	}

@@ -1,9 +1,13 @@
 package production
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1059,6 +1063,10 @@ func RegisterRoutes(group *gin.RouterGroup, handler *Handler, flags Flags) {
 	p.POST("/jobs", handler.createJob)
 	p.GET("/jobs/:jobId", handler.getJob)
 	p.GET("/jobs/:jobId/events", handler.listJobEvents)
+	p.POST("/jobs/:jobId/steps", handler.createStep)
+	p.GET("/jobs/:jobId/steps", handler.listSteps)
+	p.POST("/jobs/:jobId/steps/:stepId/:status", handler.changeStep)
+	p.POST("/jobs/:jobId/delay", handler.reportDelay)
 	p.GET("/alerts", handler.listAlerts)
 	p.POST("/alerts/:alertId/acknowledge", handler.acknowledgeAlert)
 	p.POST("/alerts/:alertId/resolve", handler.resolveAlert)
@@ -1072,6 +1080,102 @@ func RegisterRoutes(group *gin.RouterGroup, handler *Handler, flags Flags) {
 	p.PATCH("/slot-templates/:templateId", handler.updateSlotTemplate)
 	p.POST("/slot-templates/:templateId/archive", handler.archiveSlotTemplate)
 	p.POST("/slot-templates/:templateId/generate", handler.generateSlotTemplate)
+}
+
+func (h *Handler) createStep(c *gin.Context) {
+	a, _, ok := h.authorized(c, PermProductionOperate)
+	if !ok {
+		return
+	}
+	var in StepInput
+	if c.ShouldBindJSON(&in) != nil {
+		httpx.RespondError(c, apperrors.BadRequest("Check the production step details.", nil))
+		return
+	}
+	if raw := strings.TrimSpace(c.GetHeader("If-Match")); raw != "" {
+		if expected, scanErr := strconv.ParseInt(strings.Trim(raw, `"`), 10, 64); scanErr == nil {
+			in.ExpectedJobVersion = expected
+		}
+	}
+	id, err := h.service.CreateStep(c, a, c.Param("jobId"), in)
+	if err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"success": true, "data": gin.H{"id": id}})
+}
+
+func (h *Handler) listSteps(c *gin.Context) {
+	a, scope, ok := h.authorized(c, PermProductionRead)
+	if !ok {
+		return
+	}
+	var branch string
+	if err := h.service.db.QueryRow(c, `SELECT branch_id FROM production_jobs WHERE business_id=$1 AND id=$2`, a.VendorID, c.Param("jobId")).Scan(&branch); err != nil || !scope.Covers(branch) {
+		httpx.RespondError(c, apperrors.NotFound("Job not found.", nil))
+		return
+	}
+	rows, err := h.service.db.Query(c, `SELECT id,production_line_id,sequence_no,phase,name,required,status,blocked_reason,blocked_at,started_at,completed_at,version FROM production_job_steps WHERE business_id=$1 AND job_id=$2 ORDER BY sequence_no,id`, a.VendorID, c.Param("jobId"))
+	if err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	defer rows.Close()
+	out := []gin.H{}
+	for rows.Next() {
+		var id, name, status, blockedReason string
+		var line *string
+		var sequenceNo, phase int
+		var required bool
+		var blockedAt, startedAt, completedAt *time.Time
+		var version int64
+		if err = rows.Scan(&id, &line, &sequenceNo, &phase, &name, &required, &status, &blockedReason, &blockedAt, &startedAt, &completedAt, &version); err != nil {
+			httpx.RespondError(c, err)
+			return
+		}
+		out = append(out, gin.H{"id": id, "production_line_id": line, "sequence_no": sequenceNo, "phase": phase, "name": name, "required": required, "status": status, "blocked_reason": blockedReason, "blocked_at": blockedAt, "started_at": startedAt, "completed_at": completedAt, "version": version})
+	}
+	productionOK(c, out)
+}
+
+func (h *Handler) changeStep(c *gin.Context) {
+	a, _, ok := h.authorized(c, PermProductionOperate)
+	if !ok {
+		return
+	}
+	var in StepChange
+	in.Status = strings.ToUpper(c.Param("status"))
+	if c.ShouldBindJSON(&in) != nil || in.ExpectedVersion <= 0 || len(in.BlockedReason) > 280 {
+		httpx.RespondError(c, apperrors.BadRequest("Check the production step transition details.", nil))
+		return
+	}
+	if err := h.service.ChangeStep(c, a, c.Param("jobId"), c.Param("stepId"), in); err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	productionOK(c, gin.H{"status": in.Status})
+}
+
+func (h *Handler) reportDelay(c *gin.Context) {
+	a, _, ok := h.authorized(c, PermProductionOperate)
+	if !ok {
+		return
+	}
+	var in DelayInput
+	if c.ShouldBindJSON(&in) != nil {
+		httpx.RespondError(c, apperrors.BadRequest("Check the production delay details.", nil))
+		return
+	}
+	if raw := strings.TrimSpace(c.GetHeader("If-Match")); raw != "" {
+		if expected, scanErr := strconv.ParseInt(strings.Trim(raw, `"`), 10, 64); scanErr == nil {
+			in.ExpectedVersion = expected
+		}
+	}
+	if err := h.service.ReportDelay(c, a, c.Param("jobId"), in); err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	productionOK(c, gin.H{"status": "RECORDED"})
 }
 
 type slotTemplateRequest struct {
@@ -1613,25 +1717,86 @@ func (h *Handler) listJobs(c *gin.Context) {
 	if !ok {
 		return
 	}
-	rows, err := h.service.db.Query(c, `SELECT id,branch_id,capability,reservation_id,production_line_id,source_type,source_ref,source_version,title,status,priority,planned_quantity,produced_quantity,waste_quantity,scheduled_start,scheduled_end,actual_start,ready_at,completed_at,expected_ready_window_start,expected_ready_window_end,blocked_reason,risk_flags,created_at,updated_at,version FROM production_jobs WHERE business_id=$1 AND ($2 OR branch_id=ANY($3)) ORDER BY scheduled_start NULLS LAST,created_at DESC`, a.VendorID, scope.Global, scope.BranchIDs)
+	limit := 100
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		if n, e := strconv.Atoi(raw); e == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	status := strings.ToUpper(strings.TrimSpace(c.Query("status")))
+	if status == "" {
+		status = "ACTIVE"
+	}
+	if status != "ACTIVE" && status != "ALL" && !map[string]bool{"PLANNED": true, "QUEUED": true, "IN_PROGRESS": true, "BLOCKED": true, "READY": true, "COMPLETED": true, "CANCELLED": true}[status] {
+		httpx.RespondError(c, apperrors.BadRequest("Invalid production queue status.", nil))
+		return
+	}
+	statusClause := "j.status NOT IN ('COMPLETED','CANCELLED')"
+	if status == "ALL" {
+		statusClause = "TRUE"
+	} else if status != "ACTIVE" {
+		statusClause = "j.status=$4"
+	}
+	args := []any{a.VendorID, scope.Global, scope.BranchIDs}
+	if status != "ACTIVE" && status != "ALL" {
+		args = append(args, status)
+	}
+	if rawCursor := strings.TrimSpace(c.Query("cursor")); rawCursor != "" {
+		cursor, cursorErr := decodeQueueCursor(rawCursor)
+		if cursorErr != nil {
+			httpx.RespondError(c, apperrors.BadRequest("The production queue cursor is invalid.", cursorErr))
+			return
+		}
+		base := len(args) + 1
+		// The predicate mirrors the ORDER BY exactly: NULL promised deadlines
+		// sort after real deadlines, then priority rank, created_at and id.
+		statusClause += fmt.Sprintf(` AND ((j.promised_ready_at IS NULL) > ($%d::timestamptz IS NULL)
+			OR ((j.promised_ready_at IS NULL) = ($%d::timestamptz IS NULL) AND
+				((j.promised_ready_at IS NOT NULL AND j.promised_ready_at > $%d)
+				 OR ((j.promised_ready_at IS NULL OR j.promised_ready_at = $%d) AND
+					(CASE j.priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END) > $%d
+				  OR ((CASE j.priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END) = $%d AND
+					 (j.created_at > $%d OR (j.created_at = $%d AND j.id > $%d)))))))`, base, base, base, base, base+1, base+1, base+2, base+2, base+3)
+		args = append(args, cursor.PromisedReadyAt, cursor.PriorityRank, cursor.CreatedAt, cursor.ID)
+	}
+	limitPlaceholder := fmt.Sprintf("$%d", len(args)+1)
+	query := `SELECT j.id,j.branch_id,j.capability,j.source_type,j.source_ref,j.title,j.status,j.priority,
+		j.source_version,j.promised_ready_at,j.expected_ready_window_start,j.expected_ready_window_end,j.scheduled_start,j.scheduled_end,j.ready_at,
+		j.planned_quantity,j.produced_quantity,j.waste_quantity,j.blocked_reason,j.version,j.created_at,
+		(SELECT count(*) FROM production_job_steps s WHERE s.business_id=j.business_id AND s.job_id=j.id),
+		(SELECT count(*) FROM production_job_steps s WHERE s.business_id=j.business_id AND s.job_id=j.id AND s.status IN ('COMPLETED','SKIPPED')),
+		(SELECT count(*) FROM production_job_steps s WHERE s.business_id=j.business_id AND s.job_id=j.id AND s.status='BLOCKED')
+		FROM production_jobs j
+		WHERE j.business_id=$1 AND ($2 OR j.branch_id=ANY($3)) AND ` + statusClause + `
+		ORDER BY (j.promised_ready_at IS NULL),j.promised_ready_at,
+			CASE j.priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END,
+		j.created_at,j.id LIMIT ` + limitPlaceholder
+	// Fetch one extra row so the caller can resume with a cursor without an
+	// OFFSET scan. The public response remains the established array shape;
+	// the opaque continuation is returned in X-Next-Cursor.
+	args = append(args, limit+1)
+	rows, err := h.service.db.Query(c, query, args...)
 	if err != nil {
 		httpx.RespondError(c, err)
 		return
 	}
 	defer rows.Close()
-	out := []gin.H{}
+	out := []QueueItem{}
 	for rows.Next() {
-		var id, branch, cap, source, title, status, priority, blockedReason string
-		var reservation, line, ref *string
+		var id, branch, cap, source, title, jobStatus, priority, blockedReason string
+		var ref *string
+		var planned, produced, waste, stepCount, completedStepCount, blockingStepCount int
+		var start, end, readyAt, readyWindowStart, readyWindowEnd, promisedReady *time.Time
 		var sourceVersion *int64
-		var planned, produced, waste int
-		var start, end, actualStart, readyAt, completedAt, readyWindowStart, readyWindowEnd *time.Time
-		var riskFlags json.RawMessage
-		var created, updated time.Time
+		var created time.Time
 		var ver int64
-		if rows.Scan(&id, &branch, &cap, &reservation, &line, &source, &ref, &sourceVersion, &title, &status, &priority, &planned, &produced, &waste, &start, &end, &actualStart, &readyAt, &completedAt, &readyWindowStart, &readyWindowEnd, &blockedReason, &riskFlags, &created, &updated, &ver) == nil {
-			out = append(out, gin.H{"id": id, "branch_id": branch, "capability": cap, "reservation_id": reservation, "production_line_id": line, "source_type": source, "source_ref": ref, "source_version": sourceVersion, "title": title, "status": status, "priority": priority, "planned_quantity": planned, "produced_quantity": produced, "waste_quantity": waste, "scheduled_start": start, "scheduled_end": end, "actual_start": actualStart, "ready_at": readyAt, "completed_at": completedAt, "expected_ready_window_start": readyWindowStart, "expected_ready_window_end": readyWindowEnd, "blocked_reason": blockedReason, "risk_flags": riskFlags, "created_at": created, "updated_at": updated, "version": ver})
+		if rows.Scan(&id, &branch, &cap, &source, &ref, &title, &jobStatus, &priority, &sourceVersion, &promisedReady, &readyWindowStart, &readyWindowEnd, &start, &end, &readyAt, &planned, &produced, &waste, &blockedReason, &ver, &created, &stepCount, &completedStepCount, &blockingStepCount) == nil {
+			out = append(out, QueueItem{ID: id, BranchID: branch, Capability: cap, SourceType: source, SourceRef: ref, SourceVersion: sourceVersion, Title: title, Status: jobStatus, Priority: priority, PromisedReadyAt: promisedReady, ExpectedReadyWindowStart: readyWindowStart, ExpectedReadyWindowEnd: readyWindowEnd, ScheduledStart: start, ScheduledEnd: end, ReadyAt: readyAt, PlannedQuantity: planned, ProducedQuantity: produced, WasteQuantity: waste, BlockedReason: blockedReason, Version: ver, CreatedAt: created, StepCount: stepCount, CompletedStepCount: completedStepCount, BlockingStepCount: blockingStepCount})
 		}
+	}
+	if len(out) > limit {
+		out = out[:limit]
+		c.Header("X-Next-Cursor", encodeQueueCursor(out[len(out)-1]))
 	}
 	productionOK(c, out)
 }
@@ -1641,6 +1806,7 @@ func (h *Handler) createJob(c *gin.Context) {
 		return
 	}
 	var in struct {
+		VendorOrderID            string     `json:"vendor_order_id"`
 		BranchID                 string     `json:"branch_id"`
 		Capability               string     `json:"capability"`
 		SourceType               string     `json:"source_type"`
@@ -1655,9 +1821,29 @@ func (h *Handler) createJob(c *gin.Context) {
 		Priority                 string     `json:"priority"`
 		ExpectedReadyWindowStart *time.Time `json:"expected_ready_window_start"`
 		ExpectedReadyWindowEnd   *time.Time `json:"expected_ready_window_end"`
+		PromisedReadyAt          *time.Time `json:"promised_ready_at"`
 		RiskFlags                []string   `json:"risk_flags"`
 	}
-	if c.ShouldBindJSON(&in) != nil || !scope.Covers(in.BranchID) || len(strings.TrimSpace(in.Title)) < 2 || in.PlannedQuantity < 0 || in.Capability == "" || in.SourceType == "" {
+	if c.ShouldBindJSON(&in) != nil {
+		httpx.RespondError(c, apperrors.BadRequest("Check your details.", nil))
+		return
+	}
+	if strings.TrimSpace(in.VendorOrderID) != "" {
+		var sourceVersion int64
+		if in.SourceVersion != nil {
+			sourceVersion = *in.SourceVersion
+		}
+		// Customer promises are not writable by a vendor-staff HTTP command;
+		// the trusted Orders activation bridge supplies frozen evidence.
+		result, activationErr := h.service.ActivateVendorOrder(c, a, OrderActivationInput{VendorOrderID: in.VendorOrderID, ProductionLineID: in.ProductionLineID, ExpectedWindowStart: in.ExpectedReadyWindowStart, ExpectedWindowEnd: in.ExpectedReadyWindowEnd, ScheduledStart: in.ScheduledStart, ScheduledEnd: in.ScheduledEnd, Priority: in.Priority, SourceVersion: sourceVersion})
+		if activationErr != nil {
+			httpx.RespondError(c, activationErr)
+			return
+		}
+		productionOK(c, result)
+		return
+	}
+	if !scope.Covers(in.BranchID) || len(strings.TrimSpace(in.Title)) < 2 || in.PlannedQuantity < 0 || in.Capability == "" || in.SourceType == "" {
 		httpx.RespondError(c, apperrors.BadRequest("Check your details.", nil))
 		return
 	}
@@ -1683,7 +1869,7 @@ func (h *Handler) createJob(c *gin.Context) {
 	riskFlags, _ := json.Marshal(in.RiskFlags)
 	id := newID("job_")
 	err := h.mutate(c, a, in.BranchID, "production.job.created", "production_job", id, 1, nil, in, map[string]any{"id": id}, func(tx pgx.Tx) error {
-		_, e := tx.Exec(c, `INSERT INTO production_jobs(id,business_id,branch_id,capability,reservation_id,production_line_id,source_type,source_ref,source_version,title,priority,planned_quantity,scheduled_start,scheduled_end,expected_ready_window_start,expected_ready_window_end,risk_flags) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`, id, a.VendorID, in.BranchID, in.Capability, in.ReservationID, in.ProductionLineID, in.SourceType, in.SourceRef, in.SourceVersion, in.Title, in.Priority, in.PlannedQuantity, in.ScheduledStart, in.ScheduledEnd, in.ExpectedReadyWindowStart, in.ExpectedReadyWindowEnd, riskFlags)
+		_, e := tx.Exec(c, `INSERT INTO production_jobs(id,business_id,branch_id,capability,reservation_id,production_line_id,source_type,source_ref,source_version,title,priority,planned_quantity,scheduled_start,scheduled_end,promised_ready_at,expected_ready_window_start,expected_ready_window_end,risk_flags) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`, id, a.VendorID, in.BranchID, in.Capability, in.ReservationID, in.ProductionLineID, in.SourceType, in.SourceRef, in.SourceVersion, in.Title, in.Priority, in.PlannedQuantity, in.ScheduledStart, in.ScheduledEnd, in.PromisedReadyAt, in.ExpectedReadyWindowStart, in.ExpectedReadyWindowEnd, riskFlags)
 		if e != nil {
 			return e
 		}
@@ -1721,10 +1907,12 @@ func (h *Handler) transitionJob(c *gin.Context) {
 		return
 	}
 	var in struct {
-		Note             string `json:"note"`
-		BlockedReason    string `json:"blocked_reason"`
-		ProducedQuantity *int   `json:"produced_quantity"`
-		WasteQuantity    *int   `json:"waste_quantity"`
+		Note              string          `json:"note"`
+		BlockedReason     string          `json:"blocked_reason"`
+		ProducedQuantity  *int            `json:"produced_quantity"`
+		WasteQuantity     *int            `json:"waste_quantity"`
+		PackagingProfile  json.RawMessage `json:"packaging_profile"`
+		PackagingEvidence json.RawMessage `json:"packaging_evidence"`
 	}
 	_ = c.ShouldBindJSON(&in)
 	if (in.ProducedQuantity != nil && (*in.ProducedQuantity < 0 || *in.ProducedQuantity > plannedQuantity)) || (in.WasteQuantity != nil && (*in.WasteQuantity < 0 || *in.WasteQuantity > plannedQuantity)) {
@@ -1751,16 +1939,72 @@ func (h *Handler) transitionJob(c *gin.Context) {
 		httpx.RespondError(c, errStaleVersion())
 		return
 	}
+	var readyEvidenceID string
+	if status == "READY" {
+		if len(bytes.TrimSpace(in.PackagingProfile)) == 0 || len(bytes.TrimSpace(in.PackagingEvidence)) == 0 || string(bytes.TrimSpace(in.PackagingProfile)) == "null" || string(bytes.TrimSpace(in.PackagingEvidence)) == "null" {
+			httpx.RespondError(c, apperrors.BadRequest("READY requires packaging profile and packaging evidence.", nil))
+			return
+		}
+		var profile, evidence map[string]any
+		if json.Unmarshal(in.PackagingProfile, &profile) != nil || json.Unmarshal(in.PackagingEvidence, &evidence) != nil || len(profile) == 0 || len(evidence) == 0 {
+			httpx.RespondError(c, apperrors.BadRequest("Packaging profile and evidence must be non-empty objects.", nil))
+			return
+		}
+	}
 	tx, err := h.service.db.Begin(c)
 	if err == nil {
 		defer tx.Rollback(c)
 	}
 	if err == nil {
+		if status == "READY" {
+			var incomplete int
+			if err = tx.QueryRow(c, `SELECT count(*) FROM production_job_steps WHERE business_id=$1 AND job_id=$2 AND required AND status NOT IN ('COMPLETED','SKIPPED')`, a.VendorID, c.Param("jobId")).Scan(&incomplete); err == nil && incomplete > 0 {
+				err = coded(apperrors.Conflict("Required production steps are not complete.", nil), CodeInvalidTransition)
+			}
+			if err == nil {
+				key := a.CommandRef
+				if strings.TrimSpace(key) == "" {
+					key = "ready:" + c.Param("jobId") + ":" + strconv.FormatInt(version, 10)
+				}
+				readyEvidenceID = newID("pjevidence_")
+				var inserted string
+				err = tx.QueryRow(c, `INSERT INTO production_job_ready_evidence(id,business_id,job_id,packaging_profile,packaging_evidence,actual_quantity,recorded_by,correlation_id,idempotency_key) VALUES($1,$2,$3,$4,$5,$6,NULLIF($7,''),NULLIF($8,''),$9) ON CONFLICT (business_id,job_id) DO NOTHING RETURNING id`, readyEvidenceID, a.VendorID, c.Param("jobId"), in.PackagingProfile, in.PackagingEvidence, in.ProducedQuantity, a.StaffID, a.CorrelationID, key).Scan(&inserted)
+				if errors.Is(err, pgx.ErrNoRows) {
+					var existingProfile, existingEvidence []byte
+					var existingKey string
+					err = tx.QueryRow(c, `SELECT id,packaging_profile,packaging_evidence,idempotency_key FROM production_job_ready_evidence WHERE business_id=$1 AND job_id=$2`, a.VendorID, c.Param("jobId")).Scan(&readyEvidenceID, &existingProfile, &existingEvidence, &existingKey)
+					if err == nil {
+						var wantProfile, wantEvidence, haveProfile, haveEvidence any
+						_ = json.Unmarshal(in.PackagingProfile, &wantProfile)
+						_ = json.Unmarshal(in.PackagingEvidence, &wantEvidence)
+						_ = json.Unmarshal(existingProfile, &haveProfile)
+						_ = json.Unmarshal(existingEvidence, &haveEvidence)
+						if existingKey != key || !reflect.DeepEqual(wantProfile, haveProfile) || !reflect.DeepEqual(wantEvidence, haveEvidence) {
+							err = coded(apperrors.Conflict("READY evidence is immutable and the command key was reused with different evidence.", nil), CodeIdempotencyConflict)
+						}
+					}
+				}
+			}
+		}
+	}
+	if err == nil {
 		if err == nil {
 			var tag pgconn.CommandTag
-			tag, err = tx.Exec(c, `UPDATE production_jobs SET status=$1,blocked_reason=CASE WHEN $1='BLOCKED' THEN $5 WHEN $1='IN_PROGRESS' THEN '' ELSE blocked_reason END,produced_quantity=COALESCE($6,produced_quantity),waste_quantity=COALESCE($7,waste_quantity),updated_at=now(),version=version+1,actual_start=CASE WHEN $1='IN_PROGRESS' THEN COALESCE(actual_start,now()) ELSE actual_start END,ready_at=CASE WHEN $1='READY' THEN now() ELSE ready_at END,completed_at=CASE WHEN $1='COMPLETED' THEN now() ELSE completed_at END WHERE business_id=$2 AND id=$3 AND version=$4`, status, a.VendorID, c.Param("jobId"), version, in.BlockedReason, in.ProducedQuantity, in.WasteQuantity)
+			tag, err = tx.Exec(c, `UPDATE production_jobs SET status=$1,blocked_reason=CASE WHEN $1='BLOCKED' THEN $5 WHEN $1='IN_PROGRESS' THEN '' ELSE blocked_reason END,produced_quantity=COALESCE($6,produced_quantity),waste_quantity=COALESCE($7,waste_quantity),ready_evidence_id=COALESCE(NULLIF($8,''),ready_evidence_id),updated_at=now(),version=version+1,actual_start=CASE WHEN $1='IN_PROGRESS' THEN COALESCE(actual_start,now()) ELSE actual_start END,ready_at=CASE WHEN $1='READY' THEN now() ELSE ready_at END,completed_at=CASE WHEN $1='COMPLETED' THEN now() ELSE completed_at END WHERE business_id=$2 AND id=$3 AND version=$4`, status, a.VendorID, c.Param("jobId"), version, in.BlockedReason, in.ProducedQuantity, in.WasteQuantity, readyEvidenceID)
 			if err == nil && tag.RowsAffected() == 0 {
 				err = errStaleVersion()
+			}
+		}
+		if err == nil && h.service.pastry != nil && (status == "READY" || status == "COMPLETED") {
+			err = h.service.pastry.SyncProductionProgress(c, tx, a, c.Param("jobId"), status)
+		}
+		if err == nil && status == "READY" && h.service.eta != nil && sourceType == "EXTERNAL_ORDER" && sourceRef != nil {
+			var parentOrderID string
+			if err = tx.QueryRow(c, `SELECT parent_order_id FROM commerce_vendor_orders WHERE business_id=$1 AND id=$2`, a.VendorID, *sourceRef).Scan(&parentOrderID); err == nil {
+				readyAt := h.service.now().UTC()
+				err = h.service.eta.ProjectReadinessETA(c, tx, *sourceRef, parentOrderID,
+					&readyAt, &readyAt, false, true, "production-ready:"+c.Param("jobId")+":"+strconv.FormatInt(version+1, 10),
+					version+1, readyAt)
 			}
 		}
 		if err == nil {
@@ -1795,19 +2039,20 @@ func (h *Handler) getJob(c *gin.Context) {
 		return
 	}
 	var id, branch, cap, source, title, status, priority, blockedReason string
+	var readyEvidenceID *string
 	var reservation, line, ref *string
 	var sourceVersion *int64
 	var planned, produced, waste int
-	var start, end, actualStart, readyAt, completedAt, readyWindowStart, readyWindowEnd *time.Time
+	var start, end, actualStart, readyAt, completedAt, promisedReadyAt, readyWindowStart, readyWindowEnd *time.Time
 	var riskFlags json.RawMessage
 	var created, updated time.Time
 	var version int64
-	err := h.service.db.QueryRow(c, `SELECT id,branch_id,capability,reservation_id,production_line_id,source_type,source_ref,source_version,title,status,priority,planned_quantity,produced_quantity,waste_quantity,scheduled_start,scheduled_end,actual_start,ready_at,completed_at,expected_ready_window_start,expected_ready_window_end,blocked_reason,risk_flags,created_at,updated_at,version FROM production_jobs WHERE business_id=$1 AND id=$2`, a.VendorID, c.Param("jobId")).Scan(&id, &branch, &cap, &reservation, &line, &source, &ref, &sourceVersion, &title, &status, &priority, &planned, &produced, &waste, &start, &end, &actualStart, &readyAt, &completedAt, &readyWindowStart, &readyWindowEnd, &blockedReason, &riskFlags, &created, &updated, &version)
+	err := h.service.db.QueryRow(c, `SELECT id,branch_id,capability,reservation_id,production_line_id,source_type,source_ref,source_version,title,status,priority,planned_quantity,produced_quantity,waste_quantity,scheduled_start,scheduled_end,actual_start,ready_at,completed_at,promised_ready_at,expected_ready_window_start,expected_ready_window_end,blocked_reason,risk_flags,ready_evidence_id,created_at,updated_at,version FROM production_jobs WHERE business_id=$1 AND id=$2`, a.VendorID, c.Param("jobId")).Scan(&id, &branch, &cap, &reservation, &line, &source, &ref, &sourceVersion, &title, &status, &priority, &planned, &produced, &waste, &start, &end, &actualStart, &readyAt, &completedAt, &promisedReadyAt, &readyWindowStart, &readyWindowEnd, &blockedReason, &riskFlags, &readyEvidenceID, &created, &updated, &version)
 	if err != nil || !scope.Covers(branch) {
 		httpx.RespondError(c, apperrors.NotFound("Job not found.", nil))
 		return
 	}
-	productionOK(c, gin.H{"id": id, "branch_id": branch, "capability": cap, "reservation_id": reservation, "production_line_id": line, "source_type": source, "source_ref": ref, "source_version": sourceVersion, "title": title, "status": status, "priority": priority, "planned_quantity": planned, "produced_quantity": produced, "waste_quantity": waste, "scheduled_start": start, "scheduled_end": end, "actual_start": actualStart, "ready_at": readyAt, "completed_at": completedAt, "expected_ready_window_start": readyWindowStart, "expected_ready_window_end": readyWindowEnd, "blocked_reason": blockedReason, "risk_flags": riskFlags, "created_at": created, "updated_at": updated, "version": version})
+	productionOK(c, gin.H{"id": id, "branch_id": branch, "capability": cap, "reservation_id": reservation, "production_line_id": line, "source_type": source, "source_ref": ref, "source_version": sourceVersion, "title": title, "status": status, "priority": priority, "planned_quantity": planned, "produced_quantity": produced, "waste_quantity": waste, "scheduled_start": start, "scheduled_end": end, "actual_start": actualStart, "ready_at": readyAt, "completed_at": completedAt, "promised_ready_at": promisedReadyAt, "expected_ready_window_start": readyWindowStart, "expected_ready_window_end": readyWindowEnd, "blocked_reason": blockedReason, "risk_flags": riskFlags, "ready_evidence_id": readyEvidenceID, "created_at": created, "updated_at": updated, "version": version})
 }
 
 func (h *Handler) listJobEvents(c *gin.Context) {

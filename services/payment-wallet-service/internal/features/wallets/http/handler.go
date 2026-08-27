@@ -18,6 +18,57 @@ type Handler struct {
 	service *walletusecases.WalletService
 }
 
+type deliveryFundingRequest struct {
+	SourceReference            string `json:"source_reference" binding:"required"`
+	VendorOrderID              string `json:"vendor_order_id" binding:"required"`
+	SponsoringVendorID         string `json:"sponsoring_vendor_id" binding:"required"`
+	ProviderType               string `json:"provider_type" binding:"required"`
+	ProviderID                 string `json:"provider_id" binding:"required"`
+	Currency                   string `json:"currency" binding:"required"`
+	AuthoritativeDeliveryMinor int64  `json:"authoritative_delivery_minor"`
+	CustomerContributionMinor  int64  `json:"customer_contribution_minor"`
+	VendorSubsidyMinor         int64  `json:"vendor_subsidy_minor"`
+	PlatformSubsidyMinor       int64  `json:"platform_subsidy_minor"`
+	PlatformApprovalRef        string `json:"platform_approval_ref,omitempty"`
+	CustomerPaymentReference   string `json:"customer_payment_reference,omitempty"`
+	IdempotencyKey             string `json:"idempotency_key" binding:"required"`
+}
+
+func (h *Handler) ApplyDeliveryFunding(c *gin.Context) {
+	var request deliveryFundingRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	caller := c.GetString("service_name")
+	if caller != "vendor-service" {
+		httpx.Abort(c, apperrors.Forbidden("Caller may not allocate commerce delivery funding.", nil))
+		return
+	}
+	result, err := h.service.ApplyDeliveryFunding(c, candidateDeliveryFunding(caller, request))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respond(c, nethttp.StatusCreated, result)
+}
+func candidateDeliveryFunding(caller string, r deliveryFundingRequest) walletusecases.DeliveryFundingInput {
+	return walletusecases.DeliveryFundingInput{SourceService: caller, SourceReference: r.SourceReference, VendorOrderID: r.VendorOrderID, SponsoringVendorID: r.SponsoringVendorID, ProviderType: r.ProviderType, ProviderID: r.ProviderID, Currency: r.Currency, AuthoritativeDeliveryMinor: r.AuthoritativeDeliveryMinor, CustomerContributionMinor: r.CustomerContributionMinor, VendorSubsidyMinor: r.VendorSubsidyMinor, PlatformSubsidyMinor: r.PlatformSubsidyMinor, PlatformApprovalRef: r.PlatformApprovalRef, CustomerPaymentReference: r.CustomerPaymentReference, IdempotencyKey: r.IdempotencyKey}
+}
+func (h *Handler) GetDeliveryFunding(c *gin.Context) {
+	caller := c.GetString("service_name")
+	if caller != "vendor-service" {
+		httpx.Abort(c, apperrors.Forbidden("Caller may not read commerce delivery funding.", nil))
+		return
+	}
+	result, err := h.service.DeliveryFunding(c, caller, c.Param("sourceReference"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, result)
+}
+
 func NewHandler(service *walletusecases.WalletService) *Handler {
 	return &Handler{service: service}
 }

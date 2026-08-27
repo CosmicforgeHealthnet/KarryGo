@@ -167,8 +167,11 @@ func (r *PostgresPurchasingCostReader) RecentAccepted(
 
 // LatestAcceptedBatch implements PurchasingCostReader.
 //
-// DISTINCT ON gives the newest surviving observation per item in a single
-// index-ordered pass, which is what keeps recipe costing off the N+1 path.
+// A lateral lookup gives the newest surviving observation per requested item
+// in one round trip while retaining the item-leading index lookup used by the
+// scalar path.  DISTINCT ON over the whole history can make PostgreSQL scan
+// and sort the complete tenant corpus before filtering the requested items;
+// that defeats the bounded-read guarantee at scale.
 func (r *PostgresPurchasingCostReader) LatestAcceptedBatch(
 	ctx context.Context,
 	businessID, branchID string,
@@ -180,11 +183,16 @@ func (r *PostgresPurchasingCostReader) LatestAcceptedBatch(
 	}
 
 	rows, err := r.db.Query(ctx, `
-		SELECT DISTINCT ON (h.inventory_item_id)`+observationColumns+`
-		  FROM vendor_purchase_cost_history h
-		 WHERE`+acceptedEvidencePredicate+`
-		   AND h.inventory_item_id = ANY($3)
-		 ORDER BY h.inventory_item_id, h.observed_at DESC, h.id DESC`,
+		SELECT`+observationColumns+`
+		  FROM unnest($3::text[]) AS requested(inventory_item_id)
+		 CROSS JOIN LATERAL (
+			SELECT`+observationColumns+`
+			  FROM vendor_purchase_cost_history h
+			 WHERE`+acceptedEvidencePredicate+`
+			   AND h.inventory_item_id = requested.inventory_item_id
+			 ORDER BY h.observed_at DESC, h.id DESC
+			 LIMIT 1
+		 ) h`,
 		businessID, branchID, inventoryItemIDs)
 	if err != nil {
 		return nil, err

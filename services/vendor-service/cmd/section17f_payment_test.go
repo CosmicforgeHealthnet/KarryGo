@@ -51,6 +51,10 @@ func newFakeAuthority() *fakeAuthority {
 
 func (a *fakeAuthority) Configured() bool { return a.configured }
 
+func (a *fakeAuthority) PaymentCapability(context.Context, string, string) (orders.PaymentCapability, error) {
+	return orders.PaymentCapAndRefund, nil
+}
+
 func (a *fakeAuthority) HoldLeg(
 	_ context.Context, request orders.HoldLegRequest,
 ) (orders.LegResult, error) {
@@ -189,6 +193,133 @@ func TestSection17FPayment_BindsOneLegPerVendorOrder(t *testing.T) {
 		if request.ProviderID == "" {
 			t.Error("vendor leg names no beneficiary")
 		}
+	}
+}
+
+func TestSection19VariableFinalizationUsesCapAndReconcilesVendorSettlement(t *testing.T) {
+	authority := newFakeAuthority()
+	fixture := withPayment(newSection17EFixture(t, false), authority)
+	ctx := context.Background()
+	parent, _, err := fixture.service.CreateFromQuote(ctx, fixture.customerID, fixture.quoteID, fixture.finger)
+	if err != nil {
+		t.Fatalf("CreateFromQuote: %v", err)
+	}
+	vendor := parent.VendorOrders[0]
+	line := vendor.Lines[0]
+	unitPrice := line.QuotedTotalMinor / 100
+	maxAmount := unitPrice * 110
+	finalAmount := unitPrice * 105
+	capDelta := maxAmount - line.QuotedTotalMinor
+	// This fixture starts as a fixed line; the durable measurement row is the
+	// only new evidence needed to exercise finalization, while the immutable
+	// quote line remains untouched.
+	fixture.env.exec(ctx, `UPDATE commerce_parent_orders SET max_authorized_total_minor=$1 WHERE id=$2`, parent.CustomerApprovedTotalMinor+capDelta, parent.ID)
+	fixture.env.exec(ctx, `UPDATE commerce_vendor_orders SET max_product_subtotal_minor=max_product_subtotal_minor+$2 WHERE id=$1`, vendor.ID, capDelta)
+	fixture.env.exec(ctx, `INSERT INTO commerce_variable_measurements(id,parent_order_id,vendor_order_id,order_line_id,measurement_mode,estimated_quantity,unit_price_minor,estimated_amount_minor,tolerance_quantity,hard_max_quantity,reserved_upper_quantity,actual_quantity,final_amount_minor,financial_state,wallet_capability_snapshot,version) VALUES($1,$2,$3,$4,'VARIABLE_COUNT',100,$5,$6,20,110,110,105,$7,'ACTUAL_RECORDED','CAP_AND_REFUND',1)`, "cvm_section19_"+fixture.env.suffix, parent.ID, vendor.ID, line.ID, unitPrice, line.QuotedTotalMinor, finalAmount)
+	order, operation, err := fixture.service.StartPayment(ctx, fixture.customerID, fixture.quoteID, fixture.finger)
+	if err != nil {
+		t.Fatalf("StartPayment: %v", err)
+	}
+	fixture.env.exec(ctx, `INSERT INTO commerce_payment_capability_snapshots(id,parent_order_id,payment_operation_ref,capability) VALUES($1,$2,$3,'CAP_AND_REFUND') ON CONFLICT(parent_order_id,payment_operation_ref) DO NOTHING`, "pcap_section19_"+fixture.env.suffix, order.ID, operation.ID)
+	fixture.env.exec(ctx, `UPDATE commerce_payment_legs SET amount_minor=$1 WHERE payment_operation_id=$2 AND vendor_order_id=$3`, maxAmount, operation.ID, vendor.ID)
+	finalized, err := fixture.service.FinalizeVariableMeasurement(ctx, fixture.actor(fixture.staffA, fixture.env.businessA), vendor.ID, line.ID, 1)
+	if err != nil {
+		t.Fatalf("FinalizeVariableMeasurement: %v", err)
+	}
+	if finalized.State != orders.FinancialFinalized || finalized.FinalAmountMinor != finalAmount {
+		t.Fatalf("finalized=%+v", finalized)
+	}
+	refunds := authority.refundedFor()
+	if len(refunds) != 1 || refunds[0].AmountKobo != maxAmount-finalAmount {
+		t.Fatalf("refunds=%+v, want one cap release of %d", refunds, maxAmount-finalAmount)
+	}
+	var customerPayable, vendorPayable int64
+	if err = fixture.env.pool.QueryRow(ctx, `SELECT customer_payable_minor,vendor_payable_minor FROM commerce_vendor_orders WHERE id=$1`, vendor.ID).Scan(&customerPayable, &vendorPayable); err != nil {
+		t.Fatal(err)
+	}
+	if customerPayable != vendor.CustomerPayableMinor+(finalAmount-line.QuotedTotalMinor) || vendorPayable != vendor.VendorPayableMinor+(finalAmount-line.QuotedTotalMinor) {
+		t.Fatalf("settlement customer=%d vendor=%d want=%d/%d", customerPayable, vendorPayable, vendor.CustomerPayableMinor+(finalAmount-line.QuotedTotalMinor), vendor.VendorPayableMinor+(finalAmount-line.QuotedTotalMinor))
+	}
+	receipt, err := orders.NewStore(fixture.env.pool).FinalReceiptForCustomer(ctx, fixture.customerID, vendor.ID)
+	if err != nil {
+		t.Fatalf("FinalReceiptForCustomer: %v", err)
+	}
+	if len(receipt) != 1 || receipt[0].OriginalAmountMinor != line.QuotedTotalMinor || receipt[0].EstimatedAmountMinor != line.QuotedTotalMinor || receipt[0].FinalAmountMinor != finalAmount || receipt[0].CustomerPayableMinor != customerPayable || receipt[0].VendorPayableMinor != vendorPayable {
+		t.Fatalf("receipt=%+v", receipt)
+	}
+}
+
+func TestSection19VariableFinalizationParentCapRaceRequiresReapproval(t *testing.T) {
+	authority := newFakeAuthority()
+	fixture := withPayment(newSection19VariableFixture(t, true), authority)
+	ctx := context.Background()
+	parent, _, err := fixture.service.CreateFromQuote(ctx, fixture.customerID, fixture.quoteID, fixture.finger)
+	if err != nil {
+		t.Fatalf("CreateFromQuote: %v", err)
+	}
+	var holdDelta, finalDelta int64
+	for _, vendor := range parent.VendorOrders {
+		delta := vendor.Lines[0].MaxAuthorizedTotalMinor - vendor.Lines[0].QuotedTotalMinor
+		actualDelta := (vendor.Lines[0].QuotedTotalMinor / 100) * 10
+		holdDelta += delta
+		if actualDelta > finalDelta {
+			finalDelta = actualDelta
+		}
+	}
+	fixture.env.exec(ctx, `UPDATE commerce_parent_orders SET max_authorized_total_minor=customer_approved_total_minor+$2 WHERE id=$1`, parent.ID, holdDelta)
+	for _, vendor := range parent.VendorOrders {
+		line := vendor.Lines[0]
+		unitPrice := line.QuotedTotalMinor / 100
+		finalAmount := unitPrice * 110
+		fixture.env.exec(ctx, `UPDATE commerce_vendor_orders SET max_product_subtotal_minor=max_product_subtotal_minor+$2 WHERE id=$1`, vendor.ID, finalAmount-line.QuotedTotalMinor)
+		fixture.env.exec(ctx, `INSERT INTO commerce_variable_measurements(id,parent_order_id,vendor_order_id,order_line_id,measurement_mode,estimated_quantity,unit_price_minor,estimated_amount_minor,tolerance_quantity,hard_max_quantity,reserved_upper_quantity,actual_quantity,final_amount_minor,financial_state,wallet_capability_snapshot,version) VALUES($1,$2,$3,$4,'VARIABLE_COUNT',100,$5,$6,20,110,110,110,$7,'ACTUAL_RECORDED','CAP_AND_REFUND',1)`, "cvm_race_"+vendor.ID, parent.ID, vendor.ID, line.ID, unitPrice, line.QuotedTotalMinor, finalAmount)
+	}
+	order, operation, err := fixture.service.StartPayment(ctx, fixture.customerID, fixture.quoteID, fixture.finger)
+	if err != nil {
+		t.Fatalf("StartPayment: %v", err)
+	}
+	fixture.env.exec(ctx, `INSERT INTO commerce_payment_capability_snapshots(id,parent_order_id,payment_operation_ref,capability) VALUES($1,$2,$3,'CAP_AND_REFUND') ON CONFLICT(parent_order_id,payment_operation_ref) DO NOTHING`, "pcap_race_"+fixture.env.suffix, order.ID, operation.ID)
+	// The authorization was started against the complete frozen hold. The
+	// finalization race is intentionally evaluated against a tighter parent
+	// authority so one of the two actuals must request reapproval.
+	fixture.env.exec(ctx, `UPDATE commerce_parent_orders SET max_authorized_total_minor=customer_approved_total_minor+$2 WHERE id=$1`, parent.ID, finalDelta)
+	var currentMax, approved int64
+	if err = fixture.env.pool.QueryRow(ctx, `SELECT max_authorized_total_minor,customer_approved_total_minor FROM commerce_parent_orders WHERE id=$1`, parent.ID).Scan(&currentMax, &approved); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("parent approved=%d max=%d finalDelta=%d holdDelta=%d", approved, currentMax, finalDelta, holdDelta)
+	for _, leg := range operation.Legs {
+		if leg.VendorOrderID == "" {
+			continue
+		}
+		fixture.env.exec(ctx, `UPDATE commerce_payment_legs SET amount_minor=(SELECT hard_max_quantity*unit_price_minor FROM commerce_variable_measurements WHERE vendor_order_id=$1) WHERE payment_operation_id=$2 AND vendor_order_id=$1`, leg.VendorOrderID, operation.ID)
+	}
+	results := make(chan error, len(parent.VendorOrders))
+	var wg sync.WaitGroup
+	for i, vendor := range parent.VendorOrders {
+		wg.Add(1)
+		go func(i int, vendor orders.VendorOrder) {
+			defer wg.Done()
+			results <- func() error {
+				_, err := fixture.service.FinalizeVariableMeasurement(ctx, fixture.actor([]string{fixture.staffA, fixture.staffB}[i], vendor.BusinessID), vendor.ID, vendor.Lines[0].ID, 1)
+				return err
+			}()
+		}(i, vendor)
+	}
+	wg.Wait()
+	close(results)
+	finalized, reapproval := 0, 0
+	for err := range results {
+		if err == nil {
+			finalized++
+		} else if errors.Is(err, orders.ErrCommercialChangeRequired) {
+			reapproval++
+		} else {
+			t.Fatalf("parent race error=%v", err)
+		}
+	}
+	if finalized != 1 || reapproval != 1 {
+		t.Fatalf("finalized=%d reapproval=%d, want one each", finalized, reapproval)
 	}
 }
 

@@ -56,6 +56,36 @@ func NewPostgresBookingRepository(db *pgxpool.Pool) *PostgresBookingRepository {
 	return &PostgresBookingRepository{db: db}
 }
 
+func (r *PostgresBookingRepository) CommerceMissionScope(ctx context.Context, bookingID string) (string, []string, bool, error) {
+	var parentID string
+	var vendorIDs []string
+	err := r.db.QueryRow(ctx, `SELECT parent_order_ref,vendor_order_refs FROM commerce_missions WHERE booking_id=$1 AND status='accepted'`, bookingID).Scan(&parentID, &vendorIDs)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, false, nil
+	}
+	return parentID, vendorIDs, err == nil, err
+}
+
+func (r *PostgresBookingRepository) ListCompletedCommerceBookings(ctx context.Context, limit int) ([]string, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := r.db.Query(ctx, `SELECT b.id::text FROM haulage_bookings b JOIN commerce_missions m ON m.booking_id=b.id AND m.status='accepted' WHERE b.status='completed' ORDER BY b.completed_at,b.id LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		result = append(result, id)
+	}
+	return result, rows.Err()
+}
+
 func (r *PostgresBookingRepository) Create(ctx context.Context, b bookingmodels.Booking) (bookingmodels.Booking, error) {
 	row := r.db.QueryRow(ctx, `
 		INSERT INTO haulage_bookings (

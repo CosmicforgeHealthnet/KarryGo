@@ -237,12 +237,15 @@ candidate fulfilment plan.
 ### What was built
 
 Vendor Service:
-- `internal/features/delivery` - Vendor Own Delivery policy (migration 000077):
-  per-branch reach, charge, minimum-order and free-delivery rules, plus the
-  pure charge evaluation built on them. Two vendor-staff routes.
+- `internal/features/delivery` - delivery policy (migrations 000077 and 000096):
+  PLATFORM/VENDOR/HYBRID modes, branch reach/zones, flat/zone/tier fees,
+  IANA operating hours, minimum/free rules, vendor capacity, bounded overflow
+  evaluation, vendor execution state and price-guarantee evidence. Two
+  vendor-staff routes.
 - `internal/features/fulfilment` - logistics metadata aggregation, vehicle-class
-  selection, consolidation, quoting, the plan aggregate and its persistence
-  (migration 000078). Two customer routes.
+  selection, consolidation, quoting, hybrid pre-custody replan, custody guard,
+  the plan aggregate and its persistence (migrations 000078 and 000096). Two
+  customer routes.
 - `internal/platform/geo` - service-local great-circle helper. Deliberately not
   taken from `shared/go/dispatchpricing`: that package is the dispatch FARE
   formula, and a vendor-owned charge or a service-area test must never be
@@ -1953,3 +1956,465 @@ finalisation, and the explicit lifecycle event actors emitted by payment and
 vendor operations; the Section 18 OpenAPI/register entries describe the live
 surface. The canonical isolated Vendor regression is green at 54/54 packages,
 including the five formerly blocked Section 17A PostgreSQL tests.
+
+## Section 19 — Shop picking, substitution and variable measurement
+
+**Status: GO.** Migration `000088_shop_picking_substitution_measurement`
+provides the picking, substitution, quality, variable-measurement and Wallet
+evidence boundaries. Migration `000089_shop_substitution_authority_unification`
+keeps the Section 18 proposal authority canonical, and `000090_inventory_atomic_replacement`
+adds Inventory-owned atomic replacement evidence. CAP_AND_REFUND variable
+finalization, VendorOrder settlement reconciliation, final receipt assertions,
+parent-cap race behavior, and the required PostgreSQL behavioral matrix are
+covered by the canonical isolated regression.
+
+Final closure gates: migration replay through `000090`, route/OpenAPI/register
+parity at 777 routes, canonical Vendor regression 54/54, Customer Service and
+Payment Wallet tests, `go vet`, `go build`, gofmt, and `git diff --check`.
+
+## Section 20 - Kitchen, bakery and production operations
+
+Implemented in the existing `production`, `orders`, `productionbatch`,
+`pastry`, `cloud_kitchen` and `inventory` authorities. Migration
+`000091_vendor_production_operations` plus `000092_vendor_production_timing_projection`
+add promised-ready ordering, exactly-once EXTERNAL_ORDER linkage, station steps,
+delay evidence, immutable READY packaging evidence, fulfilment/logistics timing,
+honest customer ETA reads, and durable ETA notification handoff. Production
+queue and step/delay routes are documented in the capability OpenAPI and route
+register; the fully enabled Vendor route surface is now 803.
+## Section 21 — commerce foundation and advanced RFQ/recurring feeding
+
+Scheduled/bulk evidence, group ordering and core RFQ are implemented behind
+`COMMERCE_BULK_RFQ_ENABLED`. Orders remains the commercial conversion authority;
+Production owns capacity reservations; CheckoutQuote/Checkout and Wallet own
+checkout and money. RFQ revisions now freeze vendor/payment/deposit/
+cancellation terms; conversion records Wallet-authoritative obligations and
+recovery references. Corporate recurring schedules generate timezone-aware,
+idempotent future occurrences/proposals with optional Production reservations.
+Group Orders remain organizer-paid only; split participant payment and corporate
+credit/invoicing are out of scope.
+
+## Promotions and delivery funding
+
+**Status: IMPLEMENTATION COMPLETE; canonical database certification blocked by missing local test infrastructure.** Vendor migration `000097`
+adds campaign, scope, bundle, quantity-tier, coupon, redemption, immutable quote/
+order evidence, HYBRID funding authority fields and Wallet-operation projection.
+Seven Vendor routes are capability-documented. CheckoutQuote remains the sole
+commercial calculator and usage reservation is serialized with quote creation;
+order conversion consumes reservations in the same transaction. Expired
+abandoned reservations are released by the existing jobs runtime.
+
+Wallet migration `000009` and two HMAC-v2 internal routes implement exact,
+idempotent customer/Vendor/Platform delivery funding with platform approval
+evidence, authoritative read-back and provider-payable ledger effects. Dispatch
+and Hauling are unchanged. The fully enabled Vendor route surface is 810.
+All targeted affected tests, route/OpenAPI/register parity, Wallet tests, vet,
+build, gofmt and diff checks pass. The canonical 58-package isolated runner
+stopped before template creation because `VENDOR_SERVICE_TEST_DATABASE_URL` is
+unset and the local Docker engine is unavailable; migration apply/rollback/
+reapply is therefore infrastructure-blocked, not reported as a code pass.
+
+## Payment and Wallet extension
+
+**Implementation complete; PostgreSQL certification environment-dependent.**
+Wallet migration `000010` adds the one-payment immutable commerce allocation
+authority and Vendor payable/withdrawal ownership. Vendor migration `000098`
+adds the high-risk withdrawal permission to Owner and Finance roles. The
+existing order payment projection now records one Wallet intent across its
+isolated VendorOrder legs, validates quote/final/max/allocation fingerprints,
+holds the frozen maximum, releases only qualifying beneficiaries, and routes
+allocation-specific cancellation and variable-measure refunds through Wallet.
+
+The new `finance_projection` package is a thin Vendor bearer/IAM/step-up façade;
+it stores no balance or ledger. Wallet mutations write ledger, immutable
+financial operation, append-only audit, and outbox evidence in one transaction.
+Capability OpenAPI files and the route/frontend/platform registers are updated.
+The fully enabled Vendor route surface is 816 (810 before this extension plus
+six Vendor Finance routes).
+
+## Commerce settlement and refund model
+
+**Implementation complete; PostgreSQL certification environment-dependent.**
+Vendor migration `000099_commerce_refund_policy_decisions` freezes the policy
+version and immutable automatic-refund decision evidence. Wallet migration
+`000011_commerce_refund_recovery_accounting` extends the existing Commerce
+allocation authority with allocation-local recovery sources and component
+reductions; it does not add another ledger or refund engine.
+
+Vendor completion releases merchandise and eligible Vendor-owned delivery.
+Dispatch/Hauling completion owns platform-provider release. Exact item,
+replacement, variable-measure, fulfilment-replan and classified delivery-
+failure outcomes use the existing Wallet allocation operation and read-back.
+AUTO_REFUND releases only the affected Inventory item hold. Ambiguous or
+post-value-consumption cases use the existing Support organization-case
+authority without moving money.
+
+The existing payment recovery job reconstructs missing decisions from frozen
+operational evidence, retries stock/support/Wallet work under stable keys, and
+resumes Vendor/variable projections after crashes. No public route was added;
+the fully enabled Vendor route count remains **816**. Full traceability is in
+`SECTION24_TRACEABILITY.md`.
+
+## Fulfilment group, parcel and mission model
+
+**Implementation complete; PostgreSQL certification environment-dependent.**
+
+Vendor migration `000100_commerce_fulfilment_group_parcel_mission` adds the
+post-order operational fulfilment aggregate in eleven tables: the
+FulfilmentGroup rooted on one CommerceOrder, the FulfilmentUnits inside it, the
+Parcels that physically move with their manifests, the append-only
+FulfilmentPlan versions with their mission slots and persisted stop sequences,
+the projections of platform logistics missions, the VendorMissions this service
+owns, the parcel custody chain, and return journeys.
+
+The audit that preceded it found the two things that shaped the result. First,
+`internal/features/fulfilment` is a **pre-order** package whose plan is bound to
+a checkout session; Section 25 is post-order, so the aggregate is a sibling
+package (`internal/features/fulfilmentgroup`) rather than an extension, and the
+existing package is untouched. Second, migration `000096`'s
+`commerce_delivery_execution` and `commerce_delivery_custody_events` had **no Go
+code at all** — vendor-owned execution state and custody events were schema
+stubs, not capabilities.
+
+Four identities now survive operational change: one group per commerce order,
+one unit per vendor order, a parcel that is still the same parcel after replan,
+reassignment, mission replacement, transfer and return, and an append-only plan
+history where v1 stays readable after v3 is in force. Concurrency is carried by
+database constraints rather than handler checks — `UNIQUE (group_id, version)`
+means two concurrent replans against v3 produce one v4 and one stale answer.
+
+VendorMission is canonical here and only for vendor-owned delivery; its status
+vocabulary **reuses** `delivery.ExecutionState` verbatim, pinned by a test that
+compares both the values and the transition table. PlatformMissionRef is a
+projection: `external_ref` is opaque, the owning authority is a column, and a
+status report is applied only when strictly newer than the one already held.
+
+payment-wallet-service remains the financial authority. A plan version stores a
+planned-cost snapshot as evidence; nothing in the feature creates a hold,
+settlement or refund, and Section 24's refund policy is unchanged.
+
+13 routes added (fully enabled Vendor surface **816 → 829**). No other service
+was modified. Taxi commerce mission execution is **DEFERRED / NOT CURRENTLY
+ACTIVE** — modelled in the vocabulary, refused at plan validation, never
+fabricated. Full traceability in `SECTION25_TRACEABILITY.md`.
+
+---
+
+## Delivery Requirement and Vehicle Selection Engine — IMPLEMENTED
+
+A deterministic, explainable Release 1 engine. No AI, no ML, no external
+optimizer, no scoring model: every answer is a walk down an ordered ladder of
+configured thresholds, and every rung records why it was or was not taken.
+
+Owner: `internal/features/fulfilment` (the engine) with durable evidence in
+`internal/features/fulfilmentgroup` (the plan aggregate). No second fulfilment
+planner was created — the engine produces a decision, and the existing plan
+aggregate remains the only thing that versions and activates plans.
+
+The engine answers two questions and keeps them apart. The MINIMUM PHYSICAL
+CLASS is a fact about the load, and a car can be the answer. The SELECTED
+EXECUTABLE SERVICE is what the platform can actually perform. Collapsing them
+would lose the difference between "your order needs a bigger vehicle" and "we
+cannot currently run the vehicle your order needs" — different answers to a
+customer and different problems to an operator.
+
+Two live defects were found and fixed. `VEHICLE_OVERFLOW` and `SLA_OVERFLOW`
+were **unreachable**: the delivery policy evaluator had always accepted a
+`RequiredVehicleClass` and an SLA pair, and the planner had never populated
+either, so a vendor whose fleet was motorcycles only could be handed a
+van-sized load. The cause was ordering — the vendor policy was evaluated before
+anything decided what the load needed — and requirement evaluation now runs
+first.
+
+Structural safety properties, each pinned by a named test: one load yields one
+class and no count, so multi-motorcycle fragmentation is unrepresentable;
+neither the capability policy nor the serviceability snapshot has any field for
+provider supply, so scarcity can never select a smaller vehicle; a temperature
+conflict is refused before any candidate is evaluated, so a bigger van cannot
+"resolve" hot-plus-frozen; and vendor hints can only raise a class, never lower
+it.
+
+Taxi goods execution is **DEFERRED**. `driver-taxi-service` is a two-file
+scaffold with no goods concept, so the car class is modelled and gated three
+ways — capability policy, aggregate validation, and a database `CHECK`. The
+supporting reason `CAR_PHYSICALLY_SUITABLE_BUT_GOODS_MODE_DISABLED` is recorded
+when the engine falls through, so a van is never mistaken for a heavy order.
+`driver-taxi-service` was not modified.
+
+Multi-pickup runtime remains **NOT_PRESENT** in dispatch and hauling. The
+capability is modelled rather than hardcoded false, so a future runtime is a
+configuration change; today a multi-pickup requirement fails closed.
+
+**0 routes added** (Vendor surface unchanged at 829). Evidence rides on the
+existing `GET /fulfilment/groups/{groupId}/plans` and `GET .../parcels`
+responses rather than growing the surface, and platform vehicle thresholds have
+no vendor-editable endpoint by design. One migration,
+`000101_delivery_requirement_vehicle_selection`. No other service was modified.
+Full traceability in `SECTION26_TRACEABILITY.md`.
+
+
+## Multi-Vendor Consolidation and Mission Planning
+
+Implemented. Certification against PostgreSQL is **BLOCKED BY TEST
+INFRASTRUCTURE** - see the closing note.
+
+### What changed in planning
+
+Planning used to produce one grouping and execute it. It now builds every
+alternative it can, prices each one through the real logistics authorities,
+compares them under the customer's chosen preference, executes the winner and
+keeps the losers with the reason they lost.
+
+The executed plan has the same structure it always had. The alternatives
+decide WHICH grouping runs, not what a running grouping looks like.
+
+- **FASTEST / BALANCED / SAVER**, carried on the plan and flowing unchanged
+  into `commerce_quotes.selected_fulfilment_mode`. A plan quoted as SAVER
+  cannot later be executed as FASTEST against a charge the customer never
+  approved, because the mode is part of the quote fingerprint.
+- **Both alternatives are quoted before either is compared.** Three quote
+  calls for a two-vendor checkout, not one. A detour measured against an
+  estimate is not evidence, and the comparison between consolidated and split
+  is mostly a comparison between two delivery fees.
+- **Mandatory splits are structural.** Capacity, temperature, fragility,
+  vendor-declared separation, urgency, ready windows, a promised arrival time
+  and runtime capability each refuse a consolidation in EVERY mode. They are
+  recorded as `INELIGIBLE`, and the database refuses to store a constraint
+  reason on any other status - so a safety limit is unrepresentable as a price
+  decision rather than merely not recorded as one.
+- **No AI, no weights, no scores.** Each mode is a lexicographic ordering over
+  facts the plan already contains, and ties break on the candidate's own
+  semantic fingerprint rather than on slice order.
+
+### The multi-stop gate
+
+Neither `driver-dispatch-delivery-service` nor `driver-hauling-service` models
+a mission with several separate collection points. Both remain
+**NOT_PRESENT**, and neither service was modified.
+
+The planning model handles that honestly rather than working around it:
+
+- A consolidated candidate spanning two pickup LOCATIONS is built, evaluated
+  and rejected with `MULTI_STOP_UNSUPPORTED`. No quote is even requested for
+  it - asking an authority to price a route it cannot drive spends a real call
+  to obtain a number that must be thrown away.
+- Several vendors at ONE physical pickup point still consolidate normally. The
+  distinction is `pickup_stop_count`, computed by clustering branch
+  coordinates within the co-location radius, and getting it wrong in either
+  direction is silent: counting members would destroy the co-located
+  optimization, and counting one would price undrivable routes.
+- The executable split alternative is planned instead. A missing runtime
+  capability costs the customer a consolidation, never a delivery.
+- The capability is read from configuration
+  (`DISPATCH_MULTI_PICKUP_SUPPORTED`, `HAULING_MULTI_PICKUP_SUPPORTED`, both
+  defaulting to false). When a runtime gains multi-pickup, the gate opens with
+  no code change - proved by a test that flips the flag and watches the same
+  candidate become selectable.
+
+### Basket optimization
+
+A new customer capability in `internal/features/basket`: Optimize My Cart,
+budget shopping and recurring baskets, sharing one evaluation pipeline.
+
+- **Nothing is fabricated.** Every candidate is a real active listing with an
+  authoritative price and authoritative sellable stock. Equivalence comes from
+  a manufacturer trade identifier, the catalogue product identity or the
+  taxonomy authority - never from two product names sounding alike.
+- **Delivery is quoted, not estimated.** Each candidate basket is priced
+  through the quote-only fulfilment planner, so the comparison between "three
+  cheap shops" and "one slightly dearer shop" is decided by real fees.
+- **The cart is never silently mutated.** Optimization returns proposals;
+  acceptance is a separate, refusable act that creates a NEW cart version and
+  always requires an authoritative requote afterwards.
+- **The budget is the DELIVERED total.** A basket whose merchandise fits and
+  whose delivered total does not is never reported as fitting.
+- **No-solution answers are truthful.** The minimum feasible delivered total,
+  the shortfall and the binding constraints, or an explicit
+  `no_complete_basket` when a requirement cannot be satisfied at any price -
+  which is a different answer from "too expensive" and is kept apart from it.
+- **The search is bounded and says so.** `optimality_note` is
+  `BEST_VALID_CANDIDATE_UNDER_CONFIGURED_SEARCH`, never "the cheapest basket",
+  and `search_truncated` reports when a bound actually bit.
+
+### QUALITY_BALANCED: NOT_AVAILABLE_DUE_TO_DATA
+
+The variant is implemented and gated, and for most requests it correctly does
+not appear.
+
+The platform's catalogue carries `QUALITY_GRADE` as a fresh-goods SELECTION
+vocabulary - which grades a listing offers - and no ordinal quality score for
+anything. A customer's HARD minimum-grade constraint is therefore checkable and
+is enforced; RANKING one vendor's listing above another's by quality is not,
+and no score was invented to make the variant appear. The response says which
+requirement lacked the signal.
+
+### Exactly-once recurrence
+
+One logical generation per scheduled occurrence, resting on a deterministic
+occurrence key plus `UNIQUE (template_id, occurrence_key)`.
+
+The key is derived only from the schedule - the local wall-clock moment and its
+IANA zone - so a retry, a worker replay, a process restart, a duplicate
+scheduler delivery and two concurrent workers all present the same key and
+collide in the database. Nothing rests on an in-memory lock, because every one
+of those failure modes involves more than one process.
+
+The occurrence is CLAIMED before any shopping happens, so a duplicate loses the
+race cheaply rather than after both workers have called logistics authorities.
+
+**Missed occurrences are SKIPPED, not caught up.** A worker down for a day must
+not wake and generate a backlog of yesterday's shopping, because a recurring
+basket that catches up is one that delivers twice.
+
+### Money and price
+
+Wallet, orders and payments were **NOT_TOUCHED**. Nothing in this capability is
+wired to any of them, which is what makes "evaluating a hundred baskets creates
+zero payment intents" a property of the composition rather than a promise.
+
+Post-payment price behaviour is unchanged and continues to be Section 24's:
+internal replanning cannot raise an approved charge, a cheaper replan uses the
+existing refund policy, and a customer-requested change uses the existing
+reapproval path. No second financial policy was written.
+
+### Surface and schema
+
+**11 routes added** (Vendor surface 829 -> 840), all customer-facing under the
+commerce base, ten of them read-or-propose. The delivery preference travels in
+the EXISTING plan request's body rather than as a new route.
+
+Two migrations: `000102_commerce_fulfilment_plan_candidates` and
+`000103_commerce_basket_optimization`.
+
+### Certification status
+
+Every non-database gate passes: build, vet, gofmt, the full Vendor test suite,
+route/OpenAPI/register parity, and the migration shape tests.
+
+`VENDOR_SERVICE_TEST_DATABASE_URL` is unset and Docker is unavailable in this
+environment, so the PostgreSQL-backed gates could not run. They are written and
+skip cleanly rather than being absent:
+
+- migration apply/rollback/reapply
+- concurrent occurrence claim (16 workers, one generation)
+- crash-and-retry occurrence resumption
+- concurrent proposal acceptance (one cart version)
+- proposal and template ownership isolation
+- template optimistic-concurrency conflict
+- database refusal of incoherent rows
+
+They live in `internal/features/basket/store_integration_test.go` and run under
+`VENDOR_SERVICE_TEST_DATABASE_URL`. A skip is reported as a skip and never as a
+pass: "exactly once" asserted by a test that did not run is not an assertion.
+
+Full traceability in `SECTION27_TRACEABILITY.md`.
+
+## Dispatch delivery integration
+
+Implementation complete; canonical PostgreSQL certification is environment
+dependent. Dispatch migration `000042_commerce_multistop_delivery` adds the
+canonical route-aware multi-pickup mission runtime while Vendor remains an
+immutable-plan client and `PlatformMissionRef` projection. The accepted Section
+27 planner can now truthfully enable `DISPATCH_MULTI_PICKUP_SUPPORTED` after
+deployment instead of failing every multi-location consolidation closed.
+
+Dispatch uses the normal public marketplace, persists ordered logical stops,
+independent manifests and parcel custody, queues no-provider missions with
+bounded retry/SLA recovery, supports transfer-safe replacement, receiver
+unavailability, reschedule and return, and delivers versioned mission/stop/
+parcel events through its transactional outbox. Vendor adds one HMAC-v2 event
+callback (840 -> 841 routes) and no migration. Dispatch changes from 109 to 122
+routes. Full traceability is in root `docs/SECTION28_TRACEABILITY.md`.
+
+## Vendor-owned and Hybrid delivery runtime
+
+Implementation complete, with canonical PostgreSQL certification dependent on
+`VENDOR_SERVICE_TEST_DATABASE_URL` and `PAYMENT_WALLET_TEST_DATABASE_URL`.
+Vendor migration `000104_vendor_owned_delivery_runtime` adds restricted Rider
+availability, assignment/runtime operation history, durable fallback linkage
+and effective VendorOrder execution projection. Wallet migration `000012`
+adds the sole-ledger funding transition and effective payable projection.
+
+Vendor routes change from 841 to 849. Vendor Rider remains Vendor staff, not a
+marketplace provider. VendorMission remains canonical in Vendor; platform
+missions remain canonical in Dispatch. Pre-custody fallback preserves all
+commercial and Parcel identities, appends a plan version, transitions funding
+through Wallet and reuses Dispatch Section 28. Clean post-custody conversion is
+hard-blocked.
+
+Secure Vendor handover status is `PARTIAL`: Dispatch has an authority for its
+own missions, but no approved VendorMission-compatible authority exists.
+Custody-moving Vendor actions are dependency-gated and return 503 rather than
+accepting client proof. Full traceability is in `SECTION31_TRACEABILITY.md`.
+
+## Operational evidence, exceptions, returns and provider transfer
+
+Sections 33–35 are implemented as one extension to the accepted Dispatch
+Commerce mission. Dispatch migration `000043` adds versioned/frozen stop and
+Parcel manifest bindings, append-only evidence, exception/return operations,
+one-open-transfer enforcement and immutable carrier history. Vendor migration
+`000105` adds only the authenticated operational-event projection.
+
+Dispatch provider-to-provider post-custody transfer is available through the
+existing shared handover authority. Direct provider reassignment after custody
+is blocked; old custody remains active until the replacement verifies the
+exact manifest/Parcel/package/location challenge. Normal old-trip proof and
+completion are frozen during replacement, preserving Wallet's single
+completion settlement path without creating a new earning split engine.
+
+Vendor routes remain 849. Dispatch adds seven routes to the existing Commerce
+contract. Hauling and Wallet are unchanged. Vendor Rider secure handover stays
+partial/dependency-gated and Vendor Rider → platform post-custody transfer stays
+not present. PostgreSQL migration replay/race tests are env-gated on
+`DISPATCH_TEST_DATABASE_URL`; a missing variable is reported as test
+infrastructure blocked. Root traceability: `docs/SECTION33_35_TRACEABILITY.md`.
+
+## Realtime, semantic notifications and confidence ETA
+
+Section 36 backend implementation is complete. Vendor migration `000106`
+adds immutable mission-level ETA versions, a concurrency-fenced current
+pointer and scheduled-cutoff notification markers. Notification migration
+`002` adds source-event/aggregate/version provenance and Notification-owned
+Commerce templates. No public route was added: the existing customer ETA read
+endpoint now also returns a `missions` array with an earliest/latest range,
+controlled confidence, policy version, source freshness and delay state.
+
+Dispatch remains route, mission, provider-assignment and receiver-credential
+authority. Production remains Food/Shop readiness authority. Notification
+Service remains the only email/push/realtime transport owner; Vendor publishes
+bounded semantic intent through its transactional outbox. SMS transport is not
+configured and no business service bypass was added. VendorMission secure
+handover remains dependency-gated exactly as documented for Section 31.
+
+Canonical migration replay and race certification requires the documented
+PostgreSQL test URLs. Capability details are in
+`architecture/22_REALTIME_NOTIFICATIONS_CONFIDENCE_ETA.md`; roadmap evidence is
+in `SECTION36_TRACEABILITY.md`.
+
+## Analytics, reporting and reliability
+
+Section 39 is implemented as downstream operational analytics. Analytics
+Service owns event ingestion, read-model aggregation, windowed vendor reports,
+reliability snapshots, privacy-safe demand/price intelligence and the
+future-disabled Order Guarantee policy model. Vendor Service was not made a
+reporting authority; it only publishes controlled Commerce analytics events
+from its transactional outbox when Analytics configuration is present.
+
+Order Guarantee status is `FUTURE_DISABLED`: no claim route, no customer-facing
+eligibility, no compensation, and no Wallet guarantee mutation.
+
+Final verification resolved the reliability policy provenance: no approved
+pre-Section 39 KarryGo weight policy was found, and no persisted V1 snapshots
+were found, so `vendor_reliability_v1` now uses the neutral equal-weight
+technical default. Price benchmark privacy requires five independent external
+comparable Vendors after excluding the requester and suppresses low-sample
+cohorts.
+
+## Security, privacy and compliance
+
+Section 40 is implemented as a hardening/certification pass, not a new
+security domain. Existing Vendor RBAC, shared HMAC v2, Wallet, Media, Support,
+Analytics, Notification and handover authorities remain authoritative.
+Analytics read routes are HMAC/allowlist/scope protected, and Shop Commerce
+now rejects pharmacy/medicine products on product create/update, bulk import
+and checkout revalidation. Traceability is in `SECTION40_TRACEABILITY.md`.

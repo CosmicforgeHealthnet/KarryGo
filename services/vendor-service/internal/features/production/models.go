@@ -28,6 +28,81 @@ var (
 	Priorities = []string{"NORMAL", "HIGH", "URGENT"}
 )
 
+// QueuePriorityRank is the stable operational ordering used by the kitchen
+// queue.  Promised customer-ready time is always compared before this rank.
+func QueuePriorityRank(priority string) int {
+	switch strings.ToUpper(strings.TrimSpace(priority)) {
+	case "URGENT":
+		return 0
+	case "HIGH":
+		return 1
+	default:
+		return 2
+	}
+}
+
+// ProductionCapabilityForOrderDomain maps the frozen commercial domain to a
+// production capability without consulting mutable catalogue state. Grocery
+// Shop allocations intentionally return false: they are not kitchen work.
+func ProductionCapabilityForOrderDomain(domain string) (string, bool) {
+	switch strings.ToUpper(strings.TrimSpace(domain)) {
+	case "FOOD", "RESTAURANT":
+		return "RESTAURANT", true
+	case "FAST_FOOD":
+		return "FAST_FOOD", true
+	case "CLOUD_KITCHEN":
+		return "CLOUD_KITCHEN", true
+	case "PASTRY_BAKERY":
+		return "PASTRY_BAKERY", true
+	default:
+		return "", false
+	}
+}
+
+type QueueCursor struct {
+	PromisedReadyAt *time.Time
+	PriorityRank    int
+	CreatedAt       time.Time
+	ID              string
+}
+
+// QueueCursorEnvelope is the wire-safe representation of the last item in a
+// production queue page.  The cursor is opaque to callers; all ordering keys
+// are validated before they are used in SQL.
+type QueueCursorEnvelope struct {
+	PromisedReadyAt *time.Time `json:"promised_ready_at,omitempty"`
+	PriorityRank    int        `json:"priority_rank"`
+	CreatedAt       time.Time  `json:"created_at"`
+	ID              string     `json:"id"`
+}
+
+type QueueItem struct {
+	ID                       string     `json:"id"`
+	BranchID                 string     `json:"branch_id"`
+	Capability               string     `json:"capability"`
+	SourceType               string     `json:"source_type"`
+	SourceRef                *string    `json:"source_ref,omitempty"`
+	SourceVersion            *int64     `json:"source_version,omitempty"`
+	Title                    string     `json:"title"`
+	Status                   string     `json:"status"`
+	Priority                 string     `json:"priority"`
+	PromisedReadyAt          *time.Time `json:"promised_ready_at,omitempty"`
+	ExpectedReadyWindowStart *time.Time `json:"expected_ready_window_start,omitempty"`
+	ExpectedReadyWindowEnd   *time.Time `json:"expected_ready_window_end,omitempty"`
+	ScheduledStart           *time.Time `json:"scheduled_start,omitempty"`
+	ScheduledEnd             *time.Time `json:"scheduled_end,omitempty"`
+	ReadyAt                  *time.Time `json:"ready_at,omitempty"`
+	PlannedQuantity          int        `json:"planned_quantity"`
+	ProducedQuantity         int        `json:"produced_quantity"`
+	WasteQuantity            int        `json:"waste_quantity"`
+	BlockedReason            string     `json:"blocked_reason,omitempty"`
+	StepCount                int        `json:"step_count"`
+	CompletedStepCount       int        `json:"completed_step_count"`
+	BlockingStepCount        int        `json:"blocking_step_count"`
+	Version                  int64      `json:"version"`
+	CreatedAt                time.Time  `json:"created_at"`
+}
+
 // Reservation lifecycle. HELD and CONFIRMED consume capacity; the rest do not.
 const (
 	ReservationHeld      = "HELD"

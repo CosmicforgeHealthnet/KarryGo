@@ -77,6 +77,8 @@ func (s *StockService) FinalizeReservationPartial(ctx context.Context, actor Act
 			desired := fulfilled[line.InventoryItemID]
 			remainingCommit := desired
 			var commitTotal, releaseTotal int64
+			type allocationDelta struct{ commit, release int64 }
+			deltas := make(map[string]allocationDelta, len(line.Allocations))
 			for _, allocation := range line.Allocations {
 				var alreadyCommit, alreadyRelease int64
 				if err = tx.QueryRow(ctx, `SELECT committed_quantity,released_quantity FROM inventory_reservation_allocations WHERE id=$1 AND business_id=$2 FOR UPDATE`, allocation.ID, actor.BusinessID).Scan(&alreadyCommit, &alreadyRelease); err != nil {
@@ -125,6 +127,7 @@ func (s *StockService) FinalizeReservationPartial(ctx context.Context, actor Act
 				}
 				commitTotal += commitDelta
 				releaseTotal += releaseDelta
+				deltas[allocation.ID] = allocationDelta{commit: commitDelta, release: releaseDelta}
 			}
 			if remainingCommit != 0 {
 				return ErrInsufficientStock
@@ -139,24 +142,29 @@ func (s *StockService) FinalizeReservationPartial(ctx context.Context, actor Act
 				return e
 			}
 			for _, allocation := range line.Allocations {
-				var c, r int64
-				if e = tx.QueryRow(ctx, `SELECT committed_quantity,released_quantity FROM inventory_reservation_allocations WHERE id=$1`, allocation.ID).Scan(&c, &r); e != nil {
-					return e
-				}
+				delta := deltas[allocation.ID]
 				// Movement rows are append-only evidence. Deltas are derived from
 				// the newly persisted split, so retries emit none.
-				if c > 0 {
-					if _, e = appendMovementTx(ctx, tx, actor, item, allocation.LotID, MovementCommit, c, -c, -c, 0, 0, 0, 0, "RESERVATION", reservation.ID, "PARTIAL_COMMIT", inventoryRevision, balanceRevision); e != nil {
+				if delta.commit > 0 {
+					if _, e = appendMovementTx(ctx, tx, actor, item, allocation.LotID, MovementCommit, delta.commit, -delta.commit, -delta.commit, 0, 0, 0, 0, "RESERVATION", reservation.ID, "PARTIAL_COMMIT", inventoryRevision, balanceRevision); e != nil {
 						return e
 					}
 				}
-				if r > 0 {
-					if _, e = appendMovementTx(ctx, tx, actor, item, allocation.LotID, MovementRelease, r, 0, -r, 0, 0, 0, 0, "RESERVATION", reservation.ID, "PARTIAL_RELEASE", inventoryRevision, balanceRevision); e != nil {
+				if delta.release > 0 {
+					if _, e = appendMovementTx(ctx, tx, actor, item, allocation.LotID, MovementRelease, delta.release, 0, -delta.release, 0, 0, 0, 0, "RESERVATION", reservation.ID, "PARTIAL_RELEASE", inventoryRevision, balanceRevision); e != nil {
 						return e
 					}
 				}
 			}
-			if _, err = tx.Exec(ctx, `UPDATE inventory_reservation_lines SET status='COMMITTED',updated_at=now() WHERE id=$1 AND business_id=$2`, line.ID, actor.BusinessID); err != nil {
+			lineStatus := ReservationCommitted
+			var committedQuantity, releasedQuantity, requestedQuantity int64
+			if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(committed_quantity),0),COALESCE(sum(released_quantity),0),COALESCE(sum(quantity),0) FROM inventory_reservation_allocations WHERE reservation_line_id=$1 AND business_id=$2`, line.ID, actor.BusinessID).Scan(&committedQuantity, &releasedQuantity, &requestedQuantity); err != nil {
+				return err
+			}
+			if committedQuantity == 0 && releasedQuantity == requestedQuantity {
+				lineStatus = ReservationReleased
+			}
+			if _, err = tx.Exec(ctx, `UPDATE inventory_reservation_lines SET status=$1,updated_at=now() WHERE id=$2 AND business_id=$3`, lineStatus, line.ID, actor.BusinessID); err != nil {
 				return err
 			}
 		}

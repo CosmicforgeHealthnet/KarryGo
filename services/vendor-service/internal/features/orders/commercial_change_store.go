@@ -32,6 +32,10 @@ func (s *Store) CreateCommercialChange(ctx context.Context, parent ParentOrder, 
 	if err != nil {
 		return CommercialChange{}, err
 	}
+	if parent.CustomerApprovedTotalMinor < 0 || quote.TotalMinor < 0 {
+		return CommercialChange{}, ErrCommercialChangeConflict
+	}
+	delta := quote.TotalMinor - parent.CustomerApprovedTotalMinor
 	changeID := "coc_" + uuid.NewString()
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
@@ -61,7 +65,7 @@ func (s *Store) CreateCommercialChange(ctx context.Context, parent ParentOrder, 
 		RETURNING id`, changeID, parent.ID, parent.CustomerID, parent.QuoteID, parent.QuoteVersion, parent.QuoteFingerprint,
 		originalAddress, parent.FulfilmentPlanID, parent.CustomerApprovedTotalMinor, request.CheckoutSessionID,
 		request.FulfilmentPlanID, quote.ID, quote.Version, quote.Fingerprint, replacementAddress, quote.FulfilmentPlanID,
-		quote.TotalMinor, quote.ExpiresAt, quote.TotalMinor-parent.CustomerApprovedTotalMinor, quote.Currency, now).Scan(&changeID)
+		quote.TotalMinor, quote.ExpiresAt, delta, quote.Currency, now).Scan(&changeID)
 	if err == nil {
 		inserted = true
 	} else if errors.Is(err, pgx.ErrNoRows) {
@@ -283,6 +287,9 @@ func (s *Store) ApplyCommercialChange(ctx context.Context, change CommercialChan
 		if _, err = tx.Exec(ctx, `UPDATE commerce_substitution_proposals SET status='APPROVED',version=version+1,responded_at=$1,updated_at=$1,response_ref=$2 WHERE id=$3 AND customer_id=$4 AND status='PENDING'`, now, change.ID, substitutionProposal, change.CustomerID); err != nil {
 			return CommercialChange{}, err
 		}
+		if _, err = tx.Exec(ctx, `UPDATE commerce_substitution_cases c SET state='APPROVED',updated_at=$1 WHERE c.id=(SELECT p.case_id FROM commerce_substitution_proposals p WHERE p.id=$2 AND p.customer_id=$3) AND c.state IN ('OPEN','AWAITING_CUSTOMER')`, now, substitutionProposal, change.CustomerID); err != nil {
+			return CommercialChange{}, err
+		}
 		if err = appendEvent(ctx, tx, nil, change.ParentOrderID, substitutionVendor, change.CustomerID, "commerce.vendor_order.substitution_approved", "SYSTEM", change.ID, "SUBSTITUTION_REQUIRED", "PICKING", now); err != nil {
 			return CommercialChange{}, err
 		}
@@ -340,10 +347,23 @@ func (s *Store) EnsureChangeAdjustment(ctx context.Context, change CommercialCha
 	if err != nil {
 		return AdjustmentEvidence{}, err
 	}
-	return s.GetAdjustment(ctx, id)
+	adjustment, err := s.GetAdjustment(ctx, id)
+	if err != nil {
+		return AdjustmentEvidence{}, err
+	}
+	difference := abs(change.DeltaMinor)
+	if adjustment.ParentOrderID != change.ParentOrderID || adjustment.ChangeID != change.ID || adjustment.Type != typ ||
+		adjustment.OriginalCommitmentMinor != change.OriginalTotal || adjustment.EligibleFinalMinor != change.ReplacementQuote.TotalMinor ||
+		adjustment.DifferenceMinor != difference || adjustment.Policy != policy || adjustment.Action != action {
+		return AdjustmentEvidence{}, ErrOrderConflict
+	}
+	return adjustment, nil
 }
 
 func abs(value int64) int64 {
+	if value == -1<<63 {
+		return 0
+	}
 	if value < 0 {
 		return -value
 	}
@@ -369,6 +389,11 @@ func (s *Store) ensureAdjustment(ctx context.Context, order ParentOrder, leg Pay
 	adj, err := s.GetAdjustment(ctx, id)
 	if err != nil {
 		return AdjustmentEvidence{}, false, err
+	}
+	if adj.ParentOrderID != order.ID || adj.VendorOrderID != leg.VendorOrderID || adj.Type != typ ||
+		adj.OriginalCommitmentMinor != original || adj.EligibleFinalMinor != eligible || adj.DifferenceMinor != difference ||
+		adj.Policy != policy || adj.Action != action {
+		return AdjustmentEvidence{}, false, ErrOrderConflict
 	}
 	return adj, created, nil
 }

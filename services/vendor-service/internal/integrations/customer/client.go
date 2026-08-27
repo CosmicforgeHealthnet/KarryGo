@@ -62,6 +62,77 @@ type savedLocationResponse struct {
 	Description string  `json:"description"`
 }
 
+type QualityPreference struct {
+	ID         string `json:"id"`
+	CustomerID string `json:"customer_id"`
+	Type       string `json:"type"`
+	Value      string `json:"value"`
+	Revision   int64  `json:"revision"`
+}
+
+type qualityPreferencesEnvelope struct {
+	Success bool                `json:"success"`
+	Data    []QualityPreference `json:"data"`
+}
+
+type PreferenceResolutionState string
+
+const (
+	NoPreferenceConfigured                 PreferenceResolutionState = "NO_PREFERENCE_CONFIGURED"
+	CustomerPreferenceAuthorityUnavailable PreferenceResolutionState = "CUSTOMER_PREFERENCE_AUTHORITY_UNAVAILABLE"
+	CustomerPreferencesAvailable           PreferenceResolutionState = "AVAILABLE"
+)
+
+type PreferenceResolution struct {
+	State       PreferenceResolutionState
+	Preferences []QualityPreference
+}
+
+// ResolveQualityPreferences reads Customer Service's reusable preferences.
+// Vendor Commerce snapshots this response into the approved order; it never
+// reads the Customer database directly.
+func (c *Client) ResolveQualityPreferences(ctx context.Context, customerID string) ([]QualityPreference, error) {
+	if c == nil || c.baseURL == "" || len(c.secret) == 0 || strings.TrimSpace(customerID) == "" {
+		return nil, errors.New("customer preference authority unavailable")
+	}
+	path := "/api/v1/customer/internal/customers/" + urlpkg.PathEscape(strings.TrimSpace(customerID)) + "/quality-preferences"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = serviceauth.SignRequest(req, "vendor-service", c.secret, nil, c.now().UTC()); err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, errors.New("customer preference authority unavailable")
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxAddressResponse+1))
+	if err != nil || len(raw) > maxAddressResponse {
+		return nil, errors.New("customer preference authority unavailable")
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("customer preference authority unavailable: http_%d", resp.StatusCode)
+	}
+	var envelope qualityPreferencesEnvelope
+	if err = json.Unmarshal(raw, &envelope); err != nil || !envelope.Success {
+		return nil, errors.New("customer preference authority unavailable")
+	}
+	return envelope.Data, nil
+}
+
+func (c *Client) ResolveQualityPreferencesWithState(ctx context.Context, customerID string) (PreferenceResolution, error) {
+	values, err := c.ResolveQualityPreferences(ctx, customerID)
+	if err != nil {
+		return PreferenceResolution{State: CustomerPreferenceAuthorityUnavailable}, err
+	}
+	if len(values) == 0 {
+		return PreferenceResolution{State: NoPreferenceConfigured, Preferences: values}, nil
+	}
+	return PreferenceResolution{State: CustomerPreferencesAvailable, Preferences: values}, nil
+}
+
 // ResolveSavedAddress implements cart.CustomerAddressAuthority.
 //
 // customerID is never obtained from the request body. The caller supplies the

@@ -1,10 +1,8 @@
-// Package delivery owns Vendor Own Delivery: a vendor business operating its
-// own riders/fleet as an alternative to platform Dispatch/Hauling execution
-// for its own orders.
+// Package delivery owns branch delivery policy and vendor-owned execution
+// evidence, including PLATFORM, VENDOR and HYBRID selection alongside the
+// platform Dispatch/Hauling authorities.
 //
-// Section 17C (slice 1) implements the vendor-configured delivery policy and
-// the vendor-authoritative charge evaluation built on it. What that means
-// precisely:
+// The delivery-policy implementation keeps the following boundaries:
 //
 //   - Vendor Own Delivery is INDEPENDENT of platform logistics. Choosing it
 //     creates no Dispatch/Hauling mission and selects no platform rider. This
@@ -21,7 +19,7 @@
 //     pays the vendor; platform delivery pays the executing provider and never
 //     the vendor. See Decision.FeeBeneficiary.
 //
-// Gated by VENDOR_OWN_DELIVERY_ENABLED. Vendor-owned mission execution
-// (rider assignment, lifecycle, proof) is not implemented here; 17C plans, it
-// does not execute.
+// Gated by VENDOR_OWN_DELIVERY_ENABLED. Vendor-owned execution state is
+// represented here, while provider matching, custody proof and logistics
+// execution remain with their owning authorities.
 package delivery

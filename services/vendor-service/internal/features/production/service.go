@@ -69,6 +69,23 @@ type EventPublisher interface {
 		aggregateVersion int64, vendorID, correlationID, causationID string, payload any) error
 }
 
+// PastryMilestoneBridge is an optional same-service adapter. Production owns
+// job status; Pastry remains the authority for milestone state and commercial
+// eligibility. The bridge is deliberately transaction-scoped so a mapped
+// milestone cannot commit without the production transition that evidenced it.
+type PastryMilestoneBridge interface {
+	SyncProductionProgress(ctx context.Context, tx pgx.Tx, actor Actor, jobID, status string) error
+}
+
+// ETAReadinessProjector is the narrow same-service bridge to the Orders-owned
+// customer ETA projection. Production supplies only its authoritative ready
+// window; it never calculates delivery travel or confidence itself.
+type ETAReadinessProjector interface {
+	ProjectReadinessETA(ctx context.Context, tx pgx.Tx, vendorOrderID, parentOrderID string,
+		windowStart, windowEnd *time.Time, delayed, actualReady bool, sourceEventID string,
+		sourceVersion int64, occurredAt time.Time) error
+}
+
 // Flags gates the shared production platform and the two domains that use it.
 type Flags struct {
 	// ProductionEnabled gates the shared platform. With it false no production
@@ -91,8 +108,46 @@ type Service struct {
 	scopes ScopeResolver
 	audit  AuditRecorder
 	events EventPublisher
+	pastry PastryMilestoneBridge
+	eta    ETAReadinessProjector
 	flags  Flags
 	now    func() time.Time
+}
+
+func (s *Service) SetPastryMilestoneBridge(bridge PastryMilestoneBridge) {
+	if s != nil {
+		s.pastry = bridge
+	}
+}
+
+func (s *Service) SetETAReadinessProjector(projector ETAReadinessProjector) {
+	if s != nil {
+		s.eta = projector
+	}
+}
+
+// OrderActivationInput is the immutable operational snapshot supplied by the
+// authoritative Orders activation point.  Production never looks up mutable
+// catalogue data to construct a job.
+type OrderActivationInput struct {
+	VendorOrderID       string
+	ReservationID       *string
+	ProductionLineID    *string
+	PromisedReadyAt     *time.Time
+	ExpectedWindowStart *time.Time
+	ExpectedWindowEnd   *time.Time
+	ScheduledStart      *time.Time
+	ScheduledEnd        *time.Time
+	Priority            string
+	Title               string
+	SourceVersion       int64
+}
+
+// OrderActivationResult describes an exactly-once order-to-production link.
+type OrderActivationResult struct {
+	JobID      string `json:"job_id"`
+	Created    bool   `json:"created"`
+	Capability string `json:"capability"`
 }
 
 type Options struct {
@@ -116,6 +171,163 @@ func NewService(opts Options) *Service {
 func (s *Service) FlagSet() Flags    { return s.flags }
 func (s *Service) Now() time.Time    { return s.now() }
 func (s *Service) DB() *pgxpool.Pool { return s.db }
+
+// ActivateVendorOrder creates one queued ProductionJob for a paid, immutable
+// VendorOrder.  The vendor order row is locked and the EXTERNAL_ORDER source
+// identity is unique, so retries and concurrent callers converge on one job.
+// Shop grocery allocations are deliberately ignored: they are not kitchen
+// production.
+func (s *Service) ActivateVendorOrder(ctx context.Context, actor Actor, in OrderActivationInput) (OrderActivationResult, error) {
+	if s == nil || s.db == nil {
+		return OrderActivationResult{}, apperrors.Unavailable("Production is not available.", nil)
+	}
+	if strings.TrimSpace(actor.VendorID) == "" || strings.TrimSpace(in.VendorOrderID) == "" {
+		return OrderActivationResult{}, apperrors.BadRequest("Vendor order is required.", nil)
+	}
+	if in.Priority == "" {
+		in.Priority = "NORMAL"
+	}
+	if !inVocabulary(Priorities, strings.ToUpper(in.Priority)) {
+		return OrderActivationResult{}, validation(apperrors.FieldViolation{Field: "priority", Message: "Priority must be NORMAL, HIGH or URGENT."})
+	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return OrderActivationResult{}, err
+	}
+	defer tx.Rollback(ctx)
+	var business, branch, domain, status, parentPayment, parentID string
+	var orderVersion int64
+	if err = tx.QueryRow(ctx, `SELECT v.business_id,v.branch_id,v.domain,v.status,v.version,p.payment_state,v.parent_order_id
+		FROM commerce_vendor_orders v JOIN commerce_parent_orders p ON p.id=v.parent_order_id
+		WHERE v.id=$1 AND v.business_id=$2 FOR UPDATE`, in.VendorOrderID, actor.VendorID).
+		Scan(&business, &branch, &domain, &status, &orderVersion, &parentPayment, &parentID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return OrderActivationResult{}, errNotFound("Vendor order", CodeJobNotFound)
+		}
+		return OrderActivationResult{}, err
+	}
+	if parentPayment != "HELD" {
+		return OrderActivationResult{}, coded(apperrors.Conflict("The order payment is not held.", nil), CodeInvalidTransition)
+	}
+	switch status {
+	case "PAID", "SENT_TO_VENDOR", "ACCEPTED", "PREPARING":
+	default:
+		return OrderActivationResult{}, coded(apperrors.Conflict("The vendor order is not ready for production.", nil), CodeInvalidTransition)
+	}
+	capability, applicable := ProductionCapabilityForOrderDomain(domain)
+	if !applicable {
+		return OrderActivationResult{Capability: ""}, nil
+	}
+	var planned64 int64
+	if err = tx.QueryRow(ctx, `SELECT COALESCE(SUM(quantity),0) FROM commerce_vendor_order_lines WHERE vendor_order_id=$1`, in.VendorOrderID).Scan(&planned64); err != nil {
+		return OrderActivationResult{}, err
+	}
+	if planned64 < 1 {
+		planned64 = 1
+	}
+	if planned64 > MaxCapacity {
+		return OrderActivationResult{}, validation(apperrors.FieldViolation{Field: "planned_quantity", Message: "The production quantity is too large."})
+	}
+	planned := int(planned64)
+	if in.PromisedReadyAt == nil {
+		var commitment json.RawMessage
+		if scanErr := tx.QueryRow(ctx, `SELECT delivery_commitment FROM commerce_vendor_order_lines WHERE vendor_order_id=$1 ORDER BY id LIMIT 1`, in.VendorOrderID).Scan(&commitment); scanErr == nil {
+			var frozen struct {
+				PromisedReadyAt     *time.Time `json:"promised_ready_at"`
+				ExpectedWindowStart *time.Time `json:"expected_ready_window_start"`
+				ExpectedWindowEnd   *time.Time `json:"expected_ready_window_end"`
+			}
+			if json.Unmarshal(commitment, &frozen) == nil {
+				in.PromisedReadyAt = frozen.PromisedReadyAt
+				if in.ExpectedWindowStart == nil {
+					in.ExpectedWindowStart = frozen.ExpectedWindowStart
+				}
+				if in.ExpectedWindowEnd == nil {
+					in.ExpectedWindowEnd = frozen.ExpectedWindowEnd
+				}
+			}
+		}
+	}
+	if in.ReservationID != nil && strings.TrimSpace(*in.ReservationID) != "" {
+		var reservationBusiness, reservationBranch, reservationStatus string
+		if err = tx.QueryRow(ctx, `SELECT business_id,branch_id,status FROM capacity_reservations WHERE id=$1 FOR UPDATE`, strings.TrimSpace(*in.ReservationID)).Scan(&reservationBusiness, &reservationBranch, &reservationStatus); err != nil {
+			return OrderActivationResult{}, err
+		}
+		if reservationBusiness != business || reservationBranch != branch || (reservationStatus != ReservationHeld && reservationStatus != ReservationConfirmed) {
+			return OrderActivationResult{}, coded(apperrors.Conflict("The production capacity reservation is not usable.", nil), CodeCapacityUnavailable)
+		}
+	}
+	// Resolve the configured workflow line from the production authority when
+	// the trusted activation bridge did not provide one. Mutable catalogue data
+	// is never consulted; absence simply leaves a generic job for an operator to
+	// configure rather than fabricating a GRILL/FRYER/KITCHEN mapping.
+	productionLineID := in.ProductionLineID
+	if productionLineID != nil && strings.TrimSpace(*productionLineID) != "" {
+		var lineBranch, lineCapability, lineStatus string
+		if err = tx.QueryRow(ctx, `SELECT branch_id,capability,status FROM production_lines WHERE business_id=$1 AND id=$2`, business, strings.TrimSpace(*productionLineID)).Scan(&lineBranch, &lineCapability, &lineStatus); err != nil {
+			return OrderActivationResult{}, err
+		}
+		if lineBranch != branch || lineCapability != capability || lineStatus != "ACTIVE" {
+			return OrderActivationResult{}, coded(apperrors.Conflict("The configured production line is not usable for this order.", nil), CodeInvalidTransition)
+		}
+	} else {
+		var configuredLine string
+		if scanErr := tx.QueryRow(ctx, `SELECT id FROM production_lines WHERE business_id=$1 AND branch_id=$2 AND capability=$3 AND status='ACTIVE' ORDER BY code,id LIMIT 1`, business, branch, capability).Scan(&configuredLine); scanErr == nil {
+			productionLineID = &configuredLine
+		}
+	}
+	// Production receives no customer contact or address PII. Do not copy a
+	// caller-provided display title into the operational aggregate.
+	title := "Order " + in.VendorOrderID
+	sourceVersion := in.SourceVersion
+	if sourceVersion <= 0 {
+		sourceVersion = orderVersion
+	}
+	jobID := newID("job_")
+	var existing string
+	err = tx.QueryRow(ctx, `INSERT INTO production_jobs(id,business_id,branch_id,capability,reservation_id,production_line_id,source_type,source_ref,source_version,title,status,priority,planned_quantity,scheduled_start,scheduled_end,promised_ready_at,expected_ready_window_start,expected_ready_window_end)
+		VALUES($1,$2,$3,$4,$5,$6,'EXTERNAL_ORDER',$7,$8,$9,'QUEUED',$10,$11,$12,$13,$14,$15,$16)
+		ON CONFLICT (business_id,source_type,source_ref) WHERE source_type='EXTERNAL_ORDER' AND source_ref IS NOT NULL DO NOTHING
+		RETURNING id`, jobID, business, branch, capability, in.ReservationID, productionLineID, in.VendorOrderID, sourceVersion, title, strings.ToUpper(in.Priority), planned, in.ScheduledStart, in.ScheduledEnd, in.PromisedReadyAt, in.ExpectedWindowStart, in.ExpectedWindowEnd).Scan(&existing)
+	created := err == nil
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = tx.QueryRow(ctx, `SELECT id FROM production_jobs WHERE business_id=$1 AND source_type='EXTERNAL_ORDER' AND source_ref=$2 FOR UPDATE`, business, in.VendorOrderID).Scan(&existing)
+	}
+	if err != nil {
+		return OrderActivationResult{}, err
+	}
+	if created {
+		if _, err = tx.Exec(ctx, `INSERT INTO production_job_events(id,business_id,job_id,event_type,to_status,note,actor_type,actor_id,correlation_id) VALUES($1,$2,$3,'CREATED','QUEUED','order activation','SYSTEM',NULLIF($4,''),NULLIF($5,''))`, newID("pje_"), business, existing, actor.StaffID, actor.CorrelationID); err != nil {
+			return OrderActivationResult{}, err
+		}
+		if err = s.RecordMutation(ctx, tx, actor, "production.job.activated", "production.job.activated", "production_job", existing, branch, 1, nil, map[string]any{"status": "QUEUED", "source_ref": in.VendorOrderID}, map[string]any{"vendor_order_id": in.VendorOrderID, "capability": capability}, ""); err != nil {
+			return OrderActivationResult{}, err
+		}
+	}
+	if err = tx.QueryRow(ctx, `SELECT promised_ready_at,expected_ready_window_start,expected_ready_window_end FROM production_jobs WHERE business_id=$1 AND id=$2`, business, existing).Scan(&in.PromisedReadyAt, &in.ExpectedWindowStart, &in.ExpectedWindowEnd); err != nil {
+		return OrderActivationResult{}, err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO commerce_vendor_order_readiness(vendor_order_id,parent_order_id,business_id,branch_id,production_job_id,promised_ready_at,expected_window_start,expected_window_end,source_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (vendor_order_id) DO UPDATE SET expected_window_start=EXCLUDED.expected_window_start,expected_window_end=EXCLUDED.expected_window_end,source_version=GREATEST(commerce_vendor_order_readiness.source_version,EXCLUDED.source_version),updated_at=now()`, in.VendorOrderID, parentID, business, branch, existing, in.PromisedReadyAt, in.ExpectedWindowStart, in.ExpectedWindowEnd, sourceVersion)
+	if err != nil {
+		return OrderActivationResult{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return OrderActivationResult{}, err
+	}
+	return OrderActivationResult{JobID: existing, Created: created, Capability: capability}, nil
+}
+
+// ActivateVendorOrderSystem is the post-Wallet bridge used by Orders. It
+// resolves tenant identity from the locked VendorOrder row rather than from a
+// caller-provided business identifier.
+func (s *Service) ActivateVendorOrderSystem(ctx context.Context, vendorOrderID string) error {
+	var business string
+	if err := s.db.QueryRow(ctx, `SELECT business_id FROM commerce_vendor_orders WHERE id=$1`, vendorOrderID).Scan(&business); err != nil {
+		return err
+	}
+	_, err := s.ActivateVendorOrder(ctx, Actor{VendorID: business, CorrelationID: "payment-held:" + vendorOrderID}, OrderActivationInput{VendorOrderID: vendorOrderID})
+	return err
+}
 
 // ---------------------------------------------------------------------------
 // Permissions

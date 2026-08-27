@@ -147,6 +147,12 @@ func (s *Service) RecoverPayments(
 	if _, err = s.RecoverCommercialAdjustments(ctx, limits.Batch); err != nil {
 		sweepErrs = append(sweepErrs, err)
 	}
+	if _, err = s.RecoverMissingRefundObligations(ctx, limits.Batch); err != nil {
+		sweepErrs = append(sweepErrs, err)
+	}
+	if _, err = s.RecoverCommerceRefundPolicies(ctx, limits.Batch); err != nil {
+		sweepErrs = append(sweepErrs, err)
+	}
 
 	// The fulfilment-pending boundary. A process that died between holding a
 	// payment and confirming stock or creating a mission left an order here,
@@ -181,6 +187,13 @@ func (s *Service) resumeActivation(
 
 	activated := 0
 	for _, id := range ids {
+		if s.production != nil {
+			if order, loadErr := s.store.GetParentByID(ctx, id); loadErr == nil && order.PaymentState == string(PaymentHeld) {
+				for _, vendorOrder := range order.VendorOrders {
+					_ = s.production.ActivateVendorOrderSystem(ctx, vendorOrder.ID)
+				}
+			}
+		}
 		outcome, activateErr := s.ActivateFulfilment(ctx, id)
 		if activateErr != nil {
 			continue
@@ -199,6 +212,27 @@ func (s *Service) resumeActivation(
 // no reference at all is re-attempted under its original idempotency key,
 // which is safe precisely because the key is deterministic.
 func (s *Service) resolveLeg(ctx context.Context, leg UnresolvedLeg) (LegResult, error) {
+	if authority, ok := s.payments.(CommercePaymentAuthority); ok {
+		result, err := authority.GetCommercePayment(ctx, leg.ParentOrderID)
+		if err != nil && leg.IntentReference == "" {
+			order, loadErr := s.store.GetParentByID(ctx, leg.ParentOrderID)
+			if loadErr != nil {
+				return LegResult{}, loadErr
+			}
+			operation, loadErr := s.store.GetOperationForOrder(ctx, leg.CustomerID, leg.ParentOrderID)
+			if loadErr != nil {
+				return LegResult{}, loadErr
+			}
+			if _, loadErr = s.authorizeCommercePayment(ctx, authority, order, operation, ""); loadErr != nil {
+				return LegResult{}, loadErr
+			}
+			result, err = authority.GetCommercePayment(ctx, leg.ParentOrderID)
+		}
+		if err != nil {
+			return LegResult{}, err
+		}
+		return LegResult{IntentID: result.IntentID, Reference: result.Reference, Status: result.Status, AmountKobo: leg.AmountMinor, SnapshotFingerprint: result.AllocationFingerprints[leg.VendorOrderID]}, nil
+	}
 	if leg.IntentReference != "" {
 		return s.payments.GetLeg(ctx, leg.IntentReference)
 	}
@@ -300,8 +334,9 @@ func refundSourceReference(leg PaymentLegRecord, operation PaymentOperation) str
 
 // RefundLegRequest asks the money authority to refund one leg.
 //
-// Refunding one leg never touches another: that is the whole reason a payment
-// is split per VendorOrder rather than held as one parent intent.
+// Refunding one projected leg never touches another. The current Commerce
+// authority holds one parent intent and targets its immutable allocation; the
+// legacy port remains only for already-created per-leg intents.
 type RefundLegRequest struct {
 	IdempotencyKey   string
 	PaymentReference string

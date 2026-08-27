@@ -166,7 +166,10 @@
                       "parent_code":  "SHOP_CATEGORY_FOODSTUFF",
                       "position":  50,
                       "metadata":  {
-                                       "kind":  "CATEGORY"
+                                       "kind":  "CATEGORY",
+                                       "quality_preferences":  {
+                                           "RIPENESS": ["GREEN", "TURNING", "RIPE", "VERY_RIPE"]
+                                       }
                                    }
                   },
                   {
@@ -210,7 +213,11 @@
                       "parent_code":  "SHOP_CATEGORY_PROTEIN",
                       "position":  20,
                       "metadata":  {
-                                       "kind":  "CATEGORY"
+                                       "kind":  "CATEGORY",
+                                       "quality_preferences":  {
+                                           "PREPARATION": ["WHOLE", "CLEAN_ONLY", "CLEAN_AND_CUT"],
+                                           "CUT_SIZE": ["SMALL_CUT", "MEDIUM_CUT", "LARGE_CUT"]
+                                       }
                                    }
                   },
                   {

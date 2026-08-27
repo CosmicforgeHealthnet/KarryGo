@@ -18,6 +18,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/dispatchcommerce"
 )
 
 type NearbyProviderFinder interface {
@@ -40,6 +41,14 @@ type TaskEnqueuer interface {
 	Enqueue(task *asynq.Task, opts ...asynq.Option) (*asynq.TaskInfo, error)
 }
 
+type ProviderAcceptanceGate interface {
+	CheckProviderForBooking(ctx context.Context, bookingID, providerID string) error
+}
+
+type CommerceJobCardReader interface {
+	JobCardForBooking(ctx context.Context, bookingID string) (*dispatchcommerce.JobCard, error)
+}
+
 type Config struct {
 	InitialRadiusKM   float64
 	RadiusIncrementKM float64
@@ -48,14 +57,25 @@ type Config struct {
 }
 
 type Service struct {
-	repository    Repository
-	redis         *redis.Client
-	nearby        NearbyProviderFinder
-	notifications NotificationSender
-	events        EventPublisher
-	tasks         TaskEnqueuer
-	config        Config
-	now           func() time.Time
+	repository     Repository
+	redis          *redis.Client
+	nearby         NearbyProviderFinder
+	notifications  NotificationSender
+	events         EventPublisher
+	tasks          TaskEnqueuer
+	config         Config
+	now            func() time.Time
+	acceptanceGate ProviderAcceptanceGate
+	jobCards       CommerceJobCardReader
+}
+
+func (s *Service) WithProviderAcceptanceGate(gate ProviderAcceptanceGate) *Service {
+	s.acceptanceGate = gate
+	return s
+}
+func (s *Service) WithCommerceJobCards(reader CommerceJobCardReader) *Service {
+	s.jobCards = reader
+	return s
 }
 
 func NewService(repository Repository, redisClient *redis.Client, nearby NearbyProviderFinder, notifications NotificationSender, events EventPublisher, tasks TaskEnqueuer, cfg Config) *Service {
@@ -115,6 +135,33 @@ func (s *Service) StartBroadcast(ctx context.Context, event BookingDispatchCreat
 	return broadcast, s.scheduleExpire(broadcast)
 }
 
+// RecoverBroadcast re-adopts a still-live broadcast after an ambiguous
+// mission-create outcome. Unlike StartBroadcast it is an explicit recovery
+// command, so ordinary duplicate booking events remain strict no-ops.
+func (s *Service) RecoverBroadcast(ctx context.Context, event BookingDispatchCreatedEvent) (RequestBroadcast, error) {
+	if err := validateBookingEvent(event); err != nil {
+		return RequestBroadcast{}, err
+	}
+	existing, ok, err := s.repository.GetBroadcastByBookingID(ctx, event.BookingID)
+	if err != nil {
+		return RequestBroadcast{}, err
+	}
+	if !ok {
+		return s.StartBroadcast(ctx, event)
+	}
+	if existing.Status != BroadcastStatusBroadcasting {
+		return existing, nil
+	}
+	if err := s.broadcastToNearby(ctx, &existing, event, existing.AttemptNumber,
+		existing.BroadcastRadiusKM); err != nil {
+		return RequestBroadcast{}, err
+	}
+	if err := s.scheduleExpire(existing); err != nil {
+		return RequestBroadcast{}, err
+	}
+	return existing, nil
+}
+
 func (s *Service) ListInbox(ctx context.Context, providerID string, options ListInboxOptions) ([]ProviderRequestInboxItem, error) {
 	if err := validateUUID(providerID, "provider_id"); err != nil {
 		return nil, err
@@ -170,7 +217,7 @@ func (s *Service) GetRequestDetail(ctx context.Context, inboxID, providerID stri
 	if remaining < 0 {
 		remaining = 0
 	}
-	return RequestDetailResponse{
+	detail := RequestDetailResponse{
 		InboxID: inbox.ID, BroadcastID: inbox.BroadcastID, BookingID: inbox.BookingID,
 		Status: inbox.Status, FareAmount: booking.FareAmount, Currency: booking.Currency,
 		PickupAddress: booking.PickupAddress, PickupLat: booking.PickupLat, PickupLng: booking.PickupLng,
@@ -180,7 +227,15 @@ func (s *Service) GetRequestDetail(ctx context.Context, inboxID, providerID stri
 		ServiceTier: normalizeServiceTier(booking.ServiceTier), ServiceTierLabel: serviceTierLabel(booking.ServiceTier),
 		ReceiverName: booking.ReceiverName, ReceiverPhone: booking.ReceiverPhone,
 		RemainingSeconds: remaining, ExpiresAt: inbox.ExpiresAt, ReceivedAt: inbox.ReceivedAt,
-	}, nil
+	}
+	if s.jobCards != nil {
+		card, cardErr := s.jobCards.JobCardForBooking(ctx, inbox.BookingID)
+		if cardErr != nil {
+			return RequestDetailResponse{}, cardErr
+		}
+		detail.Commerce = card
+	}
+	return detail, nil
 }
 
 // Reject marks the provider's inbox entry as rejected and publishes request.rejected (Phase 6H).
@@ -264,6 +319,11 @@ func (s *Service) Accept(ctx context.Context, inboxID, providerID string) (Accep
 	if !broadcast.ExpiresAt.After(s.now()) {
 		return AcceptResponse{}, apperrors.New(http.StatusGone, "gone", "Request window has expired.", nil)
 	}
+	if s.acceptanceGate != nil {
+		if err := s.acceptanceGate.CheckProviderForBooking(ctx, inbox.BookingID, providerID); err != nil {
+			return AcceptResponse{}, err
+		}
+	}
 	if s.redis == nil {
 		return AcceptResponse{}, apperrors.Unavailable("Request acceptance is temporarily unavailable.", nil)
 	}
@@ -320,7 +380,7 @@ func (s *Service) Accept(ctx context.Context, inboxID, providerID string) (Accep
 			PackageDesc: booking.PackageDesc, PackageWeight: booking.PackageWeight,
 			PackageType: booking.PackageType, PackageSize: booking.PackageSize, IsFragile: booking.IsFragile,
 			ServiceTier: normalizeServiceTier(booking.ServiceTier),
-			AcceptedAt: now, OccurredAt: now,
+			AcceptedAt:  now, OccurredAt: now,
 		})
 	}
 	return AcceptResponse{

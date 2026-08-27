@@ -18,6 +18,14 @@ type section17DSource struct {
 }
 
 func seedSection17DSource(t *testing.T, env *s17cEnv, variable, multi bool, now func() time.Time) section17DSource {
+	return seedSection17DSourceWithOptions(t, env, variable, multi, false, now)
+}
+
+func seedSection19VariableMultiSource(t *testing.T, env *s17cEnv, now func() time.Time) section17DSource {
+	return seedSection17DSourceWithOptions(t, env, true, true, true, now)
+}
+
+func seedSection17DSourceWithOptions(t *testing.T, env *s17cEnv, variable, multi, allVariable bool, now func() time.Time) section17DSource {
 	t.Helper()
 	ctx := context.Background()
 	customerID, sessionID := env.seedCheckoutSession(ctx)
@@ -31,7 +39,11 @@ func seedSection17DSource(t *testing.T, env *s17cEnv, variable, multi bool, now 
 	}
 	if multi {
 		productTotal += 2000
-		maxProduct += 2000
+		if variable && allVariable {
+			maxProduct += 2300
+		} else {
+			maxProduct += 2000
+		}
 	}
 	env.exec(ctx, `UPDATE commerce_checkout_sessions SET address_ref=$2,address_snapshotted_at=(SELECT snapshotted_at FROM commerce_cart_addresses WHERE cart_id=$1),quoted_items_total_minor=$3,max_authorized_items_total_minor=$4 WHERE id=$5`, cartID, addressRef, productTotal, maxProduct, sessionID)
 
@@ -52,7 +64,7 @@ func seedSection17DSource(t *testing.T, env *s17cEnv, variable, multi bool, now 
 			id: "cqg_src_b_" + env.suffix, business: env.businessB, branch: env.branchB,
 			lineID: "cql_src_b_" + env.suffix, itemID: "cart_item_b_" + env.suffix,
 			reservation: "reservation_b_" + env.suffix, sourceRef: "reservation_source_b_" + env.suffix,
-			product: 2000, maximum: 2000, delivery: 700, customer: 500, platform: 200,
+			product: 2000, maximum: map[bool]int64{false: 2000, true: 2300}[allVariable], delivery: 700, customer: 500, platform: 200, variable: allVariable,
 		})
 	}
 

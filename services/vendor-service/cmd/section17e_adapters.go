@@ -397,7 +397,8 @@ func loadSection17EAdjustments(
 ) ([]orders.AdjustmentSource, error) {
 	rows, err := q.Query(ctx, `
 		SELECT adjustment_id,adjustment_type,scope,funding_source,source_ref,
-		       description,amount_minor
+		       description,amount_minor,business_id,branch_id,promotion_type,campaign_version,
+		       eligibility_evidence,coupon_digest,platform_approval_ref,calculation_base_minor,delivery_discount_minor,stack_priority,applied_at
 		  FROM commerce_quote_adjustments
 		 WHERE quote_id=$1 ORDER BY adjustment_id`, quoteID)
 	if err != nil {
@@ -410,7 +411,9 @@ func loadSection17EAdjustments(
 		var adjustment orders.AdjustmentSource
 		if err = rows.Scan(&adjustment.AdjustmentID, &adjustment.Type, &adjustment.Scope,
 			&adjustment.FundingSource, &adjustment.SourceRef, &adjustment.Description,
-			&adjustment.AmountMinor); err != nil {
+			&adjustment.AmountMinor, &adjustment.BusinessID, &adjustment.BranchID, &adjustment.PromotionType,
+			&adjustment.CampaignVersion, &adjustment.EligibilityEvidence, &adjustment.CouponDigest,
+			&adjustment.PlatformApprovalRef, &adjustment.CalculationBaseMinor, &adjustment.DeliveryDiscountMinor, &adjustment.StackPriority, &adjustment.AppliedAt); err != nil {
 			return nil, err
 		}
 		adjustments = append(adjustments, adjustment)

@@ -41,6 +41,16 @@ func (h *logisticsEventIngress) allowCaller(c *gin.Context) {
 	c.Next()
 }
 
+func (h *logisticsEventIngress) allowDispatch(c *gin.Context) {
+	caller, _ := c.Get("service_name")
+	name, _ := caller.(string)
+	if name != DispatchServiceCaller {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+	c.Next()
+}
+
 func (h *logisticsEventIngress) consumeNonce(c *gin.Context) {
 	caller, _ := c.Get("service_name")
 	nonce := strings.TrimSpace(c.GetHeader(serviceauth.HeaderNonce))
@@ -95,8 +105,31 @@ func (h *logisticsEventIngress) post(c *gin.Context) {
 	}})
 }
 
-// RegisterInternalLogisticsRoutes mounts the only service boundary that can
-// advance platform-delivered orders. It is root-mounted and HMAC protected.
+func (h *logisticsEventIngress) postDispatchCommerce(c *gin.Context) {
+	var request DispatchCommerceEvent
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 256<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "invalid_envelope"})
+		return
+	}
+	if err := h.service.ApplyDispatchCommerceEvent(c, request); err != nil {
+		status, code := http.StatusServiceUnavailable, "projection_unavailable"
+		if errors.Is(err, ErrOrderConflict) {
+			status, code = http.StatusBadRequest, "invalid_envelope"
+		} else if errors.Is(err, ErrOrderNotFound) {
+			// A callback may win the race with Vendor's response persistence.
+			// Retrying the same event id is correct and the outbox will do so.
+			status, code = http.StatusServiceUnavailable, "mission_projection_not_ready"
+		}
+		c.JSON(status, gin.H{"status": "REJECTED", "code": code})
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{"status": "ACCEPTED", "code": "accepted"})
+}
+
+// RegisterInternalLogisticsRoutes mounts the legacy logistics boundary that
+// advances platform-delivered orders. It is root-mounted and HMAC protected.
 func RegisterInternalLogisticsRoutes(router *gin.Engine, service *Service, verifier *serviceauth.Verifier) {
 	if router == nil || service == nil || verifier == nil {
 		return
@@ -105,4 +138,17 @@ func RegisterInternalLogisticsRoutes(router *gin.Engine, service *Service, verif
 	group := router.Group("/internal/vendor/v1")
 	group.Use(serviceauth.Middleware(verifier), handler.allowCaller, handler.consumeNonce)
 	group.POST("/commerce/logistics-events", handler.post)
+}
+
+// RegisterDispatchCommerceEventRoutes is kept separate from the accepted
+// Section 17E logistics ingress so historical contract tests and callers of
+// that registrar do not silently acquire a later capability route.
+func RegisterDispatchCommerceEventRoutes(router *gin.Engine, service *Service, verifier *serviceauth.Verifier) {
+	if router == nil || service == nil || verifier == nil {
+		return
+	}
+	handler := &logisticsEventIngress{service: service}
+	commerce := router.Group("/api/v1/internal/dispatch/v1/commerce")
+	commerce.Use(serviceauth.Middleware(verifier), handler.allowDispatch, handler.consumeNonce)
+	commerce.POST("/events", handler.postDispatchCommerce)
 }

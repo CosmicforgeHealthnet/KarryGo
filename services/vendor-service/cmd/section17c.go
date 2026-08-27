@@ -333,6 +333,24 @@ func buildSection17CFulfilmentService(
 
 		ConsolidationRadiusMeters: cfg.Fulfilment.ConsolidationRadiusMeters,
 		PlanTTL:                   cfg.Fulfilment.PlanTTL,
+
+		Optimization: fulfilment.OptimizationPolicy{
+			ProximityRadiusMeters:  cfg.Fulfilment.ProximityRadiusMeters,
+			ColocationRadiusMeters: cfg.Fulfilment.ConsolidationRadiusMeters,
+		},
+
+		// The runtime multi-pickup capability, declared as data.
+		//
+		// Both are false today and that is the whole reason consolidated
+		// multi-stop candidates are rejected rather than executed. Taxi is
+		// absent for the same reason it has no quote authority above: it has
+		// no production goods-delivery capability at all, so declaring
+		// anything about its multi-stop support would be declaring something
+		// about a service that will never be asked.
+		MultiPickup: map[fulfilment.Service]bool{
+			fulfilment.ServiceDispatch: cfg.Fulfilment.DispatchMultiPickupSupported,
+			fulfilment.ServiceHauling:  cfg.Fulfilment.HaulingMultiPickupSupported,
+		},
 	})
 	if err != nil {
 		return nil

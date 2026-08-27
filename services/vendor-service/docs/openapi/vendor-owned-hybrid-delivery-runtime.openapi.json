@@ -1,0 +1,28 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Vendor-owned and Hybrid delivery runtime", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/vendor/delivery/rider/availability": {
+      "get": {"summary": "Read the authenticated Vendor Rider availability", "responses": {"200": {"description": "Availability"}}},
+      "put": {"summary": "Set authenticated Vendor Rider online availability", "parameters": [{"in": "header", "name": "If-Match", "required": true, "schema": {"type": "integer"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Availability updated"}}}
+    },
+    "/api/v1/vendor/delivery/rider/missions": {
+      "get": {"summary": "List missions assigned to the authenticated Vendor Rider", "responses": {"200": {"description": "Assigned missions"}}}
+    },
+    "/api/v1/vendor/delivery/rider/missions/current": {
+      "get": {"summary": "Read the authenticated Vendor Rider current mission", "responses": {"200": {"description": "Current mission"}, "404": {"description": "No current mission"}}}
+    },
+    "/api/v1/vendor/delivery/rider/missions/{missionId}": {
+      "get": {"summary": "Read one mission assigned to the authenticated Vendor Rider", "parameters": [{"in": "path", "name": "missionId", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Assigned mission"}, "404": {"description": "Not assigned"}}}
+    },
+    "/api/v1/vendor/delivery/rider/missions/{missionId}/actions/{action}": {
+      "post": {"summary": "Execute one controlled Vendor Rider mission action", "parameters": [{"in": "path", "name": "missionId", "required": true, "schema": {"type": "string"}}, {"in": "path", "name": "action", "required": true, "schema": {"type": "string", "enum": ["acknowledge", "start-pickup", "arrive-pickup", "complete-pickup", "start-receiver", "arrive-receiver", "complete-delivery", "receiver-unavailable", "return"]}}, {"in": "header", "name": "If-Match", "required": true, "schema": {"type": "integer"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Action applied"}, "503": {"description": "Secure handover authority unavailable"}}}
+    },
+    "/api/v1/vendor/fulfilment/vendor-missions/{missionId}/fallbacks": {
+      "post": {"summary": "Start or recover a pre-custody Vendor to platform fallback", "parameters": [{"in": "path", "name": "missionId", "required": true, "schema": {"type": "string"}}, {"in": "header", "name": "If-Match", "required": true, "schema": {"type": "integer"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Fallback operation"}, "409": {"description": "Custody or plan conflict"}}}
+    },
+    "/api/v1/vendor/fulfilment/vendor-missions/fallbacks/{operationRef}": {
+      "get": {"summary": "Inspect a durable Hybrid fallback operation", "parameters": [{"in": "path", "name": "operationRef", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Fallback operation"}}}
+    }
+  }
+}

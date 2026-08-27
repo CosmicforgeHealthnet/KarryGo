@@ -31,21 +31,25 @@ import (
 	vendorauthhttp "cosmicforge/logistics/services/vendor-service/internal/features/auth/http"
 	vendorauthrepositories "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/services/vendor-service/internal/features/basket"
 	"cosmicforge/logistics/services/vendor-service/internal/features/cart"
 	"cosmicforge/logistics/services/vendor-service/internal/features/checkout"
 	"cosmicforge/logistics/services/vendor-service/internal/features/checkoutquote"
-	"cosmicforge/logistics/services/vendor-service/internal/features/cloudkitchen"
+	"cosmicforge/logistics/services/vendor-service/internal/features/cloud_kitchen"
 	"cosmicforge/logistics/services/vendor-service/internal/features/cost"
 	"cosmicforge/logistics/services/vendor-service/internal/features/crm"
 	"cosmicforge/logistics/services/vendor-service/internal/features/delivery"
+	financeprojection "cosmicforge/logistics/services/vendor-service/internal/features/finance_projection"
 	"cosmicforge/logistics/services/vendor-service/internal/features/food"
 	"cosmicforge/logistics/services/vendor-service/internal/features/fulfilment"
+	"cosmicforge/logistics/services/vendor-service/internal/features/fulfilmentgroup"
 	"cosmicforge/logistics/services/vendor-service/internal/features/inventory"
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	"cosmicforge/logistics/services/vendor-service/internal/features/pastry"
 	"cosmicforge/logistics/services/vendor-service/internal/features/production"
 	"cosmicforge/logistics/services/vendor-service/internal/features/productionbatch"
 	"cosmicforge/logistics/services/vendor-service/internal/features/productionmaster"
+	"cosmicforge/logistics/services/vendor-service/internal/features/promotions"
 	"cosmicforge/logistics/services/vendor-service/internal/features/purchasing"
 	"cosmicforge/logistics/services/vendor-service/internal/features/recipes"
 	"cosmicforge/logistics/services/vendor-service/internal/features/searchprojection"
@@ -90,10 +94,41 @@ import (
 //
 // Section 17F adds two: the customer payment-binding start and its read. They
 // exist only when a money authority is wired, and a fully enabled deployment
-// has one. The accepted fully enabled surface is 752.
+// has one. Section 20 adds production operations; Section 21 Prompt 2 adds
+// RFQ counter-offer/conversion operations and tenant-scoped recurring feeding
+// operations. The Promotions and Delivery Funding capability adds six Vendor
+// management routes plus one definition update route, taking the accepted
+// fully enabled surface to 810.
+//
+// The fulfilment group, parcel and mission model adds thirteen vendor staff
+// routes: the group read and its plan history, the parcel list/pack/read/
+// custody/manifest/return operations, the pickup-readiness command, and the
+// four vendor-owned mission routes. Every one is a read or a vendor-executed
+// action; none creates or mutates a platform logistics mission, because that
+// mission belongs to the service that owns it.
+//
+// Multi-vendor consolidation and mission planning adds eleven customer
+// routes, all of them under the commerce base: two optimization entry points
+// (budget shopping and Optimize My Cart), two proposal routes (read and
+// accept), and seven recurring-basket routes (create, list, read, edit, pause
+// or resume, occurrence history, and shop-now).
+//
+// Ten of the eleven are read-or-propose. The single exception is the proposal
+// acceptance, which is the only route in the capability that changes anything
+// the customer owns - and what it changes is their cart, by creating a new
+// version of it.
+//
+// The planning surface itself gained no route. The customer's delivery
+// preference travels in the existing plan request's body, because it is a
+// CHOICE among alternatives the server built rather than a new thing to ask
+// for.
+//
+// Dispatch Commerce delivery adds one HMAC-v2 lifecycle callback. It projects
+// mission, stop and parcel evidence and exposes no customer or Vendor-staff
+// command surface.
 //
 // The figure is measured from production route registration, never targeted.
-const ExpectedRouteCount = 769
+const ExpectedRouteCount = 855
 
 // allFlagsOn enables every CRM module, because the inventory must describe the
 // full surface a fully-enabled deployment exposes.
@@ -138,6 +173,7 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	staffhttp.RegisterRoutes(protected, staffHandler)
 	vendors.RegisterRoutes(protected, vendorHandler)
 	vendors.RegisterOnboardingRoutes(protected, vendorHandler)
+	financeprojection.RegisterRoutes(protected, financeprojection.NewHandler(nil), true, store)
 	crm.RegisterRoutes(protected, crm.NewHandler(crmService), flags)
 	crm.RegisterSegmentationRoutes(protected, crm.NewSegmentationHandler(crmService, store), flags)
 	crm.RegisterActivityRoutes(protected, crm.NewActivityHandler(crmService, store), flags)
@@ -210,11 +246,22 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 		delivery.NewHandler(delivery.NewService(nil, nil, true)),
 		true,
 	)
+	promotions.RegisterRoutes(protected, promotions.NewHandler(promotions.NewService(nil, nil, nil, true)), true)
 
 	// Section 17E: the vendor order queue and its lifecycle commands. Like the
 	// delivery policy above it belongs to the vendor staff base, because it is
 	// driven by vendor staff IAM rather than by a customer token.
 	orders.RegisterVendorRoutes(protected, &orders.Service{}, true)
+	orders.RegisterSection21VendorRoutes(protected, orders.NewSection21Service(orders.Section21Options{Enabled: true}), true)
+
+	// The post-order fulfilment aggregate: groups, pickup obligations, parcels,
+	// versioned plans, vendor-owned missions and the read-only projections of
+	// platform logistics missions. Vendor staff base, same reason as above.
+	fulfilmentgroup.RegisterRoutes(
+		protected,
+		fulfilmentgroup.NewHandler(fulfilmentgroup.NewService(fulfilmentgroup.Options{Enabled: true})),
+		true,
+	)
 
 	// Section 13: canonical taxonomy classification (vendor) plus the two
 	// root-mounted internal surfaces registered below.
@@ -237,6 +284,12 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 		customerSigner,
 		true,
 	)
+	basket.RegisterCustomerRoutes(
+		customerCommerce,
+		basket.NewHandler(&basket.Service{}),
+		customerSigner,
+		true,
+	)
 	checkoutquote.RegisterCustomerRoutes(
 		customerCommerce,
 		&checkoutquote.Service{},
@@ -253,6 +306,7 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 		// Section 17F: the fully-enabled surface includes payment.
 		true,
 	)
+	orders.RegisterSection21CustomerRoutes(router, orders.NewSection21Service(orders.Section21Options{Enabled: true}), customerSigner, true)
 
 	staffhttp.RegisterInternalRoutes(router, nil, verifier)
 	vendors.RegisterInternalOnboardingRoutes(router, vendorHandler, verifier)
@@ -263,6 +317,8 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	inventory.RegisterInternalRoutes(router, inventory.NewInternalInventoryHandler(
 		nil, []string{"order-service"}), verifier, inventoryFlags)
 	orders.RegisterInternalLogisticsRoutes(router, &orders.Service{}, verifier)
+	orders.RegisterDispatchCommerceEventRoutes(router, &orders.Service{}, verifier)
+	orders.RegisterSupportResolutionRoutes(router, &orders.Service{}, verifier)
 	searchFlags := searchprojection.Flags{SearchEnabled: true, AdminEnabled: true}
 	searchprojection.RegisterInternalSearchRoutes(router, searchprojection.NewInternalHandler(searchprojection.InternalHandlerOptions{
 		Callers: []string{"order-service"}, Flags: searchFlags,
@@ -484,7 +540,7 @@ func documentedOperations(t *testing.T) map[string]bool {
 // rather than which decade a row was written in. The parse is otherwise
 // deliberately loose — it asks only whether each live route is mentioned
 // somewhere, because a stricter parse would fail on table formatting.
-var registerPathPattern = regexp.MustCompile(`(/(?:api/v1/vendor|internal|auth|staff|roles|permissions|businesses|onboarding|assignments|crm)[A-Za-z0-9_\-/{}:\.]*)`)
+var registerPathPattern = regexp.MustCompile(`(/(?:api/v1/vendor|api/v1/internal|internal|auth|staff|roles|permissions|businesses|onboarding|assignments|crm)[A-Za-z0-9_\-/{}:\.]*)`)
 
 func normalizeRegisterPath(path string) string {
 	segments := strings.Split(path, "/")

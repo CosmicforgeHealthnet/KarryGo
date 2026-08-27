@@ -743,6 +743,12 @@ authority and creates no ParentOrder or VendorOrder.
 
 ## Section 17C - Fulfilment planning and logistics integration
 
+The delivery-policy extension in Vendor migration `000096_delivery_policy_hybrid_execution`
+adds branch-scoped PLATFORM/VENDOR/HYBRID policy evidence, bounded fallback
+and custody/replan state. It reuses the existing Dispatch and Hauling quote
+contracts; no logistics-service schema, provider-matching, transfer, or return
+authority was fabricated here.
+
 Section 17C is the first Vendor Service section that required real code changes
 in another service. Both were additive and both are registered here.
 
@@ -836,12 +842,10 @@ only Vendor Service migration `000079`. No route, migration, event, allowlist,
 secret or deployment change is required in Customer, Wallet, Dispatch,
 Hauling, Taxi or any order service.
 
-The production promotion authority is intentionally `NoPromotions` because no
-existing repository service owns a production-ready promotion evaluation
-contract. Vendor/platform delivery funding already resolved by Section 17C is
-still preserved and attributed. A future promotion authority may implement the
-narrow `PromotionAuthority` port; Section 17D does not invent eligibility or
-move that authority into Vendor Service by assumption.
+At Section 17D closure the production promotion authority was intentionally
+`NoPromotions`. That historical state is superseded by the Promotions and
+Delivery Funding capability below, which implements the existing narrow
+`PromotionAuthority` port without replacing CheckoutQuote.
 
 Payment/Wallet release or refund is only represented as a pure future replan
 disposition. No Wallet call is wired and no external payment configuration is
@@ -962,3 +966,238 @@ deduplicated Dispatch/Hauling event inbox. Inventory, Wallet, ParentOrder,
 payment legs and missions remain Section 17 authorities. Platform logistics
 events are accepted only for the matching mission and Vendor Own Delivery has
 no Dispatch/Hauling dependency. Taxi remains unchanged and unused.
+
+## Shop picking, substitution and variable measurement
+
+Customer Service now owns `customer_quality_preferences` and exposes the
+HMAC-protected read contract `/api/v1/customer/internal/customers/{customerId}/quality-preferences`.
+Vendor Service consumes it through `internal/integrations/customer` and stores
+an immutable order snapshot. The receiving deployment must allowlist the
+`vendor-service` caller in its existing service-secret configuration. No
+cross-service database read is permitted. Wallet capability responses remain
+the source of truth for adjustable-authorisation versus cap-and-refund; an
+unknown capability fails closed.
+
+## Kitchen, bakery and production operations
+
+Vendor Service only: migration `000091_vendor_production_operations` extends
+the existing ProductionJob authority and adds the Orders timing projection.
+No new cross-service route, database dependency, logistics fare mutation or
+notification transport was introduced.
+## Section 21 commerce
+
+Vendor Service adds additive scheduled/group/RFQ evidence tables and routes,
+plus immutable RFQ payment-policy/obligation and corporate recurring
+schedule/occurrence/proposal tables. It reuses the existing Production
+reservation, Orders conversion, CheckoutQuote/Checkout, Wallet and Fulfilment
+authorities. No Dispatch, Hauling, Inventory authority, split payment or
+corporate credit authority is introduced.
+
+## Promotions and delivery funding
+
+| Service | Status | Change |
+|---|---|---|
+| payment-wallet-service | **CHANGED** | HMAC-v2 internal apply/read operations and migration `000009_commerce_delivery_funding` provide exact customer/Vendor/Platform attribution, platform approval evidence, idempotent read-back, balanced ledger effects and delivery-provider earnings. |
+| driver-dispatch-delivery-service | **NOT_TOUCHED** | Existing quote/mission authority is reused; promotion and funding rules remain outside Dispatch. |
+| driver-hauling-service | **NOT_TOUCHED** | Existing quote/mission authority is reused; promotion and funding rules remain outside Hauling. |
+
+Vendor Service migration `000097_promotion_campaigns_and_delivery_funding`
+owns campaign/usage evidence, immutable quote/order snapshots and a Wallet
+operation projection. CheckoutQuote remains the commercial calculator. Vendor
+staff may create only Vendor-funded campaigns and Vendor-funded HYBRID fallback
+policies. Platform/combined funding requires a stored external approval
+reference and fails closed without it.
+
+## Payment and Wallet commerce extension
+
+| Service | Status | Change |
+|---|---|---|
+| payment-wallet-service | **CHANGED** | Migration `000010_commerce_payment_allocation_authority`; one parent commerce intent, immutable allocations, maximum hold, isolated release/refund, Vendor payable owner, scoped bank/withdrawal/read-back, audit and outbox evidence. |
+| vendor-service | **CHANGED** | Migration `000098_vendor_finance_and_wallet_allocation_projection`; single-intent order adapter, durable allocation fingerprint, settlement/refund integration, and authenticated Vendor Finance façade. |
+| driver-dispatch-delivery-service | **NOT_TOUCHED** | Existing commerce mission and delivery fact authority preserved; Wallet exposes the service-authorized provider-delivery release capability. |
+| driver-hauling-service | **NOT_TOUCHED** | Existing commerce mission and delivery fact authority preserved. |
+| customer-service | **NOT_TOUCHED** | Existing customer references remain authoritative; no identity or Wallet logic duplicated. |
+
+## Commerce settlement and refund model
+
+| Service | Status | Change |
+|---|---|---|
+| payment-wallet-service | **CHANGED** | Migration `000011`; existing Commerce allocation refund now records exact customer/funder outputs, escrow/released-beneficiary recovery sources, Platform-loss funding, component reductions and authorization release with allocation-local caps. Authenticated Dispatch/Hauling delivery release is caller/provider-bound and resolves its immutable allocation fingerprint without exposing Vendor-only intent reads. |
+| vendor-service | **CHANGED** | Migration `000099`; deterministic versioned policy evidence, recovery/read-back, truthful projections, exact Inventory item release and Support handoff. No new public route. |
+| driver-dispatch-delivery-service | **CHANGED** | Existing commerce-trip completion now invokes Wallet provider-delivery release with Dispatch-owned assigned-provider identity and a stable key. |
+| driver-hauling-service | **CHANGED** | Existing commerce booking completion/recovery now invokes Wallet provider-delivery release with Hauling-owned assigned-provider identity and a stable key. |
+| support-dispute-service | **CHANGED** | Existing HMAC-v2 organization-case route is allowlisted for `vendor-service`; Support remains the case/adjudication authority and receives no amount instruction. |
+| customer-service | **NOT_TOUCHED** | Customer identity and references are reused; no financial authority added. |
+| notification-service | **NOT_TOUCHED** | Existing order/outbox notifications are reused; no settlement transport is added. |
+| driver-taxi-service | **NOT_TOUCHED** | Taxi remains outside Commerce fulfilment settlement. |
+
+Deployment requires the existing matching HMAC v2 secret for `vendor-service`
+in Payment Wallet. Dispatch/Hauling secrets remain required only for scoped
+delivery-release/read-back operations they own.
+
+## Fulfilment group, parcel and mission model
+
+| Service | Status | Detail |
+|---|---|---|
+| `vendor-service` | **CHANGED** | New `internal/features/fulfilmentgroup`, migration `000100`, 13 routes, one OpenAPI contract, a narrow `FulfilmentProjection` port on the orders feature |
+| `driver-dispatch-delivery-service` | **NOT_TOUCHED** | `shared/go/commercemission` is reused unchanged; its commerce ingress and event emission are as they were |
+| `driver-hauling-service` | **NOT_TOUCHED** | Same |
+| `driver-taxi-service` | **DEFERRED** | No commerce mission ingress exists. `AuthorityTaxi` is modelled in the vocabulary so a future integration needs no schema change; `ActiveForCommerce()` returns false and selection is refused at plan validation and reservation. Nothing was added to this service |
+| `payment-wallet-service` | **NOT_TOUCHED** | Remains the financial authority. The plan stores a cost snapshot as evidence only |
+| `support-dispute-service` | **NOT_TOUCHED** | Section 24's escalation path is unchanged |
+| `notification-service` | **NOT_TOUCHED** | No new notification |
+| `customer-service` | **NOT_TOUCHED** | — |
+
+### External limitations, reported rather than worked around
+
+- **Multi-stop pickup: PARTIAL.** `shared/go/commercemission.Request` carries
+  one `Pickup` and one `Dropoff`. Vendor Service models multi-pickup fully and
+  declares the authorities' real capability
+  (`MultiStopPickup: false`); a replan therefore plans compatible units onto
+  separate missions rather than one the authority would have to fail. No
+  logistics service was redesigned to change this.
+- **Provider transfer: PARTIAL.** No authority emits a transfer event today.
+  `CustodyTransferred` is modelled and safe to record the moment one does;
+  Vendor Service does not fabricate it.
+- **Mission replacement notification: PARTIAL.** No authority reports that it
+  replaced a mission. `ReplacePlatformMission` exists and preserves both rows,
+  but is currently driven only from within this service.
+
+---
+
+## Dispatch Commerce delivery integration
+
+| Service | Change | Boundary |
+|---|---|---|
+| `driver-dispatch-delivery-service` | MODIFIED | Canonical route-aware multi-pickup quote, mission, marketplace, custody, recovery, return and targeted lifecycle outbox authority; migration `000042`; 13 routes. |
+| `vendor-service` | MODIFIED | Immutable plan/parcel adapter, `PlatformMissionRef` projection and one HMAC-v2 lifecycle callback. No Dispatch state authority. |
+| `shared/go/dispatchcommerce` | ADDED | Versioned V1 wire contract and HMAC client. No business authority or persistence. |
+| `payment-wallet-service` | NOT_TOUCHED | Existing funding, refund and provider/Vendor settlement authorities remain unchanged. |
+| `driver-hauling-service` | NOT_TOUCHED | Existing hauling execution is unchanged. |
+| `driver-taxi-service` | NOT_TOUCHED | Goods delivery remains out of scope. |
+| Fleet partner service | NOT_TOUCHED | Commerce jobs use the public provider marketplace and are not Fleet private orders. |
+
+The Dispatch outbox targets Vendor Service for mission, stop and parcel facts.
+Vendor's Section 24 refund policy consumes failure evidence independently;
+Dispatch never moves customer money or edits Vendor payable.
+
+---
+
+## Delivery Requirement and Vehicle Selection Engine
+
+**No platform service was changed.** No new credential, allowlist entry, secret
+or configuration is required in any other service.
+
+| Service | Change | Note |
+|---|---|---|
+| `driver-dispatch-delivery-service` | NOT_TOUCHED | Its motorcycle envelope (25 kg / 80 L / 700 mm, insulated-box handling) is the authority. Vendor Service's capability policy mirrors it deliberately: a looser limit would produce plans dispatch then refuses, a tighter one would refuse work dispatch would take. |
+| `driver-hauling-service` | NOT_TOUCHED | Owns both `VAN` and `TRUCK`, and resolves the actual truck type — flatbed, box, refrigerated — inside its own matcher. Vendor Service does not model those sub-types; duplicating the taxonomy would create two vocabularies that drift. |
+| `driver-taxi-service` | NOT_TOUCHED | A two-file scaffold with no goods concept. The car class is modelled and permanently gated. **Enabling it is not a configuration change** — it requires building goods mode in that service. |
+| `payment-wallet-service` | NOT_TOUCHED | No financial engine, ledger or fee exists in this work. `declared_value_minor` is risk metadata that may exclude a carrier class and never becomes a charge. |
+| `notification-service` | NOT_TOUCHED | — |
+| `api-gateway` | NOT_TOUCHED | No routes were added. |
+| `shared/go/commercequote` | NOT_TOUCHED | Remains the canonical wire vocabulary: `MOTORCYCLE`, `VAN`, `TRUCK`. `CAR` is a Vendor-side conceptual class only and is never sent. |
+
+### Future work this section does not perform
+
+- **Taxi goods mode.** Would make `VehicleCar.GoodsModeActive` meaningful. It
+  needs a goods capability, a commerce mission ingress and a quote contract in
+  `driver-taxi-service`, plus `CAR` in `shared/go/commercequote.VehicleClass`.
+- **Multi-pickup runtime.** `ServiceabilitySnapshot.MultiPickup` and
+  `VehicleCapability.SupportsMulti` exist so this becomes configuration rather
+  than a redesign. Both dispatch and hauling would first need to model a
+  multi-stop mission; `shared/go/commercemission.Request` carries one pickup.
+
+
+## Multi-Vendor Consolidation and Mission Planning
+
+| Service | Status | Note |
+|---|---|---|
+| `driver-dispatch-delivery-service` | NOT_TOUCHED | Read for a quote through the existing `shared/go/commercequote` contract. Multi-pickup remains NOT_PRESENT and is declared as configuration, not asserted in code. |
+| `driver-hauling-service` | NOT_TOUCHED | As above. |
+| `driver-taxi-service` | NOT_TOUCHED | Still no goods capability. Deliberately not wired, as before. |
+| `payment-wallet-service` | NOT_TOUCHED | Nothing in this capability holds, moves, refunds or projects money. The optimizer is composed with no Wallet dependency at all, which is what makes "a hundred candidate baskets create zero payment intents" structural. |
+| `customer-service` | NOT_TOUCHED | Remains the customer identity authority. Commerce-owned preference and template records reference the customer; none duplicates a profile. |
+| `notification-service` | NOT_TOUCHED | No notification is sent by this capability yet. See below. |
+| `support-dispute-service` | NOT_TOUCHED | An optimizer finding no cheap basket is a structured no-solution response, not a support case. |
+| `media-file-service` | NOT_TOUCHED | No media. |
+| `api-gateway` | NOT_TOUCHED | No routes added there. |
+| `shared/go/commercequote` | NOT_TOUCHED | Still one pickup per request, which is exactly why the multi-stop gate fails closed. |
+| `shared/go/commercemission` | NOT_TOUCHED | Quote-only planning never reaches it. |
+
+### Configuration this capability adds
+
+All Vendor Service only, all defaulting to off or to the platform default:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `COMMERCE_BASKET_OPTIMIZATION_ENABLED` | `false` | Master switch for Optimize My Cart and budget shopping. Requires fulfilment planning and checkout. |
+| `COMMERCE_RECURRING_BASKET_ENABLED` | `false` | Recurring baskets. Separate because recurring generation is the only part that runs without a customer asking. |
+| `COMMERCE_BASKET_PROPOSAL_TTL_SECONDS` | `600` | How long an offer stands. |
+| `COMMERCE_BASKET_EXPIRY_INTERVAL_SECONDS` | `60` | Proposal expiry sweep. |
+| `COMMERCE_RECURRING_BASKET_INTERVAL_SECONDS` | `60` | Recurrence sweep. Affects promptness only; correctness rests on the unique index. |
+| `COMMERCE_FULFILMENT_PROXIMITY_RADIUS_METERS` | `3000` | Candidate-construction bound. Must be at least the consolidation radius, refused at boot otherwise. |
+| `DISPATCH_MULTI_PICKUP_SUPPORTED` | `false` | Declares the runtime capability. Refused at boot unless the dispatch integration is enabled, so the flag cannot sit in a config file looking as though it did something. |
+| `HAULING_MULTI_PICKUP_SUPPORTED` | `false` | As above. |
+
+### Future work this capability does not perform
+
+- **Multi-pickup runtime.** The planning model, the capability declaration, the
+  stop-count computation and the reason code all exist, so enabling it is a
+  configuration change plus real work in the logistics services: both would
+  need to model a multi-stop mission, and
+  `shared/go/commercemission.Request` carries one pickup.
+- **Notifications.** A recurring occurrence awaiting approval is a good
+  candidate for `notification-service`, and none is sent today. The generation
+  is readable through the occurrence list; a customer who does not open the app
+  will not be told.
+- **An ordinal quality signal.** Until the catalogue carries one,
+  QUALITY_BALANCED will keep reporting itself unavailable, which is the honest
+  outcome rather than a gap to paper over.
+
+## Vendor-owned and Hybrid delivery runtime — current dependency status
+
+This entry supersedes the historical Section 5 OTP/QR absence classification.
+`shared/go/handover` and Dispatch now provide a secure authority for Dispatch
+Commerce missions, so the platform capability is `PARTIAL`. No approved
+VendorMission-compatible adapter exists. Vendor pickup, receiver completion
+and return therefore remain fail-closed behind `VendorHandoverAuthority`; no
+competing credential domain or secret storage was added.
+
+Wallet changed through migration `000012_commerce_delivery_responsibility_transition`
+and an internal HMAC v2 command/read-back contract. Dispatch is reused through
+its accepted Section 28 quote/create/read-back APIs and receives no Section 31
+schema or route change. Customer Service, Support, Hauling and Taxi are not
+touched by this capability.
+
+## Operational evidence, delivery exceptions, returns and provider transfer
+
+| Service | Change | Note |
+|---|---|---|
+| `driver-dispatch-delivery-service` | CHANGED | Extends the canonical Commerce mission with immutable manifest freeze, append-only evidence, controlled exceptions/returns and two-provider post-custody transfer; migration `000043`; seven routes. |
+| `vendor-service` | CHANGED | Adds migration `000105`, an authenticated projection of Dispatch operational facts, and fulfilment/custody history mapping. It does not become mission or evidence authority. |
+| `shared/go/handover` | CHANGED | Adds a distinct provider-transfer challenge step to the existing HMAC authority; no second OTP system. |
+| `shared/go/dispatchcommerce` | CHANGED | Carries manifest version/timestamp, package count, custodian and evidence metadata. |
+| `media-file-service` | REUSED | Remains the private media-byte/access authority; only opaque refs are stored elsewhere. |
+| `payment-wallet-service` | REUSED | Remains the sole ledger and existing completion settlement authority. No split is needed because the old provider cannot complete after replacement begins. |
+| `driver-hauling-service` | NOT_TOUCHED | No safe multi-Parcel transfer runtime was inferred from its single-pickup proof model. |
+| `notification-service` | REUSED | Existing outbox/notification integrations only; no new notification authority. |
+| `support-dispute-service` | REUSED | Controlled `SUPPORT` recovery may be projected; no automatic support case is fabricated. |
+
+Section 31 remains truthful: Vendor secure handover is partial/dependency-gated
+and Vendor Rider → platform provider post-custody transfer is not present.
+
+## Realtime, notifications and confidence ETA
+
+| Service | Change | Note |
+|---|---|---|
+| `vendor-service` | CHANGED | Migration `000106`; immutable mission ETA history/current pointer, deterministic confidence engine, scheduled cutoff worker, typed outbox notification intents and existing customer/vendor read-model enrichment. No new route. |
+| `notification-service` | CHANGED | Migration `002`; durable source aggregate/event/version/correlation provenance and controlled Commerce templates. Existing preference, retry, in-app, WebSocket, push and email machinery is reused. No business-domain state added. |
+| `driver-dispatch-delivery-service` | CHANGED | Existing Commerce events now carry authoritative plan, route, provider and stop-progress evidence. Existing Dispatch-owned receiver credential flow submits its notification intent through Notification Service. No migration or route added. |
+| `driver-hauling-service` | REUSED | Existing provider notification ownership and delivery events remain unchanged; no unsupported Commerce ETA adapter was fabricated. |
+| `customer-service` | REUSED | Customer identity/preferences remain authoritative; no frontend or duplicate ETA state added. |
+| `payment-wallet-service` | REUSED | Existing refund completion projection supplies notification facts; money authority is unchanged. |
+| `support-dispute-service` | REUSED | Existing support facts may produce bounded Vendor action intents; no support authority moved. |
+
+All outbound user delivery remains Notification Service-owned. Vendor and
+Dispatch provide only controlled semantic data and opaque recipient references.

@@ -13,6 +13,7 @@ package delivery
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -99,9 +100,14 @@ func (s *Service) AuthorizeBranch(
 }
 
 const policyColumns = `id, business_id, branch_id, enabled, currency,
+	delivery_mode, fee_rule, operating_timezone,
 	base_fee_minor, per_km_fee_minor, minimum_order_minor,
 	free_delivery_threshold_minor, max_delivery_radius_meters,
-	max_package_weight_grams, estimated_minutes_base, estimated_minutes_per_km,
+	max_package_weight_grams, max_package_count, max_volume_ml,
+	estimated_minutes_base, estimated_minutes_per_km, rider_availability,
+	service_zones, distance_tiers, operating_periods,
+	supported_vehicle_classes, fallback_triggers,
+	hybrid_fallback_funding_sponsor, hybrid_vendor_share_bps, hybrid_platform_approval_ref,
 	created_at, updated_at, version`
 
 type rowScanner interface {
@@ -110,6 +116,7 @@ type rowScanner interface {
 
 func scanPolicy(row rowScanner) (Policy, error) {
 	var policy Policy
+	var zones, tiers, periods, vehicles, triggers []byte
 
 	err := row.Scan(
 		&policy.ID,
@@ -117,14 +124,28 @@ func scanPolicy(row rowScanner) (Policy, error) {
 		&policy.BranchID,
 		&policy.Enabled,
 		&policy.Currency,
+		&policy.Mode,
+		&policy.FeeRule,
+		&policy.OperatingTimezone,
 		&policy.BaseFeeMinor,
 		&policy.PerKmFeeMinor,
 		&policy.MinimumOrderMinor,
 		&policy.FreeDeliveryThresholdMinor,
 		&policy.MaxDeliveryRadiusMeters,
 		&policy.MaxPackageWeightGrams,
+		&policy.MaxPackageCount,
+		&policy.MaxVolumeMl,
 		&policy.EstimatedMinutesBase,
 		&policy.EstimatedMinutesPerKm,
+		&policy.RiderAvailability,
+		&zones,
+		&tiers,
+		&periods,
+		&vehicles,
+		&triggers,
+		&policy.HybridFallbackFunding,
+		&policy.HybridVendorShareBPS,
+		&policy.HybridPlatformApprovalRef,
 		&policy.CreatedAt,
 		&policy.UpdatedAt,
 		&policy.Version,
@@ -134,6 +155,27 @@ func scanPolicy(row rowScanner) (Policy, error) {
 	}
 
 	policy.Currency = strings.ToUpper(strings.TrimSpace(policy.Currency))
+	if policy.OperatingTimezone == "" {
+		policy.OperatingTimezone = "UTC"
+	}
+	if policy.Mode == "" {
+		policy.Mode = ModeVendor
+	}
+	if policy.FeeRule == "" {
+		policy.FeeRule = FeeDistanceTier
+	}
+	if policy.RiderAvailability == "" {
+		policy.RiderAvailability = RiderUnknown
+	}
+	if policy.HybridFallbackFunding == "" {
+		policy.HybridFallbackFunding = FallbackFundingVendor
+		policy.HybridVendorShareBPS = 10000
+	}
+	_ = json.Unmarshal(zones, &policy.ServiceZones)
+	_ = json.Unmarshal(tiers, &policy.DistanceTiers)
+	_ = json.Unmarshal(periods, &policy.OperatingPeriods)
+	_ = json.Unmarshal(vehicles, &policy.SupportedVehicleClasses)
+	_ = json.Unmarshal(triggers, &policy.FallbackTriggers)
 
 	return policy, nil
 }
@@ -256,6 +298,46 @@ func (in PolicyInput) validate() error {
 		return ErrInvalid
 	}
 
+	policy := Policy{
+		Mode: in.Mode, FeeRule: in.FeeRule, Currency: currency,
+		BaseFeeMinor: in.BaseFeeMinor, PerKmFeeMinor: in.PerKmFeeMinor,
+		MinimumOrderMinor:          in.MinimumOrderMinor,
+		FreeDeliveryThresholdMinor: in.FreeDeliveryThresholdMinor,
+		MaxDeliveryRadiusMeters:    in.MaxDeliveryRadiusMeters,
+		MaxPackageWeightGrams:      in.MaxPackageWeightGrams,
+		MaxPackageCount:            in.MaxPackageCount, MaxVolumeMl: in.MaxVolumeMl,
+		OperatingTimezone: in.OperatingTimezone, ServiceZones: in.ServiceZones,
+		DistanceTiers: in.DistanceTiers, OperatingPeriods: in.OperatingPeriods,
+		SupportedVehicleClasses:   in.SupportedVehicleClasses,
+		FallbackTriggers:          in.FallbackTriggers,
+		HybridFallbackFunding:     in.HybridFallbackFunding,
+		HybridVendorShareBPS:      in.HybridVendorShareBPS,
+		HybridPlatformApprovalRef: in.HybridPlatformApprovalRef,
+		RiderAvailability:         in.RiderAvailability,
+	}
+	// Vendor IAM cannot authorize Platform spend. Platform/combined policies
+	// may exist only as pre-authorized projections written by the platform
+	// authority, never through this public Vendor command.
+	if policy.HybridFallbackFunding != "" && policy.HybridFallbackFunding != FallbackFundingVendor {
+		return ErrForbidden
+	}
+	if policy.HybridFallbackFunding == "" {
+		policy.HybridFallbackFunding = FallbackFundingVendor
+		policy.HybridVendorShareBPS = 10000
+	}
+	if policy.Mode == "" {
+		policy.Mode = ModeVendor
+	}
+	if policy.FeeRule == "" {
+		policy.FeeRule = FeeDistanceTier
+	}
+	if policy.OperatingTimezone == "" {
+		policy.OperatingTimezone = "UTC"
+	}
+	if err := policy.Validate(); err != nil {
+		return ErrInvalid
+	}
+
 	return nil
 }
 
@@ -329,49 +411,95 @@ func (s *Service) UpsertPolicy(
 	}
 
 	currency := strings.ToUpper(strings.TrimSpace(in.Currency))
+	mode := in.Mode
+	if mode == "" {
+		mode = ModeVendor
+	}
+	feeRule := in.FeeRule
+	if feeRule == "" {
+		feeRule = FeeDistanceTier
+	}
+	timezone := strings.TrimSpace(in.OperatingTimezone)
+	if timezone == "" {
+		timezone = "UTC"
+	}
+	zones, _ := json.Marshal(in.ServiceZones)
+	tiers, _ := json.Marshal(in.DistanceTiers)
+	periods, _ := json.Marshal(in.OperatingPeriods)
+	vehicles, _ := json.Marshal(in.SupportedVehicleClasses)
+	triggers, _ := json.Marshal(in.FallbackTriggers)
+	rider := in.RiderAvailability
+	if rider == "" {
+		rider = RiderUnknown
+	}
+	hybridSponsor := in.HybridFallbackFunding
+	hybridVendorShare := in.HybridVendorShareBPS
+	if hybridSponsor == "" {
+		hybridSponsor = FallbackFundingVendor
+		hybridVendorShare = 10000
+	}
+	if hybridSponsor == FallbackFundingVendor && hybridVendorShare == 0 {
+		hybridVendorShare = 10000
+	}
 
 	var after Policy
 
 	if existed {
 		after, err = scanPolicy(tx.QueryRow(ctx, `
-			UPDATE vendor_delivery_policies
-			   SET enabled = $3,
-			       currency = $4,
-			       base_fee_minor = $5,
-			       per_km_fee_minor = $6,
-			       minimum_order_minor = $7,
-			       free_delivery_threshold_minor = $8,
-			       max_delivery_radius_meters = $9,
-			       max_package_weight_grams = $10,
-			       estimated_minutes_base = $11,
-			       estimated_minutes_per_km = $12,
-			       updated_at = now(),
+		UPDATE vendor_delivery_policies
+		   SET enabled = $3,
+		       currency = $4,
+		       delivery_mode = $5, fee_rule = $6, operating_timezone = $7,
+		       base_fee_minor = $8, per_km_fee_minor = $9,
+		       minimum_order_minor = $10,
+		       free_delivery_threshold_minor = $11,
+		       max_delivery_radius_meters = $12,
+		       max_package_weight_grams = $13,
+		       max_package_count = $14, max_volume_ml = $15,
+		       estimated_minutes_base = $16,
+		       estimated_minutes_per_km = $17,
+		       rider_availability = $18,
+		       service_zones = $19, distance_tiers = $20,
+		       operating_periods = $21, supported_vehicle_classes = $22,
+		       fallback_triggers = $23,
+		       hybrid_fallback_funding_sponsor = $24,
+		       hybrid_vendor_share_bps = $25,
+		       hybrid_platform_approval_ref = $26,
+		       updated_at = now(),
 			       version = version + 1
 			 WHERE business_id = $1 AND branch_id = $2
 			RETURNING `+policyColumns,
 			actor.VendorID, branchID,
-			in.Enabled, currency,
+			in.Enabled, currency, mode, feeRule, timezone,
 			in.BaseFeeMinor, in.PerKmFeeMinor, in.MinimumOrderMinor,
 			in.FreeDeliveryThresholdMinor, in.MaxDeliveryRadiusMeters,
-			in.MaxPackageWeightGrams,
-			in.EstimatedMinutesBase, in.EstimatedMinutesPerKm,
+			in.MaxPackageWeightGrams, in.MaxPackageCount, in.MaxVolumeMl,
+			in.EstimatedMinutesBase, in.EstimatedMinutesPerKm, rider,
+			zones, tiers, periods, vehicles, triggers,
+			hybridSponsor, hybridVendorShare, "",
 		))
 	} else {
 		after, err = scanPolicy(tx.QueryRow(ctx, `
 			INSERT INTO vendor_delivery_policies (
 				id, business_id, branch_id, enabled, currency,
+				delivery_mode, fee_rule, operating_timezone,
 				base_fee_minor, per_km_fee_minor, minimum_order_minor,
 				free_delivery_threshold_minor, max_delivery_radius_meters,
-				max_package_weight_grams,
-				estimated_minutes_base, estimated_minutes_per_km
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+				max_package_weight_grams, max_package_count, max_volume_ml,
+				estimated_minutes_base, estimated_minutes_per_km, rider_availability,
+				service_zones, distance_tiers, operating_periods,
+				supported_vehicle_classes, fallback_triggers,
+				hybrid_fallback_funding_sponsor, hybrid_vendor_share_bps, hybrid_platform_approval_ref
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
 			RETURNING `+policyColumns,
 			"vdp_"+uuid.NewString(), actor.VendorID, branchID,
-			in.Enabled, currency,
+			in.Enabled, currency, mode, feeRule, timezone,
 			in.BaseFeeMinor, in.PerKmFeeMinor, in.MinimumOrderMinor,
 			in.FreeDeliveryThresholdMinor, in.MaxDeliveryRadiusMeters,
-			in.MaxPackageWeightGrams,
-			in.EstimatedMinutesBase, in.EstimatedMinutesPerKm,
+			in.MaxPackageWeightGrams, in.MaxPackageCount, in.MaxVolumeMl,
+			in.EstimatedMinutesBase, in.EstimatedMinutesPerKm, rider,
+			zones, tiers, periods, vehicles, triggers,
+			hybridSponsor, hybridVendorShare, "",
 		))
 	}
 	if err != nil {

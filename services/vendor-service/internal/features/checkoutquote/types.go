@@ -6,6 +6,7 @@ package checkoutquote
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -87,13 +88,24 @@ type AddressSnapshot struct {
 }
 
 type Adjustment struct {
-	ID            string         `json:"id"`
-	Type          AdjustmentType `json:"type"`
-	Scope         string         `json:"scope"`
-	FundingSource FundingSource  `json:"funding_source"`
-	SourceRef     string         `json:"source_ref"`
-	Description   string         `json:"description,omitempty"`
-	AmountMinor   int64          `json:"amount_minor"`
+	ID                    string          `json:"id"`
+	Type                  AdjustmentType  `json:"type"`
+	Scope                 string          `json:"scope"`
+	FundingSource         FundingSource   `json:"funding_source"`
+	SourceRef             string          `json:"source_ref"`
+	Description           string          `json:"description,omitempty"`
+	AmountMinor           int64           `json:"amount_minor"`
+	BusinessID            string          `json:"business_id,omitempty"`
+	BranchID              string          `json:"branch_id,omitempty"`
+	PromotionType         string          `json:"promotion_type,omitempty"`
+	CampaignVersion       int64           `json:"campaign_version,omitempty"`
+	EligibilityEvidence   json.RawMessage `json:"eligibility_evidence,omitempty"`
+	CouponDigest          string          `json:"coupon_digest,omitempty"`
+	PlatformApprovalRef   string          `json:"platform_approval_ref,omitempty"`
+	CalculationBaseMinor  int64           `json:"calculation_base_minor,omitempty"`
+	DeliveryDiscountMinor int64           `json:"delivery_discount_minor,omitempty"`
+	StackPriority         int             `json:"stack_priority,omitempty"`
+	AppliedAt             *time.Time      `json:"applied_at,omitempty"`
 }
 
 // FundingBreakdown keeps the customer benefit attributable. A delivery
@@ -228,6 +240,8 @@ type PromotionContext struct {
 	DeliverySubtotalMinor int64
 	Groups                []GroupSnapshot
 	Lines                 []LineSnapshot
+	CouponCode            string
+	At                    time.Time
 }
 
 type PromotionAuthority interface {

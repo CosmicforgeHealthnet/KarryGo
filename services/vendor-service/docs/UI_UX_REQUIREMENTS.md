@@ -46,12 +46,12 @@ Plain-language UI/UX requirements generated from Vendor Service's backend/produc
 | Purchasing (purchase orders) | `features/purchasing` | NOT_STARTED |
 | Goods receiving | `features/purchasing` | NOT_STARTED |
 | Recipes / ingredients | `features/recipes` | NOT_STARTED |
-| Kitchen / production board | `features/production` | **IMPLEMENTED BACKEND â€” Sections 10/11** |
+| Kitchen / production board | `features/production` | **IMPLEMENTED BACKEND â€” Sections 10/11/20** |
 | Orders (incoming vendor orders, accept/reject) | `features/orders` | NOT_STARTED |
 | Substitutions (propose/respond) | `features/substitutions` | NOT_STARTED |
-| Delivery (vendor-owned rider dispatch, or platform-delivery status) | `features/delivery`, `fulfilment` | NOT_STARTED |
-| Own riders (vendor-owned delivery staff) | `features/delivery`, `staff` | NOT_STARTED |
-| Promotions | `features/promotions` | NOT_STARTED |
+| Delivery (PLATFORM/VENDOR/HYBRID policy, fallback and custody evidence) | `features/delivery`, `fulfilment` | **IMPLEMENTED BACKEND — delivery policy and smart hybrid Prompt 1** |
+| Own riders (vendor-owned execution state) | `features/delivery`, `staff` | **IMPLEMENTED BACKEND — execution state only; no fleet-management product** |
+| Promotions | `features/promotions` | **IMPLEMENTED BACKEND — management and CheckoutQuote application; no frontend built** |
 | Finance (payable summary, settlement status) | `features/finance_projection`, `integrations/wallet` | NOT_STARTED |
 | Reports | `features/analytics` | NOT_STARTED |
 | Settings | (cross-feature) | NOT_STARTED |
@@ -1402,3 +1402,364 @@ history. Customers see only their own substitution prompts and approve or
 reject with the displayed version. Refunds render `REFUND_PENDING`,
 `REFUNDED`, or `PARTIALLY_REFUNDED` from Wallet authority. Delivery displays
 distinguish Vendor Own Delivery from Dispatch/Hauling platform progression.
+
+Shop picker UI must preserve the original agreement beside the final result:
+ordered quantity, variant/sell unit, estimate and maximum, replacement
+snapshot, actual quantity, unit price, refund/reapproval and final total.
+Multiple quality preferences are displayed independently; a quality failure is
+never presented as an automatic substitution decision. Customer substitution
+prompts are case-based and remain the source of truth until a durable accepted,
+rejected, expired or auto-refund state is returned.
+## Section 21 commerce
+
+Show explicit scheduled status, capacity reservation status and tentative
+vehicle class as planning evidence (not a driver/provider assignment). Group
+participants can only edit their own open selections; the organizer is the
+single payer. RFQ status transitions are server-controlled and must not be
+rendered as an order until conversion succeeds. RFQ screens must show the
+immutable payment/deposit policy snapshot and Wallet-backed conversion status.
+Corporate feeding screens show timezone, weekday, headcount, allowance,
+destination and menu rotation snapshots; generated occurrences are immutable.
+
+## Promotions and delivery funding UI handoff
+
+No frontend was implemented. A future Vendor screen uses the seven
+`/api/v1/vendor/promotions` operations and must show promotion type, lifecycle,
+scope (branch/capability/category/item/variant/CRM segment), inclusive start and
+exclusive end, order threshold, usage limits, coupon state, bundle lines,
+quantity tiers, combinability/priority and immutable version. All money is
+integer minor units; percentage input is basis points.
+
+Show gross delivery cost separately from customer contribution and Vendor/
+Platform funding. “Free delivery” means customer contribution zero, never cost
+zero. Vendor staff cannot select Platform or Combined campaign funding and
+cannot configure Platform-funded HYBRID gaps; those values may only be shown
+when a platform-approved projection is returned. Never display coupon digests,
+Wallet controls, customer segment membership data, or editable historical order
+snapshots. Conflicts from `If-Match` require refresh rather than overwrite.
+
+## Commerce settlement and refund UX handoff
+
+Keep operational and financial status visually separate: `CANCELLED` or
+`REJECTED` can coexist with `REFUND_PENDING`, and a Support case is not a
+refund. Show one refund row per affected VendorOrder/item/delivery difference,
+including bounded reason, amount returned to the customer, status and safe
+operation/case reference. Do not expose internal recovery-source, ledger
+account, funding-approval or provider-account identifiers.
+
+For multi-vendor purchases, group outcomes beneath their VendorOrder so one
+vendor's rejection never makes siblings appear refunded. Vendor-owned delivery
+earnings and platform-provider delivery earnings must be labelled according to
+the frozen delivery responsibility. Prepared Food and Shop return/refund copy
+must remain distinct.
+
+## Fulfilment group, parcel and mission model
+
+Backend only. These are the experience requirements the implemented API
+supports; no screen was built.
+
+### Vendor operations
+
+**Order fulfilment view.** One order's delivery plan: how many deliveries it
+needs, who is carrying each, and where each one is. Split fulfilment must be
+visible as split — an order needing two vehicles must never be shown as one
+delivery.
+
+**Packing.** Staff create packages against a pickup obligation, record what went
+in each, and mark the obligation ready. A unit may legitimately need several
+packages; the interface must support that rather than assuming one. After
+collection, the package contents become read-only: they are the record of what
+was handed over.
+
+**Plan history.** When a delivery is replanned, the operator needs to see what
+changed and why — "Plan v3 (capacity overflow), previously v2 (provider
+unavailable), originally v1". Reasons come from a controlled list; route
+internals are not exposed.
+
+**Own delivery.** For vendor-executed deliveries: the mission, its assigned
+rider, its packages, its pickup and receiver, and the step-by-step execution
+actions. Steps are ordered and enforced server-side — there is no way to mark a
+delivery complete without having gone through it, and the interface should not
+offer one.
+
+**Platform delivery.** A read-only progress view: which KarryGo service is
+carrying it, the mission reference, and the last reported status with its
+timestamp. No control anywhere may change it.
+
+**Returns.** A returned package is the same package. The interface must keep
+showing the same reference and the same history, with the return as a stage of
+that journey rather than a new item.
+
+### Customer-facing handoff
+
+- An order with more than one delivery must say so plainly ("Your order arrives
+  in 2 deliveries") and track each separately.
+- Package references are stable and safe to show throughout, including after a
+  replan, a provider change or a return.
+- A delivery whose plan changed should communicate the outcome, not the
+  mechanism: the arrival estimate and who is bringing it, not the routing
+  decision behind it.
+
+### Deferred
+
+Taxi is not a commerce delivery option. It exists in the domain vocabulary so a
+future integration needs no rework, but `driver-taxi-service` has no commerce
+mission ingress and the server refuses it. Do not present it as a choice.
+
+---
+
+## Delivery Requirement and Vehicle Selection
+
+Backend only in this section — no frontend was implemented. What follows is
+what the surfaces will need, and what they must not show.
+
+### Vendor Web
+
+On an order's fulfilment view, show the delivery requirement beside the plan:
+weight, volume, package count, the largest single package, and the handling
+requirements the load carries. State plainly whether the figures are the
+catalogue **estimate** or the **confirmed** packing measurement — a vendor
+looking at "18 kg" needs to know whether that is what was promised or what was
+weighed.
+
+Show the selected vehicle with its reason in plain language, and when the plan
+escalated, say why. "A larger vehicle was required" is the message; the
+thresholds behind it are not. A vendor does not need to know the motorcycle
+limit is 25 kg, and publishing it invites gaming.
+
+Three states need their own treatment because they are actions, not
+information:
+
+- **Own delivery cannot carry this load.** The vendor's fleet does not cover
+  the class the order needs. Show which class it needs and that the platform
+  will carry it, since under HYBRID that is what happens next.
+- **Plan changed after packing.** The confirmed weight moved the order to a
+  different vehicle. Show both figures. This is the single most likely support
+  question the feature will generate.
+- **No suitable delivery method.** Say what cannot be satisfied — a
+  temperature conflict, an unserviceable route — rather than a bare failure.
+
+A temperature conflict deserves specific copy. "These items cannot travel
+together" with the conflicting requirements named is actionable; a generic
+error leaves the vendor repacking at random.
+
+### Customer app
+
+Say what is happening, never why in engine terms:
+
+- "Delivery will use a motorcycle" / "Your order requires a van"
+- "Your order requires a larger vehicle" when a plan escalates
+- **"Delivery plan changed; your approved price has not increased"** — the
+  reassurance matters more than the change. An operational escalation never
+  alters a customer-approved price.
+
+Do not surface reason codes, thresholds, candidate ladders or policy versions.
+They are operator and support vocabulary.
+
+### Support / operations console
+
+The requirement snapshot is designed to answer four questions directly, and
+the console should ask them in these words:
+
+- Why was a van chosen? → primary reason plus the selected class.
+- Why could a motorcycle not be used? → the candidate ladder, which records
+  every class that was refused and the single reason each was refused for.
+- Why did delivery change after packing? → estimated versus confirmed
+  measurement, both retained.
+- Why is this order not serviceable? → the decision-level reason code.
+
+One operations view is worth building early: how often the minimum physical
+class differs from the class actually executed. On this platform today that
+gap is usually the disabled taxi integration rather than heavy orders, and it
+is invisible without the comparison.
+
+
+## Multi-vendor consolidation, delivery preference and basket optimization
+
+### The delivery preference
+
+Three options, and the copy should say what each BUYS rather than naming the
+mode:
+
+- **Fastest** - arrives soonest. May cost more, and may arrive as two separate
+  deliveries.
+- **Balanced** - the default. Chosen when the customer expresses no preference.
+- **Saver** - lowest delivery cost, inside a wider arrival window.
+
+Show each option's own delivered price and arrival estimate where the design
+allows. They come from real logistics quotes, so they are comparable.
+
+**Never show a mode as unavailable without a reason.** When a preference cannot
+be honoured it is because a safety or service constraint refused it, and the
+constraint is the useful half of the message.
+
+### Explaining a split delivery
+
+The plan carries every alternative it considered. The customer-facing sentence
+is short; the evidence behind it is not.
+
+- "Arriving in 2 deliveries" with a one-line reason.
+- "These items cannot travel together" for a temperature or fragility split.
+- "One of your shops is not ready until later" for a ready-window split.
+- "These two shops are too far apart to combine" for the multi-stop case.
+
+**Do not phrase the multi-stop case as a customer problem.** It is a platform
+limitation today, and copy blaming the shops for it is both wrong and
+unhelpful.
+
+### Support and operations
+
+Support needs a view of the alternatives that answers, without recalculating:
+
+- Why were these vendors combined? -> the selected candidate and its reason.
+- Why was the order split? -> the rejected consolidated candidate and ITS
+  reason.
+- Why did Fastest cost more? -> both candidates' delivered totals side by side.
+- Why could Saver not combine these pickups? -> the constraint code plus the
+  captured runtime capability.
+
+One operations view is worth building early: how often
+`MULTI_STOP_UNSUPPORTED` is the reason an order was split. That number turns "a
+runtime limitation" into a figure somebody can prioritise against.
+
+### Optimize My Cart
+
+The panel must read as a SUGGESTION throughout. A customer who opened it to
+look has not asked for their basket to be rearranged.
+
+- Show the delta, not just the new total: what changes, from which shop to
+  which, and how much it saves DELIVERED.
+- Name every substitution with what it replaces and why the two are considered
+  the same thing.
+- Call out a vendor change separately from a product change. People often care
+  more about which shop than which tin.
+- Two buttons with equal weight: **Accept changes** and **Keep my cart**.
+- After acceptance, tell the customer the total will be reconfirmed at
+  checkout. It is not a caveat; it is why the number they are about to see may
+  differ.
+
+### Budget shopping
+
+Inputs: budget, what they need, and their constraints - required brand,
+substitutions allowed, quality floor.
+
+Results are variants, each with merchandise, delivery, DELIVERED total, shop
+count and an arrival range. Lead with the delivered total; it is the only
+number they pay.
+
+When nothing fits, do not show an empty state. Show:
+
+- the cheapest basket that DOES satisfy every constraint,
+- how far over budget it is,
+- and which of the customer's OWN constraints is holding it there.
+
+The last one is the actionable part. "Over budget because prices are what they
+are" is true and useless; "over budget because you required one brand" is
+something they can change.
+
+When a requirement cannot be met at any price, say so as its own state. It is
+not a budget problem and must not read as one.
+
+### Recurring baskets
+
+Present a template as a SHOPPING LIST, never as a saved order. That distinction
+is the whole product: it re-shops every week, which is why it keeps working
+when a shop runs out.
+
+Each occurrence shows the comparison - same shops versus optimized - with the
+merchandise, delivery, total, shop-count and arrival deltas.
+
+Approval settings need care. The default is "ask me every time", and the
+auto-approve options must state their bound in the customer's own words:
+"automatically buy when nothing has changed, up to a limit I set". A spending
+limit is mandatory for those options, and the form must say why rather than
+just refusing.
+
+**Never imply a generated basket has been bought.** A proposal is waiting for
+them; nothing has been ordered and nothing has been charged.
+
+## Dispatch Commerce delivery states
+
+- Render pickup stops in the server-provided sequence. Keep each Vendor's name,
+  ready window, manifest and handover state visible even when stops share the
+  same coordinates.
+- A queued mission is still active. Use “Finding a rider” for
+  `NO_PROVIDER_QUEUED`; reserve failure treatment for the bounded terminal
+  reason supplied by the authority.
+- Show parcel identity consistently through provider replacement, transfer and
+  return. Never generate a replacement parcel number in the client.
+- Receiver unavailable must offer only server-permitted next actions:
+  reschedule or return. The UI cannot mark a mission delivered.
+- Pickup and receiver codes are short-lived secrets: mask them outside the
+  active handover screen, never log them, and distinguish expired, invalid and
+  attempt-limit responses.
+- Delivery failures do not themselves mean “Refunded”. Show financial status
+  only from the normal Vendor/Wallet projection.
+
+## Operational evidence and recovery frontend handoff
+
+- Show the immutable manifest reference/version, exact Parcel list and package
+  count at every pickup and provider-transfer confirmation. Never substitute a
+  mission-level total for the stop confirmation.
+- Photo capture from the live camera is a provider-app UX control. The backend
+  validates evidence type, capture time, coordinates and opaque media refs but
+  does not claim to attest camera UX. Upload bytes privately through Media File
+  Service; do not embed base64 or expose public evidence URLs.
+- Render only the recovery actions returned by policy. Alternative receiver
+  and controlled holding are not currently available; do not synthesize them.
+- Keep `RETURNING`, `RETURNED`, `REPLACEMENT_REQUIRED`, `TRANSFER_PENDING` and
+  `PROVIDER_TRANSFERRED` distinct. None implies a refund or a charge.
+- A provider-transfer screen is two-party and must show the same mission,
+  Parcels, package count, old/new provider and transfer location. Mask the
+  short-lived challenge and never copy it into receiver verification.
+- Prepared Food return wording must not promise Shop restock or resale.
+- No provider frontend is implemented by Sections 33–35.
+
+## Confidence ETA and notification UX handoff
+
+- Display an ETA range, never a second-level predicted timestamp. Use the
+  server's mission ordering and keep split-delivery ranges separate.
+- Display LOW/MEDIUM/HIGH confidence and freshness without inventing a numeric
+  percentage. An empty mission ETA means authoritative route evidence is not
+  yet available.
+- Keep promised delivery windows distinct from predictions. `AT_RISK`,
+  `DELAYED`, `RECOVERED` and `NOT_APPLICABLE` are presentation states, not
+  permission to rewrite the promise.
+- Realtime ETA/order/parcel/mission notifications must trigger server read-back
+  after reconnect or version gaps. Deduplicate by source event/version.
+- Vendor views may show provider assigned/arrived/pickup and the current
+  customer-delivery range. Customer views must not expose provider-private
+  fields.
+- Dispatch receiver codes may be shown only after the authoritative credential
+  exists. VendorMission receiver handover remains dependency-gated; do not
+  fabricate a code or reuse a Dispatch code.
+- Notification channel preference and copy belong to Notification Service.
+  Frontends cannot supply templates, transport destinations or recipients.
+## Section 39 Analytics UX Requirements
+
+Analytics surfaces should be quiet operational dashboards: compact metric
+cards, tables and trend charts with explicit time windows. Each report must
+show `window_start`, `window_end` and `data_as_of`.
+
+Demand and lost-opportunity values must be labeled `ESTIMATE`. Price
+intelligence must suppress low-sample cohorts and must never display competitor
+identity, individual competitor price or confidential branch data.
+
+Reliability presentation must show the score status and calculation version,
+and must not visually imply verification, trust badge, star rating or
+popularity ranking.
+
+Order Guarantee is future-disabled and must not appear as a customer-facing
+claim or compensation feature.
+
+## Section 40 security repair UX
+
+- Treat HTTP 429 on marketplace search, quote creation, Commerce support/report
+  creation and Analytics reads as a bounded cooldown state; do not vary copy in
+  a way that reveals a private account or resource.
+- A restricted-goods response is a server policy decision. Do not offer a
+  Vendor/customer override. Pharmacy and medicinal Commerce are excluded.
+- Evidence MediaRefs remain opaque. If attachment is rejected because the ref
+  is not authorized for the exact mission/Parcel, request a new private upload;
+  never turn the ref into a public URL or attach it to another mission.
+- No frontend capability is implemented by this security repair.

@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS commerce_platform_operational_events;

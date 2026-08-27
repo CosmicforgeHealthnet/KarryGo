@@ -15,6 +15,7 @@ func section17DBaseConfig() Config {
 		QuoteTimeout:              8 * time.Second,
 		PlanTTL:                   15 * time.Minute,
 		ConsolidationRadiusMeters: 150,
+		ProximityRadiusMeters:     3000,
 		ExpiryInterval:            time.Minute,
 	}
 	cfg.Quote = QuoteConfig{TTL: 5 * time.Minute}

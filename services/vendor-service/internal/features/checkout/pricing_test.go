@@ -196,3 +196,20 @@ func TestReservationQuantityRefusesAnIncoherentBasis(t *testing.T) {
 		t.Fatal("an unknown reservation basis was accepted")
 	}
 }
+
+func TestUpperReservationQuantityCeilsFrozenOverfill(t *testing.T) {
+	got, err := UpperReservationQuantity(200, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 220 {
+		t.Fatalf("upper=%d want=220", got)
+	}
+	got, err = UpperReservationQuantity(201, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 202 {
+		t.Fatalf("ceil upper=%d want=202", got)
+	}
+}

@@ -230,6 +230,8 @@ func PlanPaymentLegs(order ParentOrder) ([]PaymentLeg, error) {
 
 	legs := make([]PaymentLeg, 0, len(order.VendorOrders)+1)
 	var total int64
+	var authorizedTotal int64
+	var hasVariable bool
 
 	vendors := append([]VendorOrder(nil), order.VendorOrders...)
 	sort.Slice(vendors, func(i, j int) bool { return vendors[i].ID < vendors[j].ID })
@@ -239,6 +241,23 @@ func PlanPaymentLegs(order ParentOrder) ([]PaymentLeg, error) {
 			return nil, ErrPaymentNotBound
 		}
 		total += vendorOrder.CustomerPayableMinor
+		legAmount := vendorOrder.CustomerPayableMinor
+		// Variable-measure lines are charged against their frozen commercial
+		// maximum, not merely their estimate.  The excess is still inside the
+		// parent authorization and is released/refunded after the authoritative
+		// actual is recorded.
+		for _, line := range vendorOrder.Lines {
+			if line.PricingBasis != "VARIABLE_MEASURE" || line.MaxAuthorizedTotalMinor <= line.QuotedTotalMinor {
+				continue
+			}
+			hasVariable = true
+			delta := line.MaxAuthorizedTotalMinor - line.QuotedTotalMinor
+			if legAmount > int64(^uint64(0)>>1)-delta {
+				return nil, ErrPaymentNotBound
+			}
+			legAmount += delta
+		}
+		authorizedTotal += legAmount
 		if vendorOrder.CustomerPayableMinor == 0 {
 			// A zero-value allocation needs no payment. It still exists as a
 			// VendorOrder; it simply has nothing for the customer to pay.
@@ -249,7 +268,7 @@ func PlanPaymentLegs(order ParentOrder) ([]PaymentLeg, error) {
 			VendorOrderID:  vendorOrder.ID,
 			BusinessID:     vendorOrder.BusinessID,
 			BranchID:       vendorOrder.BranchID,
-			AmountMinor:    vendorOrder.CustomerPayableMinor,
+			AmountMinor:    legAmount,
 			IdempotencyKey: "vendor-order-payment-" + vendorOrder.ID,
 		})
 	}
@@ -258,6 +277,7 @@ func PlanPaymentLegs(order ParentOrder) ([]PaymentLeg, error) {
 		return nil, ErrPaymentNotBound
 	}
 	total += order.PlatformFeeTaxMinor
+	authorizedTotal += order.PlatformFeeTaxMinor
 	if order.PlatformFeeTaxMinor > 0 {
 		legs = append(legs, PaymentLeg{
 			Scope:          ScopePlatformLeg,
@@ -267,6 +287,9 @@ func PlanPaymentLegs(order ParentOrder) ([]PaymentLeg, error) {
 	}
 
 	if total != order.CustomerApprovedTotalMinor {
+		return nil, ErrAllocationImbalance
+	}
+	if hasVariable && order.MaxAuthorizedTotalMinor < authorizedTotal {
 		return nil, ErrAllocationImbalance
 	}
 	if len(legs) == 0 {
@@ -314,9 +337,10 @@ type PaymentLegRecord struct {
 
 	// AuthorityStatus is the raw status the Wallet authority reported, kept
 	// verbatim so a Vendor-side reading can always be checked against it.
-	AuthorityStatus string    `json:"authority_status,omitempty"`
-	Status          LegStatus `json:"status"`
-	FailureReason   string    `json:"failure_reason,omitempty"`
+	AuthorityStatus               string    `json:"authority_status,omitempty"`
+	AllocationSnapshotFingerprint string    `json:"allocation_snapshot_fingerprint,omitempty"`
+	Status                        LegStatus `json:"status"`
+	FailureReason                 string    `json:"failure_reason,omitempty"`
 
 	RefundedMinor int64 `json:"refunded_minor"`
 	SettledMinor  int64 `json:"settled_minor"`
@@ -385,12 +409,155 @@ type PaymentAuthority interface {
 	RefundLeg(ctx context.Context, request RefundLegRequest) (RefundResult, error)
 }
 
+// CommercePaymentAuthority is the Wallet extension that keeps one customer
+// charge while preserving independently releasable VendorOrder allocations.
+// The legacy per-leg port remains for backwards compatibility with narrow
+// test authorities and already-created operations.
+type CommercePaymentAuthority interface {
+	AuthorizeCommercePayment(ctx context.Context, request CommercePaymentRequest) (CommercePaymentResult, error)
+	GetCommercePayment(ctx context.Context, parentOrderID string) (CommercePaymentResult, error)
+}
+
+type CommercePaymentRequest struct {
+	ParentOrderID         string
+	CustomerID            string
+	CustomerEmail         string
+	QuoteID               string
+	QuoteVersion          int64
+	QuoteFingerprint      string
+	FinalAuthorizedMinor  int64
+	MaxAuthorizedMinor    int64
+	AllocationFingerprint string
+	Currency              string
+	PaymentMethod         string
+	IdempotencyKey        string
+	Allocations           []CommerceAllocationRequest
+}
+
+type CommerceAllocationRequest struct {
+	AllocationReference           string
+	Scope                         string
+	VendorOrderID                 string
+	VendorID                      string
+	BranchID                      string
+	DeliveryResponsibility        string
+	CustomerPayableMinor          int64
+	MaxAuthorizedMinor            int64
+	MerchandiseGrossMinor         int64
+	VendorProductDiscountMinor    int64
+	PlatformProductDiscountMinor  int64
+	PlatformCommissionMinor       int64
+	DeliveryCustomerMinor         int64
+	VendorDeliverySubsidyMinor    int64
+	PlatformDeliverySubsidyMinor  int64
+	OtherFundingMinor             int64
+	VendorMerchandisePayableMinor int64
+	VendorDeliveryPayableMinor    int64
+	ProviderDeliveryPayableMinor  int64
+	PlatformRevenueMinor          int64
+	Snapshot                      map[string]any
+	SnapshotFingerprint           string
+}
+
+type CommercePaymentResult struct {
+	IntentID               string
+	Reference              string
+	Status                 string
+	FinalAuthorizedMinor   int64
+	MaxAuthorizedMinor     int64
+	AllocationFingerprint  string
+	AllocationFingerprints map[string]string
+}
+
+func (r CommercePaymentResult) Held() bool {
+	return r.Status == "HELD" || r.Status == "PARTIALLY_RELEASED" || r.Status == "RELEASED"
+}
+
+// PaymentCapabilityAuthority is the Wallet's explicit strategy answer. A
+// deployment must not infer capability from gateway/provider names.
+type PaymentCapabilityAuthority interface {
+	PaymentCapability(ctx context.Context, parentOrderID, operationRef string) (PaymentCapability, error)
+}
+
 // PaymentSettlementAuthority is the optional extension implemented by the
 // real Wallet adapter. Keeping it separate preserves compatibility with
 // narrow test authorities and makes settlement capability explicit.
 type PaymentSettlementAuthority interface {
 	CompleteLeg(ctx context.Context, sourceService, sourceReference string) (LegResult, error)
 }
+
+// CommerceSettlementAuthority releases or refunds exactly one immutable
+// VendorOrder allocation beneath the single parent commerce payment.
+type CommerceSettlementAuthority interface {
+	ReleaseCommerceAllocation(ctx context.Context, request CommerceReleaseRequest) (CommerceFinancialResult, error)
+	RefundCommerceAllocation(ctx context.Context, request CommerceRefundRequest) (CommerceFinancialResult, error)
+}
+
+// CommerceAllocationStateAuthority exposes Wallet's authoritative, allocation-
+// local accounting view. Refund orchestration uses it to decide whether value
+// must be recovered from escrow or an already-released beneficiary; it never
+// infers balances from the Vendor Service projection.
+type CommerceAllocationStateAuthority interface {
+	GetCommerceAllocationState(ctx context.Context, parentOrderID, vendorOrderID string) (CommerceAllocationState, error)
+	GetCommerceRefundOperation(ctx context.Context, idempotencyKey string) (CommerceFinancialResult, error)
+}
+
+type CommerceAllocationState struct {
+	SnapshotFingerprint                   string
+	CustomerPayableMinor                  int64
+	MaxAuthorizedMinor                    int64
+	VendorReleasedMinor                   int64
+	DeliveryReleasedMinor                 int64
+	RefundCustomerMinor                   int64
+	RefundPlatformFundingMinor            int64
+	RefundOtherFundingMinor               int64
+	RefundEscrowRecoveryMinor             int64
+	RefundVendorRecoveryMinor             int64
+	RefundProviderRecoveryMinor           int64
+	RefundPlatformRecoveryMinor           int64
+	RefundPlatformLossFundingMinor        int64
+	RefundVendorMerchandiseReductionMinor int64
+	RefundVendorDeliveryReductionMinor    int64
+	RefundProviderDeliveryReductionMinor  int64
+	RefundPlatformRevenueReductionMinor   int64
+	RefundAuthorizationReleaseMinor       int64
+}
+
+type CommerceReleaseRequest struct {
+	VendorOrderID              string
+	CompletionReference        string
+	SnapshotFingerprint        string
+	ReleaseVendorOwnedDelivery bool
+	IdempotencyKey             string
+}
+
+type CommerceRefundRequest struct {
+	VendorOrderID                   string
+	ItemReference                   string
+	CustomerRefundMinor             int64
+	PlatformFundingReversalMinor    int64
+	OtherFundingReversalMinor       int64
+	EscrowRecoveryMinor             int64
+	VendorRecoveryMinor             int64
+	ProviderRecoveryMinor           int64
+	PlatformRecoveryMinor           int64
+	PlatformLossFundingMinor        int64
+	VendorMerchandiseReductionMinor int64
+	VendorDeliveryReductionMinor    int64
+	ProviderDeliveryReductionMinor  int64
+	PlatformRevenueReductionMinor   int64
+	AuthorizationReleaseMinor       int64
+	SnapshotFingerprint             string
+	IdempotencyKey                  string
+}
+
+type CommerceFinancialResult struct {
+	Reference   string
+	Status      string
+	AmountMinor int64
+}
+
+func (r CommerceFinancialResult) Applied() bool { return r.Status == "APPLIED" }
 
 // HoldLegRequest asks the Wallet authority to hold one leg in escrow.
 //
@@ -417,10 +584,11 @@ type HoldLegRequest struct {
 
 // LegResult is the Wallet authority's answer about one leg.
 type LegResult struct {
-	IntentID   string
-	Reference  string
-	Status     string
-	AmountKobo int64
+	IntentID            string
+	Reference           string
+	Status              string
+	AmountKobo          int64
+	SnapshotFingerprint string
 }
 
 // Held maps the authority's own status vocabulary onto this feature's.

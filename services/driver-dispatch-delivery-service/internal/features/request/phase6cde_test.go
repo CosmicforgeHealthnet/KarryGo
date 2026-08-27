@@ -14,9 +14,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
+	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
-	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 )
 
 func TestBroadcastFlowEnqueuesPushAndExpiryAndSetsRedisWindow(t *testing.T) {

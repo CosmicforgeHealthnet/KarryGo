@@ -22,8 +22,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
-	"cosmicforge/logistics/shared/go/httpx"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 // ── shared test helpers ───────────────────────────────────────────────────────

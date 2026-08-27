@@ -1,0 +1,47 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Dispatch Commerce Lifecycle Projection",
+    "version": "1.0.0",
+    "description": "Private, versioned Dispatch mission, stop and parcel evidence projected into Vendor orders and fulfilment."
+  },
+  "servers": [{"url": "/"}],
+  "paths": {
+    "/api/v1/internal/dispatch/v1/commerce/events": {
+      "post": {
+        "operationId": "projectDispatchCommerceLifecycleEvent",
+        "summary": "Project one authoritative Dispatch lifecycle event",
+        "description": "The handler authenticates driver-dispatch-delivery-service with HMAC v2 and a persisted single-use nonce, validates source/schema/version/payload hash, resolves mission and parcel ownership from Vendor's own records, and ignores duplicate or stale versions.",
+        "security": [{"serviceHmacV2": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["eventId", "eventType", "sourceService", "schemaVersion", "aggregateType", "aggregateId", "aggregateVersion", "occurredAt", "payloadHash", "payload"], "properties": {
+            "eventId": {"type": "string"},
+            "eventType": {"type": "string", "enum": ["commerce.mission.created.v1", "commerce.mission.changed.v1", "commerce.stop.changed.v1", "commerce.parcel.changed.v1"]},
+            "sourceService": {"type": "string", "enum": ["driver-dispatch-delivery-service"]},
+            "schemaVersion": {"type": "integer", "enum": [1]},
+            "aggregateType": {"type": "string", "enum": ["COMMERCE_MISSION"]},
+            "aggregateId": {"type": "string"},
+            "aggregateVersion": {"type": "integer", "minimum": 1},
+            "occurredAt": {"type": "string", "format": "date-time"},
+            "payloadHash": {"type": "string"},
+            "payload": {"type": "object"}
+          }}}}
+        },
+        "responses": {
+          "202": {"description": "Accepted or safely deduplicated"},
+          "400": {"description": "Invalid envelope, payload or ownership evidence"},
+          "401": {"description": "Invalid HMAC caller"},
+          "409": {"description": "Nonce replay or conflicting evidence"},
+          "413": {"description": "Payload exceeds the bounded ingress size"},
+          "503": {"description": "Mission projection not committed yet; retry the same event"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "serviceHmacV2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 with X-Service-Name, timestamp and persisted single-use X-Service-Nonce."}
+    }
+  }
+}

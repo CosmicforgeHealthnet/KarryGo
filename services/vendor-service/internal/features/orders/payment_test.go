@@ -176,6 +176,20 @@ func TestPlanPaymentLegs_PlatformFeeGetsItsOwnLeg(t *testing.T) {
 	}
 }
 
+func TestPlanPaymentLegs_VariableLineUsesFrozenMaximumAuthorization(t *testing.T) {
+	order := paidOrder()
+	order.CustomerApprovedTotalMinor = 1000000
+	order.MaxAuthorizedTotalMinor = 1100000
+	order.VendorOrders = []VendorOrder{{ID: "variable-vendor", BusinessID: "business", BranchID: "branch", CustomerPayableMinor: 1000000, Lines: []OrderLine{{PricingBasis: "VARIABLE_MEASURE", QuotedTotalMinor: 1000000, MaxAuthorizedTotalMinor: 1100000}}}}
+	legs, err := PlanPaymentLegs(order)
+	if err != nil {
+		t.Fatalf("PlanPaymentLegs: %v", err)
+	}
+	if len(legs) != 1 || legs[0].AmountMinor != 1100000 {
+		t.Fatalf("legs=%+v, want one 1100000 authorization", legs)
+	}
+}
+
 // The price guarantee at its most literal: if the legs do not sum to exactly
 // what the customer approved, no payment is started at all.
 func TestPlanPaymentLegs_RefusesWhenLegsDoNotSumToTheApprovedTotal(t *testing.T) {

@@ -3,6 +3,7 @@ package marketplace
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -28,6 +29,10 @@ const (
 	// trip.completed.v1 would tell every consumer the opposite of the truth.
 	EventTripRecipientConfirmed = "trip.recipient_confirmed.v1"
 	EventTripDeliveryFailed     = "trip.delivery_failed.v1"
+	EventCommerceMissionCreated = "commerce.mission.created.v1"
+	EventCommerceMissionChanged = "commerce.mission.changed.v1"
+	EventCommerceStopChanged    = "commerce.stop.changed.v1"
+	EventCommerceParcelChanged  = "commerce.parcel.changed.v1"
 )
 
 // KnownEventTypes is the closed set of types this service publishes.
@@ -45,6 +50,10 @@ var KnownEventTypes = map[string]bool{
 	EventProofCompleted:            true,
 	EventTripRecipientConfirmed:    true,
 	EventTripDeliveryFailed:        true,
+	EventCommerceMissionCreated:    true,
+	EventCommerceMissionChanged:    true,
+	EventCommerceStopChanged:       true,
+	EventCommerceParcelChanged:     true,
 }
 
 // Envelope is the wire format delivered to consumers.
@@ -154,4 +163,23 @@ func (r *Repository) PublishMarketplaceEvent(ctx context.Context, q Querier, eve
 	}
 	return r.PublishEvent(ctx, q, eventType, aggregateType, aggregateID,
 		aggregateVersion, correlationID, causationID, payload)
+}
+
+// PublishTargetedEvent writes through the same transactional outbox while
+// selecting the intended internal consumer. Commerce lifecycle events use it
+// so they are not delivered to Fleet.
+func (r *Repository) PublishTargetedEvent(ctx context.Context, q Querier, targetService,
+	eventType, aggregateType, aggregateID string, aggregateVersion int64,
+	correlationID, causationID string, payload map[string]any) error {
+	if q == nil {
+		return fmt.Errorf("marketplace: event %s must be published inside the transaction that produced it", eventType)
+	}
+	if strings.TrimSpace(targetService) == "" {
+		return fmt.Errorf("marketplace: event %s has no target service", eventType)
+	}
+	if err := validatePayload(eventType, payload); err != nil {
+		return err
+	}
+	return r.PublishEventTo(ctx, q, targetService, eventType, aggregateType,
+		aggregateID, aggregateVersion, correlationID, causationID, payload)
 }

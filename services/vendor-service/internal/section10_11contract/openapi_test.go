@@ -9,13 +9,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/vendor-service/internal/features/cloudkitchen"
+	"cosmicforge/logistics/services/vendor-service/internal/features/cloud_kitchen"
 	"cosmicforge/logistics/services/vendor-service/internal/features/pastry"
 	"cosmicforge/logistics/services/vendor-service/internal/features/production"
 )
 
 const specPath = "../../docs/openapi/sections10-11-production.openapi.json"
-const expectedOperations = 123
+const expectedOperations = 127
 
 type operation struct {
 	OperationID string                     `json:"operationId"`

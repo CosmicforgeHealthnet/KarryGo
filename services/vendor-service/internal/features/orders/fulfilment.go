@@ -18,6 +18,7 @@ package orders
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -97,23 +98,89 @@ type PartialInventoryAuthority interface {
 	FinalizeReservationPartial(ctx context.Context, businessID, branchID, reservationRef string, fulfilledByItem map[string]int64) error
 }
 
+// ItemInventoryAuthority releases one unavailable line's hold without
+// finalising or disturbing sibling items in the same reservation.
+type ItemInventoryAuthority interface {
+	ReleaseReservationItem(ctx context.Context, businessID, branchID, reservationRef, inventoryItemRef, idempotencyKey string) error
+}
+
+// ReplacementInventoryAuthority is the optional atomic substitution
+// capability. Inventory, not Orders, owns all lot and reservation arithmetic.
+type ReplacementInventoryAuthority interface {
+	ResolveShopVariantItem(ctx context.Context, businessID, branchID, variantRef string) (string, error)
+	ReplaceReservationAllocation(ctx context.Context, businessID, branchID string, request InventoryReplacementRequest) (InventoryReplacementResult, error)
+}
+
+type InventoryReplacementRequest struct {
+	ReservationRef     string
+	SourceType         string
+	SourceRef          string
+	OriginalItemRef    string
+	OriginalOrderedQty int64
+	OriginalFoundQty   int64
+	MissingQty         int64
+	ReplacementItemRef string
+	ReplacementQty     int64
+	ExpectedVersion    int64
+	IdempotencyKey     string
+	CorrelationID      string
+}
+
+type InventoryReplacementResult struct {
+	OriginalFulfilled   int64
+	OriginalReleased    int64
+	ReplacementReserved int64
+	Version             int64
+}
+
 // MissionRequest asks a logistics authority to execute one mission.
 type MissionRequest struct {
-	MissionRef      string
-	ParentOrderID   string
-	VendorOrderIDs  []string
-	CustomerID      string
-	Service         LogisticsService
-	VehicleClass    string
-	Currency        string
-	AgreedFeeMinor  int64
-	PlanMissionRef  string
-	PickupBusiness  string
-	PickupBranch    string
-	DeliveryAddress AddressSnapshot
-	Receiver        ReceiverSnapshot
-	WeightGrams     int64
-	PackageCount    int64
+	MissionRef       string
+	ParentOrderID    string
+	VendorOrderIDs   []string
+	CustomerID       string
+	Service          LogisticsService
+	VehicleClass     string
+	Currency         string
+	AgreedFeeMinor   int64
+	FundingReference string
+	PlanMissionRef   string
+	PickupBusiness   string
+	PickupBranch     string
+	DeliveryAddress  AddressSnapshot
+	Receiver         ReceiverSnapshot
+	WeightGrams      int64
+	PackageCount     int64
+	Execution        *MissionExecution
+}
+
+// MissionExecution is the immutable operational plan handed to a logistics
+// authority. It is populated by the fulfilment aggregate after the active plan
+// and its stable parcels have been committed; callers cannot supply it.
+type MissionExecution struct {
+	PlanRef         string
+	PlanVersion     int64
+	PlanFingerprint string
+	Mode            string
+	ServiceClass    string
+	Stops           []MissionStop
+	Parcels         []MissionParcel
+	PromisedBy      time.Time
+}
+
+type MissionStop struct {
+	StopRef, PhysicalStopRef, UnitRef, BusinessID, BranchID, Address string
+	Latitude, Longitude                                              float64
+	ReadyFrom, ReadyTo                                               time.Time
+}
+
+type MissionParcel struct {
+	ParcelRef, UnitRef, VendorOrderID, BusinessID, BranchID string
+	Manifest                                                json.RawMessage
+	ManifestVersion                                         int64
+	WeightGrams, LengthMM, WidthMM, HeightMM, PackageCount  int64
+	Fragile                                                 bool
+	TemperatureControl                                      string
 }
 
 // MissionResult is the authority's answer.
@@ -132,6 +199,69 @@ type MissionAuthority interface {
 	// CreateMission must be idempotent on MissionRef, so a retried activation
 	// returns the same mission rather than dispatching a second vehicle.
 	CreateMission(ctx context.Context, request MissionRequest) (MissionResult, error)
+}
+
+type MissionQuote struct {
+	FeeMinor    int64
+	Currency    string
+	Serviceable bool
+	ReasonCode  string
+}
+
+type MissionQuoteAuthority interface {
+	QuoteMission(context.Context, MissionRequest) (MissionQuote, error)
+}
+
+type MissionCancellationAuthority interface {
+	CancelMission(ctx context.Context, operationRef, reasonCode string) error
+}
+
+// FulfilmentProjection is the narrow port onto the operational fulfilment
+// aggregate: the fulfilment group rooted on this order, the pickup obligation
+// per allocation, the versioned plan, and the projections of the logistics
+// missions that execute it.
+//
+// It is a port rather than a direct dependency for the usual reason — the
+// orders feature must not learn another feature's persistence — and for one
+// specific one: the aggregate is a PROJECTION owner. Orders decides what is
+// being fulfilled; it does not decide what a logistics authority believes, and
+// routing that belief through an interface keeps the two from blurring.
+//
+// Every method must be idempotent. Activation and recovery both run more than
+// once, and a projection that could not absorb a repeat would turn a normal
+// retry into a duplicate.
+type FulfilmentProjection interface {
+	// OpenFulfilment makes the group, its units and the plan version durable
+	// BEFORE any logistics authority is called, so a crash mid-activation
+	// leaves a record a recovery pass can resolve rather than a request
+	// nothing wrote down.
+	OpenFulfilment(ctx context.Context, order ParentOrder, plans []MissionPlan) error
+
+	// LinkMission binds an authority's answer to the plan mission slot it was
+	// requested for.
+	LinkMission(ctx context.Context, order ParentOrder, plan MissionPlan, result MissionResult) error
+
+	// ProjectLogisticsEvent applies an authority's own status and custody
+	// evidence. Stale and duplicate events are absorbed, never applied.
+	ProjectLogisticsEvent(ctx context.Context, event LogisticsOrderEvent) error
+}
+
+// MissionExecutionProjection is an optional extension implemented by the
+// operational fulfilment aggregate. Older test doubles and deployments remain
+// source compatible; Dispatch V1 fails closed when the immutable evidence is
+// unavailable.
+type MissionExecutionProjection interface {
+	MissionExecution(ctx context.Context, order ParentOrder, plan MissionPlan) (MissionExecution, error)
+}
+
+// SetFulfilmentProjection wires the operational fulfilment aggregate.
+//
+// Separate from SetFulfilmentAuthorities, and optional: a deployment without
+// it activates orders exactly as before rather than failing. The aggregate adds
+// traceability, and traceability that could take an order down would be a poor
+// trade.
+func (s *Service) SetFulfilmentProjection(projection FulfilmentProjection) {
+	s.fulfilmentProjection = projection
 }
 
 // SetFulfilmentAuthorities wires stock and logistics onto the order service.
@@ -185,6 +315,25 @@ func (s *Service) ActivateFulfilment(
 	if order.PaymentState != string(PaymentHeld) {
 		return outcome, ErrPaymentConflict
 	}
+	if s.restrictedGoods == nil {
+		return outcome, ErrDependencyMissing
+	}
+	if err = s.restrictedGoods.ValidateOrderForFulfilment(ctx, order); err != nil {
+		return outcome, err
+	}
+	for _, vendorOrder := range order.VendorOrders {
+		if !vendorOrderFulfillable(vendorOrder.Status) {
+			continue
+		}
+		providerType, providerID := "vendor", vendorOrder.BusinessID
+		if vendorOrder.DeliveryResponsibility == DeliveryPlatform {
+			providerType = string(serviceFor(vendorOrder))
+			providerID = vendorOrder.LogisticsMissionRef
+		}
+		if err = s.ensureDeliveryFunding(ctx, order, vendorOrder, providerType, providerID); err != nil {
+			return outcome, err
+		}
+	}
 
 	// Stock first. Confirming before a mission exists means a refused mission
 	// leaves confirmed stock that cancellation releases, rather than a
@@ -215,6 +364,16 @@ func (s *Service) ActivateFulfilment(
 	}
 	outcome.VendorOwnDelivery = countVendorOwn(order)
 
+	// The fulfilment aggregate is made durable BEFORE the first authority
+	// call. That ordering is the whole reason a lost mission response is
+	// recoverable: the slot already exists to be read back against, instead of
+	// a request that nothing recorded and a second vehicle nobody ordered.
+	if s.fulfilmentProjection != nil {
+		if err = s.fulfilmentProjection.OpenFulfilment(ctx, order, plans); err != nil {
+			return outcome, err
+		}
+	}
+
 	for _, plan := range plans {
 		mission, created, ensureErr := s.store.EnsureMission(ctx, order, plan, s.now().UTC())
 		if ensureErr != nil {
@@ -231,23 +390,33 @@ func (s *Service) ActivateFulfilment(
 			// than recorded as a refusal it never made.
 			continue
 		}
+		var execution *MissionExecution
+		if projection, ok := s.fulfilmentProjection.(MissionExecutionProjection); ok {
+			snapshot, snapshotErr := projection.MissionExecution(ctx, order, plan)
+			if snapshotErr != nil {
+				return outcome, snapshotErr
+			}
+			execution = &snapshot
+		}
 
 		result, missionErr := s.missions.CreateMission(ctx, MissionRequest{
-			MissionRef:      mission.MissionRef,
-			ParentOrderID:   order.ID,
-			VendorOrderIDs:  plan.VendorOrderIDs,
-			CustomerID:      order.CustomerID,
-			Service:         plan.Service,
-			VehicleClass:    plan.VehicleClass,
-			Currency:        order.Currency,
-			AgreedFeeMinor:  plan.AgreedFeeMinor,
-			PlanMissionRef:  plan.PlanMissionRef,
-			PickupBusiness:  plan.PickupBusiness,
-			PickupBranch:    plan.PickupBranch,
-			DeliveryAddress: order.Address,
-			Receiver:        order.Receiver,
-			WeightGrams:     plan.WeightGrams,
-			PackageCount:    plan.PackageCount,
+			MissionRef:       mission.MissionRef,
+			ParentOrderID:    order.ID,
+			VendorOrderIDs:   plan.VendorOrderIDs,
+			CustomerID:       order.CustomerID,
+			Service:          plan.Service,
+			VehicleClass:     plan.VehicleClass,
+			Currency:         order.Currency,
+			AgreedFeeMinor:   plan.AgreedFeeMinor,
+			FundingReference: order.QuoteID,
+			PlanMissionRef:   plan.PlanMissionRef,
+			PickupBusiness:   plan.PickupBusiness,
+			PickupBranch:     plan.PickupBranch,
+			DeliveryAddress:  order.Address,
+			Receiver:         order.Receiver,
+			WeightGrams:      plan.WeightGrams,
+			PackageCount:     plan.PackageCount,
+			Execution:        execution,
 		})
 		if missionErr != nil {
 			if err = s.store.RecordMissionFailure(
@@ -260,6 +429,11 @@ func (s *Service) ActivateFulfilment(
 
 		if err = s.store.RecordMissionResult(ctx, mission.ID, result, s.now().UTC()); err != nil {
 			return outcome, err
+		}
+		if s.fulfilmentProjection != nil {
+			if err = s.fulfilmentProjection.LinkMission(ctx, order, plan, result); err != nil {
+				return outcome, err
+			}
 		}
 		switch result.Status {
 		case MissionAccepted:
@@ -274,6 +448,11 @@ func (s *Service) ActivateFulfilment(
 
 // MissionPlan is one mission to be created.
 type MissionPlan struct {
+	// MissionRef optionally supplies an already-reserved cross-service
+	// operation reference. Normal activation leaves it empty and derives the
+	// established value; Hybrid fallback passes the PlatformMissionRef value
+	// so Vendor, Dispatch and recovery all name the same operation.
+	MissionRef     string
 	PlanMissionRef string
 	Service        LogisticsService
 	VehicleClass   string

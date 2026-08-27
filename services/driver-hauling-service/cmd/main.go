@@ -158,8 +158,11 @@ func main() {
 	// paymentClient binds booking fares to payment-wallet-service. When
 	// HAULING_PAYMENT_URL/SECRET are unset payment-required paths fail closed.
 	var paymentClient bookingusecases.PaymentClient
+	var commerceSettlement bookingusecases.CommerceDeliverySettlementAuthority
 	if cfg.PaymentURL != "" && len(cfg.PaymentSecret) > 0 {
-		paymentClient = bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret)
+		walletPayments := bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret)
+		paymentClient = walletPayments
+		commerceSettlement = walletPayments
 	}
 
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
@@ -167,6 +170,7 @@ func main() {
 		Availability:        availabilityStore,
 		Trucks:              truckLookup{trucks: truckRepo},
 		Payments:            paymentClient,
+		CommerceSettlement:  commerceSettlement,
 		Notifier:            bookingNotifier,
 		MatchTimeoutSeconds: cfg.BookingMatchTimeout,
 		SearchWindowSeconds: cfg.BookingSearchWindow,

@@ -198,17 +198,37 @@ func (s *Service) ApplySupportFact(ctx context.Context, tx pgx.Tx, actor Actor, 
 	}
 	var id string
 	var version int64
+	applied := false
 	err := tx.QueryRow(ctx, `SELECT id,source_version FROM crm_customer_support_facts WHERE business_id=$1 AND source_service=$2 AND source_case_ref=$3 FOR UPDATE`, actor.VendorID, in.SourceService, in.SourceCaseRef).Scan(&id, &version)
 	if err == pgx.ErrNoRows {
 		id = newID("crmsf_")
 		_, err = tx.Exec(ctx, `INSERT INTO crm_customer_support_facts (id,business_id,profile_id,source_service,source_case_ref,source_event_id,source_version,case_state,outcome,related_order_ref,branch_id,resolved_at,source_refund_ref,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, id, actor.VendorID, profileID, in.SourceService, in.SourceCaseRef, in.SourceEventID, in.SourceVersion, in.CaseState, optional(in.Outcome), in.RelatedOrderRef, in.BranchID, in.ResolvedAt, in.SourceRefundRef, in.OccurredAt)
+		applied = err == nil
 	} else if err == nil && in.SourceVersion > version {
 		_, err = tx.Exec(ctx, `UPDATE crm_customer_support_facts SET profile_id=$1,source_event_id=$2,source_version=$3,case_state=$4,outcome=$5,related_order_ref=$6,branch_id=$7,resolved_at=$8,source_refund_ref=$9,occurred_at=$10,last_observed_at=now(),updated_at=now() WHERE id=$11`, profileID, in.SourceEventID, in.SourceVersion, in.CaseState, optional(in.Outcome), in.RelatedOrderRef, in.BranchID, in.ResolvedAt, in.SourceRefundRef, in.OccurredAt, id)
+		applied = err == nil
 	}
 	if err != nil {
 		return err
 	}
+	if applied && (in.CaseState == "OPEN" || in.CaseState == "IN_REVIEW") {
+		if err = s.publishTx(ctx, tx, actor, "commerce.vendor.support_action", "crm_support_fact", id, in.SourceVersion, map[string]any{
+			"business_ref":     actor.VendorID,
+			"parent_order_ref": optionalValue(in.RelatedOrderRef),
+			"status":           in.CaseState,
+			"source_version":   in.SourceVersion,
+		}); err != nil {
+			return err
+		}
+	}
 	return s.rebuildServiceRecovery(ctx, tx, actor.VendorID, profileID, in.OccurredAt)
+}
+
+func optionalValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func (s *Service) rebuildServiceRecovery(ctx context.Context, tx pgx.Tx, businessID, profileID string, asOf time.Time) error {

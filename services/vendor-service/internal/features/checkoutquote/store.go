@@ -310,6 +310,9 @@ func (s *Store) Save(ctx context.Context, quote Quote, now time.Time) (Quote, er
 	if err != nil {
 		return Quote{}, err
 	}
+	if err = reservePromotionUsage(ctx, tx, quote, now); err != nil {
+		return Quote{}, err
+	}
 	if err = insertQuoteChildren(ctx, tx, quote); err != nil {
 		return Quote{}, err
 	}
@@ -321,6 +324,69 @@ func (s *Store) Save(ctx context.Context, quote Quote, now time.Time) (Quote, er
 		return Quote{}, err
 	}
 	return quote, nil
+}
+
+func reservePromotionUsage(ctx context.Context, tx pgx.Tx, quote Quote, now time.Time) error {
+	seen := map[string]bool{}
+	for _, adjustment := range quote.Adjustments {
+		if adjustment.PromotionType == "" || seen[adjustment.SourceRef] {
+			continue
+		}
+		seen[adjustment.SourceRef] = true
+		var status string
+		var startsAt, endsAt time.Time
+		var version int64
+		var sponsor, platformApprovalRef string
+		var globalLimit, customerLimit *int64
+		if err := tx.QueryRow(ctx, `SELECT status,starts_at,ends_at,version,global_usage_limit,per_customer_usage_limit,funding_sponsor,platform_approval_ref
+			FROM commerce_promotion_campaigns WHERE id=$1 AND business_id=$2 FOR UPDATE`, adjustment.SourceRef, adjustment.BusinessID).
+			Scan(&status, &startsAt, &endsAt, &version, &globalLimit, &customerLimit, &sponsor, &platformApprovalRef); err != nil {
+			return ErrInvalidAdjustment
+		}
+		if (status != "ACTIVE" && status != "SCHEDULED") || now.Before(startsAt) || !now.Before(endsAt) || version != adjustment.CampaignVersion {
+			return ErrInvalidAdjustment
+		}
+		if (sponsor == "VENDOR" && adjustment.FundingSource != FundingVendor) ||
+			(sponsor == "PLATFORM" && adjustment.FundingSource != FundingPlatform) ||
+			((sponsor == "PLATFORM" || sponsor == "COMBINED") && (platformApprovalRef == "" || adjustment.PlatformApprovalRef != platformApprovalRef)) {
+			return ErrInvalidAdjustment
+		}
+		var globalUsed, customerUsed int64
+		if err := tx.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE customer_id=$2)
+			FROM commerce_promotion_redemptions WHERE campaign_id=$1 AND status IN ('RESERVED','CONSUMED')`, adjustment.SourceRef, quote.CustomerID).
+			Scan(&globalUsed, &customerUsed); err != nil {
+			return err
+		}
+		if (globalLimit != nil && globalUsed >= *globalLimit) || (customerLimit != nil && customerUsed >= *customerLimit) {
+			return ErrInvalidAdjustment
+		}
+		var couponID *string
+		if adjustment.CouponDigest != "" {
+			var id string
+			var couponLimit, couponCustomerLimit *int64
+			if err := tx.QueryRow(ctx, `SELECT id,usage_limit,per_customer_usage_limit FROM commerce_promotion_coupons
+				WHERE campaign_id=$1 AND business_id=$2 AND code_digest=$3 AND enabled AND revoked_at IS NULL FOR UPDATE`,
+				adjustment.SourceRef, adjustment.BusinessID, adjustment.CouponDigest).Scan(&id, &couponLimit, &couponCustomerLimit); err != nil {
+				return ErrInvalidAdjustment
+			}
+			var used, customerCouponUsed int64
+			if err := tx.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE customer_id=$2) FROM commerce_promotion_redemptions
+				WHERE coupon_id=$1 AND status IN ('RESERVED','CONSUMED')`, id, quote.CustomerID).Scan(&used, &customerCouponUsed); err != nil {
+				return err
+			}
+			if (couponLimit != nil && used >= *couponLimit) || (couponCustomerLimit != nil && customerCouponUsed >= *couponCustomerLimit) {
+				return ErrInvalidAdjustment
+			}
+			couponID = &id
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO commerce_promotion_redemptions
+			(id,campaign_id,coupon_id,business_id,customer_id,quote_id,idempotency_key,status)
+			VALUES($1,$2,$3,$4,$5,$6,$7,'RESERVED') ON CONFLICT (campaign_id,quote_id) DO NOTHING`,
+			"redemption_"+uuid.NewString(), adjustment.SourceRef, couponID, adjustment.BusinessID, quote.CustomerID, quote.ID, "quote:"+quote.ID+":campaign:"+adjustment.SourceRef); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func insertQuoteChildren(ctx context.Context, tx pgx.Tx, quote Quote) error {
@@ -350,9 +416,18 @@ func insertQuoteChildren(ctx context.Context, tx pgx.Tx, quote Quote) error {
 		}
 	}
 	for _, adjustment := range quote.Adjustments {
-		if _, err := tx.Exec(ctx, `INSERT INTO commerce_quote_adjustments(id,quote_id,adjustment_id,adjustment_type,scope,funding_source,source_ref,description,amount_minor) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		evidence := adjustment.EligibilityEvidence
+		if len(evidence) == 0 {
+			evidence = json.RawMessage(`{}`)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO commerce_quote_adjustments(id,quote_id,adjustment_id,adjustment_type,scope,funding_source,source_ref,description,amount_minor,
+			business_id,branch_id,promotion_type,campaign_version,eligibility_evidence,coupon_digest,platform_approval_ref,calculation_base_minor,delivery_discount_minor,stack_priority,applied_at)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
 			"cqa_"+uuid.NewString(), quote.ID, adjustment.ID, adjustment.Type, adjustment.Scope,
-			adjustment.FundingSource, adjustment.SourceRef, adjustment.Description, adjustment.AmountMinor); err != nil {
+			adjustment.FundingSource, adjustment.SourceRef, adjustment.Description, adjustment.AmountMinor,
+			adjustment.BusinessID, adjustment.BranchID, adjustment.PromotionType, adjustment.CampaignVersion,
+			evidence, adjustment.CouponDigest, adjustment.PlatformApprovalRef, adjustment.CalculationBaseMinor,
+			adjustment.DeliveryDiscountMinor, adjustment.StackPriority, adjustment.AppliedAt); err != nil {
 			return err
 		}
 	}
@@ -490,7 +565,9 @@ func loadQuoteMissions(ctx context.Context, q queryer, quoteID string) ([]Missio
 }
 
 func loadQuoteAdjustments(ctx context.Context, q queryer, quoteID string) ([]Adjustment, error) {
-	rows, err := q.Query(ctx, `SELECT adjustment_id,adjustment_type,scope,funding_source,source_ref,description,amount_minor FROM commerce_quote_adjustments WHERE quote_id=$1 ORDER BY adjustment_id`, quoteID)
+	rows, err := q.Query(ctx, `SELECT adjustment_id,adjustment_type,scope,funding_source,source_ref,description,amount_minor,
+		business_id,branch_id,promotion_type,campaign_version,eligibility_evidence,coupon_digest,platform_approval_ref,calculation_base_minor,delivery_discount_minor,stack_priority,applied_at
+		FROM commerce_quote_adjustments WHERE quote_id=$1 ORDER BY adjustment_id`, quoteID)
 	if err != nil {
 		return nil, err
 	}
@@ -498,7 +575,9 @@ func loadQuoteAdjustments(ctx context.Context, q queryer, quoteID string) ([]Adj
 	var values []Adjustment
 	for rows.Next() {
 		var value Adjustment
-		if err = rows.Scan(&value.ID, &value.Type, &value.Scope, &value.FundingSource, &value.SourceRef, &value.Description, &value.AmountMinor); err != nil {
+		if err = rows.Scan(&value.ID, &value.Type, &value.Scope, &value.FundingSource, &value.SourceRef, &value.Description, &value.AmountMinor,
+			&value.BusinessID, &value.BranchID, &value.PromotionType, &value.CampaignVersion, &value.EligibilityEvidence, &value.CouponDigest,
+			&value.PlatformApprovalRef, &value.CalculationBaseMinor, &value.DeliveryDiscountMinor, &value.StackPriority, &value.AppliedAt); err != nil {
 			return nil, err
 		}
 		values = append(values, value)

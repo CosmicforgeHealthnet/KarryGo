@@ -985,13 +985,15 @@ func (s *Service) coordinateReservations(
 				continue
 			}
 
-			lines = append(
-				lines,
-				ReserveLine{
-					InventoryItemID: line.InventoryItemRef,
-					Quantity:        line.ReservationQuantity,
-				},
-			)
+			reservationQuantity := line.ReservationQuantity
+			if line.ReservationBasis == BasisStockMeasure {
+				var upperErr error
+				reservationQuantity, upperErr = UpperReservationQuantity(reservationQuantity, line.MeasureOverfillBps)
+				if upperErr != nil {
+					return Session{}, upperErr
+				}
+			}
+			lines = append(lines, ReserveLine{InventoryItemID: line.InventoryItemRef, Quantity: reservationQuantity})
 		}
 
 		if len(lines) == 0 {

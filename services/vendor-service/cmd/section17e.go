@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,9 +20,12 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/features/checkoutquote"
 	"cosmicforge/logistics/services/vendor-service/internal/features/inventory"
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
+	"cosmicforge/logistics/services/vendor-service/internal/features/production"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
+	supportintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/support"
 	"cosmicforge/logistics/services/vendor-service/internal/jobs"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
+	"cosmicforge/logistics/services/vendor-service/internal/platform/ratelimit"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 
@@ -31,6 +35,8 @@ func buildSection17EOrderService(
 	evaluator *staffusecases.AuthorizationEvaluator,
 	stock *inventory.StockService,
 	quoteService *checkoutquote.Service,
+	productionService *production.Service,
+	abuseLimiter *ratelimit.Limiter,
 	outboxes ...*vendorevents.DomainPublisher,
 ) *orders.Service {
 	if !cfg.Flags.CommerceOrdersEnabled || db == nil || evaluator == nil {
@@ -68,18 +74,30 @@ func buildSection17EOrderService(
 			cfg.Fulfilment.QuoteTimeout,
 		),
 	)
+	service.SetRestrictedGoodsAuthority(newRestrictedGoodsFulfilmentAuthority(db))
+	if productionService != nil {
+		service.SetProductionActivator(productionService)
+	}
 
+	walletAuthority := newSection17FPaymentAuthority(
+		cfg.Flags.PaymentWalletCommerceEnabled,
+		cfg.WalletURL,
+		cfg.WalletSecret,
+		cfg.Fulfilment.QuoteTimeout,
+	)
 	service.SetPaymentAuthority(orders.PaymentOptions{
-		Authority: newSection17FPaymentAuthority(
-			cfg.Flags.PaymentWalletCommerceEnabled,
-			cfg.WalletURL,
-			cfg.WalletSecret,
-			cfg.Fulfilment.QuoteTimeout,
-		),
+		Authority: walletAuthority,
 	})
+	service.SetDeliveryFundingAuthority(walletAuthority)
+	if cfg.SupportURL != "" && cfg.SupportSecret != "" {
+		supportClient := supportintegration.NewClient(cfg.SupportURL, cfg.SupportSecret, cfg.Fulfilment.QuoteTimeout)
+		service.SetRefundSupportAuthority(supportClient)
+		service.SetCommerceCaseAuthority(supportClient)
+	}
 	if quoteService != nil {
 		service.SetCommercialChangeAuthority(section17FChangeQuoteAuthority{quotes: quoteService})
 	}
+	service.SetSupportCaseRateLimiter(abuseLimiter, cfg.AbuseProtection.SupportMax, time.Duration(cfg.AbuseProtection.SupportWindowSeconds)*time.Second)
 	return service
 }
 

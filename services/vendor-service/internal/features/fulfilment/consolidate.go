@@ -26,7 +26,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"cosmicforge/logistics/services/vendor-service/internal/platform/geo"
+	"cosmicforge/logistics/services/vendor-service/internal/features/delivery"
 	"cosmicforge/logistics/shared/go/commercequote"
 )
 
@@ -37,16 +37,6 @@ type cluster struct {
 	class     VehicleClass
 
 	members []planned
-}
-
-func (c cluster) serviceable() bool {
-	for _, member := range c.members {
-		if !member.serviceable {
-			return false
-		}
-	}
-
-	return len(c.members) > 0
 }
 
 // combined aggregates a cluster's load. It is what the authority is asked to
@@ -127,109 +117,17 @@ func sortCapabilities(capabilities []HandlingCapability) {
 	}
 }
 
-// cluster groups resolved outcomes into quotable missions.
+// The greedy cluster()/mergeable() pair that used to live here is gone.
 //
-// Unserviceable groups and vendor-own groups are never merged with anything:
-// the first has nothing to quote, and the second is executed by the vendor's
-// own fleet, which is not a shared platform mission.
-func (p *Planner) cluster(resolved []planned) ([]cluster, []PlanEvent) {
-	var (
-		clusters []cluster
-		events   []PlanEvent
-	)
-
-	for _, outcome := range resolved {
-		if !outcome.serviceable || outcome.authority != AuthorityPlatform {
-			clusters = append(clusters, cluster{
-				authority: outcome.authority,
-				members:   []planned{outcome},
-			})
-
-			continue
-		}
-
-		merged := false
-
-		for index := range clusters {
-			if !p.mergeable(clusters[index], outcome) {
-				continue
-			}
-
-			clusters[index].members = append(clusters[index].members, outcome)
-			merged = true
-
-			events = append(events, PlanEvent{
-				Action:  EventConsolidated,
-				GroupID: outcome.group.CheckoutGroupID,
-				Detail:  clusters[index].members[0].group.CheckoutGroupID,
-			})
-
-			break
-		}
-
-		if !merged {
-			clusters = append(clusters, cluster{
-				authority: AuthorityPlatform,
-				service:   outcome.selection.Service,
-				class:     outcome.selection.Class,
-				members:   []planned{outcome},
-			})
-		}
-	}
-
-	return clusters, events
-}
-
-// mergeable is the whole consolidation rule, in one place.
-func (p *Planner) mergeable(existing cluster, candidate planned) bool {
-	if existing.authority != AuthorityPlatform ||
-		len(existing.members) == 0 {
-		return false
-	}
-
-	if existing.service != candidate.selection.Service ||
-		existing.class != candidate.selection.Class {
-		return false
-	}
-
-	anchor := existing.members[0]
-
-	// The real constraint: one mission has one pickup. Two vendors may share
-	// it only if they genuinely are in the same place.
-	if !geo.WithinRadiusMeters(
-		anchor.branch.Latitude, anchor.branch.Longitude,
-		candidate.branch.Latitude, candidate.branch.Longitude,
-		p.consolidationRadiusMeters,
-	) {
-		return false
-	}
-
-	// An immediate group must not be made to wait for a standard one, and a
-	// standard one must not be dragged into express pricing.
-	if anchor.requirement.Urgency != candidate.requirement.Urgency {
-		return false
-	}
-
-	// Items the vendors themselves declared must not travel together.
-	if conflictingSeparation(existing, candidate) {
-		return false
-	}
-
-	// The combined load must still fit the class. Consolidating two loads that
-	// only fit separately is how a mission gets quoted and then cannot be
-	// filled.
-	trial := cluster{members: append(append([]planned{}, existing.members...), candidate)}
-
-	for _, capability := range p.capabilities {
-		if capability.Class != existing.class {
-			continue
-		}
-
-		return capability.Fits(trial.combined())
-	}
-
-	return false
-}
+// It made one grouping and executed it. Section 27 needs every grouping the
+// planner could have made, each with a reason for its fate, so construction
+// moved to mission_candidate.go and the merge rules moved to
+// consolidation_feasibility.go where each refusal names a code. Leaving the
+// old pair behind would have left two consolidation rules in one package,
+// which is how they start disagreeing.
+//
+// What remains here is what quoting needs: how a cluster aggregates its load,
+// and how a cluster becomes a mission.
 
 func conflictingSeparation(existing cluster, candidate planned) bool {
 	seen := map[string]bool{}
@@ -302,10 +200,15 @@ func (p *Planner) vendorOwnMission(
 			VendorFundedMinor:   decision.Funding.VendorFundedMinor,
 			PlatformFundedMinor: decision.Funding.PlatformFundedMinor,
 		},
-		FeeBeneficiary:   beneficiaryFor(AuthorityVendorOwn),
-		TotalWeightGrams: anchor.requirement.TotalWeightGrams,
-		PackageCount:     anchor.requirement.PackageCount,
-		GroupIDs:         groupIDs(group),
+		FeeBeneficiary:              beneficiaryFor(AuthorityVendorOwn),
+		DeliveryMode:                stringOrDefault(anchor.deliveryMode, "VENDOR"),
+		FallbackTrigger:             anchor.fallbackTrigger,
+		PolicyVersion:               anchor.policyVersion,
+		CustomerPriceGuaranteeMinor: anchor.priceGuaranteeMinor,
+		CustodyState:                "NOT_TRANSFERRED",
+		TotalWeightGrams:            anchor.requirement.TotalWeightGrams,
+		PackageCount:                anchor.requirement.PackageCount,
+		GroupIDs:                    groupIDs(group),
 	}
 }
 
@@ -422,22 +325,21 @@ func (p *Planner) platformMission(
 		DistanceKm:       quote.DistanceKm,
 		EstimatedMinutes: quote.EstimatedMinutes,
 		Currency:         quote.Currency,
-		Funding: Funding{
-			// The customer pays the authority's fee. No platform delivery
-			// promotion exists yet, so nothing subsidises it — and recording
-			// that explicitly is better than leaving the split implied.
-			GrossMinor:    quote.FeeMinor,
-			CustomerMinor: quote.FeeMinor,
-		},
+		Funding:          hybridPlatformFunding(anchor, quote.FeeMinor),
 		Breakdown: Breakdown{
 			BaseMinor:      quote.Breakdown.BaseMinor,
 			DistanceMinor:  quote.Breakdown.DistanceMinor,
 			SurchargeMinor: quote.Breakdown.SurchargeMinor,
 		},
-		FeeBeneficiary:   beneficiaryFor(AuthorityPlatform),
-		TotalWeightGrams: combined.TotalWeightGrams,
-		PackageCount:     combined.PackageCount,
-		GroupIDs:         groupIDs(group),
+		FeeBeneficiary:              beneficiaryFor(AuthorityPlatform),
+		DeliveryMode:                stringOrDefault(anchor.deliveryMode, "PLATFORM"),
+		FallbackTrigger:             anchor.fallbackTrigger,
+		PolicyVersion:               anchor.policyVersion,
+		CustomerPriceGuaranteeMinor: guaranteeOrFee(anchor.priceGuaranteeMinor, quote.FeeMinor),
+		CustodyState:                "NOT_TRANSFERRED",
+		TotalWeightGrams:            combined.TotalWeightGrams,
+		PackageCount:                combined.PackageCount,
+		GroupIDs:                    groupIDs(group),
 	}
 
 	return mission, "", append(events, PlanEvent{
@@ -446,6 +348,41 @@ func (p *Planner) platformMission(
 		MissionID: mission.ID,
 		Detail:    quote.QuoteID,
 	}), nil
+}
+
+func hybridPlatformFunding(anchor planned, grossMinor int64) Funding {
+	funding := Funding{GrossMinor: grossMinor, CustomerMinor: grossMinor}
+	if anchor.deliveryMode != string(delivery.ModeHybrid) || anchor.priceGuaranteeMinor < 0 || anchor.fallbackTrigger == "" {
+		return funding
+	}
+	if anchor.priceGuaranteeMinor < funding.CustomerMinor {
+		funding.CustomerMinor = anchor.priceGuaranteeMinor
+	}
+	gap := grossMinor - funding.CustomerMinor
+	switch anchor.hybridFallbackFunding {
+	case delivery.FallbackFundingPlatform:
+		funding.PlatformFundedMinor = gap
+	case delivery.FallbackFundingCombined:
+		funding.VendorFundedMinor = gap * int64(anchor.hybridVendorShareBPS) / 10000
+		funding.PlatformFundedMinor = gap - funding.VendorFundedMinor
+	default:
+		funding.VendorFundedMinor = gap
+	}
+	return funding
+}
+
+func stringOrDefault(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func guaranteeOrFee(value, fallback int64) int64 {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 // quoteReference is the caller-owned idempotency key for one cluster's quote.

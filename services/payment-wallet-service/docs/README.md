@@ -169,3 +169,37 @@ work without Paystack.
   in `.env`.
 - **Webhook rejected** — `paystack_secret_key` does not match `PAYMENT_WALLET_PAYSTACK_SECRET_KEY`,
   or the body was modified after signing.
+
+## Commerce allocation and Vendor payable APIs
+
+Migration `000010_commerce_payment_allocation_authority` extends the existing
+ledger with one ParentOrder-bound commerce intent, immutable Vendor/platform
+allocations, maximum-authorization escrow, allocation-scoped release/refund,
+and Vendor payable ownership. It does not add a second ledger.
+
+The internal HMAC-v2 contracts are:
+
+- `openapi/commerce-payment-allocation.openapi.json`
+- `openapi/vendor-payable-withdrawal.openapi.json`
+
+Only `vendor-service` may create/hold/refund commerce intents or use Vendor
+finance routes. Delivery release/read-back additionally accepts configured
+Dispatch/Hauling service callers. Vendor bank responses are masked; withdrawal
+reservation debits only released `vendor_payable`, never held allocations.
+For platform delivery, Wallet binds the authenticated Dispatch/Hauling caller
+to its provider type and derives the immutable allocation fingerprint under the
+allocation lock; logistics services do not receive the Vendor-only intent read.
+
+Pre-custody Vendor-to-platform responsibility transition is documented in
+`commerce-delivery-responsibility.md` and
+`openapi/commerce-delivery-responsibility.openapi.json`. Wallet preserves the
+immutable checkout allocation, changes only effective future payables, and
+funds any higher Dispatch execution cost from its platform expense authority.
+
+Migration `000011_commerce_refund_recovery_accounting` keeps partial refunds
+inside that same allocation authority. Each immutable request identifies the
+customer/funder outputs, exact component reductions and one or more recovery
+sources: unreleased allocation escrow, already released Vendor/provider/
+Platform payable, or explicit Platform-loss funding. Cumulative counters and
+row locks cap every source to that VendorOrder allocation. `PENDING_LIABILITY`
+moves no money and is retried/read back under the same fingerprint.

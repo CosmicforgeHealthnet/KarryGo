@@ -118,11 +118,31 @@ func (s *PlanningService) Plan(
 	ctx context.Context,
 	customerID, sessionID string,
 ) (Plan, error) {
+	return s.PlanFor(ctx, customerID, sessionID, DefaultMode)
+}
+
+// PlanFor builds a plan optimized for one fulfilment preference.
+//
+// The mode is the single value a customer may contribute to planning, and it
+// is safe for a structural reason rather than a hopeful one: it selects among
+// alternatives the server constructed and the logistics authorities priced.
+// There is still no fee, no business id, no branch id and no customer id in
+// the request contract, so a customer can no more choose a delivery price
+// here than they could before.
+func (s *PlanningService) PlanFor(
+	ctx context.Context,
+	customerID, sessionID string,
+	mode Mode,
+) (Plan, error) {
 	customerID = strings.TrimSpace(customerID)
 	sessionID = strings.TrimSpace(sessionID)
 
 	if customerID == "" || sessionID == "" {
 		return Plan{}, ErrCheckoutNotPlannable
+	}
+
+	if !mode.Selectable() {
+		mode = DefaultMode
 	}
 
 	snapshot, err := s.checkout.ResolveForPlanning(ctx, customerID, sessionID)
@@ -167,6 +187,7 @@ func (s *PlanningService) Plan(
 		Currency:                   snapshot.Currency,
 		Destination:                snapshot.Destination,
 		Groups:                     groups,
+		Mode:                       mode,
 		CorrelationID:              snapshot.SessionID,
 	})
 	if err != nil {
@@ -174,6 +195,27 @@ func (s *PlanningService) Plan(
 	}
 
 	return s.store.Save(ctx, plan, events)
+}
+
+// QuotePlan answers what a prospective basket would cost to deliver.
+//
+// It delegates straight to the planner and deliberately does NOT touch the
+// store. That is what makes it quote-only: the one thing this service adds
+// over the planner is persistence, and this method is the path that skips it.
+//
+// It lives on the service rather than only on the planner so the composition
+// root has a single fulfilment dependency to hand out, and so a caller that
+// only ever needs a quote can be given a port with exactly this one method on
+// it - unable to reach Plan, unable to reach the store.
+func (s *PlanningService) QuotePlan(
+	ctx context.Context,
+	request QuoteOnlyRequest,
+) (QuoteOnlyResult, error) {
+	if s == nil || s.planner == nil {
+		return QuoteOnlyResult{}, ErrDependencyMissing
+	}
+
+	return s.planner.QuotePlan(ctx, request)
 }
 
 // Get reads one plan the customer owns.

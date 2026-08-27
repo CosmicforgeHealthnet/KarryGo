@@ -95,6 +95,16 @@ The dominant pattern across the platform is a plain `time.Ticker`-driven gorouti
 - No stranded-record sweep beyond the generic outbox lease mechanism exists yet (compare to hauling's `RunMatchRecoveryWorker`, which re-adopts strand bookings after a specific business-domain timeout) — a business-specific recovery worker (e.g. "re-plan a fulfilment unit stuck in `pending_match` past its search window") is written when `internal/features/fulfilment` is implemented, following the same pattern.
 - No dead-letter operator HTTP route exists yet (mirrors `fleet-partner-service`'s own honestly-disclosed gap here — cross-tenant/platform-wide operator routes need an operator-auth class that doesn't exist yet either; deferred together).
 
+## Commerce refund recovery
+
+The existing commerce-payment recovery pass also recovers refund obligations.
+It scans persisted unavailable-line, variable-finalization and classified
+delivery-failure facts that lack a decision, creates the immutable policy row,
+then reuses one stable Wallet key. Exact Inventory item release happens before
+the money request; ambiguous Support handoff and Wallet read-back are retryable.
+A separate `projection_applied` fence lets a crash after Wallet success resume
+Vendor/variable projection without moving money twice.
+
 ## Section 8B — the segment materializer
 
 The first Vendor Service worker whose failure mode is a *wrong answer* rather than a delayed one, which shapes its design.

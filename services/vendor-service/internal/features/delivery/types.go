@@ -5,16 +5,105 @@ import (
 	"time"
 )
 
+// DeliveryMode is the customer-facing execution preference configured for a
+// branch. PLATFORM never attempts a vendor rider; VENDOR never silently falls
+// through to platform; HYBRID follows the explicit fallback triggers.
+type DeliveryMode string
+
+const (
+	ModePlatform DeliveryMode = "PLATFORM"
+	ModeVendor   DeliveryMode = "VENDOR"
+	ModeHybrid   DeliveryMode = "HYBRID"
+)
+
+// FeeRuleKind identifies the deterministic vendor-owned fee rule.
+type FeeRuleKind string
+
+const (
+	FeeFlat         FeeRuleKind = "FLAT"
+	FeeZoneBased    FeeRuleKind = "ZONE_BASED"
+	FeeDistanceTier FeeRuleKind = "DISTANCE_TIER"
+)
+
+// OverflowTrigger is a bounded reason for a HYBRID platform fallback.
+type OverflowTrigger string
+
+const (
+	TriggerOwnRiderFirst OverflowTrigger = "OWN_RIDER_FIRST"
+	TriggerDistance      OverflowTrigger = "DISTANCE_OVERFLOW"
+	TriggerTime          OverflowTrigger = "TIME_OVERFLOW"
+	TriggerCapacity      OverflowTrigger = "CAPACITY_OVERFLOW"
+	TriggerVehicle       OverflowTrigger = "VEHICLE_OVERFLOW"
+	TriggerSLA           OverflowTrigger = "SLA_OVERFLOW"
+)
+
+// FallbackFundingSponsor attributes the automatic HYBRID cost gap. Platform
+// and combined values require a pre-authorized platform approval reference;
+// ordinary Vendor staff may configure only Vendor funding.
+type FallbackFundingSponsor string
+
+const (
+	FallbackFundingVendor   FallbackFundingSponsor = "VENDOR"
+	FallbackFundingPlatform FallbackFundingSponsor = "PLATFORM"
+	FallbackFundingCombined FallbackFundingSponsor = "COMBINED"
+)
+
+// RiderAvailability is deliberately tri-state. UNKNOWN is fail-closed and
+// can never be treated as an available vendor execution resource.
+type RiderAvailability string
+
+const (
+	RiderAvailable   RiderAvailability = "AVAILABLE"
+	RiderUnavailable RiderAvailability = "UNAVAILABLE"
+	RiderUnknown     RiderAvailability = "UNKNOWN"
+)
+
+// ServiceZone is a structured, branch-owned zone. Polygon authority is not
+// invented here; the existing location/distance authority resolves ZoneID.
+// Distance bounds provide a deterministic structured fallback where only
+// radius evidence exists.
+type ServiceZone struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Enabled           bool   `json:"enabled"`
+	MinDistanceMeters int64  `json:"min_distance_meters"`
+	MaxDistanceMeters int64  `json:"max_distance_meters"`
+	FeeMinor          int64  `json:"fee_minor"`
+	Priority          int    `json:"priority"`
+}
+
+// DistanceTier uses half-open bounds [Min, Max), except a zero Max which
+// means unbounded. Integer metres avoid floating-point boundary ambiguity.
+type DistanceTier struct {
+	MinDistanceMeters int64 `json:"min_distance_meters"`
+	MaxDistanceMeters int64 `json:"max_distance_meters"`
+	FeeMinor          int64 `json:"fee_minor"`
+}
+
+// OperatingPeriod is a local-clock delivery window. End <= Start means an
+// overnight period (for example 22:00 -> 02:00). Weekday uses ISO 1..7.
+type OperatingPeriod struct {
+	Weekday     int `json:"weekday"`
+	StartMinute int `json:"start_minute"`
+	EndMinute   int `json:"end_minute"`
+}
+
 // Permission codes seeded by migration 000077.
 const (
-	PermPolicyRead   = "vendor.delivery.policy.read"
-	PermPolicyManage = "vendor.delivery.policy.manage"
+	PermPolicyRead    = "vendor.delivery.policy.read"
+	PermPolicyManage  = "vendor.delivery.policy.manage"
+	PermVendorOperate = "vendor.delivery.operate"
 )
 
 // Audit action and outbox event type for a policy mutation.
 const (
-	AuditPolicyUpserted = "delivery.policy.upserted"
-	EventPolicyChanged  = "vendor.delivery.policy.changed"
+	AuditPolicyUpserted     = "delivery.policy.upserted"
+	EventPolicyChanged      = "vendor.delivery.policy.changed"
+	EventVendorSelected     = "fulfilment.vendor_selected"
+	EventPlatformSelected   = "fulfilment.platform_selected"
+	EventHybridFallback     = "fulfilment.hybrid_fallback"
+	EventCustodyTransferred = "fulfilment.custody_transferred"
+	EventReturnRequired     = "fulfilment.return_required"
 
 	AggregateType = "vendor_delivery_policy"
 )
@@ -49,6 +138,9 @@ type Policy struct {
 	BusinessID string `json:"-"`
 	BranchID   string `json:"branch_id"`
 
+	Mode    DeliveryMode `json:"delivery_mode"`
+	FeeRule FeeRuleKind  `json:"fee_rule"`
+
 	Enabled bool `json:"enabled"`
 
 	Currency string `json:"currency"`
@@ -66,7 +158,19 @@ type Policy struct {
 	// narrow it.
 	MaxDeliveryRadiusMeters *int `json:"max_delivery_radius_meters,omitempty"`
 
-	MaxPackageWeightGrams *int64 `json:"max_package_weight_grams,omitempty"`
+	MaxPackageWeightGrams     *int64                 `json:"max_package_weight_grams,omitempty"`
+	MaxPackageCount           *int64                 `json:"max_package_count,omitempty"`
+	MaxVolumeMl               *int64                 `json:"max_volume_ml,omitempty"`
+	OperatingTimezone         string                 `json:"operating_timezone"`
+	ServiceZones              []ServiceZone          `json:"service_zones,omitempty"`
+	DistanceTiers             []DistanceTier         `json:"distance_tiers,omitempty"`
+	OperatingPeriods          []OperatingPeriod      `json:"operating_periods,omitempty"`
+	SupportedVehicleClasses   []string               `json:"supported_vehicle_classes,omitempty"`
+	FallbackTriggers          []OverflowTrigger      `json:"fallback_triggers,omitempty"`
+	HybridFallbackFunding     FallbackFundingSponsor `json:"hybrid_fallback_funding_sponsor"`
+	HybridVendorShareBPS      int                    `json:"hybrid_vendor_share_bps"`
+	HybridPlatformApprovalRef string                 `json:"hybrid_platform_approval_ref,omitempty"`
+	RiderAvailability         RiderAvailability      `json:"rider_availability"`
 
 	EstimatedMinutesBase  int `json:"estimated_minutes_base"`
 	EstimatedMinutesPerKm int `json:"estimated_minutes_per_km"`
@@ -81,7 +185,9 @@ type Policy struct {
 // business_id is absent by design: the tenant comes from the authenticated
 // session and is never read from the request.
 type PolicyInput struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool         `json:"enabled"`
+	Mode    DeliveryMode `json:"delivery_mode"`
+	FeeRule FeeRuleKind  `json:"fee_rule"`
 
 	Currency string `json:"currency"`
 
@@ -94,7 +200,19 @@ type PolicyInput struct {
 
 	MaxDeliveryRadiusMeters *int `json:"max_delivery_radius_meters"`
 
-	MaxPackageWeightGrams *int64 `json:"max_package_weight_grams"`
+	MaxPackageWeightGrams     *int64                 `json:"max_package_weight_grams"`
+	MaxPackageCount           *int64                 `json:"max_package_count"`
+	MaxVolumeMl               *int64                 `json:"max_volume_ml"`
+	OperatingTimezone         string                 `json:"operating_timezone"`
+	ServiceZones              []ServiceZone          `json:"service_zones"`
+	DistanceTiers             []DistanceTier         `json:"distance_tiers"`
+	OperatingPeriods          []OperatingPeriod      `json:"operating_periods"`
+	SupportedVehicleClasses   []string               `json:"supported_vehicle_classes"`
+	FallbackTriggers          []OverflowTrigger      `json:"fallback_triggers"`
+	HybridFallbackFunding     FallbackFundingSponsor `json:"hybrid_fallback_funding_sponsor"`
+	HybridVendorShareBPS      int                    `json:"hybrid_vendor_share_bps"`
+	HybridPlatformApprovalRef string                 `json:"hybrid_platform_approval_ref"`
+	RiderAvailability         RiderAvailability      `json:"rider_availability"`
 
 	EstimatedMinutesBase  int `json:"estimated_minutes_base"`
 	EstimatedMinutesPerKm int `json:"estimated_minutes_per_km"`

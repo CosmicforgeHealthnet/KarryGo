@@ -40,14 +40,27 @@ func newSection17EFixture(t *testing.T, multiVendor bool) section17EFixture {
 	return buildSection17EFixture(t, multiVendor, false)
 }
 
+func newSection19VariableFixture(t *testing.T, multiVendor bool) section17EFixture {
+	return buildSection17EFixtureWithVariable(t, multiVendor, false, true)
+}
+
 // buildSection17EFixture optionally re-plans vendor A's mission as vendor-owned
 // delivery BEFORE the quote is created, so the quote freezes that authority as
 // its own evidence rather than the order reading it from a live plan row.
 func buildSection17EFixture(t *testing.T, multiVendor, vendorOwnDeliveryForA bool) section17EFixture {
+	return buildSection17EFixtureWithVariable(t, multiVendor, vendorOwnDeliveryForA, false)
+}
+
+func buildSection17EFixtureWithVariable(t *testing.T, multiVendor, vendorOwnDeliveryForA, variable bool) section17EFixture {
 	t.Helper()
 
 	env := newSection17CEnv(t)
-	quoteFixture := seedSection17DSource(t, env, false, multiVendor, nil)
+	var quoteFixture section17DSource
+	if variable && multiVendor {
+		quoteFixture = seedSection19VariableMultiSource(t, env, nil)
+	} else {
+		quoteFixture = seedSection17DSource(t, env, variable, multiVendor, nil)
+	}
 	ctx := context.Background()
 
 	if vendorOwnDeliveryForA {

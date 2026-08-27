@@ -1,0 +1,17 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Vendor Finance Facade", "version": "1.0.0"},
+  "servers": [{"url": "/api/v1/vendor"}],
+  "security": [{"VendorBearer": []}],
+  "paths": {
+    "/finance/overview": {"get": {"operationId": "vendorFinanceOverview", "responses": {"200": {"description": "Wallet-authoritative available and pending amounts"}}}},
+    "/finance/transactions": {"get": {"operationId": "vendorFinanceTransactions", "responses": {"200": {"description": "Scoped payable, settlement, refund and withdrawal entries"}}}},
+    "/finance/bank-accounts": {"get": {"operationId": "vendorFinanceBankAccounts", "responses": {"200": {"description": "Masked bank accounts"}}}},
+    "/finance/withdrawals": {
+      "get": {"operationId": "vendorFinanceWithdrawals", "responses": {"200": {"description": "Scoped withdrawal history"}}},
+      "post": {"operationId": "requestVendorFinanceWithdrawal", "parameters": [{"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string"}}], "responses": {"202": {"description": "Withdrawal requested after finance.withdrawal step-up"}, "403": {"description": "Permission or step-up denied"}}}
+    },
+    "/finance/withdrawals/{reference}": {"get": {"operationId": "vendorFinanceWithdrawal", "parameters": [{"name": "reference", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Scoped authoritative read-back"}, "404": {"description": "Not found in authenticated Vendor scope"}}}}
+  },
+  "components": {"securitySchemes": {"VendorBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}}}
+}

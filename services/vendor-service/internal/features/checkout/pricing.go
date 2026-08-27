@@ -184,3 +184,17 @@ func ReservationQuantity(
 		return 0, ErrMoneyOverflow
 	}
 }
+
+// UpperReservationQuantity expands a variable-measure hold by the frozen
+// sell-unit overfill tolerance. Integer ceiling is intentional: rounding down
+// would reserve less physical stock than the customer authorised.
+func UpperReservationQuantity(reservationQuantity int64, overfillBps int) (int64, error) {
+	if reservationQuantity <= 0 || overfillBps < 0 || overfillBps > 10000 {
+		return 0, ErrMoneyOverflow
+	}
+	numerator, err := mulChecked(reservationQuantity, int64(10000+overfillBps))
+	if err != nil {
+		return 0, err
+	}
+	return (numerator + 9999) / 10000, nil
+}

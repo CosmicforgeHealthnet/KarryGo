@@ -11,9 +11,25 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/shared/go/apperrors"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/httpx"
 )
+
+type quoteTestLimiter struct{ counts map[string]int }
+
+func (l *quoteTestLimiter) Allow(_ context.Context, _, key string, max int, _ time.Duration) error {
+	if l.counts == nil {
+		l.counts = map[string]int{}
+	}
+	l.counts[key]++
+	if l.counts[key] > max {
+		return apperrors.RateLimited("quote limit reached", nil)
+	}
+	return nil
+}
+
+func (l *quoteTestLimiter) Reset() { l.counts = map[string]int{} }
 
 type httpQuoteStore struct {
 	source SourceSnapshot
@@ -54,7 +70,7 @@ func (s *httpQuoteStore) Approve(_ context.Context, customerID, quoteID, fingerp
 	return s.quote, nil
 }
 
-func quoteHTTPFixture(t *testing.T) (*gin.Engine, *httpQuoteStore, string) {
+func quoteHTTPFixture(t *testing.T, protections ...RequestLimitPolicy) (*gin.Engine, *httpQuoteStore, string) {
 	t.Helper()
 	now := time.Now().UTC()
 	store := &httpQuoteStore{source: sourceFixture(now)}
@@ -74,7 +90,7 @@ func quoteHTTPFixture(t *testing.T) (*gin.Engine, *httpQuoteStore, string) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(httpx.RequestID(), httpx.Recovery(), httpx.ErrorHandler())
-	RegisterCustomerRoutes(router.Group("/api/v1/commerce"), service, signer, nil, true)
+	RegisterCustomerRoutes(router.Group("/api/v1/commerce"), service, signer, nil, true, protections...)
 	return router, store, token
 }
 
@@ -85,6 +101,34 @@ func performQuoteRequest(router *gin.Engine, method, path, token, body string) *
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func TestQuoteCreationRateLimitIsPrincipalScopedAndResets(t *testing.T) {
+	limiter := &quoteTestLimiter{}
+	router, store, token := quoteHTTPFixture(t, RequestLimitPolicy{Limiter: limiter, Max: 1, Window: time.Minute})
+	path := "/api/v1/commerce/checkout/checkout-1/quotes"
+	body := `{"fulfilment_plan_id":"plan-1"}`
+	if got := performQuoteRequest(router, http.MethodPost, path, token, body); got.Code != http.StatusCreated {
+		t.Fatalf("first quote status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := performQuoteRequest(router, http.MethodPost, path, token, body); got.Code != http.StatusTooManyRequests {
+		t.Fatalf("exceeded quote status=%d body=%s", got.Code, got.Body.String())
+	}
+
+	now := time.Now().UTC()
+	otherSigner := sharedauth.NewTokenSigner([]byte("section17d-http-secret"))
+	otherToken, err := otherSigner.Sign(sharedauth.Claims{Subject: "customer-2", Role: "customer", Service: "customer", SessionID: "other", Type: sharedauth.TokenTypeAccess, IssuedAt: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := performQuoteRequest(router, http.MethodPost, path, otherToken, body); got.Code == http.StatusTooManyRequests {
+		t.Fatalf("different principal shared quote bucket: %s", got.Body.String())
+	}
+	limiter.Reset()
+	store.quote = Quote{}
+	if got := performQuoteRequest(router, http.MethodPost, path, token, body); got.Code != http.StatusCreated {
+		t.Fatalf("new window quote status=%d body=%s", got.Code, got.Body.String())
+	}
 }
 
 func TestQuoteHTTPRejectsCustomerCommercialOverrides(t *testing.T) {

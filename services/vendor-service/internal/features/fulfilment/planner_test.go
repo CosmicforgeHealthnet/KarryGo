@@ -76,6 +76,13 @@ type fakeAuthority struct {
 	quote     commercequote.Quote
 	err       error
 
+	// resolve answers per ROUTE rather than with one fixed quote.
+	//
+	// Without it every route costs the same, and a mode test cannot tell
+	// "SAVER chose the cheaper plan" apart from "SAVER chose the only plan".
+	// Both would pass, and only one would mean anything.
+	resolve func(commercequote.Request) commercequote.Quote
+
 	requests []commercequote.Request
 }
 
@@ -91,6 +98,11 @@ func (f *fakeAuthority) RequestQuote(
 	}
 
 	quote := f.quote
+
+	if f.resolve != nil {
+		quote = f.resolve(request)
+	}
+
 	quote.QuoteReference = request.QuoteReference
 	quote.VehicleClass = request.VehicleClass
 
@@ -149,6 +161,13 @@ type harness struct {
 	vendorOwn fakeVendorOwn
 	dispatch  *fakeAuthority
 	hauling   *fakeAuthority
+
+	// multiPickup declares which runtimes can drive a multi-stop collection.
+	//
+	// Nil means none can, which is production truth today. A test that wants
+	// the future behaviour sets it explicitly rather than the planner
+	// guessing.
+	multiPickup map[Service]bool
 }
 
 func newHarness() *harness {
@@ -173,11 +192,12 @@ func (h *harness) planner(t *testing.T) *Planner {
 	t.Helper()
 
 	planner, err := NewPlanner(Options{
-		Logistics: h.logistics,
-		Branches:  h.branches,
-		VendorOwn: h.vendorOwn,
-		Dispatch:  h.dispatch,
-		Hauling:   h.hauling,
+		Logistics:   h.logistics,
+		Branches:    h.branches,
+		VendorOwn:   h.vendorOwn,
+		Dispatch:    h.dispatch,
+		Hauling:     h.hauling,
+		MultiPickup: h.multiPickup,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -521,14 +541,35 @@ func TestPlan_CoLocatedVendorsConsolidateIntoOneMission(t *testing.T) {
 		t.Fatalf("mission not recorded as consolidated: %+v", mission)
 	}
 
-	// One quote for the combined load — not two quotes discounted afterwards.
-	if len(h.dispatch.requests) != 1 {
-		t.Fatalf("quote requests = %d, want 1", len(h.dispatch.requests))
+	// The consolidated mission is quoted ONCE for its real combined load, not
+	// assembled from two per-vendor quotes discounted afterwards.
+	//
+	// The split alternative is quoted too, and that is the point rather than
+	// an accident: the optimizer compares two priced plans, so each vendor is
+	// also asked what its own separate mission would cost. Three questions,
+	// three distinct routes, no fee invented for any of them. Asserting a
+	// single quote here would be asserting that the alternative was never
+	// evaluated.
+	var combinedRequests, singleRequests int
+
+	for _, quoted := range h.dispatch.requests {
+		switch quoted.Load.TotalWeightGrams {
+		case 3500:
+			combinedRequests++
+		case 2000, 1500:
+			singleRequests++
+		default:
+			t.Fatalf("unexpected quoted load: %d",
+				quoted.Load.TotalWeightGrams)
+		}
 	}
 
-	if h.dispatch.requests[0].Load.TotalWeightGrams != 3500 {
-		t.Fatalf("combined weight = %d, want 3500",
-			h.dispatch.requests[0].Load.TotalWeightGrams)
+	if combinedRequests != 1 {
+		t.Fatalf("combined-load quotes = %d, want exactly 1", combinedRequests)
+	}
+
+	if singleRequests != 2 {
+		t.Fatalf("split-alternative quotes = %d, want 2", singleRequests)
 	}
 
 	// And exactly one delivery fee, attributed back across both groups.

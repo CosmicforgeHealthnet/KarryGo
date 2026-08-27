@@ -131,6 +131,10 @@ func expectedVersion(c *gin.Context) (int64, error) {
 }
 
 func orderHTTPError(err error) error {
+	var applicationError *apperrors.Error
+	if errors.As(err, &applicationError) {
+		return applicationError
+	}
 	switch {
 	case errors.Is(err, ErrOrderNotFound):
 		return apperrors.NotFound("Order not found.", err)
@@ -317,6 +321,30 @@ func (h *Handler) listOrders(c *gin.Context) {
 		orders = []ParentOrder{}
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"orders": orders}})
+}
+
+func (h *Handler) getOrderETA(c *gin.Context) {
+	customerID, ok := customerSubject(c)
+	if !ok {
+		return
+	}
+	eta, err := h.service.store.ListCustomerETA(c.Request.Context(), customerID, c.Param("orderId"))
+	if err != nil {
+		httpx.RespondError(c, orderHTTPError(err))
+		return
+	}
+	if eta == nil {
+		eta = []ProductionReadiness{}
+	}
+	missions, err := h.service.store.ListCurrentDeliveryETAForCustomer(c.Request.Context(), customerID, c.Param("orderId"))
+	if err != nil {
+		httpx.RespondError(c, orderHTTPError(err))
+		return
+	}
+	if missions == nil {
+		missions = []DeliveryETA{}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"order_id": c.Param("orderId"), "allocations": eta, "missions": missions}})
 }
 
 func (h *Handler) cancelVendorOrderAsCustomer(c *gin.Context) {
@@ -601,6 +629,10 @@ func RegisterCustomerRoutes(
 	group.POST("/quotes/:quoteId/orders", handler.createOrder)
 	group.GET("/orders", handler.listOrders)
 	group.GET("/orders/:orderId", handler.getOrder)
+	group.GET("/orders/:orderId/eta", handler.getOrderETA)
+	group.POST("/orders/:orderId/support-cases", handler.createCustomerSupportCase)
+	group.GET("/orders/:orderId/support-cases", handler.listCustomerSupportCases)
+	group.GET("/orders/:orderId/support-cases/:caseRef", handler.getCustomerSupportCase)
 	// A payment-capable order deployment is also the only deployment in which
 	// a commercial change can complete. The handler still fails closed with a
 	// dependency error if the quote authority was not wired, while the route
@@ -615,6 +647,10 @@ func RegisterCustomerRoutes(
 	group.GET("/substitutions/:proposalId", handler.getSubstitution)
 	group.POST("/substitutions/:proposalId/approve", handler.respondSubstitution(true))
 	group.POST("/substitutions/:proposalId/reject", handler.respondSubstitution(false))
+	group.GET("/substitution-cases", handler.pendingSubstitutionCases)
+	group.GET("/substitution-cases/:caseId", handler.getSubstitutionCase)
+	group.POST("/substitution-cases/:caseId/accept", handler.respondSubstitutionCase(true))
+	group.POST("/substitution-cases/:caseId/reject", handler.respondSubstitutionCase(false))
 
 	// Section 17F. The payment surface only exists when a real money
 	// authority is wired, so a deployment without Wallet credentials exposes
@@ -637,6 +673,8 @@ func RegisterVendorRoutes(root *gin.RouterGroup, service *Service, enabled bool,
 	}
 	group.GET("", handler.listVendorOrders)
 	group.GET("/:vendorOrderId", handler.getVendorOrder)
+	group.POST("/:vendorOrderId/support-cases", handler.createVendorSupportCase)
+	group.GET("/:vendorOrderId/support-cases", handler.listVendorSupportCases)
 	group.POST("/:vendorOrderId/accept", handler.advance(TransitionAccept))
 	group.POST("/:vendorOrderId/ready", handler.advance(TransitionReady))
 	group.POST("/:vendorOrderId/handover", handler.advance(TransitionHandover))
@@ -656,4 +694,8 @@ func RegisterVendorRoutes(root *gin.RouterGroup, service *Service, enabled bool,
 	group.POST("/:vendorOrderId/delivered", handler.advance(TransitionDelivered))
 	group.POST("/:vendorOrderId/lines/:lineId/availability", handler.reportAvailability)
 	group.POST("/:vendorOrderId/lines/:lineId/substitutions", handler.proposeSubstitution)
+	group.GET("/:vendorOrderId/picking-queue", handler.pickingQueue)
+	group.GET("/:vendorOrderId/picking", handler.pickingQueue)
+	group.POST("/:vendorOrderId/lines/:lineId/quality", handler.recordQualityResult)
+	group.POST("/:vendorOrderId/lines/:lineId/actual-quantity", handler.recordActualQuantity)
 }

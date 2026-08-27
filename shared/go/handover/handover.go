@@ -16,8 +16,9 @@ import (
 type Step string
 
 const (
-	StepPickup   Step = "pickup"
-	StepDelivery Step = "delivery"
+	StepPickup           Step = "pickup"
+	StepDelivery         Step = "delivery"
+	StepProviderTransfer Step = "provider_transfer"
 )
 
 const (

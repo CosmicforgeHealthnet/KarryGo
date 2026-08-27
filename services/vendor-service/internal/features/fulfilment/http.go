@@ -82,14 +82,50 @@ func respondError(c *gin.Context, err error) {
 	}
 }
 
+// createPlanRequest is the entire customer-supplied planning contract.
+//
+// One field, and it is a choice rather than a number. Everything a customer
+// could profit from forging - the fee, the vendor, the branch, the vehicle,
+// the winning candidate - is absent, which is why the surface is safe rather
+// than merely validated.
+type createPlanRequest struct {
+	FulfilmentPreference string `json:"fulfilment_preference"`
+}
+
 func (h *Handler) createPlan(c *gin.Context) {
 	customerID, ok := customerSubject(c)
 	if !ok {
 		return
 	}
 
-	plan, err := h.service.Plan(
-		c.Request.Context(), customerID, c.Param("sessionId"),
+	var body createPlanRequest
+
+	// An absent or empty body is the ordinary case and means "no preference".
+	// A body that is present but malformed is a client bug and is refused:
+	// silently planning BALANCED for a customer who asked for SAVER would
+	// hide the bug behind a plausible plan.
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			httpx.RespondError(c, apperrors.Validation(
+				"Check your delivery preference.", nil,
+			))
+
+			return
+		}
+	}
+
+	mode, valid := ParseMode(body.FulfilmentPreference)
+
+	if !valid {
+		httpx.RespondError(c, apperrors.Validation(
+			"Choose FASTEST, BALANCED or SAVER.", nil,
+		))
+
+		return
+	}
+
+	plan, err := h.service.PlanFor(
+		c.Request.Context(), customerID, c.Param("sessionId"), mode,
 	)
 	if err != nil {
 		respondError(c, err)

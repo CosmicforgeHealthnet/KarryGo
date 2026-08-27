@@ -165,6 +165,9 @@ func (s *Service) CreateListing(ctx context.Context, actor Actor, scope Scope, b
 		if product.Status == StatusArchived {
 			return errArchived("This product")
 		}
+		if err = validateRestrictedGoodsProduct("product", product); err != nil {
+			return err
+		}
 		row, err := scanListing(tx.QueryRow(ctx, `
 			INSERT INTO shop_branch_listings
 				(id,business_id,branch_id,product_id,variant_id,operating_model,retail_enabled,
@@ -534,6 +537,15 @@ func (s *Service) UpdateListing(ctx context.Context, actor Actor, scope Scope, l
 				return fieldError("status", "Use ACTIVE or INACTIVE. Archive with the archive command.")
 			}
 			status = value
+		}
+		if status == StatusActive {
+			product, productErr := loadProduct(ctx, tx, actor.VendorID, current.ProductID, false)
+			if productErr != nil {
+				return productErr
+			}
+			if productErr = validateRestrictedGoodsProduct("product", product); productErr != nil {
+				return productErr
+			}
 		}
 
 		row, err := scanListing(tx.QueryRow(ctx, `

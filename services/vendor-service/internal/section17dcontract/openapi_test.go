@@ -127,8 +127,16 @@ func TestSection17DRequestsAcceptNoCommercialOverride(t *testing.T) {
 	if value, ok := approve.AdditionalProperties.(bool); !ok || value {
 		t.Fatal("approval request must reject unknown fields")
 	}
-	if len(create.Properties) != 1 || create.Properties["fulfilment_plan_id"] == nil {
+	if len(create.Properties) != 2 || create.Properties["fulfilment_plan_id"] == nil || create.Properties["coupon_code"] == nil {
 		t.Fatalf("create request properties=%v", create.Properties)
+	}
+	for field := range create.Properties {
+		lower := strings.ToLower(field)
+		for _, forbidden := range []string{"amount", "minor", "price", "discount", "funding", "sponsor", "campaign_id", "business_id", "branch_id"} {
+			if strings.Contains(lower, forbidden) {
+				t.Fatalf("create request accepts commercial authority %q", field)
+			}
+		}
 	}
 	if len(approve.Properties) != 1 || approve.Properties["quote_fingerprint"] == nil {
 		t.Fatalf("approval request properties=%v", approve.Properties)

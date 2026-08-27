@@ -542,7 +542,7 @@ func selectBankAccountSQL() string {
 	`
 }
 
-func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input CreateWithdrawalInput) (walletmodels.Withdrawal, error) {
+func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input CreateWithdrawalInput) (walletmodels.Withdrawal, bool, error) {
 	if input.Reference == "" {
 		input.Reference = "wd_" + uuid.NewString()
 	}
@@ -550,24 +550,43 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 	if input.IdempotencyKey != "" {
 		existing, err := r.GetWithdrawalByIdempotency(ctx, input.ProviderType, input.ProviderID, input.IdempotencyKey)
 		if err == nil {
-			return existing, nil
+			return existing, false, nil
 		}
 		if apperrors.From(err).Code != apperrors.CodeNotFound {
-			return walletmodels.Withdrawal{}, err
+			return walletmodels.Withdrawal{}, false, err
 		}
 	}
 
 	var withdrawal walletmodels.Withdrawal
+	created := false
 	err := r.withTx(ctx, func(tx pgx.Tx) error {
+		if _, lockErr := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,53))`, input.ProviderType+":"+input.ProviderID+":"+input.IdempotencyKey); lockErr != nil {
+			return lockErr
+		}
+		existing, existingErr := scanWithdrawal(tx.QueryRow(ctx, selectWithdrawalSQL()+` WHERE provider_type=$1 AND provider_id=$2 AND idempotency_key=$3`, input.ProviderType, input.ProviderID, input.IdempotencyKey))
+		if existingErr == nil {
+			if existing.AmountKobo != input.AmountKobo || existing.BankAccountID != input.BankAccountID || existing.Currency != input.Currency {
+				return apperrors.Conflict("Withdrawal idempotency key was reused with different details.", nil)
+			}
+			withdrawal = existing
+			return nil
+		}
+		if !errors.Is(existingErr, pgx.ErrNoRows) {
+			return existingErr
+		}
 		_, err := r.getBankAccountForUpdate(ctx, tx, input.ProviderType, input.ProviderID, input.BankAccountID)
 		if err != nil {
 			return err
 		}
-		providerAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(input.ProviderType, input.ProviderID), walletmodels.AccountProviderPayable, input.Currency, walletmodels.NormalCredit)
+		ownerType, ownerID, payableType := payableOwner(input.ProviderType, input.ProviderID)
+		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, payableType, input.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
-		pendingAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(input.ProviderType, input.ProviderID), walletmodels.AccountWithdrawalPending, input.Currency, walletmodels.NormalCredit)
+		if _, err = tx.Exec(ctx, `SELECT id FROM wallet_accounts WHERE id=$1 FOR UPDATE`, providerAccount.ID); err != nil {
+			return err
+		}
+		pendingAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, walletmodels.AccountWithdrawalPending, input.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
@@ -597,6 +616,7 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 		if err != nil {
 			return err
 		}
+		created = true
 		if err := r.postLedgerTransaction(ctx, tx, walletmodels.LedgerTransaction{
 			ID:              uuid.NewString(),
 			Reference:       "ldt_" + uuid.NewString(),
@@ -611,11 +631,16 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 		}); err != nil {
 			return err
 		}
+		if input.ProviderType == "vendor_business" {
+			if err = recordFinancialEvidence(ctx, tx, "vendor.withdrawal.requested.v1", "vendor.withdrawal.requested", "vendor_withdrawal", id, "vendor-service", 1, map[string]any{"vendor_id": input.ProviderID, "amount_minor": input.AmountKobo, "currency": input.Currency, "bank_account_id": input.BankAccountID}); err != nil {
+				return err
+			}
+		}
 		var getErr error
 		withdrawal, getErr = r.getWithdrawalForUpdate(ctx, tx, id)
 		return getErr
 	})
-	return withdrawal, err
+	return withdrawal, created, err
 }
 
 func (r *PostgresWalletRepository) GetWithdrawalByIdempotency(ctx context.Context, providerType string, providerID string, idempotencyKey string) (walletmodels.Withdrawal, error) {
@@ -654,7 +679,8 @@ func (r *PostgresWalletRepository) ApplyTransferSuccess(ctx context.Context, tra
 		if withdrawal.Status == walletmodels.WithdrawalStatusPaid {
 			return nil
 		}
-		pendingAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(withdrawal.ProviderType, withdrawal.ProviderID), walletmodels.AccountWithdrawalPending, withdrawal.Currency, walletmodels.NormalCredit)
+		ownerType, ownerID, _ := payableOwner(withdrawal.ProviderType, withdrawal.ProviderID)
+		pendingAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, walletmodels.AccountWithdrawalPending, withdrawal.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
@@ -680,6 +706,11 @@ func (r *PostgresWalletRepository) ApplyTransferSuccess(ctx context.Context, tra
 		if err != nil {
 			return err
 		}
+		if withdrawal.ProviderType == "vendor_business" {
+			if err = recordFinancialEvidence(ctx, tx, "vendor.withdrawal.completed.v1", "vendor.withdrawal.completed", "vendor_withdrawal", withdrawal.ID, "payment-wallet-service", 2, map[string]any{"vendor_id": withdrawal.ProviderID, "amount_minor": withdrawal.AmountKobo, "currency": withdrawal.Currency, "reference": withdrawal.Reference}); err != nil {
+				return err
+			}
+		}
 		withdrawal.Status = walletmodels.WithdrawalStatusPaid
 		return nil
 	})
@@ -697,11 +728,12 @@ func (r *PostgresWalletRepository) ApplyTransferFailure(ctx context.Context, tra
 		if withdrawal.Status == walletmodels.WithdrawalStatusFailed || withdrawal.Status == walletmodels.WithdrawalStatusReversed {
 			return nil
 		}
-		pendingAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(withdrawal.ProviderType, withdrawal.ProviderID), walletmodels.AccountWithdrawalPending, withdrawal.Currency, walletmodels.NormalCredit)
+		ownerType, ownerID, payableType := payableOwner(withdrawal.ProviderType, withdrawal.ProviderID)
+		pendingAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, walletmodels.AccountWithdrawalPending, withdrawal.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
-		providerAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(withdrawal.ProviderType, withdrawal.ProviderID), walletmodels.AccountProviderPayable, withdrawal.Currency, walletmodels.NormalCredit)
+		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, payableType, withdrawal.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
@@ -745,11 +777,12 @@ func (r *PostgresWalletRepository) CancelWithdrawalReservation(ctx context.Conte
 		if withdrawal.Status == walletmodels.WithdrawalStatusFailed {
 			return nil
 		}
-		pendingAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(withdrawal.ProviderType, withdrawal.ProviderID), walletmodels.AccountWithdrawalPending, withdrawal.Currency, walletmodels.NormalCredit)
+		ownerType, ownerID, payableType := payableOwner(withdrawal.ProviderType, withdrawal.ProviderID)
+		pendingAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, walletmodels.AccountWithdrawalPending, withdrawal.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
-		providerAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(withdrawal.ProviderType, withdrawal.ProviderID), walletmodels.AccountProviderPayable, withdrawal.Currency, walletmodels.NormalCredit)
+		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, payableType, withdrawal.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
@@ -1466,6 +1499,13 @@ func providerOwnerID(providerType string, providerID string) string {
 	return providerType + ":" + providerID
 }
 
+func payableOwner(providerType string, providerID string) (string, string, string) {
+	if providerType == "vendor_business" {
+		return walletmodels.OwnerTypeVendor, providerID, walletmodels.AccountVendorPayable
+	}
+	return walletmodels.OwnerTypeProvider, providerOwnerID(providerType, providerID), walletmodels.AccountProviderPayable
+}
+
 func isTopUpIntent(intent walletmodels.PaymentIntent) bool {
 	return intent.SourceService == "payment-wallet-service" && intent.ProviderID == "" && intent.ProviderType == ""
 }
@@ -1476,6 +1516,8 @@ func availableAccountFor(ownerType string) string {
 		return walletmodels.AccountCustomerAvailable
 	case walletmodels.OwnerTypeProvider:
 		return walletmodels.AccountProviderPayable
+	case walletmodels.OwnerTypeVendor:
+		return walletmodels.AccountVendorPayable
 	default:
 		return ""
 	}
@@ -1484,6 +1526,8 @@ func availableAccountFor(ownerType string) string {
 func pendingAccountFor(ownerType string) string {
 	switch ownerType {
 	case walletmodels.OwnerTypeProvider:
+		return walletmodels.AccountWithdrawalPending
+	case walletmodels.OwnerTypeVendor:
 		return walletmodels.AccountWithdrawalPending
 	default:
 		return ""

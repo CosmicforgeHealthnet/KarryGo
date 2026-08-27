@@ -2,11 +2,13 @@ package checkoutquote
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,6 +22,7 @@ const maxQuoteCommandBody = 8 << 10
 
 type createQuoteRequest struct {
 	FulfilmentPlanID string `json:"fulfilment_plan_id"`
+	CouponCode       string `json:"coupon_code,omitempty"`
 }
 
 type approveQuoteRequest struct {
@@ -28,10 +31,27 @@ type approveQuoteRequest struct {
 
 type Handler struct {
 	service *Service
+	limiter RequestLimiter
+	limit   RequestLimitPolicy
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+type RequestLimiter interface {
+	Allow(context.Context, string, string, int, time.Duration) error
+}
+
+type RequestLimitPolicy struct {
+	Limiter RequestLimiter
+	Max     int
+	Window  time.Duration
+}
+
+func NewHandler(service *Service, protections ...RequestLimitPolicy) *Handler {
+	handler := &Handler{service: service}
+	if len(protections) > 0 {
+		handler.limiter = protections[0].Limiter
+		handler.limit = protections[0]
+	}
+	return handler
 }
 
 func strictJSON(c *gin.Context, target any) error {
@@ -91,6 +111,12 @@ func (h *Handler) create(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if h.limiter != nil && h.limit.Max > 0 {
+		if err := h.limiter.Allow(c.Request.Context(), "quote_create", customerID, h.limit.Max, h.limit.Window); err != nil {
+			httpx.RespondError(c, err)
+			return
+		}
+	}
 	var request createQuoteRequest
 	if err := strictJSON(c, &request); err != nil {
 		httpx.RespondError(c, err)
@@ -100,7 +126,7 @@ func (h *Handler) create(c *gin.Context) {
 		httpx.RespondError(c, apperrors.BadRequest("fulfilment_plan_id is required.", nil))
 		return
 	}
-	quote, err := h.service.Create(c.Request.Context(), customerID, c.Param("sessionId"), request.FulfilmentPlanID)
+	quote, err := h.service.CreateWithCoupon(c.Request.Context(), customerID, c.Param("sessionId"), request.FulfilmentPlanID, request.CouponCode)
 	if err != nil {
 		httpx.RespondError(c, quoteHTTPError(err))
 		return
@@ -146,11 +172,11 @@ func (h *Handler) approve(c *gin.Context) {
 // RegisterCustomerRoutes exposes only quote creation, read and explicit
 // approval. It has no payment or order command and accepts no customer-owned
 // prices, fees, discounts, vendor ids, branch ids or funding allocations.
-func RegisterCustomerRoutes(root *gin.RouterGroup, service *Service, signer *sharedauth.TokenSigner, idempotencyStore *idempotency.Store, enabled bool) {
+func RegisterCustomerRoutes(root *gin.RouterGroup, service *Service, signer *sharedauth.TokenSigner, idempotencyStore *idempotency.Store, enabled bool, protections ...RequestLimitPolicy) {
 	if root == nil || service == nil || signer == nil || !enabled {
 		return
 	}
-	handler := NewHandler(service)
+	handler := NewHandler(service, protections...)
 	commerce := root.Group("")
 	commerce.Use(sharedauth.BearerMiddleware(signer, "customer", "customer"))
 	commerce.Use(idempotency.CustomerCommandMiddleware(idempotencyStore))

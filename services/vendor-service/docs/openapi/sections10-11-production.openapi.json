@@ -2427,6 +2427,32 @@
                   "/production/jobs":  {
                                            "get":  {
                                                        "operationId":  "listProductionJobs",
+                                                       "parameters":  [
+                                                                          {
+                                                                              "name":  "limit",
+                                                                              "in":  "query",
+                                                                              "schema":  {
+                                                                                             "type":  "integer",
+                                                                                             "minimum":  1,
+                                                                                             "maximum":  500
+                                                                                         }
+                                                                          },
+                                                                          {
+                                                                              "name":  "cursor",
+                                                                              "in":  "query",
+                                                                              "description":  "Opaque keyset continuation returned in X-Next-Cursor.",
+                                                                              "schema":  {
+                                                                                             "type":  "string"
+                                                                                         }
+                                                                          },
+                                                                          {
+                                                                              "name":  "status",
+                                                                              "in":  "query",
+                                                                              "schema":  {
+                                                                                             "type":  "string"
+                                                                                         }
+                                                                          }
+                                                                      ],
                                                        "responses":  {
                                                                          "200":  {
                                                                                      "description":  "Success."
@@ -2588,6 +2614,73 @@
                                                                                }
                                                                            ]
                                                         },
+                  "/production/jobs/{jobId}/steps":  {
+                                           "get":  {
+                                                       "operationId":  "listProductionJobSteps",
+                                                       "responses":  {"200":  {"description":  "Success."}}
+                                                   },
+                                           "post":  {
+                                                       "operationId":  "createProductionJobStep",
+                                                       "responses":  {
+                                                                         "201":  {
+                                                                                     "description":  "Created."
+                                                                                 }
+                                                                     },
+                                                       "parameters":  [
+                                                                          {
+                                                                              "$ref":  "#/components/parameters/IdempotencyKey"
+                                                                          },
+                                                                          {
+                                                                              "$ref":  "#/components/parameters/IfMatchVersion"
+                                                                          }
+                                                                      ],
+                                                       "requestBody":  {
+                                                                           "$ref":  "#/components/requestBodies/CommandBody"
+                                                                       }
+                                                   },
+                                           "parameters":  [
+                                                              {
+                                                                  "name":  "jobId",
+                                                                  "in":  "path",
+                                                                  "required":  true,
+                                                                  "schema":  {"type":  "string", "minLength":  1}
+                                                              }
+                                                          ]
+                                       },
+                  "/production/jobs/{jobId}/steps/{stepId}/{status}":  {
+                                           "post":  {
+                                                       "operationId":  "transitionProductionJobStep",
+                                                       "responses":  {
+                                                                         "200":  {"description":  "Updated."}
+                                                                     },
+                                                       "parameters":  [
+                                                                          {"$ref":  "#/components/parameters/IdempotencyKey"},
+                                                                          {"$ref":  "#/components/parameters/IfMatchVersion"}
+                                                                      ],
+                                                       "requestBody":  {"$ref":  "#/components/requestBodies/CommandBody"}
+                                                   },
+                                           "parameters":  [
+                                                              {"name":  "jobId", "in":  "path", "required":  true, "schema":  {"type":  "string", "minLength":  1}},
+                                                              {"name":  "stepId", "in":  "path", "required":  true, "schema":  {"type":  "string", "minLength":  1}},
+                                                              {"name":  "status", "in":  "path", "required":  true, "schema":  {"type":  "string", "minLength":  1}}
+                                                          ]
+                                       },
+                  "/production/jobs/{jobId}/delay":  {
+                                           "post":  {
+                                                       "operationId":  "reportProductionJobDelay",
+                                                       "responses":  {
+                                                                         "200":  {"description":  "Updated."}
+                                                                     },
+                                                       "parameters":  [
+                                                                          {"$ref":  "#/components/parameters/IdempotencyKey"},
+                                                                          {"$ref":  "#/components/parameters/IfMatchVersion"}
+                                                                      ],
+                                                       "requestBody":  {"$ref":  "#/components/requestBodies/CommandBody"}
+                                                   },
+                                           "parameters":  [
+                                                              {"name":  "jobId", "in":  "path", "required":  true, "schema":  {"type":  "string", "minLength":  1}}
+                                                          ]
+                                       },
                   "/production/jobs/{jobId}/{status}":  {
                                                             "post":  {
                                                                          "operationId":  "transitionProductionJob",

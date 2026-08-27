@@ -1,11 +1,13 @@
 package orders
 
-import "context"
+import (
+	"context"
+)
 
 // settleOrRefundTerminalLeg performs the Wallet action after the lifecycle
 // transaction has committed. If the process dies here, RecoverPayments finds
 // the same HELD leg and retries the deterministic authority operation.
-func (s *Service) settleOrRefundTerminalLeg(ctx context.Context, vendor VendorOrder) error {
+func (s *Service) settleOrRefundTerminalLeg(ctx context.Context, vendor VendorOrder, previousStatus VendorStatus) error {
 	if s == nil || s.payments == nil {
 		return ErrDependencyMissing
 	}
@@ -14,8 +16,55 @@ func (s *Service) settleOrRefundTerminalLeg(ctx context.Context, vendor VendorOr
 		return err
 	}
 	if vendor.Status == VendorStatusCancelled || vendor.Status == VendorStatusRejected {
-		if leg.Status == LegRefunded || leg.Status == LegSettled {
+		if leg.Status == LegRefunded {
 			return nil
+		}
+		if _, ok := s.payments.(CommerceSettlementAuthority); ok {
+			if previousStatus == "" {
+				previousStatus, err = s.store.PreviousTerminalStatus(ctx, vendor.ID)
+				if err != nil {
+					return err
+				}
+			}
+			trigger := RefundTriggerVendorCancelled
+			if vendor.Status == VendorStatusRejected {
+				trigger = RefundTriggerVendorRejected
+			}
+			decision, policyErr := EvaluateCommerceRefundPolicy(RefundPolicyInput{Trigger: trigger, Order: vendor, PreviousStatus: previousStatus, MaxAuthorizedMinor: leg.AmountMinor})
+			if policyErr != nil {
+				return policyErr
+			}
+			record, policyErr := s.ensureAndExecuteRefundDecision(ctx, vendor, vendor.LogisticsMissionRef, "commerce-cancel-refund-"+vendor.ID, decision, true)
+			if policyErr != nil || decision.SupportRequired {
+				return policyErr
+			}
+			adjustment, adjustmentErr := s.store.EnsureCancellationAdjustment(ctx, operationParent(operation), vendor, leg, "cancelled vendor allocation", record.IdempotencyKey, s.now().UTC())
+			if adjustmentErr != nil {
+				return adjustmentErr
+			}
+			if adjustment.WalletStatus == WalletRefunded {
+				return nil
+			}
+			if adjustmentErr = s.store.MarkAdjustmentRequested(ctx, adjustment.ID, s.now().UTC()); adjustmentErr != nil {
+				return adjustmentErr
+			}
+			stateAuthority, stateOK := s.payments.(CommerceAllocationStateAuthority)
+			if !stateOK {
+				return ErrDependencyMissing
+			}
+			result, refundErr := stateAuthority.GetCommerceRefundOperation(ctx, record.IdempotencyKey)
+			if refundErr != nil {
+				return refundErr
+			}
+			if !result.Applied() && result.Status != "PENDING_LIABILITY" {
+				return ErrPaymentAuthority
+			}
+			walletStatus := WalletRefunded
+			if result.Status == "PENDING_LIABILITY" {
+				walletStatus = WalletRequested
+			}
+			_, adjustmentErr = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, result.Reference, walletStatus, s.now().UTC())
+			return adjustmentErr
 		}
 		adjustment, err := s.store.EnsureCancellationAdjustment(ctx, operationParent(operation), vendor, leg, "cancelled vendor allocation", "commerce-cancel-refund-"+vendor.ID, s.now().UTC())
 		if err != nil {
@@ -59,6 +108,25 @@ func (s *Service) settleOrRefundTerminalLeg(ctx context.Context, vendor VendorOr
 		if leg.Status == LegSettled || leg.Status == LegRefunded {
 			return nil
 		}
+		if authority, ok := s.payments.(CommerceSettlementAuthority); ok {
+			snapshotFingerprint := leg.AllocationSnapshotFingerprint
+			if snapshotFingerprint == "" {
+				return ErrPaymentAuthority
+			}
+			result, releaseErr := authority.ReleaseCommerceAllocation(ctx, CommerceReleaseRequest{
+				VendorOrderID: vendor.ID, CompletionReference: "vendor-order-completed:" + vendor.ID,
+				SnapshotFingerprint: snapshotFingerprint, ReleaseVendorOwnedDelivery: vendor.DeliveryResponsibility == DeliveryVendorOwn && vendor.VendorOwnDeliveryState == VendorOwnDelivered,
+				IdempotencyKey: "commerce-settle-" + vendor.ID,
+			})
+			if releaseErr != nil {
+				return releaseErr
+			}
+			if !result.Applied() {
+				return ErrPaymentAuthority
+			}
+			_, err = s.store.RecordLegSettled(ctx, leg.ID, leg.AmountMinor-leg.RefundedMinor, s.now().UTC())
+			return err
+		}
 		authority, ok := s.payments.(PaymentSettlementAuthority)
 		if !ok {
 			return ErrDependencyMissing
@@ -67,12 +135,16 @@ func (s *Service) settleOrRefundTerminalLeg(ctx context.Context, vendor VendorOr
 		if err != nil {
 			return err
 		}
-		if !result.Settled() || (result.AmountKobo != 0 && result.AmountKobo != leg.AmountMinor) {
+		expectedSettlement := leg.AmountMinor - leg.RefundedMinor
+		if expectedSettlement < 0 {
+			expectedSettlement = 0
+		}
+		if !result.Settled() || (result.AmountKobo != 0 && result.AmountKobo != expectedSettlement) {
 			return ErrPaymentAuthority
 		}
 		settledAmount := result.AmountKobo
 		if settledAmount == 0 {
-			settledAmount = leg.AmountMinor
+			settledAmount = expectedSettlement
 		}
 		_, err = s.store.RecordLegSettled(ctx, leg.ID, settledAmount, s.now().UTC())
 		return err
@@ -95,7 +167,7 @@ func (s *Service) recoverTerminalPaymentLegs(ctx context.Context, limit int) (in
 		if err != nil {
 			continue
 		}
-		if err = s.settleOrRefundTerminalLeg(ctx, vendor); err == nil {
+		if err = s.settleOrRefundTerminalLeg(ctx, vendor, ""); err == nil {
 			count++
 		}
 	}

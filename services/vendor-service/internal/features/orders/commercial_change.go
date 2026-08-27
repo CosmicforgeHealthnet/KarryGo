@@ -11,6 +11,7 @@ package orders
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -283,55 +284,139 @@ func (s *Service) applyApprovedCommercialChange(ctx context.Context, change Comm
 			return change, ErrPaymentAuthority
 		}
 	} else if change.DeltaMinor < 0 {
+		if change.DeltaMinor == -1<<63 {
+			return change, ErrAdjustmentNotAvailable
+		}
+		refundMinor := -change.DeltaMinor
 		adjustment, err := s.store.EnsureChangeAdjustment(ctx, change, "CHEAPER_REPLAN", "REFUND", "customer benefit for eligible final delivery charge", "commerce-change-refund-"+change.ID, s.now().UTC())
 		if err != nil {
 			return change, err
 		}
 		if change.WalletStatus != WalletRefunded {
-			operation, err := s.store.GetOperationForOrder(ctx, change.CustomerID, change.ParentOrderID)
-			if err != nil {
-				return change, err
-			}
-			leg, err := s.store.FirstRefundableLeg(operation)
-			if err != nil {
-				return change, err
-			}
-			if err = s.store.MarkCommercialWalletRequested(ctx, change.ID, s.now().UTC()); err != nil {
-				return change, err
-			}
-			if err = s.store.MarkAdjustmentRequested(ctx, adjustment.ID, s.now().UTC()); err != nil {
-				return change, err
-			}
-			result, err := s.payments.RefundLeg(ctx, RefundLegRequest{
-				IdempotencyKey:   "commerce-change-refund-" + change.ID,
-				PaymentReference: leg.IntentReference, SourceService: PaymentSourceService,
-				SourceReference: refundSourceReference(leg, operation), AmountKobo: -change.DeltaMinor,
-				Currency: leg.Currency, Reason: "customer commercial change benefit",
-			})
-			if err != nil {
-				_, _ = s.store.MarkCommercialWallet(ctx, change.ID, "", WalletUnknown, s.now().UTC())
-				_, _ = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, "", WalletUnknown, s.now().UTC())
-				return change, ErrPaymentAuthority
-			}
-			if !result.Refunded() || (result.AmountKobo != 0 && result.AmountKobo != -change.DeltaMinor) {
-				_, _ = s.store.MarkCommercialWallet(ctx, change.ID, result.Reference, WalletUnknown, s.now().UTC())
-				_, _ = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, result.Reference, WalletUnknown, s.now().UTC())
-				return change, ErrPaymentAuthority
-			}
-			change, err = s.store.MarkCommercialWallet(ctx, change.ID, result.Reference, WalletRefunded, s.now().UTC())
-			if err != nil {
-				return change, err
-			}
-			// Recorded on the leg as well, so a later benefit against the same
-			// leg cannot take it past its own authorized amount unnoticed.
-			if _, err = s.store.MarkAdjustmentRefundedOnLeg(
-				ctx, adjustment.ID, leg.ID, result.Reference, -change.DeltaMinor, s.now().UTC(),
-			); err != nil {
-				return change, err
+			if _, commerce := s.payments.(CommerceSettlementAuthority); commerce {
+				order, loadErr := s.store.GetParent(ctx, change.CustomerID, change.ParentOrderID)
+				if loadErr != nil {
+					return change, loadErr
+				}
+				if err = s.store.MarkCommercialWalletRequested(ctx, change.ID, s.now().UTC()); err != nil {
+					return change, err
+				}
+				if err = s.store.MarkAdjustmentRequested(ctx, adjustment.ID, s.now().UTC()); err != nil {
+					return change, err
+				}
+				references, refundErr := s.executeDeliveryBenefitRefund(ctx, order, refundMinor, "commerce-change-refund-"+change.ID, change.ReplacementQuote.Version)
+				if refundErr != nil {
+					_, _ = s.store.MarkCommercialWallet(ctx, change.ID, "", WalletUnknown, s.now().UTC())
+					_, _ = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, "", WalletUnknown, s.now().UTC())
+					return change, refundErr
+				}
+				ref := strings.Join(references, ",")
+				change, err = s.store.MarkCommercialWallet(ctx, change.ID, ref, WalletRefunded, s.now().UTC())
+				if err != nil {
+					return change, err
+				}
+				if _, err = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, ref, WalletRefunded, s.now().UTC()); err != nil {
+					return change, err
+				}
+			} else {
+				operation, err := s.store.GetOperationForOrder(ctx, change.CustomerID, change.ParentOrderID)
+				if err != nil {
+					return change, err
+				}
+				leg, err := s.store.FirstRefundableLeg(operation)
+				if err != nil {
+					return change, err
+				}
+				if err = s.store.MarkCommercialWalletRequested(ctx, change.ID, s.now().UTC()); err != nil {
+					return change, err
+				}
+				if err = s.store.MarkAdjustmentRequested(ctx, adjustment.ID, s.now().UTC()); err != nil {
+					return change, err
+				}
+				result, err := s.payments.RefundLeg(ctx, RefundLegRequest{
+					IdempotencyKey:   "commerce-change-refund-" + change.ID,
+					PaymentReference: leg.IntentReference, SourceService: PaymentSourceService,
+					SourceReference: refundSourceReference(leg, operation), AmountKobo: refundMinor,
+					Currency: leg.Currency, Reason: "customer commercial change benefit",
+				})
+				if err != nil {
+					_, _ = s.store.MarkCommercialWallet(ctx, change.ID, "", WalletUnknown, s.now().UTC())
+					_, _ = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, "", WalletUnknown, s.now().UTC())
+					return change, ErrPaymentAuthority
+				}
+				if !result.Refunded() || (result.AmountKobo != 0 && result.AmountKobo != refundMinor) {
+					_, _ = s.store.MarkCommercialWallet(ctx, change.ID, result.Reference, WalletUnknown, s.now().UTC())
+					_, _ = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, result.Reference, WalletUnknown, s.now().UTC())
+					return change, ErrPaymentAuthority
+				}
+				change, err = s.store.MarkCommercialWallet(ctx, change.ID, result.Reference, WalletRefunded, s.now().UTC())
+				if err != nil {
+					return change, err
+				}
+				// Recorded on the leg as well, so a later benefit against the same
+				// leg cannot take it past its own authorized amount unnoticed.
+				if _, err = s.store.MarkAdjustmentRefundedOnLeg(
+					ctx, adjustment.ID, leg.ID, result.Reference, refundMinor, s.now().UTC(),
+				); err != nil {
+					return change, err
+				}
 			}
 		}
 	}
-	return s.store.ApplyCommercialChange(ctx, change, s.now().UTC())
+	applied, err := s.store.ApplyCommercialChange(ctx, change, s.now().UTC())
+	if err != nil {
+		return change, err
+	}
+	var proposalID string
+	if err = s.store.db.QueryRow(ctx, `SELECT replace(idempotency_key,'substitution-change-','') FROM commerce_order_adjustments WHERE change_id=$1 AND idempotency_key LIKE 'substitution-change-%' LIMIT 1`, change.ID).Scan(&proposalID); err == nil && proposalID != "" {
+		proposal, readErr := s.store.GetSubstitutionForCustomer(ctx, change.CustomerID, proposalID)
+		if readErr != nil {
+			return applied, readErr
+		}
+		if err = s.applySubstitutionInventory(ctx, proposal); err != nil {
+			return applied, err
+		}
+	}
+	return applied, nil
+}
+
+func (s *Service) executeDeliveryBenefitRefund(ctx context.Context, order ParentOrder, difference int64, keyBase string, planVersion int64) ([]string, error) {
+	if difference <= 0 || planVersion <= 0 {
+		return nil, ErrAdjustmentNotAvailable
+	}
+	remaining := difference
+	var references []string
+	for _, vendor := range order.VendorOrders {
+		if remaining == 0 {
+			break
+		}
+		portion := vendor.DeliveryCustomerMinor
+		if portion > remaining {
+			portion = remaining
+		}
+		if portion <= 0 {
+			continue
+		}
+		decision, err := EvaluateCommerceRefundPolicy(RefundPolicyInput{Trigger: RefundTriggerCheaperReplan, Order: vendor, DifferenceMinor: portion, PlanVersion: planVersion})
+		if err != nil {
+			return nil, err
+		}
+		key := keyBase + "-v" + fmt.Sprint(planVersion) + "-" + vendor.ID
+		record, _, err := s.store.EnsureRefundPolicyDecision(ctx, order.ID, vendor.ID, vendor.LogisticsMissionRef, key, decision, s.now().UTC())
+		if err != nil {
+			return nil, err
+		}
+		result, err := s.executeCommerceRefund(ctx, record, false)
+		if err != nil || !result.Applied() {
+			return nil, ErrPaymentAuthority
+		}
+		references = append(references, result.Reference)
+		remaining -= portion
+	}
+	if remaining != 0 {
+		return nil, ErrAllocationImbalance
+	}
+	return references, nil
 }
 
 // ApplyCheaperFulfilmentBenefit compares customer-facing delivery commitment
@@ -350,7 +435,11 @@ func (s *Service) ApplyCheaperFulfilmentBenefit(ctx context.Context, parentOrder
 	}
 	var committed int64
 	for _, vendor := range order.VendorOrders {
-		committed += vendor.DeliveryCustomerMinor
+		var ok bool
+		committed, ok = checkedMinorSum(committed, vendor.DeliveryCustomerMinor)
+		if !ok {
+			return AdjustmentEvidence{}, ErrAllocationImbalance
+		}
 	}
 	if eligibleFinalCustomerMinor < 0 || eligibleFinalCustomerMinor >= committed {
 		return AdjustmentEvidence{}, ErrAdjustmentNotAvailable
@@ -364,10 +453,14 @@ func (s *Service) ApplyCheaperFulfilmentBenefit(ctx context.Context, parentOrder
 	if err != nil {
 		return AdjustmentEvidence{}, err
 	}
-	if difference > leg.AmountMinor {
+	_, commerceSettlement := s.payments.(CommerceSettlementAuthority)
+	if difference > leg.AmountMinor && !commerceSettlement {
 		return AdjustmentEvidence{}, ErrAdjustmentNotAvailable
 	}
-	key := "commerce-cheaper-replan-" + order.ID
+	if order.FulfilmentPlanVersion <= 0 {
+		return AdjustmentEvidence{}, ErrAdjustmentNotAvailable
+	}
+	key := "commerce-cheaper-replan-" + order.ID + "-v" + fmt.Sprint(order.FulfilmentPlanVersion)
 	adjustment, created, err := s.store.EnsureAdjustment(ctx, order, leg, difference, committed, eligibleFinalCustomerMinor, policy, key, s.now().UTC())
 	if err != nil {
 		return AdjustmentEvidence{}, err
@@ -377,6 +470,43 @@ func (s *Service) ApplyCheaperFulfilmentBenefit(ctx context.Context, parentOrder
 	}
 	if err = s.store.MarkAdjustmentRequested(ctx, adjustment.ID, s.now().UTC()); err != nil {
 		return adjustment, err
+	}
+	if commerceSettlement {
+		remaining := difference
+		var references []string
+		for _, vendor := range order.VendorOrders {
+			if remaining == 0 {
+				break
+			}
+			portion := vendor.DeliveryCustomerMinor
+			if portion > remaining {
+				portion = remaining
+			}
+			if portion <= 0 {
+				continue
+			}
+			decision, policyErr := EvaluateCommerceRefundPolicy(RefundPolicyInput{Trigger: RefundTriggerCheaperReplan, Order: vendor, DifferenceMinor: portion, PlanVersion: order.FulfilmentPlanVersion})
+			if policyErr != nil {
+				_, _ = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, "", WalletUnknown, s.now().UTC())
+				return adjustment, policyErr
+			}
+			keyForVendor := key + "-v" + fmt.Sprint(order.FulfilmentPlanVersion) + "-" + vendor.ID
+			record, _, policyErr := s.store.EnsureRefundPolicyDecision(ctx, order.ID, vendor.ID, vendor.LogisticsMissionRef, keyForVendor, decision, s.now().UTC())
+			if policyErr != nil {
+				return adjustment, policyErr
+			}
+			result, refundErr := s.executeCommerceRefund(ctx, record, false)
+			if refundErr != nil || !result.Applied() {
+				_, _ = s.store.MarkAdjustmentWallet(ctx, adjustment.ID, result.Reference, WalletUnknown, s.now().UTC())
+				return adjustment, ErrPaymentAuthority
+			}
+			references = append(references, result.Reference)
+			remaining -= portion
+		}
+		if remaining != 0 {
+			return adjustment, ErrAllocationImbalance
+		}
+		return s.store.MarkAdjustmentWallet(ctx, adjustment.ID, strings.Join(references, ","), WalletRefunded, s.now().UTC())
 	}
 	result, err := s.payments.RefundLeg(ctx, RefundLegRequest{IdempotencyKey: key, PaymentReference: leg.IntentReference, SourceService: PaymentSourceService, SourceReference: refundSourceReference(leg, operation), AmountKobo: difference, Currency: leg.Currency, Reason: policy})
 	if err != nil {
@@ -430,11 +560,30 @@ func (s *Service) RecoverCommercialAdjustments(ctx context.Context, limit int) (
 	}
 	var recovered int
 	for _, adjustment := range adjustments {
-		if adjustment.Action == "AUTHORIZE" {
+		if adjustment.Action == "AUTHORIZE" || adjustment.ChangeID != "" {
 			continue
 		}
 		order, loadErr := s.store.GetParentByID(ctx, adjustment.ParentOrderID)
 		if loadErr != nil {
+			continue
+		}
+		if _, commerce := s.payments.(CommerceSettlementAuthority); commerce && adjustment.Type == "CHEAPER_REPLAN" {
+			if _, retryErr := s.ApplyCheaperFulfilmentBenefit(ctx, order.ID, adjustment.EligibleFinalMinor, adjustment.Policy); retryErr == nil {
+				recovered++
+			}
+			continue
+		}
+		if _, commerce := s.payments.(CommerceSettlementAuthority); commerce && adjustment.Type == "CANCELLATION_REFUND" {
+			record, recordErr := s.store.GetRefundPolicyDecision(ctx, adjustment.IdempotencyKey)
+			if recordErr != nil || record.Decision.SupportRequired {
+				continue
+			}
+			result, refundErr := s.executeCommerceRefund(ctx, record, true)
+			if refundErr == nil && result.Applied() {
+				if _, markErr := s.store.MarkAdjustmentWallet(ctx, adjustment.ID, result.Reference, WalletRefunded, s.now().UTC()); markErr == nil {
+					recovered++
+				}
+			}
 			continue
 		}
 		operation, loadErr := s.store.GetOperationForOrder(ctx, order.CustomerID, order.ID)

@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ const (
 type SubstitutionProposal struct {
 	ID, ParentOrderID, VendorOrderID, OrderLineID, CustomerID  string
 	BusinessID, BranchID                                       string
+	CaseID                                                     string
 	ProposedItemRef, ProposedVariantRef, ProposedCatalogueRef  string
 	ReplacementSnapshot                                        json.RawMessage
 	ProposedQuantity, ProposedPriceMinor, PriceDifferenceMinor int64
@@ -63,6 +65,7 @@ type LogisticsOrderEvent struct {
 	SourceVersion                                     int64
 	OccurredAt                                        time.Time
 	Payload                                           json.RawMessage
+	ParcelRefs                                        []string
 }
 
 // ValidateVariableWeightAmount is the single arithmetic guard for a picked
@@ -108,7 +111,7 @@ func (s *Store) SetRefundState(ctx context.Context, vendorOrderID, state, operat
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var parentID, customerID, currentState, currentStatus, currentOperation, previousParentState string
-	var currentAmount, currentVersion int64
+	var currentAmount, currentVersion, platformFeeTaxMinor int64
 	if err = tx.QueryRow(ctx, `SELECT parent_order_id,customer_id,refund_state,status,refund_operation_ref,refund_refunded_minor,version FROM commerce_vendor_orders WHERE id=$1 FOR UPDATE`, vendorOrderID).
 		Scan(&parentID, &customerID, &currentState, &currentStatus, &currentOperation, &currentAmount, &currentVersion); errors.Is(err, pgx.ErrNoRows) {
 		return ErrOrderNotFound
@@ -118,7 +121,7 @@ func (s *Store) SetRefundState(ctx context.Context, vendorOrderID, state, operat
 	if len(expectedVersions) > 0 && currentVersion != expectedVersions[0] {
 		return ErrVersionConflict
 	}
-	if err = tx.QueryRow(ctx, `SELECT state FROM commerce_parent_orders WHERE id=$1 FOR UPDATE`, parentID).Scan(&previousParentState); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT state,platform_fee_tax_minor FROM commerce_parent_orders WHERE id=$1 FOR UPDATE`, parentID).Scan(&previousParentState, &platformFeeTaxMinor); err != nil {
 		return err
 	}
 	// A replay of the same Wallet result is a successful no-op. A later
@@ -129,21 +132,11 @@ func (s *Store) SetRefundState(ctx context.Context, vendorOrderID, state, operat
 		}
 		return nil
 	}
+	// Commercial lifecycle and financial outcome are independent. A cancelled
+	// order may truthfully remain CANCELLED while its refund is PENDING; a
+	// Wallet command must never rewrite the operational history.
 	status := currentStatus
-	terminal := false
-	switch state {
-	case "REFUND_PENDING":
-		status = string(VendorStatusRefundPending)
-	case "REFUNDED":
-		status = string(VendorStatusRefunded)
-		terminal = true
-	case "PARTIALLY_REFUNDED":
-		status = string(VendorStatusPartiallyRefunded)
-		terminal = true
-	}
-	if status == string(VendorStatusCompleted) || status == string(VendorStatusCancelled) || status == string(VendorStatusRejected) || status == string(VendorStatusRefunded) || status == string(VendorStatusPartiallyRefunded) {
-		terminal = true
-	}
+	terminal := VendorStatus(status).Terminal()
 	var terminalAt any
 	if terminal {
 		terminalAt = now
@@ -164,7 +157,7 @@ func (s *Store) SetRefundState(ctx context.Context, vendorOrderID, state, operat
 			return err
 		}
 	}
-	if _, err = refreshParentState(ctx, tx, parentID, customerID, previousParentState, 0, now); err != nil {
+	if _, err = refreshParentState(ctx, tx, parentID, customerID, previousParentState, platformFeeTaxMinor, now); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -206,7 +199,26 @@ func (s *Service) ReportLineAvailability(ctx context.Context, actor Actor, vendo
 	if order.Domain != "SHOP" {
 		return LineOutcome{}, ErrOrderConflict
 	}
-	return s.store.UpsertLineOutcome(ctx, actor.VendorID, vendorOrderID, lineID, expectedVersion, picked, unavailable, actualMeasure, outcome, s.now().UTC())
+	result, err := s.store.UpsertLineOutcome(ctx, actor.VendorID, vendorOrderID, lineID, expectedVersion, picked, unavailable, actualMeasure, outcome, s.now().UTC())
+	if err != nil {
+		return result, err
+	}
+	if outcome == AvailabilityUnavailable {
+		policy, policyErr := s.store.FrozenSubstitutionPolicy(ctx, vendorOrderID, lineID)
+		if policyErr != nil {
+			return result, policyErr
+		}
+		if policy == PolicyAutoRefund {
+			decision, decisionErr := EvaluateCommerceRefundPolicy(RefundPolicyInput{Trigger: RefundTriggerItemUnavailable, Order: order, OrderLineID: lineID, SubstitutionPolicy: policy})
+			if decisionErr != nil {
+				return result, decisionErr
+			}
+			if _, decisionErr = s.ensureAndExecuteRefundDecision(ctx, order, "", "commerce-item-unavailable-"+lineID, decision, false); decisionErr != nil {
+				return result, decisionErr
+			}
+		}
+	}
+	return result, nil
 }
 
 func (s *Service) ProposeSubstitution(ctx context.Context, actor Actor, vendorOrderID, lineID string,
@@ -238,6 +250,22 @@ func (s *Service) ProposeSubstitution(ctx context.Context, actor Actor, vendorOr
 	if err != nil {
 		return SubstitutionProposal{}, err
 	}
+	// The frozen line policy is authoritative. In particular, EXACT_ONLY and
+	// AUTO_REFUND are terminal no-replacement choices; a vendor request must
+	// never turn either into an arbitrary replacement proposal.
+	var frozenPolicy string
+	if err = s.store.db.QueryRow(ctx, `
+		SELECT COALESCE(p.substitution_policy,o.substitution_policy,'EXACT_ONLY')
+		  FROM commerce_vendor_order_lines l
+		  LEFT JOIN commerce_shop_picking_snapshots p ON p.order_line_id=l.id
+		  LEFT JOIN commerce_vendor_order_line_outcomes o ON o.order_line_id=l.id
+		 WHERE l.id=$1 AND l.vendor_order_id=$2`, lineID, vendorOrderID).Scan(&frozenPolicy); err != nil {
+		return SubstitutionProposal{}, err
+	}
+	policy, parseErr := ParseSubstitutionPolicy(frozenPolicy)
+	if parseErr != nil || policy == PolicyExactOnly || policy == PolicyAutoRefund {
+		return SubstitutionProposal{}, ErrOrderConflict
+	}
 	proposal.ProposedItemRef = resolved.ProposedItemRef
 	proposal.ProposedVariantRef = resolved.ProposedVariantRef
 	proposal.ProposedCatalogueRef = resolved.ProposedCatalogueRef
@@ -258,12 +286,53 @@ func (s *Service) RespondToSubstitution(ctx context.Context, customerID, proposa
 			return SubstitutionProposal{}, err
 		}
 		if proposal.PriceDifferenceMinor > 0 {
-			if err = s.ensureSubstitutionCommercialChange(ctx, proposal); err != nil && !errors.Is(err, ErrCommercialChangeRequired) {
+			if err = s.ensureSubstitutionCommercialChange(ctx, proposal); err != nil {
+				// A more-expensive replacement is not a direct customer
+				// decision. The durable commercial-change path must obtain the
+				// extra authorization before the proposal can become effective.
 				return SubstitutionProposal{}, err
 			}
 		}
 	}
-	return s.store.RespondSubstitution(ctx, strings.TrimSpace(customerID), strings.TrimSpace(proposalID), approve, expectedVersion, s.now().UTC())
+	resolved, err := s.store.RespondSubstitution(ctx, strings.TrimSpace(customerID), strings.TrimSpace(proposalID), approve, expectedVersion, s.now().UTC())
+	if err != nil {
+		return SubstitutionProposal{}, err
+	}
+	if approve {
+		if err = s.applySubstitutionInventory(ctx, resolved); err != nil {
+			return resolved, err
+		}
+		if resolved.PriceDifferenceMinor < 0 {
+			order, loadErr := s.store.GetVendorOrderForCustomer(ctx, resolved.CustomerID, resolved.VendorOrderID)
+			if loadErr != nil {
+				return resolved, loadErr
+			}
+			decision, decisionErr := EvaluateCommerceRefundPolicy(RefundPolicyInput{Trigger: RefundTriggerReplacementCheaper, Order: order, OrderLineID: resolved.OrderLineID, DifferenceMinor: -resolved.PriceDifferenceMinor})
+			if decisionErr != nil {
+				return resolved, decisionErr
+			}
+			if _, decisionErr = s.ensureAndExecuteRefundDecision(ctx, order, "", "commerce-replacement-refund-"+resolved.ID, decision, false); decisionErr != nil {
+				return resolved, decisionErr
+			}
+		}
+	}
+	return resolved, nil
+}
+
+func (s *Store) FrozenSubstitutionPolicy(ctx context.Context, vendorOrderID, lineID string) (SubstitutionPolicy, error) {
+	var raw string
+	err := s.db.QueryRow(ctx, `SELECT COALESCE(p.substitution_policy,o.substitution_policy,'EXACT_ONLY')
+		FROM commerce_vendor_order_lines l
+		LEFT JOIN commerce_shop_picking_snapshots p ON p.order_line_id=l.id
+		LEFT JOIN commerce_vendor_order_line_outcomes o ON o.order_line_id=l.id
+		WHERE l.id=$1 AND l.vendor_order_id=$2`, lineID, vendorOrderID).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrOrderNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return ParseSubstitutionPolicy(raw)
 }
 
 func (s *Service) ensureSubstitutionCommercialChange(ctx context.Context, proposal SubstitutionProposal) error {
@@ -314,7 +383,54 @@ func (s *Service) ApplyLogisticsEvent(ctx context.Context, event LogisticsOrderE
 	if !s.enabled {
 		return VendorOrder{}, ParentOrder{}, ErrDisabled
 	}
-	return s.store.ApplyLogisticsEvent(ctx, event, s.now().UTC())
+	order, parent, err := s.store.ApplyLogisticsEvent(ctx, event, s.now().UTC())
+	if err != nil {
+		return order, parent, err
+	}
+	// The authority's own evidence is projected onto the fulfilment aggregate:
+	// mission status and parcel custody. Stale and duplicate events are
+	// absorbed there rather than applied, so an at-least-once pipeline cannot
+	// walk a delivered parcel backwards.
+	if s.fulfilmentProjection != nil {
+		if projectErr := s.fulfilmentProjection.ProjectLogisticsEvent(ctx, event); projectErr != nil {
+			return order, parent, projectErr
+		}
+	}
+	if strings.ToUpper(strings.TrimSpace(event.EventType)) != "DELIVERY_FAILED" {
+		return order, parent, nil
+	}
+	failure, err := parseDeliveryFailurePayload(event.Payload)
+	if err != nil {
+		return order, parent, err
+	}
+	leg, _, err := s.store.PaymentLegForVendorOrder(ctx, order.CustomerID, order.ID)
+	if err != nil {
+		return order, parent, err
+	}
+	decision, err := EvaluateCommerceRefundPolicy(RefundPolicyInput{Trigger: RefundTriggerDeliveryFailure, Order: order, MaxAuthorizedMinor: leg.AmountMinor, DeliveryFailurePolicy: failure.Policy, PreserveProviderEarning: failure.PreserveProviderEarning})
+	if err != nil {
+		return order, parent, err
+	}
+	_, err = s.ensureAndExecuteRefundDecision(ctx, order, event.MissionRef, "commerce-delivery-failure-"+event.EventID, decision, false)
+	return order, parent, err
+}
+
+type deliveryFailurePayload struct {
+	Policy                  DeliveryFailurePolicy `json:"financial_policy"`
+	PreserveProviderEarning bool                  `json:"preserve_provider_earning"`
+}
+
+func parseDeliveryFailurePayload(raw json.RawMessage) (deliveryFailurePayload, error) {
+	var payload deliveryFailurePayload
+	if len(raw) == 0 || len(raw) > 32<<10 || json.Unmarshal(raw, &payload) != nil {
+		return payload, ErrOrderConflict
+	}
+	switch payload.Policy {
+	case DeliveryFailureDeliveryOnly, DeliveryFailureGoodsAndDelivery, DeliveryFailureCustomerCaused, DeliveryFailureReplanPossible, DeliveryFailureAmbiguous:
+		return payload, nil
+	default:
+		return payload, ErrOrderConflict
+	}
 }
 
 func (s *Store) UpsertLineOutcome(ctx context.Context, businessID, vendorOrderID, lineID string,
@@ -348,12 +464,15 @@ func (s *Store) UpsertLineOutcome(ctx context.Context, businessID, vendorOrderID
 	if picked+unavailable > ordered {
 		return LineOutcome{}, ErrOrderConflict
 	}
+	if outcome == AvailabilityUnavailable && (picked != 0 || unavailable != ordered) {
+		return LineOutcome{}, ErrOrderConflict
+	}
 	var current LineOutcome
 	err = tx.QueryRow(ctx, `SELECT id,ordered_quantity,picked_quantity,unavailable_quantity,actual_measure_quantity,outcome,version,created_at,updated_at FROM commerce_vendor_order_line_outcomes WHERE order_line_id=$1 FOR UPDATE`, lineID).Scan(&current.ID, &current.OrderedQuantity, &current.PickedQuantity, &current.UnavailableQuantity, &current.ActualMeasureQuantity, &current.Outcome, &current.Version, &current.CreatedAt, &current.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		current.ID = "cvoo_" + uuid.NewString()
 		current.Version = 1
-		_, err = tx.Exec(ctx, `INSERT INTO commerce_vendor_order_line_outcomes(id,parent_order_id,vendor_order_id,order_line_id,ordered_quantity,picked_quantity,unavailable_quantity,actual_measure_quantity,outcome,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,1,$10,$10)`, current.ID, parentID, vendorOrderID, lineID, ordered, picked, unavailable, actualMeasure, outcome, now)
+		_, err = tx.Exec(ctx, `INSERT INTO commerce_vendor_order_line_outcomes(id,parent_order_id,vendor_order_id,order_line_id,ordered_quantity,picked_quantity,unavailable_quantity,actual_measure_quantity,outcome,picking_state,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN $9='FULLY_AVAILABLE' THEN 'COMPLETE' ELSE 'BLOCKED' END,1,$10,$10)`, current.ID, parentID, vendorOrderID, lineID, ordered, picked, unavailable, actualMeasure, outcome, now)
 		if err != nil {
 			return LineOutcome{}, err
 		}
@@ -363,7 +482,7 @@ func (s *Store) UpsertLineOutcome(ctx context.Context, businessID, vendorOrderID
 		if current.Version != expectedVersion {
 			return LineOutcome{}, ErrVersionConflict
 		}
-		tag, e := tx.Exec(ctx, `UPDATE commerce_vendor_order_line_outcomes SET picked_quantity=$1,unavailable_quantity=$2,actual_measure_quantity=$3,outcome=$4,version=version+1,updated_at=$5 WHERE order_line_id=$6 AND version=$7`, picked, unavailable, actualMeasure, outcome, now, lineID, current.Version)
+		tag, e := tx.Exec(ctx, `UPDATE commerce_vendor_order_line_outcomes SET picked_quantity=$1,unavailable_quantity=$2,actual_measure_quantity=$3,outcome=$4,picking_state=CASE WHEN $4='FULLY_AVAILABLE' THEN 'COMPLETE' ELSE 'BLOCKED' END,version=version+1,updated_at=$5 WHERE order_line_id=$6 AND version=$7`, picked, unavailable, actualMeasure, outcome, now, lineID, current.Version)
 		if e != nil {
 			return LineOutcome{}, e
 		}
@@ -475,7 +594,7 @@ func (s *Store) CreateSubstitutionProposal(ctx context.Context, businessID, vend
 		return SubstitutionProposal{}, ErrOrderConflict
 	}
 	var p SubstitutionProposal
-	err := s.db.QueryRow(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at FROM commerce_substitution_proposals WHERE idempotency_key=$1`, idempotencyKey).Scan(&p.ID, &p.ParentOrderID, &p.VendorOrderID, &p.OrderLineID, &p.CustomerID, &p.BusinessID, &p.BranchID, &p.ProposedItemRef, &p.ProposedVariantRef, &p.ProposedCatalogueRef, &p.ReplacementSnapshot, &p.ProposedQuantity, &p.ProposedPriceMinor, &p.PriceDifferenceMinor, &p.Reason, &p.ExpiresAt, &p.Status, &p.ResponseRef, &p.Version, &p.CreatedAt, &p.RespondedAt, &p.UpdatedAt)
+	err := s.db.QueryRow(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at,case_id FROM commerce_substitution_proposals WHERE idempotency_key=$1`, idempotencyKey).Scan(&p.ID, &p.ParentOrderID, &p.VendorOrderID, &p.OrderLineID, &p.CustomerID, &p.BusinessID, &p.BranchID, &p.ProposedItemRef, &p.ProposedVariantRef, &p.ProposedCatalogueRef, &p.ReplacementSnapshot, &p.ProposedQuantity, &p.ProposedPriceMinor, &p.PriceDifferenceMinor, &p.Reason, &p.ExpiresAt, &p.Status, &p.ResponseRef, &p.Version, &p.CreatedAt, &p.RespondedAt, &p.UpdatedAt, &p.CaseID)
 	if err == nil {
 		return p, nil
 	}
@@ -487,9 +606,10 @@ func (s *Store) CreateSubstitutionProposal(ctx context.Context, businessID, vend
 		return SubstitutionProposal{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	var parentID, ownerCustomer, branch, currentStatus string
-	var originalPrice int64
-	if err = tx.QueryRow(ctx, `SELECT v.parent_order_id,v.customer_id,v.branch_id,v.status,l.unit_price_minor FROM commerce_vendor_orders v JOIN commerce_vendor_order_lines l ON l.vendor_order_id=v.id WHERE v.id=$1 AND v.business_id=$2 AND l.id=$3 FOR UPDATE`, vendorOrderID, businessID, lineID).Scan(&parentID, &ownerCustomer, &branch, &currentStatus, &originalPrice); errors.Is(err, pgx.ErrNoRows) {
+	var parentID, ownerCustomer, branch, currentStatus, lineSnapshot, frozenPolicy string
+	var qualitySnapshot []byte
+	var originalPrice, orderedQuantity int64
+	if err = tx.QueryRow(ctx, `SELECT v.parent_order_id,v.customer_id,v.branch_id,v.status,l.unit_price_minor,l.quantity,l.snapshot::text,COALESCE(sp.substitution_policy,o.substitution_policy,'CONTACT_FIRST'),COALESCE(sp.quality_preference_snapshot,'[]'::jsonb) FROM commerce_vendor_orders v JOIN commerce_vendor_order_lines l ON l.vendor_order_id=v.id LEFT JOIN commerce_shop_picking_snapshots sp ON sp.order_line_id=l.id LEFT JOIN commerce_vendor_order_line_outcomes o ON o.order_line_id=l.id WHERE v.id=$1 AND v.business_id=$2 AND l.id=$3 FOR UPDATE`, vendorOrderID, businessID, lineID).Scan(&parentID, &ownerCustomer, &branch, &currentStatus, &originalPrice, &orderedQuantity, &lineSnapshot, &frozenPolicy, &qualitySnapshot); errors.Is(err, pgx.ErrNoRows) {
 		return SubstitutionProposal{}, ErrOrderNotFound
 	} else if err != nil {
 		return SubstitutionProposal{}, err
@@ -512,7 +632,35 @@ func (s *Store) CreateSubstitutionProposal(ctx context.Context, businessID, vend
 	proposal.Version = 1
 	proposal.CreatedAt = now
 	proposal.UpdatedAt = now
-	_, err = tx.Exec(ctx, `INSERT INTO commerce_substitution_proposals(id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,version,idempotency_key,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'PENDING',1,$17,$18,$18)`, proposal.ID, parentID, vendorOrderID, lineID, customerID, businessID, branch, proposal.ProposedItemRef, proposal.ProposedVariantRef, proposal.ProposedCatalogueRef, proposal.ReplacementSnapshot, proposal.ProposedQuantity, proposal.ProposedPriceMinor, proposal.PriceDifferenceMinor, proposal.Reason, proposal.ExpiresAt, idempotencyKey, now)
+	var caseID string
+	if err = tx.QueryRow(ctx, `SELECT id FROM commerce_substitution_cases WHERE order_line_id=$1 AND state IN ('OPEN','AWAITING_CUSTOMER','AUTO_REFUND_PENDING') ORDER BY created_at DESC,id DESC LIMIT 1 FOR UPDATE`, lineID).Scan(&caseID); errors.Is(err, pgx.ErrNoRows) {
+		caseID = "scase_" + uuid.NewString()
+		policy := "CONTACT_FIRST"
+		switch frozenPolicy {
+		case "EXACT_ONLY", "AUTO_REFUND":
+			return SubstitutionProposal{}, ErrOrderConflict
+		case "CONTACT_FIRST", "SPECIFIC_REPLACEMENT", "VENDOR_SUGGEST_AND_APPROVE":
+			policy = frozenPolicy
+		}
+		caseSnapshot := json.RawMessage(lineSnapshot)
+		if !json.Valid(caseSnapshot) {
+			caseSnapshot = json.RawMessage(`{}`)
+		}
+		policySnapshot := json.RawMessage(fmt.Sprintf(`{"policy":%q}`, frozenPolicy))
+		if frozenPolicy == "" {
+			policySnapshot = json.RawMessage(`{"policy":"CONTACT_FIRST"}`)
+		}
+		if len(qualitySnapshot) == 0 || !json.Valid(qualitySnapshot) {
+			qualitySnapshot = []byte(`[]`)
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO commerce_substitution_cases(id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,unavailable_quantity,original_line_snapshot,policy_snapshot,quality_snapshot,deadline_at,fallback_policy,state,reason,version,idempotency_key,correlation_ref,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13,'AWAITING_CUSTOMER',$14,1,$15,$16,$17,$17)`, caseID, parentID, vendorOrderID, lineID, customerID, businessID, branch, orderedQuantity, caseSnapshot, policySnapshot, qualitySnapshot, proposal.ExpiresAt, policy, proposal.Reason, "case-for-"+idempotencyKey, idempotencyKey, now); err != nil {
+			return SubstitutionProposal{}, err
+		}
+	} else if err != nil {
+		return SubstitutionProposal{}, err
+	}
+	proposal.CaseID = caseID
+	_, err = tx.Exec(ctx, `INSERT INTO commerce_substitution_proposals(id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,version,idempotency_key,created_at,updated_at,case_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'PENDING',1,$17,$18,$18,$19)`, proposal.ID, parentID, vendorOrderID, lineID, customerID, businessID, branch, proposal.ProposedItemRef, proposal.ProposedVariantRef, proposal.ProposedCatalogueRef, proposal.ReplacementSnapshot, proposal.ProposedQuantity, proposal.ProposedPriceMinor, proposal.PriceDifferenceMinor, proposal.Reason, proposal.ExpiresAt, idempotencyKey, now, caseID)
 	if err != nil {
 		return SubstitutionProposal{}, err
 	}
@@ -542,7 +690,7 @@ func (s *Store) RespondSubstitution(ctx context.Context, customerID, proposalID 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var p SubstitutionProposal
-	err = tx.QueryRow(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at FROM commerce_substitution_proposals WHERE id=$1 AND customer_id=$2 FOR UPDATE`, proposalID, customerID).Scan(&p.ID, &p.ParentOrderID, &p.VendorOrderID, &p.OrderLineID, &p.CustomerID, &p.BusinessID, &p.BranchID, &p.ProposedItemRef, &p.ProposedVariantRef, &p.ProposedCatalogueRef, &p.ReplacementSnapshot, &p.ProposedQuantity, &p.ProposedPriceMinor, &p.PriceDifferenceMinor, &p.Reason, &p.ExpiresAt, &p.Status, &p.ResponseRef, &p.Version, &p.CreatedAt, &p.RespondedAt, &p.UpdatedAt)
+	err = tx.QueryRow(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at,case_id FROM commerce_substitution_proposals WHERE id=$1 AND customer_id=$2 FOR UPDATE`, proposalID, customerID).Scan(&p.ID, &p.ParentOrderID, &p.VendorOrderID, &p.OrderLineID, &p.CustomerID, &p.BusinessID, &p.BranchID, &p.ProposedItemRef, &p.ProposedVariantRef, &p.ProposedCatalogueRef, &p.ReplacementSnapshot, &p.ProposedQuantity, &p.ProposedPriceMinor, &p.PriceDifferenceMinor, &p.Reason, &p.ExpiresAt, &p.Status, &p.ResponseRef, &p.Version, &p.CreatedAt, &p.RespondedAt, &p.UpdatedAt, &p.CaseID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SubstitutionProposal{}, ErrOrderNotFound
 	}
@@ -556,7 +704,17 @@ func (s *Store) RespondSubstitution(ctx context.Context, customerID, proposalID 
 		return SubstitutionProposal{}, ErrOrderConflict
 	}
 	if p.ExpiresAt != nil && now.After(*p.ExpiresAt) {
-		_, _ = tx.Exec(ctx, `UPDATE commerce_substitution_proposals SET status='EXPIRED',version=version+1,updated_at=$1,responded_at=$1 WHERE id=$2`, now, proposalID)
+		if _, err = tx.Exec(ctx, `UPDATE commerce_substitution_proposals SET status='EXPIRED',version=version+1,updated_at=$1,responded_at=$1 WHERE id=$2 AND status='PENDING'`, now, proposalID); err != nil {
+			return SubstitutionProposal{}, err
+		}
+		if p.CaseID != "" {
+			if _, err = tx.Exec(ctx, `UPDATE commerce_substitution_cases SET state='EXPIRED',version=version+1,updated_at=$1,resolved_at=$1 WHERE id=$2 AND state IN ('OPEN','AWAITING_CUSTOMER')`, now, p.CaseID); err != nil {
+				return SubstitutionProposal{}, err
+			}
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return SubstitutionProposal{}, err
+		}
 		return SubstitutionProposal{}, ErrCommercialChangeExpired
 	}
 	if p.Version != expectedVersion {
@@ -587,6 +745,19 @@ func (s *Store) RespondSubstitution(ctx context.Context, customerID, proposalID 
 	if tag.RowsAffected() != 1 {
 		return SubstitutionProposal{}, ErrVersionConflict
 	}
+	if p.CaseID != "" {
+		caseState := "REJECTED"
+		if approve {
+			caseState = "APPROVED"
+		}
+		caseWhere := `id=$3 AND state IN ('OPEN','AWAITING_CUSTOMER')`
+		if !approve {
+			caseWhere += ` AND NOT EXISTS (SELECT 1 FROM commerce_substitution_proposals WHERE case_id=$3 AND status='PENDING')`
+		}
+		if _, err = tx.Exec(ctx, `UPDATE commerce_substitution_cases SET state=$1,version=version+1,updated_at=$2,resolved_at=$2 WHERE `+caseWhere, caseState, now, p.CaseID); err != nil {
+			return SubstitutionProposal{}, err
+		}
+	}
 	if approve && p.PriceDifferenceMinor < 0 {
 		_, err = tx.Exec(ctx, `INSERT INTO commerce_order_adjustments(id,parent_order_id,vendor_order_id,adjustment_type,original_commitment_minor,eligible_final_minor,difference_minor,policy,action,idempotency_key,wallet_status,version,created_at,updated_at) VALUES($1,$2,$3,'SUBSTITUTION',$4,$5,$6,'CUSTOMER_APPROVED_CHEAPER_SUBSTITUTION','REFUND',$7,'PENDING',1,$8,$8) ON CONFLICT (idempotency_key) DO NOTHING`, "coa_"+uuid.NewString(), p.ParentOrderID, p.VendorOrderID, p.ProposedPriceMinor-p.PriceDifferenceMinor, p.ProposedPriceMinor, -p.PriceDifferenceMinor, "substitution-"+p.ID, now)
 		if err != nil {
@@ -597,7 +768,7 @@ func (s *Store) RespondSubstitution(ctx context.Context, customerID, proposalID 
 	// from SUBSTITUTION_REQUIRED back to picking. The update is in the same
 	// transaction as the proposal response and therefore cannot be observed as
 	// an approval without the corresponding order transition.
-	if _, err = tx.Exec(ctx, `UPDATE commerce_vendor_orders SET status='PICKING',version=version+1,updated_at=$1 WHERE id=$2 AND status IN ('SUBSTITUTION_REQUIRED','AWAITING_CUSTOMER')`, now, p.VendorOrderID); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE commerce_vendor_orders SET status='PICKING',version=version+1,updated_at=$1 WHERE id=$2 AND status IN ('SUBSTITUTION_REQUIRED','AWAITING_CUSTOMER') AND NOT EXISTS (SELECT 1 FROM commerce_substitution_proposals WHERE vendor_order_id=$2 AND status='PENDING')`, now, p.VendorOrderID); err != nil {
 		return SubstitutionProposal{}, err
 	}
 	action := "commerce.vendor_order.substitution_rejected"
@@ -621,7 +792,7 @@ func (s *Store) GetSubstitutionForCustomer(ctx context.Context, customerID, prop
 	if s == nil || s.db == nil {
 		return SubstitutionProposal{}, ErrDependencyMissing
 	}
-	return scanSubstitution(s.db.QueryRow(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at FROM commerce_substitution_proposals WHERE id=$1 AND customer_id=$2`, proposalID, customerID))
+	return scanSubstitution(s.db.QueryRow(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at,case_id FROM commerce_substitution_proposals WHERE id=$1 AND customer_id=$2`, proposalID, customerID))
 }
 
 func (s *Store) SubstitutionCommercialContext(ctx context.Context, proposal SubstitutionProposal) (SubstitutionCommercialChangeRequest, error) {
@@ -644,7 +815,7 @@ func (s *Store) SubstitutionCommercialContext(ctx context.Context, proposal Subs
 
 func scanSubstitution(row scanner) (SubstitutionProposal, error) {
 	var p SubstitutionProposal
-	err := row.Scan(&p.ID, &p.ParentOrderID, &p.VendorOrderID, &p.OrderLineID, &p.CustomerID, &p.BusinessID, &p.BranchID, &p.ProposedItemRef, &p.ProposedVariantRef, &p.ProposedCatalogueRef, &p.ReplacementSnapshot, &p.ProposedQuantity, &p.ProposedPriceMinor, &p.PriceDifferenceMinor, &p.Reason, &p.ExpiresAt, &p.Status, &p.ResponseRef, &p.Version, &p.CreatedAt, &p.RespondedAt, &p.UpdatedAt)
+	err := row.Scan(&p.ID, &p.ParentOrderID, &p.VendorOrderID, &p.OrderLineID, &p.CustomerID, &p.BusinessID, &p.BranchID, &p.ProposedItemRef, &p.ProposedVariantRef, &p.ProposedCatalogueRef, &p.ReplacementSnapshot, &p.ProposedQuantity, &p.ProposedPriceMinor, &p.PriceDifferenceMinor, &p.Reason, &p.ExpiresAt, &p.Status, &p.ResponseRef, &p.Version, &p.CreatedAt, &p.RespondedAt, &p.UpdatedAt, &p.CaseID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SubstitutionProposal{}, ErrOrderNotFound
 	}
@@ -658,7 +829,7 @@ func (s *Store) ListPendingSubstitutions(ctx context.Context, customerID string,
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-	rows, err := s.db.Query(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at FROM commerce_substitution_proposals WHERE customer_id=$1 AND status='PENDING' ORDER BY created_at,id LIMIT $2`, customerID, limit)
+	rows, err := s.db.Query(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at,case_id FROM commerce_substitution_proposals WHERE customer_id=$1 AND status='PENDING' ORDER BY created_at,id LIMIT $2`, customerID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -668,6 +839,32 @@ func (s *Store) ListPendingSubstitutions(ctx context.Context, customerID string,
 		p, e := scanSubstitution(rows)
 		if e != nil {
 			return nil, e
+		}
+		result = append(result, p)
+	}
+	return result, rows.Err()
+}
+
+// ListApprovedSubstitutions is the durable recovery feed for the downstream
+// Inventory step. Approval is already authoritative Orders state; a process
+// crash after it can safely replay the idempotent Inventory command.
+func (s *Store) ListApprovedSubstitutions(ctx context.Context, limit int) ([]SubstitutionProposal, error) {
+	if s == nil || s.db == nil {
+		return nil, ErrDependencyMissing
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rows, err := s.db.Query(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at,case_id FROM commerce_substitution_proposals WHERE status='APPROVED' ORDER BY updated_at,id LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]SubstitutionProposal, 0)
+	for rows.Next() {
+		p, scanErr := scanSubstitution(rows)
+		if scanErr != nil {
+			return nil, scanErr
 		}
 		result = append(result, p)
 	}
@@ -713,7 +910,8 @@ func (s *Store) ApplyLogisticsEvent(ctx context.Context, event LogisticsOrderEve
 		return VendorOrder{}, ParentOrder{}, err
 	}
 	var current VendorOrder
-	if err = tx.QueryRow(ctx, `SELECT `+vendorColumns+` FROM commerce_vendor_orders v WHERE v.id=$1 AND v.parent_order_id=$2 FOR UPDATE`, event.VendorOrderID, event.ParentOrderID).Scan(&current.ID, &current.ParentOrderID, &current.CustomerID, &current.BusinessID, &current.BranchID, &current.Domain, &current.Currency, &current.QuoteGroupRef, &current.ProductSubtotalMinor, &current.MaxProductSubtotalMinor, &current.ProductVendorFundedMinor, &current.ProductPlatformFundedMinor, &current.ProductOtherFundedMinor, &current.OrderVendorFundedMinor, &current.OrderPlatformFundedMinor, &current.OrderOtherFundedMinor, &current.DeliveryResponsibility, &current.DeliveryFeeBeneficiary, &current.DeliveryGrossMinor, &current.DeliveryCustomerMinor, &current.DeliveryVendorFundedMinor, &current.DeliveryPlatformFundedMinor, &current.DeliveryOtherFundedMinor, &current.CustomerPayableMinor, &current.VendorPayableMinor, &current.ReservationRequired, &current.InventoryState, &current.ReservationRef, &current.ReservationSourceRef, &current.FulfilmentMode, &current.LogisticsPlanGroupRef, &current.LogisticsMissionRef, &current.VendorOwnDeliveryState, &current.Status, &current.CancelReasonCode, &current.CancelledBy, &current.RefundAllocatedMinor, &current.SettlementAllocatedMinor, &current.RefundState, &current.RefundOperationRef, &current.RefundRefundedMinor, &current.RejectionReason, &current.Version, &current.CreatedAt, &current.UpdatedAt, &current.TerminalAt); errors.Is(err, pgx.ErrNoRows) {
+	current, err = scanVendorOrder(tx.QueryRow(ctx, `SELECT `+vendorColumns+` FROM commerce_vendor_orders v WHERE v.id=$1 AND v.parent_order_id=$2 FOR UPDATE`, event.VendorOrderID, event.ParentOrderID))
+	if errors.Is(err, pgx.ErrNoRows) {
 		return VendorOrder{}, ParentOrder{}, ErrOrderNotFound
 	}
 	if err != nil {
@@ -722,6 +920,9 @@ func (s *Store) ApplyLogisticsEvent(ctx context.Context, event LogisticsOrderEve
 	if current.DeliveryResponsibility != DeliveryPlatform || current.LogisticsMissionRef != event.MissionRef {
 		return VendorOrder{}, ParentOrder{}, ErrForbidden
 	}
+	timingEvent := isLogisticsTimingEvent(event.EventType)
+	failureEvent := strings.EqualFold(strings.TrimSpace(event.EventType), "DELIVERY_FAILED")
+	signalEvent := isLogisticsSignalEvent(event.EventType)
 	rank := func(v VendorStatus) int {
 		switch v {
 		case VendorStatusReadyForPickup, VendorStatusReady:
@@ -745,9 +946,9 @@ func (s *Store) ApplyLogisticsEvent(ctx context.Context, event LogisticsOrderEve
 	if event.EventType == "DELIVERED" {
 		target = VendorStatusDelivered
 	}
-	ignored := rank(current.Status) >= rank(target)
+	ignored := !timingEvent && !failureEvent && !signalEvent && rank(current.Status) >= rank(target)
 	if !ignored {
-		valid := (event.EventType == "PICKED_UP" && (current.Status == VendorStatusReadyForPickup || current.Status == VendorStatusReady)) ||
+		valid := signalEvent || failureEvent || (event.EventType == "PICKED_UP" && (current.Status == VendorStatusReadyForPickup || current.Status == VendorStatusReady)) ||
 			(event.EventType == "DELIVERING" && (current.Status == VendorStatusPickedUp || current.Status == VendorStatusHandedOver)) ||
 			(event.EventType == "DELIVERED" && (current.Status == VendorStatusDelivering || current.Status == VendorStatusPickedUp || current.Status == VendorStatusHandedOver))
 		if !valid {
@@ -777,6 +978,62 @@ func (s *Store) ApplyLogisticsEvent(ctx context.Context, event LogisticsOrderEve
 		}
 		return updated, parent, nil
 	}
+	if timingEvent {
+		if err = s.applyLogisticsTimingTx(ctx, tx, event, now); err != nil {
+			return VendorOrder{}, ParentOrder{}, err
+		}
+		parent, e := loadParent(ctx, tx, current.CustomerID, current.ParentOrderID)
+		if e != nil {
+			return VendorOrder{}, ParentOrder{}, e
+		}
+		updated, e := loadVendorOrderBy(ctx, tx, `v.id=$1`, current.ID)
+		if e != nil {
+			return VendorOrder{}, ParentOrder{}, e
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return VendorOrder{}, ParentOrder{}, err
+		}
+		return updated, parent, nil
+	}
+	if signalEvent {
+		if _, _, e := s.applyDispatchConfidenceETATx(ctx, tx, event, current); e != nil {
+			return VendorOrder{}, ParentOrder{}, e
+		}
+		if signalNotificationAction(event.EventType) && s.outbox != nil {
+			action := "commerce.vendor_order.logistics_" + strings.ToLower(event.EventType)
+			if e := appendEvent(ctx, tx, s.outbox, current.ParentOrderID, current.ID, current.CustomerID,
+				action, "PLATFORM", string(event.Source), string(current.Status), string(current.Status), now); e != nil {
+				return VendorOrder{}, ParentOrder{}, e
+			}
+		}
+		parent, e := loadParent(ctx, tx, current.CustomerID, current.ParentOrderID)
+		if e != nil {
+			return VendorOrder{}, ParentOrder{}, e
+		}
+		updated, e := loadVendorOrderBy(ctx, tx, `v.id=$1`, current.ID)
+		if e != nil {
+			return VendorOrder{}, ParentOrder{}, e
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return VendorOrder{}, ParentOrder{}, err
+		}
+		return updated, parent, nil
+	}
+	if failureEvent {
+		_, _, _ = s.applyDispatchConfidenceETATx(ctx, tx, event, current)
+		parent, e := loadParent(ctx, tx, current.CustomerID, current.ParentOrderID)
+		if e != nil {
+			return VendorOrder{}, ParentOrder{}, e
+		}
+		updated, e := loadVendorOrderBy(ctx, tx, `v.id=$1`, current.ID)
+		if e != nil {
+			return VendorOrder{}, ParentOrder{}, e
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return VendorOrder{}, ParentOrder{}, err
+		}
+		return updated, parent, nil
+	}
 	if !ignored {
 		tag, e := tx.Exec(ctx, `UPDATE commerce_vendor_orders SET status=$1,version=version+1,updated_at=$2 WHERE id=$3 AND version=$4`, target, now, current.ID, current.Version)
 		if e != nil {
@@ -787,6 +1044,9 @@ func (s *Store) ApplyLogisticsEvent(ctx context.Context, event LogisticsOrderEve
 		}
 		action := "commerce.vendor_order.logistics_" + strings.ToLower(event.EventType)
 		if e = appendEvent(ctx, tx, s.outbox, current.ParentOrderID, current.ID, current.CustomerID, action, "PLATFORM", string(event.Source), string(current.Status), string(target), now); e != nil {
+			return VendorOrder{}, ParentOrder{}, e
+		}
+		if _, _, e = s.applyDispatchConfidenceETATx(ctx, tx, event, current); e != nil {
 			return VendorOrder{}, ParentOrder{}, e
 		}
 	}

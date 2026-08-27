@@ -1,0 +1,14 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Shop picking, substitution and variable measurement", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/commerce/substitution-cases": {"get": {"summary": "Read pending customer substitution cases", "responses": {"200": {"description": "OK"}}}},
+    "/api/v1/commerce/substitution-cases/{caseId}": {"get": {"summary": "Read one customer-scoped case", "responses": {"200": {"description": "OK"}}}},
+    "/api/v1/commerce/substitution-cases/{caseId}/accept": {"post": {"summary": "Accept a substitution case with OCC", "responses": {"200": {"description": "OK"}}}},
+    "/api/v1/commerce/substitution-cases/{caseId}/reject": {"post": {"summary": "Reject a substitution case with OCC", "responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking-queue": {"get": {"summary": "Read immutable Shop picking snapshots and current evidence", "responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking": {"get": {"summary": "Read immutable Shop picking snapshots", "responses": {"200": {"description": "OK"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/quality": {"post": {"summary": "Record one structured quality result with OCC", "responses": {"204": {"description": "Recorded"}}}},
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/actual-quantity": {"post": {"summary": "Record exact variable quantity with OCC", "responses": {"200": {"description": "Recorded"}}}}
+  }
+}

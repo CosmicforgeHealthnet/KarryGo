@@ -1,0 +1,54 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Commerce Analytics, Reporting and Reliability",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/internal/analytics/v1/commerce-events": {
+      "post": {
+        "summary": "Ingest committed commerce analytics event",
+        "description": "Internal HMAC v2 endpoint for authoritative operational services. Idempotent by eventId. Unknown schema or event type fails closed.",
+        "x-internal": true,
+        "responses": {
+          "202": { "description": "Processed" },
+          "400": { "description": "Rejected or unsupported event" },
+          "401": { "description": "Invalid service signature" }
+        }
+      }
+    },
+    "/api/v1/analytics/commerce/vendor-reports": {
+      "get": {
+        "summary": "Vendor operational analytics report",
+        "description": "Operational decision-support report. Not audited accounting truth.",
+        "parameters": [
+          { "name": "business_id", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "branch_id", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "window", "in": "query", "required": false, "schema": { "type": "string", "enum": ["7D", "30D", "90D", "CUSTOM"] } },
+          { "name": "start", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
+          { "name": "end", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": { "description": "Report returned" },
+          "400": { "description": "Invalid window or missing business" }
+        }
+      }
+    },
+    "/api/v1/analytics/commerce/vendor-reliability": {
+      "get": {
+        "summary": "Vendor reliability score",
+        "description": "Versioned reliability score from measurable operational components. Not a star rating and not verification status.",
+        "parameters": [
+          { "name": "business_id", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "branch_id", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "window", "in": "query", "required": false, "schema": { "type": "string", "enum": ["7D", "30D", "90D", "CUSTOM"] } }
+        ],
+        "responses": {
+          "200": { "description": "Reliability score returned" },
+          "400": { "description": "Invalid request" }
+        }
+      }
+    }
+  }
+}
+

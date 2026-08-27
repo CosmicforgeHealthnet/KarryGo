@@ -6,6 +6,7 @@ package fulfilment
 // store.go, so a plan can be reasoned about without either.
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -122,10 +123,15 @@ const (
 	EventQuoteUnavailable   = "commerce.fulfilment.quote_unavailable"
 	EventGroupUnserviceable = "commerce.fulfilment.group_unserviceable"
 	EventConsolidated       = "commerce.fulfilment.consolidated"
-	EventPlanned            = "commerce.fulfilment.planned"
-	EventFailed             = "commerce.fulfilment.failed"
-	EventExpired            = "commerce.fulfilment.expired"
-	EventSuperseded         = "commerce.fulfilment.superseded"
+
+	// EventCandidateSelected records which alternative the optimizer chose.
+	// The alternatives themselves are persisted as rows, not as events; this
+	// marks the moment in the plan history when the choice was made.
+	EventCandidateSelected = "commerce.fulfilment.candidate_selected"
+	EventPlanned           = "commerce.fulfilment.planned"
+	EventFailed            = "commerce.fulfilment.failed"
+	EventExpired           = "commerce.fulfilment.expired"
+	EventSuperseded        = "commerce.fulfilment.superseded"
 )
 
 var (
@@ -228,7 +234,12 @@ type Mission struct {
 
 	Breakdown Breakdown `json:"breakdown"`
 
-	FeeBeneficiary FeeBeneficiary `json:"fee_beneficiary"`
+	FeeBeneficiary              FeeBeneficiary `json:"fee_beneficiary"`
+	DeliveryMode                string         `json:"delivery_mode,omitempty"`
+	FallbackTrigger             string         `json:"fallback_trigger,omitempty"`
+	PolicyVersion               int64          `json:"policy_version,omitempty"`
+	CustomerPriceGuaranteeMinor int64          `json:"customer_price_guarantee_minor"`
+	CustodyState                string         `json:"custody_state"`
 
 	TotalWeightGrams int64 `json:"total_weight_grams"`
 	PackageCount     int64 `json:"package_count"`
@@ -258,7 +269,21 @@ type PlanGroup struct {
 
 	Requirement Requirement `json:"requirement"`
 
-	Funding Funding `json:"funding"`
+	// RequirementSnapshot is the immutable evidence behind this group's
+	// vehicle decision: the measurements it was taken from, the capability
+	// policy in force, every class considered and why the chosen one was
+	// chosen. It is what makes "why a van" answerable months later, after the
+	// thresholds have moved and the integrations have changed.
+	//
+	// It is nil only for a group refused before any vehicle was considered -
+	// an unknown branch, an invalid address - where no vehicle question was
+	// ever asked.
+	RequirementSnapshot *RequirementSnapshot `json:"requirement_snapshot,omitempty"`
+
+	Funding                     Funding `json:"funding"`
+	DeliveryMode                string  `json:"delivery_mode,omitempty"`
+	FallbackTrigger             string  `json:"fallback_trigger,omitempty"`
+	CustomerPriceGuaranteeMinor int64   `json:"customer_price_guarantee_minor"`
 }
 
 // Plan is the candidate fulfilment plan for one checkout session.
@@ -271,12 +296,25 @@ type Plan struct {
 	CheckoutValidationRevision int64  `json:"checkout_validation_revision"`
 
 	Status PlanStatus `json:"status"`
-	Mode   Mode       `json:"mode"`
+
+	// Mode is the fulfilment preference this plan was optimized for. It flows
+	// unchanged into the CheckoutQuote as selected_fulfilment_mode, so a plan
+	// quoted as SAVER can never be silently executed as FASTEST against a
+	// charge the customer did not approve.
+	Mode Mode `json:"mode"`
+
+	// OptimizationPolicyVersion is the threshold envelope the candidate
+	// comparison was decided under. Thresholds move; an explanation that
+	// silently re-reads today numbers has stopped explaining what happened.
+	OptimizationPolicyVersion int64 `json:"optimization_policy_version"`
 
 	PlanRevision int64 `json:"plan_revision"`
 
-	Currency string  `json:"currency,omitempty"`
-	Funding  Funding `json:"delivery_funding"`
+	Currency                            string          `json:"currency,omitempty"`
+	Funding                             Funding         `json:"delivery_funding"`
+	DeliveryPolicySnapshot              json.RawMessage `json:"delivery_policy_snapshot,omitempty"`
+	CustomerDeliveryPriceGuaranteeMinor int64           `json:"customer_delivery_price_guarantee_minor"`
+	DeliveryPriceGuaranteeCurrency      string          `json:"delivery_price_guarantee_currency,omitempty"`
 
 	FailureCode string `json:"failure_code,omitempty"`
 
@@ -290,6 +328,27 @@ type Plan struct {
 
 	Missions []Mission   `json:"missions"`
 	Groups   []PlanGroup `json:"groups"`
+
+	// Candidates are every alternative the optimizer considered, selected and
+	// rejected alike, each with the reason for its fate.
+	//
+	// Keeping the losers is the whole point. "Why were these vendors
+	// consolidated", "why did we split the order" and "why could SAVER not
+	// consolidate these pickups" are all questions about an alternative that
+	// did not run, and none of them is answerable from a plan that stored
+	// only the one that did.
+	Candidates []PlanCandidate `json:"candidates,omitempty"`
+}
+
+// SelectedCandidate returns the alternative that was executed.
+func (p Plan) SelectedCandidate() (PlanCandidate, bool) {
+	for _, candidate := range p.Candidates {
+		if candidate.Status == StatusCandidateSelected {
+			return candidate, true
+		}
+	}
+
+	return PlanCandidate{}, false
 }
 
 // Expired reports whether the plan has lapsed at the given instant.

@@ -1,5 +1,23 @@
 # API Route Register
 
+## Promotions and delivery funding
+
+Campaign management is a Vendor staff surface. Promotion evaluation is applied
+inside the existing customer CheckoutQuote route; Wallet delivery-funding
+effects are internal service-to-service operations and are not exposed here.
+
+| Method | Path | Permission | Purpose |
+|---|---|---|---|
+| GET | /api/v1/vendor/promotions | vendor.promotions.read | List promotion campaigns visible to the staff scope |
+| POST | /api/v1/vendor/promotions | vendor.promotions.manage | Create a Vendor-funded promotion campaign |
+| GET | /api/v1/vendor/promotions/{promotionId} | vendor.promotions.read | Read one campaign and immutable version |
+| PATCH | /api/v1/vendor/promotions/{promotionId} | vendor.promotions.manage | Replace the mutable campaign definition with If-Match |
+| POST | /api/v1/vendor/promotions/{promotionId}/status | vendor.promotions.manage | Apply a controlled lifecycle transition with If-Match |
+| POST | /api/v1/vendor/promotions/{promotionId}/coupons | vendor.promotions.manage | Create a securely digested coupon code |
+| GET | /api/v1/vendor/promotions/{promotionId}/usage | vendor.promotions.read | Read reserved and consumed usage |
+
+Contract: `docs/openapi/promotions-delivery-funding.openapi.json`.
+
 ## Section 7 registered routes
 
 All public paths are relative to `/api/v1/vendor`, use the authenticated Vendor staff scope, and are described by `section7-onboarding-verification.openapi.json`. Every public mutation requires `Idempotency-Key`; the bank mutation additionally consumes a `finance.bank_change` step-up grant. The internal callback row is an absolute root-level path, not relative to the public base; it is HMAC-v2, allowlisted to `verification-compliance-service`, nonce protected, event-deduped, and source-version guarded.
@@ -45,6 +63,45 @@ Section 7 adds 19 public Vendor routes and 1 internal Vendor route: 20 new, 73 c
 | media-file-service | GET | /api/v1/media-files/internal/media/objects/:id | Existing HMAC v2 + nonce; Vendor deployment allowlist | Tenant/owner object validation | REUSED, no route change |
 
 Human-readable master catalogue of every Vendor Commerce route, across every affected service. `docs/openapi/` is the machine-readable authority; this index is cross-checked by the Section 5 and Section 6 route-parity contract tests.
+
+## Section 21 Prompt 1 commerce foundation
+
+The scheduled/bulk, group-ordering and core-RFQ operations are feature-flagged by `COMMERCE_BULK_RFQ_ENABLED`. Vendor quote/scheduling commands use Vendor staff IAM; customer group/RFQ commands use the Customer bearer; participant mutations use a short-lived, session-scoped token and `X-Group-Participant-Token`.
+The machine-readable contract is `openapi/scheduled_group_rfq_recurring_commerce.openapi.json`.
+
+| Method | Path |
+|---|---|
+| POST | /api/v1/vendor/commerce/section21/scheduled-orders |
+| POST | /api/v1/vendor/commerce/section21/scheduled-orders/{id}/cancel |
+| POST | /api/v1/vendor/commerce/section21/rfqs/{rfqId}/quotes |
+| POST | /api/v1/vendor/commerce/section21/recurring-schedules |
+| PUT | /api/v1/vendor/commerce/section21/recurring-schedules/{scheduleId} |
+| POST | /api/v1/vendor/commerce/section21/recurring-schedules/{scheduleId}/status |
+| GET | /api/v1/vendor/commerce/section21/recurring-schedules/{scheduleId}/occurrences |
+| POST | /api/v1/commerce/section21/groups |
+| POST | /api/v1/commerce/section21/groups/{groupId}/close |
+| POST | /api/v1/commerce/section21/groups/{groupId}/convert |
+| POST | /api/v1/commerce/section21/groups/{groupId}/join |
+| PUT | /api/v1/commerce/section21/groups/{groupId}/selections/{selectionId} |
+| DELETE | /api/v1/commerce/section21/groups/{groupId}/selections/{selectionId} |
+| POST | /api/v1/commerce/section21/rfqs |
+| POST | /api/v1/commerce/section21/rfqs/{rfqId}/open |
+| GET | /api/v1/commerce/section21/rfqs/{rfqId}/quotes |
+| POST | /api/v1/commerce/section21/rfqs/{rfqId}/quotes/{quoteId}/counter |
+| POST | /api/v1/commerce/section21/rfqs/{rfqId}/accept |
+| POST | /api/v1/commerce/section21/rfqs/{rfqId}/convert |
+| GET | /api/v1/commerce/section21/rfqs/{rfqId}/conversion |
+| POST | /api/v1/commerce/section21/rfqs/{rfqId}/cancel |
+
+Section 21 Prompt 1 adds 14 public operations and Prompt 2 adds seven
+RFQ/conversion/recurring-feeding operations. Organizer payment is the only
+group payment mode in the current scope; participant split payment is not
+implemented.
+
+RFQ acceptance requires the immutable accepted revision snapshot to carry the
+RFQ identifier, CheckoutQuote identifier, and CheckoutQuote fingerprint. The
+service revalidates requester, vendor/branch, currency, total, expiry, and a
+durable RFQ-to-CheckoutQuote binding before conversion.
 
 All routes below are mounted under `/api/v1/vendor` (`shared/go/serviceapp`'s `APIBase`). `GET /health`, `GET /ready`, `GET /api/v1/vendor/meta` also exist â€” platform-standard infrastructure every service gets for free, not listed here.
 
@@ -655,13 +712,17 @@ expected version; production-job transitions use a positive `If-Match`.
 | vendor-service | GET | /api/v1/vendor/production/slots | Public | bearer | vendor.production.read | List production slots | VERIFIED |
 | vendor-service | POST | /api/v1/vendor/production/slots | Public | bearer | vendor.production.manage | Create production slot | VERIFIED |
 | vendor-service | POST | /api/v1/vendor/production/slots/{slotId}/close | Public | bearer | vendor.production.manage | Close production slot | VERIFIED |
-| vendor-service | GET | /api/v1/vendor/production/jobs | Public | bearer | vendor.production.read | List production jobs | VERIFIED |
-| vendor-service | POST | /api/v1/vendor/production/jobs | Public | bearer | vendor.production.operate | Create production job | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/production/jobs | Public | bearer | vendor.production.read | Bounded keyset queue (`limit`, `status`, opaque `cursor`; continuation in `X-Next-Cursor`) | VERIFIED |
+| vendor-service | POST | /api/v1/vendor/production/jobs | Public | bearer | vendor.production.operate | Create or activate production job | VERIFIED |
 | vendor-service | GET | /api/v1/vendor/production/jobs/{jobId} | Public | bearer | vendor.production.read | Read production job | VERIFIED |
 | vendor-service | POST | /api/v1/vendor/production/jobs/{jobId}/start | Public | bearer | vendor.production.operate | Start production job | VERIFIED |
 | vendor-service | POST | /api/v1/vendor/production/jobs/{jobId}/ready | Public | bearer | vendor.production.operate | Mark production job ready | VERIFIED |
 | vendor-service | POST | /api/v1/vendor/production/jobs/{jobId}/complete | Public | bearer | vendor.production.operate | Complete production job | VERIFIED |
 | vendor-service | POST | /api/v1/vendor/production/jobs/{jobId}/{status} | Public | bearer | vendor.production.operate | Transition production job | VERIFIED |
+| vendor-service | POST | /api/v1/vendor/production/jobs/{jobId}/steps | Public | bearer | vendor.production.operate | Add production station step | VERIFIED |
+| vendor-service | GET | /api/v1/vendor/production/jobs/{jobId}/steps | Public | bearer | vendor.production.read | List production station steps | VERIFIED |
+| vendor-service | POST | /api/v1/vendor/production/jobs/{jobId}/steps/{stepId}/{status} | Public | bearer | vendor.production.operate | Transition production station step | VERIFIED |
+| vendor-service | POST | /api/v1/vendor/production/jobs/{jobId}/delay | Public | bearer | vendor.production.operate | Record production delay evidence | VERIFIED |
 | vendor-service | GET | /api/v1/vendor/production/slot-templates | Public | bearer | vendor.production.read | List slot templates | VERIFIED |
 | vendor-service | POST | /api/v1/vendor/production/slot-templates | Public | bearer | vendor.production.manage | Create slot template | VERIFIED |
 | vendor-service | GET | /api/v1/vendor/production/slot-templates/{templateId} | Public | bearer | vendor.production.read | Read slot template | VERIFIED |
@@ -1192,6 +1253,10 @@ separate authenticated path and never creates a platform mission.
 | GET | /api/v1/commerce/substitutions/{proposalId} |
 | POST | /api/v1/commerce/substitutions/{proposalId}/approve |
 | POST | /api/v1/commerce/substitutions/{proposalId}/reject |
+| GET | /api/v1/commerce/substitution-cases |
+| GET | /api/v1/commerce/substitution-cases/{caseId} |
+| POST | /api/v1/commerce/substitution-cases/{caseId}/accept |
+| POST | /api/v1/commerce/substitution-cases/{caseId}/reject |
 | POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/reject |
 | POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/preparing |
 | POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/start_preparing |
@@ -1205,6 +1270,10 @@ separate authenticated path and never creates a platform mission.
 | POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/delivered |
 | POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/availability |
 | POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/substitutions |
+| GET | /api/v1/vendor/commerce/orders/{vendorOrderId}/picking-queue |
+| GET | /api/v1/vendor/commerce/orders/{vendorOrderId}/picking |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/quality |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/actual-quantity |
 | POST | /internal/vendor/v1/commerce/logistics-events | HMAC v2; Dispatch/Hauling execution evidence only |
 
 Machine-readable contract: `docs/openapi/section18-vendor-order-lifecycle.openapi.json`.
@@ -1276,6 +1345,11 @@ routes belong to those services' registers, not this one. The only fee this
 service calculates is a Vendor Own Delivery fee, because the vendor both
 performs and prices that delivery.
 
+The branch policy also records PLATFORM/VENDOR/HYBRID mode, service zones,
+deterministic fee rules, IANA operating hours, capacity and explicit fallback
+evidence. The accepted customer delivery-price guarantee remains unchanged
+through a pre-custody HYBRID replan.
+
 **Taxi is not used.** driver-taxi-service has no production goods-delivery
 capability; the shared quote contract has no CAR class and
 `fulfilment.ServiceFor` refuses one, so no taxi route can be reached from here.
@@ -1293,8 +1367,8 @@ and requires `If-Match`.
 |---|---|---|
 | POST | /api/v1/commerce/checkout/{sessionId}/fulfilment-plan | Build the candidate fulfilment plan for a validated checkout |
 | GET | /api/v1/commerce/checkout/{sessionId}/fulfilment-plan | Read the live fulfilment plan for a checkout |
-| GET | /api/v1/vendor/delivery/branches/{branchId}/policy | Read a branch Vendor Own Delivery policy |
-| PUT | /api/v1/vendor/delivery/branches/{branchId}/policy | Configure a branch Vendor Own Delivery policy |
+| GET | /api/v1/vendor/delivery/branches/{branchId}/policy | Read a branch delivery policy and HYBRID configuration |
+| PUT | /api/v1/vendor/delivery/branches/{branchId}/policy | Configure a branch PLATFORM/VENDOR/HYBRID delivery policy |
 
 Contracts, one per server base — a single document declaring both would force
 every reader to special-case which paths are absolute, and the service-wide
@@ -1342,6 +1416,7 @@ Customer surface:
 | POST | /api/v1/commerce/quotes/{quoteId}/orders | Create the ParentOrder and its VendorOrders from one approved quote |
 | GET | /api/v1/commerce/orders | List the customer's own purchases |
 | GET | /api/v1/commerce/orders/{orderId} | Read one purchase with every vendor allocation |
+| GET | /api/v1/commerce/orders/{orderId}/eta | Customer-scoped read-back of production timing and current versioned, confidence-labelled ETA ranges per mission |
 | POST | /api/v1/commerce/vendor-orders/{vendorOrderId}/cancel | Withdraw from one vendor allocation without touching its siblings |
 
 Vendor staff surface (`vendor.orders.read` / `vendor.orders.manage`, both
@@ -1370,10 +1445,10 @@ replacement quote and require explicit approval. **Vendor Commerce is not a mone
 asks and records. It never fabricates a payment status, edits a ledger,
 computes a balance or settles vendor funds.
 
-One payment leg per VendorOrder, plus one platform leg for the order-level fee
-and tax. That split is forced by the real Wallet contract, which settles and
-refunds an intent as a whole to a single provider - a single parent intent
-could never refund one vendor while settling another.
+The Vendor projection retains one leg per VendorOrder plus the platform leg,
+but Wallet now binds them beneath one customer Commerce Payment Intent. Each
+immutable allocation releases/refunds independently, so one customer payment
+never becomes one Vendor's gross payable and sibling allocations stay isolated.
 
 Both routes exist only when a money authority is configured
 (`PAYMENT_WALLET_COMMERCE_ENABLED` with `VENDOR_WALLET_URL` and
@@ -1431,3 +1506,312 @@ Two NEW internal routes were added to other services for this (see
 
 Machine-readable contract:
 `docs/openapi/section17a-customer-cart.openapi.json`.
+
+## Vendor finance and Wallet commerce allocation authority
+
+Vendor bearer routes derive the business exclusively from the authenticated
+staff session. Reads require `vendor.finance.read`; withdrawal requires
+`vendor.finance.withdraw`, a fresh `finance.withdrawal` step-up grant and
+`Idempotency-Key`. Bank changes continue through the existing onboarding bank
+route and `finance.bank_change` step-up.
+
+| Method | Path | Authority |
+|---|---|---|
+| GET | /api/v1/vendor/finance/overview | Vendor bearer + finance read |
+| GET | /api/v1/vendor/finance/transactions | Vendor bearer + finance read |
+| GET | /api/v1/vendor/finance/bank-accounts | Vendor bearer + finance read |
+| GET | /api/v1/vendor/finance/withdrawals | Vendor bearer + finance read |
+| GET | /api/v1/vendor/finance/withdrawals/{reference} | Vendor bearer + scoped read |
+| POST | /api/v1/vendor/finance/withdrawals | Vendor bearer + withdraw permission + step-up + idempotency |
+
+Wallet HMAC-v2 routes (all under `/api/v1/payment-wallet/internal`) are:
+`POST/GET /commerce/payment-intents[/{parentReference}]`,
+`POST /commerce/payment-intents/{parentReference}/hold`,
+`POST /commerce/allocations/{vendorOrderId}/vendor-release`,
+`POST /commerce/allocations/{vendorOrderId}/delivery-release`,
+`POST /commerce/allocations/{vendorOrderId}/refunds`,
+`GET /commerce/operations/{operationType}/{idempotencyKey}`, plus the six
+`/vendor-finance/{businessId}/...` summary/transaction/bank/withdrawal routes.
+
+## Commerce settlement and refund model
+
+No new Vendor/customer route is introduced. The fully enabled Vendor surface
+remains **816 routes**. Existing customer and Vendor order commands create
+server-derived policy obligations; no route accepts an arbitrary refund amount
+or allocation id.
+
+Cross-service capabilities reused or extended:
+
+| Service | Method/path | Purpose |
+|---|---|---|
+| Payment Wallet | `POST /api/v1/payment-wallet/internal/commerce/allocations/{vendorOrderId}/vendor-release` | Exactly-once Vendor merchandise/platform-component release |
+| Payment Wallet | `POST /api/v1/payment-wallet/internal/commerce/allocations/{vendorOrderId}/delivery-release` | Vendor-owned or service-owned provider delivery release |
+| Payment Wallet | `POST /api/v1/payment-wallet/internal/commerce/allocations/{vendorOrderId}/refunds` | Allocation-scoped component refund/reversal |
+| Payment Wallet | `GET /api/v1/payment-wallet/internal/commerce/operations/{operationType}/{idempotencyKey}` | Ambiguous-outcome read-back |
+| Support/Dispute | `POST /api/v1/support-disputes/admin/organization-cases` | Ambiguous policy case handoff; never a money command |
+
+The existing Vendor HMAC logistics-event ingress now accepts the bounded
+`DELIVERY_FAILED` fact with a controlled financial-policy classification. It
+does not expose an automatic-refund endpoint.
+
+Contracts: `docs/openapi/vendor-finance.openapi.json`, Wallet
+`commerce-payment-allocation.openapi.json` and
+`vendor-payable-withdrawal.openapi.json`.
+
+## Fulfilment group, parcel and mission model
+
+**13 Vendor routes added**, all under `/api/v1/vendor` and gated on
+`COMMERCE_ORDERS_ENABLED`. With the flag off, none is registered — a disabled
+capability has no surface rather than routes that answer 503 and confirm it
+exists. The fully enabled Vendor surface moves from **816** to **829**.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/vendor/fulfilment/groups/{groupId}` | Group, plan in force, mission projections, vendor missions, returns |
+| GET | `/api/v1/vendor/fulfilment/groups/{groupId}/plans` | Full plan history, newest first, superseded versions included |
+| GET | `/api/v1/vendor/fulfilment/units/{unitId}/parcels` | Parcels packed for one pickup obligation |
+| POST | `/api/v1/vendor/fulfilment/units/{unitId}/parcels` | Pack a parcel (requires `Idempotency-Key`) |
+| PUT | `/api/v1/vendor/fulfilment/units/{unitId}/readiness` | Advance pickup readiness (requires `If-Match`) |
+| GET | `/api/v1/vendor/fulfilment/parcels/{parcelId}` | One parcel |
+| GET | `/api/v1/vendor/fulfilment/parcels/{parcelId}/custody` | The parcel's append-only custody chain |
+| PUT | `/api/v1/vendor/fulfilment/parcels/{parcelId}/manifest` | Amend before handover (requires `If-Match`) |
+| POST | `/api/v1/vendor/fulfilment/parcels/{parcelId}/returns` | Initiate a return (requires `Idempotency-Key`) |
+| GET | `/api/v1/vendor/fulfilment/vendor-missions` | The acting vendor's own delivery missions |
+| GET | `/api/v1/vendor/fulfilment/vendor-missions/{missionId}` | One vendor-owned mission |
+| PUT | `/api/v1/vendor/fulfilment/vendor-missions/{missionId}/rider` | Assign one of the vendor's own riders (requires `If-Match`) |
+| PUT | `/api/v1/vendor/fulfilment/vendor-missions/{missionId}/status` | Execute one delivery step (requires `If-Match`) |
+
+**What is deliberately absent.** There is no route that creates a platform
+mission, sets a platform mission's status, supplies a canonical mission
+reference, or deletes a plan, parcel, mission reference or custody event. Those
+would let a request either impersonate a logistics authority or erase
+operational history, so they have no surface at all rather than one that
+answers 403. `internal/fulfilmentcontract` asserts this, alongside
+router/OpenAPI parity and the rule that every mutation carries `If-Match` or
+`Idempotency-Key`.
+
+Cross-service capabilities: **reused unchanged**. Mission creation still goes
+through `shared/go/commercemission` with HMAC v2, and the existing HMAC
+logistics-event ingress now additionally projects mission status and parcel
+custody. Dispatch, Hauling, Taxi, Payment Wallet, Support, Notification and
+Customer Service received no code change.
+
+Contract: `docs/openapi/fulfilment-group-parcel-mission.openapi.json`.
+
+---
+
+## Delivery Requirement and Vehicle Selection Engine — no new routes
+
+**0 routes added.** The Vendor surface is unchanged at 829.
+
+Vehicle-selection evidence is returned on the plan reads that already exist —
+`GET /fulfilment/groups/{groupId}/plans` and
+`GET /fulfilment/groups/{groupId}` — as `requirement_decisions` on each plan
+version. A dedicated endpoint would have duplicated a read that already returns
+the plan the evidence explains, and the evidence is only meaningful beside it.
+
+Each entry carries the minimum physical class, the selected class and service,
+the primary and supporting reason codes, every candidate class with its own
+outcome, the measurements the decision used, the capability policy version, and
+the full replay document.
+
+**Deliberately absent:** any route that edits platform vehicle capability.
+Motorcycle weight limits, hauling truck capacity and taxi goods activation are
+platform configuration, not vendor data. A vendor may state what its own fleet
+can carry — that is the existing delivery-policy surface — and may never widen
+what a platform motorcycle is allowed to be asked to carry. There is no
+endpoint rather than one that answers 403.
+
+Cross-service capabilities: **reused unchanged**. Dispatch, Hauling, Taxi,
+Payment Wallet, Support, Notification, Media and Customer Service received no
+code change.
+
+
+## Multi-Vendor Consolidation and Mission Planning
+
+Eleven new customer routes, all under the commerce base, plus one changed
+request body on an existing route.
+
+### The changed route: a delivery preference on the plan request
+
+`POST /api/v1/commerce/checkout/{sessionId}/fulfilment-plan` now accepts an
+optional body:
+
+```json
+{ "fulfilment_preference": "FASTEST" | "BALANCED" | "SAVER" }
+```
+
+No new route, because a preference is a CHOICE among alternatives the server
+built and the logistics authorities priced - not a new thing to ask for. It is
+the one value in the planning contract a customer may supply, and it is safe
+for a structural reason rather than a hopeful one: it can no more set a fee
+than it can set a distance. An absent body means BALANCED; a present but
+malformed one is refused rather than defaulted.
+
+The response gained `candidates`: every alternative the optimizer considered,
+each with its status, its reason and the runtime capability evidence it was
+judged against. That is what makes "why was my order split", "why did FASTEST
+cost more" and "why could SAVER not combine these pickups" answerable from the
+plan rather than by re-deriving them from data that has since moved.
+
+### Basket optimization
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | /api/v1/commerce/basket/optimize | Find the best basket for a budget and a list of needs |
+| POST | /api/v1/commerce/basket/cart/optimize | Propose a cheaper equivalent of the current cart |
+| GET | /api/v1/commerce/basket/proposals/{proposalId} | Read one optimization proposal |
+| POST | /api/v1/commerce/basket/proposals/{proposalId}/accept | Accept a proposal, creating a new cart version |
+| POST | /api/v1/commerce/basket/recurring | Create a recurring basket |
+| GET | /api/v1/commerce/basket/recurring | List the customer's recurring baskets |
+| GET | /api/v1/commerce/basket/recurring/{templateId} | Read one recurring basket |
+| PUT | /api/v1/commerce/basket/recurring/{templateId} | Edit a recurring basket (expected_version required) |
+| PUT | /api/v1/commerce/basket/recurring/{templateId}/state | Pause or resume a recurring basket |
+| GET | /api/v1/commerce/basket/recurring/{templateId}/occurrences | List generated occurrences |
+| POST | /api/v1/commerce/basket/recurring/{templateId}/generate | Shop a recurring list now |
+
+Every route authenticates the customer from the verified Customer Service
+bearer token. No request body anywhere in this surface carries a customer id,
+a price, a delivery fee, a vendor selection, a stock level or a winning
+variant - asserted by a test over the DTO field tags, because "we validate
+that away" is a weaker guarantee than "there is no such field".
+
+### Side effects, stated exactly
+
+Ten of the eleven routes are read-or-propose. Evaluating a hundred candidate
+baskets creates:
+
+- zero logistics missions
+- zero provider reservations
+- zero inventory reservations
+- zero payment intents
+- zero orders
+- zero cart versions
+
+That is a property of how the capability is composed rather than a promise
+about how it behaves: the optimizer is handed the fulfilment planner only
+through a quote-only port, and is wired to no Wallet, order or mission
+authority at all.
+
+`POST /basket/proposals/{proposalId}/accept` is the single exception and the
+only route that changes anything the customer owns. It creates a NEW cart
+version, never an edit of the old one; it is idempotent, so a double-tapped
+button produces one version; it refuses with 409 when the proposal has expired
+or the cart moved underneath it; and it always reports `requote_required`,
+because the proposal's totals were an estimate and the authoritative money is
+the CheckoutQuote produced afterwards.
+
+**Deliberately absent:** any route that lets a client submit a delivery cost, a
+chosen vendor, a chosen vehicle, a stock figure or a winning candidate. Every
+one of those is server-resolved, and a route accepting one would let a customer
+approve one basket and be charged for another. There is no endpoint rather than
+one that validates the value away.
+
+**Deliberately absent:** any route that orders a recurring basket. Generating a
+proposal, accepting it, quoting it, ordering it and paying for it are five
+distinct stages with five separate gates, and this surface reaches the first
+two. A generation marked `AUTO_APPROVED` means the occurrence is inside the
+bounded preauthorization the customer themselves configured - not that anything
+has been bought.
+
+Specifications: `docs/openapi/basket-optimization.openapi.json` and
+`docs/openapi/commerce-fulfilment-optimization.openapi.json`.
+
+Cross-service capabilities at that capability's close were reused unchanged.
+Dispatch now declares its accepted Section 28 route-bound multi-pickup
+capability; Hauling's legacy commerce ingress remains single-pickup.
+
+## Dispatch Commerce delivery integration
+
+The fully enabled Vendor surface changes from **840 to 841**. The only new
+Vendor route is a private lifecycle callback; customers and Vendor staff get no
+arbitrary mission-creation endpoint.
+
+| Method | Path | Operation | Authority |
+|---|---|---|---|
+| POST | /api/v1/internal/dispatch/v1/commerce/events | Project versioned Dispatch mission, stop and parcel evidence | HMAC v2; exact `driver-dispatch-delivery-service` allowlist; durable nonce |
+
+Vendor resolves the callback's mission operation and parcel references from
+its own `PlatformMissionRef`/fulfilment records. A caller-supplied Vendor order
+identity is never trusted. Duplicate and stale events are no-ops. The thirteen
+new quote, mission-command and provider-runtime routes are Dispatch-owned and
+documented in
+`services/driver-dispatch-delivery-service/docs/openapi/commerce-dispatch-delivery.openapi.json`.
+
+## Vendor-owned and Hybrid delivery runtime
+
+The fully enabled Vendor surface changes from **841 to 849**. Rider identity is
+always the authenticated Vendor staff record. The fallback endpoints preserve
+the existing order, fulfilment unit and parcel identities while appending a
+new plan version and a platform mission projection.
+
+| Method | Path | Operation | Authority |
+|---|---|---|---|
+| GET | /api/v1/vendor/delivery/rider/availability | Read the authenticated Rider availability | Vendor Rider assigned-delivery permission |
+| PUT | /api/v1/vendor/delivery/rider/availability | Set OFFLINE or AVAILABLE | Authenticated Rider; OCC + idempotency |
+| GET | /api/v1/vendor/delivery/rider/missions | List the authenticated Rider's assigned missions | Assigned Rider only |
+| GET | /api/v1/vendor/delivery/rider/missions/current | Read the Rider's single current mission | Assigned Rider only |
+| GET | /api/v1/vendor/delivery/rider/missions/{missionId} | Read one assigned VendorMission | Assigned Rider only |
+| POST | /api/v1/vendor/delivery/rider/missions/{missionId}/actions/{action} | Apply a controlled lifecycle action | Assigned Rider; OCC + idempotency; secure actions handover-gated |
+| POST | /api/v1/vendor/fulfilment/vendor-missions/{missionId}/fallbacks | Start/recover pre-custody platform fallback | Vendor mission manager; OCC + idempotency |
+| GET | /api/v1/vendor/fulfilment/vendor-missions/fallbacks/{operationRef} | Inspect durable fallback linkage | Vendor mission manager in branch scope |
+
+Specification: `docs/openapi/vendor-owned-hybrid-delivery-runtime.openapi.json`.
+
+## Dispatch operational evidence, exceptions, returns and provider transfer
+
+Vendor adds no route. Its existing authenticated Dispatch event callback now
+accepts the closed evidence/exception/return/transfer event vocabulary and
+stores an append-only projection after binding the operation and Parcel scope
+to Vendor's own `PlatformMissionRef` records.
+
+Dispatch extends the existing Commerce contract from 13 to 20 capability
+routes with six provider commands and one private HMAC-v2 evidence read:
+
+| Method | Path | Authority |
+|---|---|---|
+| POST | /api/v1/provider/commerce-missions/{missionRef}/evidence | Assigned provider; supplementary controlled evidence only |
+| POST | /api/v1/provider/commerce-missions/{missionRef}/exceptions | Assigned provider; closed recovery policy |
+| POST | /api/v1/provider/commerce-missions/{missionRef}/returns | Current custodian; product-class return policy |
+| POST | /api/v1/provider/commerce-missions/{missionRef}/returns/{returnId}/complete | Current custodian; exact Parcel confirmation |
+| POST | /api/v1/provider/commerce-missions/{missionRef}/provider-transfers/start | Old provider in custody |
+| POST | /api/v1/provider/commerce-missions/{missionRef}/provider-transfers/{transferRef}/complete | Assigned replacement provider |
+| GET | /api/v1/internal/dispatch/v1/commerce/missions/{missionRef}/evidence | HMAC v2 `vendor-service` allowlist |
+
+Contract: `services/driver-dispatch-delivery-service/docs/openapi/commerce-dispatch-delivery.openapi.json`.
+
+## Commerce support and dispute integration
+
+The fully enabled Vendor surface changes from **849 to 855**. Support owns
+adjudication; these routes report an owned order issue or expose only a safe,
+versioned case projection. The private callback accepts Support's authoritative
+resolution event and never accepts an amount or ledger instruction.
+
+| Method | Path | Operation | Authority |
+|---|---|---|---|
+| POST | /api/v1/commerce/orders/{orderId}/support-cases | Report a controlled issue | Customer owns CommerceOrder; idempotency fingerprint |
+| GET | /api/v1/commerce/orders/{orderId}/support-cases | List safe case projections | Customer owns CommerceOrder |
+| GET | /api/v1/commerce/orders/{orderId}/support-cases/{caseRef} | Read safe case projection | Customer + order + case scope |
+| POST | /api/v1/vendor/commerce/orders/{vendorOrderId}/support-cases | Report a controlled issue | Authenticated Vendor business scope |
+| GET | /api/v1/vendor/commerce/orders/{vendorOrderId}/support-cases | List safe case projections | Authenticated Vendor business scope |
+| POST | /api/v1/internal/vendor/commerce/support-case-resolutions | Apply versioned Support resolution | HMAC v2; exact `support-dispute-service` allowlist; replay-safe inbox |
+
+Contract: `docs/openapi/commerce-support-cases.openapi.json`.
+
+## Analytics, reporting and reliability
+
+Section 39 adds no Vendor public routes. Vendor Service remains the source
+authority and publishes controlled Commerce analytics events from its existing
+transactional outbox to Analytics Service when `VENDOR_ANALYTICS_URL` and
+`VENDOR_ANALYTICS_SECRET` are configured.
+
+Analytics Service adds three capability routes:
+
+| Method | Path | Operation | Authority |
+|---|---|---|---|
+| POST | /internal/analytics/v1/commerce-events | Ingest committed Commerce analytics event | HMAC v2; exact operational-service allowlist; idempotent event ID |
+| GET | /api/v1/analytics/commerce/vendor-reports | Read vendor operational decision-support report | HMAC v2 read caller allowlist; business scope; windowed; not accounting truth |
+| GET | /api/v1/analytics/commerce/vendor-reliability | Read versioned reliability score | HMAC v2 read caller allowlist; business scope; not verification/star/popularity |
+
+Contract: `services/analytics-service/docs/openapi/commerce-analytics-reporting-reliability.openapi.json`.
+Traceability: `services/vendor-service/docs/SECTION39_TRACEABILITY.md`.

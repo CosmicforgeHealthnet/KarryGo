@@ -108,6 +108,19 @@ func (c *WalletPaymentClient) Settle(ctx context.Context, bookingID string, paym
 	return fmt.Errorf("%w: wallet settlement has no readable payment reference", bookingusecases.ErrPaymentOutcomeUnknown)
 }
 
+func (c *WalletPaymentClient) ReleaseCommerceDelivery(ctx context.Context, _ string, vendorOrderID, providerID, completionReference string) error {
+	result, err := c.wallet.ReleaseCommerceDelivery(ctx, vendorOrderID, walletclient.DeliveryReleaseRequest{ProviderType: providerType, ProviderID: providerID, CompletionReference: completionReference, IdempotencyKey: "hauling-commerce-delivery-release-" + completionReference + "-" + vendorOrderID})
+	if err != nil {
+		return err
+	}
+	if result.Status != "APPLIED" {
+		return fmt.Errorf("commerce delivery settlement was not applied")
+	}
+	return nil
+}
+
+var _ bookingusecases.CommerceDeliverySettlementAuthority = (*WalletPaymentClient)(nil)
+
 // Refund reverses a held charge when a booking is cancelled or unmatched.
 func (c *WalletPaymentClient) Refund(ctx context.Context, paymentReference string, amountKobo int64, reason string) error {
 	_, err := c.wallet.RequestRefund(ctx, walletclient.RefundRequest{

@@ -72,7 +72,9 @@ func (s *Store) Save(
 			delivery_gross_minor, delivery_customer_minor,
 			delivery_vendor_funded_minor, delivery_platform_funded_minor,
 			failure_code, expires_at, planned_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+			, delivery_policy_snapshot, customer_delivery_price_guarantee_minor,
+			delivery_price_guarantee_currency
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 		RETURNING created_at, updated_at, version`,
 		plan.ID, plan.CheckoutSessionID, plan.CustomerID,
 		plan.CheckoutValidationRevision, string(plan.Status), string(plan.Mode),
@@ -80,6 +82,8 @@ func (s *Store) Save(
 		plan.Funding.GrossMinor, plan.Funding.CustomerMinor,
 		plan.Funding.VendorFundedMinor, plan.Funding.PlatformFundedMinor,
 		plan.FailureCode, plan.ExpiresAt, plan.PlannedAt,
+		plan.DeliveryPolicySnapshot, plan.CustomerDeliveryPriceGuaranteeMinor,
+		plan.DeliveryPriceGuaranteeCurrency,
 	).Scan(&plan.CreatedAt, &plan.UpdatedAt, &plan.Version); err != nil {
 		return Plan{}, err
 	}
@@ -108,6 +112,17 @@ func (s *Store) Save(
 		}
 
 		if err = insertGroup(ctx, tx, plan, group); err != nil {
+			return Plan{}, err
+		}
+	}
+
+	// Alternatives commit with the plan. A plan that saved its winner and
+	// lost its alternatives would present the selected candidate as though it
+	// had been the only one - a complete-looking answer that is not one.
+	plan.Candidates = prepareCandidates(plan.Candidates)
+
+	for _, candidate := range plan.Candidates {
+		if err = insertCandidate(ctx, tx, plan, candidate); err != nil {
 			return Plan{}, err
 		}
 	}
@@ -151,9 +166,12 @@ func insertMission(
 			gross_fee_minor, customer_fee_minor,
 			vendor_funded_minor, platform_funded_minor,
 			base_minor, distance_minor, surcharge_minor,
-			fee_beneficiary, total_weight_grams, package_count
+			fee_beneficiary, total_weight_grams, package_count,
+			delivery_mode, fallback_trigger, policy_version,
+			customer_price_guarantee_minor, custody_state
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-		          $18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)`,
+		          $18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,
+		          $33,$34,$35,$36,$37)`,
 		mission.ID, plan.ID, plan.CustomerID,
 		string(mission.Authority), string(mission.Service),
 		string(mission.VehicleClass),
@@ -171,6 +189,9 @@ func insertMission(
 		mission.Breakdown.SurchargeMinor,
 		string(mission.FeeBeneficiary),
 		mission.TotalWeightGrams, mission.PackageCount,
+		stringOrDefault(mission.DeliveryMode, "PLATFORM"), mission.FallbackTrigger,
+		mission.PolicyVersion, mission.CustomerPriceGuaranteeMinor,
+		stringOrDefault(mission.CustodyState, "NOT_TRANSFERRED"),
 	)
 
 	return err
@@ -214,9 +235,10 @@ func insertGroup(
 			package_count, total_weight_grams, total_volume_ml,
 			longest_dimension_mm, weight_evidence, urgency, capabilities,
 			gross_fee_minor, customer_fee_minor,
-			vendor_funded_minor, platform_funded_minor
+			vendor_funded_minor, platform_funded_minor,
+			delivery_mode, fallback_trigger, customer_price_guarantee_minor
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-		          $18,$19,$20,$21,$22)`,
+		          $18,$19,$20,$21,$22,$23,$24,$25)`,
 		group.ID, plan.ID, plan.CustomerID, group.CheckoutGroupID,
 		group.BusinessID, group.BranchID,
 		group.Serviceable, group.ReasonCode, string(group.Authority),
@@ -226,6 +248,8 @@ func insertGroup(
 		weightEvidence, urgency, capabilities,
 		group.Funding.GrossMinor, group.Funding.CustomerMinor,
 		group.Funding.VendorFundedMinor, group.Funding.PlatformFundedMinor,
+		stringOrDefault(group.DeliveryMode, "PLATFORM"), group.FallbackTrigger,
+		group.CustomerPriceGuaranteeMinor,
 	)
 
 	return err
@@ -288,6 +312,8 @@ func (s *Store) Get(
 		       delivery_gross_minor, delivery_customer_minor,
 		       delivery_vendor_funded_minor, delivery_platform_funded_minor,
 		       failure_code, expires_at, version,
+		       delivery_policy_snapshot, customer_delivery_price_guarantee_minor,
+		       delivery_price_guarantee_currency,
 		       created_at, updated_at, planned_at
 		  FROM commerce_fulfilment_plans
 		 WHERE id = $1 AND customer_id = $2`,
@@ -299,6 +325,8 @@ func (s *Store) Get(
 		&plan.Funding.GrossMinor, &plan.Funding.CustomerMinor,
 		&plan.Funding.VendorFundedMinor, &plan.Funding.PlatformFundedMinor,
 		&plan.FailureCode, &plan.ExpiresAt, &plan.Version,
+		&plan.DeliveryPolicySnapshot, &plan.CustomerDeliveryPriceGuaranteeMinor,
+		&plan.DeliveryPriceGuaranteeCurrency,
 		&plan.CreatedAt, &plan.UpdatedAt, &plan.PlannedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -313,6 +341,12 @@ func (s *Store) Get(
 	}
 
 	if plan.Groups, err = s.groups(ctx, plan.ID); err != nil {
+		return Plan{}, err
+	}
+
+	if plan.Candidates, err = loadCandidates(
+		ctx, s.db, plan.CustomerID, plan.ID,
+	); err != nil {
 		return Plan{}, err
 	}
 
@@ -376,6 +410,8 @@ func (s *Store) missions(
 		       m.vendor_funded_minor, m.platform_funded_minor,
 		       m.base_minor, m.distance_minor, m.surcharge_minor,
 		       m.fee_beneficiary, m.total_weight_grams, m.package_count,
+		       m.delivery_mode, m.fallback_trigger, m.policy_version,
+		       m.customer_price_guarantee_minor, m.custody_state,
 		       COALESCE(
 		           ARRAY(
 		               SELECT g.checkout_group_id
@@ -422,6 +458,8 @@ func (s *Store) missions(
 			&mission.Breakdown.SurchargeMinor,
 			&mission.FeeBeneficiary,
 			&mission.TotalWeightGrams, &mission.PackageCount,
+			&mission.DeliveryMode, &mission.FallbackTrigger, &mission.PolicyVersion,
+			&mission.CustomerPriceGuaranteeMinor, &mission.CustodyState,
 			&mission.GroupIDs,
 		); err != nil {
 			return nil, err
@@ -446,7 +484,8 @@ func (s *Store) groups(
 		       package_count, total_weight_grams, total_volume_ml,
 		       longest_dimension_mm, weight_evidence, urgency, capabilities,
 		       gross_fee_minor, customer_fee_minor,
-		       vendor_funded_minor, platform_funded_minor
+		       vendor_funded_minor, platform_funded_minor,
+		       delivery_mode, fallback_trigger, customer_price_guarantee_minor
 		  FROM commerce_fulfilment_plan_groups
 		 WHERE plan_id = $1
 		 ORDER BY checkout_group_id`,
@@ -481,6 +520,8 @@ func (s *Store) groups(
 			&group.Funding.GrossMinor, &group.Funding.CustomerMinor,
 			&group.Funding.VendorFundedMinor,
 			&group.Funding.PlatformFundedMinor,
+			&group.DeliveryMode, &group.FallbackTrigger,
+			&group.CustomerPriceGuaranteeMinor,
 		); err != nil {
 			return nil, err
 		}

@@ -85,6 +85,14 @@ Returns a `PaymentIntent` with `authorization_url` for the Paystack checkout. `2
 Use the shared client in `shared/go/walletclient` — do not hand-roll requests.
 All money-moving calls require an `idempotency_key`; replays return the original result.
 
+Commerce allocation refunds are component commands, not arbitrary gross
+amounts. They preserve customer, Platform and other-approved funding outputs;
+identify escrow or released-beneficiary recovery; and include frozen
+merchandise/delivery/revenue/authorization reductions. Wallet validates
+conservation and cumulative allocation-local caps before posting one balanced
+ledger transaction. An insufficient released-party balance returns
+`PENDING_LIABILITY` without claiming that a refund completed.
+
 - `POST /internal/payment-intents` — `walletclient.CreatePaymentIntent`. Body is `PaymentIntentRequest` (`source_service`, `source_reference`, `customer_id`, `amount_kobo`, `payment_method` = `wallet`\|`paystack`, `idempotency_key`, …). Returns `PaymentIntent`.
 - `POST /internal/payment-intents/:id/pay-from-wallet` — `walletclient.PayFromWallet`. Holds funds from the customer wallet into job escrow.
 - `POST /internal/jobs/:source_service/:source_reference/complete` — `walletclient.CompleteJob`. Settles escrow to the provider after job completion.

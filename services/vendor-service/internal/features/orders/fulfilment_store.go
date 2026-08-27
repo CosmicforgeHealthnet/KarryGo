@@ -10,6 +10,7 @@ package orders
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -127,6 +128,9 @@ func (s *Store) EnsureMission(
 	// authority keys on it, which is what makes creation idempotent END TO END
 	// rather than only on this side.
 	missionRef := "vfm_" + order.ID + "_" + plan.PlanMissionRef
+	if strings.TrimSpace(plan.MissionRef) != "" {
+		missionRef = strings.TrimSpace(plan.MissionRef)
+	}
 
 	if _, err = tx.Exec(ctx, `
 		INSERT INTO commerce_order_missions(

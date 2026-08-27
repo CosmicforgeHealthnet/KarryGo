@@ -46,6 +46,15 @@ const (
 	// van missions anywhere else.
 	ServiceHauling Service = "HAULING"
 
+	// ServiceTaxi is driver-taxi-service. It is modelled so the car class has
+	// a named owner and a future goods mode is a configuration change rather
+	// than a redesign. It has NO production goods capability today:
+	// driver-taxi-service is a passenger service with no goods concept in
+	// code, so ServiceFor still refuses the car class and the capability
+	// policy marks it not executable. Naming the owner is honest; routing a
+	// mission to it would not be.
+	ServiceTaxi Service = "TAXI"
+
 	// ServiceVendorOwn is internal/features/delivery. It is not a platform
 	// logistics authority and creates no mission in any driver service.
 	ServiceVendorOwn Service = "VENDOR_OWN_DELIVERY"
@@ -126,61 +135,38 @@ func (c Capability) Fits(requirement Requirement) bool {
 
 // DefaultCapabilities is the platform's vehicle envelope, smallest first.
 //
-// Ordering matters: selection takes the FIRST class that fits, so a load that
-// a motorcycle can carry is never quoted as a truck. The values are stated
-// once here rather than scattered through the planner so a deployment tuning
-// them changes one list.
+// It is a NARROW VIEW of DefaultCapabilityPolicy, not a second table. The
+// thresholds are stated exactly once, in vehicle_capability.go; stating them
+// twice is how two parts of one engine start disagreeing about how heavy a
+// motorcycle load may be.
 //
-// The handling columns encode the FRESH/CHILLED distinction explained in
-// requirements.go: a motorcycle's insulated box is not a cold chain.
+// The car class is filtered out here because this view feeds SelectVehicle,
+// whose ranking excludes it. The richer engine models the car explicitly and
+// then refuses to execute it, which is the more honest answer; this view
+// exists for callers that only need the executable ladder.
 func DefaultCapabilities() []Capability {
-	return []Capability{
-		{
-			Class:                 VehicleMotorcycle,
-			MaxWeightGrams:        25000,
-			MaxVolumeMl:           80000,
-			MaxLongestDimensionMm: 700,
-			AllowsLargeLoad:       false,
-			Handles: []HandlingCapability{
-				CapabilityHotHold,
-				CapabilityInsulated,
-				CapabilityUprightCarry,
-				CapabilityLeakContainment,
-			},
-		},
-		{
-			Class:                 VehicleVan,
-			MaxWeightGrams:        1000000,
-			MaxVolumeMl:           6000000,
-			MaxLongestDimensionMm: 2400,
-			AllowsLargeLoad:       true,
-			Handles: []HandlingCapability{
-				CapabilityHotHold,
-				CapabilityInsulated,
-				CapabilityColdChain,
-				CapabilityFrozenChain,
-				CapabilityUprightCarry,
-				CapabilityFragileCarry,
-				CapabilityLeakContainment,
-			},
-		},
-		{
-			Class:                 VehicleTruck,
-			MaxWeightGrams:        30000000,
-			MaxVolumeMl:           80000000,
-			MaxLongestDimensionMm: 12000,
-			AllowsLargeLoad:       true,
-			Handles: []HandlingCapability{
-				CapabilityHotHold,
-				CapabilityInsulated,
-				CapabilityColdChain,
-				CapabilityFrozenChain,
-				CapabilityUprightCarry,
-				CapabilityFragileCarry,
-				CapabilityLeakContainment,
-			},
-		},
+	policy := DefaultCapabilityPolicy().Normalized()
+
+	capabilities := make([]Capability, 0, len(policy.Classes))
+
+	for _, capability := range policy.Classes {
+		if _, selectable := classRank(capability.Class); !selectable {
+			continue
+		}
+
+		capabilities = append(capabilities, Capability{
+			Class:                 capability.Class,
+			MaxWeightGrams:        capability.MaxWeightGrams,
+			MaxVolumeMl:           capability.MaxVolumeMl,
+			MaxLongestDimensionMm: capability.MaxLongestDimensionMm,
+			AllowsLargeLoad:       capability.AllowsLargeLoad,
+			Handles: append(
+				[]HandlingCapability(nil), capability.Handles...,
+			),
+		})
 	}
+
+	return capabilities
 }
 
 // classRank orders classes from smallest to largest. VehicleCar deliberately

@@ -178,6 +178,9 @@ func (s *Service) CreateProduct(ctx context.Context, actor Actor, scope Scope, i
 	if violation != nil {
 		return Product{}, validation(*violation)
 	}
+	if err := validatePharmacyMedicineExclusion("product", name, description, brand, manufacturer, regulatory, manufacturerCode); err != nil {
+		return Product{}, err
+	}
 	origin := strings.ToUpper(strings.TrimSpace(in.OriginCountry))
 	if origin != "" && !countryPattern.MatchString(origin) {
 		return Product{}, fieldError("origin_country", "Use a two-letter ISO country code.")
@@ -562,6 +565,9 @@ func (s *Service) UpdateProduct(ctx context.Context, actor Actor, scope Scope, p
 				return fieldError("status", "Use DRAFT, ACTIVE or PAUSED. Archive with the archive command.")
 			}
 			status = value
+		}
+		if err = validatePharmacyMedicineExclusion("product", name, description, brand, manufacturer, regulatory, manufacturerCode); err != nil {
+			return err
 		}
 
 		row, err := scanProduct(tx.QueryRow(ctx, `

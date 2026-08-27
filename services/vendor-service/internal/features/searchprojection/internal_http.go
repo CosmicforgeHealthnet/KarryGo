@@ -34,6 +34,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -106,6 +107,17 @@ type InternalHandler struct {
 	allowed map[string]bool
 	nonces  NonceStore
 	flags   Flags
+	limiter RequestLimiter
+	limit   RequestLimitPolicy
+}
+
+type RequestLimiter interface {
+	Allow(context.Context, string, string, int, time.Duration) error
+}
+
+type RequestLimitPolicy struct {
+	Max    int
+	Window time.Duration
 }
 
 type InternalHandlerOptions struct {
@@ -118,6 +130,8 @@ type InternalHandlerOptions struct {
 	Callers []string
 	Nonces  NonceStore
 	Flags   Flags
+	Limiter RequestLimiter
+	Limit   RequestLimitPolicy
 }
 
 func NewInternalHandler(options InternalHandlerOptions) *InternalHandler {
@@ -136,7 +150,23 @@ func NewInternalHandler(options InternalHandlerOptions) *InternalHandler {
 		allowed: allowed,
 		nonces:  options.Nonces,
 		flags:   options.Flags,
+		limiter: options.Limiter,
+		limit:   options.Limit,
 	}
+}
+
+func (h *InternalHandler) limitSearch(c *gin.Context) {
+	if h.limiter == nil || h.limit.Max <= 0 {
+		c.Next()
+		return
+	}
+	caller := callerName(c)
+	if err := h.limiter.Allow(c.Request.Context(), "marketplace_search", caller, h.limit.Max, h.limit.Window); err != nil {
+		httpx.RespondError(c, err)
+		c.Abort()
+		return
+	}
+	c.Next()
 }
 
 func (h *InternalHandler) allowCaller(c *gin.Context) {
@@ -1026,13 +1056,13 @@ func RegisterInternalSearchRoutes(
 
 	// Food and Shop are separate route families over separate engines. There
 	// is deliberately no combined endpoint.
-	group.POST("/food", h.searchFood)
-	group.POST("/food/facets", h.foodFacets)
-	group.GET("/food/suggestions", h.foodSuggestions)
+	group.POST("/food", h.limitSearch, h.searchFood)
+	group.POST("/food/facets", h.limitSearch, h.foodFacets)
+	group.GET("/food/suggestions", h.limitSearch, h.foodSuggestions)
 
-	group.POST("/shop", h.searchShop)
-	group.POST("/shop/facets", h.shopFacets)
-	group.GET("/shop/suggestions", h.shopSuggestions)
+	group.POST("/shop", h.limitSearch, h.searchShop)
+	group.POST("/shop/facets", h.limitSearch, h.shopFacets)
+	group.GET("/shop/suggestions", h.limitSearch, h.shopSuggestions)
 
 	group.GET("/ranking-profiles/:namespaceCode", h.listRankingProfiles)
 	group.GET("/ranking-profiles/:namespaceCode/:profileCode", h.getRankingProfile)

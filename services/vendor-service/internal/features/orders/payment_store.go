@@ -28,7 +28,7 @@ const paymentOperationColumns = `
 const paymentLegColumns = `
 	l.id,l.payment_operation_id,l.scope,COALESCE(l.vendor_order_id,''),l.business_id,
 	l.amount_minor,l.currency,l.idempotency_key,l.intent_reference,l.intent_id,
-	l.authority_status,l.status,l.failure_reason,l.refunded_minor,l.settled_minor,
+	l.authority_status,l.allocation_snapshot_fingerprint,l.status,l.failure_reason,l.refunded_minor,l.settled_minor,
 	l.version,l.created_at,l.updated_at`
 
 // EnsureOperation creates the payment operation and its legs, or returns the
@@ -184,8 +184,8 @@ func loadLegs(ctx context.Context, q queryer, operationID string) ([]PaymentLegR
 		var leg PaymentLegRecord
 		if err = rows.Scan(&leg.ID, &leg.PaymentOperationID, &leg.Scope, &leg.VendorOrderID,
 			&leg.BusinessID, &leg.AmountMinor, &leg.Currency, &leg.IdempotencyKey,
-			&leg.IntentReference, &leg.IntentID, &leg.AuthorityStatus, &leg.Status,
-			&leg.FailureReason, &leg.RefundedMinor, &leg.SettledMinor,
+			&leg.IntentReference, &leg.IntentID, &leg.AuthorityStatus, &leg.AllocationSnapshotFingerprint,
+			&leg.Status, &leg.FailureReason, &leg.RefundedMinor, &leg.SettledMinor,
 			&leg.Version, &leg.CreatedAt, &leg.UpdatedAt); err != nil {
 			return nil, err
 		}
@@ -242,10 +242,12 @@ func (s *Store) RecordLegResult(
 		UPDATE commerce_payment_legs
 		   SET intent_reference=CASE WHEN $2 <> '' THEN $2 ELSE intent_reference END,
 		       intent_id=CASE WHEN $3 <> '' THEN $3 ELSE intent_id END,
-		       authority_status=$4,status=$5,failure_reason=$6,
-		       version=version+1,updated_at=$7
+		       authority_status=$4,
+		       allocation_snapshot_fingerprint=CASE WHEN $5 <> '' THEN $5 ELSE allocation_snapshot_fingerprint END,
+		       status=$6,failure_reason=$7,
+		       version=version+1,updated_at=$8
 		 WHERE id=$1`,
-		legID, result.Reference, result.IntentID, result.Status, status,
+		legID, result.Reference, result.IntentID, result.Status, result.SnapshotFingerprint, status,
 		failureReason, now); err != nil {
 		return PaymentOperation{}, err
 	}
@@ -577,16 +579,20 @@ func (s *Store) RecordLegRefund(
 			newSettled = 0
 		}
 	}
+	newStatus := string(LegHeld)
+	if newRefunded >= legAmountMinor {
+		newStatus = string(LegRefunded)
+	}
 	if _, err = tx.Exec(ctx, `
 		UPDATE commerce_payment_legs
-		   SET status='REFUNDED',refunded_minor=$2,settled_minor=$3,version=version+1,updated_at=$4
-		 WHERE id=$1`, legID, newRefunded, newSettled, now); err != nil {
+		   SET status=$2,refunded_minor=$3,settled_minor=$4,version=version+1,updated_at=$5
+		 WHERE id=$1`, legID, newStatus, newRefunded, newSettled, now); err != nil {
 		return PaymentOperation{}, err
 	}
 
 	if err = appendPaymentEvent(ctx, tx, operationID, legID, parentOrderID, customerID,
 		"commerce.payment.compensation_started", "AUTHORITY", "",
-		previousLegStatus, string(LegRefunded), "", now); err != nil {
+		previousLegStatus, newStatus, "", now); err != nil {
 		return PaymentOperation{}, err
 	}
 

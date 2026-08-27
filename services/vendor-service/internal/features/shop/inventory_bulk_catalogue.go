@@ -118,6 +118,9 @@ func (s *Service) applyBulkCatalogueRows(ctx context.Context, tx pgx.Tx, actor A
 			if len(name) < 2 || len(name) > 200 {
 				return fieldError("rows.name", "Product names must contain 2 to 200 characters.")
 			}
+			if err := validatePharmacyMedicineExclusion("rows.name", name); err != nil {
+				return err
+			}
 			status := strings.ToUpper(strings.TrimSpace(row.Status))
 			if status == "" {
 				status = StatusActive

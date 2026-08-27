@@ -63,10 +63,18 @@ type RefusalInput struct {
 }
 
 // Repository is the PostgreSQL store.
-type Repository struct{ db *pgxpool.Pool }
+type Repository struct {
+	db     *pgxpool.Pool
+	events TargetEventEmitter
+}
 
 // NewRepository builds the store.
 func NewRepository(db *pgxpool.Pool) *Repository { return &Repository{db: db} }
+
+func (r *Repository) WithTargetEventEmitter(events TargetEventEmitter) *Repository {
+	r.events = events
+	return r
+}
 
 const missionColumns = `
 	id::text, mission_ref, parent_order_ref, vendor_order_refs, customer_id::text,

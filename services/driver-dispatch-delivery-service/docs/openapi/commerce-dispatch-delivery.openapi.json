@@ -1,0 +1,84 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Commerce Dispatch Delivery",
+    "version": "1.1.0",
+    "description": "Canonical route-aware motorcycle delivery quote, multi-pickup mission, immutable operational evidence, controlled exceptions and returns, custody recovery and provider transfer contract owned by Dispatch."
+  },
+  "paths": {
+    "/api/v1/internal/dispatch/v1/commerce/quotes": {
+      "post": {"summary": "Quote a route-aware commerce delivery", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Authoritative quote"}, "400": {"description": "Invalid or unserviceable request"}, "401": {"description": "Invalid service identity"}, "503": {"description": "Route authority unavailable"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/capabilities/motorcycle": {
+      "get": {"summary": "Read the current motorcycle capability", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Capability snapshot"}, "401": {"description": "Invalid service identity"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions": {
+      "post": {"summary": "Create a mission bound to an immutable plan and quote", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Canonical mission"}, "400": {"description": "Invalid mission"}, "401": {"description": "Invalid service identity"}, "409": {"description": "Binding or idempotency conflict"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions/operations/{operationRef}": {
+      "get": {"summary": "Read a mission by caller-scoped operation", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/OperationRef"}], "responses": {"200": {"description": "Canonical mission"}, "404": {"description": "Operation not found"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions/{missionRef}": {
+      "get": {"summary": "Read a caller-scoped canonical mission", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}], "responses": {"200": {"description": "Canonical mission"}, "404": {"description": "Mission not found"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions/{missionRef}/stops/{stopRef}/verify-pickup": {
+      "post": {"summary": "Verify a Vendor pickup handover", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/StopRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Updated mission"}, "409": {"description": "Replay, version or handover conflict"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions/{missionRef}/cancel": {
+      "post": {"summary": "Cancel a commerce mission", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Cancelled mission"}, "409": {"description": "Version or state conflict"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions/{missionRef}/reschedule": {
+      "post": {"summary": "Reschedule after receiver unavailability", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Rescheduled mission"}, "409": {"description": "Version or state conflict"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions/{missionRef}/return": {
+      "post": {"summary": "Require a return leg", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Return-required mission"}, "409": {"description": "Version or state conflict"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions/{missionRef}/provider-replacement": {
+      "post": {"summary": "Replace the provider with custody-safe transfer semantics", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Updated mission"}, "409": {"description": "Version or state conflict"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/stops/{stopRef}/arrive": {
+      "post": {"summary": "Provider arrives at a pickup", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/StopRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Pickup credential or dependency status"}, "403": {"description": "Provider does not own this assignment"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/stops/{stopRef}/complete": {
+      "post": {"summary": "Provider completes an independently verified pickup", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/StopRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Updated mission"}, "409": {"description": "Pickup handover not verified"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/receiver-unavailable": {
+      "post": {"summary": "Record receiver unavailability", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Receiver-unavailable mission"}, "403": {"description": "Provider does not own this assignment"}}}
+    },
+    "/api/v1/internal/dispatch/v1/commerce/missions/{missionRef}/evidence": {
+      "get": {"summary": "Read append-only mission evidence metadata", "security": [{"serviceHmacV2": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}], "responses": {"200": {"description": "Evidence metadata with opaque media references"}, "401": {"description": "Invalid service identity"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/evidence": {
+      "post": {"summary": "Submit controlled append-only operational evidence", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Evidence record"}, "403": {"description": "Mission or Parcel IDOR denied"}, "409": {"description": "Stale custody or idempotency conflict"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/exceptions": {
+      "post": {"summary": "Report a controlled exception and policy-approved recovery", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Exception incident"}, "409": {"description": "State, evidence, or commercial approval conflict"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/returns": {
+      "post": {"summary": "Start a product-class-aware return for parcels in custody", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Return operation"}, "409": {"description": "Custody or return-policy conflict"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/returns/{returnId}/complete": {
+      "post": {"summary": "Complete a return with distinct return evidence", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/ReturnId"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Completed return"}, "409": {"description": "Parcel or return scope conflict"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/provider-transfers/start": {
+      "post": {"summary": "Old provider starts a manifest-bound provider transfer challenge", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Provider-transfer challenge"}, "409": {"description": "Replacement or manifest is not ready"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/provider-transfers/{transferRef}/complete": {
+      "post": {"summary": "Replacement provider verifies challenge and atomically accepts custody", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/TransferRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Mission with replacement as active carrier"}, "403": {"description": "Provider identity mismatch"}, "409": {"description": "Transfer, manifest, parcel, location or state conflict"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "serviceHmacV2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 with caller, timestamp and nonce headers; caller allowlisted to vendor-service."},
+      "providerBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+    },
+    "parameters": {
+      "IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "maxLength": 200}},
+      "MissionRef": {"name": "missionRef", "in": "path", "required": true, "schema": {"type": "string"}},
+      "OperationRef": {"name": "operationRef", "in": "path", "required": true, "schema": {"type": "string"}},
+      "StopRef": {"name": "stopRef", "in": "path", "required": true, "schema": {"type": "string"}}
+      ,"ReturnId": {"name": "returnId", "in": "path", "required": true, "schema": {"type": "string"}}
+      ,"TransferRef": {"name": "transferRef", "in": "path", "required": true, "schema": {"type": "string"}}
+    }
+  }
+}

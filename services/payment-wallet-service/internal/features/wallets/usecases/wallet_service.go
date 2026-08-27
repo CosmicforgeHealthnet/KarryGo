@@ -467,7 +467,7 @@ func (s *WalletService) RequestWithdrawal(ctx context.Context, input RequestWith
 	if !s.paystackBalanceCanCover(ctx, walletmodels.DefaultCurrency(input.Currency), input.AmountKobo) {
 		return walletmodels.Withdrawal{}, apperrors.Conflict("Paystack Balance is not enough to process this withdrawal yet.", nil)
 	}
-	withdrawal, err := s.repository.RequestWithdrawal(ctx, walletrepositories.CreateWithdrawalInput{
+	withdrawal, created, err := s.repository.RequestWithdrawal(ctx, walletrepositories.CreateWithdrawalInput{
 		Reference:      walletrepositories.Reference("wd"),
 		ProviderType:   input.ProviderType,
 		ProviderID:     input.ProviderID,
@@ -478,6 +478,9 @@ func (s *WalletService) RequestWithdrawal(ctx context.Context, input RequestWith
 	})
 	if err != nil {
 		return walletmodels.Withdrawal{}, err
+	}
+	if !created {
+		return withdrawal, nil
 	}
 	transfer, err := s.paystack.InitiateTransfer(ctx, walletclients.InitiateTransferRequest{
 		AmountKobo:    input.AmountKobo,

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -82,6 +83,325 @@ type Refund struct {
 	Reason            string `json:"reason,omitempty"`
 	Status            string `json:"status"`
 	PaystackRefundRef string `json:"paystack_refund_reference,omitempty"`
+}
+
+type DeliveryFundingRequest struct {
+	SourceReference            string `json:"source_reference"`
+	VendorOrderID              string `json:"vendor_order_id"`
+	SponsoringVendorID         string `json:"sponsoring_vendor_id"`
+	ProviderType               string `json:"provider_type"`
+	ProviderID                 string `json:"provider_id"`
+	Currency                   string `json:"currency"`
+	AuthoritativeDeliveryMinor int64  `json:"authoritative_delivery_minor"`
+	CustomerContributionMinor  int64  `json:"customer_contribution_minor"`
+	VendorSubsidyMinor         int64  `json:"vendor_subsidy_minor"`
+	PlatformSubsidyMinor       int64  `json:"platform_subsidy_minor"`
+	PlatformApprovalRef        string `json:"platform_approval_ref,omitempty"`
+	CustomerPaymentReference   string `json:"customer_payment_reference,omitempty"`
+	IdempotencyKey             string `json:"idempotency_key"`
+}
+
+type DeliveryFunding struct {
+	ID                         string `json:"id"`
+	SourceReference            string `json:"source_reference"`
+	VendorOrderID              string `json:"vendor_order_id"`
+	SponsoringVendorID         string `json:"sponsoring_vendor_id"`
+	AuthoritativeDeliveryMinor int64  `json:"authoritative_delivery_minor"`
+	CustomerContributionMinor  int64  `json:"customer_contribution_minor"`
+	VendorSubsidyMinor         int64  `json:"vendor_subsidy_minor"`
+	PlatformSubsidyMinor       int64  `json:"platform_subsidy_minor"`
+	Status                     string `json:"status"`
+}
+
+type DeliveryResponsibilityTransitionRequest struct {
+	OperationRef               string `json:"operation_ref"`
+	IdempotencyKey             string `json:"idempotency_key"`
+	ReasonCode                 string `json:"reason_code"`
+	PlatformExecutionCostMinor int64  `json:"platform_execution_cost_minor"`
+}
+
+type DeliveryResponsibilityTransition struct {
+	ID                                string `json:"id"`
+	AllocationID                      string `json:"allocation_id"`
+	VendorOrderID                     string `json:"vendor_order_id"`
+	OperationRef                      string `json:"operation_ref"`
+	FromResponsibility                string `json:"from_responsibility"`
+	ToResponsibility                  string `json:"to_responsibility"`
+	VendorDeliveryPayableBeforeMinor  int64  `json:"vendor_delivery_payable_before_minor"`
+	ProviderDeliveryPayableAfterMinor int64  `json:"provider_delivery_payable_after_minor"`
+	PlatformExecutionCostMinor        int64  `json:"platform_execution_cost_minor"`
+	FallbackPlatformFundingMinor      int64  `json:"fallback_platform_funding_minor"`
+	CustomerContributionMinor         int64  `json:"customer_contribution_minor"`
+	VendorSubsidyMinor                int64  `json:"vendor_subsidy_minor"`
+	PlatformSubsidyMinor              int64  `json:"platform_subsidy_minor"`
+	Status                            string `json:"status"`
+}
+
+type CommerceAllocation struct {
+	AllocationReference                   string                 `json:"allocation_reference"`
+	Scope                                 string                 `json:"scope"`
+	VendorOrderID                         string                 `json:"vendor_order_id,omitempty"`
+	VendorID                              string                 `json:"vendor_id,omitempty"`
+	BranchID                              string                 `json:"branch_id,omitempty"`
+	DeliveryResponsibility                string                 `json:"delivery_responsibility"`
+	Currency                              string                 `json:"currency"`
+	CustomerPayableMinor                  int64                  `json:"customer_payable_minor"`
+	MaxAuthorizedMinor                    int64                  `json:"max_authorized_minor"`
+	MerchandiseGrossMinor                 int64                  `json:"merchandise_gross_minor"`
+	VendorProductDiscountMinor            int64                  `json:"vendor_product_discount_minor"`
+	PlatformProductDiscountMinor          int64                  `json:"platform_product_discount_minor"`
+	PlatformCommissionMinor               int64                  `json:"platform_commission_minor"`
+	DeliveryCustomerMinor                 int64                  `json:"delivery_customer_minor"`
+	VendorDeliverySubsidyMinor            int64                  `json:"vendor_delivery_subsidy_minor"`
+	PlatformDeliverySubsidyMinor          int64                  `json:"platform_delivery_subsidy_minor"`
+	OtherFundingMinor                     int64                  `json:"other_funding_minor"`
+	VendorMerchandisePayableMinor         int64                  `json:"vendor_merchandise_payable_minor"`
+	VendorDeliveryPayableMinor            int64                  `json:"vendor_delivery_payable_minor"`
+	ProviderDeliveryPayableMinor          int64                  `json:"provider_delivery_payable_minor"`
+	PlatformRevenueMinor                  int64                  `json:"platform_revenue_minor"`
+	VendorReleasedMinor                   int64                  `json:"vendor_released_minor,omitempty"`
+	DeliveryReleasedMinor                 int64                  `json:"delivery_released_minor,omitempty"`
+	RefundedMinor                         int64                  `json:"refunded_minor,omitempty"`
+	RefundCustomerMinor                   int64                  `json:"refund_customer_minor,omitempty"`
+	RefundPlatformFundingMinor            int64                  `json:"refund_platform_funding_minor,omitempty"`
+	RefundOtherFundingMinor               int64                  `json:"refund_other_funding_minor,omitempty"`
+	RefundEscrowRecoveryMinor             int64                  `json:"refund_escrow_recovery_minor,omitempty"`
+	RefundVendorRecoveryMinor             int64                  `json:"refund_vendor_recovery_minor,omitempty"`
+	RefundProviderRecoveryMinor           int64                  `json:"refund_provider_recovery_minor,omitempty"`
+	RefundPlatformRecoveryMinor           int64                  `json:"refund_platform_recovery_minor,omitempty"`
+	RefundPlatformLossFundingMinor        int64                  `json:"refund_platform_loss_funding_minor,omitempty"`
+	RefundVendorMerchandiseReductionMinor int64                  `json:"refund_vendor_merchandise_reduction_minor,omitempty"`
+	RefundVendorDeliveryReductionMinor    int64                  `json:"refund_vendor_delivery_reduction_minor,omitempty"`
+	RefundProviderDeliveryReductionMinor  int64                  `json:"refund_provider_delivery_reduction_minor,omitempty"`
+	RefundPlatformRevenueReductionMinor   int64                  `json:"refund_platform_revenue_reduction_minor,omitempty"`
+	RefundAuthorizationReleaseMinor       int64                  `json:"refund_authorization_release_minor,omitempty"`
+	Snapshot                              map[string]interface{} `json:"snapshot,omitempty"`
+	SnapshotFingerprint                   string                 `json:"snapshot_fingerprint"`
+	Status                                string                 `json:"status,omitempty"`
+}
+
+type CommerceIntentRequest struct {
+	ParentCommerceReference string               `json:"parent_commerce_reference"`
+	CustomerID              string               `json:"customer_id"`
+	CustomerEmail           string               `json:"customer_email"`
+	QuoteReference          string               `json:"quote_reference"`
+	QuoteVersion            int64                `json:"quote_version"`
+	QuoteFingerprint        string               `json:"quote_fingerprint"`
+	FinalAuthorizedMinor    int64                `json:"final_authorized_minor"`
+	MaxAuthorizedMinor      int64                `json:"max_authorized_minor"`
+	AllocationFingerprint   string               `json:"allocation_fingerprint"`
+	Currency                string               `json:"currency"`
+	PaymentMethod           string               `json:"payment_method"`
+	IdempotencyKey          string               `json:"idempotency_key"`
+	Allocations             []CommerceAllocation `json:"allocations"`
+}
+
+type CommerceIntent struct {
+	PaymentIntentID         string               `json:"payment_intent_id"`
+	PaymentReference        string               `json:"payment_reference"`
+	ParentCommerceReference string               `json:"parent_commerce_reference"`
+	CustomerID              string               `json:"customer_id"`
+	QuoteReference          string               `json:"quote_reference"`
+	QuoteVersion            int64                `json:"quote_version"`
+	QuoteFingerprint        string               `json:"quote_fingerprint"`
+	FinalAuthorizedMinor    int64                `json:"final_authorized_minor"`
+	MaxAuthorizedMinor      int64                `json:"max_authorized_minor"`
+	AllocationFingerprint   string               `json:"allocation_fingerprint"`
+	Currency                string               `json:"currency"`
+	PaymentMethod           string               `json:"payment_method"`
+	Status                  string               `json:"status"`
+	Allocations             []CommerceAllocation `json:"allocations"`
+}
+
+type CommerceOperation struct {
+	ID              string `json:"id"`
+	OperationType   string `json:"operation_type"`
+	SourceReference string `json:"source_reference"`
+	ItemReference   string `json:"item_reference,omitempty"`
+	IdempotencyKey  string `json:"idempotency_key"`
+	Status          string `json:"status"`
+	AmountMinor     int64  `json:"amount_minor"`
+	LedgerReference string `json:"ledger_reference,omitempty"`
+}
+
+type VendorReleaseRequest struct {
+	CompletionReference         string `json:"completion_reference"`
+	ExpectedSnapshotFingerprint string `json:"expected_snapshot_fingerprint"`
+	IdempotencyKey              string `json:"idempotency_key"`
+}
+
+type DeliveryReleaseRequest struct {
+	ProviderType                string `json:"provider_type"`
+	ProviderID                  string `json:"provider_id"`
+	CompletionReference         string `json:"completion_reference"`
+	ExpectedSnapshotFingerprint string `json:"expected_snapshot_fingerprint"`
+	IdempotencyKey              string `json:"idempotency_key"`
+}
+
+type CommerceRefundRequest struct {
+	ItemReference                   string `json:"item_reference"`
+	CustomerRefundMinor             int64  `json:"customer_refund_minor"`
+	PlatformFundingReversalMinor    int64  `json:"platform_funding_reversal_minor"`
+	OtherFundingReversalMinor       int64  `json:"other_funding_reversal_minor"`
+	EscrowRecoveryMinor             int64  `json:"escrow_recovery_minor"`
+	VendorRecoveryMinor             int64  `json:"vendor_recovery_minor"`
+	ProviderRecoveryMinor           int64  `json:"provider_recovery_minor"`
+	PlatformRecoveryMinor           int64  `json:"platform_recovery_minor"`
+	PlatformLossFundingMinor        int64  `json:"platform_loss_funding_minor"`
+	VendorMerchandiseReductionMinor int64  `json:"vendor_merchandise_reduction_minor"`
+	VendorDeliveryReductionMinor    int64  `json:"vendor_delivery_reduction_minor"`
+	ProviderDeliveryReductionMinor  int64  `json:"provider_delivery_reduction_minor"`
+	PlatformRevenueReductionMinor   int64  `json:"platform_revenue_reduction_minor"`
+	AuthorizationReleaseMinor       int64  `json:"authorization_release_minor"`
+	ExpectedSnapshotFingerprint     string `json:"expected_snapshot_fingerprint"`
+	IdempotencyKey                  string `json:"idempotency_key"`
+}
+
+type VendorPayableSummary struct {
+	OwnerID       string `json:"owner_id"`
+	Currency      string `json:"currency"`
+	AvailableKobo int64  `json:"available_kobo"`
+	PendingKobo   int64  `json:"pending_kobo"`
+}
+
+type VendorTransaction struct {
+	Reference       string    `json:"reference"`
+	TransactionType string    `json:"transaction_type"`
+	Side            string    `json:"side"`
+	AmountKobo      int64     `json:"amount_kobo"`
+	Currency        string    `json:"currency"`
+	Memo            string    `json:"memo"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type VendorBankAccount struct {
+	ExternalRef         string `json:"external_ref"`
+	BankCode            string `json:"bank_code"`
+	MaskedAccount       string `json:"masked_account"`
+	ResolvedAccountName string `json:"resolved_account_name"`
+	Status              string `json:"status"`
+}
+
+type VendorWithdrawalRequest struct {
+	BankAccountID   string `json:"bank_account_id"`
+	AmountKobo      int64  `json:"amount_kobo"`
+	Currency        string `json:"currency"`
+	IdempotencyKey  string `json:"idempotency_key"`
+	StepUpReference string `json:"step_up_reference"`
+}
+
+type VendorWithdrawal struct {
+	ID            string `json:"id"`
+	Reference     string `json:"reference"`
+	BankAccountID string `json:"bank_account_id"`
+	AmountKobo    int64  `json:"amount_kobo"`
+	Currency      string `json:"currency"`
+	Status        string `json:"status"`
+}
+
+func (c Client) CreateCommerceIntent(ctx context.Context, request CommerceIntentRequest) (CommerceIntent, error) {
+	var response CommerceIntent
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/commerce/payment-intents", request, &response)
+	return response, err
+}
+
+func (c Client) GetCommerceIntent(ctx context.Context, parentReference string) (CommerceIntent, error) {
+	var response CommerceIntent
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/commerce/payment-intents/"+url.PathEscape(parentReference), &response)
+	return response, err
+}
+
+func (c Client) HoldCommerceIntent(ctx context.Context, parentReference, idempotencyKey string) (CommerceIntent, error) {
+	var response CommerceIntent
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/commerce/payment-intents/"+url.PathEscape(parentReference)+"/hold", map[string]string{"idempotency_key": idempotencyKey}, &response)
+	return response, err
+}
+
+func (c Client) ReleaseVendorPayable(ctx context.Context, vendorOrderID string, request VendorReleaseRequest) (CommerceOperation, error) {
+	var response CommerceOperation
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/commerce/allocations/"+url.PathEscape(vendorOrderID)+"/vendor-release", request, &response)
+	return response, err
+}
+
+func (c Client) ReleaseCommerceDelivery(ctx context.Context, vendorOrderID string, request DeliveryReleaseRequest) (CommerceOperation, error) {
+	var response CommerceOperation
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/commerce/allocations/"+url.PathEscape(vendorOrderID)+"/delivery-release", request, &response)
+	return response, err
+}
+
+func (c Client) RefundCommerceAllocation(ctx context.Context, vendorOrderID string, request CommerceRefundRequest) (CommerceOperation, error) {
+	var response CommerceOperation
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/commerce/allocations/"+url.PathEscape(vendorOrderID)+"/refunds", request, &response)
+	return response, err
+}
+
+func (c Client) GetCommerceOperation(ctx context.Context, operationType, idempotencyKey string) (CommerceOperation, error) {
+	var response CommerceOperation
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/commerce/operations/"+url.PathEscape(operationType)+"/"+url.PathEscape(idempotencyKey), &response)
+	return response, err
+}
+
+func (c Client) VendorSummary(ctx context.Context, businessID string) (VendorPayableSummary, error) {
+	var response VendorPayableSummary
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/vendor-finance/"+url.PathEscape(businessID)+"/summary", &response)
+	return response, err
+}
+
+func (c Client) VendorBankAccounts(ctx context.Context, businessID string) ([]VendorBankAccount, error) {
+	var response []VendorBankAccount
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/vendor-finance/"+url.PathEscape(businessID)+"/bank-accounts", &response)
+	return response, err
+}
+
+func (c Client) VendorTransactions(ctx context.Context, businessID string, limit int) ([]VendorTransaction, error) {
+	var response []VendorTransaction
+	path := "/api/v1/payment-wallet/internal/vendor-finance/" + url.PathEscape(businessID) + "/transactions"
+	if limit > 0 {
+		path += "?limit=" + url.QueryEscape(fmt.Sprintf("%d", limit))
+	}
+	err := c.get(ctx, path, &response)
+	return response, err
+}
+
+func (c Client) RequestVendorWithdrawal(ctx context.Context, businessID string, request VendorWithdrawalRequest) (VendorWithdrawal, error) {
+	var response VendorWithdrawal
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/vendor-finance/"+url.PathEscape(businessID)+"/withdrawals", request, &response)
+	return response, err
+}
+
+func (c Client) VendorWithdrawals(ctx context.Context, businessID string) ([]VendorWithdrawal, error) {
+	var response []VendorWithdrawal
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/vendor-finance/"+url.PathEscape(businessID)+"/withdrawals", &response)
+	return response, err
+}
+
+func (c Client) VendorWithdrawal(ctx context.Context, businessID, reference string) (VendorWithdrawal, error) {
+	var response VendorWithdrawal
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/vendor-finance/"+url.PathEscape(businessID)+"/withdrawals/"+url.PathEscape(reference), &response)
+	return response, err
+}
+
+func (c Client) ApplyDeliveryFunding(ctx context.Context, request DeliveryFundingRequest) (DeliveryFunding, error) {
+	var response DeliveryFunding
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/commerce/delivery-funding", request, &response)
+	return response, err
+}
+func (c Client) GetDeliveryFunding(ctx context.Context, sourceReference string) (DeliveryFunding, error) {
+	var response DeliveryFunding
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/commerce/delivery-funding/"+url.PathEscape(sourceReference), &response)
+	return response, err
+}
+
+func (c Client) TransitionDeliveryResponsibility(ctx context.Context, vendorOrderID string, request DeliveryResponsibilityTransitionRequest) (DeliveryResponsibilityTransition, error) {
+	var response DeliveryResponsibilityTransition
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/commerce/allocations/"+url.PathEscape(vendorOrderID)+"/delivery-responsibility", request, &response)
+	return response, err
+}
+
+func (c Client) GetDeliveryResponsibilityTransition(ctx context.Context, operationRef string) (DeliveryResponsibilityTransition, error) {
+	var response DeliveryResponsibilityTransition
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/commerce/delivery-responsibility-transitions/"+url.PathEscape(operationRef), &response)
+	return response, err
 }
 
 func (c Client) CreatePaymentIntent(ctx context.Context, request PaymentIntentRequest) (PaymentIntent, error) {

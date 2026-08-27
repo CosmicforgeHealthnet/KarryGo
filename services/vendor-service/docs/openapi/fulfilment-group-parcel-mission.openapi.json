@@ -1,0 +1,2058 @@
+{
+ "openapi": "3.0.3",
+ "info": {
+  "title": "Vendor Service Fulfilment Group, Parcel and Mission Model",
+  "version": "1.0",
+  "description": "The post-order operational fulfilment aggregate: the FulfilmentGroup rooted on one CommerceOrder, the FulfilmentUnits inside it, the Parcels that physically move, the versioned FulfilmentPlan history, the projections of platform logistics missions, and the VendorMissions this service genuinely owns.\n\nTwo authority rules govern this surface. VendorMission is CANONICAL here, and only for vendor-owned delivery. PlatformMissionRef is a PROJECTION: Dispatch, Hauling and Taxi each remain the authority for their own missions, so no route here creates a platform mission, sets its status, or chooses its canonical reference.\n\npayment-wallet-service remains the financial authority. A plan version stores a planned-cost snapshot as evidence; nothing here creates a hold, a settlement or a refund."
+ },
+ "servers": [
+  {
+   "url": "/api/v1"
+  }
+ ],
+ "tags": [
+  {
+   "name": "Fulfilment group",
+   "description": "The enduring planning root for one commerce order."
+  },
+  {
+   "name": "Fulfilment unit",
+   "description": "One vendor order's pickup obligation at one branch."
+  },
+  {
+   "name": "Parcel",
+   "description": "The stable, traceable physical package."
+  },
+  {
+   "name": "Fulfilment plan",
+   "description": "Append-only versioned planning decisions."
+  },
+  {
+   "name": "Vendor mission",
+   "description": "Vendor-owned delivery, canonical in this service."
+  },
+  {
+   "name": "Return",
+   "description": "A returned parcel is the same parcel."
+  }
+ ],
+ "paths": {
+  "/vendor/fulfilment/groups/{groupId}": {
+   "get": {
+    "summary": "Read one order's fulfilment",
+    "description": "Returns the group, the plan currently in force, the platform mission projections, the acting vendor's own delivery missions and any returns. In a shared order, only the acting vendor's units and parcels are returned.",
+    "tags": [
+     "Fulfilment group"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "groupId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/GroupView"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/groups/{groupId}/plans": {
+   "get": {
+    "summary": "Read the full plan history",
+    "description": "Every plan version, newest first, including superseded ones. A superseded version is the plan a delivery was actually executed under and is returned unchanged.",
+    "tags": [
+     "Fulfilment plan"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "groupId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "type": "object",
+           "properties": {
+            "plans": {
+             "type": "array",
+             "items": {
+              "$ref": "#/components/schemas/Plan"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/units/{unitId}/parcels": {
+   "get": {
+    "summary": "List a pickup obligation's parcels",
+    "tags": [
+     "Parcel"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "unitId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "type": "object",
+           "properties": {
+            "parcels": {
+             "type": "array",
+             "items": {
+              "$ref": "#/components/schemas/Parcel"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     }
+    }
+   },
+   "post": {
+    "summary": "Pack a parcel",
+    "description": "Creates one parcel. Idempotent on Idempotency-Key: a retrying packing worker gets the parcel it already created rather than a second physical box. A unit may hold several parcels.",
+    "tags": [
+     "Parcel"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "unitId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": true,
+      "description": "Stable operation identity. The same key returns the same result rather than producing a second one.",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "manifest": {
+          "$ref": "#/components/schemas/Manifest"
+         },
+         "weight_grams": {
+          "type": "integer",
+          "format": "int64"
+         },
+         "length_mm": {
+          "type": "integer",
+          "format": "int64"
+         },
+         "width_mm": {
+          "type": "integer",
+          "format": "int64"
+         },
+         "height_mm": {
+          "type": "integer",
+          "format": "int64"
+         },
+         "fragile": {
+          "type": "boolean"
+         },
+         "temperature_control": {
+          "type": "string",
+          "enum": [
+           "NONE",
+           "CHILLED",
+           "FROZEN",
+           "HOT"
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/Parcel"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     },
+     "409": {
+      "$ref": "#/components/responses/Conflict"
+     },
+     "422": {
+      "$ref": "#/components/responses/ValidationFailed"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/units/{unitId}/readiness": {
+   "put": {
+    "summary": "Advance a pickup obligation's readiness",
+    "description": "Forward-only, except that anything not yet collected may be cancelled. Readiness is operational evidence and can neither settle nor cancel the vendor order.",
+    "tags": [
+     "Fulfilment unit"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "unitId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "If-Match",
+      "in": "header",
+      "required": true,
+      "description": "The version the caller expects. A mutation without it is refused rather than applied blind.",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "readiness"
+        ],
+        "properties": {
+         "readiness": {
+          "type": "string",
+          "enum": [
+           "NOT_READY",
+           "PACKING",
+           "READY",
+           "COLLECTED",
+           "CANCELLED"
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/Unit"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     },
+     "409": {
+      "$ref": "#/components/responses/Conflict"
+     },
+     "422": {
+      "$ref": "#/components/responses/ValidationFailed"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/parcels/{parcelId}": {
+   "get": {
+    "summary": "Read one parcel",
+    "tags": [
+     "Parcel"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "parcelId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/Parcel"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/parcels/{parcelId}/custody": {
+   "get": {
+    "summary": "Read a parcel's custody chain",
+    "description": "The append-only journey: created, packed, ready, handed over, transferred, delivered, returned. Enough to reconstruct where the box has been and who had it.",
+    "tags": [
+     "Parcel"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "parcelId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "type": "object",
+           "properties": {
+            "custody_events": {
+             "type": "array",
+             "items": {
+              "$ref": "#/components/schemas/CustodyEvent"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/parcels/{parcelId}/manifest": {
+   "put": {
+    "summary": "Amend a parcel manifest before handover",
+    "description": "Refused once custody has moved. What a delivered parcel contained is evidence, and a manifest that can be rewritten after handover is not evidence.",
+    "tags": [
+     "Parcel"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "parcelId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "If-Match",
+      "in": "header",
+      "required": true,
+      "description": "The version the caller expects. A mutation without it is refused rather than applied blind.",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Manifest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/Parcel"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     },
+     "409": {
+      "$ref": "#/components/responses/Conflict"
+     },
+     "422": {
+      "$ref": "#/components/responses/ValidationFailed"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/parcels/{parcelId}/returns": {
+   "post": {
+    "summary": "Initiate a return for a parcel",
+    "description": "Records that the SAME box is coming back. No replacement parcel identity is created, so the customer, the vendor and support all keep looking at the same parcel.",
+    "tags": [
+     "Return"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "parcelId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": true,
+      "description": "Stable operation identity. The same key returns the same result rather than producing a second one.",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "reason_code"
+        ],
+        "properties": {
+         "reason_code": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/ParcelReturn"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     },
+     "409": {
+      "$ref": "#/components/responses/Conflict"
+     },
+     "422": {
+      "$ref": "#/components/responses/ValidationFailed"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/vendor-missions": {
+   "get": {
+    "summary": "List the acting vendor's own delivery missions",
+    "description": "Vendor-owned delivery only. Branch-scoped staff see only the branches their scope reaches.",
+    "tags": [
+     "Vendor mission"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "limit",
+      "in": "query",
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "type": "object",
+           "properties": {
+            "vendor_missions": {
+             "type": "array",
+             "items": {
+              "$ref": "#/components/schemas/VendorMission"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/vendor-missions/{missionId}": {
+   "get": {
+    "summary": "Read one vendor-owned delivery mission",
+    "tags": [
+     "Vendor mission"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "missionId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/VendorMission"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/vendor-missions/{missionId}/rider": {
+   "put": {
+    "summary": "Assign one of the vendor's own riders",
+    "description": "The rider must be staff of the owning business. Reassigning a rider who is already carrying the goods is refused: that is a custody transfer, not an edit to a field.",
+    "tags": [
+     "Vendor mission"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "missionId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "If-Match",
+      "in": "header",
+      "required": true,
+      "description": "The version the caller expects. A mutation without it is refused rather than applied blind.",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "staff_id"
+        ],
+        "properties": {
+         "staff_id": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/VendorMission"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     },
+     "409": {
+      "$ref": "#/components/responses/Conflict"
+     },
+     "422": {
+      "$ref": "#/components/responses/ValidationFailed"
+     }
+    }
+   }
+  },
+  "/vendor/fulfilment/vendor-missions/{missionId}/status": {
+   "put": {
+    "summary": "Execute one step of a vendor-owned delivery",
+    "description": "Each step is validated against the legal successor set: a mission cannot jump straight to delivered, and one that was never assigned cannot report a delivery at all. Custody-moving steps write the parcel custody chain in the same transaction.",
+    "tags": [
+     "Vendor mission"
+    ],
+    "security": [
+     {
+      "vendorStaffBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "missionId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "If-Match",
+      "in": "header",
+      "required": true,
+      "description": "The version the caller expects. A mutation without it is refused rather than applied blind.",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "status"
+        ],
+        "properties": {
+         "status": {
+          "type": "string",
+          "enum": [
+           "PLANNED",
+           "ASSIGNED",
+           "READY_FOR_PICKUP",
+           "CUSTODY_TRANSFERRED",
+           "OUT_FOR_DELIVERY",
+           "DELIVERED",
+           "FAILED",
+           "RETURN_REQUIRED",
+           "RETURNED"
+          ]
+         },
+         "handover_ref": {
+          "type": "string"
+         },
+         "proof_ref": {
+          "type": "string"
+         },
+         "failure_reason": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Success.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "required": [
+          "success",
+          "data"
+         ],
+         "properties": {
+          "success": {
+           "type": "boolean"
+          },
+          "data": {
+           "$ref": "#/components/schemas/VendorMission"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Unauthorized"
+     },
+     "403": {
+      "$ref": "#/components/responses/Forbidden"
+     },
+     "404": {
+      "$ref": "#/components/responses/NotFound"
+     },
+     "409": {
+      "$ref": "#/components/responses/Conflict"
+     },
+     "422": {
+      "$ref": "#/components/responses/ValidationFailed"
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "securitySchemes": {
+   "vendorStaffBearer": {
+    "type": "http",
+    "scheme": "bearer"
+   }
+  },
+  "responses": {
+   "Unauthorized": {
+    "description": "Authentication is required.",
+    "content": {
+     "application/json": {
+      "schema": {
+       "type": "object",
+       "required": [
+        "success",
+        "error"
+       ],
+       "properties": {
+        "success": {
+         "type": "boolean",
+         "example": false
+        },
+        "error": {
+         "type": "object",
+         "required": [
+          "code",
+          "message"
+         ],
+         "properties": {
+          "code": {
+           "type": "string"
+          },
+          "message": {
+           "type": "string"
+          },
+          "request_id": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "Forbidden": {
+    "description": "The actor lacks the permission, or holds it but not for this branch.",
+    "content": {
+     "application/json": {
+      "schema": {
+       "type": "object",
+       "required": [
+        "success",
+        "error"
+       ],
+       "properties": {
+        "success": {
+         "type": "boolean",
+         "example": false
+        },
+        "error": {
+         "type": "object",
+         "required": [
+          "code",
+          "message"
+         ],
+         "properties": {
+          "code": {
+           "type": "string"
+          },
+          "message": {
+           "type": "string"
+          },
+          "request_id": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "NotFound": {
+    "description": "Not found. A record belonging to another tenant answers identically, so a probe cannot tell the two apart.",
+    "content": {
+     "application/json": {
+      "schema": {
+       "type": "object",
+       "required": [
+        "success",
+        "error"
+       ],
+       "properties": {
+        "success": {
+         "type": "boolean",
+         "example": false
+        },
+        "error": {
+         "type": "object",
+         "required": [
+          "code",
+          "message"
+         ],
+         "properties": {
+          "code": {
+           "type": "string"
+          },
+          "message": {
+           "type": "string"
+          },
+          "request_id": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "Conflict": {
+    "description": "The action conflicts with the current state, the record changed, or the plan is stale.",
+    "content": {
+     "application/json": {
+      "schema": {
+       "type": "object",
+       "required": [
+        "success",
+        "error"
+       ],
+       "properties": {
+        "success": {
+         "type": "boolean",
+         "example": false
+        },
+        "error": {
+         "type": "object",
+         "required": [
+          "code",
+          "message"
+         ],
+         "properties": {
+          "code": {
+           "type": "string"
+          },
+          "message": {
+           "type": "string"
+          },
+          "request_id": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "ValidationFailed": {
+    "description": "Check the submitted values.",
+    "content": {
+     "application/json": {
+      "schema": {
+       "type": "object",
+       "required": [
+        "success",
+        "error"
+       ],
+       "properties": {
+        "success": {
+         "type": "boolean",
+         "example": false
+        },
+        "error": {
+         "type": "object",
+         "required": [
+          "code",
+          "message"
+         ],
+         "properties": {
+          "code": {
+           "type": "string"
+          },
+          "message": {
+           "type": "string"
+          },
+          "request_id": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "schemas": {
+   "Manifest": {
+    "type": "object",
+    "description": "What a parcel represented at handover. References and packed quantities, never a copy of the catalogue record. Frozen once custody moves.",
+    "properties": {
+     "lines": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "required": [
+        "order_line_ref"
+       ],
+       "properties": {
+        "order_line_ref": {
+         "type": "string"
+        },
+        "item_ref": {
+         "type": "string"
+        },
+        "description": {
+         "type": "string"
+        },
+        "quantity": {
+         "type": "integer",
+         "format": "int64"
+        },
+        "unit_ref": {
+         "type": "string"
+        },
+        "measured_quantity": {
+         "type": "integer",
+         "format": "int64",
+         "description": "Variable-measure evidence in the unit named by unit_ref."
+        }
+       }
+      }
+     },
+     "package_count": {
+      "type": "integer",
+      "format": "int64",
+      "description": "Physical items inside this one parcel. Six sealed containers in one bag is one parcel with a package count of six."
+     },
+     "notes": {
+      "type": "string"
+     },
+     "media_refs": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "special_handling_refs": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "sealed_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "description": "Set from custody evidence, never from a request body."
+     }
+    }
+   },
+   "Unit": {
+    "type": "object",
+    "description": "One vendor order's pickup obligation at one branch. Its relationship to the vendor order is permanent: logistics replanning never creates a new one.",
+    "properties": {
+     "fulfilment_unit_id": {
+      "type": "string"
+     },
+     "fulfilment_group_id": {
+      "type": "string"
+     },
+     "parent_order_id": {
+      "type": "string"
+     },
+     "vendor_order_id": {
+      "type": "string"
+     },
+     "business_id": {
+      "type": "string"
+     },
+     "branch_id": {
+      "type": "string"
+     },
+     "pickup_address": {
+      "type": "string"
+     },
+     "service_class": {
+      "type": "string"
+     },
+     "vehicle_class": {
+      "type": "string"
+     },
+     "required_weight_grams": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "required_package_count": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "handling_requirements": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "readiness": {
+      "type": "string",
+      "enum": [
+       "NOT_READY",
+       "PACKING",
+       "READY",
+       "COLLECTED",
+       "CANCELLED"
+      ]
+     },
+     "version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time"
+     }
+    }
+   },
+   "Parcel": {
+    "type": "object",
+    "description": "A stable, traceable physical package. The same parcel id survives replanning, provider reassignment, mission replacement, custody transfer and return; parcels are never deleted and recreated.",
+    "properties": {
+     "parcel_id": {
+      "type": "string"
+     },
+     "fulfilment_group_id": {
+      "type": "string"
+     },
+     "fulfilment_unit_id": {
+      "type": "string"
+     },
+     "parent_order_id": {
+      "type": "string"
+     },
+     "vendor_order_id": {
+      "type": "string"
+     },
+     "business_id": {
+      "type": "string"
+     },
+     "branch_id": {
+      "type": "string"
+     },
+     "parcel_ref": {
+      "type": "string"
+     },
+     "sequence": {
+      "type": "integer"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "CREATED",
+       "PACKED",
+       "READY",
+       "IN_TRANSIT",
+       "DELIVERED",
+       "RETURN_REQUIRED",
+       "RETURNING",
+       "RETURNED",
+       "FAILED",
+       "CANCELLED"
+      ]
+     },
+     "custodian_type": {
+      "type": "string",
+      "enum": [
+       "VENDOR",
+       "PLATFORM_PROVIDER",
+       "CUSTOMER",
+       "NONE"
+      ]
+     },
+     "custodian_ref": {
+      "type": "string"
+     },
+     "manifest": {
+      "$ref": "#/components/schemas/Manifest"
+     },
+     "manifest_version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "weight_grams": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "length_mm": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "width_mm": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "height_mm": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "fragile": {
+      "type": "boolean"
+     },
+     "temperature_control": {
+      "type": "string",
+      "enum": [
+       "NONE",
+       "CHILLED",
+       "FROZEN",
+       "HOT"
+      ]
+     },
+     "version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time"
+     }
+    }
+   },
+   "Stop": {
+    "type": "object",
+    "description": "One point on a mission route. Sequence is persisted because unordered rows are not a route.",
+    "properties": {
+     "stop_id": {
+      "type": "string"
+     },
+     "sequence": {
+      "type": "integer"
+     },
+     "stop_type": {
+      "type": "string",
+      "enum": [
+       "PICKUP",
+       "DROPOFF"
+      ]
+     },
+     "fulfilment_unit_id": {
+      "type": "string",
+      "description": "Set on pickup stops only."
+     },
+     "business_id": {
+      "type": "string"
+     },
+     "branch_id": {
+      "type": "string"
+     },
+     "address": {
+      "type": "string"
+     }
+    }
+   },
+   "PlanMission": {
+    "type": "object",
+    "description": "One planned mission slot. slot_ref is stable within the plan version, which is what makes mission creation idempotent across a crash.",
+    "properties": {
+     "plan_mission_id": {
+      "type": "string"
+     },
+     "plan_id": {
+      "type": "string"
+     },
+     "slot_ref": {
+      "type": "string"
+     },
+     "sequence": {
+      "type": "integer"
+     },
+     "owner": {
+      "type": "string",
+      "enum": [
+       "PLATFORM",
+       "VENDOR"
+      ],
+      "description": "Every planned mission has exactly one executor. HYBRID is a planning behaviour, never an owner."
+     },
+     "authority": {
+      "type": "string",
+      "enum": [
+       "DISPATCH",
+       "HAULING",
+       "TAXI",
+       "VENDOR"
+      ],
+      "description": "TAXI is modelled in the vocabulary but has no commerce mission ingress today and is never selected."
+     },
+     "service_class": {
+      "type": "string"
+     },
+     "vehicle_class": {
+      "type": "string"
+     },
+     "planned_cost_minor": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "currency": {
+      "type": "string"
+     },
+     "stops": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Stop"
+      }
+     },
+     "parcel_ids": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     }
+    }
+   },
+   "Plan": {
+    "type": "object",
+    "description": "One immutable fulfilment planning decision. Replanning appends the next version; a superseded version stays readable and unchanged.",
+    "properties": {
+     "plan_id": {
+      "type": "string"
+     },
+     "fulfilment_group_id": {
+      "type": "string"
+     },
+     "version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "DRAFT",
+       "ACTIVE",
+       "SUPERSEDED",
+       "ABANDONED"
+      ]
+     },
+     "reason_code": {
+      "type": "string",
+      "enum": [
+       "INITIAL_PLAN",
+       "OWN_RIDER_FIRST",
+       "DISTANCE_OVERFLOW",
+       "TIME_OVERFLOW",
+       "CAPACITY_OVERFLOW",
+       "VEHICLE_OVERFLOW",
+       "SLA_OVERFLOW",
+       "PROVIDER_UNAVAILABLE",
+       "VENDOR_UNAVAILABLE",
+       "CUSTOMER_APPROVED_CHANGE",
+       "MISSION_REPLACED",
+       "RETURN",
+       "TRANSFER"
+      ]
+     },
+     "reason_detail": {
+      "type": "string"
+     },
+     "planner_version": {
+      "type": "string"
+     },
+     "policy_version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "delivery_mode": {
+      "type": "string",
+      "enum": [
+       "PLATFORM",
+       "VENDOR",
+       "HYBRID"
+      ]
+     },
+     "planned_cost_minor": {
+      "type": "integer",
+      "format": "int64",
+      "description": "Planning evidence in integer minor units. Not a ledger entry: payment-wallet-service remains the financial authority."
+     },
+     "currency": {
+      "type": "string"
+     },
+     "cost_snapshot": {
+      "type": "object"
+     },
+     "routing_evidence": {
+      "type": "object"
+     },
+     "fingerprint": {
+      "type": "string"
+     },
+     "supersedes_version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "activated_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "superseded_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "missions": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/PlanMission"
+      }
+     }
+    }
+   },
+   "PlatformMissionRef": {
+    "type": "object",
+    "description": "A PROJECTION of a mission owned by Dispatch, Hauling or Taxi. Read-only: this service records the authority's answer and can change none of it. external_ref is opaque and is never parsed for meaning.",
+    "properties": {
+     "platform_mission_ref_id": {
+      "type": "string"
+     },
+     "fulfilment_group_id": {
+      "type": "string"
+     },
+     "plan_id": {
+      "type": "string"
+     },
+     "plan_mission_id": {
+      "type": "string"
+     },
+     "authority": {
+      "type": "string",
+      "enum": [
+       "DISPATCH",
+       "HAULING",
+       "TAXI"
+      ]
+     },
+     "mission_ref": {
+      "type": "string"
+     },
+     "external_ref": {
+      "type": "string",
+      "description": "The authority's own opaque booking or trip identity."
+     },
+     "link_state": {
+      "type": "string",
+      "enum": [
+       "REQUESTED",
+       "LINKED",
+       "REFUSED",
+       "FAILED",
+       "SUPERSEDED",
+       "REPLACED"
+      ]
+     },
+     "status_projection": {
+      "type": "string"
+     },
+     "status_source_version": {
+      "type": "integer",
+      "format": "int64",
+      "description": "The source version that produced this projection. An event that is not strictly newer is absorbed, never applied."
+     },
+     "status_source_ref": {
+      "type": "string"
+     },
+     "status_updated_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "refusal_code": {
+      "type": "string"
+     },
+     "failure_reason": {
+      "type": "string"
+     },
+     "replaces_id": {
+      "type": "string"
+     },
+     "replacement_reason": {
+      "type": "string"
+     },
+     "version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "linked_at": {
+      "type": "string",
+      "format": "date-time"
+     }
+    }
+   },
+   "VendorMission": {
+    "type": "object",
+    "description": "A delivery this service genuinely owns, and only when the vendor is the executor. A platform-executed delivery has a PlatformMissionRef instead and never a row here.",
+    "properties": {
+     "vendor_mission_id": {
+      "type": "string"
+     },
+     "fulfilment_group_id": {
+      "type": "string"
+     },
+     "plan_id": {
+      "type": "string"
+     },
+     "plan_mission_id": {
+      "type": "string"
+     },
+     "business_id": {
+      "type": "string"
+     },
+     "branch_id": {
+      "type": "string"
+     },
+     "assigned_staff_id": {
+      "type": "string",
+      "description": "Vendor staff holding the vendor-rider role. Never a KarryGo marketplace provider."
+     },
+     "assigned_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "PLANNED",
+       "ASSIGNED",
+       "READY_FOR_PICKUP",
+       "CUSTODY_TRANSFERRED",
+       "OUT_FOR_DELIVERY",
+       "DELIVERED",
+       "FAILED",
+       "RETURN_REQUIRED",
+       "RETURNED"
+      ]
+     },
+     "handover_ref": {
+      "type": "string",
+      "description": "Reference to a credential issued by its owning authority. The credential itself never travels through this API."
+     },
+     "proof_ref": {
+      "type": "string"
+     },
+     "failure_reason": {
+      "type": "string"
+     },
+     "version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "stops": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Stop"
+      }
+     },
+     "parcel_ids": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   },
+   "CustodyEvent": {
+    "type": "object",
+    "description": "One append-only link in a parcel's custody chain. Logistics-sourced links are written only from the owning authority's own evidence.",
+    "properties": {
+     "custody_event_id": {
+      "type": "string"
+     },
+     "parcel_id": {
+      "type": "string"
+     },
+     "event_type": {
+      "type": "string",
+      "enum": [
+       "CREATED",
+       "PACKED",
+       "READY",
+       "HANDED_OVER",
+       "TRANSFERRED",
+       "DELIVERED",
+       "FAILED",
+       "RETURN_INITIATED",
+       "RETURNED"
+      ]
+     },
+     "from_custodian_type": {
+      "type": "string"
+     },
+     "from_custodian_ref": {
+      "type": "string"
+     },
+     "to_custodian_type": {
+      "type": "string"
+     },
+     "to_custodian_ref": {
+      "type": "string"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "VENDOR",
+       "DISPATCH",
+       "HAULING",
+       "TAXI",
+       "PLATFORM"
+      ]
+     },
+     "source_event_id": {
+      "type": "string"
+     },
+     "source_version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "platform_mission_ref_id": {
+      "type": "string"
+     },
+     "vendor_mission_id": {
+      "type": "string"
+     },
+     "handover_ref": {
+      "type": "string"
+     },
+     "proof_ref": {
+      "type": "string"
+     },
+     "reason_code": {
+      "type": "string"
+     },
+     "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     }
+    }
+   },
+   "ParcelReturn": {
+    "type": "object",
+    "description": "A return journey for one parcel. The parcel named here is the SAME parcel that went out; a return may need a new logistics mission, but the box is not new.",
+    "properties": {
+     "parcel_return_id": {
+      "type": "string"
+     },
+     "parcel_id": {
+      "type": "string"
+     },
+     "reason_code": {
+      "type": "string"
+     },
+     "origin_platform_mission_ref_id": {
+      "type": "string"
+     },
+     "origin_vendor_mission_id": {
+      "type": "string"
+     },
+     "return_platform_mission_ref_id": {
+      "type": "string"
+     },
+     "return_vendor_mission_id": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string",
+      "enum": [
+       "INITIATED",
+       "IN_RETURN",
+       "RETURNED",
+       "ABANDONED"
+      ]
+     },
+     "version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "completed_at": {
+      "type": "string",
+      "format": "date-time"
+     }
+    }
+   },
+   "Group": {
+    "type": "object",
+    "description": "The enduring fulfilment planning root for one commerce order. It survives replanning, provider reassignment and mission failure. Units and parcels belonging to other vendors in a shared order are never returned.",
+    "properties": {
+     "fulfilment_group_id": {
+      "type": "string"
+     },
+     "parent_order_id": {
+      "type": "string"
+     },
+     "current_plan_id": {
+      "type": "string"
+     },
+     "current_plan_version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "version": {
+      "type": "integer",
+      "format": "int64"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "units": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Unit"
+      }
+     },
+     "parcels": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Parcel"
+      }
+     }
+    }
+   },
+   "GroupView": {
+    "type": "object",
+    "properties": {
+     "group": {
+      "$ref": "#/components/schemas/Group"
+     },
+     "current_plan": {
+      "$ref": "#/components/schemas/Plan"
+     },
+     "platform_missions": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/PlatformMissionRef"
+      }
+     },
+     "vendor_missions": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/VendorMission"
+      }
+     },
+     "returns": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/ParcelReturn"
+      }
+     }
+    }
+   }
+  }
+ }
+}

@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Vendor Service - Section 17C Vendor Own Delivery policy",
-    "version": "1.0.0",
+    "title": "Vendor Service - Delivery Policy and Smart Hybrid Delivery",
+    "version": "2.0.0",
     "description": "The vendor-configured delivery policy one branch offers on its own riders/fleet, as an alternative to platform Dispatch/Hauling execution.\n\nIt configures reach, charge and the minimum/free rules only. It never configures who is paid: vendor-owned delivery pays the vendor and platform delivery pays the executing provider, derived from the execution authority.\n\nThis document is separate from the customer planning contract because the two surfaces have different server bases and different principals. One document cannot honestly declare both."
   },
   "servers": [
@@ -24,7 +24,7 @@
           "delivery-policy"
         ],
         "operationId": "getVendorDeliveryPolicy",
-        "summary": "Read a branch Vendor Own Delivery policy",
+        "summary": "Read a branch delivery policy and HYBRID configuration",
         "description": "Requires vendor.delivery.policy.read at a scope covering the branch. The tenant comes from the authenticated session; a caller-supplied business id is not read at all.",
         "parameters": [
           {
@@ -60,7 +60,7 @@
           "delivery-policy"
         ],
         "operationId": "putVendorDeliveryPolicy",
-        "summary": "Configure a branch Vendor Own Delivery policy",
+        "summary": "Configure a branch PLATFORM/VENDOR/HYBRID delivery policy",
         "description": "Requires vendor.delivery.policy.manage at a scope covering the branch, and If-Match carrying the current version (0 for a first create).\n\nmax_delivery_radius_meters may only NARROW the Section 6 branch service area; the planner takes the minimum of the two, so a vendor can never widen its reach from here. The policy configures no beneficiary: vendor-owned delivery pays the vendor and platform delivery pays the executing provider, derived from the execution authority.",
         "parameters": [
           {
@@ -161,6 +161,14 @@
           "enabled": {
             "type": "boolean"
           },
+          "delivery_mode": {
+            "type": "string",
+            "enum": ["PLATFORM", "VENDOR", "HYBRID"]
+          },
+          "fee_rule": {
+            "type": "string",
+            "enum": ["FLAT", "ZONE_BASED", "DISTANCE_TIER"]
+          },
           "currency": {
             "type": "string",
             "pattern": "^[A-Za-z]{3}$"
@@ -196,6 +204,60 @@
             "type": "integer",
             "format": "int64",
             "nullable": true
+          },
+          "max_package_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "nullable": true
+          },
+          "max_volume_ml": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "nullable": true
+          },
+          "operating_timezone": {
+            "type": "string",
+            "description": "IANA timezone used for vendor delivery hours."
+          },
+          "rider_availability": {
+            "type": "string",
+            "enum": ["AVAILABLE", "UNAVAILABLE", "UNKNOWN"]
+          },
+          "service_zones": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ServiceZone" }
+          },
+          "distance_tiers": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DistanceTier" }
+          },
+          "operating_periods": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OperatingPeriod" }
+          },
+          "supported_vehicle_classes": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["MOTORCYCLE", "VAN", "TRUCK"] }
+          },
+          "fallback_triggers": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["OWN_RIDER_FIRST", "DISTANCE_OVERFLOW", "TIME_OVERFLOW", "CAPACITY_OVERFLOW", "VEHICLE_OVERFLOW", "SLA_OVERFLOW"] }
+          },
+          "hybrid_fallback_funding_sponsor": {
+            "type": "string",
+            "enum": ["VENDOR", "PLATFORM", "COMBINED"],
+            "description": "Attributes only an automatic HYBRID fallback gap. The Vendor staff command accepts VENDOR; PLATFORM/COMBINED require a pre-authorized platform projection and otherwise fail closed."
+          },
+          "hybrid_vendor_share_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "hybrid_platform_approval_ref": {
+            "type": "string",
+            "description": "Read-back evidence for an externally pre-authorized Platform/Combined policy; ordinary Vendor staff cannot create it."
           },
           "estimated_minutes_base": {
             "type": "integer",
@@ -239,6 +301,37 @@
             }
           }
         ]
+      },
+      "ServiceZone": {
+        "type": "object",
+        "required": ["id", "enabled"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "enabled": { "type": "boolean" },
+          "min_distance_meters": { "type": "integer", "format": "int64", "minimum": 0 },
+          "max_distance_meters": { "type": "integer", "format": "int64", "minimum": 0 },
+          "fee_minor": { "type": "integer", "format": "int64", "minimum": 0 },
+          "priority": { "type": "integer" }
+        }
+      },
+      "DistanceTier": {
+        "type": "object",
+        "required": ["min_distance_meters", "max_distance_meters", "fee_minor"],
+        "properties": {
+          "min_distance_meters": { "type": "integer", "format": "int64", "minimum": 0 },
+          "max_distance_meters": { "type": "integer", "format": "int64", "minimum": 0, "description": "Zero means unbounded final tier." },
+          "fee_minor": { "type": "integer", "format": "int64", "minimum": 0 }
+        }
+      },
+      "OperatingPeriod": {
+        "type": "object",
+        "required": ["weekday", "start_minute", "end_minute"],
+        "properties": {
+          "weekday": { "type": "integer", "minimum": 1, "maximum": 7 },
+          "start_minute": { "type": "integer", "minimum": 0, "maximum": 1439 },
+          "end_minute": { "type": "integer", "minimum": 0, "maximum": 1439 }
+        }
       },
       "PolicyEnvelope": {
         "type": "object",

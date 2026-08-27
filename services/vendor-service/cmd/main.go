@@ -23,17 +23,20 @@ import (
 	vendorauthrepositories "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	vendorauthusecases "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
 
-	cloudkitchen "cosmicforge/logistics/services/vendor-service/internal/features/cloudkitchen"
+	cloudkitchen "cosmicforge/logistics/services/vendor-service/internal/features/cloud_kitchen"
 	cost "cosmicforge/logistics/services/vendor-service/internal/features/cost"
 	crm "cosmicforge/logistics/services/vendor-service/internal/features/crm"
 	delivery "cosmicforge/logistics/services/vendor-service/internal/features/delivery"
+	financeprojection "cosmicforge/logistics/services/vendor-service/internal/features/finance_projection"
 	food "cosmicforge/logistics/services/vendor-service/internal/features/food"
+	fulfilmentgroup "cosmicforge/logistics/services/vendor-service/internal/features/fulfilmentgroup"
 	inventory "cosmicforge/logistics/services/vendor-service/internal/features/inventory"
 	orders "cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	pastry "cosmicforge/logistics/services/vendor-service/internal/features/pastry"
 	production "cosmicforge/logistics/services/vendor-service/internal/features/production"
 	productionbatch "cosmicforge/logistics/services/vendor-service/internal/features/productionbatch"
 	productionmaster "cosmicforge/logistics/services/vendor-service/internal/features/productionmaster"
+	promotions "cosmicforge/logistics/services/vendor-service/internal/features/promotions"
 	purchasing "cosmicforge/logistics/services/vendor-service/internal/features/purchasing"
 	recipes "cosmicforge/logistics/services/vendor-service/internal/features/recipes"
 	shop "cosmicforge/logistics/services/vendor-service/internal/features/shop"
@@ -50,6 +53,7 @@ import (
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/walletclient"
 )
 
 func main() {
@@ -177,6 +181,7 @@ func main() {
 	})
 
 	limiter := ratelimit.New(redisClient, cfg.Auth.RedisKeyPrefix)
+	abuseLimiter := ratelimit.New(redisClient, cfg.AbuseProtection.RedisKeyPrefix)
 
 	authHandler := vendorauthhttp.NewHandler(authService, limiter, vendorauthhttp.RateLimits{
 		StartMax: cfg.Auth.RateLimits.StartMax, StartWindowSeconds: cfg.Auth.RateLimits.StartWindowSeconds,
@@ -188,6 +193,11 @@ func main() {
 	})
 	staffHandler := staffhttp.NewHandler(staffService, roleService, authService.RevokeAllSessionsForStaff)
 	vendorHandler := vendors.NewHandler(vendorService, idempotencyStore, cfg.Flags.VendorOnboardingWritesEnabled, cfg.Flags.CommerceGlobalKillSwitch)
+	financeAuthority := vendorFinanceAuthority{client: walletclient.Client{
+		BaseURL: strings.TrimRight(cfg.WalletURL, "/"), ServiceName: orders.PaymentSourceService, Secret: []byte(cfg.WalletSecret),
+	}}
+	financeService := financeprojection.NewService(financeAuthority, vendorAuthorizationAdapter{evaluator: evaluator}, authService)
+	financeHandler := financeprojection.NewHandler(financeService)
 
 	// Section 8A CRM. Every external integration it can consume is disabled by
 	// default because no authority publishes those events yet; with them off
@@ -282,6 +292,10 @@ func main() {
 	cloudKitchenService := cloudkitchen.NewService(db, productionService)
 	cloudKitchenHandler := cloudkitchen.NewHandler(cloudKitchenService).UseIdempotency(idempotencyStore)
 	pastryService := pastry.NewService(db, productionService)
+	// Production owns job status while Pastry owns custom-cake milestones and
+	// commercial gating. This same-service adapter lets only explicitly mapped
+	// final production progress advance Pastry's READY milestone.
+	productionService.SetPastryMilestoneBridge(pastryService)
 	pastryHandler := pastry.NewHandler(pastryService, authService).UseIdempotency(idempotencyStore)
 	shopFlags := shop.Flags{
 		ShopEnabled:        cfg.Flags.CommerceShopEnabled,
@@ -458,9 +472,54 @@ func main() {
 		cfg.Flags.VendorOwnDeliveryEnabled,
 	)
 	deliveryHandler := delivery.NewHandler(deliveryService)
+	promotionService := promotions.NewService(db, productionService, cfg.Auth.OTPSecret, cfg.Flags.CommerceQuoteLockEnabled)
+	promotionService.SetEventPublisher(events.NewDomainPublisher(outboxRepo))
+	promotionHandler := promotions.NewHandler(promotionService)
 	accessSigner := sharedauth.NewTokenSigner(cfg.Auth.AccessTokenSecret)
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	workers := []func(context.Context) error{}
+	promotionLifecycleJob := jobs.Job{Name: "promotion-lifecycle", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+		_, err := promotionService.MaintainLifecycle(runCtx, 200)
+		return err
+	}}
+	workers = append(workers, func(runCtx context.Context) error {
+		promotionLifecycleJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+		return nil
+	})
+	// Commerce operational notices use the existing transactional outbox and
+	// Notification Service authority. Each controlled event stream has an
+	// independent worker so unrelated Vendor events remain pending for their
+	// actual consumers.
+	if cfg.NotificationURL != "" && cfg.NotificationSecret != "" {
+		publisher := events.NewNotificationPublisher(notifications.Client{
+			BaseURL: cfg.NotificationURL, ServiceName: "vendor-service", Secret: []byte(cfg.NotificationSecret),
+		})
+		for _, eventType := range events.NotificationEventTypes() {
+			eventType := eventType
+			worker := events.NewWorker(outboxRepo, publisher, events.WorkerConfig{
+				Owner: "vendor-commerce-notifications-" + strings.ReplaceAll(eventType, ".", "-"), EventType: eventType,
+			})
+			workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+		}
+	}
+	if cfg.AnalyticsURL != "" && cfg.AnalyticsSecret != "" {
+		publisher, err := events.NewHTTPPublisher(
+			cfg.AnalyticsURL,
+			"/internal/analytics/v1/commerce-events",
+			"vendor-service",
+			[]byte(cfg.AnalyticsSecret),
+			10*time.Second,
+		)
+		if err == nil {
+			for _, eventType := range events.AnalyticsEventTypes() {
+				eventType := eventType
+				worker := events.NewWorker(outboxRepo, publisher, events.WorkerConfig{
+					Owner: "vendor-commerce-analytics-" + strings.ReplaceAll(eventType, ".", "-"), EventType: eventType,
+				})
+				workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+			}
+		}
+	}
 	expiryJob := jobs.Job{Name: "verification-expiry", Interval: time.Minute, Pass: func(runCtx context.Context) error {
 		_, err := vendorService.ExpireVerifications(runCtx, 100)
 		logging.Notice("section7_metrics", "%s", vendorService.Section7MetricsJSON())
@@ -716,14 +775,113 @@ func main() {
 		deliveryService,
 	)
 
+	// Customer shopping optimization: Optimize My Cart, budget shopping and
+	// recurring baskets.
+	//
+	// It is handed the fulfilment service ONLY through a quote-only port, so
+	// a hundred candidate baskets produce a hundred delivery quotes and zero
+	// plans, zero missions and zero payment intents. Nothing here is wired to
+	// Wallet or orders, which is what makes that structural rather than a
+	// promise.
+	basketService := buildBasketOptimizationService(cfg, db, fulfilmentService)
+
 	// Section 17D immutable quote lock. It freezes current checkout, product,
 	// fulfilment and funding evidence but performs no payment or order work.
-	quoteService := buildSection17DQuoteService(cfg, db)
+	quoteService := buildSection17DQuoteService(cfg, db, checkoutPromotionAdapter{service: promotionService, secret: cfg.Auth.OTPSecret})
 
 	// Section 17E order orchestration. It cuts one ParentOrder and its
 	// isolated VendorOrders from an approved quote. Composed with no Wallet
 	// or mission-execution dependency: it creates orders, not payments.
-	orderService := buildSection17EOrderService(cfg, db, evaluator, inventoryStockService, quoteService, events.NewDomainPublisher(outboxRepo))
+	orderService := buildSection17EOrderService(cfg, db, evaluator, inventoryStockService, quoteService, productionService, abuseLimiter, events.NewDomainPublisher(outboxRepo))
+	if orderService != nil {
+		productionService.SetETAReadinessProjector(orderService)
+	}
+
+	// The operational fulfilment aggregate: the group rooted on one commerce
+	// order, its pickup obligations, its parcels, its versioned plan history,
+	// the projections of the logistics missions executing it, and the vendor's
+	// own delivery missions.
+	//
+	// It is gated on commerce orders because it is post-order by definition.
+	// Wired onto the order service as a PROJECTION rather than composed into
+	// it: orders decides what is being fulfilled, and the aggregate records
+	// what the executing authorities then say about it.
+	fulfilmentOpsService := fulfilmentgroup.NewService(fulfilmentgroup.Options{
+		Store:      fulfilmentgroup.NewStore(db, events.NewDomainPublisher(outboxRepo)),
+		Production: productionService,
+		Enabled:    cfg.Flags.CommerceOrdersEnabled,
+	})
+	fulfilmentOpsHandler := fulfilmentgroup.NewHandler(fulfilmentOpsService)
+	var fulfilmentOpsProjection *fulfilmentOperationsProjection
+	if orderService != nil {
+		if projection := newFulfilmentOperationsProjection(fulfilmentOpsService, db); projection != nil {
+			fulfilmentOpsProjection = projection
+			orderService.SetFulfilmentProjection(projection)
+		}
+	}
+	fulfilmentOpsService.SetHybridFallbackAuthority(newVendorDeliveryRuntimeAuthority(
+		db, fulfilmentOpsService, fulfilmentOpsProjection, orderService,
+		cfg.WalletURL, cfg.WalletSecret, cfg.Fulfilment.QuoteTimeout,
+	))
+	fulfilmentOpsService.SetVendorMissionOrderAuthority(orderService)
+
+	// Section 21 Prompt 1 commerce foundations. Orders remains the conversion
+	// authority and Production remains the capacity authority.
+	section21Service := orders.NewSection21Service(orders.Section21Options{
+		DB: db, Orders: orderService, Checkout: quoteService, Production: productionService,
+		Payments: newSection17FPaymentAuthority(cfg.Flags.PaymentWalletCommerceEnabled, cfg.WalletURL, cfg.WalletSecret, cfg.Fulfilment.QuoteTimeout),
+		Scopes:   section17EScopeAdapter{evaluator: evaluator},
+		Events:   events.NewOutboxRepository(db),
+		Enabled:  cfg.Flags.CommerceBulkRFQEnabled,
+	})
+	if cfg.Flags.CommerceBulkRFQEnabled {
+		cutoffJob := jobs.Job{Name: "commerce-scheduled-cutoff-notifications", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+			_, err := section21Service.EmitScheduledCutoffNotifications(runCtx, 100)
+			return err
+		}}
+		workers = append(workers, func(runCtx context.Context) error {
+			cutoffJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+		section21ExpiryJob := jobs.Job{Name: "commerce-rfq-expiry", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+			_, err := section21Service.ExpireRFQs(runCtx, 100)
+			return err
+		}}
+		workers = append(workers, func(runCtx context.Context) error {
+			section21ExpiryJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+		section21RecurringJob := jobs.DurableJob{
+			Job: jobs.Job{Name: "commerce-recurring-feeding", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+				_, err := section21Service.GenerateRecurringOccurrences(runCtx, 500)
+				return err
+			}},
+			Coordinator: durableInventoryCoordinator,
+			Owner:       durableInventoryWorkerOwner,
+			LeaseFor:    2 * time.Minute,
+			MaxAttempts: 5,
+			RetryBase:   5 * time.Second,
+		}
+		workers = append(workers, func(runCtx context.Context) error {
+			section21RecurringJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+		section21PaymentRecoveryJob := jobs.DurableJob{
+			Job: jobs.Job{Name: "commerce-rfq-payment-recovery", Interval: time.Minute, Pass: func(runCtx context.Context) error {
+				_, err := section21Service.RecoverRFQPayments(runCtx, 100)
+				return err
+			}},
+			Coordinator: durableInventoryCoordinator,
+			Owner:       durableInventoryWorkerOwner,
+			LeaseFor:    2 * time.Minute,
+			MaxAttempts: 5,
+			RetryBase:   5 * time.Second,
+		}
+		workers = append(workers, func(runCtx context.Context) error {
+			section21PaymentRecoveryJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
 
 	// Section 17F durable payment recovery. Without it, a process that died
 	// mid-authorization would leave a leg whose outcome nobody ever resolves,
@@ -735,6 +893,43 @@ func main() {
 		durableInventoryWorkerOwner,
 	); ok {
 		job := recoveryJob
+
+		workers = append(
+			workers,
+			func(runCtx context.Context) error {
+				job.Run(
+					runCtx,
+					func(name string, err error) {
+						logging.Error("worker", "%s: %v", name, err)
+					},
+				)
+
+				return nil
+			},
+		)
+	}
+
+	for _, build := range []func() (jobs.DurableJob, bool){
+		func() (jobs.DurableJob, bool) {
+			return basketProposalExpiryJob(
+				cfg, basketService,
+				durableInventoryCoordinator, durableInventoryWorkerOwner,
+			)
+		},
+		func() (jobs.DurableJob, bool) {
+			return basketRecurrenceJob(
+				cfg, basketService,
+				durableInventoryCoordinator, durableInventoryWorkerOwner,
+			)
+		},
+	} {
+		basketJob, ok := build()
+
+		if !ok {
+			continue
+		}
+
+		job := basketJob
 
 		workers = append(
 			workers,
@@ -994,6 +1189,7 @@ func main() {
 			staffhttp.RegisterRoutes(protected, staffHandler)
 			vendors.RegisterRoutes(protected, vendorHandler)
 			vendors.RegisterOnboardingRoutes(protected, vendorHandler)
+			financeprojection.RegisterRoutes(protected, financeHandler, cfg.Flags.PaymentWalletCommerceEnabled, idempotencyStore)
 			crm.RegisterRoutes(protected, crmHandler, crmFlags)
 			crm.RegisterSegmentationRoutes(protected, crmSegmentationHandler, crmFlags)
 			crm.RegisterActivityRoutes(protected, crmActivityHandler, crmFlags)
@@ -1061,6 +1257,13 @@ func main() {
 				deliveryHandler,
 				cfg.Flags.VendorOwnDeliveryEnabled,
 			)
+			promotions.RegisterRoutes(protected, promotionHandler, cfg.Flags.CommerceQuoteLockEnabled)
+
+			fulfilmentgroup.RegisterRoutes(
+				protected,
+				fulfilmentOpsHandler,
+				cfg.Flags.CommerceOrdersEnabled,
+			)
 
 			purchasing.RegisterOperationsRoutes(protected, purchasingOperationsHandler, cfg.Flags.VendorPurchasingEnabled)
 			section13Components.registerVendorRoutes(protected)
@@ -1072,6 +1275,8 @@ func main() {
 				cfg.Flags.CommerceOrdersEnabled,
 				idempotencyStore,
 			)
+
+			orders.RegisterSection21VendorRoutes(protected, section21Service, cfg.Flags.CommerceBulkRFQEnabled)
 
 		},
 		RegisterRoot: func(router *gin.Engine) {
@@ -1094,11 +1299,17 @@ func main() {
 				cfg,
 				fulfilmentService,
 			)
+			registerBasketOptimizationRoutes(
+				router,
+				cfg,
+				basketService,
+			)
 			registerSection17DQuoteRoutes(
 				router,
 				cfg,
 				quoteService,
 				idempotencyStore,
+				abuseLimiter,
 			)
 			registerSection17ECustomerOrderRoutes(
 				router,
@@ -1106,6 +1317,8 @@ func main() {
 				orderService,
 				idempotencyStore,
 			)
+			orders.RegisterSection21CustomerRoutes(router, section21Service,
+				sharedauth.NewTokenSigner(cfg.CustomerAccessTokenSecret), cfg.Flags.CommerceBulkRFQEnabled)
 			// Every internal-authority ingress is mounted here, at the engine
 			// root, never under the public vendor base the gateway forwards.
 			staffhttp.RegisterInternalRoutes(router, staffService, inboundVerifier)
@@ -1118,6 +1331,8 @@ func main() {
 			shop.RegisterInternalInventoryRoutes(router, shop.NewInventoryInternalHandler(shopService, strings.Split(cfg.ShopInternalCallers, ",")), inboundVerifier, shopFlags)
 			inventory.RegisterInternalRoutes(router, inventory.NewInternalInventoryHandler(inventoryStockService, strings.Split(cfg.InventoryInternalCallers, ",")), inboundVerifier, inventoryFlags)
 			orders.RegisterInternalLogisticsRoutes(router, orderService, inboundVerifier)
+			orders.RegisterDispatchCommerceEventRoutes(router, orderService, inboundVerifier)
+			orders.RegisterSupportResolutionRoutes(router, orderService, inboundVerifier)
 			// Section 13 mounts two more internal-authority surfaces here: platform
 			// taxonomy administration and internal Food/Shop search. Each carries its
 			// own caller allowlist.

@@ -68,6 +68,15 @@ type PaymentClient interface {
 	Refund(ctx context.Context, paymentIntentID string, amountKobo int64, reason string) error
 }
 
+type CommerceDeliverySettlementAuthority interface {
+	ReleaseCommerceDelivery(ctx context.Context, parentOrderID, vendorOrderID, providerID, completionReference string) error
+}
+
+type commerceMissionScopeReader interface {
+	CommerceMissionScope(ctx context.Context, bookingID string) (string, []string, bool, error)
+	ListCompletedCommerceBookings(ctx context.Context, limit int) ([]string, error)
+}
+
 var ErrPaymentOutcomeUnknown = errors.New("payment authority outcome is unknown")
 
 type PaymentHoldInput struct {
@@ -78,18 +87,19 @@ type PaymentHoldInput struct {
 }
 
 type BookingService struct {
-	bookings          bookingrepo.BookingRepository
-	availability      availabilityrepositories.AvailabilityStore
-	trucks            TruckLookup
-	payments          PaymentClient
-	notifier          *bookingclients.BookingNotifier
-	matchTimeout      time.Duration // per-provider acceptance window
-	searchWindow      time.Duration // total time to keep searching before unmatched
-	maxRadiusKm       float64
-	allowCashPayments bool
-	restrictions      RestrictionGate
-	activeMatches     sync.Map // map[bookingID]*matchHandle
-	handoverSecret    []byte
+	bookings           bookingrepo.BookingRepository
+	availability       availabilityrepositories.AvailabilityStore
+	trucks             TruckLookup
+	payments           PaymentClient
+	commerceSettlement CommerceDeliverySettlementAuthority
+	notifier           *bookingclients.BookingNotifier
+	matchTimeout       time.Duration // per-provider acceptance window
+	searchWindow       time.Duration // total time to keep searching before unmatched
+	maxRadiusKm        float64
+	allowCashPayments  bool
+	restrictions       RestrictionGate
+	activeMatches      sync.Map // map[bookingID]*matchHandle
+	handoverSecret     []byte
 }
 
 // matchHandle wraps a context.CancelFunc so it can be stored in sync.Map and
@@ -104,6 +114,7 @@ type Options struct {
 	Availability        availabilityrepositories.AvailabilityStore
 	Trucks              TruckLookup
 	Payments            PaymentClient // nil disables payment binding (local dev)
+	CommerceSettlement  CommerceDeliverySettlementAuthority
 	Notifier            *bookingclients.BookingNotifier
 	MatchTimeoutSeconds int
 	SearchWindowSeconds int
@@ -129,17 +140,18 @@ func NewBookingService(opts Options) *BookingService {
 		searchWindow = matchTimeout
 	}
 	return &BookingService{
-		bookings:          opts.Bookings,
-		availability:      opts.Availability,
-		trucks:            opts.Trucks,
-		payments:          opts.Payments,
-		notifier:          opts.Notifier,
-		matchTimeout:      matchTimeout,
-		searchWindow:      searchWindow,
-		maxRadiusKm:       radius,
-		allowCashPayments: opts.AllowCashPayments,
-		restrictions:      opts.Restrictions,
-		handoverSecret:    opts.HandoverSecret,
+		bookings:           opts.Bookings,
+		availability:       opts.Availability,
+		trucks:             opts.Trucks,
+		payments:           opts.Payments,
+		commerceSettlement: opts.CommerceSettlement,
+		notifier:           opts.Notifier,
+		matchTimeout:       matchTimeout,
+		searchWindow:       searchWindow,
+		maxRadiusKm:        radius,
+		allowCashPayments:  opts.AllowCashPayments,
+		restrictions:       opts.Restrictions,
+		handoverSecret:     opts.HandoverSecret,
 	}
 }
 
@@ -671,6 +683,13 @@ func (s *BookingService) autoCompleteDelivered(ctx context.Context) {
 			s.notifier.NotifyCustomerCompleted(ctx, b.CustomerID, b.ID, map[string]interface{}{"booking_id": b.ID})
 		}
 	}
+	if scopes, ok := s.bookings.(commerceMissionScopeReader); ok {
+		if completed, readErr := scopes.ListCompletedCommerceBookings(ctx, 100); readErr == nil {
+			for _, bookingID := range completed {
+				s.settleOnComplete(ctx, bookingID)
+			}
+		}
+	}
 }
 
 // ─── Match recovery worker ────────────────────────────────────────────────────
@@ -1184,6 +1203,23 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 	b, err := s.bookings.GetByID(ctx, bookingID)
 	if err != nil {
 		return
+	}
+	if scopes, ok := s.bookings.(commerceMissionScopeReader); ok {
+		parentID, vendorIDs, commerce, scopeErr := scopes.CommerceMissionScope(ctx, bookingID)
+		if scopeErr != nil {
+			return
+		}
+		if commerce {
+			if s.commerceSettlement == nil || b.ProviderID == nil || strings.TrimSpace(*b.ProviderID) == "" {
+				return
+			}
+			for _, vendorID := range vendorIDs {
+				if err = s.commerceSettlement.ReleaseCommerceDelivery(ctx, parentID, vendorID, *b.ProviderID, bookingID); err != nil {
+					return
+				}
+			}
+			return
+		}
 	}
 	if b.PaymentMethod == bookingmodels.PaymentMethodCash || s.payments == nil {
 		return

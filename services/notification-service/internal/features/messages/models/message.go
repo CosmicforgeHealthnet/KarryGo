@@ -16,25 +16,30 @@ const (
 )
 
 type Message struct {
-	ID             string
-	IdempotencyKey string
-	SourceService  string
-	EventType      string
-	RecipientType  string
-	RecipientID    string
-	RecipientEmail *string
-	RecipientPhone *string
-	Channels       []string
-	TemplateKey    *string
-	Locale         string
-	Title          string
-	Body           string
-	Data           map[string]interface{}
-	TemplateData   map[string]interface{}
-	Priority       string
-	Status         string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                  string
+	IdempotencyKey      string
+	SourceService       string
+	SourceAggregateType string
+	SourceAggregateID   string
+	SourceEventID       string
+	SourceVersion       int64
+	CorrelationRef      string
+	EventType           string
+	RecipientType       string
+	RecipientID         string
+	RecipientEmail      *string
+	RecipientPhone      *string
+	Channels            []string
+	TemplateKey         *string
+	Locale              string
+	Title               string
+	Body                string
+	Data                map[string]interface{}
+	TemplateData        map[string]interface{}
+	Priority            string
+	Status              string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type Delivery struct {

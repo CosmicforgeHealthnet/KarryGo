@@ -54,6 +54,10 @@ func NewService(options Options) (*Service, error) {
 }
 
 func (s *Service) Create(ctx context.Context, customerID, sessionID, planID string) (Quote, error) {
+	return s.CreateWithCoupon(ctx, customerID, sessionID, planID, "")
+}
+
+func (s *Service) CreateWithCoupon(ctx context.Context, customerID, sessionID, planID, couponCode string) (Quote, error) {
 	customerID = strings.TrimSpace(customerID)
 	sessionID = strings.TrimSpace(sessionID)
 	planID = strings.TrimSpace(planID)
@@ -72,6 +76,8 @@ func (s *Service) Create(ctx context.Context, customerID, sessionID, planID stri
 		DeliverySubtotalMinor: source.DeliveryFunding.GrossMinor,
 		Groups:                append([]GroupSnapshot(nil), source.Groups...),
 		Lines:                 append([]LineSnapshot(nil), source.Lines...),
+		CouponCode:            strings.TrimSpace(couponCode),
+		At:                    now,
 	})
 	if err != nil {
 		return Quote{}, err
@@ -153,6 +159,9 @@ func buildQuote(source SourceSnapshot, adjustments []Adjustment, now time.Time, 
 		switch adjustment.Type {
 		case AdjustmentDiscount:
 			quote.DiscountTotalMinor, err = safeAdd(quote.DiscountTotalMinor, adjustment.AmountMinor)
+			if err == nil {
+				quote.SubsidyTotalMinor, err = safeAdd(quote.SubsidyTotalMinor, adjustment.AmountMinor)
+			}
 			if err == nil {
 				err = attributeDiscountFunding(&quote.FundingBreakdown, adjustment)
 			}
@@ -320,6 +329,12 @@ func validateAdjustment(value Adjustment) error {
 			return ErrInvalidAdjustment
 		}
 	} else if value.FundingSource != FundingCustomer || value.Scope != ScopeOrder {
+		return ErrInvalidAdjustment
+	}
+	if value.PromotionType != "" && (value.BusinessID == "" || value.CampaignVersion < 1 || value.CalculationBaseMinor < value.AmountMinor || value.AppliedAt == nil) {
+		return ErrInvalidAdjustment
+	}
+	if value.PromotionType != "" && value.FundingSource == FundingPlatform && strings.TrimSpace(value.PlatformApprovalRef) == "" {
 		return ErrInvalidAdjustment
 	}
 	return nil

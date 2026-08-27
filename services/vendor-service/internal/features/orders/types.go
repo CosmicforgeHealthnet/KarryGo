@@ -296,17 +296,41 @@ type LineSource struct {
 	InventoryItemRef  string
 
 	OnlinePriceDisclosure string
+
+	// Shop fulfilment terms frozen from the approved quote. These are optional
+	// for FOOD and legacy lines, which retain fixed-unit behaviour.
+	MeasurementMode              string
+	MeasurementBasis             string
+	MeasurementMinQuantity       int64
+	MeasurementMaxQuantity       int64
+	MeasurementToleranceQuantity int64
+	VariableCountAllowed         bool
+	SubstitutionPolicy           string
+	QualityPreferenceSnapshot    json.RawMessage
+	TaxonomyVersion              int64
+	TaxonomyCategoryCode         string
 }
 
 // AdjustmentSource is one approved commercial adjustment.
 type AdjustmentSource struct {
-	AdjustmentID  string
-	Type          string
-	Scope         string
-	FundingSource FundingSource
-	SourceRef     string
-	Description   string
-	AmountMinor   int64
+	AdjustmentID          string
+	Type                  string
+	Scope                 string
+	FundingSource         FundingSource
+	SourceRef             string
+	Description           string
+	AmountMinor           int64
+	BusinessID            string
+	BranchID              string
+	PromotionType         string
+	CampaignVersion       int64
+	EligibilityEvidence   json.RawMessage
+	CouponDigest          string
+	PlatformApprovalRef   string
+	CalculationBaseMinor  int64
+	DeliveryDiscountMinor int64
+	StackPriority         int
+	AppliedAt             *time.Time
 }
 
 // QuoteSource is the complete, already-verified approved agreement an order is
@@ -447,10 +471,12 @@ type VendorOrder struct {
 	ReservationRef       string `json:"inventory_reservation_ref,omitempty"`
 	ReservationSourceRef string `json:"inventory_reservation_source_ref,omitempty"`
 
-	FulfilmentMode         string                 `json:"fulfilment_mode"`
-	LogisticsPlanGroupRef  string                 `json:"logistics_plan_group_ref,omitempty"`
-	LogisticsMissionRef    string                 `json:"logistics_mission_ref,omitempty"`
-	VendorOwnDeliveryState VendorOwnDeliveryState `json:"vendor_own_delivery_state"`
+	FulfilmentMode          string                 `json:"fulfilment_mode"`
+	LogisticsPlanGroupRef   string                 `json:"logistics_plan_group_ref,omitempty"`
+	LogisticsMissionRef     string                 `json:"logistics_mission_ref,omitempty"`
+	VendorOwnDeliveryState  VendorOwnDeliveryState `json:"vendor_own_delivery_state"`
+	PromotionSnapshot       json.RawMessage        `json:"promotion_snapshot"`
+	DeliveryFundingSnapshot json.RawMessage        `json:"delivery_funding_snapshot"`
 
 	Status           VendorStatus `json:"status"`
 	CancelReasonCode string       `json:"cancel_reason_code,omitempty"`
@@ -461,6 +487,7 @@ type VendorOrder struct {
 	RefundState              string `json:"refund_state"`
 	RefundOperationRef       string `json:"refund_operation_ref,omitempty"`
 	RefundRefundedMinor      int64  `json:"refund_refunded_minor"`
+	RefundPolicyVersion      string `json:"refund_policy_version"`
 	RejectionReason          string `json:"rejection_reason,omitempty"`
 
 	Version    int64      `json:"version"`
@@ -470,6 +497,7 @@ type VendorOrder struct {
 
 	Lines       []OrderLine  `json:"lines,omitempty"`
 	Allocations []Allocation `json:"allocations,omitempty"`
+	DeliveryETA *DeliveryETA `json:"delivery_eta,omitempty"`
 }
 
 // ParentOrder is one customer commerce purchase.
@@ -509,6 +537,8 @@ type ParentOrder struct {
 
 	FundingBreakdown        json.RawMessage `json:"funding_breakdown"`
 	PriceDisclosureSnapshot json.RawMessage `json:"price_disclosure_snapshot"`
+	PromotionSnapshot       json.RawMessage `json:"promotion_snapshot"`
+	DeliveryFundingSnapshot json.RawMessage `json:"delivery_funding_snapshot"`
 
 	PaymentOperationRef string `json:"payment_operation_ref,omitempty"`
 

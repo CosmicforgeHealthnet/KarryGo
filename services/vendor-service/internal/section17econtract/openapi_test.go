@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	apiBase           = "/api/v1"
-	commerceBase      = "/api/v1/commerce"
-	vendorBase        = "/api/v1/vendor"
-	specPath          = "../../docs/openapi/section17e-parent-vendor-orders.openapi.json"
-	section18SpecPath = "../../docs/openapi/section18-vendor-order-lifecycle.openapi.json"
+	apiBase                 = "/api/v1"
+	commerceBase            = "/api/v1/commerce"
+	vendorBase              = "/api/v1/vendor"
+	specPath                = "../../docs/openapi/section17e-parent-vendor-orders.openapi.json"
+	section18SpecPath       = "../../docs/openapi/section18-vendor-order-lifecycle.openapi.json"
+	commerceSupportSpecPath = "../../docs/openapi/commerce-support-cases.openapi.json"
 )
 
 type document struct {
@@ -129,6 +130,28 @@ func specRoutes(t *testing.T) map[string]bool {
 			}
 		}
 	}
+	// Later Commerce support integration extends the same shared customer and
+	// Vendor order route helpers with five public case operations. Its private
+	// resolution callback has a separate root registration and is intentionally
+	// excluded from this historical helper inventory.
+	raw, err = os.ReadFile(commerceSupportSpecPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var support document
+	if err = json.Unmarshal(raw, &support); err != nil {
+		t.Fatal(err)
+	}
+	for path, methods := range support.Paths {
+		if strings.HasPrefix(path, "/api/v1/internal/") {
+			continue
+		}
+		for method := range methods {
+			if method == "get" || method == "post" || method == "put" || method == "patch" || method == "delete" {
+				out[strings.ToUpper(method)+" "+path] = true
+			}
+		}
+	}
 	return out
 }
 
@@ -144,10 +167,10 @@ func sorted(set map[string]bool) []string {
 func TestSection17ERoutesEqualTheContract(t *testing.T) {
 	code, spec := codeRoutes(t), specRoutes(t)
 
-	// Section 17's twelve routes plus Section 18's sixteen lifecycle routes and
-	// the root-mounted authenticated logistics evidence ingress.
-	if len(code) != 29 {
-		t.Fatalf("Section 17/18 routes=%d want 29: %v", len(code), sorted(code))
+	// Section 17's routes plus Section 18 lifecycle and Shop picking evidence
+	// routes, including the root-mounted authenticated logistics ingress.
+	if len(code) != 43 {
+		t.Fatalf("shared order routes=%d want 43: %v", len(code), sorted(code))
 	}
 	if strings.Join(sorted(code), "\n") != strings.Join(sorted(spec), "\n") {
 		t.Fatalf("code/spec drift\ncode=%v\nspec=%v", sorted(code), sorted(spec))

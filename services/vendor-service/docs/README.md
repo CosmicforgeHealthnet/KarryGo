@@ -1,5 +1,35 @@
 # Vendor Service Documentation
 
+## Canonical feature-directory rule
+
+Before creating a directory under `internal/features/`, inspect the existing
+feature directories and identify the authoritative domain first. Add new
+capability files to that domain when appropriate; do not create a folder only
+because a roadmap section starts. A new directory requires proof that no
+existing package owns the capability, that extending it would violate a real
+boundary, that dependency direction supports separation, and that the name is
+not merely a roadmap grouping. Check alternate spellings before creating one.
+
+Current Cloud Kitchen ownership is
+`internal/features/cloud_kitchen/` (Go package `cloudkitchen`). Pastry/Bakery
+uses `internal/features/pastry/`; production capacity and jobs use the current
+`internal/features/production/` and `productionbatch/` packages; commercial
+order state belongs to `internal/features/orders/`; stock authority belongs to
+`internal/features/inventory/`; and fulfilment/delivery remain in their
+existing `internal/features/fulfilment/` and `internal/features/delivery/`
+packages. This is a structural ownership rule, not a Section 20 feature
+implementation.
+
+## Section 20 - Kitchen, bakery and production operations
+
+Production remains the sole authority for `production_jobs`, capacity and
+station lines. Section 20 adds promised-ready ordering, exactly-once paid
+VendorOrder activation, station steps with OCC, append-only delay evidence,
+Orders timing projections, and transactional READY packaging evidence. The
+commercial VendorOrder, Inventory/ProductionBatch, Pastry and Cloud Kitchen
+authorities remain separate. Migrations `000091_vendor_production_operations`
+and `000092_vendor_production_timing_projection` are the Section 20 schema changes.
+
 ## Section 18 — Vendor Order Lifecycle
 
 Section 18 extends the Section 17 ParentOrder/VendorOrder authority. Food and
@@ -810,6 +840,13 @@ requirements, urgency), selects the smallest vehicle class that can actually
 carry it, and then either uses the vendor's own delivery policy or asks the
 owning logistics authority for a real quote.
 
+The policy supports PLATFORM, VENDOR and HYBRID modes, branch-scoped zones and
+radius, flat/zone/tier fees, IANA delivery hours, minimum/free thresholds,
+vendor package/vehicle capacity, and bounded overflow triggers. HYBRID fallback
+preserves the accepted customer delivery-price guarantee and replans the
+existing fulfilment identity before custody; it does not cancel and recreate a
+VendorOrder.
+
 **Vendor Service does not price platform deliveries.** Every platform fee comes
 verbatim from the owning service's own quote endpoint - a contract that did not
 exist before this section and was added to driver-dispatch-delivery-service and
@@ -915,3 +952,89 @@ vendor-funded promotion, is in
 Wallet-gated commercial-change workflow: a material customer change creates a
 new quote and requires explicit approval, while cheaper eligible delivery
 outcomes receive one Wallet refund. Original quotes remain immutable.
+### Section 21 commerce
+
+The optional commerce foundation provides scheduled/bulk acceptance with
+transactional Production capacity, organizer-paid group sessions with scoped
+participant tokens, and a stateful multi-vendor RFQ with immutable revisions.
+Prompt 2 adds snapshotted counter-offer payment policy, Wallet-authoritative
+deposit/full-payment conversion, cancellation evidence, and tenant-scoped
+corporate recurring schedules with durable occurrences/proposals. Enable with
+`COMMERCE_BULK_RFQ_ENABLED`; no provider assignment or split participant
+payment is created by these routes. The machine-readable contract is
+`docs/openapi/scheduled_group_rfq_recurring_commerce.openapi.json`.
+
+## Promotions and delivery funding
+
+The focused `internal/features/promotions` capability implements Vendor-funded
+campaign definitions, controlled lifecycle, branch/capability/category/item/
+variant/CRM-segment eligibility, secure coupon digests and concurrent usage
+reservation. The existing CheckoutQuote authority performs the final
+calculation and freezes campaign version, eligibility, calculation base,
+discount, funding, approval and application evidence. Order conversion consumes
+usage and copies immutable snapshots atomically; current campaigns are never
+joined to recompute historical settlement.
+
+Delivery funding keeps gross cost and customer/Vendor/Platform contributions
+orthogonal to PLATFORM/VENDOR/HYBRID execution. Automatic HYBRID fallback keeps
+the accepted customer contribution and allocates only the gap. Vendor Service
+stores the snapshot and Wallet operation projection; payment-wallet-service is
+the only ledger/provider-payable authority. Contracts are
+`docs/openapi/promotions-delivery-funding.openapi.json` and the Wallet service's
+`docs/openapi/commerce-delivery-funding.openapi.json`.
+
+
+## Multi-vendor consolidation, mission planning and basket optimization
+
+Fulfilment planning now builds every alternative it can, prices each through
+the real logistics authorities, compares them under a customer-chosen
+preference — FASTEST, BALANCED or SAVER — and keeps the losers with the reason
+they lost. The executed plan is structurally unchanged; the alternatives decide
+which grouping runs. The mode flows into `commerce_quotes.selected_fulfilment_mode`
+and into the quote fingerprint, so a plan quoted as SAVER cannot be executed as
+FASTEST against a charge the customer never approved.
+
+Mandatory splits — capacity, temperature, fragility, vendor-declared
+separation, urgency, ready windows, a promised arrival time, runtime capability
+— refuse a consolidation in every mode. They are stored as `INELIGIBLE`, and
+two CHECK constraints make a safety limit unrepresentable as a price decision
+rather than merely not recorded as one.
+
+**Runtime multi-pickup remains NOT_PRESENT in both dispatch and hauling**, and
+neither service was modified. A consolidated candidate spanning two pickup
+LOCATIONS is built, rejected with `MULTI_STOP_UNSUPPORTED` and never quoted;
+several vendors at ONE physical point still consolidate. The capability is read
+from configuration, so the gate opens without a code change when a runtime
+gains it.
+
+`internal/features/basket` adds Optimize My Cart, budget shopping and recurring
+baskets over one evaluation pipeline. It never fabricates a product, price,
+stock level, vendor, equivalence or quality score; it prices delivery through
+the quote-only planner rather than estimating a per-vendor fee; it returns
+proposals and never mutates a cart; and it evaluates budgets on the delivered
+total. The search is bounded and says so — `BEST_VALID_CANDIDATE_UNDER_CONFIGURED_SEARCH`,
+never "the cheapest basket". QUALITY_BALANCED reports itself unavailable
+wherever the catalogue carries no ordinal quality signal, which today is
+almost everywhere.
+
+Recurring baskets store REQUIREMENTS rather than old SKU bindings, so every
+occurrence re-shops against today's catalogue. Generation is exactly-once per
+scheduled occurrence, resting on a deterministic occurrence key plus
+`UNIQUE (template_id, occurrence_key)` — never an in-memory lock. Generating a
+proposal is not ordering: the stages are distinct and this capability reaches
+the first two.
+
+Enable with `COMMERCE_BASKET_OPTIMIZATION_ENABLED` and, for the scheduled
+sweep, `COMMERCE_RECURRING_BASKET_ENABLED`. Contracts are
+`docs/openapi/basket-optimization.openapi.json` and
+`docs/openapi/commerce-fulfilment-optimization.openapi.json`; full traceability
+is in `docs/SECTION27_TRACEABILITY.md`.
+
+## Vendor-owned and Hybrid delivery runtime
+
+The restricted Vendor Rider and pre-custody Hybrid fallback contracts are in
+`docs/openapi/vendor-owned-hybrid-delivery-runtime.openapi.json`. Architecture,
+dependency status and frontend behavior are documented in
+`docs/architecture/11_VENDOR_OWNED_HYBRID_DELIVERY_RUNTIME.md`,
+`docs/architecture/07_EXISTING_OTP_QR_INTEGRATION.md` and
+`docs/handoffs/VENDOR_RIDER_MODE.md`. No Rider frontend is implemented here.

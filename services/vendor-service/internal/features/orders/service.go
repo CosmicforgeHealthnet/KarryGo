@@ -8,8 +8,11 @@ package orders
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/services/vendor-service/internal/features/taxonomy"
 )
 
 // Options configures the order service.
@@ -25,6 +28,33 @@ type Options struct {
 	Now func() time.Time
 }
 
+// ProductionActivator is a narrow post-payment bridge. Production owns the
+// operational job and uses the immutable VendorOrder identity; Orders only
+// invokes it once payment authority reports HELD.
+type ProductionActivator interface {
+	ActivateVendorOrderSystem(ctx context.Context, vendorOrderID string) error
+}
+
+// RestrictedGoodsAuthority revalidates immutable order lines against the
+// current platform taxonomy immediately before operational fulfilment begins.
+type RestrictedGoodsAuthority interface {
+	ValidateOrderForFulfilment(ctx context.Context, order ParentOrder) error
+}
+
+type snapshotRestrictedGoodsAuthority struct{}
+
+func (snapshotRestrictedGoodsAuthority) ValidateOrderForFulfilment(_ context.Context, order ParentOrder) error {
+	for _, vendorOrder := range order.VendorOrders {
+		for _, line := range vendorOrder.Lines {
+			decision := taxonomy.EvaluateRestrictedGoods(taxonomy.RestrictedGoodsFacts{Name: line.ItemName})
+			if !decision.Allowed {
+				return fmt.Errorf("%w: %s (%s)", ErrRestrictedGoods, decision.ReasonCode, decision.PolicyVersion)
+			}
+		}
+	}
+	return nil
+}
+
 // Service owns Section 17E order orchestration.
 type Service struct {
 	store   *Store
@@ -36,15 +66,44 @@ type Service struct {
 	// payments is the Section 17F money authority. It is nil until
 	// SetPaymentAuthority wires one, so a deployment without Wallet
 	// credentials has a working order service and no payment surface at all.
-	payments      PaymentAuthority
-	customerEmail CustomerEmailResolver
-	changeQuotes  CommercialChangeQuoteAuthority
+	payments        PaymentAuthority
+	customerEmail   CustomerEmailResolver
+	changeQuotes    CommercialChangeQuoteAuthority
+	production      ProductionActivator
+	deliveryFunding DeliveryFundingAuthority
+	refundSupport   RefundSupportAuthority
+	supportCases    CommerceCaseAuthority
 
 	// inventory and missions are the Section 17F fulfilment authorities. Both
 	// nil until SetFulfilmentAuthorities wires them, so a deployment without
 	// them cannot activate fulfilment rather than failing halfway through it.
 	inventory InventoryAuthority
 	missions  MissionAuthority
+
+	// fulfilmentProjection is the operational fulfilment aggregate. Optional:
+	// nil means an order activates exactly as it did before the aggregate
+	// existed, rather than failing because traceability is unavailable.
+	fulfilmentProjection FulfilmentProjection
+	restrictedGoods      RestrictedGoodsAuthority
+	abuseLimiter         AbuseLimiter
+	supportLimitMax      int
+	supportLimitWindow   time.Duration
+}
+
+type AbuseLimiter interface {
+	Allow(context.Context, string, string, int, time.Duration) error
+}
+
+func (s *Service) SetSupportCaseRateLimiter(limiter AbuseLimiter, max int, window time.Duration) {
+	s.abuseLimiter, s.supportLimitMax, s.supportLimitWindow = limiter, max, window
+}
+
+func (s *Service) SetProductionActivator(activator ProductionActivator) { s.production = activator }
+func (s *Service) SetRestrictedGoodsAuthority(authority RestrictedGoodsAuthority) {
+	s.restrictedGoods = authority
+}
+func (s *Service) SetRefundSupportAuthority(authority RefundSupportAuthority) {
+	s.refundSupport = authority
 }
 
 // NewService builds the order service.
@@ -57,11 +116,12 @@ func NewService(options Options) (*Service, error) {
 		now = time.Now
 	}
 	return &Service{
-		store:   options.Store,
-		quotes:  options.Quotes,
-		scopes:  options.Scopes,
-		enabled: options.Enabled,
-		now:     now,
+		store:           options.Store,
+		quotes:          options.Quotes,
+		scopes:          options.Scopes,
+		enabled:         options.Enabled,
+		now:             now,
+		restrictedGoods: snapshotRestrictedGoodsAuthority{},
 	}, nil
 }
 
@@ -159,6 +219,26 @@ func (s *Service) CancelByCustomer(
 	if !CancellableByCustomer(current.Status) {
 		return VendorOrder{}, ParentOrder{}, ErrOrderConflict
 	}
+	if current.DeliveryResponsibility == DeliveryPlatform && current.LogisticsMissionRef != "" {
+		parent, parentErr := s.store.GetParent(ctx, customerID, current.ParentOrderID)
+		if parentErr != nil {
+			return VendorOrder{}, ParentOrder{}, parentErr
+		}
+		activeOnMission := 0
+		for _, sibling := range parent.VendorOrders {
+			if sibling.LogisticsMissionRef == current.LogisticsMissionRef && !sibling.Status.Terminal() {
+				activeOnMission++
+			}
+		}
+		if activeOnMission == 1 {
+			if cancellation, ok := s.missions.(MissionCancellationAuthority); ok {
+				operationRef := "vfm_" + current.ParentOrderID + "_" + current.LogisticsMissionRef
+				if err = cancellation.CancelMission(ctx, operationRef, strings.TrimSpace(reasonCode)); err != nil {
+					return VendorOrder{}, ParentOrder{}, err
+				}
+			}
+		}
+	}
 
 	moved, parent, err := s.store.Transition(ctx, TransitionRequest{
 		VendorOrderID:              current.ID,
@@ -174,7 +254,7 @@ func (s *Service) CancelByCustomer(
 	if err != nil {
 		return moved, parent, err
 	}
-	return s.afterTransition(ctx, moved, parent)
+	return s.afterTransition(ctx, moved, parent, current.Status)
 }
 
 // afterTransition finalizes stock for an allocation that just went terminal.
@@ -184,16 +264,19 @@ func (s *Service) CancelByCustomer(
 // the recovery sweep. Reporting a failure would tell a caller its cancellation
 // did not happen when it did.
 func (s *Service) afterTransition(
-	ctx context.Context, moved VendorOrder, parent ParentOrder,
+	ctx context.Context, moved VendorOrder, parent ParentOrder, previousStatus VendorStatus,
 ) (VendorOrder, ParentOrder, error) {
 	if !moved.Status.Terminal() {
 		return moved, parent, nil
 	}
+	// Cancellation/rejection is terminal for every open case on this vendor
+	// allocation; timeout workers must not resurrect customer decisions.
+	_ = s.store.CancelSubstitutionCases(ctx, moved.ID, s.now().UTC())
 	_ = s.FinalizeInventoryFor(ctx, moved)
 	// Money movement is deliberately after the lifecycle commit. A crash or
 	// unavailable Wallet leaves the terminal vendor order durable; the payment
 	// recovery sweep retries the exact isolated leg without blocking siblings.
-	_ = s.settleOrRefundTerminalLeg(ctx, moved)
+	_ = s.settleOrRefundTerminalLeg(ctx, moved, previousStatus)
 	return moved, parent, nil
 }
 
@@ -259,6 +342,10 @@ func (s *Service) GetForVendor(
 	if !scope.Covers(order.BranchID) {
 		return VendorOrder{}, ErrOrderNotFound
 	}
+	order.DeliveryETA, err = s.store.GetCurrentDeliveryETAForVendorOrder(ctx, actor.VendorID, order.ID)
+	if err != nil {
+		return VendorOrder{}, err
+	}
 	return order, nil
 }
 
@@ -303,5 +390,5 @@ func (s *Service) Advance(
 	if err != nil {
 		return moved, parent, err
 	}
-	return s.afterTransition(ctx, moved, parent)
+	return s.afterTransition(ctx, moved, parent, current.Status)
 }

@@ -3,6 +3,7 @@ package supporthttp
 import (
 	nethttp "net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -37,7 +38,6 @@ func (h *Handler) CreateComplaint(c *gin.Context) {
 		httpx.Abort(c, apperrors.BadRequest("Invalid request body.", err))
 		return
 	}
-
 	result, err := h.service.CreateComplaint(c.Request.Context(), supportusecases.CreateComplaintInput{
 		ComplainantType:  complainantTypeFromRole(claims.Role),
 		ComplainantID:    claims.Subject,
@@ -483,14 +483,16 @@ func (h *Handler) AdminResolveDispute(c *gin.Context) {
 		httpx.Abort(c, apperrors.BadRequest("Invalid request body.", err))
 		return
 	}
+	if req.RefundAmountKobo != 0 || strings.TrimSpace(req.RefundSourceReference) != "" {
+		httpx.Abort(c, apperrors.BadRequest("Support resolution cannot contain a ledger or refund instruction.", nil))
+		return
+	}
 
 	result, err := h.service.ResolveDispute(c.Request.Context(), supportusecases.ResolveDisputeInput{
-		DisputeID:             c.Param("id"),
-		Outcome:               supportmodels.DisputeOutcome(req.Outcome),
-		Note:                  req.Note,
-		AdjudicatorID:         adminID(c),
-		RefundAmountKobo:      req.RefundAmountKobo,
-		RefundSourceReference: req.RefundSourceReference,
+		DisputeID:     c.Param("id"),
+		Outcome:       supportmodels.DisputeOutcome(req.Outcome),
+		Note:          req.Note,
+		AdjudicatorID: adminID(c),
 	})
 	if err != nil {
 		httpx.Abort(c, err)

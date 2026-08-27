@@ -32,6 +32,7 @@ func RegisterRoutes(
 	serviceSecrets serviceauth.Secrets,
 ) {
 	handler := NewHandler(service)
+	RegisterCommerceCaseRoutes(group, service, serviceSecrets)
 
 	// ── Public self-service (no auth) ────────────────────────────────────────
 	group.GET("/support/categories", handler.Categories)
@@ -61,11 +62,13 @@ func RegisterRoutes(
 	}
 
 	// ── Admin / internal routes (service-auth) ───────────────────────────────
-	admin := group.Group("/admin")
-	admin.Use(serviceauth.Middleware(serviceauth.NewVerifier(serviceSecrets, 5*time.Minute)))
+	authenticatedAdmin := group.Group("/admin")
+	authenticatedAdmin.Use(serviceauth.Middleware(serviceauth.NewVerifier(serviceSecrets, 5*time.Minute)))
+	organizationCases := authenticatedAdmin.Group("", requireService("fleet-partner-service", "admin-backoffice-service"))
+	organizationCases.POST("/organization-cases", handler.AdminCreateOrganizationCase)
+	organizationCases.GET("/organization-cases/:id", handler.AdminGetOrganizationCase)
+	admin := authenticatedAdmin.Group("", requireService("admin-backoffice-service"))
 	admin.GET("/complaints", handler.AdminListComplaints)
-	admin.POST("/organization-cases", handler.AdminCreateOrganizationCase)
-	admin.GET("/organization-cases/:id", handler.AdminGetOrganizationCase)
 	admin.GET("/complaints/:id", handler.AdminGetComplaint)
 	admin.GET("/complaints/:id/evidence", handler.AdminListEvidence)
 	admin.GET("/complaints/:id/dispute", handler.AdminGetDispute)

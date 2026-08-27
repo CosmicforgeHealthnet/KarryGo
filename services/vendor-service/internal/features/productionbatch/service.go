@@ -2858,10 +2858,6 @@ func (s *Service) CompleteBatch(
 	var output *inventory.ProductionOutputInput
 
 	if batch.OperatingModel == OperatingBatchStock {
-		if batch.PreparedInventoryItemID == "" {
-			return BatchDetail{}, ErrInventoryRequired
-		}
-
 		outputFactor, factorErr := normalizeFraction(
 			batch.OutputInventoryNumerator,
 			batch.OutputInventoryDenominator,
@@ -2871,22 +2867,9 @@ func (s *Service) CompleteBatch(
 			return BatchDetail{}, factorErr
 		}
 
-		outputQuantity, factorErr := multiplyFraction(
-			actualOutput,
-			outputFactor,
-		)
+		output, factorErr = preparedOutputInput(batch.OperatingModel, actualOutput, outputFactor, batch.PreparedInventoryItemID)
 		if factorErr != nil {
 			return BatchDetail{}, factorErr
-		}
-
-		outputInt, factorErr := toExactInt64(outputQuantity)
-		if factorErr != nil || outputInt <= 0 {
-			return BatchDetail{}, ErrInventoryRequired
-		}
-
-		output = &inventory.ProductionOutputInput{
-			InventoryItemID: batch.PreparedInventoryItemID,
-			Quantity:        outputInt,
 		}
 	}
 

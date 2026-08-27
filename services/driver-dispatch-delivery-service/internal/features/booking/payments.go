@@ -2,6 +2,7 @@ package booking
 
 import (
 	"context"
+	"errors"
 
 	"cosmicforge/logistics/shared/go/walletclient"
 )
@@ -38,6 +39,25 @@ const (
 type WalletPaymentClient struct {
 	wallet walletclient.Client
 }
+
+type WalletCommerceSettlementClient struct{ wallet walletclient.Client }
+
+func NewWalletCommerceSettlementClient(client walletclient.Client) *WalletCommerceSettlementClient {
+	return &WalletCommerceSettlementClient{wallet: client}
+}
+
+func (c *WalletCommerceSettlementClient) ReleaseCommerceDelivery(ctx context.Context, _ string, vendorOrderID, providerID, completionReference string) error {
+	result, err := c.wallet.ReleaseCommerceDelivery(ctx, vendorOrderID, walletclient.DeliveryReleaseRequest{ProviderType: "dispatch_provider", ProviderID: providerID, CompletionReference: completionReference, IdempotencyKey: "dispatch-commerce-delivery-release-" + completionReference + "-" + vendorOrderID})
+	if err != nil {
+		return err
+	}
+	if result.Status != "APPLIED" {
+		return errors.New("commerce delivery settlement was not applied")
+	}
+	return nil
+}
+
+var _ CommerceDeliverySettlementAuthority = (*WalletCommerceSettlementClient)(nil)
 
 func NewWalletPaymentClient(client walletclient.Client) *WalletPaymentClient {
 	return &WalletPaymentClient{wallet: client}

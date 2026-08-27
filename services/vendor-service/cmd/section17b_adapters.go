@@ -630,6 +630,12 @@ func (a *section17BShopAuthority) RevalidateShopLine(
 			"This product is no longer listed.",
 		), nil
 	}
+	if shop.IsRestrictedGoodsProduct(product) {
+		return section17BDenied(
+			"PHARMACY_MEDICINE_EXCLUDED",
+			"Pharmacy and medicinal products are not supported by Vendor Commerce.",
+		), nil
+	}
 
 	variant, err := a.service.GetVariant(ctx, actor, scope, listing.VariantID)
 

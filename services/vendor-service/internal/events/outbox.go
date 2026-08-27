@@ -115,6 +115,17 @@ func (r *OutboxRepository) Append(ctx context.Context, q querier, envelope Envel
 // ClaimBatch leases up to limit due PENDING records for owner using
 // FOR UPDATE SKIP LOCKED so concurrent workers never double-claim.
 func (r *OutboxRepository) ClaimBatch(ctx context.Context, owner string, leaseFor time.Duration, limit int) ([]OutboxRecord, error) {
+	return r.claimBatch(ctx, owner, leaseFor, limit, "")
+}
+
+// ClaimBatchForEventType leases only one event stream, allowing a destination
+// to drain its own durable records without marking unrelated domain events as
+// delivered.
+func (r *OutboxRepository) ClaimBatchForEventType(ctx context.Context, owner string, leaseFor time.Duration, limit int, eventType string) ([]OutboxRecord, error) {
+	return r.claimBatch(ctx, owner, leaseFor, limit, eventType)
+}
+
+func (r *OutboxRepository) claimBatch(ctx context.Context, owner string, leaseFor time.Duration, limit int, eventType string) ([]OutboxRecord, error) {
 	rows, err := r.db.Query(ctx, `
 		UPDATE vendor_outbox SET
 			lease_owner = $1,
@@ -123,6 +134,7 @@ func (r *OutboxRepository) ClaimBatch(ctx context.Context, owner string, leaseFo
 			SELECT id FROM vendor_outbox
 			WHERE status = $3
 			  AND available_at <= now()
+			  AND ($5 = '' OR event_type = $5)
 			  AND (lease_expires_at IS NULL OR lease_expires_at < now())
 			ORDER BY available_at
 			LIMIT $4
@@ -132,7 +144,7 @@ func (r *OutboxRepository) ClaimBatch(ctx context.Context, owner string, leaseFo
 			COALESCE(vendor_id, ''), payload, headers, status, available_at,
 			attempts, COALESCE(lease_owner, ''), lease_expires_at, created_at,
 			published_at, last_error_redacted`,
-		owner, leaseFor.Seconds(), OutboxStatusPending, limit,
+		owner, leaseFor.Seconds(), OutboxStatusPending, limit, eventType,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("outbox: claim batch: %w", err)

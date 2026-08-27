@@ -84,7 +84,10 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["fulfilment_plan_id"],
-        "properties": { "fulfilment_plan_id": { "type": "string", "minLength": 1 } }
+        "properties": {
+          "fulfilment_plan_id": { "type": "string", "minLength": 1 },
+          "coupon_code": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional customer-entered code. The server resolves the authoritative campaign; no client discount is accepted." }
+        }
       },
       "ApproveQuoteRequest": {
         "type": "object",

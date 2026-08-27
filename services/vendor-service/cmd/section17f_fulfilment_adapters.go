@@ -15,6 +15,7 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/features/inventory"
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	"cosmicforge/logistics/shared/go/commercemission"
+	"cosmicforge/logistics/shared/go/dispatchcommerce"
 )
 
 // -----------------------------------------------------------------------------
@@ -32,6 +33,17 @@ type section17FInventoryAuthority struct {
 	stock *inventory.StockService
 }
 
+func (a *section17FInventoryAuthority) ResolveShopVariantItem(ctx context.Context, businessID, branchID, variantRef string) (string, error) {
+	if a == nil || a.stock == nil {
+		return "", orders.ErrDependencyMissing
+	}
+	item, err := a.stock.ResolveShopVariantItem(ctx, businessID, branchID, variantRef)
+	if err != nil {
+		return "", err
+	}
+	return item.ID, nil
+}
+
 // FinalizeReservationPartial keeps partial stock accounting inside the
 // authoritative Inventory service; the order feature never edits stock rows.
 func (a *section17FInventoryAuthority) FinalizeReservationPartial(ctx context.Context, businessID, branchID, reservationRef string, fulfilledByItem map[string]int64) error {
@@ -41,6 +53,33 @@ func (a *section17FInventoryAuthority) FinalizeReservationPartial(ctx context.Co
 	actor, scope := a.scope(businessID, branchID)
 	_, err := a.stock.FinalizeReservationPartial(ctx, actor, scope, reservationRef, fulfilledByItem)
 	return ignoreAlreadyFinal(err)
+}
+
+func (a *section17FInventoryAuthority) ReleaseReservationItem(ctx context.Context, businessID, branchID, reservationRef, inventoryItemRef, idempotencyKey string) error {
+	if a == nil || a.stock == nil {
+		return orders.ErrDependencyMissing
+	}
+	actor, scope := a.scope(businessID, branchID)
+	return a.stock.ReleaseReservationItem(ctx, actor, scope, reservationRef, inventoryItemRef, idempotencyKey)
+}
+
+func (a *section17FInventoryAuthority) ReplaceReservationAllocation(ctx context.Context, businessID, branchID string, request orders.InventoryReplacementRequest) (orders.InventoryReplacementResult, error) {
+	if a == nil || a.stock == nil {
+		return orders.InventoryReplacementResult{}, orders.ErrDependencyMissing
+	}
+	actor, scope := a.scope(businessID, branchID)
+	result, err := a.stock.ReplaceReservationAllocation(ctx, actor, scope, inventory.ReservationReplacementRequest{
+		ReservationID: request.ReservationRef, SourceType: request.SourceType, SourceRef: request.SourceRef,
+		OriginalItemID: request.OriginalItemRef, OriginalOrderedQty: request.OriginalOrderedQty,
+		OriginalFoundQty: request.OriginalFoundQty, MissingQty: request.MissingQty,
+		ReplacementItemID: request.ReplacementItemRef, ReplacementQty: request.ReplacementQty,
+		ExpectedVersion: request.ExpectedVersion, IdempotencyKey: request.IdempotencyKey,
+		CorrelationID: request.CorrelationID,
+	})
+	if err != nil {
+		return orders.InventoryReplacementResult{}, err
+	}
+	return orders.InventoryReplacementResult{OriginalFulfilled: result.OriginalFulfilled, OriginalReleased: result.OriginalReleased, ReplacementReserved: result.ReplacementReserved, Version: result.Version}, nil
 }
 
 func newSection17FInventoryAuthority(
@@ -152,7 +191,7 @@ func ignoreAlreadyFinal(err error) error {
 // required for commerce, and there is no client here that could accidentally
 // create one.
 type section17FMissionAuthority struct {
-	dispatch *commercemission.Client
+	dispatch *dispatchcommerce.Client
 	hauling  *commercemission.Client
 }
 
@@ -163,14 +202,8 @@ func newSection17FMissionAuthority(
 ) *section17FMissionAuthority {
 	authority := &section17FMissionAuthority{}
 	if dispatchEnabled {
-		authority.dispatch = commercemission.New(commercemission.Options{
-			// BOTH URLs are BARE ORIGINS: the client appends each service's
-			// own API base and path itself.
-			BaseURL: dispatchURL,
-			APIBase: commercemission.DispatchAPIBase,
-			Service: string(orders.LogisticsDispatch),
-			Secret:  dispatchSecret,
-			Timeout: timeout,
+		authority.dispatch = dispatchcommerce.NewClient(dispatchcommerce.ClientOptions{
+			BaseURL: dispatchURL, Secret: dispatchSecret, Timeout: timeout,
 		})
 	}
 	if haulingEnabled {
@@ -185,12 +218,10 @@ func newSection17FMissionAuthority(
 	return authority
 }
 
-func (a *section17FMissionAuthority) clientFor(
+func (a *section17FMissionAuthority) legacyClientFor(
 	service orders.LogisticsService,
 ) *commercemission.Client {
 	switch service {
-	case orders.LogisticsDispatch:
-		return a.dispatch
 	case orders.LogisticsHauling:
 		return a.hauling
 	default:
@@ -203,7 +234,10 @@ func (a *section17FMissionAuthority) Available(service orders.LogisticsService) 
 	if a == nil {
 		return false
 	}
-	client := a.clientFor(service)
+	if service == orders.LogisticsDispatch {
+		return a.dispatch != nil && a.dispatch.Configured()
+	}
+	client := a.legacyClientFor(service)
 	return client != nil && client.Configured()
 }
 
@@ -215,7 +249,10 @@ func (a *section17FMissionAuthority) Available(service orders.LogisticsService) 
 func (a *section17FMissionAuthority) CreateMission(
 	ctx context.Context, request orders.MissionRequest,
 ) (orders.MissionResult, error) {
-	client := a.clientFor(request.Service)
+	if request.Service == orders.LogisticsDispatch {
+		return a.createDispatchMission(ctx, request)
+	}
+	client := a.legacyClientFor(request.Service)
 	if client == nil || !client.Configured() {
 		return orders.MissionResult{}, commercemission.ErrNotConfigured
 	}

@@ -27,6 +27,7 @@ import (
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
 	"cosmicforge/logistics/services/vendor-service/internal/features/taxonomy"
 	"cosmicforge/logistics/services/vendor-service/internal/jobs"
+	"cosmicforge/logistics/services/vendor-service/internal/platform/ratelimit"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/servicenonce"
 	"cosmicforge/logistics/services/vendor-service/internal/searchrebuild"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -212,6 +213,11 @@ func buildSection13(
 			Callers: splitCallers(cfg.SearchInternalCallers),
 			Nonces:  nonces,
 			Flags:   searchFlags,
+			Limiter: ratelimit.New(redisClient, cfg.AbuseProtection.RedisKeyPrefix),
+			Limit: searchprojection.RequestLimitPolicy{
+				Max:    cfg.AbuseProtection.SearchMax,
+				Window: time.Duration(cfg.AbuseProtection.SearchWindowSeconds) * time.Second,
+			},
 		}),
 	}, nil
 }

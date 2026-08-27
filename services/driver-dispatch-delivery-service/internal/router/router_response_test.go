@@ -10,9 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
-	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 )
 
 func TestHealthAndReadySuccessUseStandardResponseShape(t *testing.T) {

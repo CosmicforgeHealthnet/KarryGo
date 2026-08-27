@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -946,8 +947,8 @@ func TestSection17BVariableWeightPreservesTheAuthorizedMaximum(t *testing.T) {
 		t.Fatalf("maximum=%d want=315000", line.MaxAuthorizedTotalMinor)
 	}
 
-	// A variable-fulfilment line reserves in the stock measure, not in the
-	// ordered count: 2 x 1000 grams.
+	// A variable-fulfilment line reserves its frozen physical upper bound:
+	// 2 x 1000 grams plus the 5% overfill tolerance = 2100 grams.
 	if line.ReservationBasis != checkout.BasisStockMeasure {
 		t.Fatalf("reservation basis=%s", line.ReservationBasis)
 	}
@@ -960,8 +961,128 @@ func TestSection17BVariableWeightPreservesTheAuthorizedMaximum(t *testing.T) {
 		env.businessA,
 		env.branchA1,
 		item.InventoryItemID,
-	); available != 2000 {
-		t.Fatalf("available=%d want=2000", available)
+	); available != 1900 {
+		t.Fatalf("available=%d want=1900", available)
+	}
+}
+
+func TestSection19InventoryReplacementIsAtomicAndIdempotent(t *testing.T) {
+	env := newSection17BEnv(t, 10*time.Minute)
+	original := env.seedShopItem(s17bStockOptions{Business: env.businessA, Staff: env.staffA, Branch: env.branchA1, Name: "Original replacement source", Quantity: 10, PriceMinor: 100})
+	replacement := env.seedShopItem(s17bStockOptions{Business: env.businessA, Staff: env.staffA, Branch: env.branchA1, Name: "Replacement stock", Quantity: 4, PriceMinor: 100})
+	ctx := env.ctx()
+	actor := inventory.Actor{BusinessID: env.businessA, StaffID: "section19-test", ActorRef: "section19-test"}
+	scope := mustExactBranchScope(env.businessA, env.branchA1)
+	expires := time.Now().UTC().Add(time.Hour)
+	reservation, err := env.stock.CreateReservation(ctx, actor, scope, inventory.CreateReservationInput{BranchID: env.branchA1, SourceType: inventory.ReservationSourceCheckout, SourceRef: "section19-replacement-" + env.suffix, ExpiresAt: &expires, Lines: []inventory.ReservationLineInput{{InventoryItemID: original.InventoryItemID, Quantity: 10}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := inventory.ReservationReplacementRequest{ReservationID: reservation.ID, SourceType: inventory.ReservationSourceCheckout, SourceRef: reservation.SourceRef, OriginalItemID: original.InventoryItemID, OriginalOrderedQty: 10, OriginalFoundQty: 6, MissingQty: 4, ReplacementItemID: replacement.InventoryItemID, ReplacementQty: 4, ExpectedVersion: reservation.Version, IdempotencyKey: "section19-replacement-key", CorrelationID: "section19-correlation"}
+	result, err := env.stock.ReplaceReservationAllocation(ctx, actor, scope, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OriginalFulfilled != 6 || result.OriginalReleased != 4 || result.ReplacementReserved != 4 {
+		t.Fatalf("replacement result=%+v", result)
+	}
+	retry, err := env.stock.ReplaceReservationAllocation(ctx, actor, scope, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry.Version != result.Version {
+		t.Fatalf("retry version=%d want=%d", retry.Version, result.Version)
+	}
+	conflict := request
+	conflict.ReplacementItemID = original.InventoryItemID
+	conflict.OriginalItemID = replacement.InventoryItemID
+	if _, err = env.stock.ReplaceReservationAllocation(ctx, actor, scope, conflict); !errors.Is(err, inventory.ErrReplacementIdempotencyConflict) {
+		t.Fatalf("material idempotency reuse err=%v", err)
+	}
+	if got := env.availableStock(env.businessA, env.branchA1, original.InventoryItemID); got != 4 {
+		t.Fatalf("original available=%d want=4", got)
+	}
+	if got := env.availableStock(env.businessA, env.branchA1, replacement.InventoryItemID); got != 0 {
+		t.Fatalf("replacement available=%d want=0", got)
+	}
+}
+
+func TestSection19InventoryReplacementInsufficientRollsBack(t *testing.T) {
+	env := newSection17BEnv(t, 10*time.Minute)
+	original := env.seedShopItem(s17bStockOptions{Business: env.businessA, Staff: env.staffA, Branch: env.branchA1, Name: "Atomic rollback source", Quantity: 10, PriceMinor: 100})
+	replacement := env.seedShopItem(s17bStockOptions{Business: env.businessA, Staff: env.staffA, Branch: env.branchA1, Name: "Atomic rollback replacement", Quantity: 2, PriceMinor: 100})
+	ctx := env.ctx()
+	actor := inventory.Actor{BusinessID: env.businessA, StaffID: "section19-rollback", ActorRef: "section19-rollback"}
+	scope := mustExactBranchScope(env.businessA, env.branchA1)
+	expires := time.Now().UTC().Add(time.Hour)
+	reservation, err := env.stock.CreateReservation(ctx, actor, scope, inventory.CreateReservationInput{BranchID: env.branchA1, SourceType: inventory.ReservationSourceCheckout, SourceRef: "section19-rollback-" + env.suffix, ExpiresAt: &expires, Lines: []inventory.ReservationLineInput{{InventoryItemID: original.InventoryItemID, Quantity: 10}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = env.stock.ReplaceReservationAllocation(ctx, actor, scope, inventory.ReservationReplacementRequest{ReservationID: reservation.ID, SourceType: inventory.ReservationSourceCheckout, SourceRef: reservation.SourceRef, OriginalItemID: original.InventoryItemID, OriginalOrderedQty: 10, OriginalFoundQty: 6, MissingQty: 4, ReplacementItemID: replacement.InventoryItemID, ReplacementQty: 4, ExpectedVersion: reservation.Version, IdempotencyKey: "section19-rollback-key", CorrelationID: "section19-rollback-correlation"})
+	if !errors.Is(err, inventory.ErrInsufficientStock) {
+		t.Fatalf("replacement err=%v, want insufficient stock", err)
+	}
+	if got := env.availableStock(env.businessA, env.branchA1, original.InventoryItemID); got != 0 {
+		t.Fatalf("original available=%d want=0 after rollback", got)
+	}
+	if got := env.availableStock(env.businessA, env.branchA1, replacement.InventoryItemID); got != 2 {
+		t.Fatalf("replacement available=%d want=2 after rollback", got)
+	}
+	var evidence int
+	if err = env.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_reservation_replacements WHERE reservation_id=$1`, reservation.ID).Scan(&evidence); err != nil {
+		t.Fatal(err)
+	}
+	if evidence != 0 {
+		t.Fatalf("replacement evidence rows=%d want=0 after rollback", evidence)
+	}
+}
+
+func TestSection19InventoryReplacementConcurrentClaimHasSingleWinner(t *testing.T) {
+	env := newSection17BEnv(t, 10*time.Minute)
+	replacement := env.seedShopItem(s17bStockOptions{Business: env.businessA, Staff: env.staffA, Branch: env.branchA1, Name: "Concurrent replacement stock", Quantity: 4, PriceMinor: 100})
+	originalA := env.seedShopItem(s17bStockOptions{Business: env.businessA, Staff: env.staffA, Branch: env.branchA1, Name: "Concurrent source A", Quantity: 10, PriceMinor: 100})
+	originalB := env.seedShopItem(s17bStockOptions{Business: env.businessA, Staff: env.staffA, Branch: env.branchA1, Name: "Concurrent source B", Quantity: 10, PriceMinor: 100})
+	ctx := env.ctx()
+	actor := inventory.Actor{BusinessID: env.businessA, StaffID: "section19-race", ActorRef: "section19-race"}
+	scope := mustExactBranchScope(env.businessA, env.branchA1)
+	expires := time.Now().UTC().Add(time.Hour)
+	makeReservation := func(source, item string) inventory.Reservation {
+		reservation, err := env.stock.CreateReservation(ctx, actor, scope, inventory.CreateReservationInput{BranchID: env.branchA1, SourceType: inventory.ReservationSourceCheckout, SourceRef: source, ExpiresAt: &expires, Lines: []inventory.ReservationLineInput{{InventoryItemID: item, Quantity: 10}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return reservation
+	}
+	resA := makeReservation("section19-race-a-"+env.suffix, originalA.InventoryItemID)
+	resB := makeReservation("section19-race-b-"+env.suffix, originalB.InventoryItemID)
+	requests := []inventory.ReservationReplacementRequest{
+		{ReservationID: resA.ID, SourceType: inventory.ReservationSourceCheckout, SourceRef: resA.SourceRef, OriginalItemID: originalA.InventoryItemID, OriginalOrderedQty: 10, OriginalFoundQty: 6, MissingQty: 4, ReplacementItemID: replacement.InventoryItemID, ReplacementQty: 4, ExpectedVersion: resA.Version, IdempotencyKey: "section19-race-a", CorrelationID: "section19-race-a"},
+		{ReservationID: resB.ID, SourceType: inventory.ReservationSourceCheckout, SourceRef: resB.SourceRef, OriginalItemID: originalB.InventoryItemID, OriginalOrderedQty: 10, OriginalFoundQty: 6, MissingQty: 4, ReplacementItemID: replacement.InventoryItemID, ReplacementQty: 4, ExpectedVersion: resB.Version, IdempotencyKey: "section19-race-b", CorrelationID: "section19-race-b"},
+	}
+	errs := make([]error, len(requests))
+	var wg sync.WaitGroup
+	for i := range requests {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, errs[i] = env.stock.ReplaceReservationAllocation(ctx, actor, scope, requests[i])
+		}(i)
+	}
+	wg.Wait()
+	winners := 0
+	for _, err := range errs {
+		if err == nil {
+			winners++
+		} else if !errors.Is(err, inventory.ErrInsufficientStock) {
+			t.Fatalf("concurrent replacement err=%v", err)
+		}
+	}
+	if winners != 1 {
+		t.Fatalf("concurrent replacement winners=%d want=1 (errs=%v)", winners, errs)
+	}
+	if got := env.availableStock(env.businessA, env.branchA1, replacement.InventoryItemID); got != 0 {
+		t.Fatalf("replacement available=%d want=0", got)
 	}
 }
 

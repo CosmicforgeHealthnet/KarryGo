@@ -83,6 +83,23 @@
         }
       }
     },
+    "/commerce/orders/{orderId}/eta": {
+      "get": {
+        "operationId": "getCustomerOrderETA",
+        "summary": "Read authoritative production timing and versioned delivery ETA ranges",
+        "description": "Returns the original production projection plus one current, route-evidenced ETA range per delivery mission. A missing missions array means no authoritative route evidence exists; the server never fabricates a precise timestamp.",
+        "security": [{ "customerBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "responses": {
+          "200": {
+            "description": "Timing projections for the order's vendor allocations.",
+            "content": { "application/json": { "schema": { "type": "object", "required": ["success", "data"], "properties": { "success": { "type": "boolean" }, "data": { "type": "object", "required": ["order_id", "allocations", "missions"], "properties": { "order_id": { "type": "string" }, "allocations": { "type": "array", "items": { "$ref": "#/components/schemas/ProductionReadiness" } }, "missions": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryETA" } } } } } } } }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
     "/commerce/vendor-orders/{vendorOrderId}/cancel": {
       "post": {
         "operationId": "cancelVendorOrderAsCustomer",
@@ -376,6 +393,66 @@
           "COMPLETED",
           "CANCELLED"
         ]
+      },
+      "ProductionReadiness": {
+        "type": "object",
+        "required": ["vendor_order_id", "parent_order_id", "production_job_id", "customer_eta_status", "timing_revision", "source_version", "updated_at"],
+        "properties": {
+          "vendor_order_id": { "type": "string" },
+          "parent_order_id": { "type": "string" },
+          "production_job_id": { "type": "string" },
+          "promised_ready_at": { "type": "string", "format": "date-time" },
+          "expected_window_start": { "type": "string", "format": "date-time" },
+          "expected_window_end": { "type": "string", "format": "date-time" },
+          "logistics_window_start": { "type": "string", "format": "date-time" },
+          "logistics_window_end": { "type": "string", "format": "date-time" },
+          "customer_eta_status": { "type": "string", "enum": ["AVAILABLE", "NOT_AVAILABLE"] },
+          "customer_eta_start": { "type": "string", "format": "date-time" },
+          "customer_eta_end": { "type": "string", "format": "date-time" },
+          "timing_revision": { "type": "integer", "format": "int64" },
+          "timing_source_evidence": { "type": "object" },
+          "source_version": { "type": "integer", "format": "int64" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DeliveryETAComponent": {
+        "type": "object",
+        "required": ["kind", "source", "earliest_seconds", "latest_seconds"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["FOOD_PREPARATION", "SHOP_PICKING", "VENDOR_PREPARATION", "PROVIDER_TO_PICKUP", "PICKUP_MANIFEST_HANDLING", "ADDITIONAL_VENDOR_STOPS", "RECEIVER_ROAD_ROUTE"] },
+          "source": { "type": "string" },
+          "earliest_seconds": { "type": "integer", "format": "int64", "minimum": 0 },
+          "latest_seconds": { "type": "integer", "format": "int64", "minimum": 0 },
+          "evidence_ref": { "type": "string" },
+          "evidence_at": { "type": "string", "format": "date-time" },
+          "source_version": { "type": "integer", "format": "int64", "minimum": 1 }
+        }
+      },
+      "DeliveryETA": {
+        "type": "object",
+        "required": ["eta_id", "parent_order_ref", "mission_ref", "fulfilment_plan_version", "eta_version", "status", "confidence", "policy_version", "trigger", "delay_state", "source_authority", "source_version", "source_occurred_at", "created_at"],
+        "properties": {
+          "eta_id": { "type": "string" },
+          "parent_order_ref": { "type": "string" },
+          "fulfilment_group_ref": { "type": "string" },
+          "mission_ref": { "type": "string" },
+          "fulfilment_plan_version": { "type": "integer", "format": "int64", "minimum": 0 },
+          "eta_version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "status": { "type": "string", "enum": ["ACTIVE", "ACTUAL", "INVALIDATED", "RETURNING"] },
+          "earliest_at": { "type": "string", "format": "date-time" },
+          "latest_at": { "type": "string", "format": "date-time" },
+          "actual_at": { "type": "string", "format": "date-time" },
+          "confidence": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+          "policy_version": { "type": "string" },
+          "trigger": { "type": "string" },
+          "promised_latest_at": { "type": "string", "format": "date-time" },
+          "delay_state": { "type": "string", "enum": ["ON_TIME", "AT_RISK", "DELAYED", "RECOVERED", "NOT_APPLICABLE"] },
+          "components": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryETAComponent" } },
+          "source_authority": { "type": "string", "enum": ["DISPATCH", "HAULING", "PRODUCTION", "VENDOR"] },
+          "source_version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "source_occurred_at": { "type": "string", "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
       },
       "ParentOrderState": {
         "type": "string",

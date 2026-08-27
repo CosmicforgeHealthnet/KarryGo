@@ -106,8 +106,8 @@ func (w *OutboxWorker) RunOnce(ctx context.Context) (OutboxResult, error) {
 	var claimed []OutboxRow
 	if err := w.repo.WithinTx(ctx, func(tx pgx.Tx) error {
 		var claimErr error
-		claimed, claimErr = w.repo.ClaimOutbox(ctx, tx, w.config.Owner,
-			w.config.Lease, w.config.BatchSize)
+		claimed, claimErr = w.repo.ClaimOutboxForTarget(ctx, tx, w.config.Owner,
+			w.config.Target, w.config.Lease, w.config.BatchSize)
 		return claimErr
 	}); err != nil {
 		return result, err

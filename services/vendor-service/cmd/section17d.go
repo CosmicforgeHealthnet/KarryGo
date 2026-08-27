@@ -5,25 +5,25 @@ package main
 // deliberately composes no Wallet, payment, ParentOrder or VendorOrder port.
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/vendor-service/internal/config"
 	"cosmicforge/logistics/services/vendor-service/internal/features/checkoutquote"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
+	"cosmicforge/logistics/services/vendor-service/internal/platform/ratelimit"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 
-func buildSection17DQuoteService(cfg config.Config, db *pgxpool.Pool) *checkoutquote.Service {
+func buildSection17DQuoteService(cfg config.Config, db *pgxpool.Pool, promotionAuthority checkoutquote.PromotionAuthority) *checkoutquote.Service {
 	if !cfg.Flags.CommerceQuoteLockEnabled || db == nil {
 		return nil
 	}
 	service, err := checkoutquote.NewService(checkoutquote.Options{
-		Store: checkoutquote.NewStore(db),
-		// No promotion authority is production-ready yet. An empty authority is
-		// explicit and fail-closed; authoritative delivery subsidies still come
-		// from the selected Section 17C plan and remain fully attributed.
-		Promotions: checkoutquote.NoPromotions{},
+		Store:      checkoutquote.NewStore(db),
+		Promotions: promotionAuthority,
 		QuoteTTL:   cfg.Quote.TTL,
 	})
 	if err != nil {
@@ -32,7 +32,7 @@ func buildSection17DQuoteService(cfg config.Config, db *pgxpool.Pool) *checkoutq
 	return service
 }
 
-func registerSection17DQuoteRoutes(router *gin.Engine, cfg config.Config, service *checkoutquote.Service, idempotencyStore *idempotency.Store) {
+func registerSection17DQuoteRoutes(router *gin.Engine, cfg config.Config, service *checkoutquote.Service, idempotencyStore *idempotency.Store, limiter *ratelimit.Limiter) {
 	if router == nil || service == nil {
 		return
 	}
@@ -42,5 +42,6 @@ func registerSection17DQuoteRoutes(router *gin.Engine, cfg config.Config, servic
 		sharedauth.NewTokenSigner(cfg.CustomerAccessTokenSecret),
 		idempotencyStore,
 		cfg.Flags.CommerceQuoteLockEnabled,
+		checkoutquote.RequestLimitPolicy{Limiter: limiter, Max: cfg.AbuseProtection.QuoteMax, Window: time.Duration(cfg.AbuseProtection.QuoteWindowSeconds) * time.Second},
 	)
 }

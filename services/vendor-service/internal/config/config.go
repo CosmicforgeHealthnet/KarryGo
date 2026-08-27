@@ -55,6 +55,10 @@ type Config struct {
 	// the consolidation bound and the expiry sweep period.
 	Fulfilment FulfilmentConfig
 
+	// Basket is customer shopping optimization: Optimize My Cart, budget
+	// shopping and recurring baskets.
+	Basket BasketConfig
+
 	// Quote is Section 17D's immutable checkout quote timing surface.
 	Quote QuoteConfig
 
@@ -84,6 +88,9 @@ type Config struct {
 	// Auth is Section 5's (Authentication, Sessions and Staff IAM)
 	// configuration surface.
 	Auth AuthConfig
+	// AbuseProtection centralizes non-authentication request limits. These are
+	// configurable technical safety defaults, not product entitlements.
+	AbuseProtection AbuseProtectionConfig
 }
 
 // CheckoutConfig is Section 17B's timing configuration.
@@ -118,8 +125,53 @@ type FulfilmentConfig struct {
 	// pickups would price a route nobody can drive.
 	ConsolidationRadiusMeters int
 
+	// ProximityRadiusMeters bounds CANDIDATE CONSTRUCTION rather than
+	// execution: two pickups further apart than this are not operationally
+	// related enough to evaluate as one mission at all.
+	//
+	// It is deliberately much wider than the consolidation radius above. A
+	// candidate inside it is usually rejected today - no logistics runtime
+	// drives a multi-stop collection - but rejecting it WITH a reason is what
+	// lets Support answer "why was my order split", and lets operations count
+	// how often the missing capability actually costs something.
+	ProximityRadiusMeters int
+
+	// DispatchMultiPickupSupported and HaulingMultiPickupSupported declare
+	// whether those runtimes can execute a mission with several separate
+	// collection points.
+	//
+	// Both default to FALSE, which is today's truth. They exist as
+	// configuration rather than as a constant so the capability can be
+	// switched on when the runtime genuinely gains it, without the planner
+	// changing - and, just as importantly, so a deployment cannot acquire the
+	// capability by accident.
+	DispatchMultiPickupSupported bool
+	HaulingMultiPickupSupported  bool
+
 	// ExpiryInterval is the background sweep period for lapsed plans.
 	ExpiryInterval time.Duration
+}
+
+// BasketConfig is customer shopping optimization's configuration.
+type BasketConfig struct {
+	// ProposalTTL is how long an optimization offer stands.
+	//
+	// Short, because a proposal quotes live prices, live sellable stock and
+	// live logistics fees. One that outlived them would be an offer nobody is
+	// behind, presented to a customer as a decision they can still make.
+	ProposalTTL time.Duration
+
+	// ExpiryInterval is the background sweep period for lapsed proposals.
+	ExpiryInterval time.Duration
+
+	// RecurrenceInterval is how often recurring baskets are checked for a due
+	// occurrence.
+	//
+	// The interval affects PROMPTNESS, never correctness. Every occurrence is
+	// claimed through a unique index before any work happens, so running this
+	// more often produces the same one generation per occurrence - just
+	// sooner.
+	RecurrenceInterval time.Duration
 }
 
 // QuoteConfig bounds how long an immutable commercial agreement may be
@@ -162,6 +214,13 @@ type RateLimitConfig struct {
 	RefreshMax, RefreshWindowSeconds           int
 	StepUpStartMax, StepUpStartWindowSeconds   int
 	StepUpVerifyMax, StepUpVerifyWindowSeconds int
+}
+
+type AbuseProtectionConfig struct {
+	RedisKeyPrefix                   string
+	SearchMax, SearchWindowSeconds   int
+	QuoteMax, QuoteWindowSeconds     int
+	SupportMax, SupportWindowSeconds int
 }
 
 // FeatureFlags is the flag/kill-switch family from
@@ -262,6 +321,19 @@ type FeatureFlags struct {
 	// Planning depends on checkout, so it may not be enabled without it.
 	CommerceFulfilmentPlanningEnabled bool
 	CommerceFulfilmentWorkersEnabled  bool
+
+	// CommerceBasketOptimizationEnabled is the master switch for Optimize My
+	// Cart and budget shopping.
+	CommerceBasketOptimizationEnabled bool
+
+	// CommerceRecurringBasketEnabled additionally enables recurring baskets.
+	//
+	// A separate flag because recurring generation is the only part of
+	// optimization that runs WITHOUT a customer asking. A deployment may
+	// reasonably want the on-demand optimizer without a background worker
+	// producing suggestions on a schedule, and collapsing the two would take
+	// that choice away.
+	CommerceRecurringBasketEnabled bool
 	// CommerceQuoteLockEnabled exposes Section 17D immutable commercial
 	// quote creation and approval. It depends on Sections 17B and 17C.
 	CommerceQuoteLockEnabled bool
@@ -364,6 +436,8 @@ func Load() Config {
 
 			CommerceFulfilmentPlanningEnabled: getEnvBool("COMMERCE_FULFILMENT_PLANNING_ENABLED", false),
 			CommerceFulfilmentWorkersEnabled:  getEnvBool("COMMERCE_FULFILMENT_WORKERS_ENABLED", false),
+			CommerceBasketOptimizationEnabled: getEnvBool("COMMERCE_BASKET_OPTIMIZATION_ENABLED", false),
+			CommerceRecurringBasketEnabled:    getEnvBool("COMMERCE_RECURRING_BASKET_ENABLED", false),
 			CommerceQuoteLockEnabled:          getEnvBool("COMMERCE_QUOTE_LOCK_ENABLED", false),
 			CommerceOrdersEnabled:             getEnvBool("COMMERCE_ORDERS_ENABLED", false),
 			CommerceGlobalKillSwitch:          getEnvBool("COMMERCE_GLOBAL_KILL_SWITCH", false),
@@ -398,7 +472,20 @@ func Load() Config {
 			QuoteTimeout:              time.Duration(getEnvInt("COMMERCE_FULFILMENT_QUOTE_TIMEOUT_SECONDS", 8)) * time.Second,
 			PlanTTL:                   time.Duration(getEnvInt("COMMERCE_FULFILMENT_PLAN_TTL_SECONDS", 900)) * time.Second,
 			ConsolidationRadiusMeters: getEnvInt("COMMERCE_FULFILMENT_CONSOLIDATION_RADIUS_METERS", 150),
-			ExpiryInterval:            time.Duration(getEnvInt("COMMERCE_FULFILMENT_EXPIRY_INTERVAL_SECONDS", 60)) * time.Second,
+			ProximityRadiusMeters:     getEnvInt("COMMERCE_FULFILMENT_PROXIMITY_RADIUS_METERS", 3000),
+			DispatchMultiPickupSupported: getEnvBool(
+				"DISPATCH_MULTI_PICKUP_SUPPORTED", false,
+			),
+			HaulingMultiPickupSupported: getEnvBool(
+				"HAULING_MULTI_PICKUP_SUPPORTED", false,
+			),
+			ExpiryInterval: time.Duration(getEnvInt("COMMERCE_FULFILMENT_EXPIRY_INTERVAL_SECONDS", 60)) * time.Second,
+		},
+
+		Basket: BasketConfig{
+			ProposalTTL:        time.Duration(getEnvInt("COMMERCE_BASKET_PROPOSAL_TTL_SECONDS", 600)) * time.Second,
+			ExpiryInterval:     time.Duration(getEnvInt("COMMERCE_BASKET_EXPIRY_INTERVAL_SECONDS", 60)) * time.Second,
+			RecurrenceInterval: time.Duration(getEnvInt("COMMERCE_RECURRING_BASKET_INTERVAL_SECONDS", 60)) * time.Second,
 		},
 
 		Quote: QuoteConfig{
@@ -430,6 +517,12 @@ func Load() Config {
 				StepUpStartMax: getEnvInt("VENDOR_AUTH_STEP_UP_START_RATE_MAX", 5), StepUpStartWindowSeconds: getEnvInt("VENDOR_AUTH_STEP_UP_START_RATE_WINDOW_SECONDS", 60),
 				StepUpVerifyMax: getEnvInt("VENDOR_AUTH_STEP_UP_VERIFY_RATE_MAX", 10), StepUpVerifyWindowSeconds: getEnvInt("VENDOR_AUTH_STEP_UP_VERIFY_RATE_WINDOW_SECONDS", 60),
 			},
+		},
+		AbuseProtection: AbuseProtectionConfig{
+			RedisKeyPrefix: getEnv("VENDOR_ABUSE_RATE_LIMIT_REDIS_PREFIX", "vendor:abuse:ratelimit"),
+			SearchMax:      getEnvInt("VENDOR_SEARCH_RATE_MAX", 120), SearchWindowSeconds: getEnvInt("VENDOR_SEARCH_RATE_WINDOW_SECONDS", 60),
+			QuoteMax: getEnvInt("VENDOR_QUOTE_RATE_MAX", 30), QuoteWindowSeconds: getEnvInt("VENDOR_QUOTE_RATE_WINDOW_SECONDS", 60),
+			SupportMax: getEnvInt("VENDOR_SUPPORT_RATE_MAX", 10), SupportWindowSeconds: getEnvInt("VENDOR_SUPPORT_RATE_WINDOW_SECONDS", 3600),
 		},
 	}
 }
@@ -598,6 +691,44 @@ func (c Config) Validate() error {
 	// cannot be enabled without checkout. It must also have at least one
 	// delivery authority available, or it would be a surface whose only
 	// possible answer is "no delivery option available".
+	if c.Flags.CommerceBasketOptimizationEnabled {
+		// Optimization compares baskets by DELIVERED total, so it cannot
+		// answer at all without the planner that prices delivery. Enabling it
+		// alone would produce comparisons decided on merchandise price with a
+		// zero delivery cost - confidently, and wrongly.
+		if !c.Flags.CommerceFulfilmentPlanningEnabled {
+			problems = append(problems, "COMMERCE_FULFILMENT_PLANNING_ENABLED must be true when COMMERCE_BASKET_OPTIMIZATION_ENABLED=true")
+		}
+
+		if !c.Flags.CommerceCheckoutEnabled {
+			problems = append(problems, "COMMERCE_CHECKOUT_ENABLED must be true when COMMERCE_BASKET_OPTIMIZATION_ENABLED=true")
+		}
+
+		if c.Basket.ProposalTTL < 60*time.Second ||
+			c.Basket.ProposalTTL > time.Hour {
+			problems = append(problems, "COMMERCE_BASKET_PROPOSAL_TTL_SECONDS must be between 60 and 3600")
+		}
+
+		if c.Basket.ExpiryInterval < 5*time.Second ||
+			c.Basket.ExpiryInterval > 10*time.Minute {
+			problems = append(problems, "COMMERCE_BASKET_EXPIRY_INTERVAL_SECONDS must be between 5 and 600")
+		}
+	}
+
+	if c.Flags.CommerceRecurringBasketEnabled {
+		// Recurring generation is basket optimization on a schedule. Without
+		// the optimizer there is nothing for the worker to run, and a flag
+		// that silently does nothing is worse than one that refuses at boot.
+		if !c.Flags.CommerceBasketOptimizationEnabled {
+			problems = append(problems, "COMMERCE_BASKET_OPTIMIZATION_ENABLED must be true when COMMERCE_RECURRING_BASKET_ENABLED=true")
+		}
+
+		if c.Basket.RecurrenceInterval < 15*time.Second ||
+			c.Basket.RecurrenceInterval > 15*time.Minute {
+			problems = append(problems, "COMMERCE_RECURRING_BASKET_INTERVAL_SECONDS must be between 15 and 900")
+		}
+	}
+
 	if c.Flags.CommerceFulfilmentPlanningEnabled {
 		if !c.Flags.CommerceCheckoutEnabled {
 			problems = append(problems, "COMMERCE_CHECKOUT_ENABLED must be true when COMMERCE_FULFILMENT_PLANNING_ENABLED=true")
@@ -625,6 +756,36 @@ func (c Config) Validate() error {
 		if c.Fulfilment.ConsolidationRadiusMeters < 1 ||
 			c.Fulfilment.ConsolidationRadiusMeters > 2000 {
 			problems = append(problems, "COMMERCE_FULFILMENT_CONSOLIDATION_RADIUS_METERS must be between 1 and 2000")
+		}
+
+		if c.Fulfilment.ProximityRadiusMeters < 1 ||
+			c.Fulfilment.ProximityRadiusMeters > 50000 {
+			problems = append(problems, "COMMERCE_FULFILMENT_PROXIMITY_RADIUS_METERS must be between 1 and 50000")
+		}
+
+		// A proximity radius narrower than the co-location radius would make
+		// every candidate a single stop by arithmetic instead of by
+		// geography, which is exactly the misstatement the multi-stop gate
+		// exists to prevent. It is refused at boot rather than silently
+		// clamped, because a clamped value is a configuration the operator
+		// believes is in force and is not.
+		if c.Fulfilment.ProximityRadiusMeters <
+			c.Fulfilment.ConsolidationRadiusMeters {
+			problems = append(problems, "COMMERCE_FULFILMENT_PROXIMITY_RADIUS_METERS must be at least COMMERCE_FULFILMENT_CONSOLIDATION_RADIUS_METERS")
+		}
+
+		// A declared multi-pickup capability for an integration this
+		// deployment cannot call is a claim about a runtime that will never
+		// be asked. It is refused so the flag never sits in a config file
+		// looking as though it did something.
+		if c.Fulfilment.DispatchMultiPickupSupported &&
+			!c.Flags.DispatchCommerceIntegrationEnabled {
+			problems = append(problems, "DISPATCH_MULTI_PICKUP_SUPPORTED requires DISPATCH_COMMERCE_INTEGRATION_ENABLED=true")
+		}
+
+		if c.Fulfilment.HaulingMultiPickupSupported &&
+			!c.Flags.HaulingCommerceIntegrationEnabled {
+			problems = append(problems, "HAULING_MULTI_PICKUP_SUPPORTED requires HAULING_COMMERCE_INTEGRATION_ENABLED=true")
 		}
 
 		if c.Fulfilment.ExpiryInterval < 5*time.Second ||
