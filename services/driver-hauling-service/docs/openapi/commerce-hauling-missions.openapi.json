@@ -1,0 +1,64 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Hauling Commerce Mission Internal API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/hauling/internal/commerce/quotes": {
+      "post": {
+        "operationId": "quoteHaulingCommerceRoute",
+        "summary": "Quote a Van/Truck commerce fulfilment route.",
+        "description": "HMAC v2 internal route for vendor-service only. Supports single-pickup and multi-pickup route evidence; creates no booking.",
+        "responses": {
+          "200": { "description": "Authoritative persisted quote" },
+          "401": { "description": "Missing or invalid HMAC signature" },
+          "429": { "description": "Replay nonce rejected" },
+          "503": { "description": "Authority unavailable" }
+        }
+      }
+    },
+    "/hauling/internal/commerce/missions": {
+      "post": {
+        "operationId": "createHaulingCommerceMission",
+        "summary": "Create an already-paid Van/Truck commerce mission.",
+        "description": "Creates one Hauling booking and commerce mission atomically using the customer-approved fee. Same operation_ref with different semantic request conflicts.",
+        "responses": {
+          "200": { "description": "Accepted or refused mission" },
+          "400": { "description": "Invalid request" },
+          "401": { "description": "Missing or invalid HMAC signature" },
+          "409": { "description": "Idempotency fingerprint conflict" },
+          "429": { "description": "Replay nonce rejected" },
+          "503": { "description": "Authority unavailable or kill switch active" }
+        }
+      }
+    },
+    "/hauling/internal/commerce/missions/operations/{operationRef}": {
+      "get": {
+        "operationId": "readHaulingCommerceMissionByOperation",
+        "summary": "Read a commerce mission by Vendor operation reference.",
+        "parameters": [
+          { "name": "operationRef", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Mission read model" },
+          "404": { "description": "Mission not found" }
+        }
+      }
+    },
+    "/hauling/internal/commerce/missions/operations/{operationRef}/cancel": {
+      "post": {
+        "operationId": "cancelHaulingCommerceMissionByOperation",
+        "summary": "Cancel a pre-custody commerce mission.",
+        "parameters": [
+          { "name": "operationRef", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Cancelled or already-terminal mission" },
+          "404": { "description": "Mission not found" },
+          "409": { "description": "Mission is already in custody" }
+        }
+      }
+    }
+  }
+}

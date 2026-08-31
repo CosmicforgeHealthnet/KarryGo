@@ -2,7 +2,12 @@ package booking
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"log"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +16,7 @@ import (
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/handover"
 	"cosmicforge/logistics/shared/go/phonenumber"
@@ -64,6 +70,18 @@ type commerceMissionScopeReader interface {
 	CommerceMissionScope(ctx context.Context, bookingID string) (string, []string, bool, error)
 }
 
+type serviceabilityQuoteAuthority interface {
+	AuthorizeBooking(context.Context, string, string, serviceability.BookingBinding, time.Time) (serviceability.Quote, error)
+}
+
+type idempotentBookingCreator interface {
+	InsertIdempotent(context.Context, Booking, string, string, string, int64, string) (Booking, bool, error)
+}
+
+type bookingOperationsReader interface {
+	GetBookingOperations(context.Context, string) (*BookingOperationsProjection, error)
+}
+
 type Service struct {
 	repository         Repository
 	broadcast          BroadcastControl
@@ -73,6 +91,8 @@ type Service struct {
 	events             EventPublisher
 	notifier           LifecycleNotifier
 	commerceSettlement CommerceDeliverySettlementAuthority
+	serviceability     serviceabilityQuoteAuthority
+	protectedCreate    bool
 	radiusKM           float64
 	now                func() time.Time
 }
@@ -108,6 +128,15 @@ func (s *Service) WithNotifier(notifier LifecycleNotifier) *Service {
 
 func (s *Service) WithCommerceSettlement(authority CommerceDeliverySettlementAuthority) *Service {
 	s.commerceSettlement = authority
+	return s
+}
+
+// WithServiceabilityQuoteAuthority enables the additive protected-create
+// policy. Legacy deployment remains unchanged while the Sections 4-6 flags are
+// disabled.
+func (s *Service) WithServiceabilityQuoteAuthority(authority serviceabilityQuoteAuthority, required bool) *Service {
+	s.serviceability = authority
+	s.protectedCreate = required
 	return s
 }
 
@@ -158,59 +187,146 @@ func (s *Service) Estimate(ctx context.Context, in EstimateRequest) (EstimateRes
 }
 
 func (s *Service) CreateBooking(ctx context.Context, customerID string, in CreateBookingInput) (BookingView, error) {
+	return s.CreateBookingWithKey(ctx, customerID, "", in)
+}
+
+// CreateBookingWithKey adds customer-scoped replay safety while preserving the
+// original method for existing in-process callers and tests.
+func (s *Service) CreateBookingWithKey(ctx context.Context, customerID, idempotencyKey string, in CreateBookingInput) (BookingView, error) {
 	normalizedReceiverPhone, err := validateCreateInput(in)
 	if err != nil {
 		return BookingView{}, err
 	}
+	in.ReceiverPhone = normalizedReceiverPhone
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	quoteRef := strings.TrimSpace(in.ServiceabilityQuoteRef)
+	if s.protectedCreate && (idempotencyKey == "" || quoteRef == "") {
+		return BookingView{}, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "serviceability_quote_ref", Message: "A serviceability quote and Idempotency-Key are required."}})
+	}
+
 	distance := haversineKM(in.Pickup.Lat, in.Pickup.Lng, in.Dropoff.Lat, in.Dropoff.Lng)
 	fare := calculateFareKobo(distance, in.PackageSize, in.ServiceTier)
+	var quoteVersion int64
+	var quoteFingerprint string
+	if quoteRef != "" {
+		if s.serviceability == nil {
+			return BookingView{}, apperrors.Unavailable("Serviceability verification is temporarily unavailable.", nil)
+		}
+		quote, quoteErr := s.serviceability.AuthorizeBooking(ctx, customerID, quoteRef, serviceability.BookingBinding{
+			Pickup:      serviceability.Point{Latitude: in.Pickup.Lat, Longitude: in.Pickup.Lng},
+			Dropoff:     serviceability.Point{Latitude: in.Dropoff.Lat, Longitude: in.Dropoff.Lng},
+			PackageType: in.PackageType, PackageSize: in.PackageSize,
+			PackageWeightGrams: int64(math.Round(in.PackageWeight * 1000)), Fragile: in.IsFragile,
+			ServiceTier: in.ServiceTier,
+		}, s.now())
+		if quoteErr != nil {
+			switch {
+			case errors.Is(quoteErr, serviceability.ErrQuoteNotFound):
+				return BookingView{}, apperrors.NotFound("Serviceability quote not found.", nil)
+			case errors.Is(quoteErr, serviceability.ErrQuoteExpired):
+				return BookingView{}, apperrors.Conflict("Serviceability quote has expired. Request a new quote.", nil)
+			case errors.Is(quoteErr, serviceability.ErrQuoteRejected), errors.Is(quoteErr, serviceability.ErrQuoteMismatch):
+				return BookingView{}, apperrors.Conflict("Booking details do not match an approved serviceability quote.", nil)
+			default:
+				return BookingView{}, apperrors.Unavailable("Serviceability verification is temporarily unavailable.", quoteErr)
+			}
+		}
+		fare = quote.FareEstimateKobo
+		distance = float64(quote.Route.DistanceMeters) / 1000
+		quoteVersion = quote.Version
+		quoteFingerprint = quote.RequestFingerprint
+	}
 
 	booking := Booking{
-		CustomerID:     customerID,
-		Status:         StatusSearching,
-		PickupAddress:  strings.TrimSpace(in.Pickup.Address),
-		PickupLat:      in.Pickup.Lat,
-		PickupLng:      in.Pickup.Lng,
-		DropoffAddress: strings.TrimSpace(in.Dropoff.Address),
-		DropoffLat:     in.Dropoff.Lat,
-		DropoffLng:     in.Dropoff.Lng,
-		DistanceKM:     roundKM(distance),
-		FareAmount:     fare,
-		Currency:       currencyNGN,
-		PaymentMethod:  PaymentMethodWallet,
-		PaymentStatus:  PaymentUnpaid,
-		ReceiverName:   strings.TrimSpace(in.ReceiverName),
-		ReceiverPhone:  normalizedReceiverPhone,
-		PackageDesc:    strings.TrimSpace(in.PackageDesc),
-		PackageType:    strings.TrimSpace(in.PackageType),
-		PackageSize:    NormalizePackageSize(in.PackageSize),
-		IsFragile:      in.IsFragile,
-		ServiceTier:    NormalizeServiceTier(in.ServiceTier),
+		CustomerID:                 customerID,
+		Status:                     StatusSearching,
+		PickupAddress:              strings.TrimSpace(in.Pickup.Address),
+		PickupLat:                  in.Pickup.Lat,
+		PickupLng:                  in.Pickup.Lng,
+		DropoffAddress:             strings.TrimSpace(in.Dropoff.Address),
+		DropoffLat:                 in.Dropoff.Lat,
+		DropoffLng:                 in.Dropoff.Lng,
+		DistanceKM:                 roundKM(distance),
+		FareAmount:                 fare,
+		Currency:                   currencyNGN,
+		PaymentMethod:              PaymentMethodWallet,
+		PaymentStatus:              PaymentUnpaid,
+		ReceiverName:               strings.TrimSpace(in.ReceiverName),
+		ReceiverPhone:              normalizedReceiverPhone,
+		PackageDesc:                strings.TrimSpace(in.PackageDesc),
+		PackageType:                strings.TrimSpace(in.PackageType),
+		PackageSize:                NormalizePackageSize(in.PackageSize),
+		IsFragile:                  in.IsFragile,
+		ServiceTier:                NormalizeServiceTier(in.ServiceTier),
+		ServiceabilityQuoteRef:     quoteRef,
+		ServiceabilityQuoteVersion: quoteVersion,
 	}
 	if in.PackageWeight > 0 {
 		weight := in.PackageWeight
 		booking.PackageWeight = &weight
 	}
 
-	created, err := s.repository.Insert(ctx, booking)
+	requestFingerprint := bookingCreateFingerprint(in)
+	created := Booking{}
+	replayed := false
+	if idempotencyKey != "" {
+		creator, ok := s.repository.(idempotentBookingCreator)
+		if !ok {
+			return BookingView{}, apperrors.Unavailable("Idempotent booking creation is temporarily unavailable.", nil)
+		}
+		created, replayed, err = creator.InsertIdempotent(ctx, booking, idempotencyKey, requestFingerprint, quoteRef, quoteVersion, quoteFingerprint)
+	} else {
+		created, err = s.repository.Insert(ctx, booking)
+	}
 	if err != nil {
 		return BookingView{}, err
 	}
+	if replayed && created.Status != StatusSearching {
+		state, found, stateErr := s.repository.GetWithDerivedState(ctx, created.ID)
+		if stateErr != nil {
+			return BookingView{}, stateErr
+		}
+		if !found {
+			return BookingView{}, apperrors.NotFound("Delivery booking not found.", nil)
+		}
+		return state.View(), nil
+	}
 
 	// Wallet escrow: hold the fare before matching starts (fail fast).
-	if s.payments != nil {
+	if s.payments != nil && created.PaymentStatus == PaymentUnpaid {
 		ref, holdErr := s.payments.Hold(ctx, created.ID, customerID, fare)
 		if holdErr != nil {
 			now := s.now()
+			var unknown *UnknownPaymentOutcome
+			if errors.As(holdErr, &unknown) {
+				// Stop matching, but do not claim failed/refunded money on a timeout.
+				if err := s.repository.SetPayment(ctx, created.ID, PaymentUnpaid, ref); err != nil {
+					return BookingView{}, err
+				}
+				if _, err := s.repository.SetTerminal(ctx, created.ID, StatusCancelled, PaymentUnpaid, "payment_outcome_unknown", now); err != nil {
+					return BookingView{}, err
+				}
+				return BookingView{}, apperrors.Unavailable("Wallet confirmation is pending. The booking will not be dispatched; any held payment will be reconciled.", nil)
+			}
 			if _, err := s.repository.SetTerminal(ctx, created.ID, StatusCancelled, PaymentFailed, "payment_failed", now); err != nil {
 				log.Printf("booking payment-failed terminal update failed booking_id=%s: %v", created.ID, err)
 			}
-			return BookingView{}, apperrors.New(http.StatusBadRequest, "payment_failed", holdErr.Error(), holdErr)
+			return BookingView{}, apperrors.New(http.StatusBadRequest, "payment_failed", "Wallet payment was not accepted.", holdErr)
 		}
 		created.PaymentStatus = PaymentHeld
 		created.PaymentRef = ref
 		if err := s.repository.SetPayment(ctx, created.ID, PaymentHeld, ref); err != nil {
 			return BookingView{}, err
+		}
+		current, found, readErr := s.repository.GetWithDerivedState(ctx, created.ID)
+		if readErr != nil {
+			return BookingView{}, readErr
+		}
+		if !found || current.Booking.Status != StatusSearching {
+			if found {
+				s.refundHeld(ctx, current, "refund-booking-"+created.ID, "payment_outcome_unknown")
+			}
+			return BookingView{}, apperrors.Conflict("Booking no longer permits dispatch.", nil)
 		}
 	}
 
@@ -262,7 +378,31 @@ func (s *Service) GetBooking(ctx context.Context, customerID, id string) (Bookin
 	if err != nil {
 		return BookingView{}, err
 	}
-	return state.View(), nil
+	view := state.View()
+	if reader, ok := s.repository.(bookingOperationsReader); ok {
+		projection, projectionErr := reader.GetBookingOperations(ctx, state.Booking.ID)
+		if projectionErr != nil {
+			return BookingView{}, projectionErr
+		}
+		view.Operations = projection
+	}
+	return view, nil
+}
+
+func bookingCreateFingerprint(in CreateBookingInput) string {
+	in.Pickup.Address = strings.TrimSpace(in.Pickup.Address)
+	in.Dropoff.Address = strings.TrimSpace(in.Dropoff.Address)
+	in.ReceiverName = strings.TrimSpace(in.ReceiverName)
+	in.ReceiverPhone = strings.TrimSpace(in.ReceiverPhone)
+	in.PackageDesc = strings.TrimSpace(in.PackageDesc)
+	in.PackageType = strings.ToLower(strings.TrimSpace(in.PackageType))
+	in.PackageSize = NormalizePackageSize(in.PackageSize)
+	in.ServiceTier = NormalizeServiceTier(in.ServiceTier)
+	in.PaymentMethod = PaymentMethodWallet
+	in.ServiceabilityQuoteRef = strings.TrimSpace(in.ServiceabilityQuoteRef)
+	raw, _ := json.Marshal(in)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }
 
 func (s *Service) ListBookings(ctx context.Context, customerID string, options ListBookingsOptions) ([]BookingView, error) {
@@ -493,7 +633,18 @@ func (s *Service) GetVerificationCode(ctx context.Context, customerID, id, step 
 	if remaining < 0 {
 		remaining = 0
 	}
-	view := VerificationCodeView{Code: state.DeliveryCode, AttemptsRemaining: remaining}
+	code := state.DeliveryCode
+	if decoder, ok := s.trips.(interface {
+		DecodeDeliveryCode(string, string) (string, error)
+	}); ok {
+		code, err = decoder.DecodeDeliveryCode(state.TripID, code)
+		if err != nil {
+			return VerificationCodeView{}, apperrors.Unavailable("Delivery credential is unavailable.", nil)
+		}
+	} else if strings.HasPrefix(code, "handover_") {
+		return VerificationCodeView{}, apperrors.Unavailable("Delivery credential is unavailable.", nil)
+	}
+	view := VerificationCodeView{Code: code, AttemptsRemaining: remaining}
 	if state.DeliveryCodeExpiresAt != nil {
 		view.ExpiresAt = state.DeliveryCodeExpiresAt
 	}
@@ -588,6 +739,13 @@ func (s *Service) HandleNoProviderFound(ctx context.Context, bookingID string) e
 		return err
 	}
 	if !updated {
+		// A previous attempt may have committed the unmatched state and then
+		// lost the Wallet response. Re-issuing the same deterministic refund
+		// key is safe and lets reconciliation complete without a second ledger
+		// operation.
+		if state.Booking.Status == StatusUnmatched && state.Booking.PaymentStatus == PaymentHeld {
+			s.refundHeld(ctx, state, "refund-booking-"+bookingID, "no_provider_found")
+		}
 		return nil
 	}
 	if s.notifier != nil {
@@ -597,16 +755,13 @@ func (s *Service) HandleNoProviderFound(ctx context.Context, bookingID string) e
 	return nil
 }
 
-// HandleTripCompleted marks the booking (and its escrow) settled.
+// HandleTripCompleted projects physical completion separately from Wallet acknowledgement.
 func (s *Service) HandleTripCompleted(ctx context.Context, bookingID string, completedAt time.Time) error {
 	state, ok, err := s.repository.GetWithDerivedState(ctx, bookingID)
 	if err != nil || !ok {
 		return err
 	}
 	paymentStatus := state.Booking.PaymentStatus
-	if paymentStatus == PaymentHeld {
-		paymentStatus = PaymentPaid
-	}
 	if completedAt.IsZero() {
 		completedAt = s.now()
 	}
@@ -617,13 +772,18 @@ func (s *Service) HandleTripCompleted(ctx context.Context, bookingID string, com
 	if updated && s.notifier != nil {
 		s.notifier.NotifyCustomerCompleted(ctx, state.Booking.CustomerID, bookingID, notifyData(state.Booking))
 	}
-	if s.commerceSettlement != nil {
+	commerceBooking := false
+	{
 		if scopes, ok := s.repository.(commerceMissionScopeReader); ok {
 			parentID, vendorIDs, commerce, scopeErr := scopes.CommerceMissionScope(ctx, bookingID)
 			if scopeErr != nil {
 				return scopeErr
 			}
 			if commerce {
+				commerceBooking = true
+				if s.commerceSettlement == nil {
+					return apperrors.Unavailable("Commerce settlement authority is unavailable.", nil)
+				}
 				providerID := state.Booking.ProviderID
 				if providerID == "" {
 					providerID = state.TripProviderID
@@ -638,6 +798,16 @@ func (s *Service) HandleTripCompleted(ctx context.Context, bookingID string, com
 				}
 			}
 		}
+	}
+	if !commerceBooking && paymentStatus == PaymentHeld {
+		authority, ok := s.payments.(SettlementPaymentClient)
+		if !ok {
+			return apperrors.Unavailable("Wallet settlement authority is unavailable.", nil)
+		}
+		if err = authority.CompleteSettlement(ctx, bookingID); err != nil {
+			return apperrors.Unavailable("Wallet settlement confirmation is pending.", err)
+		}
+		return s.repository.SetPayment(ctx, bookingID, PaymentPaid, state.Booking.PaymentRef)
 	}
 	return nil
 }

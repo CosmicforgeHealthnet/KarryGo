@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"cosmicforge/logistics/shared/go/browserauth"
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
@@ -12,7 +13,8 @@ import (
 
 // Handlers holds the dashboard/keys/internal HTTP handlers.
 type Handlers struct {
-	svc *Service
+	svc    *Service
+	cookie browserauth.Policy
 }
 
 // NewHandlers builds the account handlers.
@@ -33,6 +35,7 @@ func (h *Handlers) Register(c *gin.Context) {
 		respondAPIError(c, err)
 		return
 	}
+	h.cookie.Set(c, res.RefreshToken, res.RefreshExpiresAt)
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -59,6 +62,7 @@ func (h *Handlers) Login(c *gin.Context) {
 		respondAPIError(c, err)
 		return
 	}
+	h.cookie.Set(c, res.RefreshToken, res.RefreshExpiresAt)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -103,6 +107,7 @@ func (h *Handlers) VerifySignup(c *gin.Context) {
 		respondAPIError(c, err)
 		return
 	}
+	h.cookie.Set(c, res.RefreshToken, res.RefreshExpiresAt)
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -150,6 +155,7 @@ func (h *Handlers) VerifyLogin(c *gin.Context) {
 		respondAPIError(c, err)
 		return
 	}
+	h.cookie.Set(c, res.RefreshToken, res.RefreshExpiresAt)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -160,13 +166,26 @@ func (h *Handlers) VerifyLogin(c *gin.Context) {
 	})
 }
 
-// Logout handles POST /auth/logout (session required).
+// Logout uses the HttpOnly cookie, not an access-token requirement.
 func (h *Handlers) Logout(c *gin.Context) {
-	if err := h.svc.Logout(c.Request.Context(), SessionTokenHash(c)); err != nil {
+	raw, _ := c.Cookie(h.cookie.Name)
+	if err := h.svc.LogoutRefresh(c.Request.Context(), raw); err != nil {
 		respondAPIError(c, err)
 		return
 	}
+	h.cookie.Clear(c)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out."})
+}
+
+func (h *Handlers) Refresh(c *gin.Context) {
+	raw, _ := c.Cookie(h.cookie.Name)
+	result, err := h.svc.Refresh(c.Request.Context(), raw, metaFrom(c))
+	if err != nil {
+		respondAPIError(c, err)
+		return
+	}
+	h.cookie.Set(c, result.RefreshToken, result.RefreshExpiresAt)
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"token": result.Token, "expires_at": result.ExpiresAt.UTC().Format(rfc3339), "account": result.Account}})
 }
 
 // Me handles GET /auth/me (session required).

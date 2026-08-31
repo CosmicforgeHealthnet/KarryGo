@@ -1,12 +1,15 @@
 package httpx
 
 import (
-	"log"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/logging"
 )
 
 const RequestIDKey = "request_id"
@@ -38,11 +41,8 @@ func RespondError(c *gin.Context, err error) {
 	requestID := GetRequestID(c)
 
 	if appErr.Status >= http.StatusInternalServerError {
-		if cause := appErr.Unwrap(); cause != nil {
-			log.Printf("request_id=%s status=%d code=%s error=%v cause=%v", requestID, appErr.Status, appErr.Code, err, cause)
-		} else {
-			log.Printf("request_id=%s status=%d code=%s error=%v", requestID, appErr.Status, appErr.Code, err)
-		}
+		// A dependency error may embed a credential, request body or DSN.
+		logging.Structured("error", "http_error", map[string]any{"request_id": LogRequestID(c), "status": appErr.Status, "code": string(appErr.Code)})
 	}
 
 	c.JSON(appErr.Status, errorResponse{
@@ -65,4 +65,19 @@ func GetRequestID(c *gin.Context) string {
 
 	requestID, _ := value.(string)
 	return requestID
+}
+
+// Preserve the existing caller correlation contract in HTTP responses without
+// printing arbitrary header contents into logs. Opaque non-UUID request IDs
+// remain correlatable by a deterministic digest, not their potentially secret value.
+func LogRequestID(c *gin.Context) string {
+	value := GetRequestID(c)
+	if id, err := uuid.Parse(value); err == nil {
+		return id.String()
+	}
+	if value == "" {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(value))
+	return "request-" + hex.EncodeToString(digest[:12])
 }

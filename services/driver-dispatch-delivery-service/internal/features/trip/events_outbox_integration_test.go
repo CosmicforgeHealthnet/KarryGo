@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -168,14 +169,14 @@ func TestTripLifecycleEmitsOrderedCanonicalEvents(t *testing.T) {
 	trip := fixture.createTrip(t, ctx)
 	now := time.Now().UTC()
 
-	pickup, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
+	pickup, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fixture.repo.MarkArrived(ctx, trip.ID, fixture.providerID, StatusAssigned, now, pickup); err != nil {
 		t.Fatal(err)
 	}
-	delivery, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
+	delivery, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,14 +255,14 @@ func TestTripEventsCarryNoCustomerCommercialData(t *testing.T) {
 
 	trip := fixture.createTrip(t, ctx)
 	now := time.Now().UTC()
-	pickup, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
+	pickup, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fixture.repo.MarkArrived(ctx, trip.ID, fixture.providerID, StatusAssigned, now, pickup); err != nil {
 		t.Fatal(err)
 	}
-	delivery, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
+	delivery, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +321,7 @@ func TestRejectedTransitionEmitsNothing(t *testing.T) {
 	// The trip is 'assigned'; starting requires 'arrived_pickup'. The UPDATE
 	// matches no row, so the repository reports the race and must publish
 	// nothing — an event here would tell fleet a trip began that never did.
-	delivery, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
+	delivery, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +338,7 @@ func TestRejectedTransitionEmitsNothing(t *testing.T) {
 
 	// A transition for a provider who does not own the trip is likewise a
 	// no-op and must stay silent.
-	pickup, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
+	pickup, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +376,7 @@ func TestRepositoryWithoutEmitterPublishesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	pickup, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
+	pickup, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}

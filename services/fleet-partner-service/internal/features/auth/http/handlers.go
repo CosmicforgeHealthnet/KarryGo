@@ -10,6 +10,7 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/browserauth"
 	"cosmicforge/logistics/shared/go/httpx"
 
 	authusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/usecases"
@@ -22,11 +23,16 @@ import (
 type Handler struct {
 	service       *authusecases.Service
 	contactSecret []byte
+	cookie        browserauth.Policy
 }
 
 // NewHandler builds the handler.
-func NewHandler(service *authusecases.Service, contactSecret []byte) *Handler {
-	return &Handler{service: service, contactSecret: contactSecret}
+func NewHandler(service *authusecases.Service, contactSecret []byte, policies ...browserauth.Policy) *Handler {
+	policy := browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode}
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
+	return &Handler{service: service, contactSecret: contactSecret, cookie: policy}
 }
 
 // startRequest is the signup/login request. There is deliberately no password
@@ -48,10 +54,6 @@ type resendRequest struct {
 	ChallengeID string `json:"challengeId"`
 }
 
-type refreshRequest struct {
-	RefreshToken string `json:"refreshToken"`
-}
-
 type selectOrganizationRequest struct {
 	MembershipID string `json:"membershipId"`
 }
@@ -62,18 +64,20 @@ type stepUpStartRequest struct {
 
 // RegisterPublicRoutes mounts the unauthenticated authentication endpoints.
 func (h *Handler) RegisterPublicRoutes(group *gin.RouterGroup) {
-	group.POST("/auth/start", h.start)
-	group.POST("/auth/verify", h.verify)
-	group.POST("/auth/resend", h.resend)
-	group.POST("/auth/refresh", h.refresh)
+	boundary := h.cookie.Boundary()
+	group.OPTIONS("/auth/*path", boundary)
+	group.POST("/auth/start", boundary, h.start)
+	group.POST("/auth/verify", boundary, h.verify)
+	group.POST("/auth/resend", boundary, h.resend)
+	group.POST("/auth/refresh", boundary, h.refresh)
+	group.POST("/auth/logout", boundary, h.logout)
 }
 
 // RegisterAuthenticatedRoutes mounts endpoints requiring a corporate session.
 func (h *Handler) RegisterAuthenticatedRoutes(group *gin.RouterGroup) {
-	group.POST("/auth/logout", h.logout)
-	group.POST("/auth/select-organization", h.selectOrganization)
-	group.POST("/auth/step-up/start", h.stepUpStart)
-	group.POST("/auth/step-up/verify", h.stepUpVerify)
+	group.POST("/auth/select-organization", h.cookie.Boundary(), h.selectOrganization)
+	group.POST("/auth/step-up/start", h.cookie.Boundary(), h.stepUpStart)
+	group.POST("/auth/step-up/verify", h.cookie.Boundary(), h.stepUpVerify)
 	group.GET("/sessions", h.listSessions)
 	group.DELETE("/sessions/:sessionId", h.revokeSession)
 }
@@ -128,6 +132,9 @@ func (h *Handler) verify(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
+	if result.Tokens != nil {
+		h.cookie.Set(c, result.Tokens.RefreshToken, result.Tokens.RefreshExpiresAt)
+	}
 	respond.OK(c, verifyResponse(result))
 }
 
@@ -136,7 +143,6 @@ func verifyResponse(result authusecases.VerifyResult) gin.H {
 	if result.Tokens != nil {
 		body["tokens"] = gin.H{
 			"accessToken":      result.Tokens.AccessToken,
-			"refreshToken":     result.Tokens.RefreshToken,
 			"accessExpiresAt":  result.Tokens.AccessExpiresAt,
 			"refreshExpiresAt": result.Tokens.RefreshExpiresAt,
 			"sessionId":        result.Tokens.SessionID,
@@ -190,13 +196,9 @@ func (h *Handler) resend(c *gin.Context) {
 }
 
 func (h *Handler) refresh(c *gin.Context) {
-	var request refreshRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
-		return
-	}
+	token, _ := c.Cookie(h.cookie.Name)
 	tokens, err := h.service.Refresh(c.Request.Context(), authusecases.RefreshInput{
-		RefreshToken:  request.RefreshToken,
+		RefreshToken:  token,
 		IPHash:        h.ipHash(c),
 		UserAgentHash: h.userAgentHash(c),
 		RequestID:     httpx.GetRequestID(c),
@@ -206,9 +208,9 @@ func (h *Handler) refresh(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
+	h.cookie.Set(c, tokens.RefreshToken, tokens.RefreshExpiresAt)
 	respond.OK(c, gin.H{
 		"accessToken":      tokens.AccessToken,
-		"refreshToken":     tokens.RefreshToken,
 		"accessExpiresAt":  tokens.AccessExpiresAt,
 		"refreshExpiresAt": tokens.RefreshExpiresAt,
 		"sessionId":        tokens.SessionID,
@@ -216,12 +218,13 @@ func (h *Handler) refresh(c *gin.Context) {
 }
 
 func (h *Handler) logout(c *gin.Context) {
-	claims, _ := auth.ClaimsFromContext(c)
-	if err := h.service.Logout(c.Request.Context(), claims.SessionID, claims.Subject,
+	token, _ := c.Cookie(h.cookie.Name)
+	if err := h.service.LogoutRefresh(c.Request.Context(), token,
 		httpx.GetRequestID(c), middleware.GetCorrelationID(c)); err != nil {
 		respond.Error(c, err)
 		return
 	}
+	h.cookie.Clear(c)
 	respond.OK(c, gin.H{"loggedOut": true})
 }
 
@@ -246,9 +249,9 @@ func (h *Handler) selectOrganization(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
+	h.cookie.Set(c, tokens.RefreshToken, tokens.RefreshExpiresAt)
 	respond.OK(c, gin.H{
 		"accessToken":      tokens.AccessToken,
-		"refreshToken":     tokens.RefreshToken,
 		"accessExpiresAt":  tokens.AccessExpiresAt,
 		"refreshExpiresAt": tokens.RefreshExpiresAt,
 		"sessionId":        tokens.SessionID,

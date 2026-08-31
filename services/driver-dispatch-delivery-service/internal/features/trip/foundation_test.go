@@ -217,6 +217,7 @@ type fakeRepository struct {
 	confirmations   []RecipientConfirmation
 	failures        []DeliveryFailure
 	initialLogs     int
+	mission         *ProviderMissionProjection
 }
 
 func newFakeRepository() *fakeRepository {
@@ -299,6 +300,35 @@ func (r *fakeRepository) GetProviderTripByID(_ context.Context, tripID, provider
 		}
 	}
 	return nil, nil
+}
+
+func (r *fakeRepository) GetProviderMissionProjection(_ context.Context, _, _ string) (*ProviderMissionProjection, error) {
+	return r.mission, nil
+}
+
+func TestProviderTripDetailIncludesSafeMissionProjection(t *testing.T) {
+	providerID := uuid.NewString()
+	tripID := uuid.NewString()
+	repository := newFakeRepository()
+	repository.trips = append(repository.trips, Trip{ID: tripID, ProviderID: providerID, Status: StatusInProgress})
+	repository.mission = &ProviderMissionProjection{
+		MissionID: "mission-1",
+		State:     "IN_TRANSIT",
+		Manifest:  &ProviderManifest{Reference: "manifest-1", Version: 2, Status: "CUSTODY_ACTIVE"},
+		Parcels:   []ProviderParcel{{Reference: "KGP-1", ScannableCode: "kgp_scan-1", State: "IN_CUSTODY"}},
+		Handover:  &ProviderHandover{Stage: "DELIVERY", Status: "ACTIVE"},
+	}
+
+	result, err := NewService(repository, nil).GetProviderTripDetail(context.Background(), tripID, providerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Mission == nil || result.Mission.MissionID != "mission-1" {
+		t.Fatalf("mission projection missing: %+v", result.Mission)
+	}
+	if len(result.Mission.AllowedActions) == 0 {
+		t.Fatal("expected server-owned allowed actions")
+	}
 }
 
 func (r *fakeRepository) GetAssignedTripForProvider(_ context.Context, providerID string) (*Trip, error) {

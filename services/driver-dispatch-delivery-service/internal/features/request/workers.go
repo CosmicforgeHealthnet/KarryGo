@@ -101,7 +101,7 @@ func (w *Worker) HandleSendPush(ctx context.Context, task *asynq.Task) error {
 	err := w.service.notifications.SendRequestBroadcast(ctx, payload.ProviderID, RequestPushPayload{
 		InboxID: payload.InboxID, BroadcastID: payload.BroadcastID, BookingID: payload.BookingID,
 		FareAmount: payload.FareAmount, PickupAddress: payload.PickupAddress, DropoffAddress: payload.DropoffAddress,
-		PackageDesc: payload.PackageDesc, ReceiverName: payload.ReceiverName, ExpiresIn: payload.ExpiresIn, Type: "new_request",
+		PackageDesc: payload.PackageDesc, ReceiverName: "", ExpiresIn: payload.ExpiresIn, Type: "new_request",
 	})
 	if errors.Is(err, ErrNoFCMToken) {
 		log.Printf("request send push skipped provider_id=%s inbox_id=%s: no FCM token", payload.ProviderID, payload.InboxID)

@@ -1084,6 +1084,15 @@ func Test7_StateLogRecordsTransitions(t *testing.T) {
 func currentTripCode(env *tripFGHEnv, tripID string) Trip {
 	for _, tr := range env.repo.trips {
 		if tr.ID == tripID {
+			pickup, err := env.svc.compatibilityPickupView(tr)
+			if err != nil {
+				panic(err)
+			}
+			tr.PickupCode = pickup.Code
+			tr.DeliveryCode, err = env.svc.DecodeDeliveryCode(tr.ID, tr.DeliveryCode)
+			if err != nil {
+				panic(err)
+			}
 			return tr
 		}
 	}

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/shared/go/browserauth"
 	"cosmicforge/logistics/shared/go/redisx"
 )
 
@@ -60,6 +61,7 @@ func (c ClientConfig) Configured() bool {
 // Config is the validated service configuration.
 type Config struct {
 	AppEnv        string
+	BrowserPolicy browserauth.Policy
 	HTTPAddr      string
 	Migration     bool
 	WorkerEnabled bool
@@ -858,6 +860,11 @@ func Load() (Config, error) {
 		"route-optimization-service":       {BaseURL: getEnv("FLEET_PARTNER_ROUTE_OPTIMIZATION_SERVICE_BASE_URL", ""), Secret: secret("FLEET_PARTNER_ROUTE_OPTIMIZATION_SERVICE_SECRET")},
 	}
 
+	browserPolicy, err := browserauth.Load("FLEET_PARTNER_AUTH", cfg.AppEnv, "karrygo_fleet_refresh", "/fleet-partner/v1/auth")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.BrowserPolicy = browserPolicy
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}

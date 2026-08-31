@@ -147,8 +147,9 @@ func (r *fakeSessionRepo) CreateSession(_ context.Context, p CreateSessionParams
 	defer r.mu.Unlock()
 	r.seq++
 	r.byHash[p.TokenHash] = &Session{
-		ID: "sess-" + strconv.Itoa(r.seq), PartnerID: p.PartnerID, TokenHash: p.TokenHash,
-		ExpiresAt: p.ExpiresAt, CreatedAt: time.Now(),
+		ID: p.ID, PartnerID: p.PartnerID, TokenHash: p.TokenHash,
+		RefreshHash: p.RefreshHash,
+		ExpiresAt:   p.ExpiresAt, CreatedAt: time.Now(),
 	}
 	return nil
 }
@@ -172,6 +173,47 @@ func (r *fakeSessionRepo) Revoke(_ context.Context, hash string) error {
 		s.RevokedAt = &now
 	}
 	return nil
+}
+
+func (r *fakeSessionRepo) FindByRefreshHash(_ context.Context, hash string) (*Session, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, s := range r.byHash {
+		if s.RefreshHash == hash {
+			cp := *s
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+func (r *fakeSessionRepo) Rotate(_ context.Context, old string, p CreateSessionParams, now time.Time) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key, s := range r.byHash {
+		if s.ID == p.ID && s.RefreshHash == old && s.PartnerID == p.PartnerID && s.RevokedAt == nil && now.Before(s.ExpiresAt) {
+			delete(r.byHash, key)
+			s.TokenHash = p.TokenHash
+			s.RefreshHash = p.RefreshHash
+			s.ExpiresAt = p.ExpiresAt
+			r.byHash[p.TokenHash] = s
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (r *fakeSessionRepo) RevokeSession(_ context.Context, sessionID string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, s := range r.byHash {
+		if s.ID == sessionID {
+			if s.RevokedAt == nil {
+				now := time.Now()
+				s.RevokedAt = &now
+			}
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // --- fakeKeyStore ------------------------------------------------------------

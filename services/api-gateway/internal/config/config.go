@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/shared/go/browserauth"
 	"cosmicforge/logistics/shared/go/redisx"
 )
 
@@ -44,8 +45,10 @@ type WalletConfig struct {
 
 // PartnerAuthConfig holds partner dashboard auth + internal service settings.
 type PartnerAuthConfig struct {
+	BrowserPolicy      browserauth.Policy
+	RefreshTTL         time.Duration
 	JWTSecret          string        // PARTNER_JWT_SECRET (dashboard sessions only)
-	JWTTTL             time.Duration // derived from PARTNER_JWT_TTL_HOURS (default 24h)
+	JWTTTL             time.Duration // PARTNER_ACCESS_TTL_MINUTES, capped at 15 minutes
 	InternalServiceKey string        // PARTNER_INTERNAL_SERVICE_KEY (internal routes only)
 }
 
@@ -85,6 +88,18 @@ type BillingConfig struct {
 }
 
 func Load() Config {
+	// Disabled Partner deployments must not change unrelated Gateway startup.
+	var policy browserauth.Policy
+	if os.Getenv("API_GATEWAY_DATABASE_URL") != "" || os.Getenv("PARTNER_AUTH_WEB_ORIGINS") != "" || getEnv("APP_ENV", "development") == "development" {
+		var err error
+		policy, err = browserauth.Load("PARTNER_AUTH", getEnv("APP_ENV", "development"), "karrygo_partner_refresh", "/api/v1/partner/v1/auth")
+		if err != nil {
+			panic(err)
+		}
+		if getEnv("APP_ENV", "development") != "development" && getEnv("APP_ENV", "development") != "test" && len(os.Getenv("PARTNER_JWT_SECRET")) < 32 {
+			panic("PARTNER_JWT_SECRET must contain at least 32 bytes")
+		}
+	}
 	return Config{
 		AppEnv:      getEnv("APP_ENV", "development"),
 		HTTPAddr:    getEnv("HTTP_ADDR", ":8080"),
@@ -103,8 +118,10 @@ func Load() Config {
 		WebhookMaxRetries:      getEnvInt("WEBHOOK_MAX_RETRIES", 5),
 		WebhookDeliveryTimeout: time.Duration(getEnvInt("WEBHOOK_DELIVERY_TIMEOUT_SECONDS", 30)) * time.Second,
 		PartnerAuth: PartnerAuthConfig{
+			BrowserPolicy:      policy,
+			RefreshTTL:         time.Duration(getEnvInt("PARTNER_REFRESH_TTL_HOURS", 720)) * time.Hour,
 			JWTSecret:          os.Getenv("PARTNER_JWT_SECRET"),
-			JWTTTL:             time.Duration(getEnvInt("PARTNER_JWT_TTL_HOURS", 24)) * time.Hour,
+			JWTTTL:             time.Duration(getEnvInt("PARTNER_ACCESS_TTL_MINUTES", 15)) * time.Minute,
 			InternalServiceKey: os.Getenv("PARTNER_INTERNAL_SERVICE_KEY"),
 		},
 		PartnerOTP: PartnerOTPConfig{

@@ -229,6 +229,7 @@ func fingerprint(request commercequote.Request) string {
 		Class    commercequote.VehicleClass `json:"class"`
 		PLat     float64                    `json:"p_lat"`
 		PLng     float64                    `json:"p_lng"`
+		Stops    []commercequote.PickupStop `json:"stops,omitempty"`
 		DLat     float64                    `json:"d_lat"`
 		DLng     float64                    `json:"d_lng"`
 		Load     commercequote.Load         `json:"load"`
@@ -238,6 +239,7 @@ func fingerprint(request commercequote.Request) string {
 		Class:    request.VehicleClass,
 		PLat:     request.Pickup.Latitude,
 		PLng:     request.Pickup.Longitude,
+		Stops:    request.PickupStops,
 		DLat:     request.Dropoff.Latitude,
 		DLng:     request.Dropoff.Longitude,
 		Load:     request.Load,
@@ -261,14 +263,15 @@ func (s *Service) refuse(
 	distanceKm float64,
 	availableProviders int,
 ) Record {
+	pickup := firstPickup(request)
 	return Record{
 		ID:                 "hq_" + uuid.NewString(),
 		QuoteReference:     strings.TrimSpace(request.QuoteReference),
 		Revision:           1,
 		RequestFingerprint: fingerprint(request),
 		VehicleClass:       string(request.VehicleClass),
-		PickupLatitude:     request.Pickup.Latitude,
-		PickupLongitude:    request.Pickup.Longitude,
+		PickupLatitude:     pickup.Latitude,
+		PickupLongitude:    pickup.Longitude,
 		DropoffLatitude:    request.Dropoff.Latitude,
 		DropoffLongitude:   request.Dropoff.Longitude,
 		PackageCount:       request.Load.PackageCount,
@@ -359,10 +362,7 @@ func (s *Service) evaluate(
 		eligibleTypes = []string{"refrigerated"}
 	}
 
-	distance := haversineKm(
-		request.Pickup.Latitude, request.Pickup.Longitude,
-		request.Dropoff.Latitude, request.Dropoff.Longitude,
-	)
+	distance := routeDistanceKm(request)
 
 	if math.IsNaN(distance) || math.IsInf(distance, 0) {
 		return s.refuse(request, commercequote.ReasonInvalidRoute, 0, 0), nil
@@ -403,6 +403,8 @@ func (s *Service) evaluate(
 
 	truckType := eligibleTypes[0]
 
+	pickup := firstPickup(request)
+
 	return Record{
 		ID:                 "hq_" + uuid.NewString(),
 		QuoteReference:     strings.TrimSpace(request.QuoteReference),
@@ -410,8 +412,8 @@ func (s *Service) evaluate(
 		RequestFingerprint: fingerprint(request),
 		VehicleClass:       string(request.VehicleClass),
 		TruckType:          truckType,
-		PickupLatitude:     request.Pickup.Latitude,
-		PickupLongitude:    request.Pickup.Longitude,
+		PickupLatitude:     pickup.Latitude,
+		PickupLongitude:    pickup.Longitude,
 		DropoffLatitude:    request.Dropoff.Latitude,
 		DropoffLongitude:   request.Dropoff.Longitude,
 		PackageCount:       request.Load.PackageCount,
@@ -450,9 +452,10 @@ func (s *Service) countEligible(
 		allowed[truckType] = true
 	}
 
+	pickup := firstPickup(request)
 	for _, provider := range providers {
 		if haversineKm(
-			request.Pickup.Latitude, request.Pickup.Longitude,
+			pickup.Latitude, pickup.Longitude,
 			provider.Lat, provider.Lng,
 		) > s.maxRadiusKm {
 			continue
@@ -518,6 +521,32 @@ func toQuote(record Record) commercequote.Quote {
 	}
 
 	return quote
+}
+
+func firstPickup(request commercequote.Request) commercequote.Point {
+	if len(request.PickupStops) > 0 {
+		return request.PickupStops[0].Location
+	}
+	return request.Pickup
+}
+
+func routeDistanceKm(request commercequote.Request) float64 {
+	if len(request.PickupStops) == 0 {
+		return haversineKm(
+			request.Pickup.Latitude, request.Pickup.Longitude,
+			request.Dropoff.Latitude, request.Dropoff.Longitude,
+		)
+	}
+
+	previous := request.PickupStops[0].Location
+	var total float64
+	for index := 1; index < len(request.PickupStops); index++ {
+		next := request.PickupStops[index].Location
+		total += haversineKm(previous.Latitude, previous.Longitude, next.Latitude, next.Longitude)
+		previous = next
+	}
+	total += haversineKm(previous.Latitude, previous.Longitude, request.Dropoff.Latitude, request.Dropoff.Longitude)
+	return total
 }
 
 // haversineKm mirrors the matcher's own distance function (Earth radius

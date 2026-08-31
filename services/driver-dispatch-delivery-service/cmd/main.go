@@ -27,6 +27,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/providercompat"
@@ -43,6 +44,7 @@ func main() {
 	}
 
 	ctx := context.Background()
+	observability.InstallDependencyTransport(map[string]string{"wallet": cfg.WalletServiceURL, "notification": cfg.NotificationURL, "media": cfg.MediaFileBaseURL, "vendor": cfg.VendorServiceURL, "fleet": cfg.FleetServiceURL, "analytics": cfg.AnalyticsURL, "routing": cfg.RouteServiceURL})
 	db, err := connectPostgresWithRetry(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("connect dispatch delivery postgres: %v", err)
@@ -62,6 +64,7 @@ func main() {
 		BaseURL:     cfg.WalletServiceURL,
 		ServiceName: cfg.WalletServiceSource,
 		Secret:      cfg.WalletServiceSecret,
+		HTTPClient:  &http.Client{Timeout: cfg.ExternalServiceTimeout},
 	}
 
 	// media-file-service client for *_STORAGE_MODE=media (production-ready
@@ -131,7 +134,7 @@ func main() {
 
 	// Lifecycle notifier: sends customer/rider notifications via
 	// notification-service. No-op when DISPATCH_NOTIFICATION_URL/SECRET unset.
-	bookingNotifier := bookingclients.NewBookingNotifier(cfg.NotificationURL, cfg.NotificationSecret)
+	bookingNotifier := bookingclients.NewBookingNotifier(cfg.NotificationURL, cfg.NotificationSecret).WithDurableLifecycle()
 	if cfg.NotificationURL != "" {
 		log.Printf("notification-service integration enabled url=%s", cfg.NotificationURL)
 	} else {
@@ -207,7 +210,16 @@ func main() {
 		cfg.AvailabilityRadiusKM,
 	).WithNotifier(bookingNotifier)
 	bookingService.WithCommerceSettlement(bookingfeature.NewWalletCommerceSettlementClient(walletClient))
+	tripService.WithSettlementReconciler(bookingService, tripfeature.SettlementRetryPolicy{
+		Lease: cfg.ExternalOperationLease, MaxAttempts: cfg.ExternalOperationRetryLimit,
+		BaseBackoff: cfg.ExternalOperationBackoffBase, MaxBackoff: cfg.ExternalOperationBackoffMax,
+	})
 	bookingfeature.StartSubscribers(ctx, redisClient, bookingService)
+	go bookingService.RunHoldReconciliationWorker(ctx, cfg.RecoveryWorkerInterval, bookingfeature.HoldRetryPolicy{
+		Lease: cfg.ExternalOperationLease, MaxAttempts: cfg.ExternalOperationRetryLimit,
+		AbandonAfter: 2*cfg.ExternalServiceTimeout + cfg.ExternalOperationLease,
+		BaseBackoff:  cfg.ExternalOperationBackoffBase, MaxBackoff: cfg.ExternalOperationBackoffMax,
+	})
 
 	asynqServer := asynq.NewServer(asynqRedis, asynq.Config{
 		Concurrency: 10,
@@ -223,7 +235,7 @@ func main() {
 
 	// Organization marketplace relay worker. Returns a no-op stopper when the
 	// feature flag is off or the fleet client is unconfigured.
-	stopMarketplaceWorkers := router.StartMarketplaceWorkers(ctx, cfg, db)
+	stopMarketplaceWorkers := router.StartMarketplaceWorkersWithAssignment(ctx, cfg, db, availability.NewRedisLiveStore(redisClient), bookingService, tripService)
 	// Re-adopt broadcasts stranded mid-window by a crash before their expire
 	// task was scheduled (idempotent — the worker re-checks state).
 	go func() {

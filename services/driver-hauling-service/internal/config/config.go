@@ -55,6 +55,8 @@ type Config struct {
 	ServiceSecrets                  string
 	FleetIntegrationEnabled         bool
 	FleetIntegrationKillSwitch      bool
+	CommerceIntegrationEnabled      bool
+	CommerceIntegrationKillSwitch   bool
 	FleetAllowedCallers             string
 	OutboxWorkerEnabled             bool
 	FleetEventURL                   string
@@ -128,6 +130,8 @@ func Load() Config {
 		ServiceSecrets:                  os.Getenv("HAULING_SERVICE_SECRETS"),
 		FleetIntegrationEnabled:         getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),
 		FleetIntegrationKillSwitch:      getEnvBool("HAULING_FLEET_INTEGRATION_KILL_SWITCH", false),
+		CommerceIntegrationEnabled:      getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", true),
+		CommerceIntegrationKillSwitch:   getEnvBool("HAULING_COMMERCE_INTEGRATION_KILL_SWITCH", false),
 		FleetAllowedCallers:             getEnv("HAULING_FLEET_ALLOWED_CALLERS", "fleet-partner-service"),
 		OutboxWorkerEnabled:             getEnvBool("HAULING_OUTBOX_WORKER_ENABLED", false),
 		FleetEventURL:                   os.Getenv("HAULING_FLEET_EVENT_URL"),

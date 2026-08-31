@@ -1763,3 +1763,10 @@ claim or compensation feature.
   is not authorized for the exact mission/Parcel, request a new private upload;
   never turn the ref into a public URL or attach it to another mission.
 - No frontend capability is implemented by this security repair.
+## Section 30 Truck / Hauling Commerce UX notes
+
+No provider/customer UI was implemented in Section 30. Future UX should render
+Hauling as a platform fulfilment option selected by backend checkout planning.
+Do not expose internal operation refs as user-editable values. Display
+customer-safe refusal/unavailable/cancel-blocked states and preserve scheduled
+pickup-window timezone wording from the backend response.

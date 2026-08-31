@@ -65,7 +65,7 @@ func TestReadyErrorUsesStandardResponseShapeWithRequestID(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
-	req.Header.Set("X-Request-ID", "ready-req-123")
+	req.Header.Set("X-Request-ID", "038c2fbc-cac0-473b-b04d-8a1ca0679f51")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -86,8 +86,8 @@ func TestReadyErrorUsesStandardResponseShapeWithRequestID(t *testing.T) {
 	if errorObj["code"] != string(apperrors.CodeUnavailable) {
 		t.Fatalf("code = %v, want service_unavailable", errorObj["code"])
 	}
-	if errorObj["request_id"] != "ready-req-123" {
-		t.Fatalf("request_id = %v, want ready-req-123", errorObj["request_id"])
+	if errorObj["request_id"] != "038c2fbc-cac0-473b-b04d-8a1ca0679f51" {
+		t.Fatalf("request_id = %v, want original valid UUID", errorObj["request_id"])
 	}
 	if _, ok := errorObj["fields"]; ok {
 		t.Fatalf("non-validation error must not include fields: %v", errorObj["fields"])
@@ -105,7 +105,7 @@ func TestInternalErrorUsesStandardResponseShapeWithRequestID(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
-	req.Header.Set("X-Request-ID", "internal-req-123")
+	req.Header.Set("X-Request-ID", "92d9ed81-d3d0-49a2-8f7b-6990794c53d3")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -123,8 +123,8 @@ func TestInternalErrorUsesStandardResponseShapeWithRequestID(t *testing.T) {
 	if errorObj["code"] != string(apperrors.CodeInternal) {
 		t.Fatalf("code = %v, want internal_error", errorObj["code"])
 	}
-	if errorObj["request_id"] != "internal-req-123" {
-		t.Fatalf("request_id = %v, want internal-req-123", errorObj["request_id"])
+	if errorObj["request_id"] != "92d9ed81-d3d0-49a2-8f7b-6990794c53d3" {
+		t.Fatalf("request_id = %v, want original valid UUID", errorObj["request_id"])
 	}
 }
 

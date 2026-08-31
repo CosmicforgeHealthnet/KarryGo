@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -143,6 +144,94 @@ func (c *Client) CreateMission(ctx context.Context, request Request) (Mission, e
 
 	if err = VerifyMission(request, envelope.Data); err != nil {
 		return Mission{}, err
+	}
+	return envelope.Data, nil
+}
+
+// ReadMission resolves the caller's stable operation reference after an
+// unknown create/cancel outcome. It is deliberately read-only and still signed,
+// so only the allowed commerce caller can observe the mission.
+func (c *Client) ReadMission(ctx context.Context, operationRef string) (Mission, error) {
+	if !c.Configured() {
+		return Mission{}, ErrNotConfigured
+	}
+	operationRef = strings.TrimSpace(operationRef)
+	if operationRef == "" {
+		return Mission{}, ErrInvalidRequest
+	}
+	endpoint := c.baseURL + c.apiBase + OperationPath + "/" + url.PathEscape(operationRef)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return Mission{}, err
+	}
+	request.Header.Set("Accept", "application/json")
+	if err = serviceauth.SignRequest(request, SignatureCaller, c.secret, nil, time.Now()); err != nil {
+		return Mission{}, err
+	}
+	return c.doMission(request)
+}
+
+func (c *Client) CancelMission(ctx context.Context, request CancelRequest) (Mission, error) {
+	if !c.Configured() {
+		return Mission{}, ErrNotConfigured
+	}
+	operationRef := strings.TrimSpace(request.OperationRef)
+	if operationRef == "" {
+		operationRef = strings.TrimSpace(request.MissionRef)
+		request.OperationRef = operationRef
+	}
+	if operationRef == "" {
+		return Mission{}, ErrInvalidRequest
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		return Mission{}, err
+	}
+	endpoint := c.baseURL + c.apiBase + OperationPath + "/" + url.PathEscape(operationRef) + "/cancel"
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return Mission{}, err
+	}
+	httpRequest.Header.Set("Content-Type", "application/json")
+	httpRequest.Header.Set("Accept", "application/json")
+	httpRequest.Header.Set("Idempotency-Key", operationRef+"-cancel")
+	if err = serviceauth.SignRequest(httpRequest, SignatureCaller, c.secret, body, time.Now()); err != nil {
+		return Mission{}, err
+	}
+	mission, err := c.doMission(httpRequest)
+	if err != nil {
+		return Mission{}, err
+	}
+	if strings.TrimSpace(mission.MissionRef) == "" || strings.TrimSpace(mission.ExternalRef) == "" {
+		return Mission{}, ErrMissionMismatch
+	}
+	return mission, nil
+}
+
+func (c *Client) doMission(request *http.Request) (Mission, error) {
+	response, err := c.http.Do(request)
+	if err != nil {
+		return Mission{}, fmt.Errorf("%w: %v", ErrAuthorityUnavailable, err)
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
+	if err != nil {
+		return Mission{}, fmt.Errorf("%w: %v", ErrAuthorityUnavailable, err)
+	}
+	var envelope Envelope
+	if err = json.Unmarshal(raw, &envelope); err != nil {
+		return Mission{}, fmt.Errorf("%w: malformed response", ErrAuthorityUnavailable)
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 || !envelope.Success {
+		message := strings.TrimSpace(envelope.Error.Message)
+		if message == "" {
+			message = fmt.Sprintf("status %d", response.StatusCode)
+		}
+		if response.StatusCode == http.StatusNotFound ||
+			(response.StatusCode >= 400 && response.StatusCode < 500) {
+			return Mission{}, fmt.Errorf("%w: %s", ErrInvalidRequest, message)
+		}
+		return Mission{}, fmt.Errorf("%w: %s", ErrAuthorityUnavailable, message)
 	}
 	return envelope.Data, nil
 }

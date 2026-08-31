@@ -130,6 +130,43 @@ func TestQuote_ServiceableVan(t *testing.T) {
 	}
 }
 
+func TestQuote_ServiceableTruckMultiStopScheduledRoute(t *testing.T) {
+	request := baseRequest()
+	request.VehicleClass = commercequote.VehicleTruck
+	request.PickupStops = []commercequote.PickupStop{{
+		StopRef:  "stop_a",
+		Location: commercequote.Point{Latitude: 6.4550, Longitude: 3.4100, Address: "Branch A"},
+		ReadyWindow: commercequote.ReadyWindow{
+			From: time.Unix(3600, 0).UTC(), To: time.Unix(7200, 0).UTC(), Timezone: "Africa/Lagos",
+		},
+	}, {
+		StopRef:  "stop_b",
+		Location: commercequote.Point{Latitude: 6.4600, Longitude: 3.4200, Address: "Branch B"},
+	}}
+
+	quote, err := newService(
+		newFakeStore(),
+		fakeAvailability{providers: []availabilityrepositories.ProviderStatus{
+			nearProvider("p1", "t1"),
+		}},
+		fakeTrucks{trucks: map[string]TruckInfo{
+			"t1": {TruckType: "flatbed", CapacityKg: 5000, Status: "active"},
+		}},
+	).Quote(context.Background(), "vendor-service", request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !quote.Serviceable {
+		t.Fatalf("truck multi-stop quote refused: %s", quote.ReasonCode)
+	}
+	if quote.VehicleClass != commercequote.VehicleTruck {
+		t.Fatalf("class=%s", quote.VehicleClass)
+	}
+	if quote.DistanceKm <= 0 {
+		t.Fatalf("distance missing")
+	}
+}
+
 // A motorcycle asked of hauling belongs to dispatch, and saying so is what
 // keeps the two services from both claiming the same class.
 func TestQuote_MotorcycleIsUnsupportedHere(t *testing.T) {

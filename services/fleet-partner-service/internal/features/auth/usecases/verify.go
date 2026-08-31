@@ -41,7 +41,7 @@ type VerifyInput struct {
 // TokenPair is an issued access + refresh token pair.
 type TokenPair struct {
 	AccessToken      string
-	RefreshToken     string
+	RefreshToken     string `json:"-"`
 	AccessExpiresAt  time.Time
 	RefreshExpiresAt time.Time
 	SessionID        string

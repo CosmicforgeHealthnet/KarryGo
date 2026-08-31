@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/browserauth"
 	"cosmicforge/logistics/shared/go/serviceauth"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
@@ -29,7 +30,7 @@ func buildAuthRouter(t *testing.T) (*gin.Engine, *authHarness) {
 	gin.SetMode(gin.TestMode)
 	h := newAuthHarness(t, nil)
 
-	handler := authhttp.NewHandler(h.service, []byte("test-contact-secret"))
+	handler := authhttp.NewHandler(h.service, []byte("test-contact-secret"), browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode, Origins: []string{"https://fleet.example.test"}})
 	router := app.BuildRouter(app.Options{
 		Config: config.Config{
 			AppEnv: "test", MetricsEnabled: true, MetricsAuthToken: "metrics-token",
@@ -53,6 +54,7 @@ func postJSON(router *gin.Engine, path string, body any, headers map[string]stri
 	encoded, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(encoded))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://fleet.example.test")
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
@@ -148,8 +150,12 @@ func TestAuthVerifyHTTPIssuesSessionAndEnvelope(t *testing.T) {
 		t.Fatalf("nextStep = %v", data["nextStep"])
 	}
 	tokens, ok := data["tokens"].(map[string]any)
-	if !ok || tokens["accessToken"] == "" || tokens["refreshToken"] == "" {
+	if !ok || tokens["accessToken"] == "" || tokens["refreshToken"] != nil {
 		t.Fatalf("tokens missing: %v", data)
+	}
+	cookies := resp.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Value == "" || !cookies[0].HttpOnly || !cookies[0].Secure || cookies[0].Path != "/fleet-partner/v1/auth" || cookies[0].SameSite != http.SameSiteLaxMode {
+		t.Fatal("invalid refresh cookie")
 	}
 
 	// Wrong code returns the canonical error envelope.
@@ -172,7 +178,6 @@ func TestAuthenticatedRoutesRequireBearer(t *testing.T) {
 	router, _ := buildAuthRouter(t)
 
 	for _, path := range []string{
-		"/fleet-partner/v1/auth/logout",
 		"/fleet-partner/v1/auth/select-organization",
 	} {
 		resp := postJSON(router, path, map[string]string{}, nil)
@@ -231,14 +236,20 @@ func TestLogoutHTTPIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}
-	token := signTestAccessToken(t, result.IdentityID, result.Tokens.SessionID)
-
 	for attempt := 0; attempt < 2; attempt++ {
 		resp := postJSON(router, "/fleet-partner/v1/auth/logout", map[string]string{},
-			map[string]string{"Authorization": "Bearer " + token})
+			map[string]string{"Cookie": "karrygo_fleet_refresh=" + result.Tokens.RefreshToken})
 		if resp.Code != http.StatusOK {
 			t.Fatalf("logout attempt %d = %d; body=%s", attempt, resp.Code, resp.Body.String())
 		}
+		cookies := resp.Result().Cookies()
+		if len(cookies) != 1 || cookies[0].MaxAge >= 0 {
+			t.Fatal("logout must expire cookie")
+		}
+	}
+	resp := postJSON(router, "/fleet-partner/v1/auth/refresh", nil, map[string]string{"Cookie": "karrygo_fleet_refresh=" + result.Tokens.RefreshToken})
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked refresh status %d", resp.Code)
 	}
 }
 

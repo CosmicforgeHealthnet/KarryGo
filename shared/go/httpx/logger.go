@@ -23,16 +23,15 @@ const (
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		path := c.Request.URL.Path
-		if c.Request.URL.RawQuery != "" {
-			path = path + "?" + c.Request.URL.RawQuery
-		}
-
 		c.Next()
+		path := c.FullPath()
+		if path == "" {
+			path = "unmatched"
+		}
 
 		latency := time.Since(start)
 		status := c.Writer.Status()
-		requestID := GetRequestID(c)
+		requestID := LogRequestID(c)
 
 		color := statusColor(status)
 		method := methodColor(c.Request.Method)

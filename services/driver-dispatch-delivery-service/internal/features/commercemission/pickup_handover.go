@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/dispatchcommerce"
 	"cosmicforge/logistics/shared/go/handover"
@@ -41,14 +42,20 @@ func (s *MultiStopMissionService) ArrivePickup(ctx context.Context, providerID, 
 		if err = json.Unmarshal(raw, &credential); err != nil {
 			return dispatchcommerce.PickupCredential{}, err
 		}
-		return credential, nil
+		credential.Code, err = securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), credential.Code)
+		return credential, err
 	}
 	now := s.now().UTC()
-	record, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), now)
+	record, err := securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), now)
 	if err != nil {
 		return dispatchcommerce.PickupCredential{}, apperrors.New(503, "OTP_DEPENDENCY_UNAVAILABLE", "Pickup handover verification is unavailable.", err)
 	}
-	return s.store.(*Repository).ArrivePickup(ctx, providerID, missionRef, stopRef, request.OperationRef, fingerprint, request.ExpectedVersion, record, now)
+	credential, err := s.store.(*Repository).ArrivePickup(ctx, providerID, missionRef, stopRef, request.OperationRef, fingerprint, request.ExpectedVersion, record, now)
+	if err != nil {
+		return dispatchcommerce.PickupCredential{}, err
+	}
+	credential.Code, err = securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), credential.Code)
+	return credential, err
 }
 
 func (s *MultiStopMissionService) VerifyPickup(ctx context.Context, caller, missionRef, stopRef string, request dispatchcommerce.PickupVerificationRequest) (dispatchcommerce.Mission, error) {
@@ -62,6 +69,7 @@ func (s *MultiStopMissionService) VerifyPickup(ctx context.Context, caller, miss
 		Mission, Stop, Code string
 		Version             int64
 	}{missionRef, stopRef, request.Code, request.ExpectedVersion})
+	fingerprint = handover.HashCode(s.handoverSecret, "dispatch-fingerprint:pickup", fingerprint)
 	return s.store.(*Repository).VerifyPickup(ctx, caller, missionRef, stopRef, request.OperationRef, fingerprint, request.ExpectedVersion, request.Code, s.handoverSecret, s.now().UTC())
 }
 
@@ -108,7 +116,7 @@ func (s *MultiStopMissionService) CompletePickup(ctx context.Context, providerID
 	}{missionRef, stopRef, providerID, request})
 	var delivery handover.CodeRecord
 	if len(mission.Stops) > 0 && mission.TripRef != "" {
-		delivery, err = handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, mission.TripRef), s.now().UTC())
+		delivery, err = securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, mission.TripRef), s.now().UTC())
 		if err != nil {
 			return dispatchcommerce.Mission{}, apperrors.New(503, "OTP_DEPENDENCY_UNAVAILABLE", "Receiver handover verification is unavailable.", err)
 		}
@@ -125,7 +133,7 @@ func (s *MultiStopMissionService) CompletePickup(ctx context.Context, providerID
 		customerID, bookingID, persistedCode, expiresAt, lookupErr := s.store.(*Repository).CommerceNotificationRecipient(ctx, missionRef)
 		if lookupErr == nil && customerID != "" && persistedCode != "" {
 			s.notifier.NotifyCustomerDeliveryCodeReady(ctx, customerID, bookingID, map[string]interface{}{
-				"code": persistedCode, "mission_ref": missionRef, "expires_at": expiresAt,
+				"mission_ref": missionRef, "expires_at": expiresAt,
 			})
 		}
 	}

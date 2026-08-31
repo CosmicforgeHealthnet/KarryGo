@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/dispatchcommerce"
 	"cosmicforge/logistics/shared/go/handover"
@@ -82,9 +83,36 @@ func (s *OperationalService) StartProviderTransfer(ctx context.Context, provider
 			return TransferCredential{}, err
 		}
 		result.Replayed = true
-		return result, nil
+		return s.transferCredentialForProvider(ctx, providerID, result)
 	}
-	return s.repo.StartProviderTransfer(ctx, providerID, missionRef, command, fingerprint, s.handoverSecret, s.now().UTC())
+	result, err := s.repo.StartProviderTransfer(ctx, providerID, missionRef, command, fingerprint, s.handoverSecret, s.now().UTC())
+	if err != nil {
+		return TransferCredential{}, err
+	}
+	return s.transferCredentialForProvider(ctx, providerID, result)
+}
+
+func (s *OperationalService) transferCredentialForProvider(ctx context.Context, providerID string, result TransferCredential) (TransferCredential, error) {
+	if result.OldProviderID != providerID {
+		return TransferCredential{}, apperrors.NotFound("Transfer not found.", nil)
+	}
+	if !strings.HasPrefix(result.ChallengeCode, "handover_") {
+		return result, nil
+	} // pre-upgrade active credential
+	var raw []byte
+	if err := s.repo.db.QueryRow(ctx, `SELECT manifest_binding FROM commerce_provider_transfers WHERE transfer_ref=$1 AND old_provider_id=$2::uuid`, result.TransferRef, providerID).Scan(&raw); err != nil {
+		return TransferCredential{}, err
+	}
+	var bindings []transferBinding
+	if err := json.Unmarshal(raw, &bindings); err != nil {
+		return TransferCredential{}, err
+	}
+	fp, err := dispatchcommerce.Fingerprint(bindings)
+	if err != nil {
+		return TransferCredential{}, err
+	}
+	result.ChallengeCode, err = securehandover.CompatibilityCode(s.handoverSecret, transferChallengeID(result.MissionRef, result.TransferRef, result.OldProviderID, result.NewProviderID, fp), result.ChallengeCode)
+	return result, err
 }
 
 func (r *Repository) StartProviderTransfer(ctx context.Context, providerID, missionRef string, command StartTransferCommand, fingerprint string, secret []byte, now time.Time) (TransferCredential, error) {
@@ -126,7 +154,7 @@ func (r *Repository) StartProviderTransfer(ctx context.Context, providerID, miss
 	bindingFingerprint, _ := dispatchcommerce.Fingerprint(bindings)
 	transferRef := "dpt_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	challengeID := transferChallengeID(missionRef, transferRef, oldProvider, newProvider, bindingFingerprint)
-	challenge, err := handover.NewCodeRecord(secret, challengeID, now)
+	challenge, err := securehandover.NewCompatibilityCodeRecord(secret, challengeID, now)
 	if err != nil {
 		return TransferCredential{}, apperrors.New(503, "TRANSFER_HANDOVER_UNAVAILABLE", "Provider transfer handover is unavailable.", err)
 	}
@@ -192,6 +220,7 @@ func (s *OperationalService) CompleteProviderTransfer(ctx context.Context, provi
 		Mission, Transfer, Provider string
 		Command                     CompleteTransferCommand
 	}{missionRef, transferRef, providerID, command})
+	fingerprint = handover.HashCode(s.handoverSecret, "dispatch-fingerprint:provider-transfer", fingerprint)
 	if raw, stored, found, err := s.repo.FindOperation(ctx, "provider:"+providerID, command.OperationRef); err != nil {
 		return dispatchcommerce.Mission{}, err
 	} else if found {
@@ -290,7 +319,7 @@ func (r *Repository) CompleteProviderTransfer(ctx context.Context, providerID, m
 	if err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
-	delivery, err := handover.NewCodeRecord(secret, handover.BuildChallengeID("dispatch", handover.StepDelivery, newTrip), now)
+	delivery, err := securehandover.NewCompatibilityCodeRecord(secret, handover.BuildChallengeID("dispatch", handover.StepDelivery, newTrip), now)
 	if err != nil {
 		return dispatchcommerce.Mission{}, apperrors.New(503, "OTP_DEPENDENCY_UNAVAILABLE", "Receiver handover regeneration is unavailable.", err)
 	}

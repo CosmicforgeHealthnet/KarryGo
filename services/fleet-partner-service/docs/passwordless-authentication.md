@@ -112,6 +112,23 @@ values), so operators can see them without the API disclosing anything.
 
 ## Sessions and refresh tokens
 
+Browser refresh credentials use an HttpOnly, host-only cookie, never JSON.
+Verify and organization selection set `karrygo_fleet_refresh`; refresh reads and
+rotates that cookie; logout revokes its existing session family and expires it.
+Path is `/fleet-partner/v1/auth`, SameSite defaults Lax, and Secure is mandatory
+outside development/test. Expiry matches `FLEET_PARTNER_REFRESH_TOKEN_TTL`.
+Use `credentials: "include"` and a configured trusted Origin; missing/hostile
+Origin fails 403. Preflight permits explicit trusted origins only. Auth responses
+are no-store. There is no JSON refresh-token fallback.
+
+Identity-only onboarding/organization-selection sessions retain their existing
+restricted authority; their refresh credential follows the same cookie boundary.
+Step-up references are not refresh credentials and are not put into this cookie.
+
+`web/partner-web` uses Gateway-owned merchant Partner accounts, NOT these corporate
+identities. See Gateway `docs/browser-authentication.md` for that pre-existing
+authority. No session state is duplicated across the two services.
+
 Access tokens are short-lived HS256 tokens carrying subject, session ID, role
 and service. Refresh tokens are opaque `crypto/rand` values; only their
 HMAC hashes are stored.
@@ -127,6 +144,11 @@ Every refresh re-checks identity status, membership status and organization
 status, so a suspension takes effect at the next rotation rather than
 outliving it.
 
+Browser logout and rotation acquire the existing session family's transaction-
+scoped advisory lock before row locks. Normal logout marks active family rows
+REVOKED, not COMPROMISED; the latter remains reserved for replay containment.
+This prevents revocation's snapshot from missing a concurrently inserted successor.
+
 ## Organization selection
 
 After verification: no membership → `ONBOARDING_REQUIRED`; exactly one →
@@ -134,6 +156,31 @@ an organization-scoped session; several → `ORGANIZATION_SELECTION_REQUIRED`
 plus the allowed organizations. `POST /auth/select-organization` accepts a
 **membershipId** that must belong to the authenticated identity — an
 arbitrary `organizationId` is never trusted.
+
+Organization selection is a continuation of the same browser session family,
+not a new login/family. Before issuing anything, the service resolves the JWT's
+SessionID in PostgreSQL, acquires the persisted family's transaction-scoped
+advisory lock and then locks the source row. It requires the source to belong to
+the authenticated identity, be ACTIVE, unrevoked and unexpired; the identity
+must remain usable and the family must have no compromised history. Membership
+authorization is checked under that transaction, and expiry is checked again
+before rotation. Missing/revoked/expired sources return the existing 401 envelope
+even when the JWT signature and membership are valid.
+
+The source is retired through the existing refresh-rotation repository operation;
+the successor has a new session ID/digest and the same family. Both transition
+history records use `organization_selected`. Cookie logout, session-ID logout,
+user session revocation, refresh and replay containment follow the same
+family-before-row lock ordering. If logout wins, selection cannot issue; if
+selection wins, logout using the originating credential/ID also revokes the
+successor. A spent refresh token still triggers family compromise containment.
+
+The earlier cookie implementation did not check the persistent source on this
+path and created an unrelated family; its logout-completeness claim was therefore
+overstated. Focused source-validation tests now exist, as do deterministic
+PostgreSQL organization-selection/logout/replay race tests. Those database tests
+require `FLEET_PARTNER_TEST_DATABASE_URL`; absence is a certification blocker,
+not a runtime PASS. Deployed HTTPS/browser certification remains separate.
 
 ## Step-up
 

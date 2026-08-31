@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
+import { SessionBootstrap } from "@/components/session-bootstrap";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -19,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geist.variable} antialiased`}>{children}</body>
+      <body className={`${geist.variable} antialiased`}><SessionBootstrap>{children}</SessionBootstrap></body>
     </html>
   );
 }

@@ -214,7 +214,15 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (*TokenPair, 
 // token is replayed, so an attacker holding a stolen token loses every
 // descendant session — including the one the legitimate user is holding.
 func (s *Service) containRefreshReuse(ctx context.Context, session *models.Session, input RefreshInput) {
-	count, err := s.opts.Sessions.RevokeFamily(ctx, s.opts.Pool, session.SessionFamilyID, "refresh_token_reuse")
+	var count int64
+	err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Sessions.LockFamily(ctx, tx, session.SessionFamilyID); err != nil {
+			return err
+		}
+		var err error
+		count, err = s.opts.Sessions.RevokeFamily(ctx, tx, session.SessionFamilyID, "refresh_token_reuse")
+		return err
+	})
 	if err != nil {
 		return
 	}
@@ -227,11 +235,38 @@ func (s *Service) containRefreshReuse(ctx context.Context, session *models.Sessi
 	s.opts.Metrics.IncCounter("fleet_partner_refresh_reuse_detected_total", nil, 1)
 }
 
-// Logout revokes the current session. It is idempotent: logging out twice
+// LogoutRefresh resolves the browser credential through the existing session
+// authority. Retired credentials revoke the same family, including a successor
+// that won a concurrent refresh; no cookie secret is stored in history.
+func (s *Service) LogoutRefresh(ctx context.Context, token, requestID, correlationID string) error {
+	if token == "" {
+		return nil
+	}
+	hash := auth.HashRefreshToken(s.opts.SessionSecret, token)
+	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		session, err := s.opts.Sessions.LockByRefreshHash(ctx, tx, hash)
+		if errors.Is(err, authrepos.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		count, err := s.opts.Sessions.LogoutFamily(ctx, tx, session.SessionFamilyID)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			return nil
+		}
+		return s.opts.Sessions.AppendHistory(ctx, tx, session.ID, session.IdentityID, session.Status, models.SessionStatusRevoked, "logout", requestID, correlationID)
+	})
+}
+
+// Logout revokes the current browser session family. It is idempotent: logging out twice
 // succeeds both times.
 func (s *Service) Logout(ctx context.Context, sessionID string, identityID string, requestID string, correlationID string) error {
 	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
-		session, err := s.opts.Sessions.GetByID(ctx, sessionID)
+		session, err := s.opts.Sessions.LockByID(ctx, tx, sessionID)
 		if err != nil {
 			if errors.Is(err, authrepos.ErrNotFound) {
 				return nil // already gone
@@ -242,14 +277,15 @@ func (s *Service) Logout(ctx context.Context, sessionID string, identityID strin
 			// Never reveal that someone else's session exists.
 			return nil
 		}
-		if session.Status != models.SessionStatusActive {
-			return nil
-		}
-		if err := s.opts.Sessions.Revoke(ctx, tx, sessionID, "logout"); err != nil {
+		count, err := s.opts.Sessions.LogoutFamily(ctx, tx, session.SessionFamilyID)
+		if err != nil {
 			return err
 		}
+		if count == 0 {
+			return nil
+		}
 		s.opts.Metrics.IncCounter("fleet_partner_sessions_revoked_total", map[string]string{"reason": "logout"}, 1)
-		return s.opts.Sessions.AppendHistory(ctx, tx, sessionID, identityID, models.SessionStatusActive, models.SessionStatusRevoked, "logout", requestID, correlationID)
+		return s.opts.Sessions.AppendHistory(ctx, tx, sessionID, identityID, session.Status, models.SessionStatusRevoked, "logout", requestID, correlationID)
 	})
 }
 
@@ -258,22 +294,26 @@ func (s *Service) ListSessions(ctx context.Context, identityID string) ([]models
 	return s.opts.Sessions.ListForIdentity(ctx, identityID)
 }
 
-// RevokeSession revokes one of the caller's own sessions. A session belonging
+// RevokeSession revokes one of the caller's own logical browser session families. A session belonging
 // to another identity is reported as not found.
 func (s *Service) RevokeSession(ctx context.Context, identityID string, sessionID string, requestID string, correlationID string) error {
-	session, err := s.opts.Sessions.GetByID(ctx, sessionID)
-	if err != nil {
+	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		session, err := s.opts.Sessions.LockByID(ctx, tx, sessionID)
 		if errors.Is(err, authrepos.ErrNotFound) {
 			return apperrors.NotFound("Session not found.", nil)
 		}
-		return err
-	}
-	if session.IdentityID != identityID {
-		return apperrors.NotFound("Session not found.", nil)
-	}
-	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
-		if err := s.opts.Sessions.Revoke(ctx, tx, sessionID, "user_revoked"); err != nil {
+		if err != nil {
 			return err
+		}
+		if session.IdentityID != identityID {
+			return apperrors.NotFound("Session not found.", nil)
+		}
+		count, err := s.opts.Sessions.RevokeActiveFamily(ctx, tx, session.SessionFamilyID, "user_revoked")
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			return nil
 		}
 		s.opts.Metrics.IncCounter("fleet_partner_sessions_revoked_total", map[string]string{"reason": "user"}, 1)
 		return s.opts.Sessions.AppendHistory(ctx, tx, sessionID, identityID, session.Status, models.SessionStatusRevoked, "user_revoked", requestID, correlationID)
@@ -292,7 +332,9 @@ type SelectOrganizationInput struct {
 	CorrelationID string
 }
 
-// SelectOrganization issues an organization-scoped session.
+// SelectOrganization rotates an active source into an organization-scoped
+// successor in the SAME browser session family. JWT validity alone is not
+// authority to mint a session after persistent logout or replay containment.
 //
 // The membership must belong to the authenticated identity; an arbitrary
 // organization ID is never trusted, and the organization must be usable.
@@ -303,40 +345,93 @@ func (s *Service) SelectOrganization(ctx context.Context, input SelectOrganizati
 		return nil, err
 	}
 
-	membership, err := s.opts.Memberships.GetForIdentity(ctx, input.IdentityID, input.MembershipID)
-	if err != nil {
-		if errors.Is(err, ErrMembershipNotFound) {
-			return nil, apperrors.NotFound("Membership not found.", nil)
-		}
-		return nil, err
-	}
-	if membership.Status != "ACTIVE" {
-		return nil, errorcodes.Forbidden(errorcodes.SessionRevoked, "Your organization access is not active.")
-	}
-	if membership.OrganizationStatus == "SUSPENDED" || membership.OrganizationStatus == "CLOSED" {
-		return nil, errorcodes.Forbidden(errorcodes.SessionRevoked, "This organization is not available.")
-	}
-
 	var tokens *TokenPair
-	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
-		issued, err := s.issueSession(ctx, tx, input.IdentityID, &membership, VerifyInput{
-			IPHash: input.IPHash, UserAgentHash: input.UserAgentHash, DeviceLabel: input.DeviceLabel,
-			RequestID: input.RequestID, CorrelationID: input.CorrelationID,
-		})
+	err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		source, err := s.opts.Sessions.LockByID(ctx, tx, input.SessionID)
+		if errors.Is(err, authrepos.ErrNotFound) {
+			return invalidOrganizationSession()
+		}
 		if err != nil {
 			return err
 		}
-		tokens = issued
-		// The selection session is replaced by the organization-scoped one.
-		if input.SessionID != "" {
-			_ = s.opts.Sessions.Revoke(ctx, tx, input.SessionID, "organization_selected")
+		if err := validateOrganizationSource(source, input.IdentityID, s.opts.Now()); err != nil {
+			return err
 		}
+		compromised, err := s.opts.Sessions.FamilyCompromised(ctx, tx, source.SessionFamilyID)
+		if err != nil {
+			return err
+		}
+		if compromised {
+			return invalidOrganizationSession()
+		}
+		identity, err := s.opts.Identities.GetByIDUsing(ctx, tx, input.IdentityID)
+		if errors.Is(err, authrepos.ErrNotFound) {
+			return invalidOrganizationSession()
+		}
+		if err != nil {
+			return err
+		}
+		if !identity.Usable(s.opts.Now()) {
+			return invalidOrganizationSession()
+		}
+		membership, err := s.opts.Memberships.GetForIdentity(ctx, input.IdentityID, input.MembershipID)
+		if err != nil {
+			if errors.Is(err, ErrMembershipNotFound) {
+				return apperrors.NotFound("Membership not found.", nil)
+			}
+			return err
+		}
+		if membership.Status != "ACTIVE" || membership.OrganizationStatus == "SUSPENDED" || membership.OrganizationStatus == "CLOSED" {
+			return errorcodes.Forbidden(errorcodes.SessionRevoked, "Your organization access is not active.")
+		}
+		// Recheck expiry after authority read-back; keep both locks until commit.
+		if err := validateOrganizationSource(source, input.IdentityID, s.opts.Now()); err != nil {
+			return err
+		}
+		nextToken, err := auth.GenerateOpaqueToken(32)
+		if err != nil {
+			return err
+		}
+		source.OrganizationUserID = &membership.ID
+		source.OrganizationID = &membership.OrganizationID
+		source.RoleVersion = membership.RoleVersion
+		source.IPHash, source.UserAgentHash, source.DeviceLabel = optional(input.IPHash), optional(input.UserAgentHash), optional(input.DeviceLabel)
+		expires := s.opts.Now().Add(s.opts.RefreshTokenTTL)
+		successor, err := s.opts.Sessions.RotateRefresh(ctx, tx, source, auth.HashRefreshToken(s.opts.SessionSecret, nextToken), expires)
+		if errors.Is(err, authrepos.ErrSessionNotRotatable) {
+			return invalidOrganizationSession()
+		}
+		if err != nil {
+			return err
+		}
+		if err := s.opts.Sessions.AppendHistory(ctx, tx, source.ID, source.IdentityID, models.SessionStatusActive, models.SessionStatusRevoked, "organization_selected", input.RequestID, input.CorrelationID); err != nil {
+			return err
+		}
+		if err := s.opts.Sessions.AppendHistory(ctx, tx, successor.ID, successor.IdentityID, "NONE", models.SessionStatusActive, "organization_selected", input.RequestID, input.CorrelationID); err != nil {
+			return err
+		}
+		access, accessExpiry, err := s.signAccessToken(successor)
+		if err != nil {
+			return err
+		}
+		tokens = &TokenPair{AccessToken: access, AccessExpiresAt: accessExpiry, RefreshToken: nextToken, RefreshExpiresAt: expires, SessionID: successor.ID}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	return tokens, nil
+}
+
+func invalidOrganizationSession() error {
+	return errorcodes.Unauthorized(errorcodes.SessionExpired, "Your session has expired. Please sign in again.")
+}
+
+func validateOrganizationSource(session *models.Session, identityID string, now time.Time) error {
+	if session == nil || identityID == "" || session.IdentityID != identityID || session.ID == "" || session.SessionFamilyID == "" || session.Status != models.SessionStatusActive || session.RevokedAt != nil || !now.Before(session.RefreshExpiresAt) {
+		return invalidOrganizationSession()
+	}
+	return nil
 }
 
 // StepUpGrant is a verified step-up reference.

@@ -68,15 +68,22 @@ type OTPChallengeRepository interface {
 
 // CreateSessionParams is the input for a new dashboard session.
 type CreateSessionParams struct {
-	PartnerID string
-	TokenHash string
-	IPAddress string
-	UserAgent string
-	ExpiresAt time.Time
+	ID          string
+	PartnerID   string
+	TokenHash   string
+	RefreshHash string
+	IPAddress   string
+	UserAgent   string
+	ExpiresAt   time.Time
 }
 
 // SessionRepository persists partner dashboard sessions (token hashes only).
 type SessionRepository interface {
+	FindByRefreshHash(ctx context.Context, hash string) (*Session, error)
+	Rotate(ctx context.Context, oldHash string, next CreateSessionParams, now time.Time) (bool, error)
+	// RevokeSession uses authenticated stable correlation. Found includes an
+	// already-revoked row, but not a missing row; callers must distinguish them.
+	RevokeSession(ctx context.Context, sessionID string) (found bool, err error)
 	CreateSession(ctx context.Context, params CreateSessionParams) error
 	// FindByTokenHash returns the session, or (nil, nil) when absent.
 	FindByTokenHash(ctx context.Context, tokenHash string) (*Session, error)

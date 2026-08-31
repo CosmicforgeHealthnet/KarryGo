@@ -25,16 +25,18 @@ import (
 // authHarness wires the real authentication service against the test
 // database with a fake OTP sender (no live email is ever sent).
 type authHarness struct {
-	service *authusecases.Service
-	sender  *authclients.FakeSender
-	pool    *pgxpool.Pool
-	events  *authrepos.SecurityEventRepository
+	service     *authusecases.Service
+	sender      *authclients.FakeSender
+	pool        *pgxpool.Pool
+	events      *authrepos.SecurityEventRepository
+	memberships *stubMemberships
 }
 
 // stubMemberships reports no organizations by default, so verification
 // returns ONBOARDING_REQUIRED.
 type stubMemberships struct {
 	memberships []authusecases.MembershipSummary
+	onGet       func()
 }
 
 func (s *stubMemberships) ListActiveForIdentity(context.Context, string) ([]authusecases.MembershipSummary, error) {
@@ -42,6 +44,9 @@ func (s *stubMemberships) ListActiveForIdentity(context.Context, string) ([]auth
 }
 
 func (s *stubMemberships) GetForIdentity(_ context.Context, _ string, membershipID string) (authusecases.MembershipSummary, error) {
+	if s.onGet != nil {
+		s.onGet()
+	}
 	for _, membership := range s.memberships {
 		if membership.ID == membershipID {
 			return membership, nil
@@ -84,7 +89,8 @@ func newAuthHarness(t *testing.T, memberships *stubMemberships) *authHarness {
 	})
 	return &authHarness{
 		service: service, sender: sender, pool: pool,
-		events: authrepos.NewSecurityEventRepository(pool),
+		events:      authrepos.NewSecurityEventRepository(pool),
+		memberships: memberships,
 	}
 }
 
@@ -531,7 +537,7 @@ func TestMultipleMembershipsRequireSelection(t *testing.T) {
 
 	// Selecting a membership that is not this identity's is refused.
 	_, err = h.service.SelectOrganization(ctx, authusecases.SelectOrganizationInput{
-		IdentityID: result.IdentityID, SessionID: result.Tokens.SessionID, MembershipID: "ousr_someone_else",
+		IdentityID: result.IdentityID, SessionID: tokens.SessionID, MembershipID: "ousr_someone_else",
 	})
 	if err == nil || apperrors.From(err).Status != 404 {
 		t.Fatalf("selecting another identity's membership must fail, got %v", err)

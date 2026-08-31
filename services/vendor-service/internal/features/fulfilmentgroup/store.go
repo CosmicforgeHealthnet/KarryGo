@@ -1249,7 +1249,7 @@ func (s *Store) GetPlan(ctx context.Context, groupID, planID string) (Plan, erro
 
 const missionRefColumns = `id, group_id, plan_id, plan_mission_id, authority,
 	mission_ref, external_ref, link_state, status_projection,
-	status_source_version, status_source_ref, status_updated_at,
+	status_source_version, status_source_ref, status_updated_at, dispatch_domain_projection,
 	refusal_code, failure_reason, COALESCE(replaces_id, ''), replacement_reason,
 	version, created_at, updated_at, linked_at`
 
@@ -1258,7 +1258,7 @@ func scanMissionRef(row pgx.Row) (PlatformMissionRef, error) {
 	err := row.Scan(&ref.ID, &ref.GroupID, &ref.PlanID, &ref.PlanMissionID,
 		&ref.Authority, &ref.MissionRef, &ref.ExternalRef, &ref.LinkState,
 		&ref.StatusProjection, &ref.StatusSourceVersion, &ref.StatusSourceRef,
-		&ref.StatusUpdatedAt, &ref.RefusalCode, &ref.FailureReason,
+		&ref.StatusUpdatedAt, &ref.DispatchDomainProjection, &ref.RefusalCode, &ref.FailureReason,
 		&ref.ReplacesID, &ref.ReplacementReason,
 		&ref.Version, &ref.CreatedAt, &ref.UpdatedAt, &ref.LinkedAt)
 	return ref, err

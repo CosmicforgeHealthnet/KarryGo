@@ -83,7 +83,12 @@ func (r *IdentityRepository) findBy(ctx context.Context, q database.Querier, col
 
 // GetByID loads one identity.
 func (r *IdentityRepository) GetByID(ctx context.Context, identityID string) (*models.Identity, error) {
-	row := r.db.QueryRow(ctx, `SELECT `+identityColumns+`
+	return r.GetByIDUsing(ctx, r.db, identityID)
+}
+
+// GetByIDUsing keeps an authentication transition's reads on its transaction.
+func (r *IdentityRepository) GetByIDUsing(ctx context.Context, q database.Querier, identityID string) (*models.Identity, error) {
+	row := q.QueryRow(ctx, `SELECT `+identityColumns+`
 		FROM fleet_partner_corporate_identities WHERE id = $1`, identityID)
 	return scanIdentity(row)
 }

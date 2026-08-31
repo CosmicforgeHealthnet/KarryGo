@@ -85,7 +85,7 @@ func (c *Client) ReadMembershipSummary(ctx context.Context, providerService, pro
 		return Summary{}, fmt.Errorf("provider compatibility client is not configured")
 	}
 	endpoint := c.BaseURL + "/internal/fleet-partner/v1/providers/" +
-		url.PathEscape(providerService) + "/" + url.PathEscape(providerID) + "/membership-summary"
+		url.PathEscape(providerID) + "/services/" + url.PathEscape(providerService) + "/membership-summary"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return Summary{}, fmt.Errorf("build membership-summary request: %w", err)

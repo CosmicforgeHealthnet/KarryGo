@@ -42,7 +42,8 @@ const bookingColumns = `
 	b.payment_method, b.payment_status, b.payment_ref,
 	b.receiver_name, b.receiver_phone,
 	b.package_desc, b.package_weight::float8, b.package_type, b.package_size, b.is_fragile,
-	b.service_tier, b.provider_id::text, b.cancel_reason,
+	b.service_tier, COALESCE(b.serviceability_quote_id, ''), COALESCE(b.serviceability_quote_version, 0),
+	b.provider_id::text, b.cancel_reason,
 	b.cancelled_at, b.completed_at, b.created_at, b.updated_at`
 
 const derivedStateSelect = `
@@ -85,6 +86,52 @@ func (r *PostgresRepository) Insert(ctx context.Context, booking Booking) (Booki
 		return Booking{}, err
 	}
 	return booking, nil
+}
+
+// InsertIdempotent persists one customer-scoped create operation. A retry with
+// the same fingerprint reads the original booking; a changed payload fails
+// closed. The booking row itself is the durable operation record, so a timeout
+// after INSERT can safely resume the idempotent Wallet/broadcast steps.
+func (r *PostgresRepository) InsertIdempotent(ctx context.Context, booking Booking, key, fingerprint, quoteID string, quoteVersion int64, quoteFingerprint string) (Booking, bool, error) {
+	row := r.db.QueryRow(ctx, `
+		INSERT INTO dispatch_bookings (
+			customer_id,status,pickup_address,pickup_lat,pickup_lng,
+			dropoff_address,dropoff_lat,dropoff_lng,distance_km,fare_amount,currency,
+			payment_method,payment_status,receiver_name,receiver_phone,package_desc,
+			package_weight,package_type,package_size,is_fragile,service_tier,
+			serviceability_quote_id,serviceability_quote_version,serviceability_quote_fingerprint,
+			create_idempotency_key,create_request_fingerprint
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
+			NULLIF($22,''),NULLIF($23,0),$24,$25,$26)
+		ON CONFLICT (customer_id,create_idempotency_key)
+		WHERE create_idempotency_key IS NOT NULL DO NOTHING
+		RETURNING id::text,created_at,updated_at`,
+		booking.CustomerID, booking.Status, booking.PickupAddress, booking.PickupLat, booking.PickupLng,
+		booking.DropoffAddress, booking.DropoffLat, booking.DropoffLng, booking.DistanceKM, booking.FareAmount,
+		booking.Currency, booking.PaymentMethod, booking.PaymentStatus, booking.ReceiverName, booking.ReceiverPhone,
+		booking.PackageDesc, booking.PackageWeight, booking.PackageType, booking.PackageSize, booking.IsFragile,
+		booking.ServiceTier, quoteID, quoteVersion, quoteFingerprint, key, fingerprint)
+	if err := row.Scan(&booking.ID, &booking.CreatedAt, &booking.UpdatedAt); err == nil {
+		return booking, false, nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return Booking{}, false, err
+	}
+
+	var storedFingerprint, bookingID string
+	if err := r.db.QueryRow(ctx, `SELECT id::text,create_request_fingerprint FROM dispatch_bookings WHERE customer_id=$1 AND create_idempotency_key=$2`, booking.CustomerID, key).Scan(&bookingID, &storedFingerprint); err != nil {
+		return Booking{}, false, err
+	}
+	if storedFingerprint != fingerprint {
+		return Booking{}, false, apperrors.Conflict("Idempotency-Key was already used for different booking details.", nil)
+	}
+	state, found, err := r.GetWithDerivedState(ctx, bookingID)
+	if err != nil {
+		return Booking{}, false, err
+	}
+	if !found {
+		return Booking{}, false, apperrors.NotFound("Delivery booking not found.", nil)
+	}
+	return state.Booking, true, nil
 }
 
 func (r *PostgresRepository) GetWithDerivedState(ctx context.Context, id string) (DerivedState, bool, error) {
@@ -280,7 +327,8 @@ func scanDerivedState(row rowScanner) (DerivedState, error) {
 		&state.Booking.PaymentMethod, &state.Booking.PaymentStatus, &state.Booking.PaymentRef,
 		&state.Booking.ReceiverName, &state.Booking.ReceiverPhone,
 		&state.Booking.PackageDesc, &packageWeight, &state.Booking.PackageType, &state.Booking.PackageSize, &state.Booking.IsFragile,
-		&state.Booking.ServiceTier, &providerID, &state.Booking.CancelReason,
+		&state.Booking.ServiceTier, &state.Booking.ServiceabilityQuoteRef, &state.Booking.ServiceabilityQuoteVersion,
+		&providerID, &state.Booking.CancelReason,
 		&cancelledAt, &completedAt, &state.Booking.CreatedAt, &state.Booking.UpdatedAt,
 		&state.BroadcastStatus, &state.TripID, &state.TripStatus, &state.TripProviderID,
 		&state.DeliveryCode, &deliveryCodeExpiresAt, &state.DeliveryCodeAttempts,

@@ -302,7 +302,7 @@ provider identity or auth (README's "what it never owns"). WP19/20's
 as a change to a login endpoint this service does not have. Instead:
 
 ```
-GET /internal/fleet-partner/v1/providers/:providerService/:providerId/membership-summary
+GET /internal/fleet-partner/v1/providers/:providerId/services/:providerService/membership-summary
 ```
 
 An HMAC-authenticated internal read (mirrors the existing
@@ -450,7 +450,7 @@ fabricated.
    caller and secret configured. `PROVIDER_MEMBERSHIP_ALLOWED_CALLERS`
    controls which signed owner services may call the Fleet endpoint.
 3. Monitor: the endpoint's HTTP request logs (route
-   `/internal/fleet-partner/v1/providers/:providerService/:providerId/membership-summary`)
+   `/internal/fleet-partner/v1/providers/:providerId/services/:providerService/membership-summary`)
    appear in the same structured log stream as every other internal route;
    watch for `403 caller_not_allowed` (allowlist misconfiguration) or `500`
    (an `OrganizationReader` failure — check `payment-wallet-service`/DB

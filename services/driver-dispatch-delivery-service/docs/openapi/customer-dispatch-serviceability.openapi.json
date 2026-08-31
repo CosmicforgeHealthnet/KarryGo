@@ -1,0 +1,23 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Dispatch Customer Serviceability", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/customer/dispatch/serviceability": {
+      "post": {
+        "summary": "Evaluate road-route serviceability and package admission without financial commitment or matching",
+        "security": [{"customerBearer": []}],
+        "parameters": [{"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string", "maxLength": 200}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ServiceabilityRequest"}}}},
+        "responses": {"201": {"description": "Persisted decision"}, "400": {"description": "Invalid request"}, "401": {"description": "Authentication required"}, "409": {"description": "Idempotency fingerprint conflict"}, "503": {"description": "Persistence unavailable"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"customerBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+    "schemas": {
+      "Point": {"type": "object", "required": ["latitude", "longitude"], "properties": {"latitude": {"type": "number"}, "longitude": {"type": "number"}}},
+      "PackageDeclaration": {"type": "object", "required": ["package_type", "size_category", "declared_weight_grams", "item_count"], "properties": {"package_type": {"type": "string"}, "size_category": {"type": "string"}, "category_code": {"type": "string"}, "declared_weight_grams": {"type": "integer", "format": "int64"}, "measured_weight_grams": {"type": "integer", "format": "int64"}, "item_count": {"type": "integer", "format": "int64"}, "declared_value_kobo": {"type": "integer", "format": "int64"}, "fragile": {"type": "boolean"}, "restricted": {"type": "boolean"}, "prohibited": {"type": "boolean"}, "hazard_class": {"type": "string"}}},
+      "ServiceabilityRequest": {"type": "object", "required": ["pickup", "dropoff", "vehicle_class", "service_tier", "package"], "properties": {"source_ref": {"type": "string"}, "source_version": {"type": "integer", "format": "int64"}, "pickup": {"$ref": "#/components/schemas/Point"}, "dropoff": {"$ref": "#/components/schemas/Point"}, "vehicle_class": {"type": "string"}, "service_tier": {"type": "string"}, "package": {"$ref": "#/components/schemas/PackageDeclaration"}}}
+    }
+  }
+}

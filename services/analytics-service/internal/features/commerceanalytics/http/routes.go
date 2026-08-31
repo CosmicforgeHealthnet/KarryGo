@@ -60,7 +60,8 @@ func RegisterInternalRoutes(router *gin.Engine, handler *Handler) {
 }
 
 func (h *Handler) ingest(c *gin.Context) {
-	if _, ok := h.authorizeService(c); !ok {
+	caller, ok := h.authorizeService(c)
+	if !ok {
 		return
 	}
 	var raw json.RawMessage
@@ -71,6 +72,10 @@ func (h *Handler) ingest(c *gin.Context) {
 	event, err := normalizeEnvelope(raw)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": gin.H{"code": "validation_failed", "message": err.Error()}})
+		return
+	}
+	if event.SourceService != caller {
+		c.JSON(http.StatusForbidden, gin.H{"error": "source caller mismatch"})
 		return
 	}
 	created, err := h.service.Ingest(c.Request.Context(), event)
@@ -100,6 +105,14 @@ type vendorEnvelope struct {
 }
 
 func normalizeEnvelope(raw json.RawMessage) (commerceanalytics.Envelope, error) {
+	var dispatch vendorEnvelope
+	if err := json.Unmarshal(raw, &dispatch); err == nil && commerceanalytics.IsDispatchRouteEvent(dispatch.EventType) {
+		var source struct {
+			SourceService string `json:"sourceService"`
+		}
+		_ = json.Unmarshal(raw, &source)
+		return commerceanalytics.Envelope{EventID: dispatch.EventID, EventType: dispatch.EventType, SchemaVersion: dispatch.SchemaVersion, OccurredAt: dispatch.OccurredAt, SourceService: source.SourceService, SourceAggregate: "dispatch_route_metric", SourceID: dispatch.EventID, SourceVersion: 1, Payload: dispatch.Payload}, nil
+	}
 	var event commerceanalytics.Envelope
 	if err := json.Unmarshal(raw, &event); err != nil {
 		return commerceanalytics.Envelope{}, err

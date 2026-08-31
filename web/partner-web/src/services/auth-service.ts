@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import { logoutSession } from "@/lib/browser-session";
 import type { AuthAccount, AuthSession } from "@/types";
 
 export const authService = {
@@ -41,8 +42,8 @@ export const authService = {
     });
   },
 
-  logout(token: string): Promise<void> {
-    return apiClient.post<void>("/api/v1/partner/v1/auth/logout", undefined, token);
+  logout(): Promise<void> {
+    return logoutSession();
   },
 
   me(token: string): Promise<{ account: AuthAccount }> {

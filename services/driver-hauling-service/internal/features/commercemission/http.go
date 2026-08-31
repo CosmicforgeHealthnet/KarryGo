@@ -48,6 +48,8 @@ func Register(
 	missions := group.Group("/internal/commerce")
 	missions.Use(fleetauthority.BoundaryWithDB(db, verifier, allowedCallers)...)
 	missions.POST("/missions", handler.create)
+	missions.GET("/missions/operations/:operation_ref", handler.read)
+	missions.POST("/missions/operations/:operation_ref/cancel", handler.cancel)
 }
 
 func (h *Handler) create(c *gin.Context) {
@@ -87,5 +89,55 @@ func (h *Handler) create(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": mission})
+}
+
+func (h *Handler) read(c *gin.Context) {
+	raw, _ := c.Get("service_name")
+	caller, _ := raw.(string)
+	if strings.TrimSpace(caller) != commercemission.SignatureCaller {
+		httpx.Abort(c, apperrors.Unauthorized("This caller may not read commerce missions.", nil))
+		return
+	}
+	mission, err := h.service.Read(c.Request.Context(), c.Param("operation_ref"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": mission})
+}
+
+func (h *Handler) cancel(c *gin.Context) {
+	raw, _ := c.Get("service_name")
+	caller, _ := raw.(string)
+	if strings.TrimSpace(caller) != commercemission.SignatureCaller {
+		httpx.Abort(c, apperrors.Unauthorized("This caller may not cancel commerce missions.", nil))
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxMissionBody+1))
+	if err != nil || len(body) > maxMissionBody {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	decoder.DisallowUnknownFields()
+	var request commercemission.CancelRequest
+	if err = decoder.Decode(&request); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	var trailing any
+	if err = decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		httpx.Abort(c, apperrors.BadRequest("Request body must contain exactly one JSON object.", err))
+		return
+	}
+	if strings.TrimSpace(request.OperationRef) == "" {
+		request.OperationRef = c.Param("operation_ref")
+	}
+	mission, err := h.service.Cancel(c.Request.Context(), request)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": mission})
 }

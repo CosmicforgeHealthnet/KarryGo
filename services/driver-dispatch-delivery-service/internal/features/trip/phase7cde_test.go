@@ -186,7 +186,7 @@ func TestTripDetailIncludesOrderedStateLogAndNullableProof(t *testing.T) {
 	data := tripDataMap(t, recorder)
 	logs := data["state_log"].([]interface{})
 	if logs[0].(map[string]interface{})["from_status"] != "none" || data["proof"] != nil ||
-		data["receiver_phone"] != "+2348011223344" {
+		data["receiver_phone"] != "" {
 		t.Fatalf("detail=%+v", data)
 	}
 

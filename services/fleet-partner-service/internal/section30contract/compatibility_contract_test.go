@@ -151,7 +151,7 @@ func TestOpenAPI_MembershipSummaryRouteMatchesManifestAndModels(t *testing.T) {
 	if err := json.Unmarshal(raw, &spec); err != nil {
 		t.Fatalf("parse Section 30 OpenAPI: %v", err)
 	}
-	const path = "/internal/fleet-partner/v1/providers/{providerService}/{providerId}/membership-summary"
+	const path = "/internal/fleet-partner/v1/providers/{providerId}/services/{providerService}/membership-summary"
 	operation, ok := spec.Paths[path]["get"]
 	if !ok || operation.OperationID != "getProviderMembershipSummary" {
 		t.Fatalf("OpenAPI route/operation mismatch: %+v", spec.Paths[path])
@@ -160,7 +160,7 @@ func TestOpenAPI_MembershipSummaryRouteMatchesManifestAndModels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read provider route manifest: %v", err)
 	}
-	for _, token := range []string{"/providers/:providerService/:providerId/membership-summary", "getProviderMembershipSummary"} {
+	for _, token := range []string{"/providers/:providerId/services/:providerService/membership-summary", "getProviderMembershipSummary"} {
 		if !strings.Contains(string(source), token) {
 			t.Errorf("provider route manifest missing %q", token)
 		}

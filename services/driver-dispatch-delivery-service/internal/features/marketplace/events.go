@@ -2,6 +2,7 @@ package marketplace
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -113,12 +114,25 @@ var forbiddenPayloadKeys = map[string]bool{
 	// Recipient identity. The delivery events added by WP6.3 carry an opaque
 	// surrogate and a match verdict; these are the field names a well-meaning
 	// change would reach for instead, so they are refused by name.
-	"receiverName":     true,
-	"receiverPhone":    true,
-	"recipientName":    true,
-	"recipientPhone":   true,
-	"recipientAddress": true,
-	"operatorNotes":    true,
+	"receiverName":       true,
+	"receiverPhone":      true,
+	"recipientName":      true,
+	"recipientPhone":     true,
+	"recipientAddress":   true,
+	"operatorNotes":      true,
+	"otp":                true,
+	"otpHash":            true,
+	"otp_hash":           true,
+	"qrToken":            true,
+	"qr_token":           true,
+	"qrTokenHash":        true,
+	"qr_token_hash":      true,
+	"deliveryCode":       true,
+	"delivery_code":      true,
+	"deliveryCodeHash":   true,
+	"delivery_code_hash": true,
+	"receiverEmail":      true,
+	"receiver_email":     true,
 }
 
 // ErrForbiddenPayloadField reports a payload carrying restricted data.
@@ -137,9 +151,45 @@ func validatePayload(eventType string, payload map[string]any) error {
 	if !KnownEventTypes[eventType] {
 		return fmt.Errorf("marketplace: unknown event type %q", eventType)
 	}
-	for key := range payload {
-		if forbiddenPayloadKeys[key] {
-			return &ErrForbiddenPayloadField{EventType: eventType, Field: key}
+	// Normalize typed maps/slices as well as map[string]any before walking.
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marketplace: payload is not serializable")
+	}
+	var normalized any
+	if err = json.Unmarshal(raw, &normalized); err != nil {
+		return err
+	}
+	return validatePayloadValue(eventType, "", normalized)
+}
+
+func validatePayloadValue(eventType, path string, value any) error {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			field := key
+			if path != "" {
+				field = path + "." + key
+			}
+			forbidden := forbiddenPayloadKeys[key]
+			for candidate := range forbiddenPayloadKeys {
+				if strings.EqualFold(strings.ReplaceAll(candidate, "_", ""), strings.ReplaceAll(key, "_", "")) {
+					forbidden = true
+					break
+				}
+			}
+			if forbidden {
+				return &ErrForbiddenPayloadField{EventType: eventType, Field: field}
+			}
+			if err := validatePayloadValue(eventType, field, nested); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for i, nested := range typed {
+			if err := validatePayloadValue(eventType, fmt.Sprintf("%s[%d]", path, i), nested); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -190,7 +190,7 @@ func Test6F_InvalidInboxIDReturns400(t *testing.T) {
 	assertErrorCodeStr(t, w, "validation_failed")
 }
 
-func Test6F_ReturnsFullDetailWithReceiverPhone(t *testing.T) {
+func Test6F_RequestDetailDoesNotExposeReceiverContact(t *testing.T) {
 	env := newRequestTestEnv(t)
 	providerID := uuid.NewString()
 	_, inbox := newActiveBroadcastAndInbox(t, env, providerID)
@@ -207,8 +207,8 @@ func Test6F_ReturnsFullDetailWithReceiverPhone(t *testing.T) {
 			t.Fatalf("field %q missing in detail response; body = %s", field, w.Body.String())
 		}
 	}
-	if data["receiver_phone"] != "+2348011223344" {
-		t.Fatalf("receiver_phone = %v, want +2348011223344", data["receiver_phone"])
+	if data["receiver_phone"] != "" || data["receiver_name"] != "" {
+		t.Fatal("request detail exposed pre-acceptance receiver contact")
 	}
 	if data["fare_amount"] != float64(150000) {
 		t.Fatalf("fare_amount = %v, want 150000", data["fare_amount"])

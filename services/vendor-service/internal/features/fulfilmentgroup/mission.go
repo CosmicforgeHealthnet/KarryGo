@@ -9,6 +9,7 @@ package fulfilmentgroup
 // final" unanswerable exactly when a delivery goes wrong.
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 )
@@ -88,10 +89,11 @@ type PlatformMissionRef struct {
 	// StatusProjection is a cached copy for vendor coordination. It always
 	// names the source version that produced it, so an older event that
 	// arrives late is recognised as older rather than applied as newer.
-	StatusProjection    string     `json:"status_projection,omitempty"`
-	StatusSourceVersion int64      `json:"status_source_version"`
-	StatusSourceRef     string     `json:"status_source_ref,omitempty"`
-	StatusUpdatedAt     *time.Time `json:"status_updated_at,omitempty"`
+	StatusProjection         string          `json:"status_projection,omitempty"`
+	DispatchDomainProjection json.RawMessage `json:"dispatch_domain_projection,omitempty"`
+	StatusSourceVersion      int64           `json:"status_source_version"`
+	StatusSourceRef          string          `json:"status_source_ref,omitempty"`
+	StatusUpdatedAt          *time.Time      `json:"status_updated_at,omitempty"`
 
 	RefusalCode   string `json:"refusal_code,omitempty"`
 	FailureReason string `json:"failure_reason,omitempty"`

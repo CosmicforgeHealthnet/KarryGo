@@ -2,6 +2,7 @@ package marketplace
 
 import (
 	"context"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"errors"
 	"time"
 
@@ -122,7 +123,9 @@ func NewRelayWorker(repo *Repository, responder FleetResponder, config RelayWork
 // database transaction is open while talking to fleet. Holding a row lock
 // across a network call would tie a dispatch transaction to another service's
 // availability.
-func (w *RelayWorker) RunOnce(ctx context.Context) (RelayResult, error) {
+func (w *RelayWorker) RunOnce(ctx context.Context) (returnedResult RelayResult, runErr error) {
+	started := time.Now()
+	defer func() { observability.Worker("relay", started, runErr) }()
 	var result RelayResult
 
 	recovered, err := w.repo.RecoverExpiredRelayLeases(ctx, nil)
@@ -206,6 +209,7 @@ func (w *RelayWorker) deliver(ctx context.Context, operation RelayOperation) (st
 
 // Run loops until the context is cancelled, then returns for graceful shutdown.
 func (w *RelayWorker) Run(ctx context.Context, interval time.Duration) error {
+	defer observability.WorkerRunning("relay")()
 	if interval <= 0 {
 		interval = 5 * time.Second
 	}

@@ -12,6 +12,7 @@ import (
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/handover"
 )
@@ -19,24 +20,52 @@ import (
 // --- fakes ---
 
 type fakeRepo struct {
-	mu        sync.Mutex
-	bookings  map[string]*Booking
-	broadcast map[string]string // bookingID -> broadcast status
-	tripID    map[string]string
-	tripState map[string]string
-	tripProv  map[string]string
-	reviews   map[string]Review
+	mu           sync.Mutex
+	bookings     map[string]*Booking
+	broadcast    map[string]string // bookingID -> broadcast status
+	tripID       map[string]string
+	tripState    map[string]string
+	tripProv     map[string]string
+	reviews      map[string]Review
+	idempotency  map[string]string
+	fingerprints map[string]string
+	operations   *BookingOperationsProjection
 }
 
 func newFakeRepo() *fakeRepo {
 	return &fakeRepo{
-		bookings:  map[string]*Booking{},
-		broadcast: map[string]string{},
-		tripID:    map[string]string{},
-		tripState: map[string]string{},
-		tripProv:  map[string]string{},
-		reviews:   map[string]Review{},
+		bookings:     map[string]*Booking{},
+		broadcast:    map[string]string{},
+		tripID:       map[string]string{},
+		tripState:    map[string]string{},
+		tripProv:     map[string]string{},
+		reviews:      map[string]Review{},
+		idempotency:  map[string]string{},
+		fingerprints: map[string]string{},
 	}
+}
+
+func (r *fakeRepo) InsertIdempotent(ctx context.Context, booking Booking, key, fingerprint, _ string, _ int64, _ string) (Booking, bool, error) {
+	r.mu.Lock()
+	if id := r.idempotency[key]; id != "" {
+		if r.fingerprints[key] != fingerprint {
+			r.mu.Unlock()
+			return Booking{}, false, apperrors.Conflict("Idempotency-Key was already used for different booking details.", nil)
+		}
+		stored := *r.bookings[id]
+		r.mu.Unlock()
+		return stored, true, nil
+	}
+	r.mu.Unlock()
+	created, err := r.Insert(ctx, booking)
+	if err != nil {
+		return Booking{}, false, err
+	}
+	r.mu.Lock()
+	r.idempotency[key] = created.ID
+	r.fingerprints[key] = fingerprint
+	r.mu.Unlock()
+	return created, false, nil
 }
 
 func (r *fakeRepo) Insert(_ context.Context, booking Booking) (Booking, error) {
@@ -69,6 +98,10 @@ func (r *fakeRepo) GetWithDerivedState(_ context.Context, id string) (DerivedSta
 	defer r.mu.Unlock()
 	state, ok := r.state(id)
 	return state, ok, nil
+}
+
+func (r *fakeRepo) GetBookingOperations(_ context.Context, _ string) (*BookingOperationsProjection, error) {
+	return r.operations, nil
 }
 
 func (r *fakeRepo) ListWithDerivedState(_ context.Context, customerID string, _ ListBookingsOptions) ([]DerivedState, error) {
@@ -217,13 +250,22 @@ type refundCall struct {
 }
 
 type fakePayments struct {
-	mu         sync.Mutex
-	holdErr    error
-	holds      []string
-	assigns    []string
-	refunds    []refundCall
-	refundErr  error
-	holdRefFor func(bookingID string) string
+	mu            sync.Mutex
+	holdErr       error
+	holds         []string
+	assigns       []string
+	refunds       []refundCall
+	refundErr     error
+	settlementErr error
+	settlements   []string
+	holdRefFor    func(bookingID string) string
+}
+
+func (p *fakePayments) CompleteSettlement(_ context.Context, bookingID string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.settlements = append(p.settlements, bookingID)
+	return p.settlementErr
 }
 
 func (p *fakePayments) Hold(_ context.Context, bookingID, _ string, _ int64) (string, error) {
@@ -313,6 +355,15 @@ type fakeLive struct {
 	hasLoc   bool
 }
 
+type fakeQuoteAuthority struct {
+	quote serviceability.Quote
+	err   error
+}
+
+func (a fakeQuoteAuthority) AuthorizeBooking(_ context.Context, _, _ string, _ serviceability.BookingBinding, _ time.Time) (serviceability.Quote, error) {
+	return a.quote, a.err
+}
+
 func (l *fakeLive) GetNearby(_ context.Context, _ availability.NearbyProvidersRequest) ([]availability.NearbyProvider, error) {
 	return l.nearby, nil
 }
@@ -349,6 +400,24 @@ func validCreateInput() CreateBookingInput {
 		PackageSize:   "small",
 		ServiceTier:   "standard",
 		PaymentMethod: "wallet",
+	}
+}
+
+func TestGetBookingIncludesAdditiveOperationsProjection(t *testing.T) {
+	repository := newFakeRepo()
+	service := newTestService(repository, &fakeBroadcast{repo: repository}, &fakeTrips{}, &fakeLive{}, &fakePayments{})
+	created := createSearchingBooking(t, service)
+	repository.operations = &BookingOperationsProjection{
+		DeliveryGroup: &DeliveryGroupSummary{ID: "group-1", State: "ACTIVE", Version: 3},
+		Handover:      &HandoverSummary{Stage: "DELIVERY", Status: "ACTIVE"},
+	}
+
+	result, err := service.GetBooking(context.Background(), testCustomer, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Operations == nil || result.Operations.DeliveryGroup == nil || result.Operations.DeliveryGroup.ID != "group-1" {
+		t.Fatalf("operations projection missing: %+v", result.Operations)
 	}
 }
 
@@ -452,6 +521,55 @@ func TestCreateBookingHappyPath(t *testing.T) {
 	}
 }
 
+func TestProtectedCreateBindsQuoteAndReplaysOneBooking(t *testing.T) {
+	repo := newFakeRepo()
+	broadcast := &fakeBroadcast{repo: repo}
+	payments := &fakePayments{}
+	now := time.Now().UTC()
+	service := newTestService(repo, broadcast, &fakeTrips{}, &fakeLive{}, payments).
+		WithClock(func() time.Time { return now }).
+		WithServiceabilityQuoteAuthority(fakeQuoteAuthority{quote: serviceability.Quote{
+			ID: "dsq-protected", RequestFingerprint: "quote-fingerprint", Version: 3,
+			FareEstimateKobo: 245000, Route: serviceability.RouteResult{DistanceMeters: 12000},
+		}}, true)
+	input := validCreateInput()
+	input.PackageType = "parcel"
+	input.PackageWeight = 1.5
+	input.ServiceabilityQuoteRef = "dsq-protected"
+
+	first, err := service.CreateBookingWithKey(context.Background(), testCustomer, "create-1", input)
+	if err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	second, err := service.CreateBookingWithKey(context.Background(), testCustomer, "create-1", input)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if first.ID != second.ID || len(repo.bookings) != 1 {
+		t.Fatalf("first=%s second=%s bookings=%d", first.ID, second.ID, len(repo.bookings))
+	}
+	if len(payments.holds) != 1 {
+		t.Fatalf("wallet holds=%d, want 1", len(payments.holds))
+	}
+	if first.FareAmount != 245000 || first.ServiceabilityQuoteRef != "dsq-protected" || first.ServiceabilityQuoteVersion != 3 {
+		t.Fatalf("protected snapshot=%+v", first.Booking)
+	}
+
+	changed := input
+	changed.Dropoff.Address = "Different address"
+	if _, err := service.CreateBookingWithKey(context.Background(), testCustomer, "create-1", changed); err == nil {
+		t.Fatal("changed payload must conflict")
+	}
+}
+
+func TestProtectedCreateRequiresQuoteAndKey(t *testing.T) {
+	service := newTestService(newFakeRepo(), &fakeBroadcast{}, &fakeTrips{}, &fakeLive{}, &fakePayments{}).
+		WithServiceabilityQuoteAuthority(fakeQuoteAuthority{}, true)
+	if _, err := service.CreateBookingWithKey(context.Background(), testCustomer, "", validCreateInput()); err == nil {
+		t.Fatal("protected create without quote/key must fail")
+	}
+}
+
 func TestCreateBookingPaymentFailureFailsFast(t *testing.T) {
 	repo := newFakeRepo()
 	broadcast := &fakeBroadcast{repo: repo}
@@ -462,8 +580,8 @@ func TestCreateBookingPaymentFailureFailsFast(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected payment error")
 	}
-	if !strings.Contains(err.Error(), "not enough") {
-		t.Fatalf("expected wallet message surfaced, got %v", err)
+	if !strings.Contains(err.Error(), "Wallet payment was not accepted") {
+		t.Fatalf("expected safe payment error, got %v", err)
 	}
 	if len(broadcast.started) != 0 {
 		t.Fatal("broadcast must not start when payment fails")
@@ -773,6 +891,30 @@ func TestHandleNoProviderFoundRefundsOnce(t *testing.T) {
 	}
 	if len(payments.refunds) != 1 {
 		t.Fatalf("refunds = %v, want exactly 1", payments.refunds)
+	}
+}
+
+func TestHandleNoProviderFoundRetriesUnknownWalletOutcomeWithSameKey(t *testing.T) {
+	repo := newFakeRepo()
+	broadcast := &fakeBroadcast{repo: repo}
+	payments := &fakePayments{refundErr: errors.New("timeout")}
+	service := newTestService(repo, broadcast, &fakeTrips{}, &fakeLive{}, payments)
+	view := createSearchingBooking(t, service)
+	if err := service.HandleNoProviderFound(context.Background(), view.ID); err != nil {
+		t.Fatal(err)
+	}
+	if repo.bookings[view.ID].Status != StatusUnmatched || repo.bookings[view.ID].PaymentStatus != PaymentHeld {
+		t.Fatalf("booking=%+v", repo.bookings[view.ID])
+	}
+	payments.refundErr = nil
+	if err := service.HandleNoProviderFound(context.Background(), view.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(payments.refunds) != 1 || payments.refunds[0].idemKey != "refund-booking-"+view.ID {
+		t.Fatalf("refunds=%+v", payments.refunds)
+	}
+	if repo.bookings[view.ID].PaymentStatus != PaymentRefunded {
+		t.Fatalf("payment=%s", repo.bookings[view.ID].PaymentStatus)
 	}
 }
 

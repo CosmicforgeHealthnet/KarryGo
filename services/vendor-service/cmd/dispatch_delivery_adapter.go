@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
+	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/dispatchcommerce"
 )
 
@@ -108,14 +109,19 @@ func (a *section17FMissionAuthority) CancelMission(
 	ctx context.Context, operationRef, reasonCode string,
 ) error {
 	if a == nil || a.dispatch == nil || !a.dispatch.Configured() {
-		return dispatchcommerce.ErrNotConfigured
+		return a.cancelHaulingMission(ctx, operationRef, reasonCode)
 	}
 	mission, err := a.dispatch.ReadOperation(ctx, operationRef)
 	if err != nil {
 		// No mission was committed yet; there is no Dispatch execution to
 		// cancel and Vendor may safely cancel its pre-execution allocation.
 		if errors.Is(err, dispatchcommerce.ErrInvalidRequest) {
-			return nil
+			haulingErr := a.cancelHaulingMission(ctx, operationRef, reasonCode)
+			if haulingErr == nil || errors.Is(haulingErr, commercemission.ErrInvalidRequest) ||
+				errors.Is(haulingErr, commercemission.ErrNotConfigured) {
+				return nil
+			}
+			return haulingErr
 		}
 		return err
 	}

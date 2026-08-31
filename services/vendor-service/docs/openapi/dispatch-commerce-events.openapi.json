@@ -17,15 +17,15 @@
           "required": true,
           "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["eventId", "eventType", "sourceService", "schemaVersion", "aggregateType", "aggregateId", "aggregateVersion", "occurredAt", "payloadHash", "payload"], "properties": {
             "eventId": {"type": "string"},
-            "eventType": {"type": "string", "enum": ["commerce.mission.created.v1", "commerce.mission.changed.v1", "commerce.stop.changed.v1", "commerce.parcel.changed.v1"]},
+            "eventType": {"type": "string", "enum": ["commerce.mission.created.v1", "commerce.mission.changed.v1", "commerce.stop.changed.v1", "commerce.parcel.changed.v1", "commerce.evidence.recorded.v1", "commerce.exception.reported.v1", "commerce.return.started.v1", "commerce.return.completed.v1", "commerce.provider_transfer.started.v1", "commerce.provider_transfer.completed.v1", "dispatch.delivery_plan.created.v1", "dispatch.delivery_plan.superseded.v1", "dispatch.mission.assigned.v1", "dispatch.pickup.verified.v1", "dispatch.receiver.verified.v1", "dispatch.return.completed.v1", "dispatch.return.started.v1", "dispatch.delivery_recovery.selected.v1", "dispatch.provider_replacement.started.v1"]},
             "sourceService": {"type": "string", "enum": ["driver-dispatch-delivery-service"]},
             "schemaVersion": {"type": "integer", "enum": [1]},
-            "aggregateType": {"type": "string", "enum": ["COMMERCE_MISSION"]},
+            "aggregateType": {"type": "string", "enum": ["COMMERCE_MISSION", "delivery_group", "delivery_mission", "handover_challenge", "vendor_delivery_projection"]},
             "aggregateId": {"type": "string"},
             "aggregateVersion": {"type": "integer", "minimum": 1},
             "occurredAt": {"type": "string", "format": "date-time"},
             "payloadHash": {"type": "string"},
-            "payload": {"type": "object"}
+            "payload": {"type": "object", "description": "commerce.* retains its existing payload. Approved dispatch.* uses only source_ref, source_version, group_ref and missions[{mission_ref,version,state,parcel_refs}]. The source must match Vendor's reserved Dispatch operation; every parcel must belong to that operation. Additional fields/secrets are rejected. Exposed as dispatch_domain_projection on the existing authorized platform mission read model; never drives financial settlement."}
           }}}}
         },
         "responses": {

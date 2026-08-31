@@ -212,7 +212,7 @@ func NewProviderRequestInboxItem(inbox ProviderRequestInbox, now time.Time) (Pro
 		DropoffAddress: booking.DropoffAddress, PackageDesc: booking.PackageDesc,
 		PackageType: booking.PackageType, PackageSize: booking.PackageSize, IsFragile: booking.IsFragile,
 		ServiceTier:      normalizeServiceTier(booking.ServiceTier),
-		ReceiverName:     booking.ReceiverName,
+		ReceiverName:     "",
 		RemainingSeconds: remaining, ExpiresAt: inbox.ExpiresAt, ReceivedAt: inbox.ReceivedAt,
 	}, true, nil
 }

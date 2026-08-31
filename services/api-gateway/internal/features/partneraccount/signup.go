@@ -129,11 +129,12 @@ func (s *Service) VerifySignup(ctx context.Context, in SignupVerifyInput, meta R
 		return nil, apiErr(http.StatusConflict, "email_taken", "An account with this email already exists.")
 	}
 
-	token, exp, err := s.issueSession(ctx, account.ID, meta)
+	credentials, err := s.issueSession(ctx, account.ID, meta)
 	if err != nil {
 		return nil, delivery.ErrInternal()
 	}
-	return &SessionResult{Account: *account, Token: token, ExpiresAt: exp}, nil
+	credentials.Account = *account
+	return credentials, nil
 }
 
 // StartLogin sends a login OTP to an existing, active account's email.
@@ -200,11 +201,12 @@ func (s *Service) VerifyLogin(ctx context.Context, in SignupVerifyInput, meta Re
 		return nil, apiErr(http.StatusUnauthorized, "invalid_credentials", "No account found with this email.")
 	}
 
-	token, exp, err := s.issueSession(ctx, account.ID, meta)
+	credentials, err := s.issueSession(ctx, account.ID, meta)
 	if err != nil {
 		return nil, delivery.ErrInternal()
 	}
-	return &SessionResult{Account: *account, Token: token, ExpiresAt: exp}, nil
+	credentials.Account = *account
+	return credentials, nil
 }
 
 func (s *Service) normalizeSignupEmail(raw string) (string, error) {

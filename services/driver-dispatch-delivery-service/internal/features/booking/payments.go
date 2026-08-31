@@ -23,6 +23,63 @@ type PaymentClient interface {
 	Refund(ctx context.Context, bookingID, paymentRef string, amountKobo int64, currency, reason, idempotencyKey string) error
 }
 
+type SettlementPaymentClient interface {
+	CompleteSettlement(context.Context, string) error
+}
+
+type UnknownPaymentOutcome struct{ Cause error }
+
+func (e *UnknownPaymentOutcome) Error() string { return "Wallet hold outcome is unknown" }
+func (e *UnknownPaymentOutcome) Unwrap() error { return e.Cause }
+
+// ReconcileAbandonedHold resolves the existing source-keyed intent without
+// issuing another debit. Replaying CreatePaymentIntent is an idempotent lookup
+// (or creates an uncharged intent); PayFromWallet is NEVER called here.
+func (c *WalletPaymentClient) ReconcileAbandonedHold(ctx context.Context, b Booking) (string, string, error) {
+	ref := b.PaymentRef
+	if ref == "" {
+		intent, err := c.wallet.CreatePaymentIntent(ctx, walletclient.PaymentIntentRequest{SourceService: walletSourceService, SourceReference: b.ID, CustomerID: b.CustomerID, ProviderType: walletProviderType, AmountKobo: b.FareAmount, Currency: currencyNGN, PaymentMethod: walletclient.MethodWallet, IdempotencyKey: "dispatch-hold-" + b.ID})
+		if err != nil {
+			return "", ref, err
+		}
+		ref = intent.Reference
+	}
+	intent, err := c.wallet.GetPayment(ctx, ref)
+	if err != nil {
+		return "", ref, err
+	}
+	if intent.SourceService != walletSourceService || intent.SourceReference != b.ID || intent.CustomerID != b.CustomerID || intent.AmountKobo != b.FareAmount || intent.Currency != currencyNGN {
+		return "", ref, errors.New("wallet hold read-back scope mismatch")
+	}
+	switch intent.Status {
+	case "refunded":
+		return PaymentRefunded, ref, nil
+	case "failed":
+		return PaymentFailed, ref, nil
+	case "held":
+		if err = c.Refund(ctx, b.ID, ref, b.FareAmount, b.Currency, "payment_outcome_unknown", "refund-booking-"+b.ID); err != nil {
+			return "", ref, err
+		}
+		return PaymentRefunded, ref, nil
+	default:
+		// A pending intent is not proof that an in-flight debit failed.
+		return "", ref, errors.New("wallet hold requires reconciliation")
+	}
+}
+
+// CompleteSettlement uses Wallet's source-keyed, row-locked completion/read-back.
+// A lost response can be retried without creating another financial operation.
+func (c *WalletPaymentClient) CompleteSettlement(ctx context.Context, bookingID string) error {
+	intent, err := c.wallet.CompleteJob(ctx, walletSourceService, bookingID)
+	if err != nil {
+		return err
+	}
+	if intent.Status != "completed" || intent.SourceService != walletSourceService || intent.SourceReference != bookingID {
+		return errors.New("wallet settlement is not authoritatively confirmed")
+	}
+	return nil
+}
+
 const (
 	// walletSourceService must equal what trip completion passes to
 	// CompleteJob ("dispatch-delivery-service", trip/service.go) so the hold,
@@ -75,10 +132,14 @@ func (c *WalletPaymentClient) Hold(ctx context.Context, bookingID, customerID st
 		IdempotencyKey:  "dispatch-hold-" + bookingID,
 	})
 	if err != nil {
-		return "", err
+		return "", &UnknownPaymentOutcome{Cause: err}
 	}
-	if _, err := c.wallet.PayFromWallet(ctx, intent.ID, "dispatch-pay-"+bookingID); err != nil {
-		return intent.Reference, err
+	paid, err := c.wallet.PayFromWallet(ctx, intent.ID, "dispatch-pay-"+bookingID)
+	if err != nil {
+		return intent.Reference, &UnknownPaymentOutcome{Cause: err}
+	}
+	if paid.Status != "held" {
+		return intent.Reference, &UnknownPaymentOutcome{Cause: errors.New("wallet hold acknowledgement is incomplete")}
 	}
 	return intent.Reference, nil
 }
@@ -95,7 +156,7 @@ func (c *WalletPaymentClient) Refund(ctx context.Context, bookingID, paymentRef 
 	if paymentRef == "" {
 		paymentRef = bookingID
 	}
-	_, err := c.wallet.RequestRefund(ctx, walletclient.RefundRequest{
+	refund, err := c.wallet.RequestRefund(ctx, walletclient.RefundRequest{
 		PaymentReference: paymentRef,
 		SourceService:    walletSourceService,
 		SourceReference:  bookingID,
@@ -104,5 +165,8 @@ func (c *WalletPaymentClient) Refund(ctx context.Context, bookingID, paymentRef 
 		Reason:           reason,
 		IdempotencyKey:   idempotencyKey,
 	})
+	if err == nil && refund.Status != "processed" {
+		return errors.New("wallet refund is not authoritatively confirmed")
+	}
 	return err
 }

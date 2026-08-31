@@ -252,58 +252,7 @@ func (a *section17FMissionAuthority) CreateMission(
 	if request.Service == orders.LogisticsDispatch {
 		return a.createDispatchMission(ctx, request)
 	}
-	client := a.legacyClientFor(request.Service)
-	if client == nil || !client.Configured() {
-		return orders.MissionResult{}, commercemission.ErrNotConfigured
-	}
-
-	mission, err := client.CreateMission(ctx, commercemission.Request{
-		MissionRef:      request.MissionRef,
-		ParentOrderRef:  request.ParentOrderID,
-		VendorOrderRefs: request.VendorOrderIDs,
-		CustomerRef:     request.CustomerID,
-		Service:         commercemission.Service(request.Service),
-		VehicleClass:    commercemission.VehicleClass(request.VehicleClass),
-		Pickup: commercemission.Point{
-			Ref: request.PickupBranch,
-			// The pickup address is the branch's own; the authority resolves
-			// it from the branch reference it already knows.
-			Address:   "Vendor branch " + request.PickupBranch,
-			Latitude:  request.DeliveryAddress.Latitude,
-			Longitude: request.DeliveryAddress.Longitude,
-		},
-		Dropoff: commercemission.Point{
-			Ref:       request.DeliveryAddress.SourceAddressRef,
-			Address:   request.DeliveryAddress.Address,
-			Latitude:  request.DeliveryAddress.Latitude,
-			Longitude: request.DeliveryAddress.Longitude,
-			Contact:   request.Receiver.ReceiverName,
-			Phone:     request.Receiver.ReceiverPhone,
-			Notes:     request.DeliveryAddress.Description,
-		},
-		Load: commercemission.Load{
-			WeightGrams:  request.WeightGrams,
-			PackageCount: request.PackageCount,
-		},
-		Currency:       request.Currency,
-		AgreedFeeMinor: request.AgreedFeeMinor,
-		RequestedAt:    time.Now().UTC(),
-	})
-	if err != nil {
-		return orders.MissionResult{}, err
-	}
-
-	result := orders.MissionResult{
-		ExternalRef:      mission.ExternalRef,
-		RefusalCode:      mission.RefusalCode,
-		AcceptedFeeMinor: mission.AcceptedFeeMinor,
-	}
-	if mission.Status == commercemission.StatusRefused {
-		result.Status = orders.MissionRefused
-		return result, nil
-	}
-	result.Status = orders.MissionAccepted
-	return result, nil
+	return a.createHaulingMission(ctx, request)
 }
 
 var (

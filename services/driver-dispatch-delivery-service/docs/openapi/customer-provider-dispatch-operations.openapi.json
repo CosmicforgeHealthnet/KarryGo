@@ -1,0 +1,44 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo customer and provider Dispatch operations",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/customer/dispatch/bookings": {
+      "post": {
+        "summary": "Create one customer booking bound to an authorized serviceability quote",
+        "security": [{"customerBearer": []}],
+        "parameters": [{"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string", "maxLength": 200}}],
+        "responses": {
+          "201": {"description": "Booking created"},
+          "400": {"description": "Missing or mismatched quote binding"},
+          "404": {"description": "Quote not found in customer scope"},
+          "409": {"description": "Idempotency fingerprint conflict or stale quote"}
+        }
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}": {
+      "get": {
+        "summary": "Read an owned booking with an additive, secret-free operations projection",
+        "security": [{"customerBearer": []}],
+        "parameters": [{"in": "path", "name": "id", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {"200": {"description": "Owned booking and available operations state"}, "404": {"description": "Not found or not owned"}}
+      }
+    },
+    "/api/v1/provider/trips/{id}": {
+      "get": {
+        "summary": "Read an assigned Trip with an additive, secret-free mission projection",
+        "security": [{"providerBearer": []}],
+        "parameters": [{"in": "path", "name": "id", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {"200": {"description": "Assigned Trip and available mission operations"}, "404": {"description": "Not found or not assigned to provider"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "customerBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"},
+      "providerBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+    }
+  }
+}

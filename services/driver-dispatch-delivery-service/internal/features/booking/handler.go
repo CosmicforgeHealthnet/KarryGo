@@ -103,7 +103,7 @@ func (h *Handler) CreateBooking(c *gin.Context) {
 		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
 		return
 	}
-	result, err := h.service.CreateBooking(c.Request.Context(), customer, request)
+	result, err := h.service.CreateBookingWithKey(c.Request.Context(), customer, c.GetHeader("Idempotency-Key"), request)
 	if err != nil {
 		httpx.Abort(c, err)
 		return

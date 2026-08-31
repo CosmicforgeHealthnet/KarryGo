@@ -9,9 +9,10 @@ import (
 )
 
 type fakeStore struct {
-	existing map[string]Record
-	created  []CreateInput
-	refused  []RefusalInput
+	existing  map[string]Record
+	created   []CreateInput
+	refused   []RefusalInput
+	cancelled []CancelInput
 }
 
 func newFakeStore() *fakeStore { return &fakeStore{existing: map[string]Record{}} }
@@ -21,32 +22,55 @@ func (s *fakeStore) FindByMissionRef(_ context.Context, ref string) (Record, boo
 	return record, found, nil
 }
 
+func (s *fakeStore) FindByOperationRef(_ context.Context, ref string) (Record, bool, error) {
+	record, found := s.existing[ref]
+	return record, found, nil
+}
+
 func (s *fakeStore) CreateMissionWithBooking(_ context.Context, in CreateInput) (Record, error) {
 	s.created = append(s.created, in)
 	record := Record{
-		MissionRef:     in.Request.MissionRef,
-		ParentOrderRef: in.Request.ParentOrderRef,
-		CustomerID:     in.Request.CustomerRef,
-		BookingID:      "booking_1",
-		AgreedFeeMinor: in.Request.AgreedFeeMinor,
-		Currency:       in.Request.Currency,
-		Status:         "accepted",
-		CreatedAt:      in.CreatedAt,
+		MissionRef:         in.Request.MissionRef,
+		OperationRef:       in.Request.OperationReference(),
+		ParentOrderRef:     in.Request.ParentOrderRef,
+		CustomerID:         in.Request.CustomerRef,
+		BookingID:          "booking_1",
+		RequestFingerprint: in.RequestFingerprint,
+		AgreedFeeMinor:     in.Request.AgreedFeeMinor,
+		Currency:           in.Request.Currency,
+		Status:             "accepted",
+		SourceVersion:      1,
+		CreatedAt:          in.CreatedAt,
 	}
-	s.existing[record.MissionRef] = record
+	s.existing[record.OperationRef] = record
 	return record, nil
 }
 
 func (s *fakeStore) MarkRefused(_ context.Context, in RefusalInput) (Record, error) {
 	s.refused = append(s.refused, in)
 	record := Record{
-		MissionRef:     in.Request.MissionRef,
-		AgreedFeeMinor: in.Request.AgreedFeeMinor,
-		Status:         "refused",
-		RefusalCode:    in.RefusalCode,
-		CreatedAt:      in.CreatedAt,
+		MissionRef:         in.Request.MissionRef,
+		OperationRef:       in.Request.OperationReference(),
+		RequestFingerprint: in.RequestFingerprint,
+		AgreedFeeMinor:     in.Request.AgreedFeeMinor,
+		Status:             "refused",
+		RefusalCode:        in.RefusalCode,
+		SourceVersion:      1,
+		CreatedAt:          in.CreatedAt,
 	}
-	s.existing[record.MissionRef] = record
+	s.existing[record.OperationRef] = record
+	return record, nil
+}
+
+func (s *fakeStore) Cancel(_ context.Context, in CancelInput) (Record, error) {
+	s.cancelled = append(s.cancelled, in)
+	record, found := s.existing[in.OperationRef]
+	if !found {
+		return Record{}, ErrMissionNotFound
+	}
+	record.Status = "cancelled"
+	record.SourceVersion++
+	s.existing[in.OperationRef] = record
 	return record, nil
 }
 
@@ -61,6 +85,7 @@ func (m *fakeMatcher) StartCommerceMatching(
 func missionRequest() commercemission.Request {
 	return commercemission.Request{
 		MissionRef:      "vfm_1",
+		OperationRef:    "vfm_1",
 		ParentOrderRef:  "cpo_1",
 		VendorOrderRefs: []string{"cvo_a"},
 		CustomerRef:     "11111111-1111-1111-1111-111111111111",
@@ -135,6 +160,81 @@ func TestCreate_IsIdempotentOnTheMissionReference(t *testing.T) {
 	if len(matcher.started) != 1 {
 		t.Fatalf("matching starts=%d, want 1 - a retry dispatched a second truck",
 			len(matcher.started))
+	}
+}
+
+func TestCreate_RejectsSameOperationWithDifferentFingerprint(t *testing.T) {
+	store, matcher := newFakeStore(), &fakeMatcher{}
+	service := newService(store, matcher)
+	in := missionRequest()
+	if _, err := service.Create(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+	changed := missionRequest()
+	changed.Dropoff.Latitude = 6.50
+	if _, err := service.Create(context.Background(), changed); err == nil {
+		t.Fatal("changed request with same operation was accepted")
+	}
+	if len(store.created) != 1 {
+		t.Fatalf("created=%d, want 1", len(store.created))
+	}
+}
+
+func TestCreate_CarriesMultiStopScheduledManifestEvidence(t *testing.T) {
+	store, matcher := newFakeStore(), &fakeMatcher{}
+	service := newService(store, matcher)
+	in := missionRequest()
+	in.PickupStops = []commercemission.PickupStop{{
+		StopRef: "stop_a",
+		Location: commercemission.Point{
+			Address: "Branch A", Latitude: 6.46, Longitude: 3.42,
+		},
+		ReadyWindow: commercemission.ReadyWindow{
+			From: time.Unix(3600, 0).UTC(), To: time.Unix(7200, 0).UTC(), Timezone: "Africa/Lagos",
+		},
+		ParcelRefs: []string{"parcel_a"},
+	}}
+	in.Parcels = []commercemission.Parcel{{
+		ParcelRef: "parcel_a", PickupStopRef: "stop_a", ManifestRef: "manifest_a", ManifestVersion: 3,
+		WeightGrams: 750_000, PackageCount: 20,
+	}}
+	in.Plan = &commercemission.PlanBinding{PlanRef: "plan_1", PlanVersion: 7, MissionSlotRef: "slot_1"}
+
+	if _, err := service.Create(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.created[0].Request.PickupStops[0].ReadyWindow.Timezone; got != "Africa/Lagos" {
+		t.Fatalf("timezone=%q", got)
+	}
+	if matcher.started[0] != "booking_1" {
+		t.Fatalf("matcher not started on booking")
+	}
+}
+
+func TestReadAndCancelMission(t *testing.T) {
+	store, matcher := newFakeStore(), &fakeMatcher{}
+	service := newService(store, matcher)
+	if _, err := service.Create(context.Background(), missionRequest()); err != nil {
+		t.Fatal(err)
+	}
+	read, err := service.Read(context.Background(), "vfm_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Status != commercemission.StatusAccepted {
+		t.Fatalf("status=%s", read.Status)
+	}
+	cancelled, err := service.Cancel(context.Background(), commercemission.CancelRequest{
+		OperationRef: "vfm_1", ReasonCode: "CUSTOMER_CANCELLED",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cancelled.Status != commercemission.StatusCancelled {
+		t.Fatalf("cancelled status=%s", cancelled.Status)
+	}
+	if len(store.cancelled) != 1 {
+		t.Fatalf("cancelled calls=%d", len(store.cancelled))
 	}
 }
 

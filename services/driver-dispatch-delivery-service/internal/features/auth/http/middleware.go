@@ -49,6 +49,14 @@ func DispatchRiderAuthRequired(tokens *authusecases.TokenUsecase) gin.HandlerFun
 		c.Set(ContextRole, claims.Role)
 		c.Set(ContextAccessTokenJTI, claims.JWTID)
 		c.Set(ContextAccessExpiresAt, claims.ExpiresAt)
+		if hook, ok := c.Get("dispatch_provider_privacy_check"); ok {
+			if check, ok := hook.(func(*gin.Context) error); ok {
+				if err := check(c); err != nil {
+					httpx.Abort(c, err)
+					return
+				}
+			}
+		}
 		c.Next()
 	}
 }
