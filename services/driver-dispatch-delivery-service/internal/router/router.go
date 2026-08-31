@@ -129,11 +129,21 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		tripfeature.RegisterRoutes(engine, authService.TokenUsecase(), tripfeature.NewHandler(tripService))
 	}
 	if bookingService != nil {
+		customerSigner := sharedauth.NewTokenSigner(cfg.CustomerTokenSecret)
 		bookingfeature.RegisterRoutes(
 			engine,
-			sharedauth.NewTokenSigner(cfg.CustomerTokenSecret),
+			customerSigner,
 			bookingfeature.NewHandler(bookingService, profileService),
 		)
+		// Live-track websocket for the customer's trip map. Needs Redis for
+		// the rider location pub/sub; without it the app keeps polling
+		// GET /bookings/:id/location.
+		if redisClient != nil {
+			bookingfeature.RegisterTrackRoute(
+				engine,
+				bookingfeature.NewTrackHandler(bookingService, customerSigner, redisClient),
+			)
+		}
 	}
 
 	// Internal identity lookup for support-dispute-service (HMAC service auth).

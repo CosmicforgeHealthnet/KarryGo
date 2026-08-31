@@ -106,6 +106,28 @@ func (r *fakeRepo) SetAccepted(_ context.Context, id, providerID string) (bool, 
 	return true, nil
 }
 
+func (r *fakeRepo) SaveDropoffRoute(_ context.Context, id, polyline string, distanceM, durationS int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	booking := r.bookings[id]
+	booking.RouteDropoffPolyline = polyline
+	booking.RouteDropoffDistanceM = &distanceM
+	booking.RouteDropoffDurationS = &durationS
+	r.bookings[id] = booking
+	return nil
+}
+
+func (r *fakeRepo) SavePickupRoute(_ context.Context, id, polyline string, distanceM, durationS int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	booking := r.bookings[id]
+	booking.RoutePickupPolyline = polyline
+	booking.RoutePickupDistanceM = &distanceM
+	booking.RoutePickupDurationS = &durationS
+	r.bookings[id] = booking
+	return nil
+}
+
 func (r *fakeRepo) SetUnmatched(_ context.Context, id string, at time.Time) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -39,6 +39,8 @@ type BookingRepository interface {
 	CancelByProvider(ctx context.Context, id, providerID, reason string) (bookingmodels.Booking, error)
 	ResetToMatching(ctx context.Context, id, expectedProviderID string) (bookingmodels.Booking, error)
 	SetPayment(ctx context.Context, id, paymentStatus, paymentIntentID string) (bookingmodels.Booking, error)
+	SaveDropoffRoute(ctx context.Context, id, polyline string, distanceM, durationS int64) error
+	SavePickupRoute(ctx context.Context, id, polyline string, distanceM, durationS int64) error
 	ListDeliveredForAutoComplete(ctx context.Context, cutoff time.Time) ([]bookingmodels.Booking, error)
 	ListStaleMatching(ctx context.Context, pendingCutoff, awaitingCutoff time.Time) ([]bookingmodels.Booking, error)
 	AddEvent(ctx context.Context, event bookingmodels.BookingEvent) error
@@ -272,6 +274,31 @@ func (r *PostgresBookingRepository) ResendDeliveryCode(ctx context.Context, id s
 	return err
 }
 
+// SaveDropoffRoute stores the road route from pickup to drop-off. It is
+// fetched once at booking creation, when both endpoints are already known.
+func (r *PostgresBookingRepository) SaveDropoffRoute(ctx context.Context, id, polyline string, distanceM, durationS int64) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE haulage_bookings
+		SET route_dropoff_polyline=$2, route_dropoff_distance_m=$3, route_dropoff_duration_s=$4,
+		    route_fetched_at=now(), updated_at=now()
+		WHERE id=$1`,
+		id, polyline, distanceM, durationS)
+	return err
+}
+
+// SavePickupRoute stores the road route from the driver to the pickup. It can
+// only be fetched once a driver has accepted, since it starts at their
+// position at that moment.
+func (r *PostgresBookingRepository) SavePickupRoute(ctx context.Context, id, polyline string, distanceM, durationS int64) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE haulage_bookings
+		SET route_pickup_polyline=$2, route_pickup_distance_m=$3, route_pickup_duration_s=$4,
+		    route_fetched_at=now(), updated_at=now()
+		WHERE id=$1`,
+		id, polyline, distanceM, durationS)
+	return err
+}
+
 // MarkDelivered moves the booking to delivered, storing the proof-of-delivery
 // photo and receiver-signature URLs captured by the provider (either may be
 // empty when the provider skipped them or the upload failed).
@@ -399,6 +426,8 @@ const bookingSelectCols = `
 	distance_km, fare_estimate_kobo, fare_final_kobo,
 	payment_method, payment_status, payment_intent_id, status, cancel_reason, cancelled_by,
 	proof_photo_url, signature_url,
+	route_pickup_polyline, route_pickup_distance_m, route_pickup_duration_s,
+	route_dropoff_polyline, route_dropoff_distance_m, route_dropoff_duration_s, route_fetched_at,
 	pickup_code, pickup_code_hash, pickup_code_expires_at, pickup_code_attempts,
 	pickup_code_resend_count, pickup_code_last_sent_at, pickup_code_verified_at,
 	delivery_code, delivery_code_hash, delivery_code_expires_at, delivery_code_attempts,
@@ -422,6 +451,8 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 		&b.DistanceKm, &b.FareEstimateKobo, &b.FareFinalKobo,
 		&b.PaymentMethod, &b.PaymentStatus, &b.PaymentIntentID, &b.Status, &b.CancelReason, &b.CancelledBy,
 		&b.ProofPhotoURL, &b.SignatureURL,
+		&b.RoutePickupPolyline, &b.RoutePickupDistanceM, &b.RoutePickupDurationS,
+		&b.RouteDropoffPolyline, &b.RouteDropoffDistanceM, &b.RouteDropoffDurationS, &b.RouteFetchedAt,
 		&b.PickupCode, &b.PickupCodeHash, &b.PickupCodeExpiresAt, &b.PickupCodeAttempts,
 		&b.PickupCodeResendCount, &b.PickupCodeLastSentAt, &b.PickupCodeVerifiedAt,
 		&b.DeliveryCode, &b.DeliveryCodeHash, &b.DeliveryCodeExpiresAt, &b.DeliveryCodeAttempts,

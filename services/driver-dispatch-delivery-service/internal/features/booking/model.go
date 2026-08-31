@@ -52,35 +52,44 @@ const (
 )
 
 type Booking struct {
-	ID             string     `json:"id"`
-	CustomerID     string     `json:"customer_id"`
-	Status         string     `json:"-"` // coarse persisted status; wire status is derived
-	PickupAddress  string     `json:"pickup_address"`
-	PickupLat      float64    `json:"pickup_lat"`
-	PickupLng      float64    `json:"pickup_lng"`
-	DropoffAddress string     `json:"dropoff_address"`
-	DropoffLat     float64    `json:"dropoff_lat"`
-	DropoffLng     float64    `json:"dropoff_lng"`
-	DistanceKM     float64    `json:"distance_km"`
-	FareAmount     int64      `json:"fare_amount_kobo"`
-	Currency       string     `json:"currency"`
-	PaymentMethod  string     `json:"payment_method"`
-	PaymentStatus  string     `json:"payment_status"`
-	PaymentRef     string     `json:"-"`
-	ReceiverName   string     `json:"receiver_name"`
-	ReceiverPhone  string     `json:"receiver_phone"`
-	PackageDesc    string     `json:"package_desc"`
-	PackageWeight  *float64   `json:"package_weight,omitempty"`
-	PackageType    string     `json:"package_type"`
-	PackageSize    string     `json:"package_size"`
-	IsFragile      bool       `json:"is_fragile"`
-	ServiceTier    string     `json:"service_tier"`
-	ProviderID     string     `json:"provider_id,omitempty"`
-	CancelReason   string     `json:"cancel_reason,omitempty"`
-	CancelledAt    *time.Time `json:"cancelled_at,omitempty"`
-	CompletedAt    *time.Time `json:"completed_at,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID             string   `json:"id"`
+	CustomerID     string   `json:"customer_id"`
+	Status         string   `json:"-"` // coarse persisted status; wire status is derived
+	PickupAddress  string   `json:"pickup_address"`
+	PickupLat      float64  `json:"pickup_lat"`
+	PickupLng      float64  `json:"pickup_lng"`
+	DropoffAddress string   `json:"dropoff_address"`
+	DropoffLat     float64  `json:"dropoff_lat"`
+	DropoffLng     float64  `json:"dropoff_lng"`
+	DistanceKM     float64  `json:"distance_km"`
+	FareAmount     int64    `json:"fare_amount_kobo"`
+	Currency       string   `json:"currency"`
+	PaymentMethod  string   `json:"payment_method"`
+	PaymentStatus  string   `json:"payment_status"`
+	PaymentRef     string   `json:"-"`
+	ReceiverName   string   `json:"receiver_name"`
+	ReceiverPhone  string   `json:"receiver_phone"`
+	PackageDesc    string   `json:"package_desc"`
+	PackageWeight  *float64 `json:"package_weight,omitempty"`
+	PackageType    string   `json:"package_type"`
+	PackageSize    string   `json:"package_size"`
+	IsFragile      bool     `json:"is_fragile"`
+	ServiceTier    string   `json:"service_tier"`
+	ProviderID     string   `json:"provider_id,omitempty"`
+	// Route geometry for the customer's map. The pickup leg only appears
+	// once a rider is assigned; both are absent when no routing API key is
+	// configured and the app falls back to a straight line.
+	RoutePickupPolyline   string     `json:"route_pickup_polyline,omitempty"`
+	RoutePickupDistanceM  *int64     `json:"route_pickup_distance_m,omitempty"`
+	RoutePickupDurationS  *int64     `json:"route_pickup_duration_s,omitempty"`
+	RouteDropoffPolyline  string     `json:"route_dropoff_polyline,omitempty"`
+	RouteDropoffDistanceM *int64     `json:"route_dropoff_distance_m,omitempty"`
+	RouteDropoffDurationS *int64     `json:"route_dropoff_duration_s,omitempty"`
+	CancelReason          string     `json:"cancel_reason,omitempty"`
+	CancelledAt           *time.Time `json:"cancelled_at,omitempty"`
+	CompletedAt           *time.Time `json:"completed_at,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 // DerivedState is the joined broadcast + trip state used to compute the
@@ -204,10 +213,18 @@ type AvailabilityResponse struct {
 	Count     int64 `json:"count"`
 }
 
+// LocationResponse is the rider's live position for the customer's trip map.
+//
+// Heading, speed and accuracy have always been collected by the rider app and
+// stored, but were dropped here, so the customer's marker could not be rotated
+// or dead-reckoned between fixes. They are carried through now.
 type LocationResponse struct {
 	ProviderID string    `json:"provider_id"`
 	Lat        float64   `json:"lat"`
 	Lng        float64   `json:"lng"`
+	Heading    float64   `json:"heading"`
+	Speed      float64   `json:"speed"`
+	Accuracy   float64   `json:"accuracy"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 

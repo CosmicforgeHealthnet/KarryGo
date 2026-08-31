@@ -1,0 +1,22 @@
+name: cosmicforge_logistics_live_tracking_google_maps
+description: Google Maps bindings for Cosmicforge Logistics live vehicle tracking.
+version: 0.0.1
+# Never published: it is consumed by path from the apps in this repo.
+publish_to: 'none'
+
+environment:
+  sdk: ^3.11.3
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_maps_flutter: ^2.10.0
+
+  cosmicforge_logistics_live_tracking:
+    path: ../live_tracking
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

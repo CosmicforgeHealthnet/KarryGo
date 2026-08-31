@@ -3,7 +3,6 @@ package bookingusecases
 import (
 	"context"
 	"errors"
-	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -16,7 +15,9 @@ import (
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/routing"
 )
 
 const (
@@ -32,6 +33,11 @@ const (
 	// matchLockSlack pads provider match locks and stale-offer cutoffs beyond the
 	// acceptance window so a lock never expires mid-decision.
 	matchLockSlack = 15 * time.Second
+	// matchCandidateLimit caps how many nearby providers one rescan pulls out
+	// of the spatial index. Offers go out nearest-first, so a booking that
+	// cannot be placed among the closest 50 trucks in range is not going to
+	// be placed by widening the list.
+	matchCandidateLimit = 50
 )
 
 // TruckInfo is the minimal truck data the matcher needs to decide eligibility.
@@ -90,6 +96,7 @@ type BookingService struct {
 	restrictions      RestrictionGate
 	activeMatches     sync.Map // map[bookingID]*matchHandle
 	handoverSecret    []byte
+	routes            routing.Fetcher
 }
 
 // matchHandle wraps a context.CancelFunc so it can be stored in sync.Map and
@@ -111,6 +118,10 @@ type Options struct {
 	HandoverSecret      []byte // signs/verifies pickup & delivery handover codes
 	AllowCashPayments   bool
 	Restrictions        RestrictionGate
+	// Routes fetches road geometry for the live map and the progress bar.
+	// nil disables route fetching; every consumer then falls back to
+	// straight-line geometry.
+	Routes routing.Fetcher
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -140,6 +151,7 @@ func NewBookingService(opts Options) *BookingService {
 		allowCashPayments: opts.AllowCashPayments,
 		restrictions:      opts.Restrictions,
 		handoverSecret:    opts.HandoverSecret,
+		routes:            opts.Routes,
 	}
 }
 
@@ -275,17 +287,51 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	}
 
 	_ = s.addEvent(ctx, created.ID, "booking_created", bookingmodels.ActorCustomer, input.CustomerID)
+	// Both endpoints are known now, so the cargo leg's road geometry can be
+	// fetched while matching runs.
+	s.fetchDropoffRoute(created.ID,
+		geo.Point{Lat: input.PickupLat, Lng: input.PickupLng},
+		geo.Point{Lat: input.DropoffLat, Lng: input.DropoffLng})
 	s.startMatchGoroutine(created.ID, input.PickupLat, input.PickupLng)
 	return created.Public(), nil
 }
 
 // ProviderLocation is the live position of the provider assigned to a booking.
+//
+// Heading, speed and accuracy come from the provider device's GPS stream. They
+// let the customer app rotate the vehicle marker and dead-reckon between
+// fixes; they are zero when the device did not report them.
 type ProviderLocation struct {
 	BookingID string  `json:"booking_id"`
 	Lat       float64 `json:"lat"`
 	Lng       float64 `json:"lng"`
+	Heading   float64 `json:"heading"`
+	Speed     float64 `json:"speed"`
+	Accuracy  float64 `json:"accuracy"`
 	UpdatedAt int64   `json:"updated_at"`
 	Available bool    `json:"available"`
+}
+
+// TrackTarget identifies whose live position a customer is entitled to watch
+// for one booking.
+type TrackTarget struct {
+	BookingID  string
+	ProviderID string
+}
+
+// ResolveTrackTarget authorises a customer to stream the assigned provider's
+// position for one of their bookings. It is the ownership check behind the
+// live-track websocket: without it a customer could subscribe to any
+// provider's channel by guessing an id.
+func (s *BookingService) ResolveTrackTarget(ctx context.Context, bookingID, customerID string) (TrackTarget, error) {
+	b, err := s.bookings.GetByIDForCustomer(ctx, bookingID, customerID)
+	if err != nil {
+		return TrackTarget{}, err
+	}
+	if b.ProviderID == nil || *b.ProviderID == "" {
+		return TrackTarget{}, apperrors.NotFound("No driver is assigned to this booking yet.", nil)
+	}
+	return TrackTarget{BookingID: bookingID, ProviderID: *b.ProviderID}, nil
 }
 
 // GetBookingLocation returns the live location of the provider assigned to the
@@ -310,6 +356,9 @@ func (s *BookingService) GetBookingLocation(ctx context.Context, bookingID, cust
 		BookingID: bookingID,
 		Lat:       st.Lat,
 		Lng:       st.Lng,
+		Heading:   st.Heading,
+		Speed:     st.Speed,
+		Accuracy:  st.Accuracy,
 		UpdatedAt: st.UpdatedAt,
 		Available: true,
 	}, nil
@@ -420,7 +469,10 @@ func (s *BookingService) matchBooking(ctx context.Context, bookingID string, pic
 			return
 		}
 
-		providers, err := s.availability.GetOnlineProviders(ctx)
+		// Read the geohash cell index rather than every online provider on
+		// the platform: the radius filter now happens in Redis, so a rescan
+		// costs work proportional to trucks near this pickup.
+		providers, err := s.nearbyProviders(ctx, pickupLat, pickupLng)
 		if err != nil {
 			return
 		}
@@ -537,6 +589,32 @@ func (s *BookingService) tryEligibleProviders(
 		return current.Status == bookingmodels.StatusAccepted, true
 	}
 	return false, false
+}
+
+// nearbyProviders reads candidate providers from the spatial index, bounded to
+// the serviceable radius.
+//
+// If the index comes back empty while the legacy online set is not, it falls
+// back to the full scan. That covers the deploy window in which providers who
+// went online before this build have an availability key but no index entry
+// yet; their next heartbeat re-indexes them, so the fallback self-heals within
+// one heartbeat rather than stranding bookings.
+func (s *BookingService) nearbyProviders(ctx context.Context, pickupLat, pickupLng float64) ([]availabilityrepositories.ProviderStatus, error) {
+	center := geo.Point{Lat: pickupLat, Lng: pickupLng}
+
+	nearby, err := s.availability.NearbyProviders(ctx, center, s.maxRadiusKm, matchCandidateLimit)
+	if err != nil {
+		return nil, err
+	}
+	if len(nearby) > 0 {
+		return nearby, nil
+	}
+
+	online, err := s.availability.GetOnlineProviders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return online, nil
 }
 
 // eligibleProviders filters online providers down to those that can actually do
@@ -935,6 +1013,9 @@ func (s *BookingService) AcceptBooking(ctx context.Context, id, providerID strin
 		return bookingmodels.PublicBooking{}, err
 	}
 	_ = s.addEvent(ctx, id, "booking_accepted", bookingmodels.ActorProvider, providerID)
+	// The driver's position is only known now, so this is the first point the
+	// approach leg can be routed for the customer's map.
+	s.fetchPickupRoute(id, providerID, geo.Point{Lat: b.PickupLat, Lng: b.PickupLng})
 	s.notifier.NotifyCustomerAccepted(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	return updated.Public(), nil
 }
@@ -1244,13 +1325,11 @@ func (s *BookingService) addEvent(ctx context.Context, bookingID, eventType, act
 	})
 }
 
-// haversineKm returns the great-circle distance in kilometres between two lat/lng points.
+// haversineKm returns the great-circle distance in kilometres between two
+// lat/lng points, delegating to the platform-wide implementation.
 func haversineKm(lat1, lng1, lat2, lng2 float64) float64 {
-	const r = 6371.0
-	dLat := (lat2 - lat1) * math.Pi / 180
-	dLng := (lng2 - lng1) * math.Pi / 180
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*
-			math.Sin(dLng/2)*math.Sin(dLng/2)
-	return r * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	return geo.HaversineKm(
+		geo.Point{Lat: lat1, Lng: lng1},
+		geo.Point{Lat: lat2, Lng: lng2},
+	)
 }

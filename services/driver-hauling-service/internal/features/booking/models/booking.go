@@ -136,6 +136,18 @@ type Booking struct {
 	ProofPhotoURL string
 	SignatureURL  string
 
+	// Route* holds the road geometry for the two legs the customer watches:
+	// the driver approaching the pickup, then the cargo moving to the
+	// drop-off. Empty when no routing API key is configured, in which case
+	// consumers fall back to straight-line geometry.
+	RoutePickupPolyline   string
+	RoutePickupDistanceM  *int64
+	RoutePickupDurationS  *int64
+	RouteDropoffPolyline  string
+	RouteDropoffDistanceM *int64
+	RouteDropoffDurationS *int64
+	RouteFetchedAt        *time.Time
+
 	// PickupCode* is the driver's own pickup credential: generated when the
 	// driver marks arrived-at-pickup, displayed on the driver's app, and
 	// verified by the customer (PickupCodeAttempts counts the customer's
@@ -214,6 +226,16 @@ type PublicBooking struct {
 	ProofPhotoURL string `json:"proof_photo_url,omitempty"`
 	SignatureURL  string `json:"signature_url,omitempty"`
 
+	// Route geometry for the customer's map. The pickup leg is only present
+	// once a driver has been assigned; both are absent when no routing API
+	// key is configured and the app falls back to a straight line.
+	RoutePickupPolyline   string `json:"route_pickup_polyline,omitempty"`
+	RoutePickupDistanceM  *int64 `json:"route_pickup_distance_m,omitempty"`
+	RoutePickupDurationS  *int64 `json:"route_pickup_duration_s,omitempty"`
+	RouteDropoffPolyline  string `json:"route_dropoff_polyline,omitempty"`
+	RouteDropoffDistanceM *int64 `json:"route_dropoff_distance_m,omitempty"`
+	RouteDropoffDurationS *int64 `json:"route_dropoff_duration_s,omitempty"`
+
 	MatchedAt   *time.Time `json:"matched_at,omitempty"`
 	AcceptedAt  *time.Time `json:"accepted_at,omitempty"`
 	PickedUpAt  *time.Time `json:"picked_up_at,omitempty"`
@@ -261,45 +283,51 @@ func (b Booking) DeliveryCodeRecord() handover.CodeRecord {
 
 func (b Booking) Public() PublicBooking {
 	return PublicBooking{
-		ID:                 b.ID,
-		CustomerID:         b.CustomerID,
-		ProviderID:         b.ProviderID,
-		TruckID:            b.TruckID,
-		PickupAddress:      b.PickupAddress,
-		PickupLat:          b.PickupLat,
-		PickupLng:          b.PickupLng,
-		DropoffAddress:     b.DropoffAddress,
-		DropoffLat:         b.DropoffLat,
-		DropoffLng:         b.DropoffLng,
-		CargoType:          b.CargoType,
-		PreferredTruckType: b.PreferredTruckType,
-		CargoWeightKg:      b.CargoWeightKg,
-		CargoDescription:   b.CargoDescription,
-		RequiresHelpers:    b.RequiresHelpers,
-		HelperCount:        b.HelperCount,
-		WeightCategory:     b.WeightCategory,
-		ReceiverName:       b.ReceiverName,
-		ReceiverPhone:      b.ReceiverPhone,
-		PackageContent:     b.PackageContent,
-		PackageSize:        b.PackageSize,
-		IsFragile:          b.IsFragile,
-		DistanceKm:         b.DistanceKm,
-		FareEstimateKobo:   b.FareEstimateKobo,
-		FareFinalKobo:      b.FareFinalKobo,
-		PaymentMethod:      b.PaymentMethod,
-		PaymentStatus:      b.PaymentStatus,
-		Status:             b.Status,
-		CancelReason:       b.CancelReason,
-		ProofPhotoURL:      b.ProofPhotoURL,
-		SignatureURL:       b.SignatureURL,
-		MatchedAt:          b.MatchedAt,
-		AcceptedAt:         b.AcceptedAt,
-		PickedUpAt:         b.PickedUpAt,
-		DeliveredAt:        b.DeliveredAt,
-		CompletedAt:        b.CompletedAt,
-		CancelledAt:        b.CancelledAt,
-		ScheduledAt:        b.ScheduledAt,
-		CreatedAt:          b.CreatedAt,
+		ID:                    b.ID,
+		CustomerID:            b.CustomerID,
+		ProviderID:            b.ProviderID,
+		TruckID:               b.TruckID,
+		PickupAddress:         b.PickupAddress,
+		PickupLat:             b.PickupLat,
+		PickupLng:             b.PickupLng,
+		DropoffAddress:        b.DropoffAddress,
+		DropoffLat:            b.DropoffLat,
+		DropoffLng:            b.DropoffLng,
+		CargoType:             b.CargoType,
+		PreferredTruckType:    b.PreferredTruckType,
+		CargoWeightKg:         b.CargoWeightKg,
+		CargoDescription:      b.CargoDescription,
+		RequiresHelpers:       b.RequiresHelpers,
+		HelperCount:           b.HelperCount,
+		WeightCategory:        b.WeightCategory,
+		ReceiverName:          b.ReceiverName,
+		ReceiverPhone:         b.ReceiverPhone,
+		PackageContent:        b.PackageContent,
+		PackageSize:           b.PackageSize,
+		IsFragile:             b.IsFragile,
+		DistanceKm:            b.DistanceKm,
+		FareEstimateKobo:      b.FareEstimateKobo,
+		FareFinalKobo:         b.FareFinalKobo,
+		PaymentMethod:         b.PaymentMethod,
+		PaymentStatus:         b.PaymentStatus,
+		Status:                b.Status,
+		CancelReason:          b.CancelReason,
+		ProofPhotoURL:         b.ProofPhotoURL,
+		SignatureURL:          b.SignatureURL,
+		RoutePickupPolyline:   b.RoutePickupPolyline,
+		RoutePickupDistanceM:  b.RoutePickupDistanceM,
+		RoutePickupDurationS:  b.RoutePickupDurationS,
+		RouteDropoffPolyline:  b.RouteDropoffPolyline,
+		RouteDropoffDistanceM: b.RouteDropoffDistanceM,
+		RouteDropoffDurationS: b.RouteDropoffDurationS,
+		MatchedAt:             b.MatchedAt,
+		AcceptedAt:            b.AcceptedAt,
+		PickedUpAt:            b.PickedUpAt,
+		DeliveredAt:           b.DeliveredAt,
+		CompletedAt:           b.CompletedAt,
+		CancelledAt:           b.CancelledAt,
+		ScheduledAt:           b.ScheduledAt,
+		CreatedAt:             b.CreatedAt,
 	}
 }
 

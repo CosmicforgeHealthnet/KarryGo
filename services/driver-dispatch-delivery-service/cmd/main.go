@@ -28,6 +28,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/providercompat"
+	"cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
 
@@ -191,7 +192,10 @@ func main() {
 		bookingfeature.NewWalletPaymentClient(walletClient),
 		bookingfeature.NewRedisEventPublisher(redisClient),
 		cfg.AvailabilityRadiusKM,
-	).WithNotifier(bookingNotifier)
+		// routesClient is nil unless DISPATCH_ROUTES_API_KEY is set, in which
+		// case routes are never fetched and the apps fall back to
+		// straight-line geometry.
+	).WithNotifier(bookingNotifier).WithRoutes(routing.New(cfg.RoutesAPIKey))
 	bookingfeature.StartSubscribers(ctx, redisClient, bookingService)
 
 	asynqServer := asynq.NewServer(asynqRedis, asynq.Config{

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"cosmicforge/logistics/shared/go/geo"
 )
 
 const (
@@ -126,13 +128,11 @@ func RoundKM(distanceKM float64) float64 {
 }
 
 // HaversineKm returns the great-circle distance in kilometres between two
-// latitude/longitude points (WGS84).
+// latitude/longitude points (WGS84). It delegates to shared/go/geo, which is
+// the single implementation the whole platform now shares.
 func HaversineKm(lat1, lng1, lat2, lng2 float64) float64 {
-	const earthRadiusKM = 6371.0
-	dLat := (lat2 - lat1) * math.Pi / 180
-	dLng := (lng2 - lng1) * math.Pi / 180
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*
-			math.Sin(dLng/2)*math.Sin(dLng/2)
-	return earthRadiusKM * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	return geo.HaversineKm(
+		geo.Point{Lat: lat1, Lng: lng1},
+		geo.Point{Lat: lat2, Lng: lng2},
+	)
 }

@@ -18,9 +18,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
+	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
-	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 )
 
 // ── shared helpers ────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ func Test5F_MissingRedisStatusReturns400(t *testing.T) {
 // required the key to already exist. Postgres still records that they chose to
 // be online, so the ping must be accepted and the cache entry rebuilt.
 func Test5F_ExpiredLiveStatusRecoversFromDurableOnlineState(t *testing.T) {
-	_, _, store, mr := newLocationTestEnv(t)
+	_, _, store, _ := newLocationTestEnv(t)
 	ctx := context.Background()
 	providerID := uuid.NewString()
 
@@ -159,12 +159,25 @@ func Test5F_ExpiredLiveStatusRecoversFromDurableOnlineState(t *testing.T) {
 	if !ok || status != StatusOnline {
 		t.Fatalf("live status not rebuilt: got %q exists=%v, want %q", status, ok, StatusOnline)
 	}
-	// Membership of the geo set is what the customer availability query reads,
-	// so this is the assertion that proves the rider became bookable again.
-	// (Asserted via ZSCORE rather than GetNearby because miniredis does not
-	// implement GEOSEARCH.)
-	if _, err := mr.ZScore(OnlineProvidersGeoKey, providerID); err != nil {
-		t.Fatalf("rider not re-added to the discoverable geo set: %v", err)
+	// Discoverability is what the customer availability query reads, so this
+	// is the assertion that proves the rider became bookable again. The
+	// spatial index is now a geohash cell layout backed by sorted sets, which
+	// miniredis supports, so this can assert through the real query path
+	// instead of poking at a key.
+	nearby, err := store.GetNearby(ctx, NearbyProvidersRequest{
+		Latitude: 6.5244, Longitude: 3.3792, RadiusKM: 1, Limit: 50,
+	})
+	if err != nil {
+		t.Fatalf("GetNearby error = %v", err)
+	}
+	found := false
+	for _, provider := range nearby {
+		if provider.ProviderID == providerID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("rider not discoverable again after the status TTL lapse; nearby = %+v", nearby)
 	}
 }
 
@@ -270,13 +283,16 @@ func Test5F_OnlinePingGeoAddsProvider(t *testing.T) {
 		t.Fatalf("UpdateLocation error = %v", err)
 	}
 
-	// Verify via GEOPOS that the provider is in the GEO set (miniredis supports GEOPOS).
-	positions, err := client.GeoPos(ctx, OnlineProvidersGeoKey, providerID).Result()
+	// An accepted online ping must make the rider discoverable to a proximity
+	// query at their own position.
+	nearby, err := store.GetNearby(ctx, NearbyProvidersRequest{
+		Latitude: 6.5244, Longitude: 3.3792, RadiusKM: 1, Limit: 50,
+	})
 	if err != nil {
-		t.Fatalf("GEOPOS error = %v", err)
+		t.Fatalf("GetNearby error = %v", err)
 	}
-	if len(positions) != 1 || positions[0] == nil {
-		t.Fatalf("provider not in avail:geo:online; positions = %+v", positions)
+	if len(nearby) != 1 || nearby[0].ProviderID != providerID {
+		t.Fatalf("provider not discoverable after an online ping; nearby = %+v", nearby)
 	}
 }
 

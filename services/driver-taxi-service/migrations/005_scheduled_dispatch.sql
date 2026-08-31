@@ -1,0 +1,12 @@
+-- Phase B9: scheduled rides.
+--
+-- matching_started_at anchors the matcher's own search-window deadline
+-- (matchBooking in internal/features/booking/usecases/matching.go computes
+-- searchDeadline from it, NOT from created_at). For an immediate booking the
+-- two instants are the same; for a ride booked hours or days ahead of
+-- pickup they are not -- reusing created_at would leave the matcher's
+-- deadline already expired the moment a scheduled ride is promoted to
+-- active matching, so every scheduled ride would silently go unmatched with
+-- zero real search attempts. Found by reading the existing B2 matcher code
+-- before writing this migration, not assumed.
+ALTER TABLE taxi_bookings ADD COLUMN IF NOT EXISTS matching_started_at TIMESTAMPTZ;

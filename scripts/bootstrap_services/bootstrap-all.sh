@@ -19,6 +19,7 @@ SERVICES=(
   payment
   hauling
   dispatch
+  taxi
   customer
   support-dispute
 )

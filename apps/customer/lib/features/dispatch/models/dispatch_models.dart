@@ -36,6 +36,15 @@ enum DispatchBookingStatus {
     };
   }
 
+  /// Whether the package is not yet aboard, i.e. the rider is still on their
+  /// approach leg. Selects which route and which progress leg to show.
+  bool get isBeforePickup => [
+    DispatchBookingStatus.searching,
+    DispatchBookingStatus.accepted,
+    DispatchBookingStatus.enRoutePickup,
+    DispatchBookingStatus.arrivedAtPickup,
+  ].contains(this);
+
   bool get isActive => [
     DispatchBookingStatus.accepted,
     DispatchBookingStatus.enRoutePickup,
@@ -216,6 +225,8 @@ class DispatchBooking {
     this.cancelReason,
     this.cancelledAt,
     this.completedAt,
+    this.routePickupPolyline = '',
+    this.routeDropoffPolyline = '',
     required this.createdAt,
   });
 
@@ -246,6 +257,13 @@ class DispatchBooking {
   final String? cancelReason;
   final DateTime? cancelledAt;
   final DateTime? completedAt;
+  /// Encoded road geometry for the two legs the customer watches: the rider
+  /// approaching the pickup, then the package moving to the drop-off. Empty
+  /// when the service has no routing key configured, in which case the map
+  /// draws a straight line and progress is measured as the crow flies.
+  final String routePickupPolyline;
+  final String routeDropoffPolyline;
+
   final DateTime createdAt;
 
   int get displayFareKobo => fareAmountKobo;
@@ -287,8 +305,16 @@ class DispatchBooking {
     completedAt: j['completed_at'] != null
         ? DateTime.tryParse(j['completed_at'] as String)
         : null,
+    routePickupPolyline: j['route_pickup_polyline'] as String? ?? '',
+    routeDropoffPolyline: j['route_dropoff_polyline'] as String? ?? '',
     createdAt: DateTime.parse(j['created_at'] as String),
   );
+
+  /// The road geometry for whichever leg the customer is watching: the rider's
+  /// approach before pickup, the delivery run after it. Empty means there is
+  /// no route to draw and consumers fall back to a straight line.
+  String get activeRoutePolyline =>
+      status.isBeforePickup ? routePickupPolyline : routeDropoffPolyline;
 }
 
 // ─── Availability ─────────────────────────────────────────────────────────────

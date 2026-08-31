@@ -14,6 +14,8 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/geo"
+	"cosmicforge/logistics/shared/go/livetrack"
 )
 
 const (
@@ -32,12 +34,61 @@ type LiveStore interface {
 	GetNearby(ctx context.Context, request NearbyProvidersRequest) ([]NearbyProvider, error)
 }
 
+// TrackingNamespace prefixes this service's keys in the shared live-tracking
+// index, keeping them clear of hauling's even on a shared Redis.
+const TrackingNamespace = "dispatch"
+
 type RedisLiveStore struct {
 	client *redis.Client
+	// track is the shared geohash-cell index. It replaces the old
+	// avail:geo:online sorted set, which had no TTL and no sweeper, so a
+	// rider who force-quit stayed discoverable until something happened to
+	// read them. Cell membership is scored by fix time and pruned on read.
+	//
+	// Everything else about the wire contract is unchanged: locations still
+	// live at avail:location:{id} and updates are still published on
+	// avail:loc:chan:{id}, because the rider app and the partner API's
+	// tracking websocket both already read those.
+	track *livetrack.RedisStore
 }
 
 func NewRedisLiveStore(client *redis.Client) *RedisLiveStore {
-	return &RedisLiveStore{client: client}
+	return &RedisLiveStore{
+		client: client,
+		track: livetrack.NewRedisStore(client, livetrack.Config{
+			Namespace:      TrackingNamespace,
+			FixTTL:         LocationTTL,
+			ChannelKeyFunc: ProviderLocationChannel,
+		}),
+	}
+}
+
+// Track exposes the tracking store so the booking feature can read a rider's
+// live fix without going through the availability service.
+func (s *RedisLiveStore) Track() livetrack.Store {
+	if s == nil {
+		return nil
+	}
+	return s.track
+}
+
+// toFix converts a dispatch Location into the shared telemetry envelope.
+func toFix(providerID string, location Location) livetrack.Fix {
+	recorded := location.UpdatedAt
+	if recorded.IsZero() {
+		recorded = time.Now().UTC()
+	}
+	return livetrack.Fix{
+		EntityID:   providerID,
+		Lat:        location.Lat,
+		Lng:        location.Lng,
+		Heading:    location.Heading,
+		Speed:      location.Speed,
+		Accuracy:   location.Accuracy,
+		RecordedAt: recorded,
+		ReceivedAt: time.Now().UTC(),
+		Source:     "driver-dispatch-delivery-service",
+	}
 }
 
 func (s *RedisLiveStore) SetStatus(ctx context.Context, providerID string, status AvailabilityStatus) error {
@@ -72,39 +123,32 @@ func (s *RedisLiveStore) ClearProvider(ctx context.Context, providerID string) e
 	pipe := s.client.Pipeline()
 	pipe.Set(ctx, ProviderStatusKey(providerID), string(StatusOffline), StatusTTL)
 	pipe.Del(ctx, ProviderLocationKey(providerID))
-	pipe.ZRem(ctx, OnlineProvidersGeoKey, providerID)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return err
 	}
-	// Notify WebSocket subscribers that this provider went offline.
-	offlineMsg, _ := json.Marshal(WSProviderOffline{
-		Type:       "provider_offline",
-		ProviderID: providerID,
-	})
-	_ = s.client.Publish(ctx, ProviderLocationChannel(providerID), offlineMsg)
-	return nil
+	// Remove also publishes the offline message on the same channel the
+	// rider app and partner tracking socket already subscribe to.
+	return s.track.Remove(ctx, providerID)
 }
 
 func (s *RedisLiveStore) RemoveFromGeo(ctx context.Context, providerID string) error {
 	if s == nil || s.client == nil {
 		return nil
 	}
-	return s.client.ZRem(ctx, OnlineProvidersGeoKey, providerID).Err()
+	// Keeps the position readable while taking the rider out of matching --
+	// the state a rider is in once they are on a job.
+	return s.track.SetDiscoverable(ctx, providerID, false)
 }
 
 func (s *RedisLiveStore) RestoreGeoFromLocation(ctx context.Context, providerID string) (bool, error) {
+	if s == nil || s.client == nil {
+		return false, nil
+	}
 	location, ok, err := s.GetLocation(ctx, providerID)
 	if err != nil || !ok {
 		return false, err
 	}
-	if s == nil || s.client == nil {
-		return false, nil
-	}
-	if err := s.client.GeoAdd(ctx, OnlineProvidersGeoKey, &redis.GeoLocation{
-		Name:      providerID,
-		Longitude: location.Lng,
-		Latitude:  location.Lat,
-	}).Err(); err != nil {
+	if err := s.track.PutFix(ctx, toFix(providerID, location), true); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -122,38 +166,14 @@ func (s *RedisLiveStore) SetLocation(ctx context.Context, providerID string, loc
 	if err := s.client.Set(ctx, ProviderLocationKey(providerID), locPayload, LocationTTL).Err(); err != nil {
 		return err
 	}
-	if discoverable {
-		// Redis GEOADD takes longitude first, then latitude.
-		if err := s.client.GeoAdd(ctx, OnlineProvidersGeoKey, &redis.GeoLocation{
-			Name:      providerID,
-			Longitude: location.Lng,
-			Latitude:  location.Lat,
-		}).Err(); err != nil {
-			return err
-		}
-	} else if err := s.client.ZRem(ctx, OnlineProvidersGeoKey, providerID).Err(); err != nil {
+	// PutFix indexes the position for proximity search (when discoverable)
+	// and publishes the websocket-ready update on ProviderLocationChannel,
+	// which is the same channel StreamLocation subscribes to.
+	if err := s.track.PutFix(ctx, toFix(providerID, location), discoverable); err != nil {
 		return err
 	}
-	// Publish WebSocket-ready message so StreamLocation subscribers receive it.
-	wsMsg := WSLocationUpdate{
-		Type:       "location_update",
-		ProviderID: providerID,
-		Lat:        location.Lat,
-		Lng:        location.Lng,
-		Heading:    location.Heading,
-		Speed:      location.Speed,
-		Accuracy:   location.Accuracy,
-		UpdatedAt:  location.UpdatedAt,
-	}
-	wsPayload, err := json.Marshal(wsMsg)
-	if err != nil {
-		return fmt.Errorf("marshal ws location update: %w", err)
-	}
-	cmd := s.client.Publish(ctx, ProviderLocationChannel(providerID), wsPayload)
-	if err := cmd.Err(); err != nil {
-		return err
-	}
-	log.Printf("availability location published provider_id=%s channel=%s subscribers=%d", providerID, ProviderLocationChannel(providerID), cmd.Val())
+	log.Printf("availability location published provider_id=%s channel=%s discoverable=%t",
+		providerID, ProviderLocationChannel(providerID), discoverable)
 	return nil
 }
 
@@ -180,47 +200,37 @@ func (s *RedisLiveStore) GetNearby(ctx context.Context, request NearbyProvidersR
 		return []NearbyProvider{}, nil
 	}
 	normalizeNearbyRequest(&request)
-	results, err := s.client.GeoSearchLocation(ctx, OnlineProvidersGeoKey, &redis.GeoSearchLocationQuery{
-		GeoSearchQuery: redis.GeoSearchQuery{
-			Longitude:  request.Longitude,
-			Latitude:   request.Latitude,
-			Radius:     request.RadiusKM,
-			RadiusUnit: "km",
-			Sort:       "ASC",
-			Count:      request.Limit,
-		},
-		WithCoord: true,
-		WithDist:  true,
-	}).Result()
+
+	// The cell index answers this in two pipelined round trips regardless of
+	// how many riders come back, and prunes fixes past their TTL as it reads.
+	found, err := s.track.Nearby(ctx, livetrack.NearbyQuery{
+		Center:   geo.Point{Lat: request.Latitude, Lng: request.Longitude},
+		RadiusKm: request.RadiusKM,
+		Limit:    request.Limit,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	nearby := make([]NearbyProvider, 0, len(results))
-	for _, result := range results {
-		providerID := result.Name
-		status, ok, err := s.GetStatus(ctx, providerID)
+	nearby := make([]NearbyProvider, 0, len(found))
+	for _, entity := range found {
+		// Being indexed is not the same as being available for work: a rider
+		// whose status key has lapsed or flipped to busy must not be offered
+		// a job, so confirm the status before returning them.
+		status, ok, err := s.GetStatus(ctx, entity.Fix.EntityID)
 		if err != nil {
 			return nil, err
 		}
 		if !ok || status != StatusOnline {
-			_ = s.client.ZRem(ctx, OnlineProvidersGeoKey, providerID).Err()
-			continue
-		}
-		location, ok, err := s.GetLocation(ctx, providerID)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			_ = s.client.ZRem(ctx, OnlineProvidersGeoKey, providerID).Err()
+			_ = s.track.SetDiscoverable(ctx, entity.Fix.EntityID, false)
 			continue
 		}
 		nearby = append(nearby, NearbyProvider{
-			ProviderID: providerID,
-			Lat:        location.Lat,
-			Lng:        location.Lng,
-			DistanceKM: result.Dist,
-			UpdatedAt:  location.UpdatedAt,
+			ProviderID: entity.Fix.EntityID,
+			Lat:        entity.Fix.Lat,
+			Lng:        entity.Fix.Lng,
+			DistanceKM: entity.DistanceKm,
+			UpdatedAt:  entity.Fix.RecordedAt,
 		})
 	}
 	return nearby, nil

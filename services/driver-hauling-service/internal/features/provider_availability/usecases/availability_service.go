@@ -9,6 +9,16 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 )
 
+const (
+	// IdleHeartbeatSeconds is how often an online-but-unassigned provider
+	// reports. It only has to keep the online TTL from lapsing.
+	IdleHeartbeatSeconds = 30
+	// OnTripHeartbeatSeconds is how often a provider on a job reports. This
+	// is what the customer's moving vehicle marker interpolates between, so
+	// it is deliberately much tighter than the idle cadence.
+	OnTripHeartbeatSeconds = 4
+)
+
 type AvailabilityService struct {
 	store        availabilityrepositories.AvailabilityStore
 	trucks       providerprofilerepositories.TruckRepository
@@ -121,16 +131,42 @@ type HeartbeatInput struct {
 	ProviderID string
 	Lat        float64
 	Lng        float64
+	// Heading (degrees), Speed (m/s) and Accuracy (metres) are optional.
+	// Devices that report them let the customer's map rotate the vehicle and
+	// dead-reckon between fixes; devices that do not still stay online.
+	Heading  float64
+	Speed    float64
+	Accuracy float64
 }
 
 func (s *AvailabilityService) Heartbeat(ctx context.Context, input HeartbeatInput) error {
-	if err := s.store.Heartbeat(ctx, input.ProviderID, input.Lat, input.Lng, s.onlineTTL); err != nil {
+	err := s.store.Heartbeat(ctx, input.ProviderID, availabilityrepositories.Telemetry{
+		Lat:      input.Lat,
+		Lng:      input.Lng,
+		Heading:  input.Heading,
+		Speed:    input.Speed,
+		Accuracy: input.Accuracy,
+	}, s.onlineTTL)
+	if err != nil {
 		return err
 	}
 	if s.authority != nil {
 		return s.authority.SetAuthorityState(ctx, input.ProviderID, "AVAILABLE", true, "HEARTBEAT")
 	}
 	return nil
+}
+
+// HeartbeatIntervalSeconds tells the provider app how often to report. Idle
+// providers only need to hold their online TTL open; a provider on a job is
+// driving the customer's live map, so they report far more often.
+//
+// Returned by the availability endpoints so the cadence can be tuned server
+// side without shipping a new app build.
+func (s *AvailabilityService) HeartbeatIntervalSeconds(onTrip bool) int {
+	if onTrip {
+		return OnTripHeartbeatSeconds
+	}
+	return IdleHeartbeatSeconds
 }
 
 func (s *AvailabilityService) GetStatus(ctx context.Context, providerID string) (AvailabilityResult, error) {

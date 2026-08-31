@@ -1,3 +1,4 @@
+import 'package:cosmicforge_logistics_live_tracking/cosmicforge_logistics_live_tracking.dart';
 import 'package:flutter/foundation.dart';
 
 // ─── Booking status ──────────────────────────────────────────────────────────
@@ -44,6 +45,16 @@ enum HaulingBookingStatus {
   bool get isSearching => [
     HaulingBookingStatus.pendingMatch,
     HaulingBookingStatus.awaitingAcceptance,
+  ].contains(this);
+
+  /// Whether the cargo is not yet aboard, i.e. the driver is still on their
+  /// approach leg. Selects which route and which progress leg to show.
+  bool get isBeforePickup => [
+    HaulingBookingStatus.pendingMatch,
+    HaulingBookingStatus.awaitingAcceptance,
+    HaulingBookingStatus.accepted,
+    HaulingBookingStatus.enRoutePickup,
+    HaulingBookingStatus.arrivedAtPickup,
   ].contains(this);
 
   bool get isTerminal => [
@@ -365,6 +376,8 @@ class HaulageBooking {
     this.cancelReason,
     this.scheduledAt,
     this.completedAt,
+    this.routePickupPolyline = '',
+    this.routeDropoffPolyline = '',
     required this.createdAt,
   });
 
@@ -396,6 +409,14 @@ class HaulageBooking {
   final String? cancelReason;
   final DateTime? scheduledAt;
   final DateTime? completedAt;
+
+  /// Encoded road geometry for the two legs the customer watches: the driver
+  /// approaching the pickup, then the cargo moving to the drop-off. Empty when
+  /// the service has no routing key configured, in which case the map draws a
+  /// straight line and progress is measured as the crow flies.
+  final String routePickupPolyline;
+  final String routeDropoffPolyline;
+
   final DateTime createdAt;
 
   int get displayFareKobo => fareFinalKobo ?? fareEstimateKobo ?? 0;
@@ -440,8 +461,16 @@ class HaulageBooking {
     completedAt: j['completed_at'] != null
         ? DateTime.tryParse(j['completed_at'] as String)
         : null,
+    routePickupPolyline: j['route_pickup_polyline'] as String? ?? '',
+    routeDropoffPolyline: j['route_dropoff_polyline'] as String? ?? '',
     createdAt: DateTime.parse(j['created_at'] as String),
   );
+
+  /// The road geometry for whichever leg the customer is watching: the
+  /// driver's approach before pickup, the cargo run after it. Empty means
+  /// there is no route to draw and consumers fall back to a straight line.
+  String get activeRoutePolyline =>
+      status.isBeforePickup ? routePickupPolyline : routeDropoffPolyline;
 }
 
 // ─── Availability ─────────────────────────────────────────────────────────────
@@ -529,6 +558,9 @@ class ProviderLocation {
     required this.lng,
     required this.available,
     this.updatedAt = 0,
+    this.heading,
+    this.speed,
+    this.accuracy,
   });
 
   final double lat;
@@ -536,16 +568,43 @@ class ProviderLocation {
   final bool available;
   final int updatedAt;
 
+  /// Compass bearing in degrees, when the driver's device reported one. Null
+  /// means the marker's rotation has to be derived from movement instead.
+  final double? heading;
+
+  /// Ground speed in metres per second.
+  final double? speed;
+
+  /// Reported horizontal accuracy in metres.
+  final double? accuracy;
+
   factory ProviderLocation.fromJson(Map<String, dynamic> json) {
     return ProviderLocation(
       lat: (json['lat'] as num?)?.toDouble() ?? 0,
       lng: (json['lng'] as num?)?.toDouble() ?? 0,
       available: json['available'] as bool? ?? false,
       updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
+      heading: (json['heading'] as num?)?.toDouble(),
+      speed: (json['speed'] as num?)?.toDouble(),
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
     );
   }
 
   bool get hasFix => available && !(lat == 0 && lng == 0);
+
+  /// The tracking-package view of this fix, for the live map controller.
+  TrackPoint? get asTrackPoint {
+    if (!hasFix) return null;
+    return TrackPoint(
+      position: TrackLatLng(lat, lng),
+      headingDegrees: heading,
+      speedMetersPerSecond: speed,
+      accuracyMeters: accuracy,
+      recordedAt: updatedAt > 0
+          ? DateTime.fromMillisecondsSinceEpoch(updatedAt * 1000, isUtc: true)
+          : null,
+    );
+  }
 }
 
 /// Customer-facing view of the delivery verification code (the driver's

@@ -9,6 +9,7 @@ import (
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
 	"cosmicforge/logistics/shared/go/notifications"
 )
@@ -285,6 +286,18 @@ func (f *fakeBookingRepo) SetPayment(_ context.Context, _, paymentStatus, paymen
 	}
 	return f.booking, nil
 }
+func (f *fakeBookingRepo) SaveDropoffRoute(_ context.Context, _, polyline string, distanceM, durationS int64) error {
+	f.booking.RouteDropoffPolyline = polyline
+	f.booking.RouteDropoffDistanceM = &distanceM
+	f.booking.RouteDropoffDurationS = &durationS
+	return nil
+}
+func (f *fakeBookingRepo) SavePickupRoute(_ context.Context, _, polyline string, distanceM, durationS int64) error {
+	f.booking.RoutePickupPolyline = polyline
+	f.booking.RoutePickupDistanceM = &distanceM
+	f.booking.RoutePickupDurationS = &durationS
+	return nil
+}
 func (f *fakeBookingRepo) ListDeliveredForAutoComplete(_ context.Context, _ time.Time) ([]bookingmodels.Booking, error) {
 	return nil, nil
 }
@@ -315,11 +328,15 @@ func (noopAvailabilityStore) SetOnline(context.Context, availabilityrepositories
 	return nil
 }
 func (noopAvailabilityStore) SetOffline(context.Context, string) error { return nil }
-func (noopAvailabilityStore) Heartbeat(context.Context, string, float64, float64, time.Duration) error {
+func (noopAvailabilityStore) Heartbeat(context.Context, string, availabilityrepositories.Telemetry, time.Duration) error {
 	return nil
 }
-func (noopAvailabilityStore) CountOnline(context.Context) (int64, error) { return 0, nil }
+func (noopAvailabilityStore) SetDiscoverable(context.Context, string, bool) error { return nil }
+func (noopAvailabilityStore) CountOnline(context.Context) (int64, error)          { return 0, nil }
 func (noopAvailabilityStore) GetOnlineProviders(context.Context) ([]availabilityrepositories.ProviderStatus, error) {
+	return nil, nil
+}
+func (noopAvailabilityStore) NearbyProviders(context.Context, geo.Point, float64, int) ([]availabilityrepositories.ProviderStatus, error) {
 	return nil, nil
 }
 func (noopAvailabilityStore) GetProviderStatus(context.Context, string) (availabilityrepositories.ProviderStatus, bool, error) {

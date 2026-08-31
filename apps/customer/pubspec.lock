@@ -96,6 +96,20 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
+  cosmicforge_logistics_live_tracking:
+    dependency: "direct main"
+    description:
+      path: "../../packages/live_tracking"
+      relative: true
+    source: path
+    version: "0.0.1"
+  cosmicforge_logistics_live_tracking_google_maps:
+    dependency: "direct main"
+    description:
+      path: "../../packages/live_tracking_google_maps"
+      relative: true
+    source: path
+    version: "0.0.1"
   cosmicforge_logistics_ui_kit:
     dependency: "direct main"
     description:

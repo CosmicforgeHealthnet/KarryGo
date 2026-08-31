@@ -42,6 +42,7 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/providercompat"
+	"cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -107,7 +108,6 @@ func main() {
 	challengeStore := providerauthrepositories.NewRedisOTPChallengeRepository(redisClient)
 	profileRepo := providerprofilerepositories.NewPostgresProfileRepository(db)
 	truckRepo := providerprofilerepositories.NewPostgresTruckRepository(db)
-	availabilityStore := availabilityrepositories.NewRedisAvailabilityStore(redisClient)
 	bookingRepo := bookingrepo.NewPostgresBookingRepository(db)
 
 	// ─── Auth service ──────────────────────────────────────────────────────────
@@ -141,7 +141,18 @@ func main() {
 	profileService := providerprofileusecases.NewProfileService(profileRepo, truckRepo)
 
 	// ─── Availability service ──────────────────────────────────────────────────
+	// routesClient is nil unless HAULING_ROUTES_API_KEY is set. Route geometry
+	// is optional everywhere it is used.
+	routesClient := routing.New(cfg.RoutesAPIKey)
+	if routesClient == nil {
+		logging.Notice("routing", "disabled (HAULING_ROUTES_API_KEY unset) - trip maps and progress fall back to straight lines")
+	}
+
 	onlineTTL := time.Duration(cfg.ProviderOnlineTTL) * time.Second
+	// The live-tracking index expires fixes on the same clock the availability
+	// keys use, so a provider can never be matchable from a position that has
+	// already aged out of their status key.
+	availabilityStore := availabilityrepositories.NewRedisAvailabilityStoreWithTTL(redisClient, onlineTTL)
 	restrictionService := restrictions.New(db)
 	availService := availabilityusecases.NewAvailabilityServiceWithAuthority(availabilityStore, truckRepo, onlineTTL, availabilityrepositories.NewPostgresAuthorityStore(db)).WithRestrictionGate(restrictionService)
 
@@ -170,6 +181,9 @@ func main() {
 		HandoverSecret:      cfg.HandoverSecret,
 		AllowCashPayments:   cfg.CashPaymentsEnabled,
 		Restrictions:        restrictionService,
+		// nil when HAULING_ROUTES_API_KEY is unset: routes are then never
+		// fetched and the apps fall back to straight-line geometry.
+		Routes: routesClient,
 	})
 	authorityHandler := fleetauthority.New(db, fleetauthority.Flags{
 		Enabled: cfg.FleetIntegrationEnabled, KillSwitch: cfg.FleetIntegrationKillSwitch,
@@ -239,7 +253,7 @@ func main() {
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService)
 			availabilityhttp.RegisterAvailabilityRoutes(group, availService, authService, customerSigner)
-			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo)
+			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo, redisClient)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
 			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 			fleetauthority.Register(group, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))

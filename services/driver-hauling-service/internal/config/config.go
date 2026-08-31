@@ -50,6 +50,12 @@ type Config struct {
 	PaymentSecret       []byte
 	CashPaymentsEnabled bool
 
+	// RoutesAPIKey enables road-route lookups for the live trip map and the
+	// progress bar. It is a Google Cloud key with the Routes API enabled, and
+	// is separate from the app-side Maps SDK key. Unset means routes are
+	// never fetched and every consumer falls back to straight-line geometry.
+	RoutesAPIKey string
+
 	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
 	// support-dispute-service resolving a provider identity).
 	ServiceSecrets                  string
@@ -120,6 +126,7 @@ func Load() Config {
 		PaymentURL:          os.Getenv("HAULING_PAYMENT_URL"),
 		PaymentSecret:       []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
 		CashPaymentsEnabled: getEnvBool("HAULING_CASH_PAYMENTS_ENABLED", false),
+		RoutesAPIKey:        os.Getenv("HAULING_ROUTES_API_KEY"),
 
 		ServiceSecrets:                  os.Getenv("HAULING_SERVICE_SECRETS"),
 		FleetIntegrationEnabled:         getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),

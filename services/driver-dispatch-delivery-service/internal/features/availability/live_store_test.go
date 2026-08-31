@@ -38,11 +38,14 @@ func TestRedisLiveStoreStatusTTLAndGeoRestore(t *testing.T) {
 		t.Fatal("restored GEO without last location")
 	}
 
+	// A live timestamp, not a fixed date: the spatial index scores entries by
+	// fix time and prunes anything past LocationTTL, so a rider whose last
+	// fix is old is correctly not discoverable.
 	location := Location{
 		ProviderID: providerID,
 		Lat:        6.5244,
 		Lng:        3.3792,
-		UpdatedAt:  time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:  time.Now().UTC(),
 	}
 	if err := store.SetLocation(ctx, providerID, location, false); err != nil {
 		t.Fatalf("SetLocation error = %v", err)
@@ -54,13 +57,32 @@ func TestRedisLiveStoreStatusTTLAndGeoRestore(t *testing.T) {
 	if !restored {
 		t.Fatal("did not restore GEO from last location")
 	}
-	positions, err := client.GeoPos(ctx, OnlineProvidersGeoKey, providerID).Result()
+	// Assert on discoverability rather than on the index's internal keys:
+	// the spatial index is a geohash cell layout now, not a single GEO set.
+	if !isDiscoverable(ctx, t, store, providerID, location) {
+		t.Fatal("provider not discoverable after restoring from the last location")
+	}
+}
+
+// isDiscoverable reports whether a proximity query at the provider's own
+// position returns them.
+func isDiscoverable(ctx context.Context, t *testing.T, store *RedisLiveStore, providerID string, at Location) bool {
+	t.Helper()
+	nearby, err := store.GetNearby(ctx, NearbyProvidersRequest{
+		Latitude:  at.Lat,
+		Longitude: at.Lng,
+		RadiusKM:  1,
+		Limit:     50,
+	})
 	if err != nil {
-		t.Fatalf("GeoPos error = %v", err)
+		t.Fatalf("GetNearby error = %v", err)
 	}
-	if len(positions) != 1 || positions[0] == nil {
-		t.Fatalf("provider not in GEO: %#v", positions)
+	for _, provider := range nearby {
+		if provider.ProviderID == providerID {
+			return true
+		}
 	}
+	return false
 }
 
 func TestRedisLiveStoreClearProviderSetsOfflineAndClearsLocation(t *testing.T) {

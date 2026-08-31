@@ -47,6 +47,15 @@ dependencies:
   cosmicforge_logistics_api_core:
     path: ../../packages/api_core
 
+  # Live vehicle tracking: smooth marker movement and trip progress. The core
+  # is map-engine agnostic; the _google_maps package binds it to the Maps SDK
+  # this app already uses.
+  cosmicforge_logistics_live_tracking:
+    path: ../../packages/live_tracking
+
+  cosmicforge_logistics_live_tracking_google_maps:
+    path: ../../packages/live_tracking_google_maps
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8

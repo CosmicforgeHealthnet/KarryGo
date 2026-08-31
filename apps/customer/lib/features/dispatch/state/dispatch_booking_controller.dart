@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
+import 'package:cosmicforge_logistics_live_tracking/cosmicforge_logistics_live_tracking.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../auth/models/customer_auth_models.dart';
@@ -259,6 +260,7 @@ class DispatchBookingController extends ChangeNotifier {
   Timer? _pollTimer;
   Timer? _searchTimeoutTimer;
   Timer? _locationTimer;
+  WebSocketTrackSource? _locationSocket;
 
   DispatchBookingState _state = const DispatchBookingState.idle();
   DispatchBookingState get state => _state;
@@ -731,13 +733,66 @@ class DispatchBookingController extends ChangeNotifier {
   void _startLocationPolling() {
     if (_locationTimer != null) return;
     _pollRiderLocation();
+    // The websocket is the fast path: it carries every fix the rider reports
+    // instead of whatever a poll happens to catch. The poll stays on as the
+    // safety net, relaxed because the socket is doing the work.
+    _startLocationSocket();
     _locationTimer = Timer.periodic(
-        const Duration(seconds: 8), (_) => _pollRiderLocation());
+        const Duration(seconds: 20), (_) => _pollRiderLocation());
   }
 
   void _stopLocationPolling() {
     _locationTimer?.cancel();
     _locationTimer = null;
+    _locationSocket?.stop();
+    _locationSocket = null;
+  }
+
+  void _startLocationSocket() {
+    final token = _accessToken();
+    final bookingId = _state.activeBooking?.id;
+    if (token == null || bookingId == null) return;
+
+    final uri = _api.bookingTrackUri(accessToken: token, bookingId: bookingId);
+    if (uri == null) return;
+
+    _locationSocket?.stop();
+    _locationSocket = WebSocketTrackSource(
+      url: uri.toString(),
+      // If the service has no live-track route configured the socket gives up
+      // and the poll carries the delivery on its own.
+      onUnavailable: _tightenLocationPoll,
+    );
+    _locationSocket!.start(_onTrackedPosition);
+  }
+
+  /// Falls back to the original poll cadence once the socket has given up.
+  void _tightenLocationPoll() {
+    if (_locationTimer == null) return;
+    _locationTimer?.cancel();
+    _locationTimer = Timer.periodic(
+        const Duration(seconds: 8), (_) => _pollRiderLocation());
+  }
+
+  /// Applies a position pushed over the websocket.
+  void _onTrackedPosition(TrackPoint point) {
+    final booking = _state.activeBooking;
+    if (booking == null) return;
+
+    final location = ProviderLocation(
+      lat: point.lat,
+      lng: point.lng,
+      available: true,
+      updatedAt:
+          (point.recordedAt ?? DateTime.now().toUtc()).millisecondsSinceEpoch ~/ 1000,
+      heading: point.headingDegrees,
+      speed: point.speedMetersPerSecond,
+      accuracy: point.accuracyMeters,
+    );
+    _emit(_state.copyWith(
+      providerLocation: location,
+      tripProgress: _computeTripProgress(booking, location: location),
+    ));
   }
 
   Future<void> _pollRiderLocation() async {

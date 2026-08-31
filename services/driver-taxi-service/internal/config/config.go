@@ -1,50 +1,359 @@
 package config
 
 import (
-	"cosmicforge/logistics/shared/go/redisx"
+	"errors"
 	"os"
 	"strconv"
+	"strings"
+	"time"
+
+	"cosmicforge/logistics/shared/go/redisx"
 )
 
+// defaultProvisionalRatesJSON is a LOCAL-DEV-ONLY fallback so a fresh
+// checkout can price a ride without any extra setup. Every amount is kobo
+// integers, per CLAUDE.md's money convention. This is not a commercial rate
+// decision -- see internal/pricing's package doc comment -- and any real
+// deployment must set TAXI_PROVISIONAL_RATES explicitly rather than inherit
+// this value.
+const defaultProvisionalRatesJSON = `{
+	"economy": {"base_kobo": 50000, "per_km_kobo": 10000, "per_min_kobo": 2000, "min_kobo": 70000},
+	"comfort": {"base_kobo": 70000, "per_km_kobo": 13000, "per_min_kobo": 2500, "min_kobo": 90000},
+	"xl":      {"base_kobo": 90000, "per_km_kobo": 16000, "per_min_kobo": 3000, "min_kobo": 120000}
+}`
+
 type Config struct {
-	AppEnv      string
-	HTTPAddr    string
+	AppEnv   string
+	HTTPAddr string
+
+	Migration bool
+
 	DatabaseURL string
 	Redis       redisx.Config
+
+	// NotificationRedis carries the ride-notification queue. It must point at
+	// the Redis that notification-service consumes, which is not necessarily
+	// this service's own Redis.
+	NotificationRedis redisx.Config
+
+	// Provider token signing.
+	//
+	// ProviderTokenSecret must equal the `taxi=` entry in payment-wallet's
+	// PAYMENT_WALLET_PROVIDER_ACCESS_TOKEN_SECRETS and support-dispute's
+	// SUPPORT_DISPUTE_TAXI_PROVIDER_TOKEN_SECRET. One driver token is presented
+	// to all three services; changing this value here alone breaks driver
+	// earnings, withdrawals and complaints.
+	ProviderTokenSecret   []byte
+	ProviderRefreshSecret []byte
+	ProviderOTPSecret     []byte
+
+	// CustomerTokenSecret verifies passenger bearer tokens and must equal
+	// CUSTOMER_ACCESS_TOKEN_SECRET in customer-service.
+	CustomerTokenSecret []byte
+
+	// HandoverSecret signs/verifies the pickup ride PIN. Service-local: no
+	// other service reads these codes, so it needs no cross-service match.
+	HandoverSecret []byte
+
+	// Token TTLs
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+	OTPTTL          time.Duration
+	OTPRateWindow   time.Duration
+	OTPMaxRequests  int
+	OTPMaxAttempts  int
+	OTPDebug        bool
+
+	// Internal service clients.
+	//
+	// NotificationURL and PaymentURL must be BARE ORIGINS ("http://host:port").
+	// shared/go/walletclient and the notification client append their own
+	// "/api/v1/..." paths; a prefixed URL 404s every internal call silently.
+	NotificationURL     string
+	NotificationSecret  []byte
+	PaymentURL          string
+	PaymentSecret       []byte
+	CashPaymentsEnabled bool
+
+	// RoutesAPIKey enables road-route lookups for the live trip map and the
+	// progress bar. It is a Google Cloud key with the Routes API enabled, and
+	// is separate from the app-side Maps SDK key. Unset means routes are never
+	// fetched and every consumer falls back to straight-line geometry.
+	RoutesAPIKey string
+
+	// PricingRatesJSON/PricingRateVersion feed the PROVISIONAL config-driven
+	// PricingClient (internal/pricing) -- see that package's own doc comment.
+	// No number here is a real commercial rate; the defaults exist only so a
+	// fresh checkout can price a ride locally without extra setup, and are
+	// expected to be overridden by real ops-owned values before any real
+	// deployment.
+	PricingRatesJSON   string
+	PricingRateVersion string
+
+	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
+	// support-dispute-service resolving a driver identity).
+	ServiceSecrets string
+
+	// Matching config
+	BookingMatchTimeout int     // seconds a matched driver has to accept
+	BookingSearchWindow int     // seconds to keep searching (rescanning) before unmatched
+	ProviderOnlineTTL   int     // seconds a driver stays online without a heartbeat
+	MatchMaxRadiusKm    float64 // drivers farther than this from pickup are not dispatched
+	// MatchExpandedRadiusKm is used once a scan at MatchMaxRadiusKm finds no
+	// candidates -- the matcher's one radius-expansion step (addendum's
+	// "wave 2"; see MatchingConfig's own doc comment for why there is no
+	// wave 3 in this build).
+	MatchExpandedRadiusKm float64
+	// MatchPollIntervalSeconds is how often the matcher rescans for
+	// candidates or checks an outstanding offer's status.
+	MatchPollIntervalSeconds int
+
+	// ScheduleLeadMinutes is how far ahead of a scheduled pickup the scheduler
+	// worker promotes the ride to matching, so a driver is found before the
+	// pickup time rather than at it.
+	ScheduleLeadMinutes int
+
+	// Pickup verification (phase B5, addendum §9/§32). PickupVerifyRateWindow/
+	// MaxAttempts is a short-burst Redis rate limit, layered on top of --
+	// never a substitute for -- handover.MaxVerifyAttempts' durable
+	// per-code cap in Postgres: the Postgres counter caps LIFETIME attempts
+	// against one generated code, this caps the RATE of attempts within a
+	// short window regardless of which code they are against.
+	PickupVerifyRateWindow  time.Duration
+	PickupVerifyMaxAttempts int
+
+	// Active-trip telemetry (phase B6, addendum §8). TelemetryMaxSpeedKph
+	// gates FlagImpossibleJump; TelemetryStaleSeconds gates FlagStale. Both
+	// are generous on purpose -- these classify a point as untrustworthy for
+	// live tracking / distance reconciliation, they do not reject it (see
+	// internal/features/booking/telemetry's own package doc comment), so a
+	// false positive here only means one GPS blip is not treated as the
+	// driver's live position, not a lost or dropped point.
+	TelemetryMaxSpeedKph  float64
+	TelemetryStaleSeconds int
+
+	// ReviewRevealWindow tunes phase B8's two-way review withholding rule
+	// (addendum §13): a party's free-text review/tags stay hidden from the
+	// other side until BOTH have submitted, or this many hours have passed
+	// since completion, whichever comes first. Ratings themselves are never
+	// withheld -- see bookingusecases' reviews.go.
+	ReviewRevealWindow time.Duration
 }
 
 func Load() Config {
 	return Config{
-		AppEnv:      getEnv("APP_ENV", "development"),
-		HTTPAddr:    getEnv("HTTP_ADDR", ":8102"),
+		AppEnv:   getEnv("APP_ENV", "development"),
+		HTTPAddr: getEnv("HTTP_ADDR", ":8102"),
+
+		Migration: getEnvBool("TAXI_MIGRATION", false),
+
 		DatabaseURL: getEnv("TAXI_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5434/taxi_service?sslmode=disable"),
 		Redis: redisx.Config{
 			Addr:     getEnv("TAXI_REDIS_ADDR", "localhost:6381"),
 			Password: os.Getenv("TAXI_REDIS_PASSWORD"),
 			DB:       getEnvInt("TAXI_REDIS_DB", 0),
 		},
+
+		// Ride-lifecycle notifications are published onto a Redis stream that
+		// notification-service consumes, so both services must point at the SAME
+		// Redis instance. That is a different instance from this service's own
+		// Redis (OTP challenges, availability, match locks), so it is configured
+		// separately here. Defaults to this service's Redis, which is correct for
+		// a single-Redis deployment but silently strands notifications when each
+		// service runs its own — set TAXI_NOTIFICATION_REDIS_ADDR to
+		// notification-service's Redis in that case.
+		NotificationRedis: redisx.Config{
+			Addr:     getEnv("TAXI_NOTIFICATION_REDIS_ADDR", getEnv("TAXI_REDIS_ADDR", "localhost:6381")),
+			Password: getEnv("TAXI_NOTIFICATION_REDIS_PASSWORD", os.Getenv("TAXI_REDIS_PASSWORD")),
+			DB:       getEnvInt("TAXI_NOTIFICATION_REDIS_DB", getEnvInt("TAXI_REDIS_DB", 0)),
+		},
+
+		ProviderTokenSecret:   []byte(os.Getenv("TAXI_PROVIDER_TOKEN_SECRET")),
+		ProviderRefreshSecret: []byte(os.Getenv("TAXI_PROVIDER_REFRESH_SECRET")),
+		ProviderOTPSecret:     []byte(os.Getenv("TAXI_PROVIDER_OTP_SECRET")),
+		CustomerTokenSecret:   []byte(os.Getenv("TAXI_CUSTOMER_TOKEN_SECRET")),
+		HandoverSecret:        []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
+
+		AccessTokenTTL:  time.Duration(getEnvInt("TAXI_ACCESS_TOKEN_TTL_SECONDS", 3600)) * time.Second,
+		RefreshTokenTTL: time.Duration(getEnvInt("TAXI_REFRESH_TOKEN_TTL_DAYS", 30)) * 24 * time.Hour,
+		OTPTTL:          time.Duration(getEnvInt("TAXI_OTP_TTL_SECONDS", 600)) * time.Second,
+		OTPRateWindow:   time.Duration(getEnvInt("TAXI_OTP_RATE_WINDOW_SECONDS", 60)) * time.Second,
+		OTPMaxRequests:  getEnvInt("TAXI_OTP_MAX_REQUESTS", 5),
+		OTPMaxAttempts:  getEnvInt("TAXI_OTP_MAX_ATTEMPTS", 5),
+		OTPDebug:        getEnvBool("TAXI_OTP_DEBUG", false),
+
+		NotificationURL:     os.Getenv("TAXI_NOTIFICATION_URL"),
+		NotificationSecret:  []byte(os.Getenv("TAXI_NOTIFICATION_SECRET")),
+		PaymentURL:          os.Getenv("TAXI_PAYMENT_URL"),
+		PaymentSecret:       []byte(os.Getenv("TAXI_PAYMENT_SECRET")),
+		CashPaymentsEnabled: getEnvBool("TAXI_CASH_PAYMENTS_ENABLED", true),
+		RoutesAPIKey:        os.Getenv("TAXI_ROUTES_API_KEY"),
+
+		PricingRatesJSON:   getEnv("TAXI_PROVISIONAL_RATES", defaultProvisionalRatesJSON),
+		PricingRateVersion: getEnv("TAXI_PRICING_RATE_VERSION", "provisional-dev-v1"),
+
+		ServiceSecrets: os.Getenv("TAXI_SERVICE_SECRETS"),
+
+		BookingMatchTimeout: getEnvInt("TAXI_BOOKING_MATCH_TIMEOUT", 30),
+		BookingSearchWindow: getEnvInt("TAXI_BOOKING_SEARCH_WINDOW", 60),
+		// 90s and no higher. A longer TTL keeps force-quit drivers in the online
+		// set, where they are still dispatchable and can consume the entire
+		// search window before a reachable driver is ever offered the ride.
+		ProviderOnlineTTL:        getEnvInt("TAXI_PROVIDER_ONLINE_TTL", 90),
+		MatchMaxRadiusKm:         getEnvFloat("TAXI_MATCH_MAX_RADIUS_KM", 10),
+		MatchExpandedRadiusKm:    getEnvFloat("TAXI_MATCH_EXPANDED_RADIUS_KM", 20),
+		MatchPollIntervalSeconds: getEnvInt("TAXI_MATCH_POLL_INTERVAL_SECONDS", 2),
+
+		ScheduleLeadMinutes: getEnvInt("TAXI_SCHEDULE_LEAD_MINUTES", 10),
+
+		PickupVerifyRateWindow:  time.Duration(getEnvInt("TAXI_PICKUP_VERIFY_RATE_WINDOW_SECONDS", 60)) * time.Second,
+		PickupVerifyMaxAttempts: getEnvInt("TAXI_PICKUP_VERIFY_MAX_ATTEMPTS", 5),
+
+		// 180kph comfortably covers highway speeds plus GPS jitter margin;
+		// 120s tolerates a normal offline-queue batch flush without flagging
+		// it as stale.
+		TelemetryMaxSpeedKph:  getEnvFloat("TAXI_TELEMETRY_MAX_SPEED_KPH", 180),
+		TelemetryStaleSeconds: getEnvInt("TAXI_TELEMETRY_STALE_SECONDS", 120),
+
+		// 48h: long enough that most riders/drivers have submitted a review
+		// within it, short enough that neither side is locked out of ever
+		// reading the other's remarks for an unreasonable time.
+		ReviewRevealWindow: time.Duration(getEnvInt("TAXI_REVIEW_REVEAL_WINDOW_HOURS", 48)) * time.Hour,
 	}
+}
+
+// Validate rejects unsafe partial enablement. Disabled integrations require no
+// downstream credentials, while enabled ones require explicit secrets and
+// identities; there are no development secret fallbacks.
+func (c Config) Validate() error {
+	var problems []string
+	for name, secret := range map[string][]byte{
+		"TAXI_PROVIDER_TOKEN_SECRET":   c.ProviderTokenSecret,
+		"TAXI_PROVIDER_REFRESH_SECRET": c.ProviderRefreshSecret,
+		"TAXI_PROVIDER_OTP_SECRET":     c.ProviderOTPSecret,
+		"TAXI_CUSTOMER_TOKEN_SECRET":   c.CustomerTokenSecret,
+	} {
+		if len(secret) == 0 {
+			problems = append(problems, name+" is required")
+		}
+	}
+
+	// A prefixed internal URL is the single most common wiring defect on this
+	// platform: every call 404s and the failure is swallowed by fire-and-forget
+	// callers. Reject it at boot instead.
+	if path := urlPath(c.PaymentURL); path != "" {
+		problems = append(problems, "TAXI_PAYMENT_URL must be a bare origin, got path "+path)
+	}
+	if path := urlPath(c.NotificationURL); path != "" {
+		problems = append(problems, "TAXI_NOTIFICATION_URL must be a bare origin, got path "+path)
+	}
+
+	// Payment and notification are optional locally (nil clients no-op), but a
+	// production deployment must never silently inherit that behaviour.
+	if strings.EqualFold(strings.TrimSpace(c.AppEnv), "production") {
+		if strings.TrimSpace(c.PaymentURL) == "" || len(c.PaymentSecret) == 0 {
+			problems = append(problems, "TAXI_PAYMENT_URL and TAXI_PAYMENT_SECRET are required in production")
+		}
+		if strings.TrimSpace(c.NotificationURL) == "" || len(c.NotificationSecret) == 0 {
+			problems = append(problems, "TAXI_NOTIFICATION_URL and TAXI_NOTIFICATION_SECRET are required in production")
+		}
+	}
+
+	if c.BookingSearchWindow < c.BookingMatchTimeout {
+		problems = append(problems, "TAXI_BOOKING_SEARCH_WINDOW must be at least TAXI_BOOKING_MATCH_TIMEOUT")
+	}
+	if c.MatchMaxRadiusKm <= 0 {
+		problems = append(problems, "TAXI_MATCH_MAX_RADIUS_KM must be greater than zero")
+	}
+	if c.MatchExpandedRadiusKm < c.MatchMaxRadiusKm {
+		problems = append(problems, "TAXI_MATCH_EXPANDED_RADIUS_KM must be at least TAXI_MATCH_MAX_RADIUS_KM")
+	}
+	if c.MatchPollIntervalSeconds <= 0 {
+		problems = append(problems, "TAXI_MATCH_POLL_INTERVAL_SECONDS must be greater than zero")
+	}
+	if c.PickupVerifyRateWindow <= 0 {
+		problems = append(problems, "TAXI_PICKUP_VERIFY_RATE_WINDOW_SECONDS must be greater than zero")
+	}
+	if c.PickupVerifyMaxAttempts <= 0 {
+		problems = append(problems, "TAXI_PICKUP_VERIFY_MAX_ATTEMPTS must be greater than zero")
+	}
+	if c.ScheduleLeadMinutes < 0 {
+		problems = append(problems, "TAXI_SCHEDULE_LEAD_MINUTES must not be negative")
+	}
+	if c.TelemetryMaxSpeedKph <= 0 {
+		problems = append(problems, "TAXI_TELEMETRY_MAX_SPEED_KPH must be greater than zero")
+	}
+	if c.TelemetryStaleSeconds <= 0 {
+		problems = append(problems, "TAXI_TELEMETRY_STALE_SECONDS must be greater than zero")
+	}
+
+	if len(problems) > 0 {
+		return errors.New("configuration invalid: " + strings.Join(problems, "; "))
+	}
+	return nil
+}
+
+// urlPath returns the path portion of a configured internal base URL, or "" if
+// the value is empty or is already a bare origin.
+func urlPath(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	rest := trimmed
+	if _, after, ok := strings.Cut(trimmed, "://"); ok {
+		rest = after
+	}
+	_, path, ok := strings.Cut(rest, "/")
+	if !ok {
+		return ""
+	}
+	path = strings.TrimRight(path, "/")
+	if path == "" {
+		return ""
+	}
+	return "/" + path
 }
 
 func getEnv(key string, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-
-	return value
+	return fallback
 }
 
-func getEnvInt(key string, fallback int) int {
-	value := os.Getenv(key)
-	if value == "" {
+func getEnvBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
 		return fallback
 	}
-
-	parsed, err := strconv.Atoi(value)
+	b, err := strconv.ParseBool(v)
 	if err != nil {
 		return fallback
 	}
+	return b
+}
 
-	return parsed
+func getEnvInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return fallback
+	}
+	return f
 }

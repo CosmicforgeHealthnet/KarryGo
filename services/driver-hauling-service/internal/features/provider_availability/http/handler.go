@@ -26,9 +26,17 @@ type setAvailabilityRequest struct {
 	Lng     float64 `json:"lng"`
 }
 
+// heartbeatRequest carries one GPS fix. Heading, speed and accuracy are
+// optional so an older app build that only sends lat/lng keeps working.
 type heartbeatRequest struct {
-	Lat float64 `json:"lat"`
-	Lng float64 `json:"lng"`
+	Lat      float64 `json:"lat"`
+	Lng      float64 `json:"lng"`
+	Heading  float64 `json:"heading"`
+	Speed    float64 `json:"speed"`
+	Accuracy float64 `json:"accuracy"`
+	// OnTrip lets the device ask for the tighter reporting cadence while it
+	// is driving a live customer map.
+	OnTrip bool `json:"on_trip"`
 }
 
 func (h *AvailabilityHandler) SetAvailability(c *gin.Context) {
@@ -72,11 +80,19 @@ func (h *AvailabilityHandler) Heartbeat(c *gin.Context) {
 		ProviderID: claims.Subject,
 		Lat:        req.Lat,
 		Lng:        req.Lng,
+		Heading:    req.Heading,
+		Speed:      req.Speed,
+		Accuracy:   req.Accuracy,
 	}); err != nil {
 		httpx.Abort(c, err)
 		return
 	}
-	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": gin.H{"heartbeat": "ok"}})
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": gin.H{
+		"heartbeat": "ok",
+		// The app reads this back each beat, so the cadence is tunable
+		// server side without a new app release.
+		"next_heartbeat_seconds": h.svc.HeartbeatIntervalSeconds(req.OnTrip),
+	}})
 }
 
 func (h *AvailabilityHandler) GetStatus(c *gin.Context) {

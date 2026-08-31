@@ -1,0 +1,22 @@
+name: cosmicforge_logistics_live_tracking
+description: Shared Cosmicforge Logistics live vehicle tracking - smooth marker movement, route progress, and live position sources.
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: ^3.11.3
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The websocket fast path. Deliberately no map plugin here: the core is
+  # engine-agnostic so the Google Maps apps and the flutter_map app can both
+  # use it. Map bindings live in the sibling adapter packages.
+  web_socket_channel: ^3.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+

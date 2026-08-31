@@ -2,6 +2,7 @@ package bookinghttp
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
 	providerauthrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/repositories"
@@ -17,11 +18,21 @@ func RegisterBookingRoutes(
 	customerSigner *sharedauth.TokenSigner,
 	providerRepo providerauthrepositories.ProviderRepository,
 	truckRepo providerprofilerepositories.TruckRepository,
+	redisClient *redis.Client,
 ) {
 	handler := NewBookingHandler(svc, providerRepo, truckRepo)
 
 	// Public fare estimation (no auth)
 	group.POST("/customer/bookings/estimate", handler.EstimateFare)
+
+	// Live-track websocket. Registered outside the bearer group because a
+	// websocket handshake cannot carry an Authorization header; the handler
+	// validates the token from the query string and checks that the caller
+	// owns the booking before subscribing them to anything.
+	if redisClient != nil {
+		track := NewTrackHandler(svc, customerSigner, redisClient)
+		group.GET("/customer/bookings/:id/track", track.StreamBookingTrack)
+	}
 
 	// Customer routes (bearer auth: role=customer, service=customer)
 	customerGroup := group.Group("/customer")

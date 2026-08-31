@@ -12,8 +12,10 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
 	"cosmicforge/logistics/shared/go/phonenumber"
+	"cosmicforge/logistics/shared/go/routing"
 )
 
 // BroadcastControl is the request-feature surface the booking usecase drives.
@@ -66,6 +68,9 @@ type Service struct {
 	notifier   LifecycleNotifier
 	radiusKM   float64
 	now        func() time.Time
+	// routes fetches road geometry for the live map and the progress bar.
+	// nil disables route fetching; consumers then fall back to straight lines.
+	routes routing.Fetcher
 }
 
 func NewService(repository Repository, broadcast BroadcastControl, trips TripControl, live LiveStore, payments PaymentClient, events EventPublisher, radiusKM float64) *Service {
@@ -92,6 +97,14 @@ func (s *Service) WithClock(now func() time.Time) *Service {
 
 // WithNotifier wires the lifecycle notifier (call after NewService). A nil
 // notifier disables notifications (local dev without notification-service).
+// WithRoutes enables road-route geometry for the live map and the progress
+// bar. A nil fetcher leaves routes unfetched and every consumer falling back
+// to straight-line geometry.
+func (s *Service) WithRoutes(routes routing.Fetcher) *Service {
+	s.routes = routes
+	return s
+}
+
 func (s *Service) WithNotifier(notifier LifecycleNotifier) *Service {
 	s.notifier = notifier
 	return s
@@ -239,6 +252,12 @@ func (s *Service) CreateBooking(ctx context.Context, customerID string, in Creat
 		}
 		return BookingView{}, apperrors.Unavailable("We couldn't start looking for a rider. Your wallet was not charged.", err)
 	}
+
+	// Both endpoints are known now, so the delivery leg's road geometry can be
+	// fetched in the background while a rider is found.
+	s.fetchDropoffRoute(created.ID,
+		geo.Point{Lat: created.PickupLat, Lng: created.PickupLng},
+		geo.Point{Lat: created.DropoffLat, Lng: created.DropoffLng})
 
 	return BookingView{Booking: created, Status: WireSearching}, nil
 }
@@ -430,8 +449,30 @@ func (s *Service) GetLiveLocation(ctx context.Context, customerID, id string) (L
 		ProviderID: providerID,
 		Lat:        location.Lat,
 		Lng:        location.Lng,
+		Heading:    location.Heading,
+		Speed:      location.Speed,
+		Accuracy:   location.Accuracy,
 		UpdatedAt:  location.UpdatedAt,
 	}, nil
+}
+
+// ResolveTrackTarget authorises a customer to stream their rider's live
+// position for one booking. It is the ownership check behind the live-track
+// websocket: without it a customer could subscribe to any rider's channel by
+// guessing an id.
+func (s *Service) ResolveTrackTarget(ctx context.Context, customerID, id string) (string, error) {
+	state, err := s.getOwnedBooking(ctx, customerID, id)
+	if err != nil {
+		return "", err
+	}
+	providerID := state.TripProviderID
+	if providerID == "" {
+		providerID = state.Booking.ProviderID
+	}
+	if providerID == "" {
+		return "", apperrors.NotFound("No rider has been assigned yet.", nil)
+	}
+	return providerID, nil
 }
 
 // VerifyDriverAtPickup lets the customer confirm the rider's identity using
@@ -547,6 +588,10 @@ func (s *Service) HandleRequestAccepted(ctx context.Context, bookingID, provider
 	if s.notifier != nil {
 		s.notifier.NotifyCustomerAccepted(ctx, state.Booking.CustomerID, bookingID, notifyData(state.Booking))
 	}
+	// The rider's position is only known now, so this is the first point the
+	// approach leg can be routed for the customer's map.
+	s.fetchPickupRoute(bookingID, providerID,
+		geo.Point{Lat: state.Booking.PickupLat, Lng: state.Booking.PickupLng})
 	if s.payments == nil {
 		return nil
 	}

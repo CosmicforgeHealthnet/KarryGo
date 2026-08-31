@@ -29,9 +29,15 @@ type Config struct {
 	// Service-local — no other service needs to match this value.
 	HandoverSecret       []byte
 	AvailabilityRadiusKM float64
-	NotificationURL      string
-	NotificationSecret   []byte
-	ServiceSecrets       string
+
+	// RoutesAPIKey enables road-route lookups for the live delivery map and
+	// the progress bar. A Google Cloud key with the Routes API enabled,
+	// separate from the app-side Maps SDK key. Unset means routes are never
+	// fetched and consumers fall back to straight-line geometry.
+	RoutesAPIKey       string
+	NotificationURL    string
+	NotificationSecret []byte
+	ServiceSecrets     string
 	// media-file-service integration, used by *_STORAGE_MODE=media (trip
 	// proof, verification documents, vehicle documents, avatars) instead of
 	// the local_private mode that only works on a single host. Bare origin —
@@ -145,6 +151,7 @@ func Load() (Config, error) {
 		CustomerTokenSecret:        []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
 		HandoverSecret:             []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
 		AvailabilityRadiusKM:       getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
+		RoutesAPIKey:               os.Getenv("DISPATCH_ROUTES_API_KEY"),
 		FleetServiceURL:            getEnv("FLEET_PARTNER_SERVICE_URL", ""),
 		FleetServiceSecret:         []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
 		FleetServiceCaller:         getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-dispatch-delivery-service"),

@@ -4,11 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:cosmicforge_logistics_live_tracking/cosmicforge_logistics_live_tracking.dart';
+
 import '../../../../shared/widgets/figma_customer_widgets.dart';
 import '../../models/hauling_models.dart';
 import '../../state/hauling_booking_controller.dart';
 import '../widgets/hauling_map_widget.dart';
 import '../widgets/hauling_trip_sheet_widgets.dart';
+import '../widgets/live_trip_scope.dart';
 
 /// Live trip screen (Figma 1772 "Driver Assigned…" / 1773 "Trip has started."):
 /// map + bottom sheet with status heading, vehicle line, driver block, stats,
@@ -27,6 +30,36 @@ class HaulingActiveTripView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final booking = state.activeBooking!;
+    final driverLoc = state.providerLocation;
+    final driverLatLng = (driverLoc != null && driverLoc.hasFix)
+        ? LatLng(driverLoc.lat, driverLoc.lng)
+        : null;
+
+    // Before the cargo is aboard the customer is watching the driver close in
+    // on the pickup; after it, the cargo run to the destination. Each leg has
+    // its own route and its own progress.
+    final beforePickup = booking.status.isBeforePickup;
+    final legOrigin = beforePickup
+        ? (driverLatLng != null
+            ? TrackLatLng(driverLatLng.latitude, driverLatLng.longitude)
+            : TrackLatLng(booking.pickupLat, booking.pickupLng))
+        : TrackLatLng(booking.pickupLat, booking.pickupLng);
+    final legDestination = beforePickup
+        ? TrackLatLng(booking.pickupLat, booking.pickupLng)
+        : TrackLatLng(booking.dropoffLat, booking.dropoffLng);
+
+    return LiveTripScope(
+      vehicle: driverLoc?.asTrackPoint,
+      leg: beforePickup ? TripLeg.toPickup : TripLeg.toDropoff,
+      origin: legOrigin,
+      destination: legDestination,
+      routePolyline: booking.activeRoutePolyline,
+      builder: (context, tracking) => _buildScreen(context, tracking),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context, LiveTripTracking tracking) {
     final booking = state.activeBooking!;
     final pickupLatLng = LatLng(booking.pickupLat, booking.pickupLng);
     final dropoffLatLng = LatLng(booking.dropoffLat, booking.dropoffLng);
@@ -49,6 +82,8 @@ class HaulingActiveTripView extends StatelessWidget {
               pickupLatLng: pickupLatLng,
               dropoffLatLng: dropoffLatLng,
               driverLatLng: driverLatLng,
+              liveTrack: tracking.controller,
+              routePolyline: booking.activeRoutePolyline,
             ),
           ),
 
@@ -107,7 +142,7 @@ class HaulingActiveTripView extends StatelessWidget {
                     const SizedBox(height: 18),
 
                     HaulingTripProgressSlider(
-                      progress: state.tripProgress,
+                      progress: tracking.progress.legFraction,
                       showTruck: _tripStarted,
                     ),
                     const SizedBox(height: 20),

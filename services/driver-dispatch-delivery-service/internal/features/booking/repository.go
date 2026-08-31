@@ -19,6 +19,8 @@ type Repository interface {
 	ListWithDerivedState(ctx context.Context, customerID string, options ListBookingsOptions) ([]DerivedState, error)
 	SetPayment(ctx context.Context, id string, paymentStatus string, paymentRef string) error
 	SetAccepted(ctx context.Context, id string, providerID string) (bool, error)
+	SaveDropoffRoute(ctx context.Context, id, polyline string, distanceM, durationS int64) error
+	SavePickupRoute(ctx context.Context, id, polyline string, distanceM, durationS int64) error
 	SetUnmatched(ctx context.Context, id string, at time.Time) (bool, error)
 	SetCompleted(ctx context.Context, id string, completedAt time.Time, paymentStatus string) (bool, error)
 	SetTerminal(ctx context.Context, id string, status string, paymentStatus string, reason string, at time.Time) (bool, error)
@@ -42,7 +44,10 @@ const bookingColumns = `
 	b.payment_method, b.payment_status, b.payment_ref,
 	b.receiver_name, b.receiver_phone,
 	b.package_desc, b.package_weight::float8, b.package_type, b.package_size, b.is_fragile,
-	b.service_tier, b.provider_id::text, b.cancel_reason,
+	b.service_tier, b.provider_id::text,
+	b.route_pickup_polyline, b.route_pickup_distance_m, b.route_pickup_duration_s,
+	b.route_dropoff_polyline, b.route_dropoff_distance_m, b.route_dropoff_duration_s,
+	b.cancel_reason,
 	b.cancelled_at, b.completed_at, b.created_at, b.updated_at`
 
 const derivedStateSelect = `
@@ -148,6 +153,31 @@ func (r *PostgresRepository) SetAccepted(ctx context.Context, id string, provide
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
+}
+
+// SaveDropoffRoute stores the road route from pickup to drop-off, fetched once
+// at booking creation when both endpoints are already known.
+func (r *PostgresRepository) SaveDropoffRoute(ctx context.Context, id, polyline string, distanceM, durationS int64) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE dispatch_bookings
+		SET route_dropoff_polyline = $2, route_dropoff_distance_m = $3, route_dropoff_duration_s = $4,
+		    route_fetched_at = now(), updated_at = now()
+		WHERE id = $1
+	`, id, polyline, distanceM, durationS)
+	return err
+}
+
+// SavePickupRoute stores the road route from the rider to the pickup. It can
+// only be fetched once a rider has accepted, since it starts at their position
+// at that moment.
+func (r *PostgresRepository) SavePickupRoute(ctx context.Context, id, polyline string, distanceM, durationS int64) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE dispatch_bookings
+		SET route_pickup_polyline = $2, route_pickup_distance_m = $3, route_pickup_duration_s = $4,
+		    route_fetched_at = now(), updated_at = now()
+		WHERE id = $1
+	`, id, polyline, distanceM, durationS)
+	return err
 }
 
 func (r *PostgresRepository) SetCompleted(ctx context.Context, id string, completedAt time.Time, paymentStatus string) (bool, error) {
@@ -270,7 +300,10 @@ func scanDerivedState(row rowScanner) (DerivedState, error) {
 		&state.Booking.PaymentMethod, &state.Booking.PaymentStatus, &state.Booking.PaymentRef,
 		&state.Booking.ReceiverName, &state.Booking.ReceiverPhone,
 		&state.Booking.PackageDesc, &packageWeight, &state.Booking.PackageType, &state.Booking.PackageSize, &state.Booking.IsFragile,
-		&state.Booking.ServiceTier, &providerID, &state.Booking.CancelReason,
+		&state.Booking.ServiceTier, &providerID,
+		&state.Booking.RoutePickupPolyline, &state.Booking.RoutePickupDistanceM, &state.Booking.RoutePickupDurationS,
+		&state.Booking.RouteDropoffPolyline, &state.Booking.RouteDropoffDistanceM, &state.Booking.RouteDropoffDurationS,
+		&state.Booking.CancelReason,
 		&cancelledAt, &completedAt, &state.Booking.CreatedAt, &state.Booking.UpdatedAt,
 		&state.BroadcastStatus, &state.TripID, &state.TripStatus, &state.TripProviderID,
 		&state.DeliveryCode, &deliveryCodeExpiresAt, &state.DeliveryCodeAttempts,

@@ -2,6 +2,7 @@ package bookingusecases
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -521,6 +523,26 @@ func (r *trackingRepo) SetPayment(_ context.Context, id, status, intent string) 
 	r.bookings[id] = b
 	return b, nil
 }
+func (r *trackingRepo) SaveDropoffRoute(_ context.Context, id, polyline string, distanceM, durationS int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	b.RouteDropoffPolyline = polyline
+	b.RouteDropoffDistanceM = &distanceM
+	b.RouteDropoffDurationS = &durationS
+	r.bookings[id] = b
+	return nil
+}
+func (r *trackingRepo) SavePickupRoute(_ context.Context, id, polyline string, distanceM, durationS int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b := r.bookings[id]
+	b.RoutePickupPolyline = polyline
+	b.RoutePickupDistanceM = &distanceM
+	b.RoutePickupDurationS = &durationS
+	r.bookings[id] = b
+	return nil
+}
 func (r *trackingRepo) ListDeliveredForAutoComplete(context.Context, time.Time) ([]bookingmodels.Booking, error) {
 	return nil, nil
 }
@@ -566,6 +588,20 @@ type fakeStore struct {
 	locks     map[string]string
 	matched   map[string]int
 	rejected  map[string]map[string]bool
+	// statuses answers GetProviderStatus, which the pickup-leg route lookup
+	// uses to find where the assigned driver actually is.
+	statuses map[string]availabilityrepositories.ProviderStatus
+}
+
+func newFakeStore() *fakeStore { return &fakeStore{} }
+
+func (s *fakeStore) setStatus(status availabilityrepositories.ProviderStatus) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.statuses == nil {
+		s.statuses = map[string]availabilityrepositories.ProviderStatus{}
+	}
+	s.statuses[status.ProviderID] = status
 }
 
 func (s *fakeStore) lockCount() int {
@@ -578,8 +614,40 @@ func (s *fakeStore) SetOnline(context.Context, availabilityrepositories.Provider
 	return nil
 }
 func (s *fakeStore) SetOffline(context.Context, string) error { return nil }
-func (s *fakeStore) Heartbeat(context.Context, string, float64, float64, time.Duration) error {
+func (s *fakeStore) Heartbeat(context.Context, string, availabilityrepositories.Telemetry, time.Duration) error {
 	return nil
+}
+func (s *fakeStore) SetDiscoverable(context.Context, string, bool) error { return nil }
+
+// NearbyProviders models the Redis cell index in memory: a radius-bounded,
+// nearest-first slice rather than every online provider. Matching reads this,
+// so the tests exercise the same path production does.
+func (s *fakeStore) NearbyProviders(_ context.Context, center geo.Point, radiusKm float64, limit int) ([]availabilityrepositories.ProviderStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	type scored struct {
+		p    availabilityrepositories.ProviderStatus
+		dist float64
+	}
+	var in []scored
+	for _, p := range s.providers {
+		d := geo.HaversineKm(center, geo.Point{Lat: p.Lat, Lng: p.Lng})
+		if d > radiusKm {
+			continue
+		}
+		in = append(in, scored{p: p, dist: d})
+	}
+	sort.Slice(in, func(i, j int) bool { return in[i].dist < in[j].dist })
+	if limit > 0 && len(in) > limit {
+		in = in[:limit]
+	}
+
+	out := make([]availabilityrepositories.ProviderStatus, len(in))
+	for i, s := range in {
+		out[i] = s.p
+	}
+	return out, nil
 }
 func (s *fakeStore) setProviders(p []availabilityrepositories.ProviderStatus) {
 	s.mu.Lock()
@@ -596,8 +664,11 @@ func (s *fakeStore) GetOnlineProviders(context.Context) ([]availabilityrepositor
 	defer s.mu.Unlock()
 	return append([]availabilityrepositories.ProviderStatus(nil), s.providers...), nil
 }
-func (s *fakeStore) GetProviderStatus(context.Context, string) (availabilityrepositories.ProviderStatus, bool, error) {
-	return availabilityrepositories.ProviderStatus{}, false, nil
+func (s *fakeStore) GetProviderStatus(_ context.Context, providerID string) (availabilityrepositories.ProviderStatus, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	status, ok := s.statuses[providerID]
+	return status, ok, nil
 }
 func (s *fakeStore) AcquireMatchLock(_ context.Context, providerID, bookingID string, _ time.Duration) (bool, error) {
 	s.mu.Lock()

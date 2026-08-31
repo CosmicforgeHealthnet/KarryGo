@@ -31,6 +31,8 @@ Primary architecture reference: `docs/architecture.md`. Older service-boundary r
 
 - `packages/api_core`: Dart API config, URI building, API error envelope parsing, `ApiException`.
 - `packages/ui_kit`: Reusable Flutter UI components and theme helpers.
+- `packages/live_tracking`: Map-engine-agnostic live vehicle tracking — smooth marker interpolation, bearing smoothing, two-leg trip progress, and websocket/polling position sources.
+- `packages/live_tracking_google_maps`: Binds `live_tracking` to `google_maps_flutter` (customer + truck provider apps).
 
 ### Backend Services
 
@@ -60,6 +62,9 @@ Primary architecture reference: `docs/architecture.md`. Older service-boundary r
 - `shared/go/mediaclient`: Media-file-service client.
 - `shared/go/walletclient`: Payment-wallet-service client.
 - `shared/go/phonenumber`: Nigerian phone number normalization.
+- `shared/go/geo`: Pure geographic primitives — distance, bearing, encoded polylines, projection of a point onto a route, and the geohash cell index used to spatially partition live vehicle positions. Single source of truth for haversine platform-wide.
+- `shared/go/livetrack`: Redis-backed live position store — geohash cell index (TTL-pruned on read), per-entity pub/sub fan-out, and the canonical telemetry envelope.
+- `shared/go/routing`: Google Routes API client for road geometry (encoded polyline + distance + duration). Optional: no API key means consumers fall back to straight lines.
 - `shared/go/redisx`, `cache`, `pagination`, `validation`, `events`: Shared platform helpers.
 
 ### Standard Go Service Layout

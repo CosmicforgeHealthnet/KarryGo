@@ -222,6 +222,25 @@ class HaulingApi {
     return ProviderLocation.fromJson(data);
   }
 
+  /// The websocket URL that streams the assigned driver's live position.
+  ///
+  /// The token travels in the query string because a websocket handshake
+  /// cannot carry an Authorization header, which is why the service validates
+  /// it there. Returns null when the base URL is not an http(s) origin.
+  Uri? bookingTrackUri({required String accessToken, required String bookingId}) {
+    final base = Uri.tryParse(_config.baseUrl);
+    if (base == null || !base.hasScheme) return null;
+
+    final scheme = base.scheme == 'https' ? 'wss' : 'ws';
+    final path = '${base.path}/customer/bookings/$bookingId/track'
+        .replaceAll('//', '/');
+    return base.replace(
+      scheme: scheme,
+      path: path,
+      queryParameters: {'token': accessToken},
+    );
+  }
+
   /// Mints a short-lived websocket token for the customer realtime channel.
   ///
   /// Returns null when the proxy endpoint returns 404 (hauling-service not

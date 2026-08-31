@@ -6,10 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"math"
 	"sort"
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/shared/go/geo"
 )
 
 const (
@@ -417,14 +418,13 @@ func Contains(g Geofence, p Point) bool {
 	}
 	return inside
 }
+// haversine returns metres between two points, delegating to the
+// platform-wide implementation in shared/go/geo.
 func haversine(a, b Point) float64 {
-	const r = 6371000.
-	la1 := a.Latitude * math.Pi / 180
-	la2 := b.Latitude * math.Pi / 180
-	dlat := (b.Latitude - a.Latitude) * math.Pi / 180
-	dlon := (b.Longitude - a.Longitude) * math.Pi / 180
-	x := math.Sin(dlat/2)*math.Sin(dlat/2) + math.Cos(la1)*math.Cos(la2)*math.Sin(dlon/2)*math.Sin(dlon/2)
-	return 2 * r * math.Atan2(math.Sqrt(x), math.Sqrt(1-x))
+	return geo.HaversineMeters(
+		geo.Point{Lat: a.Latitude, Lng: a.Longitude},
+		geo.Point{Lat: b.Latitude, Lng: b.Longitude},
+	)
 }
 
 type OperationalAlert struct {
