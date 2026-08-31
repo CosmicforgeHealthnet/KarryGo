@@ -133,8 +133,8 @@ func seedOperationalFixture(t *testing.T, pool *pgxpool.Pool) operationalFixture
 	if _, err := pool.Exec(ctx, `INSERT INTO commerce_missions(id,mission_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,agreed_fee_minor,status,
 		caller_service,operation_ref,request_fingerprint,canonical_ref,runtime_state,queue_state,source_version,plan_ref,plan_version,plan_fingerprint,mission_slot_ref,
 		quote_revision,quote_fingerprint,mode,service_class,capability_version,funding_reference,trip_id,current_provider_id,replacement_state)
-		VALUES($1,$2,'parent-1',ARRAY['vendor-order-1'],$3,$4,1000,'accepted','vendor-service','operation-1','fingerprint',$2,'IN_TRANSIT','ASSIGNED',1,
-		'plan-1',1,'plan-fingerprint','slot-1',1,'quote-fingerprint','FASTEST','COMMERCE',1,'funding-1',$5,$6,'NONE')`, f.missionID, f.missionRef, customer, bookingA, f.tripA, f.providerA); err != nil {
+		VALUES($1,$2,'parent-1',ARRAY['vendor-order-1'],$3,$4,1000,'accepted','vendor-service',$7,'fingerprint',$2,'IN_TRANSIT','ASSIGNED',1,
+		'plan-1',1,'plan-fingerprint','slot-1',1,'quote-fingerprint','FASTEST','COMMERCE',1,'funding-1',$5,$6,'NONE')`, f.missionID, f.missionRef, customer, bookingA, f.tripA, f.providerA, "operation-"+f.missionID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO commerce_mission_stops(id,commerce_mission_id,stop_ref,physical_stop_ref,sequence,vendor_ref,branch_ref,manifest_ref,manifest_version,location_snapshot,ready_from,ready_to,status,handover_status)
@@ -156,7 +156,18 @@ func TestOperationalManifestFreezeAndEvidenceIdempotencyRaces(t *testing.T) {
 	defer cleanup()
 	f := seedOperationalFixture(t, pool)
 	ctx := context.Background()
-	if _, err := pool.Exec(ctx, `UPDATE commerce_mission_stops SET manifest_frozen_at=now() WHERE id=$1; UPDATE commerce_mission_parcels SET manifest_frozen_at=now() WHERE commerce_mission_id=$2`, f.stopID, f.missionID); err != nil {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `UPDATE commerce_mission_stops SET manifest_frozen_at=now() WHERE id=$1`, f.stopID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE commerce_mission_parcels SET manifest_frozen_at=now() WHERE commerce_mission_id=$1`, f.missionID); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
 

@@ -282,7 +282,7 @@ func (r *Repository) Verify(ctx context.Context, in verifyInput) (Challenge, boo
 			terminalErr = ErrInvalidCode
 		}
 		_, err = tx.Exec(ctx, `UPDATE dispatch_handover_challenges SET attempt_count=$2,status=$3,
-			locked_at=CASE WHEN $3='LOCKED' THEN $4 ELSE NULL END,updated_at=$4,optimistic_version=optimistic_version+1 WHERE id=$1::uuid`, challenge.ID, attempts, status, in.Now)
+		locked_at=CASE WHEN $3='LOCKED' THEN $4::timestamptz ELSE NULL END,updated_at=$4::timestamptz,optimistic_version=optimistic_version+1 WHERE id=$1::uuid`, challenge.ID, attempts, status, in.Now)
 		challenge.AttemptCount, challenge.Status = attempts, status
 	} else {
 		result, reason = "SUCCEEDED", ""
@@ -439,8 +439,8 @@ func (r *Repository) RecordNotificationOutcome(ctx context.Context, challengeRef
 		notification_attempt_count=notification_attempt_count+1,
 		notification_state=CASE WHEN $2='FAILED' AND notification_attempt_count+1 >= $8 THEN 'DEAD_LETTER' ELSE $2 END,
 		notification_ref=$3,notification_channels=$4,notification_last_error_code=$5,
-		notification_next_attempt_at=$7,notification_terminal_at=CASE WHEN $2 IN ('ACCEPTED','UNAVAILABLE') OR notification_attempt_count+1 >= $8 THEN $6 ELSE NULL END,
-		notification_lease_owner=NULL,notification_lease_expires_at=NULL,updated_at=$6,optimistic_version=optimistic_version+1
+		notification_next_attempt_at=$7::timestamptz,notification_terminal_at=CASE WHEN $2 IN ('ACCEPTED','UNAVAILABLE') OR notification_attempt_count+1 >= $8 THEN $6::timestamptz ELSE NULL END,
+		notification_lease_owner=NULL,notification_lease_expires_at=NULL,updated_at=$6::timestamptz,optimistic_version=optimistic_version+1
 		WHERE challenge_ref=$1 AND notification_state NOT IN ('ACCEPTED','DEAD_LETTER')
 		AND COALESCE(notification_lease_owner,'')=$9`, challengeRef, state, notificationRef, channels, errorCode, now, next, maxAttempts, owner)
 	return err
@@ -461,7 +461,7 @@ func (r *Repository) ClaimPendingNotifications(ctx context.Context, now time.Tim
 		ORDER BY notification_next_attempt_at,updated_at FOR UPDATE SKIP LOCKED LIMIT $5
 	)
 	UPDATE dispatch_handover_challenges c SET notification_state='REQUESTED',notification_lease_owner=$2,
-		notification_lease_expires_at=$1+$3::interval,updated_at=$1 FROM due WHERE c.id=due.id
+		notification_lease_expires_at=$1::timestamptz+$3::interval,updated_at=$1::timestamptz FROM due WHERE c.id=due.id
 	RETURNING c.challenge_ref,c.notification_attempt_count`, now, owner, lease.String(), maxAttempts, limit)
 	if err != nil {
 		return nil, err

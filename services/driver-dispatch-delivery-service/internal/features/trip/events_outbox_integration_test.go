@@ -113,12 +113,14 @@ type outboxEvent struct {
 	Payload          map[string]any
 }
 
-// events reads the outbox in publication order.
+// events reads only the canonical Trip domain stream. Notification intents
+// share the durable outbox but are a separate downstream contract.
 func (f *emissionFixture) events(t *testing.T, ctx context.Context) []outboxEvent {
 	t.Helper()
 	rows, err := f.pool.Query(ctx, `
 		SELECT event_type, aggregate_id::text, aggregate_version, payload
 		FROM dispatch_marketplace_outbox
+		WHERE target_service = 'fleet-partner-service'
 		ORDER BY aggregate_version, created_at`)
 	if err != nil {
 		t.Fatal(err)

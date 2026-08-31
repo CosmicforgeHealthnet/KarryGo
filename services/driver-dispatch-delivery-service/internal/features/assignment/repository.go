@@ -676,7 +676,7 @@ func (r *Repository) ProcessQueue(ctx context.Context, now time.Time, window, re
 			return 0, e
 		}
 		if next != nil {
-			_, e = tx.Exec(ctx, `UPDATE dispatch_queue_entries SET status='RETRYING',retry_count=retry_count+1,next_attempt_at=$2+$3::interval,version=version+1,updated_at=$2 WHERE id=$1`, x.id, now, retryInterval.String())
+			_, e = tx.Exec(ctx, `UPDATE dispatch_queue_entries SET status='RETRYING',retry_count=retry_count+1,next_attempt_at=$2::timestamptz+$3::interval,version=version+1,updated_at=$2::timestamptz WHERE id=$1`, x.id, now, retryInterval.String())
 			if e == nil {
 				_, e = tx.Exec(ctx, `UPDATE dispatch_delivery_missions SET state='OFFERING',version=version+1,updated_at=$2 WHERE id=$1`, x.mission, now)
 			}
@@ -738,7 +738,7 @@ func (r *Repository) ClaimPendingQueueFinancial(ctx context.Context, now time.Ti
 		  AND (q.wallet_lease_expires_at IS NULL OR q.wallet_lease_expires_at<=$1)
 		ORDER BY q.wallet_next_attempt_at,q.updated_at FOR UPDATE OF q SKIP LOCKED LIMIT $5
 	), claimed AS (
-		UPDATE dispatch_queue_entries q SET wallet_lease_owner=$2,wallet_lease_expires_at=$1+$3::interval,updated_at=$1
+		UPDATE dispatch_queue_entries q SET wallet_lease_owner=$2,wallet_lease_expires_at=$1::timestamptz+$3::interval,updated_at=$1::timestamptz
 		FROM due WHERE q.id=due.id RETURNING q.id,q.mission_id,q.wallet_operation_ref,q.wallet_attempt_count
 	)
 	SELECT c.id::text,c.mission_id::text,m.booking_id::text,c.wallet_operation_ref,c.wallet_attempt_count
@@ -768,9 +768,9 @@ func (r *Repository) CompleteQueueFinancial(ctx context.Context, queueID, state,
 	_, err := r.db.Exec(ctx, `UPDATE dispatch_queue_entries SET
 		wallet_attempt_count=wallet_attempt_count+1,
 		wallet_state=CASE WHEN $2='ACKNOWLEDGED' THEN 'ACKNOWLEDGED' WHEN wallet_attempt_count+1 >= $6 THEN 'FAILED' ELSE $2 END,
-		wallet_error_code=$3,wallet_next_attempt_at=$4+$5::interval,
-		wallet_terminal_at=CASE WHEN $2='ACKNOWLEDGED' OR wallet_attempt_count+1 >= $6 THEN $4 ELSE NULL END,
-		wallet_lease_owner=NULL,wallet_lease_expires_at=NULL,updated_at=$4
+		wallet_error_code=$3,wallet_next_attempt_at=$4::timestamptz+$5::interval,
+		wallet_terminal_at=CASE WHEN $2='ACKNOWLEDGED' OR wallet_attempt_count+1 >= $6 THEN $4::timestamptz ELSE NULL END,
+		wallet_lease_owner=NULL,wallet_lease_expires_at=NULL,updated_at=$4::timestamptz
 		WHERE id=$1 AND wallet_state IN ('REQUESTED','UNKNOWN') AND wallet_lease_owner=$7`, queueID, state, code, now, backoff.String(), maxAttempts, owner)
 	return err
 }

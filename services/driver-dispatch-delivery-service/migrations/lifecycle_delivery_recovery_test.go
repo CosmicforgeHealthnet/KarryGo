@@ -73,13 +73,13 @@ func TestIncidentRecoveryClaimReplayAcceptanceAndNoSecondTripPostgres(t *testing
 	defer cleanup()
 	ctx := context.Background()
 	group, mission := uuid.NewString(), uuid.NewString()
-	if _, err := pool.Exec(ctx, `INSERT INTO dispatch_delivery_groups(id,source_type,source_ref,state) VALUES($1,'CUSTOMER',$1::text,'ACTIVE')`, group); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO dispatch_delivery_groups(id,source_type,source_ref,state) VALUES($1::uuid,'CUSTOMER',($1::uuid)::text,'ACTIVE')`, group); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO dispatch_delivery_missions(id,delivery_group_id,source_type,source_ref,booking_id,trip_id,state) VALUES($1,$2,'CUSTOMER',$1::text,$3,$4,'ASSIGNED')`, mission, group, f.booking, f.trip); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO dispatch_delivery_missions(id,delivery_group_id,source_type,source_ref,booking_id,trip_id,state) VALUES($1::uuid,$2::uuid,'CUSTOMER',($1::uuid)::text,$3::uuid,$4::uuid,'ASSIGNED')`, mission, group, f.booking, f.trip); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO bikes(provider_id,bike_type,brand,model,year,color,plate_number,verification_status) VALUES($1,'motorcycle','test','test',2025,'black',$1::text,'verified')`, f.providerB); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO bikes(provider_id,bike_type,brand,model,year,color,plate_number,verification_status) VALUES($1::uuid,'motorcycle','test','test',2025,'black',($1::uuid)::text,'verified')`, f.providerB); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO provider_availability(provider_id,status,verified_to_go_online) VALUES($1,'online',true)`, f.providerB); err != nil {
@@ -182,10 +182,10 @@ func TestReplacementCancelledOrExpiredNeverCreatesOfferPostgres(t *testing.T) {
 			defer cleanup()
 			ctx := context.Background()
 			group, mission := uuid.NewString(), uuid.NewString()
-			if _, err := pool.Exec(ctx, `INSERT INTO dispatch_delivery_groups(id,source_type,source_ref,state) VALUES($1,'CUSTOMER',$1::text,'ACTIVE')`, group); err != nil {
+			if _, err := pool.Exec(ctx, `INSERT INTO dispatch_delivery_groups(id,source_type,source_ref,state) VALUES($1::uuid,'CUSTOMER',($1::uuid)::text,'ACTIVE')`, group); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := pool.Exec(ctx, `INSERT INTO dispatch_delivery_missions(id,delivery_group_id,source_type,source_ref,trip_id,state) VALUES($1,$2,'CUSTOMER',$1::text,$3,'ASSIGNED')`, mission, group, f.trip); err != nil {
+			if _, err := pool.Exec(ctx, `INSERT INTO dispatch_delivery_missions(id,delivery_group_id,source_type,source_ref,trip_id,state) VALUES($1::uuid,$2::uuid,'CUSTOMER',($1::uuid)::text,$3::uuid,'ASSIGNED')`, mission, group, f.trip); err != nil {
 				t.Fatal(err)
 			}
 			repo := deliveryrecovery.NewRepository(pool)

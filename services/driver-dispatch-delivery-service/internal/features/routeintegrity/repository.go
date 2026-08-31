@@ -297,7 +297,7 @@ func emitRouteEvent(ctx context.Context, tx pgx.Tx, eventType, tripID string, ve
 		return err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO dispatch_marketplace_outbox(event_type,aggregate_type,aggregate_id,aggregate_version,payload,payload_hash,target_service)
-	VALUES($1,'trip',$2,$3,$4,encode(digest($4::text,'sha256'),'hex'),'analytics-service') ON CONFLICT DO NOTHING`, eventType, tripID, version, raw)
+	VALUES($1,'trip',$2,$3,$4::jsonb,encode(digest(($4::jsonb)::text,'sha256'),'hex'),'analytics-service') ON CONFLICT DO NOTHING`, eventType, tripID, version, raw)
 	return err
 }
 

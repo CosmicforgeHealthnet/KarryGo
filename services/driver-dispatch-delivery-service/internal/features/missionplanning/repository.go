@@ -251,7 +251,7 @@ func insertExecutionBridge(ctx context.Context, tx pgx.Tx, in PlanRequest, plan 
 		return err
 	}
 	payload, _ := json.Marshal(map[string]any{"correlation_id": in.CorrelationID, "booking_id": bookingID, "customer_id": in.CustomerID, "pickup_lat": pickup.Latitude, "pickup_lng": pickup.Longitude, "dropoff_lat": dropoff.Latitude, "dropoff_lng": dropoff.Longitude, "pickup_address": pickup.Address, "dropoff_address": dropoff.Address, "fare_amount": fare, "service_type": "dispatch", "payment_method": "wallet", "currency": strings.ToUpper(in.Currency), "receiver_name": in.ReceiverName, "receiver_phone": in.ReceiverPhone, "package_desc": packageDesc, "package_weight": float64(weightGrams) / 1000, "package_type": "commerce_manifest", "package_size": "large", "is_fragile": false, "service_tier": normalizeTier(in.ServiceClass), "occurred_at": now})
-	_, err = tx.Exec(ctx, `INSERT INTO request_broadcasts(booking_id,service_type,broadcast_radius_km,status,broadcast_at,expires_at,booking_payload) VALUES($1,'dispatch',1,'cancelled',$2,$2+interval '5 minutes',$3)`, bookingID, now, payload)
+	_, err = tx.Exec(ctx, `INSERT INTO request_broadcasts(booking_id,service_type,broadcast_radius_km,status,broadcast_at,expires_at,booking_payload) VALUES($1,'dispatch',1,'cancelled',$2::timestamptz,$2::timestamptz+interval '5 minutes',$3)`, bookingID, now, payload)
 	if err != nil {
 		return err
 	}

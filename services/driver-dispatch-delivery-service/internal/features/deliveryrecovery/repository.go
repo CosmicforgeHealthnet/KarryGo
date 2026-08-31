@@ -785,7 +785,7 @@ func (r *Repository) ClaimReturnAssignments(ctx context.Context, now time.Time, 
 		ORDER BY w.assignment_next_attempt_at,w.created_at FOR UPDATE OF w SKIP LOCKED LIMIT $5
 	)
 	UPDATE dispatch_return_workflows w SET assignment_state='DELIVERING',assignment_lease_owner=$2,
-		assignment_lease_expires_at=$1+$3::interval,updated_at=$1 FROM due WHERE w.id=due.id
+		assignment_lease_expires_at=$1::timestamptz+$3::interval,updated_at=$1::timestamptz FROM due WHERE w.id=due.id
 	RETURNING w.id::text,w.return_mission_id::text,(SELECT a.idempotency_key||':return-assignment' FROM dispatch_delivery_recovery_actions a WHERE a.id=w.recovery_action_id),w.assignment_attempt_count`, now, owner, lease.String(), maxAttempts, limit)
 	if err != nil {
 		return nil, err
@@ -809,9 +809,9 @@ func (r *Repository) CompleteReturnAssignment(ctx context.Context, workflowID st
 	_, err := r.db.Exec(ctx, `UPDATE dispatch_return_workflows SET
 		assignment_attempt_count=assignment_attempt_count+1,
 		assignment_state=CASE WHEN $2 THEN 'ACKNOWLEDGED' WHEN assignment_attempt_count+1 >= $6 THEN 'DEAD_LETTER' ELSE 'UNKNOWN' END,
-		assignment_next_attempt_at=$4+$5::interval,assignment_last_error_code=$3,
+		assignment_next_attempt_at=$4::timestamptz+$5::interval,assignment_last_error_code=$3,
 		assignment_lease_owner=NULL,assignment_lease_expires_at=NULL,
-		state=CASE WHEN $2 THEN 'RETURNING' WHEN assignment_attempt_count+1 >= $6 THEN 'SUPPORT_REQUIRED' ELSE state END,updated_at=$4
+		state=CASE WHEN $2 THEN 'RETURNING' WHEN assignment_attempt_count+1 >= $6 THEN 'SUPPORT_REQUIRED' ELSE state END,updated_at=$4::timestamptz
 		WHERE id=$1::uuid AND assignment_state='DELIVERING' AND assignment_lease_owner=$7`, workflowID, acknowledged, code, now, backoff.String(), maxAttempts, owner)
 	return err
 }
@@ -828,7 +828,7 @@ func emit(ctx context.Context, tx pgx.Tx, eventType, aggregateType, aggregateID 
 		return err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO dispatch_marketplace_outbox(event_type,aggregate_type,aggregate_id,aggregate_version,payload,payload_hash,target_service)
-		VALUES($1,$2,$3,$4,$5,encode(digest($5::text,'sha256'),'hex'),'notification-service') ON CONFLICT DO NOTHING`, eventType, aggregateType, aggregateID, version, raw)
+		VALUES($1,$2,$3,$4,$5::jsonb,encode(digest(($5::jsonb)::text,'sha256'),'hex'),'notification-service') ON CONFLICT DO NOTHING`, eventType, aggregateType, aggregateID, version, raw)
 	return err
 }
 

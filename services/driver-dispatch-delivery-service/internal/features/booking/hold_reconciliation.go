@@ -91,7 +91,7 @@ func (r *PostgresRepository) claimAbandonedHolds(ctx context.Context, now time.T
 		AND b.hold_reconciliation_next_at<=$1 AND (b.hold_reconciliation_lease_expires_at IS NULL OR b.hold_reconciliation_lease_expires_at<=$1)
 		ORDER BY b.hold_reconciliation_next_at FOR UPDATE SKIP LOCKED LIMIT 50
 	) UPDATE dispatch_bookings b SET status='cancelled',cancel_reason='payment_outcome_unknown',cancelled_at=COALESCE(cancelled_at,$1),
-		hold_reconciliation_lease_owner=$2,hold_reconciliation_lease_expires_at=$1+$3::interval
+		hold_reconciliation_lease_owner=$2,hold_reconciliation_lease_expires_at=$1::timestamptz+$3::interval
 	FROM due WHERE b.id=due.id RETURNING b.id::text`, now, owner, p.Lease.String(), p.MaxAttempts, p.AbandonAfter.String())
 	if err != nil {
 		return nil, err

@@ -93,7 +93,7 @@ func (r *PostgresRepository) ClaimSettlements(ctx context.Context, now time.Time
 		AND wallet_settlement_attempts<$4 AND wallet_settlement_next_at<=$1
 		AND (wallet_settlement_lease_expires_at IS NULL OR wallet_settlement_lease_expires_at<=$1)
 		ORDER BY wallet_settlement_next_at FOR UPDATE SKIP LOCKED LIMIT 50
-	) UPDATE trips t SET wallet_settlement_lease_owner=$2,wallet_settlement_lease_expires_at=$1+$3::interval
+	) UPDATE trips t SET wallet_settlement_lease_owner=$2,wallet_settlement_lease_expires_at=$1::timestamptz+$3::interval
 	FROM due WHERE t.id=due.id RETURNING t.id::text,t.booking_id::text,t.completed_at,t.wallet_settlement_attempts`, now, owner, policy.Lease.String(), policy.MaxAttempts)
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (r *PostgresRepository) FinishSettlement(ctx context.Context, tripID, owner
 	_, err := r.db.Exec(ctx, `UPDATE trips SET wallet_settlement_attempts=wallet_settlement_attempts+1,
 		wallet_settlement_state=CASE WHEN $3 THEN 'ACKNOWLEDGED' WHEN wallet_settlement_attempts+1 >= $6 THEN 'DEAD_LETTER' ELSE 'UNKNOWN' END,
 		wallet_settlement_error_code=CASE WHEN $3 THEN '' ELSE 'WALLET_CONFIRMATION_PENDING' END,
-		wallet_settlement_next_at=$4+$5::interval,wallet_settlement_lease_owner=NULL,wallet_settlement_lease_expires_at=NULL
+		wallet_settlement_next_at=$4::timestamptz+$5::interval,wallet_settlement_lease_owner=NULL,wallet_settlement_lease_expires_at=NULL
 		WHERE id=$1::uuid AND wallet_settlement_lease_owner=$2 AND wallet_settlement_state IN ('PENDING','UNKNOWN')`, tripID, owner, confirmed, now, delay.String(), maxAttempts)
 	return err
 }

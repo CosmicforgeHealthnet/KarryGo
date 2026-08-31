@@ -11,6 +11,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/deliveryrecovery"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
+	"github.com/google/uuid"
 )
 
 func TestLegacyCredentialIsolationMigrationShape(t *testing.T) {
@@ -122,15 +123,17 @@ func TestHandoverAdversarialObjectManifestAndReplayPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := securehandover.VerifyCommand{ChallengeRef: c.ChallengeRef, Method: securehandover.MethodQR, Credential: c.QRToken, ManifestRef: c.ManifestRef, ManifestVersion: c.ManifestVersion, OperationRef: "verify-negative"}
-	if _, err = s.VerifyPickupByCustomer(ctx, "foreign-customer", f.booking, cmd); err == nil {
+	cmd := securehandover.VerifyCommand{ChallengeRef: c.ChallengeRef, Method: securehandover.MethodQR, Credential: c.QRToken, ManifestRef: c.ManifestRef, ManifestVersion: c.ManifestVersion, OperationRef: "verify-foreign-customer"}
+	if _, err = s.VerifyPickupByCustomer(ctx, uuid.NewString(), f.booking, cmd); err == nil {
 		t.Fatal("foreign customer accepted")
 	}
 	wrong := cmd
+	wrong.OperationRef = "verify-wrong-manifest"
 	wrong.ManifestVersion++
 	if _, err = s.VerifyPickupByCustomer(ctx, f.customer, f.booking, wrong); err == nil {
 		t.Fatal("wrong manifest accepted")
 	}
+	cmd.OperationRef = "verify-correct"
 	if _, err = s.VerifyPickupByCustomer(ctx, f.customer, f.booking, cmd); err != nil {
 		t.Fatal(err)
 	}

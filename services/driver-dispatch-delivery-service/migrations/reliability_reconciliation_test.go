@@ -176,7 +176,7 @@ func TestHandoverNotificationReconciliationClaimRace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service.WithNotifier(failingSecretTransport{})
+	service.WithRateLimiter(allowHandoverLimiter{}).WithNotifier(failingSecretTransport{})
 	if _, err = service.IssueDelivery(ctx, trip, "notification-race"); err != nil {
 		t.Fatal(err)
 	}
