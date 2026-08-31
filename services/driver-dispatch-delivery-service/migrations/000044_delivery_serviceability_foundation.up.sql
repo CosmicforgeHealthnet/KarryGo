@@ -93,9 +93,11 @@ BEGIN
     RAISE EXCEPTION 'parcel manifests are immutable; create a new manifest version';
 END;
 $$;
+DROP TRIGGER IF EXISTS dispatch_parcel_manifest_immutable ON dispatch_parcel_manifests;
 CREATE TRIGGER dispatch_parcel_manifest_immutable
     BEFORE UPDATE OR DELETE ON dispatch_parcel_manifests
     FOR EACH ROW EXECUTE FUNCTION dispatch_reject_manifest_mutation();
+DROP TRIGGER IF EXISTS dispatch_manifest_membership_immutable ON dispatch_manifest_parcels;
 CREATE TRIGGER dispatch_manifest_membership_immutable
     BEFORE UPDATE OR DELETE ON dispatch_manifest_parcels
     FOR EACH ROW EXECUTE FUNCTION dispatch_reject_manifest_mutation();

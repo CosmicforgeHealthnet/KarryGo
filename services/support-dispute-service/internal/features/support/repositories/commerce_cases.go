@@ -37,7 +37,7 @@ func (r *PostgresSupportRepository) CreateCommerceCase(ctx context.Context, in s
 	err = scanCommerceCase(tx.QueryRow(ctx, `INSERT INTO complaints
 		(complainant_type,complainant_id,service_type,booking_reference,category,priority,subject,description,
 		 organization_reference,source_idempotency_key,source_schema_version,request_fingerprint,commerce_category,commerce_context)
-		 VALUES ('customer',$1,'platform',$2,'other',$3,$4,$5,$6,$7,$8,$9,$10)
+		 VALUES ('customer',$1,'platform',$2,'other',$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		 ON CONFLICT (organization_reference,source_idempotency_key) WHERE organization_reference IS NOT NULL AND source_idempotency_key IS NOT NULL
 		 DO NOTHING RETURNING `+commerceCaseColumns,
 		in.CustomerRef, in.Context.CommerceOrderRef, normalizedPriority(in.Priority), strings.TrimSpace(in.Subject), strings.TrimSpace(in.Description),

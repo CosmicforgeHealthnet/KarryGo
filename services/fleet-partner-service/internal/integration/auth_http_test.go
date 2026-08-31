@@ -275,9 +275,13 @@ func TestRequestAndCorrelationIDsPropagate(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-ID", "req_supplied")
 	req.Header.Set("X-Correlation-ID", "cor_supplied")
+	req.Header.Set("Origin", "https://fleet.example.test")
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
+	if resp.Code != http.StatusAccepted {
+		t.Fatalf("auth start status = %d, want 202; body=%s", resp.Code, resp.Body.String())
+	}
 	if resp.Header().Get("X-Request-ID") != "req_supplied" {
 		t.Fatalf("request id not echoed: %q", resp.Header().Get("X-Request-ID"))
 	}

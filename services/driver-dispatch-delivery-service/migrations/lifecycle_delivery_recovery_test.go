@@ -162,7 +162,7 @@ func TestIncidentRecoveryClaimReplayAcceptanceAndNoSecondTripPostgres(t *testing
 }
 
 func TestLifecycleMigrationApplyRollbackReapplyPostgres(t *testing.T) {
-	pool, cleanup := operationalTestPool(t)
+	pool, cleanup := operationalTestPoolThrough(t, "000051_lifecycle_delivery_replacement_recovery.up.sql")
 	defer cleanup()
 	for _, path := range []string{"000051_lifecycle_delivery_replacement_recovery.down.sql", "000051_lifecycle_delivery_replacement_recovery.up.sql"} {
 		raw, err := os.ReadFile(path)

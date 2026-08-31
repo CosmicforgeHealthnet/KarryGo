@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,8 +41,19 @@ func TestApplyMigrationsTracksAndReplays(t *testing.T) {
 	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM hauling_schema_migrations`).Scan(&applied); err != nil {
 		t.Fatal(err)
 	}
-	if applied != 14 {
-		t.Fatalf("applied migrations = %d, want 14", applied)
+	entries, err := os.ReadDir("migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") || strings.HasSuffix(entry.Name(), ".down.sql") {
+			continue
+		}
+		expected++
+	}
+	if applied != expected {
+		t.Fatalf("applied migrations = %d, want %d", applied, expected)
 	}
 	var exists bool
 	if err := pool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='hauling_organization_provider_links' AND column_name='link_id')`).Scan(&exists); err != nil {

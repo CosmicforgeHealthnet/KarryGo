@@ -4,8 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,6 +31,43 @@ func TestMigrationApplyRollbackReapplyAndIdempotencyConstraint(t *testing.T) {
 	up, err := os.ReadFile(filepath.Join(root, "000044_delivery_serviceability_foundation.up.sql"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Preserve coverage of recreation against the current migrated database,
+	// but undo that recreation before testing historical rollback boundaries.
+	if _, err = tx.Exec(ctx, "SAVEPOINT current_schema_recreation"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, string(up)); err != nil {
+		t.Fatalf("current-schema recreation: %v", err)
+	}
+	if _, err = tx.Exec(ctx, "ROLLBACK TO SAVEPOINT current_schema_recreation"); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise recreation and rollback at the foundation's actual schema
+	// boundary, without dropping tables referenced by later migrations. The
+	// schema and all its changes are removed by the transaction rollback.
+	schema := "serviceability_migration_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err = tx.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, "SET LOCAL search_path TO "+schema+",public"); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := filepath.Glob(filepath.Join(root, "*.up.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		if filepath.Base(path) > "000044_delivery_serviceability_foundation.up.sql" {
+			break
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = tx.Exec(ctx, string(raw)); err != nil {
+			t.Fatalf("apply %s: %v", filepath.Base(path), err)
+		}
 	}
 	down, err := os.ReadFile(filepath.Join(root, "000044_delivery_serviceability_foundation.down.sql"))
 	if err != nil {

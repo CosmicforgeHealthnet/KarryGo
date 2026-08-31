@@ -19,6 +19,13 @@ import (
 // infrastructure is not supplied; they never discover or create a database.
 func operationalTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 	t.Helper()
+	return operationalTestPoolThrough(t, "")
+}
+
+// Rollback tests must construct the schema at the migration under test, not
+// drop its objects underneath subsequently applied migrations.
+func operationalTestPoolThrough(t *testing.T, lastMigration string) (*pgxpool.Pool, func()) {
+	t.Helper()
 	dsn := os.Getenv("DISPATCH_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("DISPATCH_TEST_DATABASE_URL not set; operational PostgreSQL certification is infrastructure-gated")
@@ -50,6 +57,9 @@ func operationalTestPool(t *testing.T) (*pgxpool.Pool, func()) {
 	}
 	sort.Strings(entries)
 	for _, path := range entries {
+		if lastMigration != "" && path > lastMigration {
+			break
+		}
 		raw, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)

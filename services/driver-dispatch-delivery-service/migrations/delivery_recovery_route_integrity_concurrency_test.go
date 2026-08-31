@@ -154,7 +154,7 @@ func TestRouteVersionAndOfflineCommandConcurrency(t *testing.T) {
 }
 
 func TestDeliveryRecoveryMigrationRollbackReapply(t *testing.T) {
-	pool, cleanup := operationalTestPool(t)
+	pool, cleanup := operationalTestPoolThrough(t, "000048_delivery_recovery_route_integrity.up.sql")
 	defer cleanup()
 	ctx := context.Background()
 	down, err := os.ReadFile("000048_delivery_recovery_route_integrity.down.sql")
