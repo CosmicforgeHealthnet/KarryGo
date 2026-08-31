@@ -1,0 +1,20 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Commerce support case integration", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/commerce/orders/{orderId}/support-cases": {
+      "post": {"summary": "Report one controlled issue for an owned CommerceOrder", "responses": {"201": {"description": "Support case linked"}}},
+      "get": {"summary": "List safe Support case projections for an owned CommerceOrder", "responses": {"200": {"description": "Case projections"}}}
+    },
+    "/api/v1/commerce/orders/{orderId}/support-cases/{caseRef}": {
+      "get": {"summary": "Read one safe Support case projection", "responses": {"200": {"description": "Case projection"}}}
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/support-cases": {
+      "post": {"summary": "Open a controlled Support case in the acting Vendor scope", "responses": {"201": {"description": "Support case linked"}}},
+      "get": {"summary": "List safe Support case projections in the acting Vendor scope", "responses": {"200": {"description": "Case projections"}}}
+    },
+    "/api/v1/internal/vendor/commerce/support-case-resolutions": {
+      "post": {"summary": "Ingest an HMAC-v2 Support-owned resolution event", "responses": {"200": {"description": "Applied or replay acknowledged"}}}
+    }
+  }
+}

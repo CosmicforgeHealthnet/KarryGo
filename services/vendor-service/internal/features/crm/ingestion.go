@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // RelationshipInput is an authoritative observation that a commercial
@@ -94,12 +93,24 @@ func (s *Service) ResolveOrCreateProfile(ctx context.Context, tx pgx.Tx, actor A
 
 	created, err := s.insertProfile(ctx, tx, actor, in)
 	if err == nil {
+		// A new relationship can change every rule that reads intrinsic profile
+		// traits. Use the same durable, transaction-local dependency invalidation
+		// path as commercial, consent and tag changes: if the surrounding event
+		// rolls back, both the profile and its queued evaluations roll back.
+		if err = s.invalidateSegmentsForDependencies(ctx, tx, actor.VendorID, []string{
+			"profile.subject_type",
+			"profile.status",
+			"profile.acquisition_source_type",
+		}); err != nil {
+			return Profile{}, err
+		}
 		s.metrics.Inc("crm_profiles_created_total", "subject_type", string(in.Subject.Type))
 		return created, nil
 	}
-	// A concurrent event created the same relationship first; adopt it.
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+	// A concurrent event created the same relationship first; adopt it. The
+	// INSERT uses ON CONFLICT DO NOTHING so the transaction remains usable for
+	// this read instead of being left in PostgreSQL's aborted state.
+	if errors.Is(err, pgx.ErrNoRows) {
 		winner, lookupErr := s.findProfileBySubject(ctx, tx, actor.VendorID, in.Subject)
 		if lookupErr != nil {
 			return Profile{}, lookupErr
@@ -130,7 +141,7 @@ func (s *Service) insertProfile(ctx context.Context, tx pgx.Tx, actor Actor, in 
 	// phone number would turn CRM into a second customer master.
 	return scanProfile(tx.QueryRow(ctx, `INSERT INTO vendor_customer_profiles
 		(id,business_id,subject_type,customer_ref,guest_ref,external_ref,acquisition_source_type,acquisition_source_ref)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING `+profileCols,
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING RETURNING `+profileCols,
 		newID("vcp_"), actor.VendorID, in.Subject.Type, customerRef, guestRef, externalRef,
 		in.AcquisitionSourceType, in.AcquisitionSourceRef))
 }

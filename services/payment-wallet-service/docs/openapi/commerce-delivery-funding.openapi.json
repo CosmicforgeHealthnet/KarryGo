@@ -1,0 +1,8 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Wallet Commerce Delivery Funding", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/payment-wallet/internal/commerce/delivery-funding": {"post": {"summary": "Apply an idempotent customer/vendor/platform delivery funding allocation", "description": "Vendor Service only. Platform subsidy requires an authoritative platform_approval_ref. The HMAC caller identity is derived from authentication, never from the body.", "responses": {"201": {"description": "Authoritative funding allocation"}, "403": {"description": "Caller is not Vendor Service"}, "409": {"description": "Unfunded, unauthorized, or conflicting allocation"}}}},
+    "/api/v1/payment-wallet/internal/commerce/delivery-funding/{sourceReference}": {"get": {"summary": "Read authoritative funding outcome after an ambiguous call", "parameters": [{"name": "sourceReference", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Funding allocation"}, "404": {"description": "Not found"}}}}
+  }
+}

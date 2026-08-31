@@ -1,0 +1,378 @@
+﻿├── app
+│   ├── (auth)
+│   │   ├── choose-organization
+│   │   │   └── page.tsx
+│   │   ├── reverify
+│   │   │   └── page.tsx
+│   │   ├── sign-in
+│   │   │   └── page.tsx
+│   │   ├── verify
+│   │   │   └── page.tsx
+│   │   └── layout.tsx
+│   ├── (dashboard)
+│   │   ├── comms
+│   │   │   ├── escalations
+│   │   │   │   ├── [escalationId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── notification-rules
+│   │   │   │   └── page.tsx
+│   │   │   ├── quality
+│   │   │   │   ├── [caseId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── sla
+│   │   │   │   └── page.tsx
+│   │   │   ├── support
+│   │   │   │   ├── [caseId]
+│   │   │   │   └── page.tsx
+│   │   │   └── threads
+│   │   │       ├── [threadId]
+│   │   │       └── page.tsx
+│   │   ├── compliance
+│   │   │   ├── assets
+│   │   │   │   └── [assetId]
+│   │   │   ├── corrective-actions
+│   │   │   │   └── page.tsx
+│   │   │   ├── incidents
+│   │   │   │   ├── [incidentId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── proof-policies
+│   │   │   │   └── page.tsx
+│   │   │   ├── proof-records
+│   │   │   │   └── page.tsx
+│   │   │   ├── providers
+│   │   │   │   └── [providerId]
+│   │   │   ├── requirements
+│   │   │   │   └── page.tsx
+│   │   │   ├── restrictions
+│   │   │   │   └── page.tsx
+│   │   │   ├── safety-references
+│   │   │   │   └── page.tsx
+│   │   │   ├── safety-reports
+│   │   │   │   ├── [reportId]
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── crm
+│   │   │   ├── contracts
+│   │   │   │   ├── [contractId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── customers
+│   │   │   │   ├── [customerId]
+│   │   │   │   ├── create
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── leads
+│   │   │   │   └── page.tsx
+│   │   │   ├── opportunities
+│   │   │   │   └── page.tsx
+│   │   │   ├── quotations
+│   │   │   │   ├── [quotationId]
+│   │   │   │   └── page.tsx
+│   │   │   └── slas
+│   │   │       └── page.tsx
+│   │   ├── documents
+│   │   │   ├── [documentId]
+│   │   │   ├── exports
+│   │   │   │   ├── [exportId]
+│   │   │   │   ├── create
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── imports
+│   │   │   │   ├── [importId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── reconciliation
+│   │   │   │   └── page.tsx
+│   │   │   ├── search
+│   │   │   │   └── page.tsx
+│   │   │   ├── upload
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── finance
+│   │   │   ├── budgets
+│   │   │   │   └── page.tsx
+│   │   │   ├── claims
+│   │   │   │   └── page.tsx
+│   │   │   ├── compensation-rules
+│   │   │   │   └── page.tsx
+│   │   │   ├── expenses
+│   │   │   │   ├── [expenseId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── invoices
+│   │   │   │   ├── [invoiceId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── payroll
+│   │   │   │   ├── [periodId]
+│   │   │   │   ├── statements
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── profitability
+│   │   │   │   └── page.tsx
+│   │   │   ├── receivables
+│   │   │   │   └── page.tsx
+│   │   │   ├── reconciliation
+│   │   │   │   └── page.tsx
+│   │   │   ├── settlements
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── fleet
+│   │   │   ├── assets
+│   │   │   │   ├── [assetId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── breakdowns
+│   │   │   │   ├── [breakdownId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── fuel
+│   │   │   │   ├── [fuelRecordId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── inspections
+│   │   │   │   ├── [inspectionId]
+│   │   │   │   ├── templates
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── maintenance
+│   │   │   │   └── schedules
+│   │   │   │       └── page.tsx
+│   │   │   ├── parts
+│   │   │   │   ├── [partId]
+│   │   │   │   ├── stock
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── tyres
+│   │   │   │   ├── [tyreId]
+│   │   │   │   └── page.tsx
+│   │   │   └── work-orders
+│   │   │       ├── [workOrderId]
+│   │   │       └── page.tsx
+│   │   ├── onboarding
+│   │   │   ├── capabilities
+│   │   │   │   └── page.tsx
+│   │   │   ├── create-company
+│   │   │   │   └── page.tsx
+│   │   │   ├── documents
+│   │   │   │   └── page.tsx
+│   │   │   ├── profile
+│   │   │   │   └── page.tsx
+│   │   │   ├── submit
+│   │   │   │   └── page.tsx
+│   │   │   ├── verification
+│   │   │   │   └── page.tsx
+│   │   │   ├── wallet-provisioning
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── operations
+│   │   │   ├── alerts
+│   │   │   │   ├── [alertId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── assignments
+│   │   │   │   ├── [assignmentId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── control-tower
+│   │   │   │   ├── exceptions
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── dispatch
+│   │   │   │   ├── plans
+│   │   │   │   │   ├── [planId]
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── unassigned
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── layout.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── geofences
+│   │   │   │   ├── [geofenceId]
+│   │   │   │   ├── create
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── marketplace
+│   │   │   │   ├── [offerId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── rescue
+│   │   │   │   └── page.tsx
+│   │   │   ├── routes
+│   │   │   │   ├── [routeId]
+│   │   │   │   └── page.tsx
+│   │   │   └── trips
+│   │   │       ├── [tripId]
+│   │   │       └── page.tsx
+│   │   ├── private-ops
+│   │   │   ├── manifests
+│   │   │   │   ├── [manifestId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── orders
+│   │   │   │   ├── [orderId]
+│   │   │   │   ├── create
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── import
+│   │   │   │   │   ├── [importId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── packages
+│   │   │   │   ├── [packageId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── recurring-orders
+│   │   │   │   └── page.tsx
+│   │   │   ├── services
+│   │   │   │   ├── [serviceId]
+│   │   │   │   └── page.tsx
+│   │   │   └── shipments
+│   │   │       ├── [shipmentId]
+│   │   │       └── page.tsx
+│   │   ├── providers
+│   │   │   ├── [providerId]
+│   │   │   ├── add
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── reports
+│   │   │   ├── customer-service
+│   │   │   │   └── page.tsx
+│   │   │   ├── fleet
+│   │   │   │   └── page.tsx
+│   │   │   ├── history
+│   │   │   │   └── page.tsx
+│   │   │   ├── library
+│   │   │   │   ├── [reportId]
+│   │   │   │   └── page.tsx
+│   │   │   └── workforce
+│   │   │       └── page.tsx
+│   │   ├── settings
+│   │   │   ├── access-history
+│   │   │   │   └── page.tsx
+│   │   │   ├── approval-policies
+│   │   │   │   └── page.tsx
+│   │   │   ├── approvals
+│   │   │   │   ├── [requestId]
+│   │   │   │   ├── delegation
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── audit
+│   │   │   │   ├── [auditId]
+│   │   │   │   ├── verification
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── branches
+│   │   │   │   └── page.tsx
+│   │   │   ├── capabilities
+│   │   │   │   └── page.tsx
+│   │   │   ├── closure
+│   │   │   │   └── page.tsx
+│   │   │   ├── departments
+│   │   │   │   └── page.tsx
+│   │   │   ├── integrations
+│   │   │   │   ├── api-clients
+│   │   │   │   │   ├── [clientId]
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── webhooks
+│   │   │   │   │   ├── [webhookId]
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── legal-holds
+│   │   │   │   ├── [holdId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── locations
+│   │   │   │   └── page.tsx
+│   │   │   ├── permissions
+│   │   │   │   └── page.tsx
+│   │   │   ├── policies
+│   │   │   │   └── page.tsx
+│   │   │   ├── retention
+│   │   │   │   ├── run
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── runs
+│   │   │   │   │   └── [runId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── roles
+│   │   │   │   ├── [roleId]
+│   │   │   │   ├── assignments
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── security
+│   │   │   │   └── page.tsx
+│   │   │   ├── sessions
+│   │   │   │   └── page.tsx
+│   │   │   ├── staff
+│   │   │   │   ├── [staffId]
+│   │   │   │   ├── invite
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── system
+│   │   │   ├── dead-letters
+│   │   │   │   └── page.tsx
+│   │   │   ├── jobs
+│   │   │   │   ├── [jobId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── reconciliation
+│   │   │   │   ├── [caseId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── scheduled-tasks
+│   │   │   │   ├── [taskId]
+│   │   │   │   └── page.tsx
+│   │   │   └── sync
+│   │   │       └── page.tsx
+│   │   ├── wallet
+│   │   │   ├── allocations
+│   │   │   │   ├── [allocationId]
+│   │   │   │   ├── create
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── providers
+│   │   │   │   ├── [providerId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── reconciliation
+│   │   │   │   └── page.tsx
+│   │   │   ├── transactions
+│   │   │   │   ├── [transactionId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── withdrawal-policy
+│   │   │   │   └── page.tsx
+│   │   │   ├── withdrawals
+│   │   │   │   ├── [withdrawalId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   ├── warehouse
+│   │   │   ├── [warehouseId]
+│   │   │   └── page.tsx
+│   │   ├── workforce
+│   │   │   ├── [personId]
+│   │   │   ├── attendance
+│   │   │   │   └── page.tsx
+│   │   │   ├── leave
+│   │   │   │   └── page.tsx
+│   │   │   ├── performance
+│   │   │   │   ├── [providerId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── qualifications
+│   │   │   │   ├── providers
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── shifts
+│   │   │   │   ├── [shiftId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── training
+│   │   │   │   ├── [courseId]
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── (public)
+│   │   └── quotations
+│   │       └── [token]
+│   ├── favicon.ico
+│   ├── globals.css
+│   └── layout.tsx
+├── lib
+│   ├── mock-alerts-data.ts
+│   ├── mock-control-tower-data.ts
+│   ├── mock-dispatch-data.ts
+│   ├── mock-marketplace-data.ts
+│   ├── mock-provider-data.ts
+│   ├── mock-rescue-data.ts
+│   ├── mock-routes-data.ts
+│   └── nav.ts
+└── folder-structure.txt

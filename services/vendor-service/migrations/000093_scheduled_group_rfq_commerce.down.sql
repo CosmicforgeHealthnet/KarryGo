@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS commerce_rfq_checkout_bindings;
+DROP TABLE IF EXISTS commerce_rfq_quote_revisions;
+DROP TABLE IF EXISTS commerce_rfq_quotes;
+DROP TABLE IF EXISTS commerce_rfqs;
+DROP TABLE IF EXISTS commerce_group_attributions;
+DROP TABLE IF EXISTS commerce_group_selections;
+DROP TABLE IF EXISTS commerce_group_participants;
+DROP TABLE IF EXISTS commerce_group_sessions;
+DROP TABLE IF EXISTS commerce_scheduled_orders;

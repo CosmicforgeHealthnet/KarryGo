@@ -1,0 +1,1999 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service — Section 8H: CRM Intelligence and Secure Exports",
+    "version": "1.0.0",
+    "description": "Deterministic CRM intelligence (RFM V1 and a churn risk heuristic) and secure, step-up protected CRM data exports.\n\nNO MACHINE LEARNING. Both models are versioned heuristics computed in Go from commercial facts this service was given. There is no model artefact, no training data, no probability and no generated explanation anywhere in this contract. A churn risk of 70 is a rank for follow-up; it is not a 70% chance of anything, and no field in this document should be read as one.\n\nA SCORE IS NOT PERMISSION. A relationship can be the most valuable in the book and still be one this vendor may not contact. Consent, privacy, marketing suppression, frequency and quiet hours are decided by Sections 8A, 8E and 8F, are not consulted to produce a score, and are not weakened by one.\n\nUNAVAILABLE IS NOT ZERO. A relationship with no observed commercial facts reports NOT_AVAILABLE with a reason code, and every numeric field is absent. A database CHECK makes a row asserting otherwise unstorable, and the segment field registry compiles score predicates so that a missing score matches no numeric comparison rather than matching every comparison against zero.\n\nEXPORTS RELEASE NOTHING UNTIL THEY ARE COMPLETE AND STILL LAWFUL. Generation, privacy re-certification, private upload and promotion happen in that order; READY has a database CHECK requiring a complete artifact; and access is decided live, per request, against a fresh step-up, returning a token that outlives neither the request nor the store's own short window."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor",
+      "description": "Authenticated vendor surface."
+    }
+  ],
+  "tags": [
+    {
+      "name": "CRM Intelligence and Exports",
+      "description": "Section 8H deterministic intelligence and secure exports."
+    }
+  ],
+  "paths": {
+    "/crm/intelligence/overview": {
+      "get": {
+        "operationId": "getIntelligenceOverview",
+        "summary": "Intelligence availability and freshness",
+        "description": "Reports, per model, whether this scope has usable intelligence and how fresh it is. Availability leads every response because a distribution built from three scored customers reads exactly like one built from thousands.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.intelligence.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BranchRef"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IntelligenceOverview"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/intelligence/rfm": {
+      "get": {
+        "operationId": "getRFMDistribution",
+        "summary": "RFM distribution",
+        "description": "Quintile histograms over this scope's scored cohort, plus the reasons relationships have no usable score. Scores are comparable within one scope and deliberately not across businesses.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.intelligence.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BranchRef"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RFMDistribution"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/intelligence/churn": {
+      "get": {
+        "operationId": "getChurnDistribution",
+        "summary": "Churn risk distribution",
+        "description": "Band histogram over this scope's scored cohort. The underlying score is a deterministic heuristic for ranking follow-up, not a probability of leaving.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.intelligence.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BranchRef"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ChurnDistribution"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/customers/{profileId}/intelligence": {
+      "get": {
+        "operationId": "getCustomerIntelligence",
+        "summary": "One relationship's scores",
+        "description": "Returns the RFM and churn scores for one relationship at the caller's scope, each led by its availability state. A redacted or merged-away relationship reports NOT_AVAILABLE and carries no numbers.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.intelligence.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProfileId"
+          },
+          {
+            "$ref": "#/components/parameters/BranchRef"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CustomerIntelligence"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/intelligence/rebuild": {
+      "post": {
+        "operationId": "rebuildIntelligence",
+        "summary": "Order a rebuild",
+        "description": "Enqueues a durable rebuild for one scope and model, returning 202 with the job. A run already queued or running for the same scope and model is returned instead of a second being created, so the button is safe to press twice. The new generation is built alongside the live one and swapped atomically: a failed rebuild leaves the previous scores exactly as they were.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.intelligence.rebuild",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RebuildIntelligenceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IntelligenceEvaluation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/exports": {
+      "get": {
+        "operationId": "listExports",
+        "summary": "List export jobs",
+        "description": "Pages the export jobs visible to the caller. A branch-scoped caller never sees a business-wide export, whose existence and row count would describe the whole book.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.exports.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ExportPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createExport",
+        "summary": "Request an export",
+        "description": "Queues a durable export job and returns 202. Requires a fresh step-up grant, which is spent before anything is written. The request names a dataset from a closed registry and narrows it with a typed filter; there is no query, SQL, column list or sort a caller can supply.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.exports.create",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Export"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/exports/{exportId}": {
+      "get": {
+        "operationId": "getExport",
+        "summary": "Read an export job",
+        "description": "Returns one job with its status, row count, checksum and expiry. Reading that an export exists is not reading its contents.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.exports.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Export"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/exports/{exportId}/cancel": {
+      "post": {
+        "operationId": "cancelExport",
+        "summary": "Cancel an export",
+        "description": "Stops a queued or running job and revokes any artifact it produced. A generator that finishes concurrently cannot publish a job this cancels: promotion requires the job to still be running.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.exports.cancel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Export"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/exports/{exportId}/download": {
+      "post": {
+        "operationId": "downloadExport",
+        "summary": "Obtain short-lived access to a completed export",
+        "description": "Checks tenancy, branch scope, readiness and expiry, spends a fresh step-up grant, audits the access, and returns a short-lived private token from the artifact store. It is a POST because it is a state-changing act rather than a fetch: nothing here is cacheable, linkable or repeatable, and no durable credential is returned.",
+        "tags": [
+          "CRM Intelligence and Exports"
+        ],
+        "x-permission": "vendor.crm.exports.download",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ExportAccess"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, lacks a valid step-up, or the scope is outside their reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The feature is disabled, or secure export storage is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "ProfileId": {
+        "name": "profileId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Opaque CRM relationship reference."
+      },
+      "ExportId": {
+        "name": "exportId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "BranchRef": {
+        "name": "branch_ref",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Reads the BRANCH scope of that branch. A branch-scoped caller may only name a branch they hold; a caller holding several must name one."
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Required on every command. Replaying a key returns the original response; reusing it with a different body is CRM_IDEMPOTENCY_CONFLICT."
+      }
+    },
+    "schemas": {
+      "ModelKey": {
+        "type": "string",
+        "enum": [
+          "RFM_V1",
+          "CHURN_V1"
+        ],
+        "description": "The closed registry of scoring models. A client selects one; it can never define one."
+      },
+      "IntelligenceScope": {
+        "type": "string",
+        "enum": [
+          "BUSINESS",
+          "BRANCH"
+        ],
+        "description": "BUSINESS reasons over the whole book. BRANCH reasons over one branch's own relationship facts. A branch-scoped operator is never handed a BUSINESS score, because it summarises trade at branches they are not authorised to see."
+      },
+      "ScoreState": {
+        "type": "string",
+        "enum": [
+          "NOT_AVAILABLE",
+          "CURRENT",
+          "STALE",
+          "FAILED"
+        ],
+        "description": "NOT_AVAILABLE means the model could not answer, never that the answer was zero. There is deliberately no PENDING."
+      },
+      "ScopeState": {
+        "type": "string",
+        "enum": [
+          "NOT_AVAILABLE",
+          "QUEUED",
+          "RUNNING",
+          "CURRENT",
+          "STALE",
+          "FAILED"
+        ]
+      },
+      "RiskBand": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "description": "The band of a deterministic risk heuristic. It is not a probability class."
+      },
+      "ScoreReasonCode": {
+        "type": "string",
+        "enum": [
+          "SOURCE_NOT_AVAILABLE",
+          "INSUFFICIENT_HISTORY",
+          "INSUFFICIENT_COHORT",
+          "SOURCE_STALE",
+          "MODEL_ERROR",
+          "PRIVACY_SUPPRESSED",
+          "MERGED_SOURCE",
+          "SUPERSEDED_MODEL_VERSION",
+          "COHORT_RELATIVE",
+          "RECENCY_STRONG",
+          "RECENCY_WEAK",
+          "FREQUENCY_STRONG",
+          "FREQUENCY_WEAK",
+          "MONETARY_STRONG",
+          "MONETARY_WEAK",
+          "ON_EXPECTED_CADENCE",
+          "RECENCY_INCREASED",
+          "OVERDUE_VERSUS_CADENCE",
+          "SEVERELY_OVERDUE",
+          "LONG_INACTIVITY",
+          "EXTENDED_INACTIVITY",
+          "HIGH_HISTORICAL_ENGAGEMENT_LAPSED",
+          "SUSTAINED_ENGAGEMENT",
+          "SINGLE_OBSERVED_PURCHASE"
+        ],
+        "description": "Deterministic factor and availability codes. Every code is emitted only when the observation supporting it is present in the input; none is generated text."
+      },
+      "IntelligenceErrorCode": {
+        "type": "string",
+        "enum": [
+          "CRM_INTELLIGENCE_NOT_AVAILABLE",
+          "CRM_INTELLIGENCE_STALE",
+          "CRM_INTELLIGENCE_REBUILD_IN_PROGRESS",
+          "CRM_INTELLIGENCE_MODEL_NOT_FOUND",
+          "CRM_INTELLIGENCE_SCOPE_DENIED",
+          "CRM_INTELLIGENCE_DISABLED",
+          "CRM_EXPORT_NOT_FOUND",
+          "CRM_EXPORT_SCOPE_DENIED",
+          "CRM_EXPORT_INVALID_TYPE",
+          "CRM_EXPORT_INVALID_FORMAT",
+          "CRM_EXPORT_INVALID_FILTER",
+          "CRM_EXPORT_TOO_LARGE",
+          "CRM_EXPORT_STEP_UP_REQUIRED",
+          "CRM_EXPORT_NOT_READY",
+          "CRM_EXPORT_EXPIRED",
+          "CRM_EXPORT_CANCELLED",
+          "CRM_EXPORT_STORAGE_UNAVAILABLE",
+          "CRM_EXPORT_VERSION_CONFLICT",
+          "CRM_EXPORT_DISABLED",
+          "CRM_IDEMPOTENCY_CONFLICT"
+        ]
+      },
+      "Score": {
+        "type": "object",
+        "required": [
+          "model_key",
+          "model_version",
+          "scope",
+          "state",
+          "reason_codes",
+          "source_as_of",
+          "computed_at",
+          "stale"
+        ],
+        "properties": {
+          "model_key": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "model_version": {
+            "type": "integer",
+            "description": "The exact model version that produced this score."
+          },
+          "scope": {
+            "$ref": "#/components/schemas/IntelligenceScope"
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "$ref": "#/components/schemas/ScoreState"
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScoreReasonCode"
+            }
+          },
+          "source_as_of": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The instant the underlying facts were judged against."
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "True when the scope's inputs have moved since this score was computed. The numbers remain readable and honest as of source_as_of."
+          },
+          "recency_score": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "nullable": true,
+            "description": "RFM only, and only when state is CURRENT. A quintile of this scope's scored cohort, where 5 is strongest."
+          },
+          "frequency_score": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "nullable": true,
+            "description": "RFM only, CURRENT only."
+          },
+          "monetary_score": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "nullable": true,
+            "description": "RFM only, CURRENT only."
+          },
+          "composite_score": {
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 15,
+            "nullable": true,
+            "description": "The sum of the three RFM quintiles. RFM only, CURRENT only."
+          },
+          "risk_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "nullable": true,
+            "description": "Churn only, CURRENT only. A deterministic integer risk heuristic for ranking follow-up. It is NOT a probability, NOT a prediction and NOT a statistical model output; 70 does not mean a 70% chance of anything."
+          },
+          "risk_band": {
+            "$ref": "#/components/schemas/RiskBand",
+            "nullable": true
+          }
+        }
+      },
+      "CustomerIntelligence": {
+        "type": "object",
+        "required": [
+          "scope",
+          "rfm_state",
+          "churn_state"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/IntelligenceScope"
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "rfm_state": {
+            "$ref": "#/components/schemas/ScoreState"
+          },
+          "churn_state": {
+            "$ref": "#/components/schemas/ScoreState"
+          },
+          "rfm": {
+            "$ref": "#/components/schemas/Score",
+            "nullable": true
+          },
+          "churn": {
+            "$ref": "#/components/schemas/Score",
+            "nullable": true
+          }
+        },
+        "description": "One relationship's scores. A high score authorises nothing: consent, privacy and suppression are decided by Sections 8A, 8E and 8F and are not consulted to produce it."
+      },
+      "ModelAvailability": {
+        "type": "object",
+        "required": [
+          "model_key",
+          "label",
+          "status",
+          "profile_count",
+          "available_count",
+          "unavailable_count"
+        ],
+        "properties": {
+          "model_key": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "model_version": {
+            "type": "integer",
+            "nullable": true
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScopeState"
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "source_as_of": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "stale_since": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "error_code": {
+            "type": "string",
+            "nullable": true
+          },
+          "profile_count": {
+            "type": "integer",
+            "description": "Relationships considered."
+          },
+          "available_count": {
+            "type": "integer",
+            "description": "Relationships with a usable score."
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "description": "Relationships the model could not answer for. This is a first-class number: a business with no order data reads as many relationships and zero scored, never as zero customers."
+          }
+        }
+      },
+      "IntelligenceOverview": {
+        "type": "object",
+        "required": [
+          "scope",
+          "models"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/IntelligenceScope"
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelAvailability"
+            }
+          }
+        }
+      },
+      "DistributionBucket": {
+        "type": "object",
+        "required": [
+          "key",
+          "count"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      },
+      "RFMDistribution": {
+        "type": "object",
+        "required": [
+          "availability",
+          "composite_distribution",
+          "recency_distribution",
+          "frequency_distribution",
+          "monetary_distribution",
+          "unavailable_reasons"
+        ],
+        "properties": {
+          "availability": {
+            "$ref": "#/components/schemas/ModelAvailability"
+          },
+          "composite_distribution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionBucket"
+            }
+          },
+          "recency_distribution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionBucket"
+            }
+          },
+          "frequency_distribution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionBucket"
+            }
+          },
+          "monetary_distribution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionBucket"
+            }
+          },
+          "unavailable_reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionBucket"
+            },
+            "description": "Why relationships have no usable score. It is what turns an empty histogram from a mystery into a statement."
+          }
+        }
+      },
+      "ChurnDistribution": {
+        "type": "object",
+        "required": [
+          "availability",
+          "band_distribution",
+          "unavailable_reasons"
+        ],
+        "properties": {
+          "availability": {
+            "$ref": "#/components/schemas/ModelAvailability"
+          },
+          "band_distribution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionBucket"
+            }
+          },
+          "unavailable_reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionBucket"
+            }
+          }
+        }
+      },
+      "RebuildIntelligenceRequest": {
+        "type": "object",
+        "required": [
+          "model_key"
+        ],
+        "properties": {
+          "model_key": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "scope_type": {
+            "$ref": "#/components/schemas/IntelligenceScope"
+          },
+          "branch_ref": {
+            "type": "string",
+            "description": "Required for BRANCH scope unless the caller holds exactly one branch."
+          }
+        }
+      },
+      "IntelligenceEvaluation": {
+        "type": "object",
+        "required": [
+          "evaluation_ref",
+          "model_key",
+          "model_version",
+          "scope",
+          "generation",
+          "status",
+          "source_as_of",
+          "requested_at",
+          "profile_count",
+          "available_count",
+          "unavailable_count"
+        ],
+        "properties": {
+          "evaluation_ref": {
+            "type": "string"
+          },
+          "model_key": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "model_version": {
+            "type": "integer"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/IntelligenceScope"
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "DEAD_LETTER",
+              "SUPERSEDED"
+            ]
+          },
+          "source_as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "profile_count": {
+            "type": "integer"
+          },
+          "available_count": {
+            "type": "integer"
+          },
+          "unavailable_count": {
+            "type": "integer"
+          }
+        },
+        "description": "A durable rebuild job. Requesting a rebuild while one is already queued or running for the same scope and model returns that run rather than creating a second."
+      },
+      "ExportType": {
+        "type": "string",
+        "enum": [
+          "CUSTOMER_SUMMARY",
+          "SEGMENT_MEMBERS",
+          "CORPORATE_CUSTOMERS",
+          "LOYALTY_SUMMARY",
+          "CAMPAIGN_PERFORMANCE_SUMMARY",
+          "INTELLIGENCE_SCORES"
+        ],
+        "description": "The closed dataset registry. Each dataset's SQL and its field allowlist are written in Go; a client selects a key and nothing else reaches the database."
+      },
+      "ExportFormat": {
+        "type": "string",
+        "enum": [
+          "CSV",
+          "JSONL"
+        ],
+        "description": "Line-oriented and streamable. XLSX, PDF and ZIP are deliberately absent."
+      },
+      "ExportStatus": {
+        "type": "string",
+        "enum": [
+          "QUEUED",
+          "RUNNING",
+          "READY",
+          "FAILED",
+          "CANCELLED",
+          "EXPIRED"
+        ],
+        "description": "READY is the only state that releases bytes, and a database CHECK makes it unreachable without a complete artifact, its checksum, its size, a completion instant and an expiry. There is deliberately no PENDING."
+      },
+      "ExportFilter": {
+        "type": "object",
+        "description": "A closed, typed filter vocabulary. There is no column name, no operator, no expression and no free-text predicate: a filter narrows a dataset along dimensions that dataset declares.",
+        "properties": {
+          "segment_ref": {
+            "type": "string",
+            "description": "Required for SEGMENT_MEMBERS. Must be a segment of the caller's own vendor."
+          },
+          "campaign_ref": {
+            "type": "string",
+            "description": "CAMPAIGN_PERFORMANCE_SUMMARY only."
+          },
+          "model_key": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "statuses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Dataset-specific status values from that dataset's own vocabulary."
+          },
+          "risk_bands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskBand"
+            }
+          },
+          "score_states": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScoreState"
+            }
+          }
+        }
+      },
+      "Export": {
+        "type": "object",
+        "required": [
+          "export_ref",
+          "export_type",
+          "format",
+          "status",
+          "scope",
+          "requested_by_staff_ref",
+          "filter",
+          "field_set_version",
+          "fields",
+          "row_limit",
+          "row_count",
+          "requested_at",
+          "version"
+        ],
+        "properties": {
+          "export_ref": {
+            "type": "string"
+          },
+          "export_type": {
+            "$ref": "#/components/schemas/ExportType"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ExportFormat"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExportStatus"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/IntelligenceScope"
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "requested_by_staff_ref": {
+            "type": "string"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/ExportFilter"
+          },
+          "field_set_version": {
+            "type": "integer",
+            "description": "The version of the dataset's field allowlist that produced the file."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The exact allowlisted columns this dataset emits."
+          },
+          "row_limit": {
+            "type": "integer"
+          },
+          "row_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checksum_sha256": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelled_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "failed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "error_code": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "An export job. There is deliberately no URL, path or storage handle: a stored link would be a credential with no expiry that survives every check this job exists to enforce."
+      },
+      "ExportPage": {
+        "type": "object",
+        "required": [
+          "exports",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "exports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Export"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateExportRequest": {
+        "type": "object",
+        "required": [
+          "export_type",
+          "step_up_grant_id"
+        ],
+        "properties": {
+          "export_type": {
+            "$ref": "#/components/schemas/ExportType"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ExportFormat"
+          },
+          "scope_type": {
+            "$ref": "#/components/schemas/IntelligenceScope"
+          },
+          "branch_ref": {
+            "type": "string"
+          },
+          "row_limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 250000,
+            "description": "Defaults to 100000 and cannot exceed 250000. An export that would exceed its limit fails with CRM_EXPORT_TOO_LARGE rather than being truncated."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/ExportFilter"
+          },
+          "step_up_grant_id": {
+            "type": "string",
+            "description": "A fresh Section 5 step-up grant taken for crm.export.create. It is spent by this request and cannot be reused."
+          }
+        }
+      },
+      "CancelExportRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "DownloadExportRequest": {
+        "type": "object",
+        "required": [
+          "step_up_grant_id"
+        ],
+        "properties": {
+          "step_up_grant_id": {
+            "type": "string",
+            "description": "A fresh Section 5 step-up grant taken for crm.export.download."
+          }
+        }
+      },
+      "ExportAccess": {
+        "type": "object",
+        "required": [
+          "export",
+          "access"
+        ],
+        "properties": {
+          "export": {
+            "$ref": "#/components/schemas/Export"
+          },
+          "access": {
+            "type": "object",
+            "required": [
+              "download_path",
+              "download_token",
+              "expires_at"
+            ],
+            "properties": {
+              "download_path": {
+                "type": "string",
+                "description": "The private store's path. It is not a public URL and is unusable without the token."
+              },
+              "download_token": {
+                "type": "string",
+                "description": "A short-lived, single-purpose token minted by the private store for this request. It is never persisted by Vendor Service and must be sent in a header, not a query string."
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The store's own expiry, always far shorter than the artifact's retention."
+              },
+              "media_type": {
+                "type": "string"
+              },
+              "size_bytes": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "$ref": "#/components/schemas/IntelligenceErrorCode"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

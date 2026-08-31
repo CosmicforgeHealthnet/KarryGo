@@ -1,0 +1,2756 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service \u2014 Section 14 generic Inventory",
+    "version": "14.9.0",
+    "description": "Section 14 generic Inventory authority: inventory item identity and stock basis, balances, lots, an append-only movement ledger, all-or-nothing reservations, goods receiving, stocktakes, branch transfers, quarantine, reorder rules and alerts.\n\nInventory owns stock truth. Shop remains the owner of products, variants, listings and catalogue measurement configuration, and keeps its own Section 12B inventory surface for compatibility; the two are bridged by inventory item identity rather than merged.\n\nPostgreSQL is authoritative for every quantity in this document. Redis is not consulted for stock truth and its absence cannot change a balance. Available quantity never goes negative, expired and quarantined stock is never sellable, and movement rows are immutable.\n\nOut of scope, by section: suppliers, purchase orders and goods procurement (Section 15); ingredients, recipes, production and costing (Section 16); commerce orders, checkout, payment and logistics (Section 17 and later). Reorder rules raise a restocking signal only and never create a purchase order."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/internal/vendor/v1/inventory/branches/{branchId}/items/{inventoryItemId}/availability": {
+      "get": {
+        "operationId": "internalGetInventoryAvailability",
+        "summary": "Read item availability for a trusted service",
+        "description": "Branch-bound availability for an internal consumer such as checkout. Internal route: HMAC v2 signed, restricted to an explicit caller allowlist, and protected by durable nonce replay consumption. The Vendor tenant is derived from the authenticated caller and the branch from the path; a request body can never assert either.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "name": "inventoryItemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Generic inventory item identifier."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "hmacV2": []
+          }
+        ]
+      }
+    },
+    "/internal/vendor/v1/inventory/branches/{branchId}/reservations": {
+      "post": {
+        "operationId": "internalCreateInventoryReservation",
+        "summary": "Reserve stock on behalf of a trusted service",
+        "description": "All-or-nothing hold requested by an internal consumer. Internal route: HMAC v2 signed, restricted to an explicit caller allowlist, and protected by durable nonce replay consumption. The Vendor tenant is derived from the authenticated caller and the branch from the path; a request body can never assert either.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReservationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "hmacV2": []
+          }
+        ]
+      }
+    },
+    "/internal/vendor/v1/inventory/branches/{branchId}/reservations/{reservationId}": {
+      "get": {
+        "operationId": "internalGetInventoryReservation",
+        "summary": "Read a reservation for a trusted service",
+        "description": "A reservation belonging to another business is indistinguishable from one that does not exist. Internal route: HMAC v2 signed, restricted to an explicit caller allowlist, and protected by durable nonce replay consumption. The Vendor tenant is derived from the authenticated caller and the branch from the path; a request body can never assert either.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "hmacV2": []
+          }
+        ]
+      }
+    },
+    "/internal/vendor/v1/inventory/branches/{branchId}/reservations/{reservationId}/commit": {
+      "post": {
+        "operationId": "internalCommitInventoryReservation",
+        "summary": "Commit a reservation for a trusted service",
+        "description": "Reservation transition requested by an internal consumer. The reservation must belong to the path branch. Internal route: HMAC v2 signed, restricted to an explicit caller allowlist, and protected by durable nonce replay consumption. The Vendor tenant is derived from the authenticated caller and the branch from the path; a request body can never assert either.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "hmacV2": []
+          }
+        ]
+      }
+    },
+    "/internal/vendor/v1/inventory/branches/{branchId}/reservations/{reservationId}/confirm": {
+      "post": {
+        "operationId": "internalConfirmInventoryReservation",
+        "summary": "Confirm a reservation for a trusted service",
+        "description": "Reservation transition requested by an internal consumer. The reservation must belong to the path branch. Internal route: HMAC v2 signed, restricted to an explicit caller allowlist, and protected by durable nonce replay consumption. The Vendor tenant is derived from the authenticated caller and the branch from the path; a request body can never assert either.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "hmacV2": []
+          }
+        ]
+      }
+    },
+    "/internal/vendor/v1/inventory/branches/{branchId}/reservations/{reservationId}/release": {
+      "post": {
+        "operationId": "internalReleaseInventoryReservation",
+        "summary": "Release a reservation for a trusted service",
+        "description": "Reservation transition requested by an internal consumer. The reservation must belong to the path branch. Internal route: HMAC v2 signed, restricted to an explicit caller allowlist, and protected by durable nonce replay consumption. The Vendor tenant is derived from the authenticated caller and the branch from the path; a request body can never assert either.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "hmacV2": []
+          }
+        ]
+      }
+    },
+    "/internal/vendor/v1/inventory/branches/{branchId}/revision": {
+      "get": {
+        "operationId": "internalGetInventoryRevision",
+        "summary": "Read the branch inventory revision for a trusted service",
+        "description": "Cache-invalidation revision for an internal consumer. Internal route: HMAC v2 signed, restricted to an explicit caller allowlist, and protected by durable nonce replay consumption. The Vendor tenant is derived from the authenticated caller and the branch from the path; a request body can never assert either.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "hmacV2": []
+          }
+        ]
+      }
+    },
+    "/inventory/alerts/{alertId}/acknowledge": {
+      "post": {
+        "operationId": "acknowledgeInventoryAlert",
+        "summary": "Acknowledge an alert",
+        "description": "Moves the alert through its operator lifecycle. The underlying stock condition is unchanged by this call.",
+        "parameters": [
+          {
+            "name": "alertId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/alerts/{alertId}/resolve": {
+      "post": {
+        "operationId": "resolveInventoryAlert",
+        "summary": "Resolve an alert",
+        "description": "Moves the alert through its operator lifecycle. The underlying stock condition is unchanged by this call.",
+        "parameters": [
+          {
+            "name": "alertId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/branches/{branchId}/alerts": {
+      "get": {
+        "operationId": "listInventoryAlerts",
+        "summary": "List branch inventory alerts",
+        "description": "Low stock, out of stock, expiring, expired, backorder, balance mismatch and transfer exception signals. Alerts are deduplicated so a persistent condition does not create a new alert on every sweep.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AlertStatus"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/branches/{branchId}/balances": {
+      "get": {
+        "operationId": "listInventoryBalances",
+        "summary": "List branch stock balances",
+        "description": "Authoritative on-hand, reserved, quarantined, in-transit and available quantities for one branch. Available quantity excludes quarantined and expired stock and never goes below zero.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/branches/{branchId}/movements": {
+      "get": {
+        "operationId": "listInventoryMovements",
+        "summary": "Read the branch movement ledger",
+        "description": "Append-only stock evidence, newest first. Movement rows are immutable: the database refuses any update or delete, so corrections arrive as new movements rather than edits.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          },
+          {
+            "name": "movement_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/MovementType"
+            }
+          },
+          {
+            "name": "source_ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovementListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/branches/{branchId}/revision": {
+      "get": {
+        "operationId": "getInventoryRevision",
+        "summary": "Read the branch inventory revision",
+        "description": "Monotonic revision for one branch. Consumers cache against it and re-read when it moves.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch the caller's scope must cover."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/items/{inventoryItemId}/availability": {
+      "get": {
+        "operationId": "getInventoryItemAvailability",
+        "summary": "Read one item's availability",
+        "description": "Balance for a single generic inventory item. An item belonging to another business, or outside the caller's branch scope, is indistinguishable from one that does not exist.",
+        "parameters": [
+          {
+            "name": "inventoryItemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Generic inventory item identifier."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/items/{inventoryItemId}/reorder-rule": {
+      "put": {
+        "operationId": "setInventoryReorderRule",
+        "summary": "Set an item's reorder rule",
+        "description": "Minimum and target quantities that drive low-stock and out-of-stock alerting. Section 14 raises the signal only; purchasing belongs to Section 15.",
+        "parameters": [
+          {
+            "name": "inventoryItemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Generic inventory item identifier."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetReorderRuleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderRuleEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/items/{inventoryItemId}/sellability": {
+      "get": {
+        "operationId": "getInventoryItemSellability",
+        "summary": "Read one item's sellability decision",
+        "description": "Whether the item can currently be sold, with the reason when it cannot. Expired and quarantined stock is never sellable.",
+        "parameters": [
+          {
+            "name": "inventoryItemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Generic inventory item identifier."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellabilityEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/quarantines": {
+      "post": {
+        "operationId": "createInventoryQuarantine",
+        "summary": "Quarantine stock",
+        "description": "Removes stock from sellability without destroying it. Quarantining more than the available physical stock is refused.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuarantineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuarantineEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/quarantines/{quarantineId}/dispose": {
+      "post": {
+        "operationId": "disposeInventoryQuarantine",
+        "summary": "Dispose quarantined stock",
+        "description": "Permanently removes quarantined stock and appends the matching controlled-loss movement evidence.",
+        "parameters": [
+          {
+            "name": "quarantineId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuarantineEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/quarantines/{quarantineId}/release": {
+      "post": {
+        "operationId": "releaseInventoryQuarantine",
+        "summary": "Release quarantined stock",
+        "description": "Returns quarantined stock to availability, provided it has not expired in the meantime.",
+        "parameters": [
+          {
+            "name": "quarantineId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuarantineEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/reservations": {
+      "post": {
+        "operationId": "createInventoryReservation",
+        "summary": "Create an all-or-nothing stock reservation",
+        "description": "Holds stock for every requested line or none of them. Reservations are idempotent on (source_type, source_ref): repeating a request with the same fingerprint returns the current durable reservation state, while the same reference with a different fingerprint is a conflict.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReservationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/reservations/{reservationId}": {
+      "get": {
+        "operationId": "getInventoryReservation",
+        "summary": "Read a reservation",
+        "description": "Current reservation state and its per-line allocations.",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/reservations/{reservationId}/cancel": {
+      "post": {
+        "operationId": "cancelInventoryReservation",
+        "summary": "Cancel a reservation",
+        "description": "Terminal cancellation of a reservation that has not been committed.",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/reservations/{reservationId}/commit": {
+      "post": {
+        "operationId": "commitInventoryReservation",
+        "summary": "Commit a reservation into consumed stock",
+        "description": "Converts reserved quantity into a permanent stock reduction and appends COMMIT movement evidence. Repeating a commit does not consume twice.",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/reservations/{reservationId}/confirm": {
+      "post": {
+        "operationId": "confirmInventoryReservation",
+        "summary": "Confirm a held reservation",
+        "description": "Moves a HELD reservation to CONFIRMED. Repeating a confirmation does not apply it twice.",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/reservations/{reservationId}/release": {
+      "post": {
+        "operationId": "releaseInventoryReservation",
+        "summary": "Release a reservation back to available stock",
+        "description": "Returns reserved quantity to availability. Repeating a release does not release twice, and a release racing expiry settles once.",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/stocktakes": {
+      "post": {
+        "operationId": "createInventoryStocktake",
+        "summary": "Open a stocktake and snapshot expected quantities",
+        "description": "Captures the expected quantity for each counted item at the moment the stocktake opens. The snapshot is what later variance is measured against.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStocktakeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StocktakeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/stocktakes/{stocktakeId}/cancel": {
+      "post": {
+        "operationId": "cancelInventoryStocktake",
+        "summary": "Cancel an unposted stocktake",
+        "description": "Closes a stocktake without applying any stock effect.",
+        "parameters": [
+          {
+            "name": "stocktakeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StocktakeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/stocktakes/{stocktakeId}/items/{inventoryItemId}/count": {
+      "put": {
+        "operationId": "countInventoryStocktakeLine",
+        "summary": "Record a counted quantity",
+        "description": "Sets the physically counted quantity for one stocktake line.",
+        "parameters": [
+          {
+            "name": "stocktakeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "inventoryItemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Generic inventory item identifier."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CountStocktakeLineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StocktakeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/stocktakes/{stocktakeId}/post": {
+      "post": {
+        "operationId": "postInventoryStocktake",
+        "summary": "Post a stocktake and apply corrections",
+        "description": "Applies the counted variance as STOCKTAKE_CORRECTION movements. A stocktake whose snapshot is stale relative to current stock is refused rather than allowed to overwrite newer truth, and posting twice does not correct twice.",
+        "parameters": [
+          {
+            "name": "stocktakeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StocktakeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/transfers": {
+      "post": {
+        "operationId": "createInventoryTransfer",
+        "summary": "Create a branch-to-branch stock transfer",
+        "description": "Source and destination items must represent the same stock identity: same item type, source reference, measure and stock basis mode. Moving stock across differing basis modes would change what the quantity means and is refused.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/transfers/{transferId}/approve": {
+      "post": {
+        "operationId": "approveInventoryTransfer",
+        "summary": "Approve a draft transfer",
+        "description": "Marks a transfer ready to dispatch.",
+        "parameters": [
+          {
+            "name": "transferId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/transfers/{transferId}/cancel": {
+      "post": {
+        "operationId": "cancelInventoryTransfer",
+        "summary": "Cancel a transfer",
+        "description": "Cancels a transfer that has not been received, returning any in-transit stock to the source branch.",
+        "parameters": [
+          {
+            "name": "transferId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/transfers/{transferId}/dispatch": {
+      "post": {
+        "operationId": "dispatchInventoryTransfer",
+        "summary": "Dispatch a transfer",
+        "description": "Removes stock from the source branch and places it in transit.",
+        "parameters": [
+          {
+            "name": "transferId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/inventory/transfers/{transferId}/receive": {
+      "post": {
+        "operationId": "receiveInventoryTransfer",
+        "summary": "Receive a dispatched transfer",
+        "description": "Books in-transit stock into the destination branch, recording damaged or missing quantities. Receiving twice does not book the stock twice.",
+        "parameters": [
+          {
+            "name": "transferId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiveTransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful bounded inventory response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "hmacV2": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2 service signature. Internal Inventory routes also require X-Service-Name, X-Service-Timestamp and X-Service-Nonce; the nonce is durably consumed so a replayed request is refused."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Repeat-safe key for a mutating Inventory operation."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Bounded error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Alert": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "alert_type": {
+            "$ref": "#/components/schemas/AlertType"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "INFO",
+              "WARNING",
+              "CRITICAL"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlertStatus"
+          },
+          "dedupe_key": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AlertEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "alert": {
+                "$ref": "#/components/schemas/Alert"
+              }
+            }
+          }
+        }
+      },
+      "AlertListEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "alerts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Alert"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AlertStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "ACKNOWLEDGED",
+          "RESOLVED"
+        ]
+      },
+      "AlertType": {
+        "type": "string",
+        "enum": [
+          "LOW_STOCK",
+          "OUT_OF_STOCK",
+          "EXPIRING_SOON",
+          "EXPIRED",
+          "BACKORDER",
+          "BALANCE_MISMATCH",
+          "TRANSFER_EXCEPTION"
+        ]
+      },
+      "Balance": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "on_hand_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reserved_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quarantined_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "in_transit_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "incoming_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "backorder_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "available_quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Sellable quantity. Never negative; excludes quarantined and expired stock."
+          },
+          "expired_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BalanceEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "balance": {
+                "$ref": "#/components/schemas/Balance"
+              }
+            }
+          }
+        }
+      },
+      "BalanceListEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "balances": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Balance"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CountStocktakeLineRequest": {
+        "type": "object",
+        "required": [
+          "counted_quantity"
+        ],
+        "properties": {
+          "counted_quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "CreateQuarantineRequest": {
+        "type": "object",
+        "required": [
+          "branch_id",
+          "inventory_item_id",
+          "quantity",
+          "reason_code"
+        ],
+        "properties": {
+          "branch_id": {
+            "type": "string"
+          },
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateReservationRequest": {
+        "type": "object",
+        "required": [
+          "branch_id",
+          "source_type",
+          "source_ref",
+          "lines"
+        ],
+        "properties": {
+          "branch_id": {
+            "type": "string"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/ReservationSourceType"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/ReservationLineInput"
+            }
+          }
+        }
+      },
+      "CreateStocktakeRequest": {
+        "type": "object",
+        "required": [
+          "branch_id",
+          "type"
+        ],
+        "properties": {
+          "branch_id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "CYCLE_COUNT",
+              "FULL_COUNT"
+            ]
+          },
+          "inventory_item_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateTransferRequest": {
+        "type": "object",
+        "required": [
+          "source_branch_id",
+          "destination_branch_id",
+          "lines"
+        ],
+        "properties": {
+          "source_branch_id": {
+            "type": "string"
+          },
+          "destination_branch_id": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/TransferLineInput"
+            }
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Movement": {
+        "type": "object",
+        "description": "One immutable ledger entry. Never updated or deleted.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "lot_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "movement_type": {
+            "$ref": "#/components/schemas/MovementType"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inventory_revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "MovementListEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "movements": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Movement"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MovementType": {
+        "type": "string",
+        "enum": [
+          "RECEIVE",
+          "RESERVE",
+          "RELEASE",
+          "COMMIT",
+          "ADJUSTMENT_IN",
+          "ADJUSTMENT_OUT",
+          "TRANSFER_OUT",
+          "TRANSFER_IN",
+          "RETURN",
+          "DAMAGE",
+          "WASTE",
+          "EXPIRY",
+          "QUARANTINE_IN",
+          "QUARANTINE_RELEASE",
+          "STOCKTAKE_CORRECTION"
+        ]
+      },
+      "Quarantine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "RELEASED",
+              "DISPOSED"
+            ]
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "QuarantineEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "quarantine": {
+                "$ref": "#/components/schemas/Quarantine"
+              }
+            }
+          }
+        }
+      },
+      "ReceiveTransferRequest": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "transfer_line_id": {
+                  "type": "string"
+                },
+                "received_quantity": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                },
+                "damaged_quantity": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                },
+                "missing_quantity": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "ReorderRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "minimum_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "target_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "ReorderRuleEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "reorder_rule": {
+                "$ref": "#/components/schemas/ReorderRule"
+              }
+            }
+          }
+        }
+      },
+      "Reservation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReservationStatus"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/ReservationSourceType"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "allocation_policy": {
+            "type": "string",
+            "enum": [
+              "ALL_OR_NOTHING"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "ReservationEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "reservation": {
+                "$ref": "#/components/schemas/Reservation"
+              }
+            }
+          }
+        }
+      },
+      "ReservationLineInput": {
+        "type": "object",
+        "required": [
+          "inventory_item_id",
+          "quantity"
+        ],
+        "properties": {
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      },
+      "ReservationSourceType": {
+        "type": "string",
+        "enum": [
+          "ORDER",
+          "CHECKOUT",
+          "RFQ",
+          "MANUAL",
+          "INTERNAL"
+        ]
+      },
+      "ReservationStatus": {
+        "type": "string",
+        "enum": [
+          "HELD",
+          "CONFIRMED",
+          "COMMITTED",
+          "RELEASED",
+          "EXPIRED",
+          "CANCELLED"
+        ]
+      },
+      "RevisionEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "branch_id": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "domain": {
+                "type": "string",
+                "enum": [
+                  "INVENTORY"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Sellability": {
+        "type": "object",
+        "properties": {
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "sellable": {
+            "type": "boolean"
+          },
+          "available_quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "reason_code": {
+            "type": "string"
+          }
+        }
+      },
+      "SellabilityEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sellability": {
+                "$ref": "#/components/schemas/Sellability"
+              }
+            }
+          }
+        }
+      },
+      "SetReorderRuleRequest": {
+        "type": "object",
+        "required": [
+          "branch_id"
+        ],
+        "properties": {
+          "branch_id": {
+            "type": "string"
+          },
+          "minimum_quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "target_quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "expiring_soon_hours": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "supplier_ref": {
+            "type": "string",
+            "description": "Opaque reference only. Supplier and purchase-order authority belongs to Section 15, not Section 14."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        }
+      },
+      "Stocktake": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "POSTED",
+              "CANCELLED"
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "StocktakeEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "stocktake": {
+                "$ref": "#/components/schemas/Stocktake"
+              }
+            }
+          }
+        }
+      },
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "Transfer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source_branch_id": {
+            "type": "string"
+          },
+          "destination_branch_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "APPROVED",
+              "DISPATCHED",
+              "RECEIVED",
+              "CANCELLED"
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "TransferEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "transfer": {
+                "$ref": "#/components/schemas/Transfer"
+              }
+            }
+          }
+        }
+      },
+      "TransferLineInput": {
+        "type": "object",
+        "required": [
+          "source_inventory_item_id",
+          "destination_inventory_item_id",
+          "quantity"
+        ],
+        "properties": {
+          "source_inventory_item_id": {
+            "type": "string"
+          },
+          "destination_inventory_item_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}

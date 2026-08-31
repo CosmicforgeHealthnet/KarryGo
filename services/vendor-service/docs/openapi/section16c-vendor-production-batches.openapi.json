@@ -1,0 +1,80 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Section 16C Production Batches",
+    "version": "16C-implementation"
+  },
+  "paths": {
+    "/api/v1/vendor/production-batches": {
+      "get": {
+        "summary": "List production batches"
+      },
+      "post": {
+        "summary": "Create a production batch"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}": {
+      "get": {
+        "summary": "Get production batch and frozen requirements"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/preview": {
+      "post": {
+        "summary": "Preview exact scaled production requirements"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/plan": {
+      "post": {
+        "summary": "Freeze requirements and atomically reserve controlled Inventory"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/inventory-adjustments": {
+      "post": {
+        "summary": "Explicitly reserve additional Inventory before over-consumption"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/start": {
+      "post": {
+        "summary": "Start production after validating job and Inventory reservations"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/actual-consumption": {
+      "post": {
+        "summary": "Record actual Ingredient or Packaging usage"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/waste": {
+      "post": {
+        "summary": "Record actual immutable production waste evidence"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/complete": {
+      "post": {
+        "summary": "Exactly-once Inventory consumption and optional prepared-stock output"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/cancel": {
+      "post": {
+        "summary": "Cancel production and release unconsumed reservations"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/inventory": {
+      "get": {
+        "summary": "Read Inventory reservation evidence for a production batch"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/output": {
+      "get": {
+        "summary": "Read prepared-stock output evidence"
+      }
+    },
+    "/api/v1/vendor/production-stock-policies/branches/{branchId}": {
+      "get": {
+        "summary": "Read ON_DEMAND/BATCH_STOCK production policy"
+      },
+      "put": {
+        "summary": "Configure ON_DEMAND/BATCH_STOCK and prepared Inventory mapping"
+      }
+    }
+  }
+}

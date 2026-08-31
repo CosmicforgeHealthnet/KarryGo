@@ -373,6 +373,13 @@ func (r *Repository) CompleteCommand(ctx context.Context, q Querier, id string,
 func (r *Repository) PublishEvent(ctx context.Context, q Querier, eventType string,
 	aggregateType string, aggregateID string, aggregateVersion int64,
 	correlationID string, causationID string, payload any) error {
+	return r.PublishEventTo(ctx, q, "fleet-partner-service", eventType, aggregateType,
+		aggregateID, aggregateVersion, correlationID, causationID, payload)
+}
+
+func (r *Repository) PublishEventTo(ctx context.Context, q Querier, targetService,
+	eventType string, aggregateType string, aggregateID string, aggregateVersion int64,
+	correlationID string, causationID string, payload any) error {
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marketplace: encode event payload: %w", err)
@@ -381,10 +388,10 @@ func (r *Repository) PublishEvent(ctx context.Context, q Querier, eventType stri
 		INSERT INTO dispatch_marketplace_outbox
 			(event_type, schema_version, aggregate_type, aggregate_id, aggregate_version,
 			 payload, payload_hash, correlation_id, causation_id, status, attempt_count,
-			 next_attempt_at, created_at)
-		VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', 0, now(), now())`,
+			 next_attempt_at, created_at, target_service)
+		VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', 0, now(), now(), $9)`,
 		eventType, aggregateType, aggregateID, aggregateVersion, encoded,
-		PayloadHash(encoded), correlationID, causationID)
+		PayloadHash(encoded), correlationID, causationID, targetService)
 	if err != nil {
 		return fmt.Errorf("marketplace: publish event: %w", err)
 	}
@@ -413,10 +420,16 @@ type OutboxRow struct {
 // without any of them blocking on rows another has already taken.
 func (r *Repository) ClaimOutbox(ctx context.Context, q Querier, owner string,
 	lease time.Duration, limit int) ([]OutboxRow, error) {
+	return r.ClaimOutboxForTarget(ctx, q, owner, "fleet-partner-service", lease, limit)
+}
+
+func (r *Repository) ClaimOutboxForTarget(ctx context.Context, q Querier, owner,
+	targetService string, lease time.Duration, limit int) ([]OutboxRow, error) {
 	rows, err := q.Query(ctx, `
 		WITH claimed AS (
 			SELECT id FROM dispatch_marketplace_outbox
 			WHERE status IN ('PENDING','FAILED') AND next_attempt_at <= now()
+			  AND target_service = $4
 			ORDER BY created_at
 			FOR UPDATE SKIP LOCKED
 			LIMIT $3
@@ -430,7 +443,7 @@ func (r *Repository) ClaimOutbox(ctx context.Context, q Querier, owner string,
 		RETURNING o.id, o.event_type, o.schema_version, o.aggregate_type, o.aggregate_id,
 			o.aggregate_version, o.payload, o.payload_hash, o.correlation_id, o.causation_id,
 			o.attempt_count, o.created_at`,
-		owner, lease.Seconds(), limit)
+		owner, lease.Seconds(), limit, targetService)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace: claim outbox: %w", err)
 	}

@@ -144,10 +144,11 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("rollback last migration: %v", err)
 	}
-	// The current tip (000003) is additive capture metadata on media_objects,
-	// so rolling back the latest migration must preserve the 000002 table and
-	// remove only 000003's columns. Older versions of this test incorrectly
-	// assumed 000002 would always remain the tip.
+	// Rolling back the tip must remove exactly what the tip added and leave
+	// everything before it standing. The assertion is written against whatever
+	// the current tip is rather than against a named version: an earlier form
+	// of this test hardcoded 000003 and had to be edited the moment a later
+	// migration landed, which is how a guard quietly stops guarding.
 	var exists bool
 	if err := pool.QueryRow(ctx,
 		`SELECT to_regclass('public.media_objects') IS NOT NULL`).Scan(&exists); err != nil {
@@ -156,15 +157,27 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if !exists {
 		t.Fatal("latest rollback removed the media_objects baseline table")
 	}
+	// The tip is 000004, additive data-export metadata.
+	var visibilityExists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema='public' AND table_name='media_objects' AND column_name='visibility'
+	)`).Scan(&visibilityExists); err != nil {
+		t.Fatalf("check rolled-back export metadata: %v", err)
+	}
+	if visibilityExists {
+		t.Fatal("expected the data-export columns to be removed by rolling back the tip")
+	}
+	// And everything the tip did not own survives untouched.
 	var capturedAtExists bool
 	if err := pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM information_schema.columns
 		WHERE table_schema='public' AND table_name='media_objects' AND column_name='captured_at'
 	)`).Scan(&capturedAtExists); err != nil {
-		t.Fatalf("check rolled-back capture metadata: %v", err)
+		t.Fatalf("check preserved capture metadata: %v", err)
 	}
-	if capturedAtExists {
-		t.Fatal("expected captured_at to be removed by rolling back 000003")
+	if !capturedAtExists {
+		t.Fatal("rolling back the tip removed an earlier migration's columns")
 	}
 
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
@@ -179,12 +192,23 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	}
 	if err := pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM information_schema.columns
-		WHERE table_schema='public' AND table_name='media_objects' AND column_name='captured_at'
-	)`).Scan(&capturedAtExists); err != nil {
-		t.Fatalf("check reapplied capture metadata: %v", err)
+		WHERE table_schema='public' AND table_name='media_objects' AND column_name='visibility'
+	)`).Scan(&visibilityExists); err != nil {
+		t.Fatalf("check reapplied export metadata: %v", err)
 	}
-	if !capturedAtExists {
-		t.Fatal("expected captured_at to exist after reapplying 000003")
+	if !visibilityExists {
+		t.Fatal("expected the data-export columns to exist after reapply")
+	}
+	// The private-only rule is part of the schema, not just the use case, so it
+	// must come back with the reapply.
+	var constraintExists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM pg_constraint WHERE conname='chk_media_object_data_export_private'
+	)`).Scan(&constraintExists); err != nil {
+		t.Fatalf("check reapplied private-only constraint: %v", err)
+	}
+	if !constraintExists {
+		t.Fatal("the DATA_EXPORT private-only constraint did not survive a reapply")
 	}
 	if err := database.MigrationsCurrent(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("migrations not current after reapply: %v", err)

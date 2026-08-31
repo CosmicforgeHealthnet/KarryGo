@@ -50,3 +50,18 @@ Concrete HMAC clients now live in `internal/integrations/{verification,wallet,me
 ## What remains outside Section 7
 
 No commerce payment, settlement, catalogue, CRM, fulfilment, logistics, or logistics OTP/QR integration was introduced.
+
+## Section 12B internal consumption contract
+
+Section 12B introduces no outbound cross-service mutation. Vendor Service owns
+Shop inventory and exposes availability/discovery plus reservation transitions
+at `/internal/vendor/v1/shop`. These routes reuse HMAC v2, require an allowlisted
+caller, bind the signature to the exact branch path, consume each nonce and
+fail closed when the allowlist is empty. Catalogue and inventory revisions let
+consumers detect stale snapshots.
+
+The caller supplies an opaque source type/reference for reservation
+idempotency; Vendor Service does not infer or create an Order. No Wallet,
+payment, supplier, Dispatch, Taxi or Hauling call is made. Deployment must
+configure approved callers and shared secrets before the internal surface is
+usable; no public/mobile client may hold those credentials.

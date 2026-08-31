@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS shop_bulk_operation_rows;
+DROP TABLE IF EXISTS shop_bulk_operation_jobs;
+DROP TABLE IF EXISTS shop_fresh_fulfilment_measurements;
+DROP TABLE IF EXISTS shop_inventory_alerts;
+DROP TABLE IF EXISTS shop_inventory_reorder_rules;
+DROP TABLE IF EXISTS shop_inventory_stocktake_lines;
+DROP TABLE IF EXISTS shop_inventory_stocktakes;
+DROP TABLE IF EXISTS shop_inventory_transfer_lines;
+DROP TABLE IF EXISTS shop_inventory_transfers;
+DROP TABLE IF EXISTS shop_inventory_quarantine_allocations;
+DROP TABLE IF EXISTS shop_inventory_quarantines;
+DROP TABLE IF EXISTS shop_inventory_adjustments;
+DROP TABLE IF EXISTS shop_inventory_policies;

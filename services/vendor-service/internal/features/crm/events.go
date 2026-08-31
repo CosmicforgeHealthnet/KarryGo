@@ -21,6 +21,8 @@ const (
 	EventConsentChanged       = "CUSTOMER_CONSENT_CHANGED"
 	EventPrivacyChanged       = "CUSTOMER_PRIVACY_CHANGED"
 	EventOrderFactChanged     = "CRM_ORDER_FACT_CHANGED"
+	EventSupportFactChanged   = "CRM_SUPPORT_FACT_CHANGED"
+	EventCorporateRFQChanged  = "CRM_CORPORATE_RFQ_CHANGED"
 )
 
 // EventAuthority declares which service owns an event type and which feature
@@ -63,6 +65,14 @@ var EventRegistry = map[string]EventAuthority{
 	},
 	EventOrderFactChanged: {
 		AllowedCallers: []string{"vendor-order-service"},
+		RequiresFlag:   func(f Flags) bool { return f.CustomerProjectionEnabled },
+	},
+	EventSupportFactChanged: {
+		AllowedCallers: []string{"support-dispute-service"},
+		RequiresFlag:   func(f Flags) bool { return f.CustomerProjectionEnabled },
+	},
+	EventCorporateRFQChanged: {
+		AllowedCallers: []string{"vendor-rfq-service"},
 		RequiresFlag:   func(f Flags) bool { return f.CustomerProjectionEnabled },
 	},
 }
@@ -128,15 +138,29 @@ type EventPayload struct {
 	AuthorityReference string        `json:"authority_reference"`
 
 	// Order fact
-	SourceOrderRef string     `json:"source_order_ref"`
-	OrderState     string     `json:"order_state"`
-	CompletedAt    *time.Time `json:"completed_at"`
-	Currency       string     `json:"currency"`
-	GrossMinor     int64      `json:"gross_amount_minor"`
-	NetMinor       int64      `json:"net_amount_minor"`
-	RefundedMinor  int64      `json:"refunded_amount_minor"`
-	BranchRef      string     `json:"branch_ref"`
-	CapabilityType string     `json:"capability_type"`
+	SourceOrderRef       string               `json:"source_order_ref"`
+	OrderState           string               `json:"order_state"`
+	CompletedAt          *time.Time           `json:"completed_at"`
+	Currency             string               `json:"currency"`
+	GrossMinor           int64                `json:"gross_amount_minor"`
+	NetMinor             int64                `json:"net_amount_minor"`
+	RefundedMinor        int64                `json:"refunded_amount_minor"`
+	BranchRef            string               `json:"branch_ref"`
+	CapabilityType       string               `json:"capability_type"`
+	OrderType            string               `json:"order_type"`
+	CorporateCustomerRef string               `json:"corporate_customer_ref"`
+	Lines                []OrderFactLineInput `json:"lines"`
+	SourceCaseRef        string               `json:"source_case_ref"`
+	CaseState            string               `json:"case_state"`
+	CaseOutcome          string               `json:"case_outcome"`
+	RelatedOrderRef      string               `json:"related_order_ref"`
+	ResolvedAt           *time.Time           `json:"resolved_at"`
+	SourceRefundRef      string               `json:"source_refund_ref"`
+	SourceRFQRef         string               `json:"source_rfq_ref"`
+	SourceQuoteRef       string               `json:"source_quote_ref"`
+	RFQState             string               `json:"rfq_state"`
+	QuoteOutcome         string               `json:"quote_outcome"`
+	ConvertedOrderRef    string               `json:"converted_order_ref"`
 
 	// Relationship
 	AcquisitionSourceType string `json:"acquisition_source_type"`
@@ -219,6 +243,10 @@ func (s *Service) ProcessEvent(ctx context.Context, caller string, envelope Even
 		err = s.handleIdentityLinked(ctx, tx, actor, envelope)
 	case EventOrderFactChanged:
 		err = s.handleOrderFactChanged(ctx, tx, actor, envelope)
+	case EventSupportFactChanged:
+		err = s.handleSupportFactChanged(ctx, tx, actor, envelope)
+	case EventCorporateRFQChanged:
+		err = s.handleCorporateRFQChanged(ctx, tx, actor, envelope)
 	default:
 		err = apperrors.BadRequest("Unsupported CRM event type.", nil)
 	}
@@ -226,6 +254,25 @@ func (s *Service) ProcessEvent(ctx context.Context, caller string, envelope Even
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func (s *Service) handleSupportFactChanged(ctx context.Context, tx pgx.Tx, actor Actor, envelope EventEnvelope) error {
+	subject, err := subjectOf(envelope.Subject)
+	if err != nil {
+		return err
+	}
+	profile, err := s.resolveProfile(ctx, tx, actor, subject)
+	if err != nil {
+		return err
+	}
+	if profile == nil {
+		return nil
+	}
+	return s.ApplySupportFact(ctx, tx, actor, profile.ID, SupportFactInput{SourceService: envelope.SourceService, SourceCaseRef: envelope.Payload.SourceCaseRef, SourceEventID: envelope.EventID, SourceVersion: envelope.SourceVersion, CaseState: envelope.Payload.CaseState, Outcome: envelope.Payload.CaseOutcome, RelatedOrderRef: optional(envelope.Payload.RelatedOrderRef), BranchID: optional(envelope.Payload.BranchRef), ResolvedAt: envelope.Payload.ResolvedAt, SourceRefundRef: optional(envelope.Payload.SourceRefundRef), OccurredAt: envelope.OccurredAt})
+}
+
+func (s *Service) handleCorporateRFQChanged(ctx context.Context, tx pgx.Tx, actor Actor, envelope EventEnvelope) error {
+	return s.ApplyCorporateRFQFact(ctx, tx, actor, CorporateRFQFactInput{CorporateCustomerID: envelope.Payload.CorporateCustomerRef, SourceService: envelope.SourceService, SourceRFQRef: envelope.Payload.SourceRFQRef, SourceQuoteRef: optional(envelope.Payload.SourceQuoteRef), SourceEventID: envelope.EventID, SourceVersion: envelope.SourceVersion, RFQState: envelope.Payload.RFQState, QuoteOutcome: envelope.Payload.QuoteOutcome, ConvertedOrderRef: optional(envelope.Payload.ConvertedOrderRef), BranchID: optional(envelope.Payload.BranchRef), ResolvedAt: envelope.Payload.ResolvedAt, OccurredAt: envelope.OccurredAt})
 }
 
 func (s *Service) businessExists(ctx context.Context, businessID string) error {
@@ -415,19 +462,22 @@ func (s *Service) handleOrderFactChanged(ctx context.Context, tx pgx.Tx, actor A
 		return err
 	}
 	return s.ApplyOrderFact(ctx, tx, actor, profile, OrderFactInput{
-		SourceService:  envelope.SourceService,
-		SourceOrderRef: envelope.Payload.SourceOrderRef,
-		SourceEventID:  envelope.EventID,
-		SourceVersion:  envelope.SourceVersion,
-		OrderState:     state,
-		CompletedAt:    envelope.Payload.CompletedAt,
-		Currency:       strings.ToUpper(envelope.Payload.Currency),
-		GrossMinor:     envelope.Payload.GrossMinor,
-		NetMinor:       envelope.Payload.NetMinor,
-		RefundedMinor:  envelope.Payload.RefundedMinor,
-		BranchID:       optional(envelope.Payload.BranchRef),
-		CapabilityType: optional(envelope.Payload.CapabilityType),
-		ObservedAt:     envelope.OccurredAt,
+		SourceService:       envelope.SourceService,
+		SourceOrderRef:      envelope.Payload.SourceOrderRef,
+		SourceEventID:       envelope.EventID,
+		SourceVersion:       envelope.SourceVersion,
+		OrderState:          state,
+		CompletedAt:         envelope.Payload.CompletedAt,
+		Currency:            strings.ToUpper(envelope.Payload.Currency),
+		GrossMinor:          envelope.Payload.GrossMinor,
+		NetMinor:            envelope.Payload.NetMinor,
+		RefundedMinor:       envelope.Payload.RefundedMinor,
+		BranchID:            optional(envelope.Payload.BranchRef),
+		CapabilityType:      optional(envelope.Payload.CapabilityType),
+		OrderType:           envelope.Payload.OrderType,
+		CorporateCustomerID: optional(envelope.Payload.CorporateCustomerRef),
+		ObservedAt:          envelope.OccurredAt,
+		Lines:               envelope.Payload.Lines,
 	})
 }
 

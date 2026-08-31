@@ -191,6 +191,7 @@ func buildPrivateMediaService(cfg config.Config, db *pgxpool.Pool,
 			ProhibitExecutableContent: cfg.ProhibitExecutableContent,
 			RequireSafeForDownload:    cfg.RequireSafeForDownload,
 			DefaultRetention:          cfg.DefaultRetention,
+			DataExportMaxBytes:        cfg.DataExportMaxBytes,
 		},
 	})
 	return service, privateStorage, nil

@@ -24,7 +24,8 @@ func NewLoggingEmailSender() *LoggingEmailSender {
 }
 
 func (s *LoggingEmailSender) SendEmail(ctx context.Context, message EmailMessage) (ProviderResult, error) {
-	log.Printf("notification_email to=%s subject=%q", message.To, message.Subject)
+	// The development fallback records delivery shape, never the address.
+	log.Printf("notification_email recipient_configured=%t subject=%q", message.To != "", message.Subject)
 	providerID := "logged-email"
 	return ProviderResult{Provider: "logging_email", ProviderMessageID: &providerID}, nil
 }

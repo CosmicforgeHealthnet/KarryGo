@@ -4,6 +4,14 @@ This document is a handoff guide for continuing development in this monorepo. It
 
 Section 7 contract correction: Vendor verification uses the exact status vocabulary `NOT_STARTED`, `IN_PROGRESS`, `PENDING_REVIEW`, `VERIFIED`, `REJECTED`, `EXPIRED`, `SUSPENDED`; plain `PENDING` belongs only to unrelated worker/outbox state. Verification callbacks reach Vendor Service directly at root-level `POST /internal/vendor/v1/verification-events` under HMAC v2 and are not exposed by API Gateway.
 
+Vendor commerce is implemented through Section 17D. Vendor Service owns the
+customer cart, checkout validation/Inventory holds, fulfilment-plan evidence
+and the expiring immutable quote the customer approves. The quote binds
+product-price versions, address/allocation, delivery-plan quote references,
+funding and disclosure into a versioned fingerprint and is append-only. It is
+not a payment or an order: Wallet authorization, ParentOrder/VendorOrder and
+execution missions begin only in later sections.
+
 ## System Overview
 
 Karry Go is a logistics platform with multiple client apps and a Go microservice backend. The repository is organized as a monorepo so shared contracts, UI packages, and service helpers can evolve together.
@@ -468,3 +476,28 @@ When adding a new feature, prefer this sequence:
 5. Wire service config and `cmd/main.go`.
 6. Update frontend API models/controllers if client-facing.
 7. Run focused tests first, then broader service/app checks.
+
+## Dispatch Commerce delivery authority
+
+`driver-dispatch-delivery-service` owns road-route evidence, motorcycle
+capability, public-marketplace assignment, the canonical multi-pickup mission,
+ordered logical stops, operational parcel custody, replacement/return legs and
+runtime lifecycle events. `vendor-service` owns the immutable commercial
+fulfilment plan and parcel identifiers and stores only an opaque
+`PlatformMissionRef` projection. Their V1 HMAC contract lives in
+`shared/go/dispatchcommerce`; it is a wire/client package and owns no state.
+
+Customer charges and refunds remain Vendor/Wallet policy. Provider settlement
+remains the existing Dispatch/Wallet authority. A Dispatch failure event is
+evidence, never permission for Dispatch to refund a customer or mutate Vendor
+payable. Commerce jobs use Dispatch's public provider marketplace and are not
+Fleet private orders.
+
+Actual pickup freezes the Dispatch stop/Parcel manifest binding and appends
+operational evidence; media bytes remain Media File Service-owned. Dispatch
+also owns the closed exception/recovery vocabulary and provider-to-provider
+post-custody transfer. A replacement provider is not made custodian by
+assignment: the existing handover authority must verify both providers, exact
+Parcels/package count, manifest fingerprint and location first. Vendor stores
+only authenticated operational projections, while Wallet remains the sole
+ledger and completion-settlement authority.

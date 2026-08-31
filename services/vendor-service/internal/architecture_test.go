@@ -84,3 +84,53 @@ func findFeaturesRoot(t *testing.T) string {
 	}
 	return root
 }
+
+// TestCloudKitchenHasOneCanonicalDirectory prevents the old unseparated
+// spelling from silently returning after the implementation was consolidated
+// under the repository's canonical cloud_kitchen boundary.
+func TestCloudKitchenHasOneCanonicalDirectory(t *testing.T) {
+	root := findFeaturesRoot(t)
+
+	canonical := filepath.Join(root, "cloud_kitchen")
+	obsolete := filepath.Join(root, "cloudkitchen")
+
+	if info, err := os.Stat(canonical); err != nil || !info.IsDir() {
+		t.Fatalf("canonical Cloud Kitchen directory missing: %s", canonical)
+	}
+	if _, err := os.Stat(obsolete); !os.IsNotExist(err) {
+		t.Fatalf("obsolete Cloud Kitchen directory must not exist: %s", obsolete)
+	}
+
+	var packages []string
+	err := filepath.Walk(canonical, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, line := range strings.Split(string(content), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "package ") {
+				packages = append(packages, strings.TrimSpace(strings.TrimPrefix(line, "package ")))
+				break
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("inspect canonical Cloud Kitchen package: %v", err)
+	}
+	if len(packages) == 0 {
+		t.Fatal("canonical Cloud Kitchen directory contains no Go package")
+	}
+	for _, pkg := range packages {
+		if pkg != "cloudkitchen" {
+			t.Fatalf("canonical Cloud Kitchen package=%q; want cloudkitchen", pkg)
+		}
+	}
+}

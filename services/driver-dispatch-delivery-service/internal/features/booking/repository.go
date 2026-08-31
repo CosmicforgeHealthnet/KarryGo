@@ -104,6 +104,16 @@ func (r *PostgresRepository) GetWithDerivedState(ctx context.Context, id string)
 	return state, true, nil
 }
 
+func (r *PostgresRepository) CommerceMissionScope(ctx context.Context, bookingID string) (string, []string, bool, error) {
+	var parentID string
+	var vendorIDs []string
+	err := r.db.QueryRow(ctx, `SELECT parent_order_ref,vendor_order_refs FROM commerce_missions WHERE booking_id=$1 AND status='accepted'`, bookingID).Scan(&parentID, &vendorIDs)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, false, nil
+	}
+	return parentID, vendorIDs, err == nil, err
+}
+
 func (r *PostgresRepository) ListWithDerivedState(ctx context.Context, customerID string, options ListBookingsOptions) ([]DerivedState, error) {
 	limit := options.Limit
 	if limit <= 0 || limit > 100 {

@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS pastry_milestone_history, pastry_milestones, pastry_order_conversion_intents, pastry_accepted_snapshots, pastry_quotes, pastry_change_requests, pastry_specification_versions, pastry_custom_requests, pastry_product_option_groups, pastry_options, pastry_option_groups, pastry_products;

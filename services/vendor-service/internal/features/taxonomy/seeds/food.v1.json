@@ -1,0 +1,833 @@
+{
+    "schema_version":  1,
+    "namespace_code":  "FOOD",
+    "seed_key":  "KARRYGO_FOOD_V1",
+    "facets":  [
+                   {
+                       "code":  "PROVIDER_TYPE",
+                       "display_name":  "Provider Type",
+                       "description":  "Food provider discovery classification.",
+                       "structure_type":  "FLAT",
+                       "position":  10,
+                       "metadata":  {
+
+                                    }
+                   },
+                   {
+                       "code":  "CUISINE",
+                       "display_name":  "Cuisine",
+                       "description":  "Cuisine and regional food discovery classification.",
+                       "structure_type":  "HIERARCHICAL",
+                       "position":  20,
+                       "metadata":  {
+
+                                    }
+                   },
+                   {
+                       "code":  "MEAL_PERIOD",
+                       "display_name":  "Meal Period",
+                       "description":  "Discovery-time meal period classification; not branch-opening authority.",
+                       "structure_type":  "FLAT",
+                       "position":  30,
+                       "metadata":  {
+                                        "discovery_only":  true,
+                                        "branch_opening_authority":  false
+                                    }
+                   },
+                   {
+                       "code":  "DISH_TYPE",
+                       "display_name":  "Dish / Food Type",
+                       "description":  "Hierarchical canonical food and dish discovery vocabulary.",
+                       "structure_type":  "HIERARCHICAL",
+                       "position":  40,
+                       "metadata":  {
+
+                                    }
+                   },
+                   {
+                       "code":  "OCCASION",
+                       "display_name":  "Occasion / Commercial Usage",
+                       "description":  "Commercial and occasion-based Food discovery classification.",
+                       "structure_type":  "FLAT",
+                       "position":  50,
+                       "metadata":  {
+
+                                    }
+                   }
+               ],
+    "nodes":  [
+                  {
+                      "canonical_code":  "FOOD_PROVIDER_TYPE_RESTAURANT",
+                      "facet_code":  "PROVIDER_TYPE",
+                      "display_name":  "Restaurants",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "PROVIDER_TYPE"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_PROVIDER_TYPE_FAST_FOOD",
+                      "facet_code":  "PROVIDER_TYPE",
+                      "display_name":  "Fast Food",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "PROVIDER_TYPE"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_PROVIDER_TYPE_CLOUD_KITCHEN",
+                      "facet_code":  "PROVIDER_TYPE",
+                      "display_name":  "Cloud Kitchens",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "PROVIDER_TYPE"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_PROVIDER_TYPE_PASTRY_BAKERY",
+                      "facet_code":  "PROVIDER_TYPE",
+                      "display_name":  "Pastry \u0026 Bakery",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "PROVIDER_TYPE"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_CUISINE_AFRICAN_FOOD",
+                      "facet_code":  "CUISINE",
+                      "display_name":  "African Food",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "CUISINE"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_CUISINE_NIGERIAN_LOCAL_DISHES",
+                      "facet_code":  "CUISINE",
+                      "display_name":  "Nigerian / Local Dishes",
+                      "description":  "",
+                      "parent_code":  "FOOD_CUISINE_AFRICAN_FOOD",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "CUISINE"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_CUISINE_CONTINENTAL_INTERNATIONAL",
+                      "facet_code":  "CUISINE",
+                      "display_name":  "Continental / International",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "CUISINE"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_MEAL_PERIOD_BREAKFAST_BRUNCH",
+                      "facet_code":  "MEAL_PERIOD",
+                      "display_name":  "Breakfast \u0026 Brunch",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "MEAL_PERIOD",
+                                       "discovery_only":  true,
+                                       "branch_opening_authority":  false
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_MEAL_PERIOD_LUNCH",
+                      "facet_code":  "MEAL_PERIOD",
+                      "display_name":  "Lunch",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "MEAL_PERIOD",
+                                       "discovery_only":  true,
+                                       "branch_opening_authority":  false
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_MEAL_PERIOD_DINNER",
+                      "facet_code":  "MEAL_PERIOD",
+                      "display_name":  "Dinner",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "MEAL_PERIOD",
+                                       "discovery_only":  true,
+                                       "branch_opening_authority":  false
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_MEAL_PERIOD_LATE_NIGHT",
+                      "facet_code":  "MEAL_PERIOD",
+                      "display_name":  "Late Night",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "MEAL_PERIOD",
+                                       "discovery_only":  true,
+                                       "branch_opening_authority":  false
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_RICE_MEALS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Rice \u0026 Meals",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Soups \u0026 Swallow",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_GRILLS_BBQ",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Grills \u0026 BBQ",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_PIZZA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Pizza",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_BURGERS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Burgers",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  50,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SHAWARMA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Shawarma",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  60,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_CAKES_CELEBRATIONS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Cakes \u0026 Celebrations",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  70,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_PASTRIES",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Pastries",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  80,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SMALL_CHOPS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Small Chops",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  90,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SNACKS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Snacks",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  100,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_DESSERTS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Desserts",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  110,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_ICE_CREAM",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Ice Cream",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  120,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_DRINKS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Drinks",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  130,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_JUICES",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Juices",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  140,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SMOOTHIES",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Smoothies",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  150,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_HEALTHY_MEALS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Healthy Meals",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  160,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_OCCASION_FAMILY_MEALS",
+                      "facet_code":  "OCCASION",
+                      "display_name":  "Family Meals",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "OCCASION"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_OCCASION_GROUP_ORDERS",
+                      "facet_code":  "OCCASION",
+                      "display_name":  "Group Orders",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "OCCASION"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_OCCASION_BULK_FOOD",
+                      "facet_code":  "OCCASION",
+                      "display_name":  "Bulk Food",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "OCCASION"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_OCCASION_CORPORATE_MEALS",
+                      "facet_code":  "OCCASION",
+                      "display_name":  "Corporate Meals",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "OCCASION"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_OCCASION_SCHEDULED_FOOD",
+                      "facet_code":  "OCCASION",
+                      "display_name":  "Scheduled Food",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  50,
+                      "metadata":  {
+                                       "kind":  "OCCASION"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_OCCASION_CELEBRATION_FOOD",
+                      "facet_code":  "OCCASION",
+                      "display_name":  "Celebration Food",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  60,
+                      "metadata":  {
+                                       "kind":  "OCCASION"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_OCCASION_PARTY_PACKS",
+                      "facet_code":  "OCCASION",
+                      "display_name":  "Party Packs",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  70,
+                      "metadata":  {
+                                       "kind":  "OCCASION"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_RICE_MEALS_JOLLOF_RICE",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Jollof Rice",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_RICE_MEALS",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_RICE_MEALS_FRIED_RICE",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Fried Rice",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_RICE_MEALS",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_RICE_MEALS_OFADA_RICE",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Ofada Rice",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_RICE_MEALS",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_RICE_MEALS_NATIVE_RICE",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Native Rice",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_RICE_MEALS",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_EGUSI_SOUP",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Egusi Soup",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_OGBONO_SOUP",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Ogbono Soup",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_AFANG",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Afang",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_EDIKANG_IKONG",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Edikang Ikong",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_BANGA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Banga",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  50,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_OHA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Oha",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  60,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_NSALA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Nsala",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  70,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_FISHERMAN_SOUP",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Fisherman Soup",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  80,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_EBA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Eba",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  90,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_AMALA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Amala",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  100,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_POUNDED_YAM",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Pounded Yam",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  110,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_SEMO",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Semo",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  120,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_FUFU",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Fufu",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  130,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW_TUWO",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Tuwo",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SOUPS_SWALLOW",
+                      "position":  140,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_GRILLS_BBQ_SUYA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Suya",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_GRILLS_BBQ",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_GRILLS_BBQ_KILISHI",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Kilishi",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_GRILLS_BBQ",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SNACKS_AKARA",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Akara",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SNACKS",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SNACKS_MOI_MOI",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Moi Moi",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SNACKS",
+                      "position":  20,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SNACKS_PUFF_PUFF",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Puff Puff",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SNACKS",
+                      "position":  30,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_SNACKS_CHIN_CHIN",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Chin Chin",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_SNACKS",
+                      "position":  40,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_BREAKFAST_MEALS",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Breakfast Meals",
+                      "description":  "",
+                      "parent_code":  "",
+                      "position":  170,
+                      "metadata":  {
+                                       "kind":  "GROUP"
+                                   }
+                  },
+                  {
+                      "canonical_code":  "FOOD_DISH_TYPE_BREAKFAST_MEALS_AKAMU",
+                      "facet_code":  "DISH_TYPE",
+                      "display_name":  "Akamu",
+                      "description":  "",
+                      "parent_code":  "FOOD_DISH_TYPE_BREAKFAST_MEALS",
+                      "position":  10,
+                      "metadata":  {
+                                       "kind":  "DISH",
+                                       "market":  "NG"
+                                   }
+                  }
+              ],
+    "terms":  [
+                  {
+                      "namespace_code":  "FOOD",
+                      "node_code":  "FOOD_DISH_TYPE_SNACKS_MOI_MOI",
+                      "term":  "Moin Moin",
+                      "relationship_type":  "ALIAS",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "namespace_code":  "FOOD",
+                      "node_code":  "FOOD_DISH_TYPE_SNACKS_MOI_MOI",
+                      "term":  "Moimoi",
+                      "relationship_type":  "ALIAS",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "namespace_code":  "FOOD",
+                      "node_code":  "FOOD_DISH_TYPE_SNACKS_MOI_MOI",
+                      "term":  "Moi-Moi",
+                      "relationship_type":  "ALIAS",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "namespace_code":  "FOOD",
+                      "node_code":  "FOOD_DISH_TYPE_SNACKS_PUFF_PUFF",
+                      "term":  "Puff-Puff",
+                      "relationship_type":  "ALIAS",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "namespace_code":  "FOOD",
+                      "node_code":  "FOOD_DISH_TYPE_BREAKFAST_MEALS_AKAMU",
+                      "term":  "Pap",
+                      "relationship_type":  "SYNONYM",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "namespace_code":  "FOOD",
+                      "node_code":  "FOOD_DISH_TYPE_BREAKFAST_MEALS_AKAMU",
+                      "term":  "Ogi",
+                      "relationship_type":  "SYNONYM",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG"
+                                   }
+                  },
+                  {
+                      "namespace_code":  "FOOD",
+                      "node_code":  "FOOD_DISH_TYPE_GRILLS_BBQ_SUYA",
+                      "term":  "Grilled Meat",
+                      "relationship_type":  "RELATED_TERM",
+                      "locale":  "en-NG",
+                      "region":  "NG",
+                      "metadata":  {
+                                       "market":  "NG",
+                                       "exact_equivalence":  false
+                                   }
+                  }
+              ]
+}

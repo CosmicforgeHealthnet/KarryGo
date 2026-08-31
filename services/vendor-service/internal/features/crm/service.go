@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/notifications"
 )
 
 // Actor is the authenticated vendor staff member behind a request. VendorID
@@ -83,6 +84,55 @@ type Flags struct {
 	ConsentIntegrationEnabled bool
 	// PrivacyIntegrationEnabled gates privacy ingestion.
 	PrivacyIntegrationEnabled bool
+	// SegmentationEnabled gates the whole Section 8B tags/segments surface.
+	// With it false no 8B route is registered at all.
+	SegmentationEnabled bool
+	// SegmentMaterializationEnabled gates dynamic evaluation. With it false,
+	// saved definitions stay readable and previews still work, but no new
+	// membership is built and no segment is allowed to claim it is CURRENT —
+	// a disabled materializer must degrade to "we do not know", never to a
+	// silently frozen audience presented as live.
+	SegmentMaterializationEnabled bool
+	// InteractionsEnabled and TasksEnabled independently gate the two Section
+	// 8C read surfaces. All writes additionally require WritesEnabled.
+	InteractionsEnabled bool
+	TasksEnabled        bool
+	// LoyaltyEnabled gates the whole Section 8D surface. With it false no
+	// loyalty route is registered, the Customer 360 module reports
+	// NOT_IMPLEMENTED, and the expiry sweeper stands down without discarding
+	// due work — points that fall due while it is off are settled when it
+	// comes back, and can never be spent in the meantime.
+	LoyaltyEnabled bool
+	// CampaignsEnabled gates the whole Section 8E surface. With it false no
+	// campaign route is registered at all.
+	CampaignsEnabled bool
+	// CampaignPreparationEnabled gates audience preparation specifically, the
+	// expensive half of Section 8E. With it false, definitions stay readable
+	// and editable and previews still answer, but no new audience is frozen —
+	// and, critically, no already-prepared snapshot is disturbed. Turning
+	// preparation off must never make an existing audience look empty.
+	CampaignPreparationEnabled bool
+	// CampaignExecutionEnabled is the independent Section 8F kill switch.
+	// Disabling it stops scheduling and handoff without hiding historical runs.
+	CampaignExecutionEnabled bool
+	// IntelligenceEnabled gates the whole Section 8H intelligence surface.
+	// With it false no intelligence route is registered, no score is computed,
+	// the Customer 360 module reports NOT_IMPLEMENTED and the segment registry
+	// omits the intelligence fields entirely — a rule cannot reference a score
+	// this deployment does not compute.
+	IntelligenceEnabled bool
+	// IntelligenceWorkerEnabled independently stands the materializer down.
+	// Definitions, existing scores and analytics stay readable; nothing new is
+	// computed and nothing already current is disturbed, so turning the worker
+	// off makes numbers stale rather than absent.
+	IntelligenceWorkerEnabled bool
+	// ExportsEnabled gates the whole Section 8H export surface. With it false
+	// no export route is registered and the generator claims nothing.
+	ExportsEnabled bool
+	// CorporateEnabled gates the whole Section 8G corporate customer surface.
+	// With it false no corporate route is registered at all, and the accepted
+	// individual CRM behaviour is exactly what it was before 8G existed.
+	CorporateEnabled bool
 	// CommerceKillSwitch disables every commerce-adjacent write platform-wide.
 	CommerceKillSwitch bool
 }
@@ -145,7 +195,7 @@ func (s *Service) MetricsJSON() string {
 	return string(raw)
 }
 
-// Service is the Section 8A application service.
+// Service is the CRM application service (Sections 8A and 8B).
 type Service struct {
 	db      *pgxpool.Pool
 	scopes  ScopeResolver
@@ -155,6 +205,24 @@ type Service struct {
 	metrics *Metrics
 	privacy *PrivacyRegistry
 	now     func() time.Time
+
+	// Section 8B segmentation state. The field registry is built once per
+	// deployment from the flag set, so what a rule may reference is fixed at
+	// startup rather than negotiated per request.
+	registry   *SegmentFieldRegistry
+	ruleLimits RuleLimits
+	evaluation EvaluationConfig
+	retention  GenerationRetainer
+
+	// Section 8E campaign tuning.
+	campaignEval CampaignEvaluationConfig
+	notifier     notifications.Notifier
+
+	// Section 8H intelligence and export tuning.
+	intelligence IntelligenceConfig
+	exports      ExportConfig
+	artifacts    ArtifactStore
+	stepUp       StepUpConsumer
 }
 
 // Options configures a Service.
@@ -167,12 +235,61 @@ type Options struct {
 	// Now is injectable so privacy/consent staleness and out-of-order event
 	// races can be tested deterministically.
 	Now func() time.Time
+
+	// RuleLimits and Evaluation are Section 8B tuning; zero values take the
+	// documented defaults.
+	RuleLimits RuleLimits
+	Evaluation EvaluationConfig
+	// Retention lets a later section pin materialized generations that are
+	// still referenced. Nil means nothing is pinned; leaving it nil once
+	// Section 8E exists would let segment cleanup delete membership a campaign
+	// is still preparing from, so NewService installs the campaign retainer by
+	// default and this field only exists to override it in tests.
+	Retention GenerationRetainer
+	// CampaignEvaluation is Section 8E tuning; the zero value takes the
+	// documented defaults.
+	CampaignEvaluation CampaignEvaluationConfig
+	// Notifier is the sole Section 8F delivery handoff. It accepts opaque
+	// customer references; Vendor never resolves or stores destinations.
+	Notifier notifications.Notifier
+
+	// Intelligence and Exports are Section 8H tuning; zero values take the
+	// documented defaults.
+	Intelligence IntelligenceConfig
+	Exports      ExportConfig
+	// Artifacts is where a generated export is stored. Nil means exports can
+	// be requested and their metadata read, but no artifact can be produced or
+	// released — which is a safe state, not a broken one: the alternative to a
+	// private store is not a local file, it is no download at all.
+	Artifacts ArtifactStore
+	// StepUp consumes the short-lived elevation Section 5 issues. Nil disables
+	// export creation and download entirely rather than silently skipping the
+	// check, because an unenforced step-up is worse than an absent feature.
+	StepUp StepUpConsumer
 }
 
 func NewService(opts Options) *Service {
 	now := opts.Now
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
+	}
+	limits := opts.RuleLimits
+	if limits.MaxNodes == 0 {
+		limits = DefaultRuleLimits()
+	}
+	evaluation := opts.Evaluation
+	if evaluation.BatchSize == 0 {
+		evaluation = DefaultEvaluationConfig()
+	}
+	campaignEval := opts.CampaignEvaluation
+	if campaignEval.BatchSize == 0 {
+		campaignEval = DefaultCampaignEvaluationConfig()
+	}
+	if campaignEval.HandoffReservation <= 0 {
+		// A zero window would let a second worker adopt a delivery whose
+		// handoff is still in flight, which is the one thing the reservation
+		// exists to prevent.
+		campaignEval.HandoffReservation = DefaultCampaignEvaluationConfig().HandoffReservation
 	}
 	service := &Service{
 		db:      opts.DB,
@@ -182,10 +299,39 @@ func NewService(opts Options) *Service {
 		flags:   opts.Flags,
 		metrics: NewMetrics(),
 		now:     now,
+
+		registry:     NewSegmentFieldRegistry(opts.Flags),
+		ruleLimits:   limits,
+		evaluation:   evaluation,
+		campaignEval: campaignEval,
+		notifier:     opts.Notifier,
+
+		intelligence: opts.Intelligence.withDefaults(),
+		exports:      opts.Exports.withDefaults(),
+		artifacts:    opts.Artifacts,
+		stepUp:       opts.StepUp,
+	}
+	// Section 8E pins the segment generations its live snapshots depend on.
+	// Installing the retainer here rather than at a call site means segment
+	// cleanup cannot release membership a campaign is preparing from, whatever
+	// order the composition root happens to wire things in.
+	service.retention = opts.Retention
+	if service.retention == nil {
+		service.retention = campaignGenerationRetainer{service: service}
 	}
 	service.privacy = NewPrivacyRegistry(service)
 	return service
 }
+
+// FieldRegistry exposes the segmentation field registry for the read endpoint.
+func (s *Service) FieldRegistry() *SegmentFieldRegistry { return s.registry }
+
+// RuleLimitSet exposes the configured complexity guardrails so a builder UI can
+// stop a user before the server has to.
+func (s *Service) RuleLimitSet() RuleLimits { return s.ruleLimits }
+
+// EvaluationSettings exposes the materializer tuning.
+func (s *Service) EvaluationSettings() EvaluationConfig { return s.evaluation }
 
 // Flags exposes the configured flag set (used by the HTTP layer for gating).
 func (s *Service) FlagSet() Flags { return s.flags }
@@ -263,7 +409,7 @@ func (s *Service) Authorize(ctx context.Context, actor Actor, permission string)
 
 const profileCols = `id,business_id,subject_type,customer_ref,guest_ref,external_ref,safe_display_label,
 status,privacy_state,merge_state,acquisition_source_type,acquisition_source_ref,
-first_completed_order_at,last_completed_order_at,completed_order_count,gross_spend_minor,net_spend_minor,
+first_completed_order_at,last_completed_order_at,observed_order_count,completed_order_count,gross_spend_minor,net_spend_minor,
 average_order_value_minor,commercial_currency,last_order_ref,last_branch_ref,preferred_branch_ref,
 last_capability_type,commercial_projection_state,commercial_projection_version,last_commercial_source_observed_at,
 consent_projection_version,consent_observed_at,redacted_at,merged_into_profile_id,created_at,updated_at,version`
@@ -275,7 +421,7 @@ func scanProfile(row rowScanner) (Profile, error) {
 	err := row.Scan(&p.ID, &p.BusinessID, &p.SubjectType, &p.CustomerRef, &p.GuestRef, &p.ExternalRef,
 		&p.SafeDisplayLabel, &p.Status, &p.PrivacyState, &p.MergeState,
 		&p.AcquisitionSourceType, &p.AcquisitionSourceRef,
-		&p.FirstCompletedOrderAt, &p.LastCompletedOrderAt, &p.CompletedOrderCount,
+		&p.FirstCompletedOrderAt, &p.LastCompletedOrderAt, &p.ObservedOrderCount, &p.CompletedOrderCount,
 		&p.GrossSpendMinor, &p.NetSpendMinor, &p.AverageOrderValueMinor, &p.CommercialCurrency,
 		&p.LastOrderRef, &p.LastBranchRef, &p.PreferredBranchRef, &p.LastCapabilityType,
 		&p.CommercialProjectionState, &p.CommercialProjectionVersion, &p.LastCommercialSourceObservedAt,
@@ -549,6 +695,19 @@ func (s *Service) SetArchived(ctx context.Context, actor Actor, scope Scope, pro
 		return Profile{}, errVersionConflict()
 	}
 	if err != nil {
+		return Profile{}, err
+	}
+	// Every dynamic rule implicitly excludes archived relationships unless it
+	// explicitly asks for them. Archive/restore can therefore change any
+	// audience even when profile.status is not named in the stored dependency
+	// set, so the tenant's dynamic segments must all be restaked.
+	if err = s.invalidateAllDynamicSegmentsTx(ctx, tx, actor.VendorID); err != nil {
+		return Profile{}, err
+	}
+	// Archiving or restoring changes who is in the scored cohort, and a
+	// quintile is relative to that cohort, so every score in the tenant is now
+	// computed against a set that no longer exists.
+	if err = s.MarkIntelligenceStaleTx(ctx, tx, actor.VendorID); err != nil {
 		return Profile{}, err
 	}
 	if err = s.auditTx(ctx, tx, actor, action, "vendor_customer_profile", updated.ID, "",

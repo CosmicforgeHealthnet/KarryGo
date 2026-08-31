@@ -1,0 +1,71 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Commerce Payment Allocation Authority", "version": "1.1.0"},
+  "servers": [{"url": "/api/v1/payment-wallet"}],
+  "security": [{"ServiceHMACv2": []}],
+  "paths": {
+    "/internal/commerce/payment-intents": {"post": {"operationId": "createCommercePaymentIntent", "responses": {"201": {"description": "Immutable intent created"}, "409": {"description": "Binding or idempotency mismatch"}}}},
+    "/internal/commerce/payment-intents/{parentReference}": {"get": {"operationId": "getCommercePaymentIntent", "parameters": [{"$ref": "#/components/parameters/ParentReference"}], "responses": {"200": {"description": "Authoritative intent and allocations"}}}},
+    "/internal/commerce/payment-intents/{parentReference}/hold": {"post": {"operationId": "holdCommercePaymentIntent", "parameters": [{"$ref": "#/components/parameters/ParentReference"}], "responses": {"200": {"description": "Maximum authorization held in commerce escrow"}}}},
+    "/internal/commerce/allocations/{vendorOrderId}/vendor-release": {"post": {"operationId": "releaseVendorPayable", "parameters": [{"$ref": "#/components/parameters/VendorOrderId"}], "responses": {"200": {"description": "Vendor merchandise payable released exactly once"}}}},
+    "/internal/commerce/allocations/{vendorOrderId}/delivery-release": {"post": {"operationId": "releaseCommerceDeliveryPayable", "parameters": [{"$ref": "#/components/parameters/VendorOrderId"}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommerceDeliveryReleaseRequest"}}}}, "responses": {"200": {"description": "Qualified Vendor-owned or platform-provider delivery payable released"}, "403": {"description": "Caller cannot own this settlement"}, "409": {"description": "Allocation scope, state, or immutable snapshot does not qualify"}}}},
+    "/internal/commerce/allocations/{vendorOrderId}/refunds": {"post": {"operationId": "refundCommerceAllocation", "parameters": [{"$ref": "#/components/parameters/VendorOrderId"}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommerceAllocationRefundRequest"}}}}, "responses": {"200": {"description": "Allocation-scoped refund applied, or PENDING_LIABILITY recorded without money movement", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommerceFinancialOperation"}}}}, "409": {"description": "Snapshot, scope, source balance, duplicate item or cumulative component mismatch"}}}},
+    "/internal/commerce/operations/{operationType}/{idempotencyKey}": {"get": {"operationId": "getCommerceFinancialOperation", "parameters": [{"name": "operationType", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "idempotencyKey", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Authoritative operation read-back"}}}}
+  },
+  "components": {
+    "securitySchemes": {"ServiceHMACv2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature"}},
+    "parameters": {
+      "ParentReference": {"name": "parentReference", "in": "path", "required": true, "schema": {"type": "string"}},
+      "VendorOrderId": {"name": "vendorOrderId", "in": "path", "required": true, "schema": {"type": "string"}}
+    },
+    "schemas": {
+      "CommerceDeliveryReleaseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["completion_reference", "idempotency_key"],
+        "properties": {
+          "provider_type": {"type": "string", "description": "Ignored and authority-bound by Wallet for authenticated Dispatch or Hauling callers; empty for Vendor-owned delivery."},
+          "provider_id": {"type": "string", "description": "Assigned provider identity supplied by the completion-owning logistics service; empty for Vendor-owned delivery."},
+          "completion_reference": {"type": "string", "minLength": 1},
+          "expected_snapshot_fingerprint": {"type": "string", "description": "Required for Vendor-owned delivery. Wallet resolves its immutable allocation fingerprint internally for authenticated Dispatch or Hauling completion."},
+          "idempotency_key": {"type": "string", "minLength": 1}
+        }
+      },
+      "CommerceAllocationRefundRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["item_reference", "customer_refund_minor", "platform_funding_reversal_minor", "other_funding_reversal_minor", "escrow_recovery_minor", "vendor_recovery_minor", "provider_recovery_minor", "platform_recovery_minor", "platform_loss_funding_minor", "vendor_merchandise_reduction_minor", "vendor_delivery_reduction_minor", "provider_delivery_reduction_minor", "platform_revenue_reduction_minor", "authorization_release_minor", "expected_snapshot_fingerprint", "idempotency_key"],
+        "properties": {
+          "item_reference": {"type": "string", "minLength": 1},
+          "customer_refund_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "platform_funding_reversal_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "other_funding_reversal_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "escrow_recovery_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "vendor_recovery_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "provider_recovery_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "platform_recovery_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "platform_loss_funding_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "vendor_merchandise_reduction_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "vendor_delivery_reduction_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "provider_delivery_reduction_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "platform_revenue_reduction_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "authorization_release_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "expected_snapshot_fingerprint": {"type": "string", "minLength": 1},
+          "idempotency_key": {"type": "string", "minLength": 1}
+        }
+      },
+      "CommerceFinancialOperation": {
+        "type": "object",
+        "required": ["id", "operation_type", "idempotency_key", "status", "amount_minor"],
+        "properties": {
+          "id": {"type": "string"},
+          "operation_type": {"type": "string", "enum": ["PARTIAL_REFUND"]},
+          "idempotency_key": {"type": "string"},
+          "status": {"type": "string", "enum": ["APPLIED", "PENDING_LIABILITY"]},
+          "amount_minor": {"type": "integer", "format": "int64", "minimum": 0},
+          "ledger_reference": {"type": "string"}
+        }
+      }
+    }
+  }
+}

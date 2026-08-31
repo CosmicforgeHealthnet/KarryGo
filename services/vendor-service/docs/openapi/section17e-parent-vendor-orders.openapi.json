@@ -1,0 +1,853 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service Section 17E ParentOrder and Multi-Vendor VendorOrders",
+    "version": "17E",
+    "description": "Durable order orchestration from an approved Section 17D quote. One customer purchase becomes one ParentOrder and one financially and operationally isolated VendorOrder per vendor/branch allocation. This surface creates no payment operation and moves no money."
+  },
+  "servers": [{ "url": "/api/v1" }],
+  "paths": {
+    "/commerce/quotes/{quoteId}/orders": {
+      "post": {
+        "operationId": "createParentOrderFromApprovedQuote",
+        "summary": "Create the ParentOrder and its VendorOrders from one approved quote",
+        "description": "Idempotent by construction: the exact approved quote can only ever create one ParentOrder. A retry returns the existing order with 200 instead of creating a second one.",
+        "security": [{ "customerBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/QuoteId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateOrderRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "$ref": "#/components/responses/ParentOrderResponse" },
+          "200": { "$ref": "#/components/responses/ParentOrderResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/commerce/orders": {
+      "get": {
+        "operationId": "listCustomerParentOrders",
+        "summary": "List the customer's own purchases, newest first",
+        "security": [{ "customerBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Limit" }],
+        "responses": {
+          "200": {
+            "description": "Purchase summaries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data"],
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "required": ["orders"],
+                      "properties": {
+                        "orders": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/ParentOrder" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/commerce/orders/{orderId}": {
+      "get": {
+        "operationId": "getCustomerParentOrder",
+        "summary": "Read one purchase with every vendor allocation inside it",
+        "security": [{ "customerBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ParentOrderResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/commerce/orders/{orderId}/eta": {
+      "get": {
+        "operationId": "getCustomerOrderETA",
+        "summary": "Read authoritative production timing and versioned delivery ETA ranges",
+        "description": "Returns the original production projection plus one current, route-evidenced ETA range per delivery mission. A missing missions array means no authoritative route evidence exists; the server never fabricates a precise timestamp.",
+        "security": [{ "customerBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "responses": {
+          "200": {
+            "description": "Timing projections for the order's vendor allocations.",
+            "content": { "application/json": { "schema": { "type": "object", "required": ["success", "data"], "properties": { "success": { "type": "boolean" }, "data": { "type": "object", "required": ["order_id", "allocations", "missions"], "properties": { "order_id": { "type": "string" }, "allocations": { "type": "array", "items": { "$ref": "#/components/schemas/ProductionReadiness" } }, "missions": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryETA" } } } } } } } }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/commerce/vendor-orders/{vendorOrderId}/cancel": {
+      "post": {
+        "operationId": "cancelVendorOrderAsCustomer",
+        "summary": "Withdraw from one vendor allocation without touching its siblings",
+        "description": "Only available before the vendor has handed the goods over. Cancelling one VendorOrder never alters another vendor's stock, allocation or fulfilment state.",
+        "security": [{ "customerBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/VendorOrderId" },
+          { "$ref": "#/components/parameters/IfMatch" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TransitionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/TransitionResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/vendor/commerce/orders": {
+      "get": {
+        "operationId": "listVendorOrders",
+        "summary": "List the acting vendor's own order queue within its branch scope",
+        "security": [{ "vendorStaffBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/BranchFilter" },
+          { "$ref": "#/components/parameters/StatusFilter" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The vendor's own allocations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data"],
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "required": ["vendor_orders"],
+                      "properties": {
+                        "vendor_orders": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/VendorOrder" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/vendor/commerce/orders/{vendorOrderId}": {
+      "get": {
+        "operationId": "getVendorOrder",
+        "summary": "Read one of the acting vendor's own allocations",
+        "security": [{ "vendorStaffBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/VendorOrderId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/VendorOrderResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/vendor/commerce/orders/{vendorOrderId}/accept": {
+      "post": {
+        "operationId": "acceptVendorOrder",
+        "summary": "Begin preparation of this vendor allocation",
+        "security": [{ "vendorStaffBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/VendorOrderId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/TransitionResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/vendor/commerce/orders/{vendorOrderId}/ready": {
+      "post": {
+        "operationId": "markVendorOrderReady",
+        "summary": "Mark this vendor allocation ready for collection",
+        "security": [{ "vendorStaffBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/VendorOrderId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/TransitionResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/vendor/commerce/orders/{vendorOrderId}/handover": {
+      "post": {
+        "operationId": "handOverVendorOrder",
+        "summary": "Record that the goods left the branch",
+        "description": "For vendor-owned delivery this also dispatches the vendor's own delivery state.",
+        "security": [{ "vendorStaffBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/VendorOrderId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/TransitionResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/vendor/commerce/orders/{vendorOrderId}/deliver": {
+      "post": {
+        "operationId": "markVendorOrderDelivered",
+        "summary": "Confirm delivery of a vendor-executed allocation",
+        "description": "Refused with 403 for a platform-executed delivery: that confirmation belongs to the logistics authority that performed it, not to the vendor who handed the goods over.",
+        "security": [{ "vendorStaffBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/VendorOrderId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/TransitionResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/vendor/commerce/orders/{vendorOrderId}/complete": {
+      "post": {
+        "operationId": "completeVendorOrder",
+        "summary": "Complete this vendor allocation and prepare its settlement allocation",
+        "description": "Records what a later payment-capable section will have to settle. It moves no money.",
+        "security": [{ "vendorStaffBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/VendorOrderId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/TransitionResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    },
+    "/vendor/commerce/orders/{vendorOrderId}/cancel": {
+      "post": {
+        "operationId": "cancelVendorOrderAsVendor",
+        "summary": "Cancel this vendor allocation and prepare its refund allocation",
+        "description": "Only this allocation is affected. Sibling VendorOrders keep running and the ParentOrder reports the mixed outcome.",
+        "security": [{ "vendorStaffBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/VendorOrderId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TransitionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/TransitionResponse" },
+          "400": { "$ref": "#/components/responses/ErrorResponse" },
+          "401": { "$ref": "#/components/responses/ErrorResponse" },
+          "403": { "$ref": "#/components/responses/ErrorResponse" },
+          "404": { "$ref": "#/components/responses/ErrorResponse" },
+          "409": { "$ref": "#/components/responses/ErrorResponse" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "customerBearer": { "type": "http", "scheme": "bearer" },
+      "vendorStaffBearer": { "type": "http", "scheme": "bearer" }
+    },
+    "parameters": {
+      "QuoteId": {
+        "name": "quoteId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "OrderId": {
+        "name": "orderId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "VendorOrderId": {
+        "name": "vendorOrderId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": { "type": "string" }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "description": "The order version the caller read. A lifecycle command without it is refused rather than applied blind.",
+        "schema": { "type": "string" }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": { "type": "integer", "minimum": 1, "maximum": 50 }
+      },
+      "BranchFilter": {
+        "name": "branch_id",
+        "in": "query",
+        "required": false,
+        "schema": { "type": "string" }
+      },
+      "StatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "schema": { "$ref": "#/components/schemas/VendorOrderStatus" }
+      }
+    },
+    "schemas": {
+      "CreateOrderRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["quote_fingerprint"],
+        "description": "Accepts only the approved fingerprint the client is committing to. It accepts no price, fee, discount, funding split, vendor id, branch id or payment reference: every one of those is authority the server resolves from the approved quote.",
+        "properties": {
+          "quote_fingerprint": { "type": "string" }
+        }
+      },
+      "TransitionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason_code": { "type": "string" }
+        }
+      },
+      "VendorOrderStatus": {
+        "type": "string",
+        "enum": [
+          "CREATED",
+          "PREPARING",
+          "READY",
+          "HANDED_OVER",
+          "DELIVERED",
+          "COMPLETED",
+          "CANCELLED"
+        ]
+      },
+      "ProductionReadiness": {
+        "type": "object",
+        "required": ["vendor_order_id", "parent_order_id", "production_job_id", "customer_eta_status", "timing_revision", "source_version", "updated_at"],
+        "properties": {
+          "vendor_order_id": { "type": "string" },
+          "parent_order_id": { "type": "string" },
+          "production_job_id": { "type": "string" },
+          "promised_ready_at": { "type": "string", "format": "date-time" },
+          "expected_window_start": { "type": "string", "format": "date-time" },
+          "expected_window_end": { "type": "string", "format": "date-time" },
+          "logistics_window_start": { "type": "string", "format": "date-time" },
+          "logistics_window_end": { "type": "string", "format": "date-time" },
+          "customer_eta_status": { "type": "string", "enum": ["AVAILABLE", "NOT_AVAILABLE"] },
+          "customer_eta_start": { "type": "string", "format": "date-time" },
+          "customer_eta_end": { "type": "string", "format": "date-time" },
+          "timing_revision": { "type": "integer", "format": "int64" },
+          "timing_source_evidence": { "type": "object" },
+          "source_version": { "type": "integer", "format": "int64" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DeliveryETAComponent": {
+        "type": "object",
+        "required": ["kind", "source", "earliest_seconds", "latest_seconds"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["FOOD_PREPARATION", "SHOP_PICKING", "VENDOR_PREPARATION", "PROVIDER_TO_PICKUP", "PICKUP_MANIFEST_HANDLING", "ADDITIONAL_VENDOR_STOPS", "RECEIVER_ROAD_ROUTE"] },
+          "source": { "type": "string" },
+          "earliest_seconds": { "type": "integer", "format": "int64", "minimum": 0 },
+          "latest_seconds": { "type": "integer", "format": "int64", "minimum": 0 },
+          "evidence_ref": { "type": "string" },
+          "evidence_at": { "type": "string", "format": "date-time" },
+          "source_version": { "type": "integer", "format": "int64", "minimum": 1 }
+        }
+      },
+      "DeliveryETA": {
+        "type": "object",
+        "required": ["eta_id", "parent_order_ref", "mission_ref", "fulfilment_plan_version", "eta_version", "status", "confidence", "policy_version", "trigger", "delay_state", "source_authority", "source_version", "source_occurred_at", "created_at"],
+        "properties": {
+          "eta_id": { "type": "string" },
+          "parent_order_ref": { "type": "string" },
+          "fulfilment_group_ref": { "type": "string" },
+          "mission_ref": { "type": "string" },
+          "fulfilment_plan_version": { "type": "integer", "format": "int64", "minimum": 0 },
+          "eta_version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "status": { "type": "string", "enum": ["ACTIVE", "ACTUAL", "INVALIDATED", "RETURNING"] },
+          "earliest_at": { "type": "string", "format": "date-time" },
+          "latest_at": { "type": "string", "format": "date-time" },
+          "actual_at": { "type": "string", "format": "date-time" },
+          "confidence": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+          "policy_version": { "type": "string" },
+          "trigger": { "type": "string" },
+          "promised_latest_at": { "type": "string", "format": "date-time" },
+          "delay_state": { "type": "string", "enum": ["ON_TIME", "AT_RISK", "DELAYED", "RECOVERED", "NOT_APPLICABLE"] },
+          "components": { "type": "array", "items": { "$ref": "#/components/schemas/DeliveryETAComponent" } },
+          "source_authority": { "type": "string", "enum": ["DISPATCH", "HAULING", "PRODUCTION", "VENDOR"] },
+          "source_version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "source_occurred_at": { "type": "string", "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ParentOrderState": {
+        "type": "string",
+        "description": "Derived from the VendorOrders. PARTIALLY_COMPLETED is reported when every allocation is terminal but they did not all end the same way, so a mixed outcome is never hidden.",
+        "enum": [
+          "CREATED",
+          "IN_PROGRESS",
+          "COMPLETED",
+          "PARTIALLY_COMPLETED",
+          "CANCELLED"
+        ]
+      },
+      "Allocation": {
+        "type": "object",
+        "required": [
+          "id",
+          "allocation_type",
+          "beneficiary_type",
+          "funding_source",
+          "amount_minor"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "vendor_order_id": { "type": "string" },
+          "allocation_type": {
+            "type": "string",
+            "enum": ["PRODUCT", "DELIVERY", "FEE", "TAX", "DISCOUNT"]
+          },
+          "beneficiary_type": {
+            "type": "string",
+            "enum": ["VENDOR", "PLATFORM_PROVIDER", "PLATFORM", "CUSTOMER"]
+          },
+          "beneficiary_ref": { "type": "string" },
+          "funding_source": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER",
+              "VENDOR",
+              "PLATFORM",
+              "DELIVERY_SUBSIDY",
+              "OTHER_APPROVED"
+            ]
+          },
+          "source_ref": { "type": "string" },
+          "amount_minor": { "type": "integer", "format": "int64" }
+        }
+      },
+      "OrderLine": {
+        "type": "object",
+        "required": [
+          "id",
+          "cart_item_id",
+          "item_name",
+          "quantity",
+          "unit_price_minor",
+          "quoted_total_minor",
+          "max_authorized_total_minor",
+          "price_reference",
+          "catalogue_revision",
+          "online_price_disclosure",
+          "store_price_parity_claimed",
+          "delivery_commitment"
+        ],
+        "description": "Immutable item snapshot. A later catalogue rename, repricing or delisting never changes what this purchase said.",
+        "properties": {
+          "id": { "type": "string" },
+          "quote_line_ref": { "type": "string" },
+          "cart_item_id": { "type": "string" },
+          "item_name": { "type": "string" },
+          "item_ref": { "type": "string" },
+          "variant_ref": { "type": "string" },
+          "listing_ref": { "type": "string" },
+          "sell_unit_ref": { "type": "string" },
+          "quantity": { "type": "integer", "format": "int64" },
+          "unit_price_minor": { "type": "integer", "format": "int64" },
+          "quoted_total_minor": { "type": "integer", "format": "int64" },
+          "max_authorized_total_minor": { "type": "integer", "format": "int64" },
+          "discount_allocated_minor": { "type": "integer", "format": "int64" },
+          "fee_allocated_minor": { "type": "integer", "format": "int64" },
+          "tax_allocated_minor": { "type": "integer", "format": "int64" },
+          "pricing_basis": { "type": "string" },
+          "requested_measure_ref": { "type": "string" },
+          "expected_measure_quantity": { "type": "integer", "format": "int64" },
+          "measure_underfill_bps": { "type": "integer" },
+          "measure_overfill_bps": { "type": "integer" },
+          "price_reference": { "type": "string" },
+          "catalogue_revision": { "type": "integer", "format": "int64" },
+          "inventory_revision": { "type": "integer", "format": "int64" },
+          "inventory_item_ref": { "type": "string" },
+          "online_price_disclosure": {
+            "type": "string",
+            "enum": ["VENDOR_ONLINE_PRICE"]
+          },
+          "store_price_parity_claimed": { "type": "boolean", "enum": [false] },
+          "delivery_commitment": { "type": "object" }
+        }
+      },
+      "VendorOrder": {
+        "type": "object",
+        "description": "One financially and operationally isolated vendor/branch allocation. Every money field is this vendor's own share; none is a gross customer figure.",
+        "required": [
+          "vendor_order_id",
+          "parent_order_id",
+          "business_id",
+          "branch_id",
+          "domain",
+          "currency",
+          "quote_group_ref",
+          "product_subtotal_minor",
+          "max_product_subtotal_minor",
+          "delivery_responsibility",
+          "delivery_fee_beneficiary",
+          "delivery_gross_minor",
+          "delivery_customer_minor",
+          "customer_payable_minor",
+          "vendor_payable_minor",
+          "reservation_required",
+          "fulfilment_mode",
+          "vendor_own_delivery_state",
+          "status",
+          "refund_allocated_minor",
+          "settlement_allocated_minor",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "vendor_order_id": { "type": "string" },
+          "parent_order_id": { "type": "string" },
+          "business_id": { "type": "string" },
+          "branch_id": { "type": "string" },
+          "domain": { "type": "string", "enum": ["FOOD", "SHOP"] },
+          "currency": { "type": "string" },
+          "quote_group_ref": { "type": "string" },
+          "product_subtotal_minor": { "type": "integer", "format": "int64" },
+          "max_product_subtotal_minor": { "type": "integer", "format": "int64" },
+          "product_vendor_funded_minor": { "type": "integer", "format": "int64" },
+          "product_platform_funded_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "product_other_funded_minor": { "type": "integer", "format": "int64" },
+          "order_vendor_funded_minor": { "type": "integer", "format": "int64" },
+          "order_platform_funded_minor": { "type": "integer", "format": "int64" },
+          "order_other_funded_minor": { "type": "integer", "format": "int64" },
+          "delivery_responsibility": {
+            "type": "string",
+            "enum": ["PLATFORM_LOGISTICS", "VENDOR_OWN_DELIVERY", "NONE"]
+          },
+          "delivery_fee_beneficiary": {
+            "type": "string",
+            "enum": ["VENDOR", "PLATFORM_PROVIDER", "NONE"]
+          },
+          "delivery_gross_minor": { "type": "integer", "format": "int64" },
+          "delivery_customer_minor": { "type": "integer", "format": "int64" },
+          "delivery_vendor_funded_minor": { "type": "integer", "format": "int64" },
+          "delivery_platform_funded_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delivery_other_funded_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Delivery benefit funded by an approved source that is neither the vendor nor the platform. Kept separate so a subsidy is never misreported as platform money."
+          },
+          "customer_payable_minor": { "type": "integer", "format": "int64" },
+          "vendor_payable_minor": { "type": "integer", "format": "int64" },
+          "reservation_required": { "type": "boolean" },
+          "inventory_reservation_ref": { "type": "string" },
+          "inventory_reservation_source_ref": { "type": "string" },
+          "fulfilment_mode": { "type": "string" },
+          "logistics_plan_group_ref": { "type": "string" },
+          "logistics_mission_ref": { "type": "string" },
+          "vendor_own_delivery_state": {
+            "type": "string",
+            "enum": [
+              "NOT_APPLICABLE",
+              "PENDING",
+              "DISPATCHED",
+              "DELIVERED",
+              "CANCELLED"
+            ]
+          },
+          "status": { "$ref": "#/components/schemas/VendorOrderStatus" },
+          "cancel_reason_code": { "type": "string" },
+          "cancelled_by": { "type": "string" },
+          "refund_allocated_minor": { "type": "integer", "format": "int64" },
+          "settlement_allocated_minor": { "type": "integer", "format": "int64" },
+          "version": { "type": "integer", "format": "int64" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "terminal_at": { "type": "string", "format": "date-time" },
+          "lines": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OrderLine" }
+          },
+          "allocations": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Allocation" }
+          }
+        }
+      },
+      "ParentOrder": {
+        "type": "object",
+        "description": "One customer commerce purchase, created exactly once from one approved quote.",
+        "required": [
+          "parent_order_id",
+          "quote_ref",
+          "quote_version",
+          "quote_fingerprint",
+          "checkout_session_id",
+          "cart_ref",
+          "cart_version",
+          "fulfilment_plan_ref",
+          "domain",
+          "currency",
+          "selected_fulfilment_mode",
+          "address_snapshot",
+          "has_receiver",
+          "customer_approved_total_minor",
+          "max_authorized_total_minor",
+          "product_subtotal_minor",
+          "delivery_subtotal_minor",
+          "fee_subtotal_minor",
+          "tax_subtotal_minor",
+          "discount_total_minor",
+          "subsidy_total_minor",
+          "platform_fee_tax_minor",
+          "funding_breakdown",
+          "price_disclosure_snapshot",
+          "state",
+          "vendor_order_count",
+          "refund_prepared_minor",
+          "settlement_prepared_minor",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "parent_order_id": { "type": "string" },
+          "quote_ref": { "type": "string" },
+          "quote_version": { "type": "integer", "format": "int64" },
+          "quote_fingerprint": { "type": "string" },
+          "checkout_session_id": { "type": "string" },
+          "checkout_validation_revision": { "type": "integer", "format": "int64" },
+          "cart_ref": { "type": "string" },
+          "cart_version": { "type": "integer", "format": "int64" },
+          "fulfilment_plan_ref": { "type": "string" },
+          "fulfilment_plan_revision": { "type": "integer", "format": "int64" },
+          "fulfilment_plan_version": { "type": "integer", "format": "int64" },
+          "domain": { "type": "string", "enum": ["FOOD", "SHOP"] },
+          "currency": { "type": "string" },
+          "selected_fulfilment_mode": { "type": "string" },
+          "address_snapshot": { "type": "object" },
+          "has_receiver": { "type": "boolean" },
+          "receiver_snapshot": {
+            "type": "object",
+            "description": "Delivery contact evidence only. It never becomes a customer account.",
+            "properties": {
+              "receiver_name": { "type": "string" },
+              "receiver_phone": { "type": "string" }
+            }
+          },
+          "customer_approved_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "max_authorized_total_minor": { "type": "integer", "format": "int64" },
+          "product_subtotal_minor": { "type": "integer", "format": "int64" },
+          "delivery_subtotal_minor": { "type": "integer", "format": "int64" },
+          "fee_subtotal_minor": { "type": "integer", "format": "int64" },
+          "tax_subtotal_minor": { "type": "integer", "format": "int64" },
+          "discount_total_minor": { "type": "integer", "format": "int64" },
+          "subsidy_total_minor": { "type": "integer", "format": "int64" },
+          "platform_fee_tax_minor": { "type": "integer", "format": "int64" },
+          "funding_breakdown": { "type": "object" },
+          "price_disclosure_snapshot": { "type": "object" },
+          "payment_operation_ref": {
+            "type": "string",
+            "description": "Bound by a later payment-capable section. Section 17E never accepts it from a request and never executes a payment."
+          },
+          "state": { "$ref": "#/components/schemas/ParentOrderState" },
+          "vendor_order_count": { "type": "integer" },
+          "refund_prepared_minor": { "type": "integer", "format": "int64" },
+          "settlement_prepared_minor": { "type": "integer", "format": "int64" },
+          "version": { "type": "integer", "format": "int64" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "terminal_at": { "type": "string", "format": "date-time" },
+          "vendor_orders": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/VendorOrder" }
+          },
+          "platform_allocations": {
+            "type": "array",
+            "description": "Parent-scope allocation rows that belong to no single vendor: the platform's own fee and tax.",
+            "items": { "$ref": "#/components/schemas/Allocation" }
+          }
+        }
+      }
+    },
+    "responses": {
+      "ParentOrderResponse": {
+        "description": "One purchase.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["success", "data"],
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "$ref": "#/components/schemas/ParentOrder" }
+              }
+            }
+          }
+        }
+      },
+      "VendorOrderResponse": {
+        "description": "One vendor allocation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["success", "data"],
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "$ref": "#/components/schemas/VendorOrder" }
+              }
+            }
+          }
+        }
+      },
+      "TransitionResponse": {
+        "description": "The VendorOrder that moved, with the ParentOrder's re-derived aggregate state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["success", "data"],
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": {
+                  "type": "object",
+                  "required": ["vendor_order", "parent_order"],
+                  "properties": {
+                    "vendor_order": { "$ref": "#/components/schemas/VendorOrder" },
+                    "parent_order": {
+                      "type": "object",
+                      "required": ["parent_order_id", "state", "version"],
+                      "properties": {
+                        "parent_order_id": { "type": "string" },
+                        "state": { "$ref": "#/components/schemas/ParentOrderState" },
+                        "version": { "type": "integer", "format": "int64" },
+                        "vendor_order_count": { "type": "integer" },
+                        "refund_prepared_minor": {
+                          "type": "integer",
+                          "format": "int64"
+                        },
+                        "settlement_prepared_minor": {
+                          "type": "integer",
+                          "format": "int64"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "description": "Standard error envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["success", "error"],
+              "properties": {
+                "success": { "type": "boolean", "enum": [false] },
+                "error": {
+                  "type": "object",
+                  "required": ["code", "message"],
+                  "properties": {
+                    "code": { "type": "string" },
+                    "message": { "type": "string" },
+                    "request_id": { "type": "string" },
+                    "fields": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

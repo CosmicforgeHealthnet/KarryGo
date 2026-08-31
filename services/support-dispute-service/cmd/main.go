@@ -18,7 +18,6 @@ import (
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
-	"cosmicforge/logistics/shared/go/walletclient"
 )
 
 func main() {
@@ -60,19 +59,10 @@ func main() {
 		DispatchSecret: []byte(cfg.DispatchServiceSecret),
 	})
 
-	var payments *walletclient.Client
-	if cfg.PaymentURL != "" && cfg.PaymentSecret != "" {
-		payments = &walletclient.Client{
-			BaseURL:     cfg.PaymentURL,
-			ServiceName: "support-dispute-service",
-			Secret:      []byte(cfg.PaymentSecret),
-		}
-	}
-
 	service := supportusecases.NewSupportService(repo, supportusecases.Options{
-		Notifier: notifier,
-		Identity: identity,
-		Payments: payments,
+		Notifier:            notifier,
+		Identity:            identity,
+		ResolutionPublisher: supportclients.NewCommerceResolutionClient(cfg.VendorServiceURL, cfg.VendorServiceSecret),
 	})
 
 	customerSecret := []byte(cfg.CustomerAccessTokenSecret)
@@ -98,7 +88,8 @@ func main() {
 		Capabilities: []string{
 			"complaints (customer, taxi, dispatch, hauling)",
 			"evidence collection",
-			"dispute escalation + admin resolution + refund hook",
+			"dispute escalation + admin resolution events (no ledger authority)",
+			"typed Commerce cases + durable resolution outbox",
 			"support chat (realtime + unread)",
 			"categories + FAQ self-service",
 			"emergency SOS",
@@ -107,6 +98,7 @@ func main() {
 		ReadyChecks: []func(context.Context) error{
 			db.Ping,
 		},
+		Workers: []func(context.Context) error{service.RunCaseOutbox},
 		Register: func(group *gin.RouterGroup) {
 			supporthttp.RegisterRoutes(group, service, customerSecret, providerGroups, serviceSecrets)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, customerSecret, providerGroups)

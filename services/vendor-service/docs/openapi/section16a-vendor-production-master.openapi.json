@@ -1,0 +1,113 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Vendor Production Master Data - Section 16A",
+    "version": "16A"
+  },
+  "paths": {
+    "/api/v1/vendor/ingredients": {
+      "get": { "summary": "List ingredients" },
+      "post": { "summary": "Create ingredient" }
+    },
+    "/api/v1/vendor/ingredients/{ingredientId}": {
+      "get": { "summary": "Get ingredient" },
+      "put": {
+        "summary": "Update ingredient",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/ingredients/{ingredientId}/archive": {
+      "post": {
+        "summary": "Archive ingredient",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/ingredients/{ingredientId}/conversions": {
+      "get": { "summary": "List ingredient-specific unit conversions" },
+      "post": { "summary": "Create ingredient-specific unit conversion" }
+    },
+    "/api/v1/vendor/ingredients/{ingredientId}/conversions/{conversionId}": {
+      "put": {
+        "summary": "Update ingredient-specific unit conversion",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/ingredients/{ingredientId}/branches/{branchId}": {
+      "get": { "summary": "Read ingredient branch configuration" },
+      "put": { "summary": "Configure ingredient branch / Inventory mapping" }
+    },
+    "/api/v1/vendor/packaging-materials": {
+      "get": { "summary": "List packaging materials" },
+      "post": { "summary": "Create packaging material" }
+    },
+    "/api/v1/vendor/packaging-materials/{packagingId}": {
+      "get": { "summary": "Get packaging material" },
+      "put": {
+        "summary": "Update packaging material",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/packaging-materials/{packagingId}/archive": {
+      "post": {
+        "summary": "Archive packaging material",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/packaging-materials/{packagingId}/conversions": {
+      "get": { "summary": "List packaging unit conversions" },
+      "post": { "summary": "Create packaging unit conversion" }
+    },
+    "/api/v1/vendor/packaging-materials/{packagingId}/conversions/{conversionId}": {
+      "put": {
+        "summary": "Update packaging unit conversion",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
+    "/api/v1/vendor/packaging-materials/{packagingId}/branches/{branchId}": {
+      "get": { "summary": "Read packaging branch configuration" },
+      "put": { "summary": "Configure packaging branch / Inventory mapping" }
+    }
+  }
+}

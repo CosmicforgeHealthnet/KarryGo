@@ -3,6 +3,8 @@ package crm
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // ModuleAvailability tells a client that a CRM module exists as a concept but
@@ -37,6 +39,7 @@ type CommercialSummary struct {
 
 	Currency               *string    `json:"currency,omitempty"`
 	CompletedOrderCount    *int       `json:"completed_order_count,omitempty"`
+	ObservedOrderCount     *int       `json:"observed_order_count,omitempty"`
 	GrossSpendMinor        *int64     `json:"gross_spend_minor,omitempty"`
 	NetSpendMinor          *int64     `json:"net_spend_minor,omitempty"`
 	AverageOrderValueMinor *int64     `json:"average_order_value_minor,omitempty"`
@@ -63,6 +66,7 @@ type CommercialSummary struct {
 // BranchSummary is one branch's slice of the relationship.
 type BranchSummary struct {
 	BranchRef           string          `json:"branch_ref"`
+	ObservedOrderCount  int             `json:"observed_order_count"`
 	CompletedOrderCount int             `json:"completed_order_count"`
 	GrossSpendMinor     int64           `json:"gross_spend_minor"`
 	NetSpendMinor       int64           `json:"net_spend_minor"`
@@ -80,8 +84,11 @@ type CapabilitySummary struct {
 	// CategoryAffinity and ItemAffinity require an authoritative catalogue,
 	// which does not exist yet. They report unavailability rather than an
 	// empty list that would read as "no preferences".
-	CategoryAffinity string `json:"category_affinity"`
-	ItemAffinity     string `json:"item_affinity"`
+	CategoryAffinity string         `json:"category_affinity"`
+	ItemAffinity     string         `json:"item_affinity"`
+	AffinityState    string         `json:"affinity_state"`
+	CategoryItems    []AffinityView `json:"category_items,omitempty"`
+	ItemItems        []AffinityView `json:"item_items,omitempty"`
 }
 
 // Customer360 is the composed relationship view.
@@ -93,8 +100,42 @@ type Customer360 struct {
 	Consent      ConsentSummary      `json:"consent"`
 	Privacy      PrivacySummary      `json:"privacy"`
 	IdentityLink IdentityLinkSummary `json:"identity_link"`
+
+	// Tags and Segments are the Section 8B blocks. They are omitted entirely
+	// when segmentation is disabled, and the Modules map says so, so an absent
+	// list is never read as "this customer has none".
+	Tags     []TagView                  `json:"tags,omitempty"`
+	Segments []SegmentMembershipSummary `json:"segments,omitempty"`
+
+	// Section 8C contributes bounded summaries. Full history remains on the
+	// dedicated paginated endpoints so Customer 360 cannot grow without bound.
+	RecentInteractions *RecentInteractionsSummary `json:"recent_interactions,omitempty"`
+	OpenTasks          *OpenTasksSummary          `json:"open_tasks,omitempty"`
+
+	// Loyalty is the Section 8D block: a points balance, never a monetary
+	// one. It is omitted entirely when loyalty is disabled, and the Modules
+	// map says so, so its absence is never read as "this customer has none".
+	Loyalty *LoyaltySummary `json:"loyalty,omitempty"`
+
+	// LoyaltyTier is the relationship's derived standing against the vendor's
+	// tier ladder. It is derived at read time from the ledger, never stored,
+	// so a reversal or a threshold change is reflected here immediately. Its
+	// state distinguishes NOT_AVAILABLE (no ladder configured) from NO_TIER
+	// (a ladder exists, not yet reached) — neither is the bottom rung.
+	LoyaltyTier *CustomerLoyaltyTier `json:"loyalty_tier,omitempty"`
+
+	// Intelligence is the Section 8H block: deterministic heuristics with
+	// their availability state in front, never a probability and never a
+	// permission. A high score here authorises nothing — consent, privacy and
+	// suppression are decided by Sections 8A, 8E and 8F and are not consulted
+	// to produce it.
+	Intelligence        *CustomerIntelligence    `json:"intelligence,omitempty"`
+	ServiceRecovery     *ServiceRecoveryView     `json:"service_recovery,omitempty"`
+	CustomerValue       *CustomerValueProjection `json:"customer_value,omitempty"`
+	RelationshipSignals *RelationshipSignalsView `json:"relationship_signals,omitempty"`
+
 	// Modules states, per later CRM package, whether it is operational. This
-	// is what keeps Customer 360 honest while 8B-8H remain unbuilt.
+	// is what keeps Customer 360 honest while 8C-8H remain unbuilt.
 	Modules map[string]string `json:"modules"`
 }
 
@@ -162,17 +203,118 @@ func (s *Service) Customer360For(ctx context.Context, actor Actor, scope Scope, 
 		Privacy:      privacy,
 		IdentityLink: links,
 		Modules: map[string]string{
-			"tags":         ModuleNotImplemented,
-			"segments":     ModuleNotImplemented,
-			"interactions": ModuleNotImplemented,
-			"tasks":        ModuleNotImplemented,
-			"loyalty":      ModuleNotImplemented,
-			"campaigns":    ModuleNotImplemented,
-			"corporate":    ModuleNotImplemented,
-			"intelligence": ModuleNotImplemented,
+			"tags":                 ModuleNotImplemented,
+			"segments":             ModuleNotImplemented,
+			"interactions":         ModuleNotImplemented,
+			"tasks":                ModuleNotImplemented,
+			"loyalty":              ModuleNotImplemented,
+			"campaigns":            ModuleNotImplemented,
+			"corporate":            ModuleNotImplemented,
+			"intelligence":         ModuleNotImplemented,
+			"service_recovery":     ModuleNotImplemented,
+			"customer_value":       ModuleNotImplemented,
+			"relationship_signals": ModuleNotImplemented,
 		},
 	}
+	// Section 8B contributes its own blocks through the same composition point
+	// rather than by rewriting this function, which is how 8C onwards will add
+	// theirs too.
+	if err = s.attachSegmentationBlocks(ctx, actor, scope, profile, &view); err != nil {
+		return Customer360{}, err
+	}
+	if err = s.attachActivityBlocks(ctx, actor, scope, profile, &view); err != nil {
+		return Customer360{}, err
+	}
+	if err = s.attachIntelligenceBlock(ctx, actor, scope, profile, &view); err != nil {
+		return Customer360{}, err
+	}
+	if err = s.attachLoyaltyBlock(ctx, actor, profile, &view); err != nil {
+		return Customer360{}, err
+	}
+	if err = s.attachCompletionBlocks(ctx, actor, scope, profile, &view); err != nil {
+		return Customer360{}, err
+	}
 	return view, nil
+}
+
+type RecentInteractionsSummary struct {
+	Items   []InteractionView `json:"items"`
+	HasMore bool              `json:"has_more"`
+}
+
+type OpenTasksSummary struct {
+	Items []TaskView `json:"items"`
+	Count int        `json:"count"`
+}
+
+func (s *Service) attachActivityBlocks(ctx context.Context, actor Actor, scope Scope, profile Profile, view *Customer360) error {
+	// A direct internal call with a retained redacted or merged source profile
+	// still receives no normal timeline content. Public Customer 360 normally
+	// rejects the redacted profile even earlier in GetProfile.
+	nonActionable := profile.IsRedacted() || profile.IsMergedSource()
+	if s.flags.InteractionsEnabled {
+		items := []InteractionView{}
+		hasMore := false
+		if !nonActionable {
+			interactions, more, err := s.ListInteractions(ctx, actor, scope, InteractionListOptions{CustomerProfileRef: profile.ID, Limit: 5})
+			if err != nil {
+				return err
+			}
+			for _, interaction := range interactions {
+				items = append(items, InteractionViewOf(interaction))
+			}
+			hasMore = more
+		}
+		view.RecentInteractions = &RecentInteractionsSummary{Items: items, HasMore: hasMore}
+		view.Modules["interactions"] = ModuleAvailable
+	}
+	if s.flags.TasksEnabled {
+		items := []TaskView{}
+		count := 0
+		if !nonActionable {
+			tasks, total, err := s.ListOpenTasksForProfile(ctx, actor, scope, profile.ID, 5)
+			if err != nil {
+				return err
+			}
+			for _, task := range tasks {
+				items = append(items, TaskViewOf(task, s.now()))
+			}
+			count = total
+		}
+		view.OpenTasks = &OpenTasksSummary{Items: items, Count: count}
+		view.Modules["tasks"] = ModuleAvailable
+	}
+	return nil
+}
+
+// attachSegmentationBlocks fills in the Section 8B tag and segment blocks.
+//
+// Both lists are scope-filtered by their own readers, so a branch-scoped caller
+// sees their branches' classification of this customer and nothing about how
+// the rest of the business has classified them.
+func (s *Service) attachSegmentationBlocks(ctx context.Context, actor Actor, scope Scope, profile Profile, view *Customer360) error {
+	if !s.flags.SegmentationEnabled {
+		return nil
+	}
+	tags, err := s.TagsForProfile(ctx, actor, scope, profile.ID)
+	if err != nil {
+		return err
+	}
+	segments, err := s.SegmentsForProfile(ctx, actor, scope, profile.ID)
+	if err != nil {
+		return err
+	}
+	view.Tags = make([]TagView, 0, len(tags))
+	for _, tag := range tags {
+		view.Tags = append(view.Tags, TagViewOf(tag))
+	}
+	if segments == nil {
+		segments = []SegmentMembershipSummary{}
+	}
+	view.Segments = segments
+	view.Modules["tags"] = ModuleAvailable
+	view.Modules["segments"] = ModuleAvailable
+	return nil
 }
 
 func (s *Service) commercialSummary(profile Profile, visible []BranchRelation, scope Scope) CommercialSummary {
@@ -189,6 +331,7 @@ func (s *Service) commercialSummary(profile Profile, visible []BranchRelation, s
 
 	if scope.Global {
 		summary.Currency = profile.CommercialCurrency
+		summary.ObservedOrderCount = ptr(profile.ObservedOrderCount)
 		summary.CompletedOrderCount = ptr(profile.CompletedOrderCount)
 		summary.GrossSpendMinor = ptr(profile.GrossSpendMinor)
 		summary.NetSpendMinor = ptr(profile.NetSpendMinor)
@@ -198,10 +341,12 @@ func (s *Service) commercialSummary(profile Profile, visible []BranchRelation, s
 		summary.LastOrderRef = profile.LastOrderRef
 	} else {
 		var count int
+		var observed int
 		var gross, net int64
 		var first, last *time.Time
 		var currency *string
 		for _, relation := range visible {
+			observed += relation.ObservedOrderCount
 			count += relation.CompletedOrderCount
 			gross += relation.GrossSpendMinor
 			net += relation.NetSpendMinor
@@ -216,6 +361,7 @@ func (s *Service) commercialSummary(profile Profile, visible []BranchRelation, s
 			}
 		}
 		summary.Currency = currency
+		summary.ObservedOrderCount = ptr(observed)
 		summary.CompletedOrderCount = ptr(count)
 		summary.GrossSpendMinor = ptr(gross)
 		summary.NetSpendMinor = ptr(net)
@@ -263,6 +409,7 @@ func branchSummaries(relations []BranchRelation) []BranchSummary {
 	for _, relation := range relations {
 		out = append(out, BranchSummary{
 			BranchRef:           relation.BranchID,
+			ObservedOrderCount:  relation.ObservedOrderCount,
 			CompletedOrderCount: relation.CompletedOrderCount,
 			GrossSpendMinor:     relation.GrossSpendMinor,
 			NetSpendMinor:       relation.NetSpendMinor,
@@ -280,6 +427,7 @@ func (s *Service) capabilitySummary(profile Profile, scope Scope, visible []Bran
 	summary := CapabilitySummary{
 		CategoryAffinity: ModuleNotImplemented,
 		ItemAffinity:     ModuleNotImplemented,
+		AffinityState:    "NOT_AVAILABLE",
 	}
 	if scope.Global {
 		summary.LastCapabilityType = profile.LastCapabilityType
@@ -298,4 +446,84 @@ func (s *Service) capabilitySummary(profile Profile, scope Scope, visible []Bran
 		}
 	}
 	return summary
+}
+
+func (s *Service) attachCompletionBlocks(ctx context.Context, actor Actor, scope Scope, profile Profile, view *Customer360) error {
+	if profile.IsRedacted() || profile.IsMergedSource() {
+		return nil
+	}
+	category, item, err := s.readAffinities(ctx, actor.VendorID, profile.ID, scope)
+	if err != nil {
+		return err
+	}
+	if len(category) > 0 || len(item) > 0 {
+		view.Capability.CategoryAffinity = ModuleAvailable
+		view.Capability.ItemAffinity = ModuleAvailable
+		view.Capability.AffinityState = "CURRENT"
+		view.Capability.CategoryItems = category
+		view.Capability.ItemItems = item
+		view.Modules["affinities"] = ModuleAvailable
+	}
+	var recovery ServiceRecoveryView
+	err = s.db.QueryRow(ctx, `SELECT state,complaint_count,unresolved_complaint_count,resolved_complaint_count,refund_count,partial_refund_count,latest_case_ref,latest_case_outcome,latest_case_at,latest_refund_ref,latest_refund_at,last_service_recovery_at,source_as_of,version FROM crm_customer_service_recovery_projections WHERE business_id=$1 AND profile_id=$2`, actor.VendorID, profile.ID).Scan(&recovery.State, &recovery.ComplaintCount, &recovery.UnresolvedComplaintCount, &recovery.ResolvedComplaintCount, &recovery.RefundCount, &recovery.PartialRefundCount, &recovery.LatestCaseRef, &recovery.LatestCaseOutcome, &recovery.LatestCaseAt, &recovery.LatestRefundRef, &recovery.LatestRefundAt, &recovery.LastServiceRecoveryAt, &recovery.SourceAsOf, &recovery.Version)
+	if err == nil {
+		view.ServiceRecovery = &recovery
+		view.Modules["service_recovery"] = ModuleAvailable
+	} else if err != pgx.ErrNoRows {
+		return err
+	}
+	value, err := s.ReadCustomerValue(ctx, actor.VendorID, profile.ID)
+	if err != nil {
+		return err
+	}
+	view.CustomerValue = &value
+	view.Modules["customer_value"] = ModuleAvailable
+	signals, err := s.ReadRelationshipSignals(ctx, actor.VendorID, profile.ID)
+	if err != nil {
+		return err
+	}
+	view.RelationshipSignals = &signals
+	view.Modules["relationship_signals"] = ModuleAvailable
+	return nil
+}
+
+func (s *Service) readAffinities(ctx context.Context, businessID, profileID string, scope Scope) ([]AffinityView, []AffinityView, error) {
+	category := []AffinityView{}
+	item := []AffinityView{}
+	args := []any{businessID, profileID}
+	scopeSQL := "scope='BUSINESS'"
+	if !scope.Global {
+		scopeSQL = "scope='BRANCH' AND branch_id=ANY($3)"
+		args = append(args, scope.BranchIDs)
+	}
+	rows, err := s.db.Query(ctx, `SELECT category_ref,branch_id,scope,completed_order_count,quantity_count,net_spend_minor,last_ordered_at,rank,source_as_of FROM crm_customer_category_affinities WHERE business_id=$1 AND profile_id=$2 AND `+scopeSQL+` ORDER BY rank`, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	for rows.Next() {
+		var v AffinityView
+		if err := rows.Scan(&v.Reference, &v.BranchRef, &v.Scope, &v.CompletedOrderCount, &v.QuantityCount, &v.NetSpendMinor, &v.LastOrderedAt, &v.Rank, &v.SourceAsOf); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		category = append(category, v)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, nil, err
+	}
+	rows.Close()
+	rows, err = s.db.Query(ctx, `SELECT item_ref,branch_id,scope,completed_order_count,quantity_count,net_spend_minor,last_ordered_at,rank,source_as_of FROM crm_customer_item_affinities WHERE business_id=$1 AND profile_id=$2 AND `+scopeSQL+` ORDER BY rank`, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	for rows.Next() {
+		var v AffinityView
+		if err := rows.Scan(&v.Reference, &v.BranchRef, &v.Scope, &v.CompletedOrderCount, &v.QuantityCount, &v.NetSpendMinor, &v.LastOrderedAt, &v.Rank, &v.SourceAsOf); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		item = append(item, v)
+	}
+	return category, item, rows.Err()
 }

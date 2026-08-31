@@ -6,6 +6,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/shared/go/dispatchcommerce"
 )
 
 type BroadcastStatus string
@@ -209,8 +211,8 @@ func NewProviderRequestInboxItem(inbox ProviderRequestInbox, now time.Time) (Pro
 		FareAmount: booking.FareAmount, Currency: booking.Currency, PickupAddress: booking.PickupAddress,
 		DropoffAddress: booking.DropoffAddress, PackageDesc: booking.PackageDesc,
 		PackageType: booking.PackageType, PackageSize: booking.PackageSize, IsFragile: booking.IsFragile,
-		ServiceTier: normalizeServiceTier(booking.ServiceTier),
-		ReceiverName: booking.ReceiverName,
+		ServiceTier:      normalizeServiceTier(booking.ServiceTier),
+		ReceiverName:     booking.ReceiverName,
 		RemainingSeconds: remaining, ExpiresAt: inbox.ExpiresAt, ReceivedAt: inbox.ReceivedAt,
 	}, true, nil
 }
@@ -270,30 +272,31 @@ type NoProviderFoundEvent struct {
 
 // RequestDetailResponse is returned by GET /api/v1/provider/requests/:id (Phase 6F).
 type RequestDetailResponse struct {
-	InboxID          string      `json:"inbox_id"`
-	BroadcastID      string      `json:"broadcast_id"`
-	BookingID        string      `json:"booking_id"`
-	Status           InboxStatus `json:"status"`
-	FareAmount       int64       `json:"fare_amount"`
-	Currency         string      `json:"currency"`
-	PickupAddress    string      `json:"pickup_address"`
-	PickupLat        float64     `json:"pickup_lat"`
-	PickupLng        float64     `json:"pickup_lng"`
-	DropoffAddress   string      `json:"dropoff_address"`
-	DropoffLat       float64     `json:"dropoff_lat"`
-	DropoffLng       float64     `json:"dropoff_lng"`
-	PackageDesc      string      `json:"package_desc"`
-	PackageWeight    float64     `json:"package_weight,omitempty"`
-	PackageType      string      `json:"package_type,omitempty"`
-	PackageSize      string      `json:"package_size,omitempty"`
-	IsFragile        bool        `json:"is_fragile"`
-	ServiceTier      string      `json:"service_tier"`
-	ServiceTierLabel string      `json:"service_tier_label"`
-	ReceiverName     string      `json:"receiver_name"`
-	ReceiverPhone    string      `json:"receiver_phone"`
-	RemainingSeconds int64       `json:"remaining_seconds"`
-	ExpiresAt        time.Time   `json:"expires_at"`
-	ReceivedAt       time.Time   `json:"received_at"`
+	InboxID          string                    `json:"inbox_id"`
+	BroadcastID      string                    `json:"broadcast_id"`
+	BookingID        string                    `json:"booking_id"`
+	Status           InboxStatus               `json:"status"`
+	FareAmount       int64                     `json:"fare_amount"`
+	Currency         string                    `json:"currency"`
+	PickupAddress    string                    `json:"pickup_address"`
+	PickupLat        float64                   `json:"pickup_lat"`
+	PickupLng        float64                   `json:"pickup_lng"`
+	DropoffAddress   string                    `json:"dropoff_address"`
+	DropoffLat       float64                   `json:"dropoff_lat"`
+	DropoffLng       float64                   `json:"dropoff_lng"`
+	PackageDesc      string                    `json:"package_desc"`
+	PackageWeight    float64                   `json:"package_weight,omitempty"`
+	PackageType      string                    `json:"package_type,omitempty"`
+	PackageSize      string                    `json:"package_size,omitempty"`
+	IsFragile        bool                      `json:"is_fragile"`
+	ServiceTier      string                    `json:"service_tier"`
+	ServiceTierLabel string                    `json:"service_tier_label"`
+	ReceiverName     string                    `json:"receiver_name"`
+	ReceiverPhone    string                    `json:"receiver_phone"`
+	RemainingSeconds int64                     `json:"remaining_seconds"`
+	ExpiresAt        time.Time                 `json:"expires_at"`
+	ReceivedAt       time.Time                 `json:"received_at"`
+	Commerce         *dispatchcommerce.JobCard `json:"commerce,omitempty"`
 }
 
 // AcceptResponse is returned by POST /api/v1/provider/requests/:id/accept (Phase 6G).

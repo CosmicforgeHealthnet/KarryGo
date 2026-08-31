@@ -18,6 +18,9 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/authority"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	bookingfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking"
+	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
+	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
+	dispatchcommercequote "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercequote"
 	identityhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/identity/http"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	notificationhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/notifications/http"
@@ -30,6 +33,9 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/commercemission"
+	"cosmicforge/logistics/shared/go/commercequote"
+	"cosmicforge/logistics/shared/go/dispatchcommerce"
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
@@ -121,6 +127,102 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	)
 	availability.RegisterRoutes(engine, authService.TokenUsecase(), cfg.InternalServiceKey, availabilityHandler)
 	availability.StartSubscribers(context.Background(), redisClient, availabilityRepository, availabilityLiveStore)
+
+	// The internal commerce delivery-quote contract (Vendor Service Section
+	// 17C). It answers serviceability and price for a route; it creates no
+	// booking and reserves no rider, so it sits with the read-shaped private
+	// surfaces rather than the execution ones.
+	//
+	// It gets its OWN verifier trusting exactly one caller with exactly one
+	// secret. Sharing the fleet verifier would have made a second caller
+	// presentable at every private surface's door, relying on each allowlist
+	// to turn it away; a separate verifier means the commerce secret opens
+	// nothing else even if an allowlist is later widened by mistake.
+	//
+	// Registration is skipped entirely when no vendor secret is configured, so
+	// a deployment that does not serve commerce quotes exposes no route to
+	// probe rather than one that answers 401 and confirms it exists.
+	if len(cfg.VendorServiceSecret) > 0 {
+		quoteRepository := dispatchcommercequote.NewRepository(db)
+		dispatchcommercequote.Register(
+			engine.Group("/api/v1/internal"),
+			dispatchcommercequote.NewHandler(dispatchcommercequote.New(
+				dispatchcommercequote.Options{
+					Store:    quoteRepository,
+					Live:     availabilityLiveStore,
+					RadiusKM: cfg.AvailabilityRadiusKM,
+					TTL:      cfg.CommerceQuoteTTL,
+				},
+			)),
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller},
+		)
+		dispatchcommercequote.RegisterMultiStop(
+			engine.Group("/api/v1/internal"),
+			dispatchcommercequote.NewMultiStopHandler(dispatchcommercequote.NewMultiStop(
+				dispatchcommercequote.MultiStopOptions{
+					Store:  quoteRepository,
+					Routes: dispatchcommercequote.NewHTTPRoutePlanner(cfg.RouteServiceURL, cfg.RouteServiceTimeout),
+					Live:   availabilityLiveStore, RadiusKM: cfg.AvailabilityRadiusKM,
+					TTL: cfg.CommerceQuoteTTL,
+				},
+			)),
+			serviceauth.NewVerifier(serviceauth.Secrets{dispatchcommerce.SignatureCaller: cfg.VendorServiceSecret}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db), []string{dispatchcommerce.SignatureCaller},
+		)
+	}
+
+	// The internal commerce mission contract (Vendor Service Section 17F).
+	// Unlike the quote surface above this one EXECUTES: it creates a real
+	// booking and starts rider matching for a fee the customer has already
+	// paid. It therefore needs the request service, and is skipped entirely
+	// without it rather than accepting missions nothing would ever match.
+	if len(cfg.VendorServiceSecret) > 0 && requestService != nil {
+		commerceEvents := marketplace.NewLegacyEventEmitter(marketplace.NewRepository(db), true)
+		missionRepository := dispatchcommercemission.NewRepository(db).WithTargetEventEmitter(commerceEvents)
+		requestService.WithProviderAcceptanceGate(missionRepository).WithCommerceJobCards(missionRepository)
+		dispatchcommercemission.Register(
+			engine.Group("/api/v1/internal"),
+			dispatchcommercemission.NewHandler(dispatchcommercemission.New(
+				dispatchcommercemission.Options{
+					Store:     missionRepository,
+					Broadcast: requestService,
+				},
+			)),
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercemission.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercemission.SignatureCaller},
+		)
+		multiStopMissionService := dispatchcommercemission.NewMultiStopMission(dispatchcommercemission.MultiStopMissionOptions{
+			Store: missionRepository, Quotes: dispatchcommercequote.NewRepository(db), Broadcast: requestService,
+			Notifier: bookingclients.NewBookingNotifier(cfg.NotificationURL, cfg.NotificationSecret),
+		}).WithHandoverSecret(cfg.HandoverSecret).
+			WithMediaAttachmentAuthorizer(newMediaAttachmentAuthorizer(mediaClient))
+		multiStopMissionHandler := dispatchcommercemission.NewMultiStopMissionHandler(multiStopMissionService)
+		operationalHandler := dispatchcommercemission.NewOperationalHandler(
+			dispatchcommercemission.NewOperationalService(missionRepository, cfg.HandoverSecret, nil).
+				WithReplacementAuthority(multiStopMissionService).
+				WithMediaAttachmentAuthorizer(newMediaAttachmentAuthorizer(mediaClient)),
+		)
+		dispatchcommercemission.RegisterMultiStopMissions(
+			engine.Group("/api/v1/internal"),
+			multiStopMissionHandler,
+			serviceauth.NewVerifier(serviceauth.Secrets{dispatchcommerce.SignatureCaller: cfg.VendorServiceSecret}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db), []string{dispatchcommerce.SignatureCaller},
+		)
+		dispatchcommercemission.RegisterProviderPickupRoutes(engine, authService.TokenUsecase(), multiStopMissionHandler)
+		dispatchcommercemission.RegisterProviderOperationalRoutes(engine, authService.TokenUsecase(), operationalHandler)
+		dispatchcommercemission.RegisterInternalOperationalRoutes(
+			engine.Group("/api/v1/internal"), operationalHandler,
+			serviceauth.NewVerifier(serviceauth.Secrets{dispatchcommerce.SignatureCaller: cfg.VendorServiceSecret}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db), []string{dispatchcommerce.SignatureCaller},
+		)
+	}
 
 	if requestService != nil {
 		requestfeature.RegisterRoutes(engine, authService.TokenUsecase(), requestfeature.NewHandler(requestService))
@@ -258,10 +360,12 @@ func registerMarketplaceRoutes(engine *gin.Engine, cfg config.Config, db *pgxpoo
 // only fail.
 func StartMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
 	stopOutbox := startOutboxWorker(ctx, cfg, db)
+	stopCommerceOutbox := startCommerceOutboxWorker(ctx, cfg, db)
+	stopEventWorkers := func() { stopCommerceOutbox(); stopOutbox() }
 
 	if !cfg.FleetRelayEnabled {
 		log.Printf("marketplace: relay worker disabled by DISPATCH_FLEET_RELAY_ENABLED")
-		return stopOutbox
+		return stopEventWorkers
 	}
 	responder, ready := marketplace.NewHTTPFleetResponder(marketplace.ResponderConfig{
 		BaseURL:     cfg.FleetServiceURL,
@@ -274,7 +378,7 @@ func StartMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool
 		// will be delivered once configuration is corrected and the worker
 		// starts; nothing is lost by not running it now.
 		log.Printf("marketplace: relay worker not started; fleet client configuration incomplete")
-		return stopOutbox
+		return stopEventWorkers
 	}
 
 	worker := marketplace.NewRelayWorker(marketplace.NewRepository(db), responder,
@@ -300,8 +404,35 @@ func StartMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool
 		cancel()
 		<-done
 		log.Printf("marketplace: relay worker stopped")
-		stopOutbox()
+		stopEventWorkers()
 	}
+}
+
+func startCommerceOutboxWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+	if !cfg.CommerceEventDeliveryEnabled {
+		log.Printf("commerce: lifecycle outbox worker disabled by DISPATCH_COMMERCE_EVENT_DELIVERY_ENABLED")
+		return func() {}
+	}
+	deliverer, ready := marketplace.NewHTTPEventDeliverer(marketplace.DelivererConfig{
+		BaseURL: cfg.VendorServiceURL, Path: cfg.CommerceEventDeliveryPath,
+		ServiceName: cfg.ServiceName, Secret: string(cfg.VendorServiceSecret),
+		Timeout: cfg.FleetServiceTimeout,
+	})
+	if !ready {
+		log.Printf("commerce: lifecycle outbox worker not started; Vendor callback configuration incomplete")
+		return func() {}
+	}
+	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), deliverer,
+		marketplace.OutboxWorkerConfig{Owner: cfg.ServiceName + "-commerce-events",
+			SourceService: cfg.ServiceName, Target: "vendor-service",
+			Lease: cfg.EventDeliveryLease, BatchSize: cfg.EventDeliveryBatchSize,
+			MaxAttempts: cfg.EventDeliveryRetryLimit, BaseBackoff: cfg.EventDeliveryBackoffBase,
+			MaxBackoff: cfg.EventDeliveryBackoffMax})
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); _ = worker.Run(workerCtx, cfg.EventDeliveryInterval) }()
+	log.Printf("commerce: lifecycle outbox worker started")
+	return func() { cancel(); <-done; log.Printf("commerce: lifecycle outbox worker stopped") }
 }
 
 // startOutboxWorker launches canonical event delivery and returns a stopper.

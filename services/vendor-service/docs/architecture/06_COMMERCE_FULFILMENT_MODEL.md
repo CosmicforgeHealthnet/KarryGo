@@ -47,6 +47,47 @@ Every fulfilment unit executed by a platform authority (dispatch/hauling, and ta
 - A split-provider mission requires a separate receiver handover credential per provider.
 - Provider reassignment invalidates the previous provider's credential; a receiver change invalidates the previous receiver's credential; a resend invalidates the prior credential.
 
-## What this phase does not do
+## Section 17C status (implemented)
 
-No fulfilment aggregate, planner, or worker is implemented. This document fixes the model so `internal/features/fulfilment` and its integration clients are built against an agreed shape once implementation begins.
+Planning is implemented. Where reality differed from this document's original
+assumptions, the difference is recorded here rather than left for a reader to
+discover:
+
+- **The authoritative quote did not exist.** This document assumed each
+  logistics service already had a quote to request. Neither did: both exposed a
+  public stateless fare estimate with no reference, no expiry and no
+  serviceability. Section 17C added a real internal quote contract
+  (`shared/go/commercequote`) and an implementation in dispatch and hauling.
+  See `docs/PLATFORM_SERVICE_CHANGE_REGISTER.md`.
+
+- **Consolidation is co-location-only.** "Which units, which authority, what
+  sequencing" is real, but no logistics authority models a multi-pickup
+  mission, so a mission covering two distant pickups would carry a fee for a
+  route nobody can drive. Groups consolidate only when their pickups are
+  genuinely co-located, share a class and an urgency, carry no separation
+  conflict, and fit the class combined.
+
+- **The quoted mission and the execution mission are already separate
+  concepts.** A quoted mission is the commercial unit - one authority quote,
+  one fee, recording exactly which vendor groups it covers. Nothing in the
+  schema assumes one mission is one trip, so 17F may split it into several
+  execution missions without destroying the commercial commitment.
+
+- **Custody handover is no longer pending.** This document recorded
+  `internal/integrations/handover` as PENDING_EXTERNAL_DEPENDENCY platform-wide.
+  That is stale: both dispatch and hauling implement a real two-stage
+  pickup/delivery credential (see the 2026-08-05 platform work). Fulfilment
+  planning does not depend on it either way - it plans and quotes, it does not
+  execute.
+
+- **The fee beneficiary is derived, never stored as vendor-editable data.** The
+  "single boolean decision recorded on the fulfilment unit" this document asked
+  for is `commerce_fulfilment_missions.fee_beneficiary`, and the database
+  refuses a PLATFORM_LOGISTICS mission that names the vendor.
+
+## What the original architecture phase did not do
+
+No fulfilment aggregate, planner, or worker was implemented then. This document
+fixed the model so `internal/features/fulfilment` and its integration clients
+were built against an agreed shape. Section 17C has since implemented planning;
+mission creation, lifecycle and replanning remain later work.

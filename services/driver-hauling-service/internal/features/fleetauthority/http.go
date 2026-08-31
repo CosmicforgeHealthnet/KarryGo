@@ -61,6 +61,18 @@ func Register(root *gin.RouterGroup, h *Handler, verifier *serviceauth.Verifier,
 // Boundary returns Hauling's common HMAC-v2, caller allowlist and durable
 // nonce replay gates for other private authority route groups.
 func Boundary(h *Handler, verifier *serviceauth.Verifier, allowed []string) []gin.HandlerFunc {
+	return BoundaryWithDB(h.db, verifier, allowed)
+}
+
+// BoundaryWithDB is the same three gates for a private surface that has no
+// fleetauthority handler of its own — the internal commerce quote endpoint
+// being the case that needs it.
+//
+// It exists so replay protection has exactly one implementation in this
+// service. A second surface hand-rolling its own nonce insert is how one of
+// them ends up subtly weaker than the other.
+func BoundaryWithDB(db *pgxpool.Pool, verifier *serviceauth.Verifier, allowed []string) []gin.HandlerFunc {
+	h := &Handler{db: db}
 	return []gin.HandlerFunc{serviceauth.Middleware(verifier), h.allow(allowed), h.rejectReplay()}
 }
 

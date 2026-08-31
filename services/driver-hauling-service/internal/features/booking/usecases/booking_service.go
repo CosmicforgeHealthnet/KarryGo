@@ -74,6 +74,15 @@ type PaymentClient interface {
 	Refund(ctx context.Context, paymentIntentID string, amountKobo int64, reason string) error
 }
 
+type CommerceDeliverySettlementAuthority interface {
+	ReleaseCommerceDelivery(ctx context.Context, parentOrderID, vendorOrderID, providerID, completionReference string) error
+}
+
+type commerceMissionScopeReader interface {
+	CommerceMissionScope(ctx context.Context, bookingID string) (string, []string, bool, error)
+	ListCompletedCommerceBookings(ctx context.Context, limit int) ([]string, error)
+}
+
 var ErrPaymentOutcomeUnknown = errors.New("payment authority outcome is unknown")
 
 type PaymentHoldInput struct {
@@ -84,19 +93,20 @@ type PaymentHoldInput struct {
 }
 
 type BookingService struct {
-	bookings          bookingrepo.BookingRepository
-	availability      availabilityrepositories.AvailabilityStore
-	trucks            TruckLookup
-	payments          PaymentClient
-	notifier          *bookingclients.BookingNotifier
-	matchTimeout      time.Duration // per-provider acceptance window
-	searchWindow      time.Duration // total time to keep searching before unmatched
-	maxRadiusKm       float64
-	allowCashPayments bool
-	restrictions      RestrictionGate
-	activeMatches     sync.Map // map[bookingID]*matchHandle
-	handoverSecret    []byte
-	routes            routing.Fetcher
+	bookings           bookingrepo.BookingRepository
+	availability       availabilityrepositories.AvailabilityStore
+	trucks             TruckLookup
+	payments           PaymentClient
+	commerceSettlement CommerceDeliverySettlementAuthority
+	notifier           *bookingclients.BookingNotifier
+	matchTimeout       time.Duration // per-provider acceptance window
+	searchWindow       time.Duration // total time to keep searching before unmatched
+	maxRadiusKm        float64
+	allowCashPayments  bool
+	restrictions       RestrictionGate
+	activeMatches      sync.Map // map[bookingID]*matchHandle
+	handoverSecret     []byte
+	routes             routing.Fetcher
 }
 
 // matchHandle wraps a context.CancelFunc so it can be stored in sync.Map and
@@ -111,6 +121,7 @@ type Options struct {
 	Availability        availabilityrepositories.AvailabilityStore
 	Trucks              TruckLookup
 	Payments            PaymentClient // nil disables payment binding (local dev)
+	CommerceSettlement  CommerceDeliverySettlementAuthority
 	Notifier            *bookingclients.BookingNotifier
 	MatchTimeoutSeconds int
 	SearchWindowSeconds int
@@ -140,18 +151,19 @@ func NewBookingService(opts Options) *BookingService {
 		searchWindow = matchTimeout
 	}
 	return &BookingService{
-		bookings:          opts.Bookings,
-		availability:      opts.Availability,
-		trucks:            opts.Trucks,
-		payments:          opts.Payments,
-		notifier:          opts.Notifier,
-		matchTimeout:      matchTimeout,
-		searchWindow:      searchWindow,
-		maxRadiusKm:       radius,
-		allowCashPayments: opts.AllowCashPayments,
-		restrictions:      opts.Restrictions,
-		handoverSecret:    opts.HandoverSecret,
-		routes:            opts.Routes,
+		bookings:           opts.Bookings,
+		availability:       opts.Availability,
+		trucks:             opts.Trucks,
+		payments:           opts.Payments,
+		commerceSettlement: opts.CommerceSettlement,
+		notifier:           opts.Notifier,
+		matchTimeout:       matchTimeout,
+		searchWindow:       searchWindow,
+		maxRadiusKm:        radius,
+		allowCashPayments:  opts.AllowCashPayments,
+		restrictions:       opts.Restrictions,
+		handoverSecret:     opts.HandoverSecret,
+		routes:             opts.Routes,
 	}
 }
 
@@ -433,6 +445,24 @@ func (s *BookingService) startMatchGoroutine(bookingID string, pickupLat, pickup
 		defer s.activeMatches.CompareAndDelete(bookingID, handle)
 		s.matchBooking(ctx, bookingID, pickupLat, pickupLng)
 	}()
+}
+
+// StartCommerceMatching begins matching for a booking created by the Section
+// 17F commerce mission contract.
+//
+// It is the same matcher every other booking uses. The commerce path needs an
+// exported entry point because the booking is created by that feature's own
+// transaction rather than by CreateBooking, and starting matching in-process
+// keeps the customer from waiting for a sweep. The existing match-recovery
+// worker remains the safety net: a booking left in pending_match by a crash is
+// re-adopted regardless of whether this call ever ran.
+func (s *BookingService) StartCommerceMatching(
+	_ context.Context, bookingID string, pickupLat, pickupLng float64,
+) {
+	if s == nil || bookingID == "" {
+		return
+	}
+	s.startMatchGoroutine(bookingID, pickupLat, pickupLng)
 }
 
 // cancelMatch stops the active matching goroutine for a booking, if any.
@@ -729,6 +759,13 @@ func (s *BookingService) autoCompleteDelivered(ctx context.Context) {
 			_ = s.addEvent(ctx, b.ID, "booking_completed", bookingmodels.ActorSystem, "system")
 			s.settleOnComplete(ctx, b.ID)
 			s.notifier.NotifyCustomerCompleted(ctx, b.CustomerID, b.ID, map[string]interface{}{"booking_id": b.ID})
+		}
+	}
+	if scopes, ok := s.bookings.(commerceMissionScopeReader); ok {
+		if completed, readErr := scopes.ListCompletedCommerceBookings(ctx, 100); readErr == nil {
+			for _, bookingID := range completed {
+				s.settleOnComplete(ctx, bookingID)
+			}
 		}
 	}
 }
@@ -1247,6 +1284,23 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 	b, err := s.bookings.GetByID(ctx, bookingID)
 	if err != nil {
 		return
+	}
+	if scopes, ok := s.bookings.(commerceMissionScopeReader); ok {
+		parentID, vendorIDs, commerce, scopeErr := scopes.CommerceMissionScope(ctx, bookingID)
+		if scopeErr != nil {
+			return
+		}
+		if commerce {
+			if s.commerceSettlement == nil || b.ProviderID == nil || strings.TrimSpace(*b.ProviderID) == "" {
+				return
+			}
+			for _, vendorID := range vendorIDs {
+				if err = s.commerceSettlement.ReleaseCommerceDelivery(ctx, parentID, vendorID, *b.ProviderID, bookingID); err != nil {
+					return
+				}
+			}
+			return
+		}
 	}
 	if b.PaymentMethod == bookingmodels.PaymentMethodCash || s.payments == nil {
 		return

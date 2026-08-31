@@ -37,6 +37,8 @@ type Config struct {
 	TaxiServiceSecret     string
 	DispatchServiceURL    string
 	DispatchServiceSecret string
+	VendorServiceURL      string
+	VendorServiceSecret   string
 
 	AccessTokenTTL time.Duration
 }
@@ -52,7 +54,7 @@ func Load() Config {
 		HaulingProviderTokenSecret:  getEnv("SUPPORT_DISPUTE_HAULING_PROVIDER_TOKEN_SECRET", "development-hauling-provider-token-secret"),
 		TaxiProviderTokenSecret:     getEnv("SUPPORT_DISPUTE_TAXI_PROVIDER_TOKEN_SECRET", "development-taxi-access-token-secret"),
 		DispatchProviderTokenSecret: getEnv("SUPPORT_DISPUTE_DISPATCH_PROVIDER_TOKEN_SECRET", "development-dispatch-access-token-secret"),
-		ServiceSecrets:              getEnv("SUPPORT_DISPUTE_SERVICE_SECRETS", "customer-service=development-support-dispute-service-secret,taxi-service=development-support-dispute-service-secret,dispatch-delivery-service=development-support-dispute-service-secret,hauling-service=development-support-dispute-service-secret,admin-backoffice-service=development-support-dispute-service-secret,fleet-partner-service=development-support-dispute-service-secret"),
+		ServiceSecrets:              getEnv("SUPPORT_DISPUTE_SERVICE_SECRETS", "customer-service=development-support-dispute-service-secret,taxi-service=development-support-dispute-service-secret,dispatch-delivery-service=development-support-dispute-service-secret,hauling-service=development-support-dispute-service-secret,admin-backoffice-service=development-support-dispute-service-secret,fleet-partner-service=development-support-dispute-service-secret,vendor-service=development-support-dispute-service-secret"),
 
 		// Bare origins only. Empty = feature disabled.
 		NotificationURL:    getEnv("SUPPORT_DISPUTE_NOTIFICATION_URL", ""),
@@ -68,6 +70,8 @@ func Load() Config {
 		TaxiServiceSecret:     getEnv("SUPPORT_DISPUTE_TAXI_SERVICE_SECRET", "development-support-dispute-service-secret"),
 		DispatchServiceURL:    getEnv("SUPPORT_DISPUTE_DISPATCH_SERVICE_URL", ""),
 		DispatchServiceSecret: getEnv("SUPPORT_DISPUTE_DISPATCH_SERVICE_SECRET", "development-support-dispute-service-secret"),
+		VendorServiceURL:      getEnv("SUPPORT_DISPUTE_VENDOR_SERVICE_URL", ""),
+		VendorServiceSecret:   getEnv("SUPPORT_DISPUTE_VENDOR_SERVICE_SECRET", "development-vendor-support-secret"),
 	}
 }
 

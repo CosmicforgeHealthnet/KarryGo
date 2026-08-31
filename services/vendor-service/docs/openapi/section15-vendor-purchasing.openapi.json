@@ -1,0 +1,3665 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service \u2014 Section 15 purchasing",
+    "version": "15.4.0",
+    "description": "Suppliers, supplier products and exact purchase-unit conversion; purchase orders with configurable approval policies; goods receiving with inspection, discrepancies and immutable purchase-cost evidence; and the operational layer of dashboards, supplier performance, outstanding deliveries and alerts.\n\nGeneric Inventory (Section 14) remains the sole physical stock authority. Receiving posts the **accepted** quantity into Inventory and nothing else: damaged, rejected, short and wrong-item quantities become discrepancy evidence and never become sellable stock. Posting is exactly-once per goods receipt.\n\nPurchasing records commercial cost. It never moves money: receiving stock creates no wallet transaction, ledger entry, payout or payment. Financial settlement is a separate authority.\n\nAn approved purchase order is a commitment. A supplier invoice above the approved amount does not rewrite it; it raises COST_VARIANCE evidence and follows the configured approval policy."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/purchasing/alerts": {
+      "get": {
+        "operationId": "getpurchasing_alerts",
+        "summary": "Read alerts",
+        "description": "Requires `vendor.purchasing.dashboard.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/alerts/{alertId}/acknowledge": {
+      "post": {
+        "operationId": "postpurchasing_alerts_alertId_acknowledge",
+        "summary": "Acknowledge alerts alertId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "alertId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/alerts/{alertId}/resolve": {
+      "post": {
+        "operationId": "postpurchasing_alerts_alertId_resolve",
+        "summary": "Resolve alerts alertId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "alertId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/approval-policy": {
+      "get": {
+        "operationId": "getpurchasing_approval_policy",
+        "summary": "Read approval policy",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putpurchasing_approval_policy",
+        "summary": "Replace approval policy",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/dashboard": {
+      "get": {
+        "operationId": "getpurchasing_dashboard",
+        "summary": "Read dashboard",
+        "description": "Requires `vendor.purchasing.dashboard.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/goods-receipts": {
+      "get": {
+        "operationId": "getpurchasing_goods_receipts",
+        "summary": "Read goods receipts",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postpurchasing_goods_receipts",
+        "summary": "Create goods receipts",
+        "description": "Requires `vendor.purchasing.receive`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/goods-receipts/{receiptId}": {
+      "get": {
+        "operationId": "getpurchasing_goods_receipts_receiptId",
+        "summary": "Read goods receipts receiptId",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/goods-receipts/{receiptId}/confirm": {
+      "post": {
+        "operationId": "postpurchasing_goods_receipts_receiptId_confirm",
+        "summary": "Confirm goods receipts receiptId",
+        "description": "Requires `vendor.purchasing.receive`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/goods-receipts/{receiptId}/documents": {
+      "get": {
+        "operationId": "getpurchasing_goods_receipts_receiptId_documents",
+        "summary": "Read goods receipts receiptId documents",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postpurchasing_goods_receipts_receiptId_documents",
+        "summary": "Create goods receipts receiptId documents",
+        "description": "Requires `vendor.purchasing.receive`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/goods-receipts/{receiptId}/inspection": {
+      "put": {
+        "operationId": "putpurchasing_goods_receipts_receiptId_inspection",
+        "summary": "Replace goods receipts receiptId inspection",
+        "description": "Requires `vendor.purchasing.receive`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/goods-receipts/{receiptId}/reverse": {
+      "post": {
+        "operationId": "postpurchasing_goods_receipts_receiptId_reverse",
+        "summary": "Reverse goods receipts receiptId",
+        "description": "Requires `vendor.purchasing.receive`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/outstanding-deliveries": {
+      "get": {
+        "operationId": "getpurchasing_outstanding_deliveries",
+        "summary": "Read outstanding deliveries",
+        "description": "Requires `vendor.purchasing.dashboard.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-cost-history": {
+      "get": {
+        "operationId": "getpurchasing_purchase_cost_history",
+        "summary": "Read purchase cost history",
+        "description": "Requires `vendor.purchasing.cost.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders": {
+      "get": {
+        "operationId": "getpurchasing_purchase_orders",
+        "summary": "Read purchase orders",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postpurchasing_purchase_orders",
+        "summary": "Create purchase orders",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}": {
+      "get": {
+        "operationId": "getpurchasing_purchase_orders_purchaseOrderId",
+        "summary": "Read purchase orders purchaseOrderId",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchpurchasing_purchase_orders_purchaseOrderId",
+        "summary": "Update purchase orders purchaseOrderId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}/approvals": {
+      "get": {
+        "operationId": "getpurchasing_purchase_orders_purchaseOrderId_approvals",
+        "summary": "Read purchase orders purchaseOrderId approvals",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}/approve": {
+      "post": {
+        "operationId": "postpurchasing_purchase_orders_purchaseOrderId_approve",
+        "summary": "Approve purchase orders purchaseOrderId",
+        "description": "Requires `vendor.purchasing.approve`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}/cancel": {
+      "post": {
+        "operationId": "postpurchasing_purchase_orders_purchaseOrderId_cancel",
+        "summary": "Cancel purchase orders purchaseOrderId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}/close": {
+      "post": {
+        "operationId": "postpurchasing_purchase_orders_purchaseOrderId_close",
+        "summary": "Close purchase orders purchaseOrderId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}/lines": {
+      "put": {
+        "operationId": "putpurchasing_purchase_orders_purchaseOrderId_lines",
+        "summary": "Replace purchase orders purchaseOrderId lines",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}/order": {
+      "post": {
+        "operationId": "postpurchasing_purchase_orders_purchaseOrderId_order",
+        "summary": "Order purchase orders purchaseOrderId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}/reject": {
+      "post": {
+        "operationId": "postpurchasing_purchase_orders_purchaseOrderId_reject",
+        "summary": "Reject purchase orders purchaseOrderId",
+        "description": "Requires `vendor.purchasing.approve`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/purchase-orders/{purchaseOrderId}/submit": {
+      "post": {
+        "operationId": "postpurchasing_purchase_orders_purchaseOrderId_submit",
+        "summary": "Submit purchase orders purchaseOrderId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "purchaseOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/receiving-policies/branches/{branchId}": {
+      "get": {
+        "operationId": "getpurchasing_receiving_policies_branches_branchId",
+        "summary": "Read receiving policies branches branchId",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putpurchasing_receiving_policies_branches_branchId",
+        "summary": "Replace receiving policies branches branchId",
+        "description": "Requires `vendor.purchasing.receive`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/supplier-categories": {
+      "get": {
+        "operationId": "getpurchasing_supplier_categories",
+        "summary": "Read supplier categories",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postpurchasing_supplier_categories",
+        "summary": "Create supplier categories",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/supplier-categories/{categoryId}": {
+      "patch": {
+        "operationId": "patchpurchasing_supplier_categories_categoryId",
+        "summary": "Update supplier categories categoryId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/supplier-categories/{categoryId}/archive": {
+      "post": {
+        "operationId": "postpurchasing_supplier_categories_categoryId_archive",
+        "summary": "Archive supplier categories categoryId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/supplier-discrepancies": {
+      "get": {
+        "operationId": "getpurchasing_supplier_discrepancies",
+        "summary": "Read supplier discrepancies",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/supplier-discrepancies/{discrepancyId}": {
+      "get": {
+        "operationId": "getpurchasing_supplier_discrepancies_discrepancyId",
+        "summary": "Read supplier discrepancies discrepancyId",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "discrepancyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/supplier-discrepancies/{discrepancyId}/approve": {
+      "post": {
+        "operationId": "postpurchasing_supplier_discrepancies_discrepancyId_approve",
+        "summary": "Approve supplier discrepancies discrepancyId",
+        "description": "Requires `vendor.purchasing.discrepancies.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "discrepancyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/supplier-discrepancies/{discrepancyId}/reject": {
+      "post": {
+        "operationId": "postpurchasing_supplier_discrepancies_discrepancyId_reject",
+        "summary": "Reject supplier discrepancies discrepancyId",
+        "description": "Requires `vendor.purchasing.discrepancies.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "discrepancyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/supplier-discrepancies/{discrepancyId}/resolve": {
+      "post": {
+        "operationId": "postpurchasing_supplier_discrepancies_discrepancyId_resolve",
+        "summary": "Resolve supplier discrepancies discrepancyId",
+        "description": "Requires `vendor.purchasing.discrepancies.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "discrepancyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers": {
+      "get": {
+        "operationId": "getpurchasing_suppliers",
+        "summary": "Read suppliers",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postpurchasing_suppliers",
+        "summary": "Create suppliers",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}": {
+      "get": {
+        "operationId": "getpurchasing_suppliers_supplierId",
+        "summary": "Read suppliers supplierId",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchpurchasing_suppliers_supplierId",
+        "summary": "Update suppliers supplierId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/archive": {
+      "post": {
+        "operationId": "postpurchasing_suppliers_supplierId_archive",
+        "summary": "Archive suppliers supplierId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/contacts": {
+      "get": {
+        "operationId": "getpurchasing_suppliers_supplierId_contacts",
+        "summary": "Read suppliers supplierId contacts",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postpurchasing_suppliers_supplierId_contacts",
+        "summary": "Create suppliers supplierId contacts",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/contacts/{contactId}": {
+      "patch": {
+        "operationId": "patchpurchasing_suppliers_supplierId_contacts_contactId",
+        "summary": "Update suppliers supplierId contacts contactId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/contacts/{contactId}/archive": {
+      "post": {
+        "operationId": "postpurchasing_suppliers_supplierId_contacts_contactId_archive",
+        "summary": "Archive suppliers supplierId contacts contactId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/performance": {
+      "get": {
+        "operationId": "getpurchasing_suppliers_supplierId_performance",
+        "summary": "Read suppliers supplierId performance",
+        "description": "Requires `vendor.purchasing.performance.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/products": {
+      "get": {
+        "operationId": "getpurchasing_suppliers_supplierId_products",
+        "summary": "Read suppliers supplierId products",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postpurchasing_suppliers_supplierId_products",
+        "summary": "Create suppliers supplierId products",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/products/{supplierProductId}": {
+      "get": {
+        "operationId": "getpurchasing_suppliers_supplierId_products_supplierProductId",
+        "summary": "Read suppliers supplierId products supplierProductId",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supplierProductId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchpurchasing_suppliers_supplierId_products_supplierProductId",
+        "summary": "Update suppliers supplierId products supplierProductId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supplierProductId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/products/{supplierProductId}/archive": {
+      "post": {
+        "operationId": "postpurchasing_suppliers_supplierId_products_supplierProductId_archive",
+        "summary": "Archive suppliers supplierId products supplierProductId",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supplierProductId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/purchasing/suppliers/{supplierId}/terms": {
+      "get": {
+        "operationId": "getpurchasing_suppliers_supplierId_terms",
+        "summary": "Read suppliers supplierId terms",
+        "description": "Requires `vendor.purchasing.read`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repeatable. Intersected with the caller's branch scope; a branch the caller does not hold is refused."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putpurchasing_suppliers_supplierId_terms",
+        "summary": "Replace suppliers supplierId terms",
+        "description": "Requires `vendor.purchasing.manage`. Tenant is derived from the authenticated session and the branch from the caller's scope; neither can be asserted by the request body.",
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchasingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful purchasing response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Repeat-safe key. The same key with the same payload replays the original outcome; the same key with a different payload is a conflict."
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Optimistic concurrency. Carries the expected aggregate version; a stale value is refused rather than overwriting a concurrent change."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Bounded error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ApprovalScope": {
+        "type": "string",
+        "enum": [
+          "BRANCH_OR_BUSINESS",
+          "BUSINESS_ONLY"
+        ]
+      },
+      "ConversionMode": {
+        "type": "string",
+        "enum": [
+          "SAME_AS_INVENTORY",
+          "EXACT_INTEGER_MULTIPLE"
+        ],
+        "description": "Purchase-unit conversion is always exact. Approximate conversion is never accepted, because an approximate multiplier would make received stock quantities wrong."
+      },
+      "DiscrepancyStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "APPROVAL_REQUIRED",
+          "APPROVED",
+          "REJECTED",
+          "RESOLVED",
+          "VOIDED"
+        ]
+      },
+      "DiscrepancyType": {
+        "type": "string",
+        "enum": [
+          "SHORT_DELIVERY",
+          "OVER_DELIVERY",
+          "DAMAGED",
+          "REJECTED",
+          "WRONG_ITEM",
+          "QUALITY_ISSUE",
+          "COST_VARIANCE"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "GoodsReceiptStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "INSPECTED",
+          "POSTED",
+          "REVERSED",
+          "CANCELLED"
+        ]
+      },
+      "MetricStatus": {
+        "type": "string",
+        "enum": [
+          "OK",
+          "INSUFFICIENT_HISTORY"
+        ],
+        "description": "INSUFFICIENT_HISTORY means the metric has no denominator yet. Its value is null and must not be rendered as zero or as a perfect score: a supplier nobody has received from has no on-time rate, not a hundred percent one."
+      },
+      "PurchaseCostObservation": {
+        "type": "object",
+        "description": "Immutable commercial evidence of what was actually purchased. Append-only: the database refuses UPDATE and DELETE, and a reversal appends reversal evidence rather than erasing the original. This is not a wallet or ledger transaction and moves no money.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "supplier_product_id": {
+            "type": "string"
+          },
+          "inventory_item_id": {
+            "type": "string"
+          },
+          "purchase_order_id": {
+            "type": "string"
+          },
+          "goods_receipt_id": {
+            "type": "string"
+          },
+          "purchase_unit_code": {
+            "type": "string"
+          },
+          "inventory_units_per_purchase_unit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "purchase_unit_cost_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_cost_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PurchaseOrderStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "SUBMITTED",
+          "APPROVED",
+          "ORDERED",
+          "PARTIALLY_RECEIVED",
+          "RECEIVED",
+          "CLOSED",
+          "REJECTED",
+          "CANCELLED"
+        ]
+      },
+      "PurchasingAlertType": {
+        "type": "string",
+        "enum": [
+          "PO_EXPECTED_SOON",
+          "PO_EXPECTED_TODAY",
+          "PO_OVERDUE",
+          "PO_MATERIALLY_OVERDUE",
+          "SUPPLIER_DELIVERY_INCOMPLETE",
+          "DISCREPANCY_UNRESOLVED",
+          "DISCREPANCY_ESCALATED"
+        ]
+      },
+      "PurchasingCommand": {
+        "type": "object",
+        "description": "Command body. Mutations that change a versioned aggregate carry `expected_version`; a stale value is rejected with 409 rather than overwriting a concurrent change.",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Ratio": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "metric_status": {
+            "$ref": "#/components/schemas/MetricStatus"
+          },
+          "sample_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "SupplierPerformance": {
+        "type": "object",
+        "description": "Evidence-based supplier summary derived from purchase orders, goods receipts, discrepancies and immutable purchase-cost observations. There is no composite score.",
+        "properties": {
+          "supplier_id": {
+            "type": "string"
+          },
+          "observed_from": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "observed_to": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "on_time_rate": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "short_delivery_rate": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "damage_rate": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "rejection_rate": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "acceptance_rate": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "cost_variance_rate": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "latest_observed_unit_cost_minor": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "SupplierStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "ARCHIVED"
+        ]
+      }
+    }
+  }
+}

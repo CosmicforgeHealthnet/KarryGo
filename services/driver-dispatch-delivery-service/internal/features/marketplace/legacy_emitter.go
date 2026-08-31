@@ -84,3 +84,18 @@ func (e *LegacyEventEmitter) Emit(ctx context.Context, tx pgx.Tx, eventType stri
 	return e.repo.PublishMarketplaceEvent(ctx, tx, eventType, aggregateType,
 		aggregateID, aggregateVersion, correlationID, causationID, payload)
 }
+
+// EmitTarget publishes a domain event to a named consumer through the same
+// durable outbox used by the public marketplace lifecycle.
+func (e *LegacyEventEmitter) EmitTarget(ctx context.Context, tx pgx.Tx,
+	targetService, eventType, aggregateType, aggregateID string, aggregateVersion int64,
+	correlationID, causationID string, payload map[string]any) error {
+	if !e.Enabled() {
+		return nil
+	}
+	if tx == nil {
+		return fmt.Errorf("marketplace: event %s must be published inside the transaction that produced it", eventType)
+	}
+	return e.repo.PublishTargetedEvent(ctx, tx, targetService, eventType, aggregateType,
+		aggregateID, aggregateVersion, correlationID, causationID, payload)
+}

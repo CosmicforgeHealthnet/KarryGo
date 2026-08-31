@@ -274,3 +274,37 @@ Expected ready response:
 
 - JWT access tokens do not currently include `jti`; access-token blacklist support is deferred until `jti` exists.
 - `provider.profile.suspended` subscriber is present as a placeholder and still needs its payload handling implementation.
+
+## Commerce delivery
+
+The service owns the route-aware motorcycle Commerce quote and canonical
+multi-pickup runtime documented in
+[`docs/commerce-delivery.md`](docs/commerce-delivery.md). Its 13 capability
+routes are described by
+[`docs/openapi/commerce-dispatch-delivery.openapi.json`](docs/openapi/commerce-dispatch-delivery.openapi.json),
+and the provider-app handoff is in
+[`docs/commerce-delivery-provider-handoff.md`](docs/commerce-delivery-provider-handoff.md).
+
+Commerce delivery uses the normal public provider marketplace, not Fleet
+private orders. Vendor Service supplies immutable commercial evidence and
+projects lifecycle events; Dispatch remains the only route, assignment, trip
+and custody authority.
+
+## Operational evidence and provider transfer
+
+The Commerce runtime also owns append-only operational evidence, controlled
+delivery exceptions, product-class-aware returns and provider-to-provider
+post-custody transfer. These extend the same canonical mission and are
+documented in
+[`docs/operational-evidence-exceptions-provider-transfer.md`](docs/operational-evidence-exceptions-provider-transfer.md).
+The OpenAPI contract now contains 20 Commerce routes: the accepted 13-route
+delivery foundation plus six provider operational commands and one private
+HMAC-v2 evidence read.
+
+Operational evidence references are authorized for attachment, not merely
+looked up syntactically. Before writing evidence or completing a provider
+transfer, Dispatch reads active private metadata from media-file-service and
+requires the Media object to be owned by the exact Dispatch mission. When the
+upload carries Parcel binding metadata, the exact Parcel set must also match.
+A valid ref from another mission or Parcel is rejected before persistence;
+media-file-service remains the byte and private-metadata authority.

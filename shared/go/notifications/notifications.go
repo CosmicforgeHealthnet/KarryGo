@@ -39,6 +39,8 @@ const (
 const (
 	RecipientCustomer = "customer"
 	RecipientProvider = "provider"
+	RecipientVendor   = "vendor"
+	RecipientStaff    = "vendor_staff"
 )
 
 // Event types grouped by domain. Senders should reference these constants
@@ -107,6 +109,9 @@ const (
 	EventWithdrawalReversed  = "withdrawal.reversed"
 	EventRefundCompleted     = "refund.completed"
 	EventRefundFailed        = "refund.failed"
+
+	// commerce
+	EventCommerceCustomerETAChanged = "commerce.customer_eta.changed"
 )
 
 // IdempotencyKey builds a deterministic idempotency key for a notification
@@ -128,18 +133,23 @@ type Recipient struct {
 }
 
 type Request struct {
-	IDempotencyKey string                 `json:"idempotency_key"`
-	SourceService  string                 `json:"source_service"`
-	EventType      string                 `json:"event_type"`
-	Recipient      Recipient              `json:"recipient"`
-	Channels       []string               `json:"channels,omitempty"`
-	TemplateKey    string                 `json:"template_key,omitempty"`
-	Locale         string                 `json:"locale,omitempty"`
-	Title          string                 `json:"title,omitempty"`
-	Body           string                 `json:"body,omitempty"`
-	Data           map[string]interface{} `json:"data,omitempty"`
-	TemplateData   map[string]interface{} `json:"template_data,omitempty"`
-	Priority       string                 `json:"priority,omitempty"`
+	IDempotencyKey      string                 `json:"idempotency_key"`
+	SourceService       string                 `json:"source_service"`
+	SourceAggregateType string                 `json:"source_aggregate_type,omitempty"`
+	SourceAggregateID   string                 `json:"source_aggregate_id,omitempty"`
+	SourceEventID       string                 `json:"source_event_id,omitempty"`
+	SourceVersion       int64                  `json:"source_version,omitempty"`
+	CorrelationRef      string                 `json:"correlation_ref,omitempty"`
+	EventType           string                 `json:"event_type"`
+	Recipient           Recipient              `json:"recipient"`
+	Channels            []string               `json:"channels,omitempty"`
+	TemplateKey         string                 `json:"template_key,omitempty"`
+	Locale              string                 `json:"locale,omitempty"`
+	Title               string                 `json:"title,omitempty"`
+	Body                string                 `json:"body,omitempty"`
+	Data                map[string]interface{} `json:"data,omitempty"`
+	TemplateData        map[string]interface{} `json:"template_data,omitempty"`
+	Priority            string                 `json:"priority,omitempty"`
 }
 
 type SendResponse struct {
@@ -157,6 +167,12 @@ func (r Request) Validate() error {
 	}
 	if strings.TrimSpace(r.EventType) == "" {
 		fields = append(fields, apperrors.FieldViolation{Field: "event_type", Message: "Event type is required."})
+	}
+	if r.SourceVersion < 0 {
+		fields = append(fields, apperrors.FieldViolation{Field: "source_version", Message: "Source version cannot be negative."})
+	}
+	if (strings.TrimSpace(r.SourceAggregateType) == "") != (strings.TrimSpace(r.SourceAggregateID) == "") {
+		fields = append(fields, apperrors.FieldViolation{Field: "source_aggregate", Message: "Source aggregate type and id must be supplied together."})
 	}
 	if strings.TrimSpace(r.Recipient.Type) == "" {
 		fields = append(fields, apperrors.FieldViolation{Field: "recipient.type", Message: "Recipient type is required."})

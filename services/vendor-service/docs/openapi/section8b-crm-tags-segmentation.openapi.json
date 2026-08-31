@@ -1,0 +1,1149 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor CRM Tags & Segmentation API",
+    "version": "8.2.0",
+    "description": "Section 8B: vendor-defined customer tags and the safe segmentation engine. Segments are audiences only — nothing here sends a message, schedules a campaign or grants marketing permission. Dynamic membership is derived from a validated JSON rule language; raw SQL is not accepted anywhere, and a rule can only reference fields published by GET /crm/segment-fields."
+  },
+  "servers": [{ "url": "/api/v1/vendor" }],
+  "x-feature-flags": {
+    "service": "VENDOR_SERVICE_ENABLED",
+    "crm": "VENDOR_CRM_ENABLED",
+    "writes": "VENDOR_CRM_WRITES_ENABLED",
+    "segmentation": "VENDOR_CRM_SEGMENTATION_ENABLED",
+    "materialization": "VENDOR_CRM_SEGMENT_MATERIALIZATION_ENABLED",
+    "kill_switch": "COMMERCE_GLOBAL_KILL_SWITCH"
+  },
+  "x-rule-contract": "A dynamic segment rule is a JSON document with schema_version 1, a root group-or-condition and an optional exclusion arm. A condition names a field key from GET /crm/segment-fields, an operator that field publishes, and a typed value. Field keys, operators and values are validated against a closed registry before evaluation and travel to the database only as bind parameters. There is no field, operator or escape hatch that accepts SQL, a column name, a table name or a raw predicate.",
+  "x-availability-contract": "A condition over data this deployment has never observed is undecidable, not false: it selects nobody, and a negation of it selects nobody either. Preview reports the affected fields in unavailable_fields and adds a warning. This is what keeps 'we have no commercial data for this customer' from being read as 'this customer spent nothing'.",
+  "x-privacy-contract": "Redacted and merged-away relationships are excluded before any vendor rule is applied, and no rule can re-include them: privacy state is not a targetable field. A generation swap locks candidate profiles and re-evaluates the complete rule under the same row-level fence used by privacy and identity merge, making both commit orderings safe. Redaction removes tag membership, segment membership and manual exclusions transactionally. Restriction and marketing suppression immediately remove membership from affected eligibility-based audiences and repair counts without changing consent decisions. Segment membership is never proof of marketing permission — consent and privacy are re-checked at send time by whatever later section does the sending.",
+  "x-scope-contract": "A BUSINESS-scope tag or segment requires a vendor-wide grant. A BRANCH-scope object requires that branch. A branch-scoped caller cannot create a business-scope object, cannot see one in a list or by id, cannot preview at business scope, and sees branch-scoped counts everywhere — the count is a disclosure, not just the sample. A branch-scoped rule reads that branch's slice of every commercial fact rather than the business total.",
+  "x-error-contract": "All errors use ErrorEnvelope. A stable machine code travels in error.details.code (see SegmentErrorCode); the human message is free to change. An object outside the caller's tenant or scope returns not_found so identifiers cannot be probed.",
+  "x-idempotency-contract": "Every command endpoint requires an Idempotency-Key header, scoped per business and endpoint. The same key with the same request body replays the stored response; the same key with a different body is a conflict. A failed command releases the key so a genuine retry can execute.",
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/crm/segment-fields": {
+      "get": {
+        "operationId": "listSegmentFields",
+        "summary": "List the fields, operators and limits a segment rule may use",
+        "description": "The registry is the contract between a rule builder and the engine. A client must read this rather than invent field keys: a field absent from this response cannot be used, whatever the client sends. The SQL each field maps to is deliberately not exposed.",
+        "x-permission": "vendor.crm.segments.read",
+        "responses": {
+          "200": {
+            "description": "Field registry, complexity limits and bulk bounds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "schema_version": { "type": "integer", "example": 1 },
+                        "fields": { "type": "array", "items": { "$ref": "#/components/schemas/SegmentField" } },
+                        "limits": { "$ref": "#/components/schemas/RuleLimits" },
+                        "bulk": {
+                          "type": "object",
+                          "properties": {
+                            "default_batch": { "type": "integer", "example": 100 },
+                            "max_batch": { "type": "integer", "example": 500 }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/crm/tags": {
+      "get": {
+        "operationId": "listCrmTags",
+        "summary": "List vendor-defined customer tags",
+        "description": "Member counts are scope-filtered: a branch-scoped caller's count covers their own branches only, so a business-wide total cannot be inferred from a branch view.",
+        "x-permission": "vendor.crm.tags.read",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" },
+          { "$ref": "#/components/parameters/ScopeTypeFilter" },
+          { "$ref": "#/components/parameters/BranchRefFilter" },
+          { "$ref": "#/components/parameters/TagStatusFilter" },
+          { "$ref": "#/components/parameters/SearchFilter" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of tags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": { "type": "array", "items": { "$ref": "#/components/schemas/Tag" } },
+                        "pagination": { "$ref": "#/components/schemas/Pagination" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      },
+      "post": {
+        "operationId": "createCrmTag",
+        "summary": "Define a customer tag",
+        "description": "Tag names are compared case- and whitespace-insensitively, so VIP, vip and ' VIP ' are one tag. Names beginning sys:, system: or karrygo: are reserved for platform-computed traits and are refused.",
+        "x-permission": "vendor.crm.tags.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateTagRequest" } } }
+        },
+        "responses": {
+          "201": { "$ref": "#/components/responses/TagResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/tags/{tagId}": {
+      "parameters": [{ "$ref": "#/components/parameters/TagId" }],
+      "get": {
+        "operationId": "getCrmTag",
+        "summary": "Get one customer tag",
+        "x-permission": "vendor.crm.tags.read",
+        "responses": {
+          "200": { "$ref": "#/components/responses/TagResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "updateCrmTag",
+        "summary": "Rename or re-describe a tag",
+        "description": "Scope is immutable. Moving a tag between branches would silently reinterpret every existing membership.",
+        "x-permission": "vendor.crm.tags.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateTagRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/TagResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/tags/{tagId}/archive": {
+      "parameters": [{ "$ref": "#/components/parameters/TagId" }],
+      "post": {
+        "operationId": "archiveCrmTag",
+        "summary": "Retire a tag",
+        "description": "Archiving removes current memberships so the tag stops selecting customers, and keeps the tag row and its audit trail so historical records still resolve. An archived tag cannot receive new memberships.",
+        "x-permission": "vendor.crm.tags.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": false,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExpectedVersionRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/TagResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/crm/tags/bulk-assign": {
+      "post": {
+        "operationId": "bulkAssignCrmTag",
+        "summary": "Assign one tag to many customers",
+        "description": "All or nothing: every relationship is validated before anything is written, so a batch containing an unknown, out-of-scope, redacted or merged-away reference applies nothing. Failures are reported as a single not-found rather than per id, so the endpoint cannot be used to enumerate relationships. References are relationship ids only — never an email address or phone number, which CRM does not hold.",
+        "x-permission": "vendor.crm.tags.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkTagRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/BulkResultResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/tags/bulk-remove": {
+      "post": {
+        "operationId": "bulkRemoveCrmTag",
+        "summary": "Remove one tag from many customers",
+        "x-permission": "vendor.crm.tags.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkTagRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/BulkResultResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/segments": {
+      "get": {
+        "operationId": "listCrmSegments",
+        "summary": "List customer segments",
+        "description": "A branch-scoped caller never sees a BUSINESS-scope segment: its member count alone would describe the size and shape of the business-wide customer base.",
+        "x-permission": "vendor.crm.segments.read",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" },
+          { "$ref": "#/components/parameters/SegmentTypeFilter" },
+          { "$ref": "#/components/parameters/ScopeTypeFilter" },
+          { "$ref": "#/components/parameters/BranchRefFilter" },
+          { "$ref": "#/components/parameters/SegmentStatusFilter" },
+          { "$ref": "#/components/parameters/EvaluationStatusFilter" },
+          { "$ref": "#/components/parameters/SearchFilter" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of segments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": { "type": "array", "items": { "$ref": "#/components/schemas/Segment" } },
+                        "pagination": { "$ref": "#/components/schemas/Pagination" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      },
+      "post": {
+        "operationId": "createCrmSegment",
+        "summary": "Define a customer segment",
+        "description": "A STATIC segment has explicit membership and must not carry a rule. A DYNAMIC segment must carry one and can never have members added by hand. Segments are created in DRAFT.",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateSegmentRequest" },
+              "examples": {
+                "static": {
+                  "summary": "Manually maintained list",
+                  "value": {
+                    "name": "Manual VIP List",
+                    "segment_type": "STATIC",
+                    "scope": { "type": "BUSINESS" },
+                    "description": "Manually maintained VIP relationship group"
+                  }
+                },
+                "dynamic": {
+                  "summary": "Repeat customers over the last 30 days",
+                  "value": {
+                    "name": "Active Repeat Customers",
+                    "segment_type": "DYNAMIC",
+                    "scope": { "type": "BUSINESS" },
+                    "rule": {
+                      "schema_version": 1,
+                      "root": {
+                        "op": "AND",
+                        "children": [
+                          { "field": "commercial.completed_order_count", "operator": "GTE", "value": 5 },
+                          {
+                            "field": "commercial.last_completed_order_at",
+                            "operator": "WITHIN_LAST",
+                            "value": { "amount": 30, "unit": "DAY" }
+                          },
+                          {
+                            "op": "OR",
+                            "children": [
+                              {
+                                "field": "relationship.capability_type",
+                                "operator": "IN",
+                                "value": ["RESTAURANT", "FAST_FOOD", "CLOUD_KITCHEN", "PASTRY_BAKERY"]
+                              },
+                              { "field": "crm.tags", "operator": "HAS_TAG", "value": { "tag_id": "crmtag_vip" } }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "$ref": "#/components/responses/SegmentResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/segments/preview": {
+      "post": {
+        "operationId": "previewCrmSegment",
+        "summary": "Evaluate an unsaved rule",
+        "description": "Preview persists nothing. It returns the definition hash, the instant it evaluated against, a match count, a privacy-safe sample with per-condition results, and warnings for fields whose data this deployment has never observed. It needs only the segment read permission, so an analyst can explore audiences without being able to create one.",
+        "x-permission": "vendor.crm.segments.read",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PreviewRequest" },
+              "examples": {
+                "branchHighValue": {
+                  "summary": "High-value customers at one branch",
+                  "value": {
+                    "scope": { "type": "BRANCH", "branch_ref": "brn_lekki" },
+                    "rule": {
+                      "schema_version": 1,
+                      "root": {
+                        "op": "AND",
+                        "children": [
+                          {
+                            "field": "commercial.net_spend_minor",
+                            "operator": "GTE",
+                            "value": { "currency": "NGN", "minor": 10000000 }
+                          },
+                          {
+                            "field": "relationship.capability_type",
+                            "operator": "IN",
+                            "value": ["RESTAURANT", "PASTRY_BAKERY"]
+                          }
+                        ]
+                      }
+                    },
+                    "sample_limit": 25
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/PreviewResult" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "get": {
+        "operationId": "getCrmSegment",
+        "summary": "Get one segment with its current definition",
+        "x-permission": "vendor.crm.segments.read",
+        "responses": {
+          "200": { "$ref": "#/components/responses/SegmentResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "updateCrmSegment",
+        "summary": "Rename a segment or replace its rule",
+        "description": "Type and scope are immutable. A changed rule mints a new immutable definition version, marks the segment STALE and enqueues a rebuild — while deliberately leaving the previous successful membership readable until the new run succeeds, so editing a live audience never empties it.",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateSegmentRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SegmentResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}/activate": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "post": {
+        "operationId": "activateCrmSegment",
+        "summary": "Move a draft segment into service",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": false,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExpectedVersionRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SegmentResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}/archive": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "post": {
+        "operationId": "archiveCrmSegment",
+        "summary": "Retire a segment",
+        "description": "ARCHIVED is terminal and drops the materialized membership: an audience that was retired must not come back later carrying the membership it had months ago.",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": false,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExpectedVersionRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SegmentResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}/materialize": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "post": {
+        "operationId": "materializeCrmSegment",
+        "summary": "Enqueue a membership rebuild",
+        "description": "Asynchronous. Requesting a rebuild that is already queued or running for the same definition returns the run in flight rather than stacking duplicates. A failed rebuild never deletes the previous successful membership.",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "responses": {
+          "202": {
+            "description": "Evaluation queued or already in flight",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Evaluation" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}/members": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "get": {
+        "operationId": "listCrmSegmentMembers",
+        "summary": "Page a segment's current membership",
+        "description": "Reads the current generation only, so a rebuild in flight is invisible: a caller never sees a half-built audience or two generations mixed. Every row is a relationship reference and a projection state — there is no contact data to return.",
+        "x-permission": "vendor.crm.segments.members.read",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of members with the membership's freshness",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": { "type": "array", "items": { "$ref": "#/components/schemas/SegmentMember" } },
+                        "membership": { "$ref": "#/components/schemas/MembershipState" },
+                        "pagination": { "$ref": "#/components/schemas/Pagination" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}/members/bulk-add": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "post": {
+        "operationId": "bulkAddCrmSegmentMembers",
+        "summary": "Add explicit members to a static segment",
+        "description": "Static segments only. A dynamic segment refuses this because a hand-added member would be discarded at the next rebuild, so accepting the write would be a lie.",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkProfileRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/BulkResultResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}/members/bulk-remove": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "post": {
+        "operationId": "bulkRemoveCrmSegmentMembers",
+        "summary": "Remove explicit members from a static segment",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkProfileRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/BulkResultResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}/exclusions/bulk-add": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "post": {
+        "operationId": "bulkAddCrmSegmentExclusions",
+        "summary": "Exclude customers from a dynamic segment",
+        "description": "Dynamic segments only. An exclusion is a standing decision that survives rule edits and rebuilds, and takes effect immediately rather than at the next rebuild.",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkProfileRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/BulkResultResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/crm/segments/{segmentId}/exclusions/bulk-remove": {
+      "parameters": [{ "$ref": "#/components/parameters/SegmentId" }],
+      "post": {
+        "operationId": "bulkRemoveCrmSegmentExclusions",
+        "summary": "Lift manual exclusions from a dynamic segment",
+        "x-permission": "vendor.crm.segments.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkProfileRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/BulkResultResponse" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "parameters": {
+      "Limit": {
+        "name": "limit", "in": "query", "required": false,
+        "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+      },
+      "Offset": {
+        "name": "offset", "in": "query", "required": false,
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      },
+      "SearchFilter": {
+        "name": "search", "in": "query", "required": false,
+        "description": "Case- and whitespace-insensitive substring match on the name. Parameterised; the caller cannot choose the column or the operator.",
+        "schema": { "type": "string", "maxLength": 120 }
+      },
+      "ScopeTypeFilter": {
+        "name": "scope_type", "in": "query", "required": false,
+        "schema": { "$ref": "#/components/schemas/ScopeType" }
+      },
+      "BranchRefFilter": {
+        "name": "branch_ref", "in": "query", "required": false,
+        "description": "Filtering by a branch the caller does not hold is refused rather than answered.",
+        "schema": { "type": "string" }
+      },
+      "TagStatusFilter": {
+        "name": "status", "in": "query", "required": false,
+        "schema": { "$ref": "#/components/schemas/TagStatus" }
+      },
+      "SegmentTypeFilter": {
+        "name": "segment_type", "in": "query", "required": false,
+        "schema": { "$ref": "#/components/schemas/SegmentType" }
+      },
+      "SegmentStatusFilter": {
+        "name": "status", "in": "query", "required": false,
+        "schema": { "$ref": "#/components/schemas/SegmentStatus" }
+      },
+      "EvaluationStatusFilter": {
+        "name": "evaluation_status", "in": "query", "required": false,
+        "schema": { "$ref": "#/components/schemas/EvaluationStatus" }
+      },
+      "TagId": {
+        "name": "tagId", "in": "path", "required": true, "schema": { "type": "string" }
+      },
+      "SegmentId": {
+        "name": "segmentId", "in": "path", "required": true, "schema": { "type": "string" }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key", "in": "header", "required": true,
+        "description": "Scoped per business and endpoint. The same key with the same body replays the stored response; the same key with a different body is a conflict.",
+        "schema": { "type": "string", "maxLength": 128 }
+      }
+    },
+    "responses": {
+      "TagResponse": {
+        "description": "A tag",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "$ref": "#/components/schemas/Tag" }
+              }
+            }
+          }
+        }
+      },
+      "SegmentResponse": {
+        "description": "A segment",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "$ref": "#/components/schemas/Segment" }
+              }
+            }
+          }
+        }
+      },
+      "BulkResultResponse": {
+        "description": "Outcome of a bulk operation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "$ref": "#/components/schemas/BulkResult" }
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller lacks the permission, or the object is outside their scope",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "NotFound": {
+        "description": "No such object, or it is outside the caller's tenant or branch scope. The two are deliberately indistinguishable.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Conflict": {
+        "description": "Version conflict, invalid state transition, duplicate name, or a privacy or merge state that forbids the change",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "ValidationFailed": {
+        "description": "Invalid request or rule. Rule rejections carry the offending node's path and a stable code.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Unavailable": {
+        "description": "Segmentation, writes or materialization are disabled by feature flag",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      }
+    },
+    "schemas": {
+      "ScopeType": { "type": "string", "enum": ["BUSINESS", "BRANCH"] },
+      "TagStatus": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] },
+      "SegmentType": { "type": "string", "enum": ["STATIC", "DYNAMIC"] },
+      "SegmentStatus": { "type": "string", "enum": ["DRAFT", "ACTIVE", "ARCHIVED"] },
+      "EvaluationStatus": {
+        "type": "string",
+        "enum": ["NOT_EVALUATED", "QUEUED", "RUNNING", "CURRENT", "STALE", "FAILED"],
+        "description": "CURRENT means the membership matches the current definition. STALE means a successful older materialization is still readable but out of date. FAILED means the latest run failed and no successful materialization has ever completed. A failed run never deletes the previous audience."
+      },
+      "EvaluationRunStatus": {
+        "type": "string",
+        "enum": ["QUEUED", "RUNNING", "SUCCESS", "FAILED", "DEAD_LETTER", "SUPERSEDED"]
+      },
+      "MembershipSource": { "type": "string", "enum": ["STATIC", "DYNAMIC"] },
+      "CountState": {
+        "type": "string",
+        "enum": ["EXACT", "AT_LEAST"],
+        "description": "AT_LEAST means the synchronous count budget was reached. It is a real lower bound, never an estimate."
+      },
+      "FieldType": {
+        "type": "string",
+        "enum": ["BOOLEAN", "INTEGER", "MONEY_MINOR", "ENUM", "TIMESTAMP", "TAG_REFERENCE"]
+      },
+      "FieldSource": {
+        "type": "string",
+        "enum": ["PROFILE", "COMMERCIAL", "RELATIONSHIP", "TAGS", "CONSENT"]
+      },
+      "SegmentOperator": {
+        "type": "string",
+        "enum": [
+          "EQ", "NEQ", "IN", "NOT_IN", "GT", "GTE", "LT", "LTE", "BETWEEN",
+          "EXISTS", "NOT_EXISTS", "BEFORE", "AFTER", "WITHIN_LAST", "HAS_TAG", "NOT_HAS_TAG"
+        ],
+        "description": "The complete operator allowlist. Only the operators a field publishes may be used with it."
+      },
+      "SegmentErrorCode": {
+        "type": "string",
+        "description": "Stable machine code carried in error.details.code.",
+        "enum": [
+          "CRM_TAG_NOT_FOUND", "CRM_TAG_ALREADY_EXISTS", "CRM_TAG_ARCHIVED", "CRM_TAG_SCOPE_DENIED",
+          "CRM_BULK_OPERATION_TOO_LARGE",
+          "CRM_SEGMENT_NOT_FOUND", "CRM_SEGMENT_ALREADY_EXISTS", "CRM_SEGMENT_INVALID_STATE",
+          "CRM_SEGMENT_RULE_REQUIRED", "CRM_SEGMENT_RULE_NOT_ALLOWED", "CRM_SEGMENT_RULE_INVALID",
+          "CRM_SEGMENT_FIELD_NOT_SUPPORTED", "CRM_SEGMENT_OPERATOR_NOT_SUPPORTED", "CRM_SEGMENT_VALUE_INVALID",
+          "CRM_SEGMENT_TOO_COMPLEX", "CRM_SEGMENT_SCOPE_DENIED",
+          "CRM_SEGMENT_EVALUATION_IN_PROGRESS", "CRM_SEGMENT_EVALUATION_FAILED",
+          "CRM_SEGMENT_STATIC_ONLY", "CRM_SEGMENT_DYNAMIC_ONLY",
+          "CRM_SEGMENT_EXCLUSION_EXISTS", "CRM_SEGMENT_MEMBER_NOT_FOUND",
+          "CRM_PROFILE_REDACTED", "CRM_PROFILE_MERGED",
+          "CRM_VERSION_CONFLICT", "CRM_IDEMPOTENCY_CONFLICT", "CRM_CROSS_TENANT_REFERENCE",
+          "CRM_SEGMENTATION_DISABLED"
+        ]
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" },
+          "has_more": { "type": "boolean" }
+        }
+      },
+      "ScopeSelector": {
+        "type": "object",
+        "description": "The object's scope. business_id is never accepted from a request body: tenancy comes from the authenticated session.",
+        "properties": {
+          "type": { "$ref": "#/components/schemas/ScopeType" },
+          "branch_ref": { "type": "string", "description": "Required for BRANCH scope, forbidden for BUSINESS scope." }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "properties": {
+          "tag_ref": { "type": "string" },
+          "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+          "description": { "type": "string", "nullable": true, "maxLength": 500 },
+          "scope_type": { "$ref": "#/components/schemas/ScopeType" },
+          "branch_ref": { "type": "string", "nullable": true },
+          "status": { "$ref": "#/components/schemas/TagStatus" },
+          "member_count": {
+            "type": "integer", "nullable": true,
+            "description": "Scope-filtered: a branch-scoped caller's count covers their own branches only."
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "version": { "type": "integer", "format": "int64" }
+        }
+      },
+      "CreateTagRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+          "description": { "type": "string", "maxLength": 500 },
+          "scope": { "$ref": "#/components/schemas/ScopeSelector" }
+        }
+      },
+      "UpdateTagRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+          "description": { "type": "string", "maxLength": 500 },
+          "expected_version": { "type": "integer", "format": "int64", "minimum": 1 }
+        }
+      },
+      "ExpectedVersionRequest": {
+        "type": "object",
+        "properties": { "expected_version": { "type": "integer", "format": "int64", "minimum": 1 } }
+      },
+      "BulkTagRequest": {
+        "type": "object",
+        "required": ["tag_ref", "profile_refs"],
+        "properties": {
+          "tag_ref": { "type": "string" },
+          "profile_refs": {
+            "type": "array", "minItems": 1, "maxItems": 500,
+            "items": { "type": "string" },
+            "description": "CRM relationship references only. Email addresses and phone numbers are not accepted, because CRM does not hold them."
+          }
+        }
+      },
+      "BulkProfileRequest": {
+        "type": "object",
+        "required": ["profile_refs"],
+        "properties": {
+          "profile_refs": { "type": "array", "minItems": 1, "maxItems": 500, "items": { "type": "string" } }
+        }
+      },
+      "BulkResult": {
+        "type": "object",
+        "properties": {
+          "tag_ref": { "type": "string", "description": "The tag or segment the operation acted on." },
+          "requested": { "type": "integer" },
+          "applied": { "type": "integer" },
+          "skipped": { "type": "integer", "description": "References that were already in the requested state." }
+        }
+      },
+      "SegmentField": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "example": "commercial.completed_order_count" },
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "type": { "$ref": "#/components/schemas/FieldType" },
+          "source": { "$ref": "#/components/schemas/FieldSource" },
+          "version": { "type": "integer", "minimum": 1 },
+          "scopes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ScopeType" },
+            "description": "The segment scopes in which this registered deterministic field may be used."
+          },
+          "operators": { "type": "array", "items": { "$ref": "#/components/schemas/SegmentOperator" } },
+          "values": {
+            "type": "array", "items": { "type": "string" },
+            "description": "Present when the field has a finite value set."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "False when this deployment has no integrated data source for the field. Conditions over an unavailable field match nobody."
+          },
+          "nullable_behavior": { "type": "string", "enum": ["UNKNOWN_DOES_NOT_MATCH"] },
+          "branch_behavior": {
+            "type": "string",
+            "enum": ["USES_BRANCH_SCOPED_PROJECTION", "SAME_VALUE_WITHIN_AUTHORIZED_SCOPE"]
+          },
+          "privacy_behavior": { "type": "string", "enum": ["EXCLUDES_REDACTED_AND_MERGED_SOURCE"] },
+          "branch_only": { "type": "boolean" }
+        }
+      },
+      "RuleLimits": {
+        "type": "object",
+        "description": "Configured complexity guardrails, published so a builder can stop a user before the server has to.",
+        "properties": {
+          "max_depth": { "type": "integer", "example": 6 },
+          "max_nodes": { "type": "integer", "example": 50 },
+          "max_or_children": { "type": "integer", "example": 25 },
+          "max_in_values": { "type": "integer", "example": 100 },
+          "max_not_depth": { "type": "integer", "example": 3 },
+          "max_tag_references": { "type": "integer", "example": 25 }
+        }
+      },
+      "RuleDocument": {
+        "type": "object",
+        "required": ["schema_version", "root"],
+        "description": "A validated segment rule. Raw SQL, column names, table names and arbitrary predicates are not accepted anywhere in this document.",
+        "properties": {
+          "schema_version": { "type": "integer", "enum": [1] },
+          "root": { "$ref": "#/components/schemas/RuleNode" },
+          "exclusion": {
+            "$ref": "#/components/schemas/RuleNode",
+            "description": "Optional subtractive arm, validated identically to the base rule."
+          }
+        }
+      },
+      "RuleNode": {
+        "description": "Either a group or a condition. A node is never both.",
+        "oneOf": [
+          { "$ref": "#/components/schemas/RuleGroup" },
+          { "$ref": "#/components/schemas/RuleCondition" }
+        ]
+      },
+      "RuleGroup": {
+        "type": "object",
+        "required": ["op", "children"],
+        "properties": {
+          "op": { "type": "string", "enum": ["AND", "OR", "NOT"] },
+          "children": {
+            "type": "array",
+            "minItems": 1,
+            "description": "AND and OR take one or more children; NOT takes exactly one.",
+            "items": { "$ref": "#/components/schemas/RuleNode" }
+          }
+        }
+      },
+      "RuleCondition": {
+        "type": "object",
+        "required": ["field", "operator"],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "A field key published by GET /crm/segment-fields. Any other value is rejected."
+          },
+          "operator": { "$ref": "#/components/schemas/SegmentOperator" },
+          "value": { "$ref": "#/components/schemas/RuleValue" }
+        }
+      },
+      "RuleValue": {
+        "description": "The literal, typed to the field. EXISTS and NOT_EXISTS take no value. IN and NOT_IN take an array. BETWEEN takes exactly two bounds. WITHIN_LAST takes a window object. HAS_TAG and NOT_HAS_TAG take a tag reference. Money is always an integer count of minor units with an explicit currency; there is no floating-point money anywhere.",
+        "oneOf": [
+          { "type": "boolean" },
+          { "type": "integer", "format": "int64" },
+          { "type": "string" },
+          { "type": "array", "items": { "type": "string" } },
+          { "$ref": "#/components/schemas/MoneyValue" },
+          { "$ref": "#/components/schemas/DurationWindow" },
+          { "$ref": "#/components/schemas/TagReferenceValue" }
+        ]
+      },
+      "MoneyValue": {
+        "type": "object",
+        "required": ["currency", "minor"],
+        "properties": {
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "minor": { "type": "integer", "format": "int64", "minimum": 0 }
+        }
+      },
+      "DurationWindow": {
+        "type": "object",
+        "required": ["amount", "unit"],
+        "properties": {
+          "amount": { "type": "integer", "minimum": 1, "maximum": 3650 },
+          "unit": { "type": "string", "enum": ["DAY", "WEEK", "MONTH", "YEAR"] }
+        }
+      },
+      "TagReferenceValue": {
+        "type": "object",
+        "required": ["tag_id"],
+        "properties": { "tag_id": { "type": "string", "maxLength": 64 } }
+      },
+      "Segment": {
+        "type": "object",
+        "properties": {
+          "segment_ref": { "type": "string" },
+          "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+          "description": { "type": "string", "nullable": true },
+          "segment_type": { "$ref": "#/components/schemas/SegmentType" },
+          "scope_type": { "$ref": "#/components/schemas/ScopeType" },
+          "branch_ref": { "type": "string", "nullable": true },
+          "status": { "$ref": "#/components/schemas/SegmentStatus" },
+          "definition_version": { "type": "integer", "format": "int64" },
+          "definition_hash": { "type": "string", "nullable": true },
+          "evaluation_status": { "$ref": "#/components/schemas/EvaluationStatus" },
+          "member_count": { "type": "integer" },
+          "materialized_definition_version": {
+            "type": "integer", "format": "int64", "nullable": true,
+            "description": "The definition the current membership was built from. When it differs from definition_version the membership is out of date."
+          },
+          "last_evaluated_at": { "type": "string", "format": "date-time", "nullable": true },
+          "stale_since": { "type": "string", "format": "date-time", "nullable": true },
+          "last_evaluation_error_code": { "type": "string", "nullable": true },
+          "rule_explanation": {
+            "type": "string",
+            "description": "Deterministic prose generated from the rule's own structure and the field registry's metadata."
+          },
+          "rule": { "$ref": "#/components/schemas/RuleNode" },
+          "exclusion_rule": { "$ref": "#/components/schemas/RuleNode" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "version": { "type": "integer", "format": "int64" }
+        }
+      },
+      "CreateSegmentRequest": {
+        "type": "object",
+        "required": ["name", "segment_type"],
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+          "description": { "type": "string", "maxLength": 500 },
+          "segment_type": { "$ref": "#/components/schemas/SegmentType" },
+          "scope": { "$ref": "#/components/schemas/ScopeSelector" },
+          "rule": {
+            "$ref": "#/components/schemas/RuleDocument",
+            "description": "Required for DYNAMIC, forbidden for STATIC."
+          }
+        }
+      },
+      "UpdateSegmentRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+          "description": { "type": "string", "maxLength": 500 },
+          "rule": { "$ref": "#/components/schemas/RuleDocument" },
+          "change_reason": { "type": "string", "maxLength": 500 },
+          "expected_version": { "type": "integer", "format": "int64", "minimum": 1 }
+        }
+      },
+      "PreviewRequest": {
+        "type": "object",
+        "required": ["rule"],
+        "properties": {
+          "scope": { "$ref": "#/components/schemas/ScopeSelector" },
+          "rule": { "$ref": "#/components/schemas/RuleDocument" },
+          "sample_limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+        }
+      },
+      "PreviewResult": {
+        "type": "object",
+        "properties": {
+          "definition_hash": { "type": "string" },
+          "evaluation_as_of": { "type": "string", "format": "date-time" },
+          "match_count": { "type": "integer" },
+          "count_state": { "$ref": "#/components/schemas/CountState" },
+          "scope": { "$ref": "#/components/schemas/ScopeType" },
+          "branch_ref": { "type": "string", "nullable": true },
+          "sample": { "type": "array", "items": { "$ref": "#/components/schemas/PreviewSample" } },
+          "rule_explanation": { "type": "string" },
+          "unavailable_fields": { "type": "array", "items": { "type": "string" } },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "PreviewSample": {
+        "type": "object",
+        "description": "A privacy-safe sample row. There is no email, phone, address or date-of-birth field because CRM holds none.",
+        "properties": {
+          "profile_ref": { "type": "string" },
+          "display_label": { "type": "string", "nullable": true },
+          "commercial_projection_state": { "type": "string" },
+          "matched_conditions": {
+            "type": "array", "items": { "type": "string" },
+            "description": "Paths of the conditions that matched, e.g. root.children[0]."
+          },
+          "unavailable_conditions": {
+            "type": "array", "items": { "type": "string" },
+            "description": "Paths of conditions that could not be decided for this relationship."
+          }
+        }
+      },
+      "SegmentMember": {
+        "type": "object",
+        "properties": {
+          "profile_ref": { "type": "string" },
+          "display_label": { "type": "string", "nullable": true },
+          "subject_type": { "type": "string", "enum": ["CUSTOMER", "GUEST", "EXTERNAL"] },
+          "commercial_projection_state": { "type": "string" },
+          "membership_source": { "$ref": "#/components/schemas/MembershipSource" },
+          "generation": { "type": "integer", "format": "int64" },
+          "definition_version": { "type": "integer", "format": "int64", "nullable": true },
+          "matched_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MembershipState": {
+        "type": "object",
+        "description": "How current the returned membership is. A member list without this block would let a stale audience be mistaken for a live one.",
+        "properties": {
+          "evaluation_status": { "$ref": "#/components/schemas/EvaluationStatus" },
+          "member_count": { "type": "integer" },
+          "definition_version": { "type": "integer", "format": "int64" },
+          "last_evaluated_at": { "type": "string", "format": "date-time", "nullable": true },
+          "stale_since": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "Evaluation": {
+        "type": "object",
+        "properties": {
+          "evaluation_ref": { "type": "string" },
+          "segment_ref": { "type": "string" },
+          "definition_version": { "type": "integer", "format": "int64" },
+          "generation": { "type": "integer", "format": "int64" },
+          "status": { "$ref": "#/components/schemas/EvaluationRunStatus" },
+          "evaluation_as_of": { "type": "string", "format": "date-time" },
+          "member_count": { "type": "integer", "nullable": true },
+          "error_code": { "type": "string", "nullable": true },
+          "completed_at": { "type": "string", "format": "date-time", "nullable": true },
+          "attempt_count": { "type": "integer" }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "validation_failed" },
+              "message": { "type": "string" },
+              "request_id": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": { "type": "string", "example": "rule.root.children[0]" },
+                    "message": { "type": "string" }
+                  }
+                }
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "code": { "$ref": "#/components/schemas/SegmentErrorCode" },
+                  "path": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

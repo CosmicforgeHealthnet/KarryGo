@@ -1,0 +1,979 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor CRM Campaign Intelligence API",
+    "version": "8.5.0",
+    "description": "Section 8E answers WHO a campaign should target and freezes that answer as an immutable audience snapshot. It deliberately cannot answer HOW or WHEN a message is delivered: there is no schedule endpoint, no send endpoint, no notification handoff, no template, no provider reference and no destination address anywhere in this API. Delivery is Section 8F and belongs to notification-service.\n\nA prepared audience is evidence of what the consent authority said at one moment. It is NOT permission to contact anybody. Every eligible channel is stamped send_time_recheck_required=true, which a database check makes impossible to clear, and frequency and quiet-hour policies are stored and versioned here but enforced only at send time.\n\nAudience comes exclusively from the Section 8B segment engine. There is no second rule language, no raw SQL parameter and no customer-list upload. No canonical customer PII is stored or returned; a customer is referenced only by their vendor-local CRM profile reference."
+  },
+  "servers": [{ "url": "/api/v1/vendor" }],
+  "security": [{ "BearerAuth": [] }],
+  "x-feature-flags": [
+    "VENDOR_CRM_ENABLED",
+    "VENDOR_CRM_WRITES_ENABLED",
+    "VENDOR_CRM_SEGMENTATION_ENABLED",
+    "VENDOR_CRM_CAMPAIGNS_ENABLED",
+    "VENDOR_CRM_CAMPAIGN_PREPARATION_ENABLED",
+    "COMMERCE_GLOBAL_KILL_SWITCH"
+  ],
+  "x-authority-boundary": "Vendor Service owns campaign definitions, immutable campaign versions, audience selection, audience preview, immutable audience snapshots, campaign targets, snapshot-time consent evidence, experiment cohort assignment, and campaign policy definition. notification-service remains the authority for every delivery channel, delivery receipt and provider retry. customer-service remains the authority for canonical identity, canonical PII, privacy decisions, identity merge and authoritative marketing consent. Section 8E emits no campaign.sent, notification.sent, sms.sent or email.sent event, registers no internal route, and holds no scheduled_at, sent_at, delivered_at, provider, template or destination column.",
+  "x-dual-time-consent-contract": "Consent is evaluated TWICE. Check 1 happens here at preparation time and is recorded as historical evidence on each target channel (snapshot_consent_decision, snapshot_consent_eligible, consent_as_of, consent_source_version). Check 2 is Section 8F's, immediately before any delivery handoff, against CURRENT consent. Snapshot evidence is never rewritten when consent later changes; the customer is protected by the mandatory send-time recheck, not by history being edited. PREPARED never means authorized to send.",
+  "x-fail-closed-contract": "Only an explicit, fresh, unexpired ALLOW produces an eligible channel. DENY is ineligible. UNKNOWN is ineligible. A missing projection is ineligible. A lapsed ALLOW is ineligible. A projection older than policy is ineligible. With no consent authority integrated at all, every channel is ineligible with reason CONSENT_SOURCE_UNAVAILABLE. Segment membership is not consent, and a control-cohort assignment is not an exemption.",
+  "x-suppression-model": "Privacy-suppressed and service-recovery-suppressed relationships receive NO target row at all; they appear only in the snapshot aggregate counts. This is deliberately stronger than storing them with a suppressed state: a customer who must not be contacted is absent from the only table Section 8F will read. Consequently the target-channel eligibility vocabulary is exactly two values, and there is deliberately no state meaning 'cleared to send', because this section cannot authorise a future delivery.",
+  "x-service-recovery-signal": "A customer is in Vendor-local service recovery when an OPEN or IN_PROGRESS CRM task (Section 8C) is linked to a SERVICE_FOLLOW_UP interaction. An ordinary open task is not service recovery. Formal disputes remain owned by support-dispute-service; this service does not read them. EXTERNAL_SERVICE_RECOVERY_SUPPORT = NOT_PRESENT.",
+  "x-frequency-contract": "VENDOR_CAMPAIGN_CONTACT_HISTORY = NOT_PRESENT. No campaign has ever been delivered, so this service holds no contact history to evaluate a frequency cap against. The policy is validated, versioned and returned with evaluation_state=NOT_AVAILABLE and send_time_recheck_required=true. Section 8E never reports a campaign as frequency-eligible.",
+  "tags": [
+    { "name": "Campaigns", "description": "Campaign definitions and their immutable versions." },
+    { "name": "Audience", "description": "Preview and preparation of campaign audiences." },
+    { "name": "Snapshots", "description": "Immutable frozen audiences and their targets." }
+  ],
+  "paths": {
+    "/crm/campaigns": {
+      "get": {
+        "operationId": "listCampaigns",
+        "summary": "List campaigns visible to the caller",
+        "description": "Returns campaigns the caller's scope may see. A branch-scoped caller never sees a BUSINESS-scope campaign: its name and audience size describe the whole business, which a branch grant does not carry. Sorting is fixed at updated_at DESC; there is no client-chosen sort column.",
+        "tags": ["Campaigns"],
+        "x-permission": "vendor.crm.campaigns.read",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" },
+          { "$ref": "#/components/parameters/StatusFilter" },
+          { "$ref": "#/components/parameters/ScopeTypeFilter" },
+          { "$ref": "#/components/parameters/BranchRefFilter" },
+          { "$ref": "#/components/parameters/ObjectiveFilter" },
+          { "$ref": "#/components/parameters/ChannelFilter" },
+          { "$ref": "#/components/parameters/CreatedFrom" },
+          { "$ref": "#/components/parameters/CreatedTo" },
+          { "$ref": "#/components/parameters/Search" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of campaigns.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignPage" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      },
+      "post": {
+        "operationId": "createCampaign",
+        "summary": "Define a campaign",
+        "description": "Creates a campaign in DRAFT together with immutable definition version 1. The source segment and every exclusion segment must belong to this business and be visible at the campaign's scope; a BRANCH campaign may only use a BRANCH segment for its own branch.",
+        "tags": ["Campaigns"],
+        "x-permission": "vendor.crm.campaigns.manage",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CampaignDefinitionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The campaign and its first definition version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignWithDefinition" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/campaigns/{campaignId}": {
+      "get": {
+        "operationId": "getCampaign",
+        "summary": "Read one campaign and its current definition",
+        "tags": ["Campaigns"],
+        "x-permission": "vendor.crm.campaigns.read",
+        "parameters": [{ "$ref": "#/components/parameters/CampaignId" }],
+        "responses": {
+          "200": {
+            "description": "The campaign and the definition version it currently points at.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignWithDefinition" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "updateCampaign",
+        "summary": "Replace a campaign definition",
+        "description": "Submits a complete definition. When anything meaningful changed a new immutable version is minted and the previous one is left untouched, so every snapshot built from it stays explicable. A campaign that was PREPARED returns to DRAFT: the new definition has never been prepared and must not inherit an audience it never described. Scope is immutable after creation. expected_version is mandatory; a stale value is a conflict, never a silent last-write-wins.",
+        "tags": ["Campaigns"],
+        "x-permission": "vendor.crm.campaigns.manage",
+        "parameters": [
+          { "$ref": "#/components/parameters/CampaignId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateCampaignRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated campaign and its current definition version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignWithDefinition" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/campaigns/{campaignId}/archive": {
+      "post": {
+        "operationId": "archiveCampaign",
+        "summary": "Retire a campaign",
+        "description": "ARCHIVED is terminal. A retired campaign that could come back would come back with the audience it froze months ago, which is the stale-audience reuse this section exists to prevent. Any preparation still in flight is superseded. Archiving an already-archived campaign is a no-op rather than an error, so a retried command settles.",
+        "tags": ["Campaigns"],
+        "x-permission": "vendor.crm.campaigns.manage",
+        "parameters": [
+          { "$ref": "#/components/parameters/CampaignId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ArchiveCampaignRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The archived campaign.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Campaign" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/campaigns/{campaignId}/preview": {
+      "post": {
+        "operationId": "previewCampaignAudience",
+        "summary": "Evaluate who this campaign would currently reach",
+        "description": "Persists nothing: no target row, no snapshot, and no change to the campaign lifecycle. It is a POST because it carries a body, not because it changes state, and running it twice is indistinguishable from running it once. Counts are exact and reconcile. A stale or unevaluated dynamic source segment counts nobody and says so in warnings rather than reusing an out-of-date membership. Frequency and quiet-hour policies are reported as pending a send-time recheck, never as satisfied.",
+        "tags": ["Audience"],
+        "x-permission": "vendor.crm.campaigns.preview",
+        "parameters": [{ "$ref": "#/components/parameters/CampaignId" }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PreviewCampaignRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The audience projection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignPreview" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/campaigns/{campaignId}/prepare": {
+      "post": {
+        "operationId": "prepareCampaignAudience",
+        "summary": "Freeze an immutable audience snapshot",
+        "description": "Enqueues a durable preparation and returns the snapshot in BUILDING. Preparation is asynchronous; poll the snapshot for CURRENT. Requesting a preparation that is already in flight returns the run in flight rather than starting a second one, enforced by a database constraint rather than a process-local guard. The run binds to the exact campaign version and, for a dynamic source, the exact materialized segment generation, so a concurrent edit or rebuild cannot mix two definitions or two generations into one audience. A dynamic source segment must be CURRENT; a STALE or FAILED one is refused rather than silently frozen.",
+        "tags": ["Audience"],
+        "x-permission": "vendor.crm.campaigns.prepare",
+        "parameters": [
+          { "$ref": "#/components/parameters/CampaignId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "202": {
+            "description": "The preparation was accepted, or the one already in flight was returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignSnapshot" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/crm/campaigns/{campaignId}/snapshots": {
+      "get": {
+        "operationId": "listCampaignSnapshots",
+        "summary": "List a campaign's audience snapshots",
+        "description": "Snapshot history, newest first. A failed preparation never disturbs the previous CURRENT snapshot, so a campaign can legitimately report PREPARATION_FAILED while still pointing at the last audience that worked.",
+        "tags": ["Snapshots"],
+        "x-permission": "vendor.crm.campaigns.read",
+        "parameters": [
+          { "$ref": "#/components/parameters/CampaignId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of snapshots.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignSnapshotPage" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/crm/campaigns/{campaignId}/snapshots/{snapshotId}": {
+      "get": {
+        "operationId": "getCampaignSnapshot",
+        "summary": "Read one audience snapshot",
+        "description": "Reports what the audience is and how it was reached, including per-channel eligibility figures derived from the stored evidence rather than duplicated alongside it. It never reports who is in the audience: that is the separately permissioned target list.",
+        "tags": ["Snapshots"],
+        "x-permission": "vendor.crm.campaigns.read",
+        "parameters": [
+          { "$ref": "#/components/parameters/CampaignId" },
+          { "$ref": "#/components/parameters/SnapshotId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignSnapshot" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/crm/campaigns/{campaignId}/snapshots/{snapshotId}/targets": {
+      "get": {
+        "operationId": "listCampaignSnapshotTargets",
+        "summary": "List the relationships inside a prepared audience",
+        "description": "A separately permissioned disclosure: listing the customers in an audience is strictly larger than reading the definition that produced it. Rows carry an opaque relationship reference, a cohort and snapshot-time consent evidence, and no contact detail of any kind — there is no field that could hold one. currently_actionable combines the stored suppression state with the live service-recovery signal, and is still not permission to send: every channel carries send_time_recheck_required.",
+        "tags": ["Snapshots"],
+        "x-permission": "vendor.crm.campaigns.targets.read",
+        "parameters": [
+          { "$ref": "#/components/parameters/CampaignId" },
+          { "$ref": "#/components/parameters/SnapshotId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" },
+          { "$ref": "#/components/parameters/CohortFilter" },
+          { "$ref": "#/components/parameters/ActionableOnlyFilter" },
+          { "$ref": "#/components/parameters/EligibleOnChannelFilter" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of campaign targets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/CampaignTargetPage" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Vendor staff access token. Business and branch scope are resolved server-side from the session and are never read from the request."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "CampaignId": {
+        "name": "campaignId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "SnapshotId": {
+        "name": "snapshotId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      },
+      "StatusFilter": {
+        "name": "status",
+        "in": "query",
+        "schema": { "$ref": "#/components/schemas/CampaignStatus" }
+      },
+      "ScopeTypeFilter": {
+        "name": "scope_type",
+        "in": "query",
+        "schema": { "$ref": "#/components/schemas/CampaignScopeType" }
+      },
+      "BranchRefFilter": {
+        "name": "branch_ref",
+        "in": "query",
+        "description": "Restrict to one branch. Asking about a branch the caller cannot see is refused rather than answered.",
+        "schema": { "type": "string" }
+      },
+      "ObjectiveFilter": {
+        "name": "objective",
+        "in": "query",
+        "schema": { "$ref": "#/components/schemas/CampaignObjective" }
+      },
+      "ChannelFilter": {
+        "name": "channel",
+        "in": "query",
+        "schema": { "$ref": "#/components/schemas/CampaignChannel" }
+      },
+      "CreatedFrom": {
+        "name": "created_from",
+        "in": "query",
+        "schema": { "type": "string", "format": "date-time" }
+      },
+      "CreatedTo": {
+        "name": "created_to",
+        "in": "query",
+        "schema": { "type": "string", "format": "date-time" }
+      },
+      "Search": {
+        "name": "search",
+        "in": "query",
+        "description": "Case-insensitive substring match on the campaign name. LIKE metacharacters are escaped and treated as literal text.",
+        "schema": { "type": "string" }
+      },
+      "CohortFilter": {
+        "name": "cohort",
+        "in": "query",
+        "schema": { "type": "string", "enum": ["CONTROL", "TREATMENT"] }
+      },
+      "ActionableOnlyFilter": {
+        "name": "actionable_only",
+        "in": "query",
+        "description": "Restrict to targets that are currently actionable: not privacy- or merge-suppressed, and not in active service recovery. Still not permission to send.",
+        "schema": { "type": "boolean", "default": false }
+      },
+      "EligibleOnChannelFilter": {
+        "name": "eligible_on_channel",
+        "in": "query",
+        "description": "Restrict to targets that were eligible on this channel AT SNAPSHOT TIME.",
+        "schema": { "$ref": "#/components/schemas/CampaignChannel" }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Malformed request or missing Idempotency-Key.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Forbidden": {
+        "description": "The caller does not hold the required permission at a covering scope.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "NotFound": {
+        "description": "The campaign, snapshot or audience segment does not exist, or is outside the caller's reach. The two cases are deliberately indistinguishable so probing identifiers discloses nothing.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Conflict": {
+        "description": "A version conflict, an idempotency-key conflict, a lifecycle refusal, a preparation already in progress, or an audience segment whose membership is not current.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "ValidationFailed": {
+        "description": "The definition is not valid: an unsupported channel or objective, a half-specified frequency or quiet-hours policy, or an experiment whose allocations do not total exactly 10000 basis points.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Unavailable": {
+        "description": "Campaigns, campaign writes, or audience preparation are disabled by feature flag or by the platform commerce kill switch.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      }
+    },
+    "schemas": {
+      "CampaignStatus": {
+        "type": "string",
+        "description": "The Section 8E lifecycle stops before scheduling. SCHEDULED, SENDING, SENT and DELIVERED are absent by design: they describe delivery, which Section 8F owns. PREPARATION_FAILED can coexist with a still-usable current_snapshot_ref, because a failed rebuild never empties a working audience.",
+        "enum": ["DRAFT", "PREPARING", "PREPARED", "PREPARATION_FAILED", "ARCHIVED"]
+      },
+      "CampaignObjective": {
+        "type": "string",
+        "description": "All five are marketing objectives and all five evaluate against the single consent purpose MARKETING. An objective is a vendor's description of intent; it is never a consent purpose and can never widen what the authority granted. TRANSACTIONAL_PAYMENT, ORDER_STATUS and SECURITY_OTP are deliberately absent.",
+        "enum": ["GENERAL_MARKETING", "RETENTION", "REACTIVATION", "LOYALTY", "ANNOUNCEMENT"]
+      },
+      "CampaignScopeType": { "type": "string", "enum": ["BUSINESS", "BRANCH"] },
+      "CampaignChannel": {
+        "type": "string",
+        "description": "The Section 8A consent channels and nothing else. A channel outside this set could never have a consent decision projected for it, so a campaign naming one could never lawfully target it.",
+        "enum": ["EMAIL", "PUSH", "IN_APP", "SMS"]
+      },
+      "SnapshotStatus": {
+        "type": "string",
+        "description": "BUILDING covers queued, running and awaiting-retry: the audience is not current and preparation is still trying. FAILED means it stopped trying. Neither ever disturbs the previous CURRENT snapshot, and a partial audience can never become CURRENT.",
+        "enum": ["BUILDING", "CURRENT", "FAILED", "SUPERSEDED"]
+      },
+      "SnapshotEligibilityState": {
+        "type": "string",
+        "description": "Two values, not five. A privacy- or service-recovery-suppressed relationship has no target row for a suppressed state to live on, and 'recheck required' is true of every row at once so it is a boolean rather than a state. There is deliberately no state meaning 'cleared to send'.",
+        "enum": ["ELIGIBLE_AT_SNAPSHOT", "INELIGIBLE_CONSENT"]
+      },
+      "ConsentDecision": { "type": "string", "enum": ["ALLOW", "DENY", "UNKNOWN"] },
+      "SuppressionReasonCode": {
+        "type": "string",
+        "description": "Why a target stopped being actionable AFTER its snapshot was frozen. These never rewrite the snapshot; they sit beside it.",
+        "enum": ["PRIVACY_REDACTED", "PRIVACY_RESTRICTED", "PRIVACY_MARKETING_SUPPRESSED", "IDENTITY_MERGED"]
+      },
+      "PreviewReasonCode": {
+        "type": "string",
+        "description": "Deliberately coarse categories that explain an outcome to vendor staff without disclosing the consent authority's reasoning, the underlying query, or anything about the customer.",
+        "enum": [
+          "SOURCE_MEMBER",
+          "EXCLUDED_BY_SEGMENT",
+          "PRIVACY_REDACTED",
+          "PRIVACY_RESTRICTED",
+          "PRIVACY_MARKETING_SUPPRESSED",
+          "PROFILE_MERGED",
+          "PROFILE_ARCHIVED",
+          "SERVICE_RECOVERY_SUPPRESSED",
+          "CONTROL_GROUP",
+          "TREATMENT_VARIANT"
+        ]
+      },
+      "ConsentReasonCode": {
+        "type": "string",
+        "enum": [
+          "CONSENT_ALLOWED",
+          "CONSENT_DENIED",
+          "CONSENT_UNKNOWN",
+          "CONSENT_STALE",
+          "CONSENT_SOURCE_UNAVAILABLE"
+        ]
+      },
+      "ExperimentVariant": {
+        "type": "object",
+        "description": "One cohort. Allocation is in integer basis points; there is no percentage field and no floating point, because an allocation that does not sum exactly is an experiment whose control group silently changes size between runs.",
+        "required": ["variant_key", "display_name", "allocation_bps", "is_control"],
+        "properties": {
+          "variant_key": { "type": "string", "pattern": "^[A-Z0-9_]{1,32}$" },
+          "display_name": { "type": "string", "maxLength": 80 },
+          "allocation_bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+          "is_control": { "type": "boolean" }
+        }
+      },
+      "FrequencyPolicy": {
+        "type": "object",
+        "description": "Stored and versioned here, enforced only at send time. evaluation_state is always NOT_AVAILABLE because no campaign has been delivered and there is no contact history to count against; an empty history would make every cap pass, which would be the most misleading possible answer.",
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "cap": { "type": "integer", "minimum": 1, "maximum": 1000 },
+          "window_minutes": { "type": "integer", "minimum": 1, "maximum": 525600 },
+          "evaluation_state": { "type": "string", "enum": ["NOT_AVAILABLE"] },
+          "send_time_recheck_required": { "type": "boolean", "enum": [true] }
+        }
+      },
+      "QuietHoursPolicy": {
+        "type": "object",
+        "description": "Minute-of-day plus a mandatory IANA zone, so a cross-midnight window (22:00 -> 07:00) is unambiguous. Section 8E schedules nothing; would_block is returned only when a caller supplies an explicit hypothetical instant, and enforcement is Section 8F's.",
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "start": { "type": "string", "example": "22:00" },
+          "end": { "type": "string", "example": "07:00" },
+          "timezone": { "type": "string", "example": "Africa/Lagos" },
+          "crosses_midnight": { "type": "boolean" },
+          "hypothetical_send_at": { "type": "string", "format": "date-time", "nullable": true },
+          "would_block": { "type": "boolean", "nullable": true },
+          "send_time_recheck_required": { "type": "boolean", "enum": [true] }
+        }
+      },
+      "Campaign": {
+        "type": "object",
+        "required": ["campaign_ref", "name", "objective", "scope_type", "status", "definition_version", "version"],
+        "properties": {
+          "campaign_ref": { "type": "string" },
+          "name": { "type": "string" },
+          "objective": { "$ref": "#/components/schemas/CampaignObjective" },
+          "scope_type": { "$ref": "#/components/schemas/CampaignScopeType" },
+          "branch_ref": { "type": "string", "nullable": true },
+          "status": { "$ref": "#/components/schemas/CampaignStatus" },
+          "definition_version": { "type": "integer", "format": "int64" },
+          "current_snapshot_ref": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "archived_at": { "type": "string", "format": "date-time", "nullable": true },
+          "version": { "type": "integer", "format": "int64" }
+        }
+      },
+      "CampaignDefinition": {
+        "type": "object",
+        "description": "One immutable definition revision. Editing a campaign mints a new one and never rewrites this.",
+        "required": ["definition_version", "definition_hash", "channels", "source_segment_ref"],
+        "properties": {
+          "definition_version": { "type": "integer", "format": "int64" },
+          "definition_hash": { "type": "string" },
+          "name": { "type": "string" },
+          "objective": { "$ref": "#/components/schemas/CampaignObjective" },
+          "scope_type": { "$ref": "#/components/schemas/CampaignScopeType" },
+          "branch_ref": { "type": "string", "nullable": true },
+          "channels": { "type": "array", "items": { "$ref": "#/components/schemas/CampaignChannel" } },
+          "source_segment_ref": { "type": "string" },
+          "exclusion_segment_refs": { "type": "array", "maxItems": 10, "items": { "type": "string" } },
+          "frequency_policy": { "$ref": "#/components/schemas/FrequencyPolicy" },
+          "quiet_hours_policy": { "$ref": "#/components/schemas/QuietHoursPolicy" },
+          "service_recovery_suppression_enabled": { "type": "boolean" },
+          "experiment_enabled": { "type": "boolean" },
+          "experiment_variants": { "type": "array", "items": { "$ref": "#/components/schemas/ExperimentVariant" } },
+          "created_at": { "type": "string", "format": "date-time" },
+          "change_reason": { "type": "string", "nullable": true }
+        }
+      },
+      "CampaignWithDefinition": {
+        "type": "object",
+        "required": ["campaign", "definition"],
+        "properties": {
+          "campaign": { "$ref": "#/components/schemas/Campaign" },
+          "definition": { "$ref": "#/components/schemas/CampaignDefinition" }
+        }
+      },
+      "CampaignPage": {
+        "type": "object",
+        "required": ["campaigns", "has_more", "limit", "offset"],
+        "properties": {
+          "campaigns": { "type": "array", "items": { "$ref": "#/components/schemas/Campaign" } },
+          "has_more": { "type": "boolean" },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" }
+        }
+      },
+      "CampaignDefinitionRequest": {
+        "type": "object",
+        "required": ["name", "channels", "source_segment_ref"],
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+          "objective": { "$ref": "#/components/schemas/CampaignObjective" },
+          "scope_type": { "$ref": "#/components/schemas/CampaignScopeType" },
+          "branch_ref": { "type": "string" },
+          "channels": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "$ref": "#/components/schemas/CampaignChannel" } },
+          "source_segment_ref": { "type": "string" },
+          "exclusion_segment_refs": { "type": "array", "maxItems": 10, "items": { "type": "string" } },
+          "frequency_cap_count": { "type": "integer", "minimum": 1, "maximum": 1000, "nullable": true },
+          "frequency_cap_window_minutes": { "type": "integer", "minimum": 1, "maximum": 525600, "nullable": true },
+          "quiet_hours_enabled": { "type": "boolean" },
+          "quiet_hours_start": { "type": "string", "example": "22:00" },
+          "quiet_hours_end": { "type": "string", "example": "07:00" },
+          "quiet_hours_timezone": { "type": "string", "example": "Africa/Lagos" },
+          "service_recovery_suppression_enabled": {
+            "type": "boolean",
+            "description": "Defaults to true. Marketing to a customer in the middle of an unresolved complaint is the failure this exists to prevent, so opting out has to be a deliberate choice."
+          },
+          "experiment_enabled": { "type": "boolean" },
+          "experiment_variants": {
+            "type": "array",
+            "maxItems": 6,
+            "description": "At most one control (<= 5000 bps) and one to five treatment variants. Allocations must total exactly 10000 basis points.",
+            "items": { "$ref": "#/components/schemas/ExperimentVariant" }
+          }
+        }
+      },
+      "UpdateCampaignRequest": {
+        "allOf": [
+          { "$ref": "#/components/schemas/CampaignDefinitionRequest" },
+          {
+            "type": "object",
+            "required": ["expected_version"],
+            "properties": {
+              "expected_version": { "type": "integer", "format": "int64", "minimum": 1 },
+              "change_reason": { "type": "string", "maxLength": 500 }
+            }
+          }
+        ]
+      },
+      "ArchiveCampaignRequest": {
+        "type": "object",
+        "properties": {
+          "expected_version": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PreviewCampaignRequest": {
+        "type": "object",
+        "properties": {
+          "sample_limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 },
+          "hypothetical_send_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Asks the quiet-hours question for one instant. It schedules nothing; Section 8E has no scheduler."
+          }
+        }
+      },
+      "CampaignChannelProjection": {
+        "type": "object",
+        "required": ["channel", "consent_eligible_count", "consent_ineligible_count", "send_time_recheck_required"],
+        "properties": {
+          "channel": { "$ref": "#/components/schemas/CampaignChannel" },
+          "consent_eligible_count": { "type": "integer", "minimum": 0 },
+          "consent_ineligible_count": { "type": "integer", "minimum": 0 },
+          "consent_ineligible_reasons": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" },
+            "description": "Counts keyed by ConsentReasonCode."
+          },
+          "send_time_recheck_required": { "type": "boolean", "enum": [true] }
+        }
+      },
+      "CampaignPreviewSample": {
+        "type": "object",
+        "description": "A bounded, privacy-safe example. It carries an opaque relationship reference, an optional safe display label and a reason code — never a contact detail, because CRM holds none.",
+        "properties": {
+          "profile_ref": { "type": "string" },
+          "display_label": { "type": "string", "nullable": true },
+          "reason_code": { "$ref": "#/components/schemas/PreviewReasonCode" },
+          "experiment_variant_key": { "type": "string" },
+          "is_control": { "type": "boolean" }
+        }
+      },
+      "CampaignPreview": {
+        "type": "object",
+        "required": [
+          "campaign_ref", "definition_version", "definition_hash", "evaluation_as_of", "count_state",
+          "source_count", "target_count", "channels", "frequency_policy", "quiet_hours_policy"
+        ],
+        "properties": {
+          "campaign_ref": { "type": "string" },
+          "definition_version": { "type": "integer", "format": "int64" },
+          "definition_hash": { "type": "string" },
+          "evaluation_as_of": { "type": "string", "format": "date-time" },
+          "scope_type": { "$ref": "#/components/schemas/CampaignScopeType" },
+          "branch_ref": { "type": "string", "nullable": true },
+          "source_segment_ref": { "type": "string" },
+          "source_segment_evaluation_status": {
+            "type": "string",
+            "description": "The Section 8B freshness of the source membership. Anything other than CURRENT means this preview counts nobody and says so in warnings."
+          },
+          "source_segment_definition_version": { "type": "integer", "format": "int64" },
+          "source_segment_generation": { "type": "integer", "format": "int64", "nullable": true },
+          "exclusion_segment_refs": { "type": "array", "items": { "type": "string" } },
+          "count_state": { "type": "string", "enum": ["EXACT", "AT_LEAST"] },
+          "source_count": { "type": "integer", "minimum": 0 },
+          "segment_exclusion_count": { "type": "integer", "minimum": 0 },
+          "privacy_suppressed_count": { "type": "integer", "minimum": 0 },
+          "service_recovery_suppressed_count": { "type": "integer", "minimum": 0 },
+          "consent_suppressed_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Targets for whom NO campaign channel was eligible."
+          },
+          "target_count": { "type": "integer", "minimum": 0 },
+          "control_count": { "type": "integer", "minimum": 0 },
+          "treatment_count": { "type": "integer", "minimum": 0 },
+          "channels": { "type": "array", "items": { "$ref": "#/components/schemas/CampaignChannelProjection" } },
+          "experiment_variant_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "frequency_policy": { "$ref": "#/components/schemas/FrequencyPolicy" },
+          "quiet_hours_policy": { "$ref": "#/components/schemas/QuietHoursPolicy" },
+          "service_recovery_suppression_enabled": { "type": "boolean" },
+          "sample": { "type": "array", "items": { "$ref": "#/components/schemas/CampaignPreviewSample" } },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "CampaignSnapshot": {
+        "type": "object",
+        "description": "An immutable frozen audience. Counts reconcile: source - segment_exclusion - privacy - service_recovery = target_count, and control + treatment = target_count.",
+        "required": [
+          "snapshot_ref", "campaign_ref", "campaign_definition_version", "definition_hash", "status",
+          "evaluation_as_of", "target_count",
+          "send_time_consent_recheck_required", "send_time_frequency_recheck_required",
+          "send_time_quiet_hours_recheck_required"
+        ],
+        "properties": {
+          "snapshot_ref": { "type": "string" },
+          "campaign_ref": { "type": "string" },
+          "campaign_definition_version": { "type": "integer", "format": "int64" },
+          "definition_hash": { "type": "string" },
+          "audience_hash": {
+            "type": "string",
+            "nullable": true,
+            "description": "An order-independent digest of the target set, so two snapshots of the same audience are recognisably the same audience without listing its members."
+          },
+          "status": { "$ref": "#/components/schemas/SnapshotStatus" },
+          "evaluation_as_of": { "type": "string", "format": "date-time" },
+          "source_segment_ref": { "type": "string" },
+          "source_segment_definition_version": { "type": "integer", "format": "int64" },
+          "source_segment_generation": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "The exact materialized generation this audience was built from. Null for a STATIC source, whose membership has no evaluation run. While the snapshot is BUILDING or CURRENT this generation is pinned, so Section 8B's cleanup cannot release the membership underneath it."
+          },
+          "source_count": { "type": "integer", "minimum": 0 },
+          "segment_exclusion_count": { "type": "integer", "minimum": 0 },
+          "privacy_suppressed_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Relationships excluded for a non-consent reason: redaction, merge, marketing suppression, restriction or archival. They receive no target row at all."
+          },
+          "service_recovery_suppressed_count": { "type": "integer", "minimum": 0 },
+          "consent_suppressed_count": { "type": "integer", "minimum": 0 },
+          "target_count": { "type": "integer", "minimum": 0 },
+          "control_count": { "type": "integer", "minimum": 0 },
+          "treatment_count": { "type": "integer", "minimum": 0 },
+          "channels": { "type": "array", "items": { "$ref": "#/components/schemas/CampaignChannelProjection" } },
+          "send_time_consent_recheck_required": { "type": "boolean", "enum": [true] },
+          "send_time_frequency_recheck_required": { "type": "boolean", "enum": [true] },
+          "send_time_quiet_hours_recheck_required": { "type": "boolean", "enum": [true] },
+          "attempt_count": { "type": "integer", "minimum": 0 },
+          "dead_lettered": { "type": "boolean" },
+          "error_code": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "completed_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "CampaignSnapshotPage": {
+        "type": "object",
+        "required": ["snapshots", "has_more", "limit", "offset"],
+        "properties": {
+          "snapshots": { "type": "array", "items": { "$ref": "#/components/schemas/CampaignSnapshot" } },
+          "has_more": { "type": "boolean" },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" }
+        }
+      },
+      "CampaignTargetChannel": {
+        "type": "object",
+        "description": "Historical evidence of what the consent authority's projection said at preparation time. It is never rewritten when consent later changes.",
+        "required": ["channel", "snapshot_consent_decision", "snapshot_consent_eligible", "snapshot_eligibility_state", "reason_code", "send_time_recheck_required"],
+        "properties": {
+          "channel": { "$ref": "#/components/schemas/CampaignChannel" },
+          "snapshot_consent_decision": { "$ref": "#/components/schemas/ConsentDecision" },
+          "snapshot_consent_eligible": { "type": "boolean" },
+          "consent_as_of": { "type": "string", "format": "date-time", "nullable": true },
+          "consent_source_version": { "type": "integer", "format": "int64", "nullable": true },
+          "snapshot_eligibility_state": { "$ref": "#/components/schemas/SnapshotEligibilityState" },
+          "reason_code": { "$ref": "#/components/schemas/ConsentReasonCode" },
+          "send_time_recheck_required": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "Always true, and a database check makes anything else unstorable. Preparing an audience is not permission to contact it."
+          }
+        }
+      },
+      "CampaignTarget": {
+        "type": "object",
+        "description": "One selected relationship. There is no contact field of any kind: a caller that needs to reach this customer must ask the identity authority and then the delivery authority.",
+        "required": ["target_ref", "profile_ref", "is_control", "currently_actionable", "channels"],
+        "properties": {
+          "target_ref": { "type": "string" },
+          "profile_ref": { "type": "string" },
+          "display_label": { "type": "string", "nullable": true },
+          "experiment_variant_key": { "type": "string", "nullable": true },
+          "is_control": { "type": "boolean" },
+          "experiment_bucket": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9999,
+            "nullable": true,
+            "description": "The deterministic bucket this assignment came from, retained so an assignment can be re-derived and audited rather than taken on trust."
+          },
+          "currently_actionable": {
+            "type": "boolean",
+            "description": "The stored suppression state combined with the live service-recovery signal. Still not permission to send."
+          },
+          "suppression_reason_code": { "$ref": "#/components/schemas/SuppressionReasonCode" },
+          "service_recovery_active": {
+            "type": "boolean",
+            "description": "Evaluated live rather than stored: a customer can enter and leave service recovery at any time, and a stored flag would be stale the moment a complaint was resolved."
+          },
+          "channels": { "type": "array", "items": { "$ref": "#/components/schemas/CampaignTargetChannel" } }
+        }
+      },
+      "CampaignTargetPage": {
+        "type": "object",
+        "required": ["targets", "has_more", "limit", "offset", "send_time_recheck_required"],
+        "properties": {
+          "targets": { "type": "array", "items": { "$ref": "#/components/schemas/CampaignTarget" } },
+          "has_more": { "type": "boolean" },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" },
+          "send_time_recheck_required": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "Restated on every page so a client paging a large audience cannot lose sight of it between requests."
+          }
+        }
+      },
+      "CampaignErrorCode": {
+        "type": "string",
+        "description": "Stable machine codes carried in the error envelope's details.code, so a client can branch on a code while the human message stays free to change.",
+        "enum": [
+          "CRM_CAMPAIGN_NOT_FOUND",
+          "CRM_CAMPAIGN_SCOPE_DENIED",
+          "CRM_CAMPAIGN_VERSION_CONFLICT",
+          "CRM_CAMPAIGN_INVALID_STATE",
+          "CRM_CAMPAIGN_AUDIENCE_NOT_FOUND",
+          "CRM_CAMPAIGN_AUDIENCE_NOT_CURRENT",
+          "CRM_CAMPAIGN_AUDIENCE_SCOPE_INVALID",
+          "CRM_CAMPAIGN_INVALID_CHANNEL",
+          "CRM_CAMPAIGN_INVALID_EXPERIMENT",
+          "CRM_CAMPAIGN_INVALID_FREQUENCY_POLICY",
+          "CRM_CAMPAIGN_INVALID_QUIET_HOURS",
+          "CRM_CAMPAIGN_PREPARATION_IN_PROGRESS",
+          "CRM_CAMPAIGN_PREPARATION_FAILED",
+          "CRM_IDEMPOTENCY_CONFLICT",
+          "CRM_CAMPAIGN_ALREADY_EXISTS",
+          "CRM_CAMPAIGNS_DISABLED",
+          "CRM_CAMPAIGN_SNAPSHOT_NOT_FOUND"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "request_id": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "code": { "$ref": "#/components/schemas/CampaignErrorCode" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

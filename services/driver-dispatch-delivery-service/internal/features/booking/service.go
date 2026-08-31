@@ -58,16 +58,25 @@ type LifecycleNotifier interface {
 	NotifyProviderCancelled(ctx context.Context, providerID, bookingID string, data map[string]interface{})
 }
 
+type CommerceDeliverySettlementAuthority interface {
+	ReleaseCommerceDelivery(ctx context.Context, parentOrderID, vendorOrderID, providerID, completionReference string) error
+}
+
+type commerceMissionScopeReader interface {
+	CommerceMissionScope(ctx context.Context, bookingID string) (string, []string, bool, error)
+}
+
 type Service struct {
-	repository Repository
-	broadcast  BroadcastControl
-	trips      TripControl
-	live       LiveStore
-	payments   PaymentClient
-	events     EventPublisher
-	notifier   LifecycleNotifier
-	radiusKM   float64
-	now        func() time.Time
+	repository         Repository
+	broadcast          BroadcastControl
+	trips              TripControl
+	live               LiveStore
+	payments           PaymentClient
+	events             EventPublisher
+	notifier           LifecycleNotifier
+	commerceSettlement CommerceDeliverySettlementAuthority
+	radiusKM           float64
+	now                func() time.Time
 	// routes fetches road geometry for the live map and the progress bar.
 	// nil disables route fetching; consumers then fall back to straight lines.
 	routes routing.Fetcher
@@ -107,6 +116,11 @@ func (s *Service) WithRoutes(routes routing.Fetcher) *Service {
 
 func (s *Service) WithNotifier(notifier LifecycleNotifier) *Service {
 	s.notifier = notifier
+	return s
+}
+
+func (s *Service) WithCommerceSettlement(authority CommerceDeliverySettlementAuthority) *Service {
+	s.commerceSettlement = authority
 	return s
 }
 
@@ -647,6 +661,28 @@ func (s *Service) HandleTripCompleted(ctx context.Context, bookingID string, com
 	}
 	if updated && s.notifier != nil {
 		s.notifier.NotifyCustomerCompleted(ctx, state.Booking.CustomerID, bookingID, notifyData(state.Booking))
+	}
+	if s.commerceSettlement != nil {
+		if scopes, ok := s.repository.(commerceMissionScopeReader); ok {
+			parentID, vendorIDs, commerce, scopeErr := scopes.CommerceMissionScope(ctx, bookingID)
+			if scopeErr != nil {
+				return scopeErr
+			}
+			if commerce {
+				providerID := state.Booking.ProviderID
+				if providerID == "" {
+					providerID = state.TripProviderID
+				}
+				if providerID == "" {
+					return apperrors.Unavailable("Commerce provider settlement identity is unavailable.", nil)
+				}
+				for _, vendorID := range vendorIDs {
+					if err = s.commerceSettlement.ReleaseCommerceDelivery(ctx, parentID, vendorID, providerID, bookingID); err != nil {
+						return err
+					}
+				}
+			}
+		}
 	}
 	return nil
 }

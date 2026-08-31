@@ -57,6 +57,31 @@ func (r *PostgresNotificationRepository) CreateMessageWithDeliveries(ctx context
 	}
 	defer tx.Rollback(ctx)
 
+	// Serialize one aggregate/recipient stream so an at-least-once worker
+	// cannot deliver an old assignment or delay after a newer terminal fact.
+	// Requests without source provenance retain the service's legacy behavior.
+	if input.Request.SourceAggregateID != "" && input.Request.SourceVersion > 0 {
+		stream := input.Request.SourceService + ":" + input.Request.SourceAggregateType + ":" + input.Request.SourceAggregateID + ":" + input.Request.Recipient.Type + ":" + input.Request.Recipient.ID
+		if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, stream); err != nil {
+			return messagemodels.Message{}, nil, false, err
+		}
+		newer, newerErr := scanMessage(tx.QueryRow(ctx, `SELECT `+messageColumns+` FROM notification_messages
+			WHERE source_service=$1 AND source_aggregate_type=$2 AND source_aggregate_id=$3
+			AND recipient_type=$4 AND recipient_id=$5 AND source_version>$6
+			ORDER BY source_version DESC,created_at DESC LIMIT 1`, input.Request.SourceService,
+			input.Request.SourceAggregateType, input.Request.SourceAggregateID,
+			input.Request.Recipient.Type, input.Request.Recipient.ID, input.Request.SourceVersion))
+		if newerErr == nil {
+			if err = tx.Commit(ctx); err != nil {
+				return messagemodels.Message{}, nil, false, err
+			}
+			return newer, nil, true, nil
+		}
+		if !errors.Is(newerErr, pgx.ErrNoRows) {
+			return messagemodels.Message{}, nil, false, newerErr
+		}
+	}
+
 	channelsJSON, err := json.Marshal(input.Channels)
 	if err != nil {
 		return messagemodels.Message{}, nil, false, err
@@ -89,6 +114,11 @@ func (r *PostgresNotificationRepository) CreateMessageWithDeliveries(ctx context
 			id,
 			idempotency_key,
 			source_service,
+			source_aggregate_type,
+			source_aggregate_id,
+			source_event_id,
+			source_version,
+			correlation_ref,
 			event_type,
 			recipient_type,
 			recipient_id,
@@ -104,13 +134,18 @@ func (r *PostgresNotificationRepository) CreateMessageWithDeliveries(ctx context
 			priority,
 			status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), NULLIF($8, ''), $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULLIF($12,''),NULLIF($13,''),$14,$15,$16,$17,$18,$19,$20,$21,$22)
 		ON CONFLICT (idempotency_key) DO NOTHING
-		RETURNING id::text, idempotency_key, source_service, event_type, recipient_type, recipient_id, recipient_email, recipient_phone, channels, template_key, locale, title, body, data, template_data, priority, status, created_at, updated_at
+		RETURNING `+messageColumns+`
 	`,
 		messageID,
 		input.Request.IDempotencyKey,
 		input.Request.SourceService,
+		input.Request.SourceAggregateType,
+		input.Request.SourceAggregateID,
+		input.Request.SourceEventID,
+		input.Request.SourceVersion,
+		input.Request.CorrelationRef,
 		input.Request.EventName(),
 		input.Request.Recipient.Type,
 		input.Request.Recipient.ID,
@@ -166,7 +201,7 @@ func (r *PostgresNotificationRepository) CreateMessageWithDeliveries(ctx context
 
 func (r *PostgresNotificationRepository) GetMessage(ctx context.Context, id string) (messagemodels.Message, error) {
 	row := r.db.QueryRow(ctx, `
-		SELECT id::text, idempotency_key, source_service, event_type, recipient_type, recipient_id, recipient_email, recipient_phone, channels, template_key, locale, title, body, data, template_data, priority, status, created_at, updated_at
+		SELECT `+messageColumns+`
 		FROM notification_messages
 		WHERE id = $1
 	`, id)
@@ -180,7 +215,7 @@ func (r *PostgresNotificationRepository) GetMessage(ctx context.Context, id stri
 
 func (r *PostgresNotificationRepository) GetMessageByIdempotencyKey(ctx context.Context, key string) (messagemodels.Message, error) {
 	row := r.db.QueryRow(ctx, `
-		SELECT id::text, idempotency_key, source_service, event_type, recipient_type, recipient_id, recipient_email, recipient_phone, channels, template_key, locale, title, body, data, template_data, priority, status, created_at, updated_at
+		SELECT `+messageColumns+`
 		FROM notification_messages WHERE idempotency_key = $1`, key)
 	message, err := scanMessage(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -194,7 +229,7 @@ func (r *PostgresNotificationRepository) ListMessages(ctx context.Context, recip
 		limit = 50
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT id::text, idempotency_key, source_service, event_type, recipient_type, recipient_id, recipient_email, recipient_phone, channels, template_key, locale, title, body, data, template_data, priority, status, created_at, updated_at
+		SELECT `+messageColumns+`
 		FROM notification_messages
 		WHERE recipient_type = $1 AND recipient_id = $2
 		ORDER BY created_at DESC
@@ -375,7 +410,7 @@ func (r *PostgresNotificationRepository) getMessageTx(ctx context.Context, tx pg
 		column = "idempotency_key"
 	}
 	row := tx.QueryRow(ctx, `
-		SELECT id::text, idempotency_key, source_service, event_type, recipient_type, recipient_id, recipient_email, recipient_phone, channels, template_key, locale, title, body, data, template_data, priority, status, created_at, updated_at
+		SELECT `+messageColumns+`
 		FROM notification_messages
 		WHERE `+column+` = $1
 	`, key)
@@ -385,6 +420,11 @@ func (r *PostgresNotificationRepository) getMessageTx(ctx context.Context, tx pg
 type scanner interface {
 	Scan(dest ...interface{}) error
 }
+
+const messageColumns = `id::text,idempotency_key,source_service,
+	source_aggregate_type,source_aggregate_id,source_event_id,source_version,correlation_ref,
+	event_type,recipient_type,recipient_id,recipient_email,recipient_phone,channels,
+	template_key,locale,title,body,data,template_data,priority,status,created_at,updated_at`
 
 func scanMessage(row scanner) (messagemodels.Message, error) {
 	var message messagemodels.Message
@@ -396,6 +436,11 @@ func scanMessage(row scanner) (messagemodels.Message, error) {
 		&message.ID,
 		&message.IdempotencyKey,
 		&message.SourceService,
+		&message.SourceAggregateType,
+		&message.SourceAggregateID,
+		&message.SourceEventID,
+		&message.SourceVersion,
+		&message.CorrelationRef,
 		&message.EventType,
 		&message.RecipientType,
 		&message.RecipientID,

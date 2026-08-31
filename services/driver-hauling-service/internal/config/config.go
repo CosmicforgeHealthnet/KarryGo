@@ -77,6 +77,10 @@ type Config struct {
 	BookingSearchWindow int     // seconds to keep searching (rescanning) before unmatched
 	ProviderOnlineTTL   int     // seconds provider stays online without heartbeat
 	MatchMaxRadiusKm    float64 // providers farther than this from pickup are not dispatched
+
+	// CommerceQuoteTTL is how long an issued internal commerce delivery quote
+	// stands before a caller must re-ask.
+	CommerceQuoteTTL time.Duration
 }
 
 func Load() Config {
@@ -146,6 +150,7 @@ func Load() Config {
 		BookingSearchWindow: getEnvInt("HAULING_BOOKING_SEARCH_WINDOW", 60),
 		ProviderOnlineTTL:   getEnvInt("HAULING_PROVIDER_ONLINE_TTL", 90),
 		MatchMaxRadiusKm:    getEnvFloat("HAULING_MATCH_MAX_RADIUS_KM", 25),
+		CommerceQuoteTTL:    time.Duration(getEnvInt("HAULING_COMMERCE_QUOTE_TTL_SECONDS", 1200)) * time.Second,
 	}
 }
 

@@ -22,6 +22,8 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	bookingfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking"
 	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
+	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
+	dispatchcommercequote "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercequote"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
@@ -183,6 +185,18 @@ func main() {
 		},
 	)
 	requestfeature.StartSubscribers(ctx, redisClient, requestService)
+	if len(cfg.VendorServiceSecret) > 0 {
+		commerceRepository := dispatchcommercemission.NewRepository(db).WithTargetEventEmitter(
+			marketplace.NewLegacyEventEmitter(marketplace.NewRepository(db), true),
+		)
+		commerceRuntime := dispatchcommercemission.NewMultiStopMission(
+			dispatchcommercemission.MultiStopMissionOptions{
+				Store: commerceRepository, Quotes: dispatchcommercequote.NewRepository(db),
+				Broadcast: requestService, Notifier: bookingNotifier,
+			},
+		).WithHandoverSecret(cfg.HandoverSecret)
+		go commerceRuntime.RunRecoveryWorker(ctx, 10*time.Second)
+	}
 
 	bookingService := bookingfeature.NewService(
 		bookingfeature.NewPostgresRepository(db),
@@ -196,6 +210,7 @@ func main() {
 		// case routes are never fetched and the apps fall back to
 		// straight-line geometry.
 	).WithNotifier(bookingNotifier).WithRoutes(routing.New(cfg.RoutesAPIKey))
+	bookingService.WithCommerceSettlement(bookingfeature.NewWalletCommerceSettlementClient(walletClient))
 	bookingfeature.StartSubscribers(ctx, redisClient, bookingService)
 
 	asynqServer := asynq.NewServer(asynqRedis, asynq.Config{

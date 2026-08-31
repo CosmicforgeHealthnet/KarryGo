@@ -1,0 +1,28 @@
+DROP TRIGGER IF EXISTS canonical_taxonomy_authority_history_append_only
+ON canonical_taxonomy_authority_vocabulary_history;
+
+DROP FUNCTION IF EXISTS canonical_taxonomy_prevent_authority_history_mutation();
+
+
+DROP TRIGGER IF EXISTS canonical_taxonomy_authority_vocabulary_history
+ON canonical_taxonomy_authority_vocabulary;
+
+DROP FUNCTION IF EXISTS canonical_taxonomy_record_authority_vocabulary_history();
+
+
+DROP TRIGGER IF EXISTS canonical_taxonomy_authority_vocabulary_validate
+ON canonical_taxonomy_authority_vocabulary;
+
+DROP FUNCTION IF EXISTS canonical_taxonomy_validate_authority_vocabulary();
+
+
+DROP TABLE IF EXISTS canonical_taxonomy_authority_vocabulary_history;
+DROP TABLE IF EXISTS canonical_taxonomy_authority_vocabulary;
+
+
+DROP TRIGGER IF EXISTS canonical_taxonomy_seed_runs_guard
+ON canonical_taxonomy_seed_runs;
+
+DROP FUNCTION IF EXISTS canonical_taxonomy_validate_seed_run_mutation();
+
+DROP TABLE IF EXISTS canonical_taxonomy_seed_runs;

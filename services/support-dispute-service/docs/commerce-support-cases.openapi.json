@@ -1,0 +1,10 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Support-owned Commerce cases", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/support-disputes/internal/commerce-cases": {"post": {"summary": "Create an idempotent typed Commerce case (Vendor HMAC v2 only)", "responses": {"201": {"description": "Created"}, "200": {"description": "Replay"}, "409": {"description": "Fingerprint conflict"}}}},
+    "/api/v1/support-disputes/internal/commerce-cases/operations/{operationRef}": {"get": {"summary": "Read back an unknown create result", "responses": {"200": {"description": "Case"}}}},
+    "/api/v1/support-disputes/internal/commerce-cases/{caseRef}": {"get": {"summary": "Read one Vendor-scoped Commerce case", "responses": {"200": {"description": "Case"}}}},
+    "/api/v1/support-disputes/admin/commerce-cases/{caseRef}/resolution": {"post": {"summary": "Record a formal versioned resolution and outbox event", "responses": {"200": {"description": "Resolved"}}}}
+  }
+}

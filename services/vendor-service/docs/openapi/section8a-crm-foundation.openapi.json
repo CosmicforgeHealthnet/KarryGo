@@ -427,7 +427,7 @@
       "ModuleAvailability": {
         "type": "string",
         "enum": ["NOT_IMPLEMENTED", "AVAILABLE"],
-        "description": "Sections 8B-8H are not implemented, so their modules report NOT_IMPLEMENTED rather than an empty structure that would read as an operational feature with no data."
+        "description": "Tags/segments and interactions/tasks report AVAILABLE when their Section 8B/8C flags are enabled and are otherwise omitted/unavailable. Sections 8D-8H report NOT_IMPLEMENTED."
       },
       "Pagination": {
         "type": "object",
@@ -606,7 +606,7 @@
           "identity_link": { "$ref": "#/components/schemas/IdentityLinkSummary" },
           "modules": {
             "type": "object",
-            "description": "Availability of later CRM packages. All report NOT_IMPLEMENTED in Section 8A.",
+            "description": "Availability of CRM extension modules. Tags/segments and interactions/tasks can report AVAILABLE under their respective feature flags; Sections 8D-8H remain NOT_IMPLEMENTED.",
             "additionalProperties": { "$ref": "#/components/schemas/ModuleAvailability" }
           }
         }

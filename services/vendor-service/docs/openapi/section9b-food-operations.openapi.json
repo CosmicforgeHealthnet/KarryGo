@@ -1,0 +1,56 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Section 9B Food Operations",
+    "version": "1.0.0",
+    "description": "Authenticated vendor-management routes for schedules, operational availability, branch overrides, pricing history/resolution, preparation profiles, logistics profiles and availability-source configuration. This document contains no discovery or internal consumption routes."
+  },
+  "servers": [{"url": "/api/v1/vendor", "description": "Authenticated vendor surface."}],
+  "tags": [{"name": "Food Operations", "description": "Section 9B management operations."}],
+  "paths": {
+    "/food/menus/{menuId}/schedules": {
+      "post": {"operationId": "createFoodSchedule", "tags": ["Food Operations"], "responses": {"201": {"description": "Created."}}},
+      "get": {"operationId": "listFoodSchedules", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/menus/{menuId}/schedules/{scheduleId}": {
+      "get": {"operationId": "getFoodSchedule", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "patch": {"operationId": "updateFoodSchedule", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/menus/{menuId}/schedules/{scheduleId}/archive": {
+      "post": {"operationId": "archiveFoodSchedule", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/items/{itemId}/availability": {
+      "get": {"operationId": "getFoodAvailability", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "put": {"operationId": "setFoodAvailability", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/items/{itemId}/availability/effective": {
+      "get": {"operationId": "getEffectiveFoodAvailability", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/items/{itemId}/availability-source": {
+      "get": {"operationId": "getFoodAvailabilitySource", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "put": {"operationId": "setFoodAvailabilitySource", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "delete": {"operationId": "clearFoodAvailabilitySource", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/items/{itemId}/branch-override": {
+      "get": {"operationId": "getFoodBranchOverride", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "put": {"operationId": "setFoodBranchOverride", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "delete": {"operationId": "clearFoodBranchOverride", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/items/{itemId}/pricing/history": {
+      "get": {"operationId": "listFoodPriceHistory", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/items/{itemId}/pricing/resolve": {
+      "post": {"operationId": "resolveFoodPrice", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/items/{itemId}/prep-profile": {
+      "get": {"operationId": "getFoodPrepProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "put": {"operationId": "setFoodPrepProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "delete": {"operationId": "clearFoodPrepProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    },
+    "/food/items/{itemId}/logistics-profile": {
+      "get": {"operationId": "getFoodLogisticsProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "put": {"operationId": "setFoodLogisticsProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
+      "delete": {"operationId": "clearFoodLogisticsProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+    }
+  }
+}

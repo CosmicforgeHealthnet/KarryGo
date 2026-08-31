@@ -1,0 +1,31 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Commerce, Advanced RFQ and Recurring Feeding",
+    "version": "21.2",
+    "description": "Section 21 commerce. Checkout, Wallet, Production and logistics execution remain owned by their existing authorities; Wallet is the sole payment authority."
+  },
+  "servers": [{ "url": "/api/v1" }],
+  "paths": {
+    "/vendor/commerce/section21/scheduled-orders": { "post": { "responses": { "201": { "description": "Scheduled order accepted" } } } },
+    "/vendor/commerce/section21/scheduled-orders/{id}/cancel": { "post": { "responses": { "204": { "description": "Cancelled" } } } },
+    "/vendor/commerce/section21/rfqs/{rfqId}/quotes": { "post": { "responses": { "201": { "description": "Quote revision or counter-offer submitted" } } } },
+    "/vendor/commerce/section21/recurring-schedules": { "post": { "responses": { "201": { "description": "Corporate recurring schedule created" } } } },
+    "/vendor/commerce/section21/recurring-schedules/{scheduleId}": { "put": { "responses": { "204": { "description": "Corporate recurring schedule updated" } } } },
+    "/vendor/commerce/section21/recurring-schedules/{scheduleId}/status": { "post": { "responses": { "204": { "description": "Recurring schedule status changed" } } } },
+    "/vendor/commerce/section21/recurring-schedules/{scheduleId}/occurrences": { "get": { "responses": { "200": { "description": "Tenant-scoped future occurrences and proposals" } } } },
+    "/commerce/section21/groups": { "post": { "responses": { "201": { "description": "Group session created" } } } },
+    "/commerce/section21/groups/{groupId}/close": { "post": { "responses": { "204": { "description": "Group closed" } } } },
+    "/commerce/section21/groups/{groupId}/convert": { "post": { "responses": { "200": { "description": "Organizer-paid order conversion" } } } },
+    "/commerce/section21/groups/{groupId}/join": { "post": { "responses": { "201": { "description": "Participant joined" } } } },
+    "/commerce/section21/groups/{groupId}/selections/{selectionId}": { "put": { "responses": { "200": { "description": "Participant selection" } } }, "delete": { "responses": { "204": { "description": "Participant selection removed" } } } },
+    "/commerce/section21/rfqs": { "post": { "responses": { "201": { "description": "RFQ created" } } } },
+    "/commerce/section21/rfqs/{rfqId}/open": { "post": { "responses": { "204": { "description": "RFQ opened" } } } },
+    "/commerce/section21/rfqs/{rfqId}/quotes": { "get": { "responses": { "200": { "description": "Eligible quote revisions" } } } },
+    "/commerce/section21/rfqs/{rfqId}/quotes/{quoteId}/counter": { "post": { "responses": { "201": { "description": "Requester counter-offer revision" } } } },
+    "/commerce/section21/rfqs/{rfqId}/accept": { "post": { "responses": { "200": { "description": "RFQ quote accepted" } } } },
+    "/commerce/section21/rfqs/{rfqId}/convert": { "post": { "responses": { "204": { "description": "RFQ converted through CheckoutQuote and Wallet policy" } } } },
+    "/commerce/section21/rfqs/{rfqId}/conversion": { "get": { "responses": { "200": { "description": "Authoritative RFQ payment/conversion status" } } } },
+    "/commerce/section21/rfqs/{rfqId}/cancel": { "post": { "responses": { "204": { "description": "RFQ cancelled with snapshotted refund policy" } } } }
+  }
+}

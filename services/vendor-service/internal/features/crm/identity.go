@@ -99,7 +99,7 @@ func (s *Service) ApplyIdentityLink(ctx context.Context, tx pgx.Tx, actor Actor,
 	if second < first {
 		first, second = second, first
 	}
-	if _, err = tx.Exec(ctx, `SELECT id FROM vendor_customer_profiles WHERE business_id=$1 AND id IN ($2,$3) ORDER BY id FOR UPDATE`,
+	if _, err = tx.Exec(ctx, `/* crm_identity_merge_fence */ SELECT id FROM vendor_customer_profiles WHERE business_id=$1 AND id IN ($2,$3) ORDER BY id FOR UPDATE`,
 		actor.VendorID, first, second); err != nil {
 		return err
 	}
@@ -131,6 +131,12 @@ func (s *Service) ApplyIdentityLink(ctx context.Context, tx pgx.Tx, actor Actor,
 		return err
 	}
 	if err = s.RebuildCommercialProjection(ctx, tx, actor, source.ID, in.AuthorityVersion, s.now()); err != nil {
+		return err
+	}
+	if err = s.RebuildCompletionProjections(ctx, tx, actor, target.ID, s.now()); err != nil {
+		return err
+	}
+	if err = s.RebuildCompletionProjections(ctx, tx, actor, source.ID, s.now()); err != nil {
 		return err
 	}
 

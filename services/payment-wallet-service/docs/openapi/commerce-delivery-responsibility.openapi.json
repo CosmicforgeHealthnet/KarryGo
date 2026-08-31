@@ -1,0 +1,26 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Commerce delivery responsibility transition", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/payment-wallet/internal/commerce/allocations/{vendorOrderId}/delivery-responsibility": {
+      "post": {"summary": "Transition an unreleased Vendor delivery payable to platform responsibility", "parameters": [{"in": "path", "name": "vendorOrderId", "required": true, "schema": {"type": "string"}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeliveryResponsibilityTransitionRequest"}}}}, "responses": {"201": {"description": "Transition applied"}, "409": {"description": "Allocation is not eligible"}}}
+    },
+    "/api/v1/payment-wallet/internal/commerce/delivery-responsibility-transitions/{operationRef}": {
+      "get": {"summary": "Resolve an idempotent delivery responsibility transition", "parameters": [{"in": "path", "name": "operationRef", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Transition"}, "404": {"description": "Unknown operation"}}}
+    }
+  },
+  "components": {
+    "schemas": {
+      "DeliveryResponsibilityTransitionRequest": {
+        "type": "object",
+        "required": ["operation_ref", "idempotency_key", "reason_code", "platform_execution_cost_minor"],
+        "properties": {
+          "operation_ref": {"type": "string"},
+          "idempotency_key": {"type": "string"},
+          "reason_code": {"type": "string"},
+          "platform_execution_cost_minor": {"type": "integer", "format": "int64", "minimum": 0}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS food_catalogue_revisions;
+DROP TABLE IF EXISTS food_item_availability_sources;
+DROP TABLE IF EXISTS food_item_logistics_profiles;
+DROP TABLE IF EXISTS food_item_prep_profiles;
+DROP TRIGGER IF EXISTS food_price_versions_no_update_or_delete ON food_price_versions;
+DROP TABLE IF EXISTS food_price_versions;
+DROP FUNCTION IF EXISTS food_price_versions_immutable();
+DROP TABLE IF EXISTS food_branch_item_overrides;
+DROP TABLE IF EXISTS food_item_availability;
+DROP TABLE IF EXISTS food_menu_schedules;

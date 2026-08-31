@@ -1,0 +1,1029 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Section 13 Food and Shop Search",
+    "version": "1.0.0",
+    "description": "Section 13 internal Food and Shop discovery: ranked search, bounded facets and bounded suggestions. FOOD and SHOP are separate engines over separate projections with separate generations; there is deliberately no combined endpoint. Every response is derived state read from the ACTIVE generation - it confers no availability, price or stock guarantee, and authoritative Food/Shop revalidation happens at checkout. Callers cannot select a generation. No personalization, no customer profiling, no search-history ranking, no vector or LLM search."
+  },
+  "servers": [
+    {
+      "url": "/internal/vendor/v1"
+    }
+  ],
+  "security": [
+    {
+      "hmacV2": []
+    }
+  ],
+  "paths": {
+    "/search/food": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_search_food",
+        "summary": "Search the Food projection",
+        "description": "Ranked Food search at the ACTIVE generation. The generation is resolved server-side and cannot be supplied. A Shop filter block is rejected. Results are derived state: a hit confers no availability, price or stock guarantee.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodSearchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/food/facets": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_search_food_facets",
+        "summary": "Compute Food facets",
+        "description": "Bounded facet counts computed by the same engine over the same candidate set as the search itself, so facets can never disagree with the result list they describe.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodSearchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/food/suggestions": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_search_food_suggestions",
+        "summary": "Food autocomplete suggestions",
+        "description": "Bounded suggestions from canonical taxonomy, aliases, synonyms and projected Food names. There is no personalization input and no search history.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Partial query text."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "description": "Bounded suggestion count; values above the maximum are clamped."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/search/shop": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_search_shop",
+        "summary": "Search the Shop projection",
+        "description": "Ranked Shop search at the ACTIVE generation. A Food filter block is rejected. An IN_STOCK result is a projection observation, not a reservation: authoritative inventory revalidates at checkout.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopSearchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/shop/facets": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_search_shop_facets",
+        "summary": "Compute Shop facets",
+        "description": "Bounded Shop facet counts computed by the search engine itself.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopSearchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/shop/suggestions": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_search_shop_suggestions",
+        "summary": "Shop autocomplete suggestions",
+        "description": "Bounded suggestions from canonical taxonomy, aliases, synonyms, brands and projected Shop names. No personalization.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Partial query text."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "description": "Bounded suggestion count."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "hmacV2": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature"
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Stable platform error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "EmptyCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "No body fields. The command's subject comes from the path and its actor from the verified caller."
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "FoodSearchRequest": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "description": "No generation field exists: the ACTIVE generation is resolved server-side. Supplying shop_filters is rejected.",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "branch_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "profile_code": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "facets": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            }
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "RELEVANCE",
+              "PRICE_ASC",
+              "PRICE_DESC",
+              "DISTANCE"
+            ]
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "Clamped to the maximum rather than rejected."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque stable cursor from a previous response."
+          },
+          "distance_context": {
+            "type": "object",
+            "nullable": true,
+            "description": "Required for DISTANCE sorting. Distance sorting without it is rejected."
+          },
+          "food_filters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ProviderTypes": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "Cuisines": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "MealPeriods": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "DishTypes": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "FoodGroups": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "Occasions": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "DietaryClaims": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "PreferenceClaims": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "MinPriceMinor": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true
+              },
+              "MaxPriceMinor": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true
+              },
+              "Available": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "Serviceable": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "Trusted": {
+                "type": "boolean",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "ShopSearchRequest": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "description": "No generation field exists. Supplying food_filters is rejected.",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "branch_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "profile_code": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "facets": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            }
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "RELEVANCE",
+              "PRICE_ASC",
+              "PRICE_DESC",
+              "DISTANCE"
+            ]
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "Clamped to the maximum rather than rejected."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque stable cursor from a previous response."
+          },
+          "distance_context": {
+            "type": "object",
+            "nullable": true,
+            "description": "Required for DISTANCE sorting. Distance sorting without it is rejected."
+          },
+          "shop_filters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "CanonicalCategories": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "Brands": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "OperatingModels": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ProductClasses": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "SellUnits": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "Measurements": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "FreshAttributes": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "TemperatureZones": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "RetailEligible": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "WholesaleEligible": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "MinPriceMinor": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true
+              },
+              "MaxPriceMinor": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true
+              },
+              "Available": {
+                "type": "boolean",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

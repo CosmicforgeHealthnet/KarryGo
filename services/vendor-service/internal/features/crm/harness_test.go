@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -49,6 +50,22 @@ const (
 
 // newTestEnv builds a real-Postgres environment with two businesses, so every
 // tenancy assertion is against genuinely separate tenants rather than a mock.
+var (
+	crmTestMigrationsOnce sync.Once
+	crmTestMigrationsErr  error
+)
+
+func ensureCRMTestMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	crmTestMigrationsOnce.Do(func() {
+		crmTestMigrationsErr = database.ApplyMigrations(
+			ctx,
+			pool,
+			"../../../migrations",
+		)
+	})
+	return crmTestMigrationsErr
+}
+
 func newTestEnv(t *testing.T, flags Flags) *testEnv {
 	t.Helper()
 	dsn := os.Getenv("VENDOR_SERVICE_TEST_DATABASE_URL")
@@ -58,19 +75,70 @@ func newTestEnv(t *testing.T, flags Flags) *testEnv {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	t.Cleanup(cancel)
 
-	pool, err := pgxpool.New(ctx, dsn)
+	// Every connection this pool opens is tagged with crmTestAppName so the
+	// concurrency tests can scope their lock observation to this test binary's
+	// own backends. Without the tag the only way to find a blocked transaction
+	// is to search the whole server, which is how those tests used to be
+	// satisfied by unrelated backends. See concurrency_observation_test.go.
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	poolConfig.ConnConfig.RuntimeParams["application_name"] = crmTestAppName
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if err = database.ApplyMigrations(ctx, pool, "../../../migrations"); err != nil {
+	if err = ensureCRMTestMigrations(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `TRUNCATE crm_privacy_processing_history, crm_privacy_projections,
-		crm_consent_projections, crm_customer_order_facts, crm_customer_branch_relations,
-		crm_customer_identity_links, vendor_customer_profiles, vendor_inbox_processed_events,
-		vendor_service_nonces, vendor_outbox, vendor_audit_log, vendor_branches, vendor_businesses,
-		vendor_staff_role_assignments, vendor_staff, vendor_users RESTART IDENTITY CASCADE`); err != nil {
+	// Clears exactly what the previous TRUNCATE ... CASCADE cleared, but only
+	// touches tables that actually hold rows. See fixture_reset_test.go.
+	resetCRMFixture(ctx, t, pool)
+
+	// CRM harness cleanup must preserve platform-owned and other-package seed
+	// data. Never TRUNCATE shared Vendor authority/root tables with CASCADE.
+	// Delete only the two CRM test tenants, one statement at a time because
+	// pgx parameterized execution does not permit multiple SQL commands in a
+	// single prepared statement.
+	if _, err = pool.Exec(ctx, `
+        DELETE FROM vendor_staff_role_assignments
+        WHERE staff_id IN (
+            SELECT id
+            FROM vendor_staff
+            WHERE vendor_id IN ($1, $2)
+        )
+    `, businessA, businessB); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = pool.Exec(ctx, `
+        DELETE FROM vendor_branches
+        WHERE business_id IN ($1, $2)
+    `, businessA, businessB); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = pool.Exec(ctx, `
+        DELETE FROM vendor_businesses
+        WHERE id IN ($1, $2)
+    `, businessA, businessB); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = pool.Exec(ctx, `
+        DELETE FROM vendor_staff
+        WHERE vendor_id IN ($1, $2)
+    `, businessA, businessB); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = pool.Exec(ctx, `
+        DELETE FROM vendor_users
+        WHERE id IN ('vu_a', 'vu_b')
+    `); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,6 +168,12 @@ func newTestEnv(t *testing.T, flags Flags) *testEnv {
 			t.Fatal(err)
 		}
 	}
+	for _, assignment := range []struct{ id, staff string }{{"vra_a", "vs_a"}, {"vra_b", "vs_b"}} {
+		if _, err = pool.Exec(ctx, `INSERT INTO vendor_staff_role_assignments(id,staff_id,role_id,branch_id)
+			VALUES($1,$2,'role_owner',NULL)`, assignment.id, assignment.staff); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	recorder := &recordingAudit{}
 	now := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
@@ -117,11 +191,23 @@ func newTestEnv(t *testing.T, flags Flags) *testEnv {
 // allFlagsOn is the fully-integrated configuration used by most tests.
 func allFlagsOn() Flags {
 	return Flags{
-		CRMEnabled:                true,
-		WritesEnabled:             true,
-		CustomerProjectionEnabled: true,
-		ConsentIntegrationEnabled: true,
-		PrivacyIntegrationEnabled: true,
+		CRMEnabled:                    true,
+		WritesEnabled:                 true,
+		CustomerProjectionEnabled:     true,
+		ConsentIntegrationEnabled:     true,
+		PrivacyIntegrationEnabled:     true,
+		SegmentationEnabled:           true,
+		SegmentMaterializationEnabled: true,
+		InteractionsEnabled:           true,
+		TasksEnabled:                  true,
+		LoyaltyEnabled:                true,
+		CampaignsEnabled:              true,
+		CampaignPreparationEnabled:    true,
+		CorporateEnabled:              true,
+		CampaignExecutionEnabled:      true,
+		IntelligenceEnabled:           true,
+		IntelligenceWorkerEnabled:     true,
+		ExportsEnabled:                true,
 	}
 }
 

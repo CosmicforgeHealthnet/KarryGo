@@ -341,6 +341,13 @@ func (r *PostgresRepository) CompleteTripTx(ctx context.Context, input CompleteT
 		return nil, nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	var transferPending bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM commerce_missions WHERE (trip_id=$1::uuid OR replacement_trip_id=$1::uuid) AND replacement_state<>'NONE')`, input.TripID).Scan(&transferPending); err != nil {
+		return nil, nil, err
+	}
+	if transferPending {
+		return nil, nil, apperrors.Conflict("Provider transfer must complete before normal delivery completion.", nil)
+	}
 
 	// Mark proof as verified.
 	if _, err := tx.Exec(ctx, `
@@ -565,6 +572,13 @@ func (r *PostgresRepository) MarkTripStarted(ctx context.Context, tripID, provid
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	var transferPending bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM commerce_missions WHERE (trip_id=$1::uuid OR replacement_trip_id=$1::uuid) AND replacement_state<>'NONE')`, tripID).Scan(&transferPending); err != nil {
+		return nil, err
+	}
+	if transferPending {
+		return nil, apperrors.Conflict("Provider transfer must complete before the replacement delivery starts.", nil)
+	}
 
 	row := tx.QueryRow(ctx, `
 		UPDATE trips
@@ -651,6 +665,13 @@ func (r *PostgresRepository) SubmitProofTx(ctx context.Context, input SubmitProo
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	var transferPending bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM commerce_missions WHERE (trip_id=$1::uuid OR replacement_trip_id=$1::uuid) AND replacement_state<>'NONE')`, input.TripID).Scan(&transferPending); err != nil {
+		return nil, err
+	}
+	if transferPending {
+		return nil, apperrors.Conflict("Provider transfer must complete before delivery proof.", nil)
+	}
 
 	proofRow := tx.QueryRow(ctx, `
 		INSERT INTO delivery_proofs (trip_id, photo_ref, signature_ref, receiver_name, receiver_phone)
@@ -675,6 +696,17 @@ func (r *PostgresRepository) SubmitProofTx(ctx context.Context, input SubmitProo
 	}
 	if tag.RowsAffected() == 0 {
 		return nil, apperrors.Conflict("Trip is not in the expected state for proof submission.", nil)
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO commerce_mission_evidence(
+		commerce_mission_id,operation_ref,evidence_type,actor_type,actor_ref,parcel_refs,
+		captured_at,media_refs,description,source_version)
+		SELECT m.id,'trip-proof:'||$1::text,'DELIVERY','PROVIDER',$2,
+		ARRAY(SELECT parcel_ref FROM commerce_mission_parcels WHERE commerce_mission_id=m.id ORDER BY parcel_ref),
+		$5,array_remove(ARRAY[$3,$4]::text[],''),'Existing Dispatch delivery proof',m.source_version
+		FROM commerce_missions m WHERE m.trip_id=$1::uuid
+		ON CONFLICT (commerce_mission_id,operation_ref) DO NOTHING`,
+		input.TripID, input.ProviderID, input.PhotoRef, input.SignatureRef, input.Now); err != nil {
+		return nil, err
 	}
 
 	if _, err := tx.Exec(ctx, `

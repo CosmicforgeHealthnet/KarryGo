@@ -1,0 +1,4522 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Section 13 Platform Taxonomy Administration",
+    "version": "1.0.0",
+    "description": "Section 13 platform canonical taxonomy administration: versions, drafts, facets, nodes, governed vocabulary, publication, governance cases, platform-scope mapping and semantic assignment, and append-only seed evidence. This surface decides how every vendor on the platform is classified and discovered, so it is root-mounted and reachable only with serviceauth HMAC-v2 plus an explicit caller allowlist and durable nonce replay protection. No vendor role grants vendor.taxonomy.platform.admin and there is no bearer route here to grant it on."
+  },
+  "servers": [
+    {
+      "url": "/internal/vendor/v1"
+    }
+  ],
+  "security": [
+    {
+      "hmacV2": []
+    }
+  ],
+  "paths": {
+    "/taxonomy/namespaces/{namespaceCode}/dietary-claim-assignments": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_dietary_claim_assignments",
+        "summary": "Assign a dietary claim",
+        "description": "Assigns a dietary claim with its declared or verified status.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignDietaryClaimRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/facet-mappings": {
+      "put": {
+        "operationId": "put_internal_vendor_v1_taxonomy_namespaces_namespaceCode_facet_mappings",
+        "summary": "Replace facet mappings at platform scope",
+        "description": "Platform-scope idempotent replacement of a resource's mappings inside one facet. Unlike the vendor route, business_ref and branch_ref may be supplied, because the caller is the platform rather than a tenant.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceFacetMappingsPlatformRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/facets/{facetId}": {
+      "patch": {
+        "operationId": "patch_internal_vendor_v1_taxonomy_namespaces_namespaceCode_facets_facetId",
+        "summary": "Update a facet",
+        "description": "Optimistic-concurrency update. If-Match carries the expected revision.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "facetId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Canonical facet identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Expected record revision for optimistic concurrency."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFacetRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/facets/{facetId}/archive": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_facets_facetId_archive",
+        "summary": "Archive a facet",
+        "description": "Archives a facet. Refused when active nodes still depend on it.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "facetId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Canonical facet identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/facets/{facetId}/restore": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_facets_facetId_restore",
+        "summary": "Restore a facet",
+        "description": "Returns an archived facet to active.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "facetId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Canonical facet identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/governance-cases": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_governance_cases",
+        "summary": "Open a governance case",
+        "description": "Opens a review case against a taxonomy subject.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenGovernanceCaseRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/governance-cases/{caseId}": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_governance_cases_caseId",
+        "summary": "Read a governance case",
+        "description": "Case state, assignment and resolution.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Governance case identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/governance-cases/{caseId}/transition": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_governance_cases_caseId_transition",
+        "summary": "Transition a governance case",
+        "description": "Advances a case through its review workflow. The case must belong to the addressed namespace.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Governance case identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionGovernanceCaseRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/mappings": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_mappings",
+        "summary": "Create a platform mapping",
+        "description": "Creates a mapping at platform scope. The version must belong to the addressed namespace.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMappingRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/mappings/{mappingId}": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_mappings_mappingId",
+        "summary": "Read a mapping",
+        "description": "One mapping, scoped to the addressed namespace.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "mappingId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy mapping identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/nodes/{nodeId}": {
+      "patch": {
+        "operationId": "patch_internal_vendor_v1_taxonomy_namespaces_namespaceCode_nodes_nodeId",
+        "summary": "Update a node",
+        "description": "Optimistic-concurrency update. If-Match carries the expected revision.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Canonical node identifier. Must belong to the addressed namespace and version."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Expected record revision for optimistic concurrency."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/nodes/{nodeId}/archive": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_nodes_nodeId_archive",
+        "summary": "Archive a node",
+        "description": "Archives a node. Refused when active children still depend on it.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Canonical node identifier. Must belong to the addressed namespace and version."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/nodes/{nodeId}/restore": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_nodes_nodeId_restore",
+        "summary": "Restore a node",
+        "description": "Returns an archived node to active.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Canonical node identifier. Must belong to the addressed namespace and version."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/publication-history": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_publication_history",
+        "summary": "Read publication history",
+        "description": "Append-only publication evidence for the namespace.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/seed-runs": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_seed_runs",
+        "summary": "List seed run evidence",
+        "description": "Bounded, append-only seed run history, newest first.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/seed-status": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_seed_status",
+        "summary": "Read seed status",
+        "description": "Whether the namespace has been seeded, the latest run's evidence, and the published version. This is a read: re-running a seed rewrites the vocabulary every vendor is classified against and is not exposed as an HTTP command.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/semantic-seed": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_semantic_seed",
+        "summary": "Apply a governed semantic vocabulary bundle",
+        "description": "Applies a fingerprinted semantic tag and dietary claim bundle. Application is idempotent on the bundle fingerprint.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SemanticSeedBundle"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/tag-assignments": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_tag_assignments",
+        "summary": "Assign a semantic tag",
+        "description": "Assigns a governed semantic tag to a source resource.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignTagRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions",
+        "summary": "List taxonomy versions",
+        "description": "Every version of the namespace, newest first.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions",
+        "summary": "Create a draft version",
+        "description": "Allocates the next draft version. Version allocation is serialized on the namespace row.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/clone-active": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_clone_active",
+        "summary": "Clone the active version into a new draft",
+        "description": "Copies the published version's facets, nodes and vocabulary into a fresh draft.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId",
+        "summary": "Read one version",
+        "description": "Version metadata and lifecycle timestamps.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/authority-vocabulary": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_authority_vocabulary",
+        "summary": "List governed authority vocabulary",
+        "description": "Bounded authority-sourced vocabulary for one version.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/compare": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_compare",
+        "summary": "Compare two versions",
+        "description": "Structural diff between two versions of the SAME namespace. Diffing across namespaces is refused.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "query",
+            "name": "target_version_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "The version to diff against. Must belong to the same namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/draft": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_draft",
+        "summary": "Inspect a draft",
+        "description": "Structural inspection of a draft version before publication.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/facets": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_facets",
+        "summary": "List a version's facets",
+        "description": "Bounded facet list for one version.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_facets",
+        "summary": "Create a facet",
+        "description": "Adds a facet to a draft version.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFacetRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/nodes": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_nodes",
+        "summary": "List a version's nodes",
+        "description": "Bounded node list, optionally restricted to one facet.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "query",
+            "name": "facet_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Restrict to one facet."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_nodes",
+        "summary": "Create a node",
+        "description": "Adds a canonical node to a draft version.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/nodes/{nodeId}/terms": {
+      "get": {
+        "operationId": "get_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_nodes_nodeId_terms",
+        "summary": "List a node's vocabulary",
+        "description": "Aliases, synonyms and related terms attached to one node.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Canonical node identifier. Must belong to the addressed namespace and version."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/publish": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_publish",
+        "summary": "Publish a draft version",
+        "description": "Promotes a validated draft to published and retires the previous published version atomically. This changes how every vendor on the platform is classified.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/retire": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_retire",
+        "summary": "Retire a published version",
+        "description": "Retires a published version.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/taxonomy/namespaces/{namespaceCode}/versions/{versionId}/validate": {
+      "post": {
+        "operationId": "post_internal_vendor_v1_taxonomy_namespaces_namespaceCode_versions_versionId_validate",
+        "summary": "Validate a draft for publication",
+        "description": "Runs the exact predicate publication enforces, inside a transaction that is always rolled back. A green validation therefore means publication will not fail on structure.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceCode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FOOD",
+                "SHOP"
+              ]
+            },
+            "description": "Canonical namespace. FOOD and SHOP are separate vocabularies; an identifier from one is never resolvable through the other."
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Taxonomy version identifier. Must belong to the addressed namespace."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Verified calling service identity."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds; rejected outside the verifier's skew window."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Nonce",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Consumed exactly once against vendor_service_nonces; a replay is rejected."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 over version, caller, method, request URI, timestamp, nonce and body digest."
+          },
+          {
+            "in": "header",
+            "name": "X-Service-Signature-Version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signature version. Must be v2."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Caller command reference. Replaying the same key returns the original result rather than applying the command twice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "hmacV2": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature"
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Stable platform error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "AssignDietaryClaimRequest": {
+        "type": "object",
+        "required": [
+          "claim_code",
+          "source_type",
+          "source_ref",
+          "status"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "claim_code": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "source_type": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "source_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "business_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DECLARED",
+              "EVIDENCE_SUBMITTED",
+              "VERIFIED",
+              "REJECTED",
+              "EXPIRED"
+            ]
+          },
+          "evidence_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "verified_by_actor_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "AssignTagRequest": {
+        "type": "object",
+        "required": [
+          "tag_code",
+          "source_type",
+          "source_ref"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "tag_code": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "source_type": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "source_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "business_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "CreateFacetRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "display_name",
+          "structure_type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "structure_type": {
+            "type": "string",
+            "enum": [
+              "FLAT",
+              "HIERARCHICAL"
+            ]
+          },
+          "position": {
+            "type": "integer"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "CreateMappingRequest": {
+        "type": "object",
+        "required": [
+          "version_id",
+          "node_id",
+          "source_type",
+          "source_ref",
+          "mapping_type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "node_id": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "source_type": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "source_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "mapping_type": {
+            "type": "string",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "DERIVED"
+            ]
+          },
+          "confidence_basis": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "RULE",
+              "INFERRED"
+            ]
+          },
+          "confidence_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "business_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "CreateNodeRequest": {
+        "type": "object",
+        "required": [
+          "facet_id",
+          "canonical_code",
+          "display_name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "facet_id": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "canonical_code": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "position": {
+            "type": "integer"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "EmptyCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "No body fields. The command's subject comes from the path and its actor from the verified caller."
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MappingCandidate": {
+        "type": "object",
+        "required": [
+          "node_code",
+          "mapping_type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "node_code": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "mapping_type": {
+            "type": "string",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "DERIVED"
+            ]
+          },
+          "confidence_basis": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "RULE",
+              "INFERRED"
+            ]
+          },
+          "confidence_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "OpenGovernanceCaseRequest": {
+        "type": "object",
+        "required": [
+          "subject_type",
+          "subject_ref",
+          "case_type",
+          "priority"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "subject_type": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "subject_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "case_type": {
+            "type": "string",
+            "enum": [
+              "MAPPING_REVIEW",
+              "VOCABULARY_REVIEW",
+              "CLAIM_REVIEW",
+              "STRUCTURE_REVIEW"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          },
+          "reason_code": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 96
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 4000
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "ReplaceFacetMappingsPlatformRequest": {
+        "type": "object",
+        "required": [
+          "facet_code",
+          "source_type",
+          "source_ref",
+          "mappings"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "facet_code": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "source_type": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "source_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "business_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "branch_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "mappings": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/MappingCandidate"
+            }
+          }
+        }
+      },
+      "SemanticSeedBundle": {
+        "type": "object",
+        "description": "Fingerprinted governed vocabulary bundle of semantic tags and dietary claims."
+      },
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "TransitionGovernanceCaseRequest": {
+        "type": "object",
+        "required": [
+          "transition"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "transition": {
+            "type": "string",
+            "enum": [
+              "START_REVIEW",
+              "ASSIGN",
+              "RESOLVE",
+              "REJECT",
+              "REOPEN"
+            ]
+          },
+          "assigned_actor_ref": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "resolution_code": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 96
+          },
+          "resolution_notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 4000
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "UpdateFacetRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "structure_type": {
+            "type": "string",
+            "enum": [
+              "FLAT",
+              "HIERARCHICAL"
+            ]
+          },
+          "position": {
+            "type": "integer"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "UpdateNodeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "canonical_code": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "position": {
+            "type": "integer"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

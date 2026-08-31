@@ -49,8 +49,21 @@ type Config struct {
 	// decisions and to verify provider acceptance. When the secret is empty
 	// the marketplace clients fall back to their fail-closed variants rather
 	// than half-working: an unconfigured deployment must refuse, not guess.
-	FleetServiceURL     string
-	FleetServiceSecret  []byte
+	FleetServiceURL    string
+	FleetServiceSecret []byte
+
+	// VendorServiceSecret is the shared HMAC secret Vendor Service signs its
+	// commerce quote requests with. Empty means this deployment does not serve
+	// commerce quotes at all, and the route is not registered.
+	VendorServiceSecret          []byte
+	VendorServiceURL             string
+	RouteServiceURL              string
+	RouteServiceTimeout          time.Duration
+	CommerceEventDeliveryEnabled bool
+	CommerceEventDeliveryPath    string
+
+	// CommerceQuoteTTL is how long an issued commerce delivery quote stands.
+	CommerceQuoteTTL    time.Duration
 	FleetServiceCaller  string
 	FleetServiceTimeout time.Duration
 
@@ -139,23 +152,30 @@ func Load() (Config, error) {
 			Password: os.Getenv("DISPATCH_DELIVERY_REDIS_PASSWORD"),
 			DB:       getEnvInt("DISPATCH_DELIVERY_REDIS_DB", 0),
 		},
-		InternalServiceKey:         getEnv("DISPATCH_DELIVERY_INTERNAL_SERVICE_KEY", "development-internal-service-key"),
-		AvailabilityServiceURL:     getEnv("AVAILABILITY_SERVICE_URL", "http://localhost:8103"),
-		BroadcastInitialRadiusKM:   getEnvFloat("BROADCAST_INITIAL_RADIUS_KM", 5),
-		BroadcastRadiusIncrementKM: getEnvFloat("BROADCAST_RADIUS_INCREMENT_KM", 3),
-		BroadcastMaxAttempts:       getEnvInt("BROADCAST_MAX_ATTEMPTS", 3),
-		BroadcastWindow:            time.Duration(getEnvInt("BROADCAST_WINDOW_SECONDS", 30)) * time.Second,
-		WalletServiceURL:           getEnv("WALLET_SERVICE_URL", "http://localhost:8105/api/v1/payment-wallet"),
-		WalletServiceSecret:        []byte(walletServiceSecret),
-		WalletServiceSource:        getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
-		CustomerTokenSecret:        []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
-		HandoverSecret:             []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
-		AvailabilityRadiusKM:       getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
-		RoutesAPIKey:               os.Getenv("DISPATCH_ROUTES_API_KEY"),
-		FleetServiceURL:            getEnv("FLEET_PARTNER_SERVICE_URL", ""),
-		FleetServiceSecret:         []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
-		FleetServiceCaller:         getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-dispatch-delivery-service"),
-		FleetServiceTimeout:        time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		InternalServiceKey:           getEnv("DISPATCH_DELIVERY_INTERNAL_SERVICE_KEY", "development-internal-service-key"),
+		AvailabilityServiceURL:       getEnv("AVAILABILITY_SERVICE_URL", "http://localhost:8103"),
+		BroadcastInitialRadiusKM:     getEnvFloat("BROADCAST_INITIAL_RADIUS_KM", 5),
+		BroadcastRadiusIncrementKM:   getEnvFloat("BROADCAST_RADIUS_INCREMENT_KM", 3),
+		BroadcastMaxAttempts:         getEnvInt("BROADCAST_MAX_ATTEMPTS", 3),
+		BroadcastWindow:              time.Duration(getEnvInt("BROADCAST_WINDOW_SECONDS", 30)) * time.Second,
+		WalletServiceURL:             getEnv("WALLET_SERVICE_URL", "http://localhost:8105/api/v1/payment-wallet"),
+		WalletServiceSecret:          []byte(walletServiceSecret),
+		WalletServiceSource:          getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
+		CustomerTokenSecret:          []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
+		HandoverSecret:               []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
+		AvailabilityRadiusKM:         getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
+		RoutesAPIKey:                 os.Getenv("DISPATCH_ROUTES_API_KEY"),
+		FleetServiceURL:              getEnv("FLEET_PARTNER_SERVICE_URL", ""),
+		FleetServiceSecret:           []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
+		VendorServiceSecret:          []byte(getEnv("VENDOR_SERVICE_SECRET", "")),
+		VendorServiceURL:             getEnv("VENDOR_SERVICE_URL", ""),
+		RouteServiceURL:              getEnv("DISPATCH_ROUTE_SERVICE_URL", ""),
+		RouteServiceTimeout:          time.Duration(getEnvInt("DISPATCH_ROUTE_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		CommerceEventDeliveryEnabled: getEnvBool("DISPATCH_COMMERCE_EVENT_DELIVERY_ENABLED", false),
+		CommerceEventDeliveryPath:    getEnv("DISPATCH_COMMERCE_EVENT_DELIVERY_PATH", "/api/v1/internal/dispatch/v1/commerce/events"),
+		CommerceQuoteTTL:             time.Duration(getEnvInt("COMMERCE_QUOTE_TTL_SECONDS", 900)) * time.Second,
+		FleetServiceCaller:           getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-dispatch-delivery-service"),
+		FleetServiceTimeout:          time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
 
 		MarketplaceInternalAPIEnabled:         getEnvBool("DISPATCH_MARKETPLACE_INTERNAL_API_ENABLED", false),
 		MarketplaceReservationEnabled:         getEnvBool("DISPATCH_ORGANIZATION_RESERVATION_ENABLED", false),

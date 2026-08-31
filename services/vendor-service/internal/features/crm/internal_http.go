@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -33,6 +34,10 @@ func NewInternalHandler(service *Service) *InternalHandler { return &InternalHan
 func (h *InternalHandler) allowKnownCaller(c *gin.Context) {
 	raw, _ := c.Get("service_name")
 	caller, _ := raw.(string)
+	if caller == "notification-service" && c.FullPath() == "/internal/vendor/v1/crm/campaign-delivery-events" {
+		c.Next()
+		return
+	}
 	for _, authority := range EventRegistry {
 		if containsString(authority.AllowedCallers, caller) {
 			c.Next()
@@ -41,6 +46,31 @@ func (h *InternalHandler) allowKnownCaller(c *gin.Context) {
 	}
 	h.service.metrics.Inc("crm_internal_event_rejections_total", "reason", "unknown_caller")
 	c.AbortWithStatus(http.StatusForbidden)
+}
+
+type deliveryEventRequest struct {
+	EventID       string    `json:"event_id"`
+	DeliveryRef   string    `json:"delivery_ref"`
+	Status        string    `json:"status"`
+	ReasonCode    string    `json:"reason_code"`
+	SourceVersion int64     `json:"source_version"`
+	OccurredAt    time.Time `json:"occurred_at"`
+}
+
+func (h *InternalHandler) PostCampaignDeliveryEvent(c *gin.Context) {
+	raw, _ := c.Get("service_name")
+	caller, _ := raw.(string)
+	var req deliveryEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.RespondError(c, apperrors.BadRequest("Check your delivery event.", err))
+		return
+	}
+	applied, err := h.service.IngestCampaignDeliveryEvent(c, caller, DeliveryEvent{EventID: req.EventID, DeliveryRef: req.DeliveryRef, Status: req.Status, ReasonCode: req.ReasonCode, SourceVersion: req.SourceVersion, OccurredAt: req.OccurredAt})
+	if err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"event_id": req.EventID, "accepted": true, "applied": applied}})
 }
 
 // requireNonce enforces single-use request nonces, so a captured signed
@@ -105,4 +135,7 @@ func RegisterInternalRoutes(router *gin.Engine, handler *InternalHandler, verifi
 	group := router.Group("/internal/vendor/v1")
 	group.Use(serviceauth.Middleware(verifier), handler.allowKnownCaller, handler.requireNonce)
 	group.POST("/crm/events", handler.PostEvent)
+	if flags.CampaignsEnabled && flags.CampaignExecutionEnabled {
+		group.POST("/crm/campaign-delivery-events", handler.PostCampaignDeliveryEvent)
+	}
 }

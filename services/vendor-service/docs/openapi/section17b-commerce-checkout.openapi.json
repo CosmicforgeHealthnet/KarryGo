@@ -1,0 +1,678 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor Service — Section 17B commerce checkout",
+    "version": "17.2.0",
+    "description": "Checkout validation and Inventory reservation.\n\nSection 17B turns an ACTIVE Section 17A cart into a validated checkout candidate and nothing more. There is no quote, no quote lock, no logistics price, no payment, no ParentOrder and no VendorOrder in this surface, and a route that implied otherwise would be a boundary violation rather than a convenience.\n\n**Authoritative revalidation.** The cart's price and availability snapshots are evidence of what the customer last saw, never authorization. Food, Shop and Section 14 Inventory are each re-asked at checkout time. Search remains discovery only and is not consulted here at all.\n\n**Reservation.** Shop groups hold real physical stock through Section 14 (source type CHECKOUT) for a configurable TTL. The TTL is deployment configuration; the service refuses to start on a value it was not given. Nothing here writes an inventory table directly.\n\n**Multi-vendor coordination.** Section 14 owns one transaction per reservation, so cross-group atomicity is achieved by deterministic compensation: each group's durable row and its reservation source reference are committed BEFORE the Inventory call, so a failure or a crash always leaves a key that can find and release whatever was actually created. Expired holds additionally self-heal through Section 14's own reservation-expiry worker.\n\n**Customer identity** comes only from the Customer Service bearer token. No route, parameter or field in this contract names a customer."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/commerce"
+    }
+  ],
+  "security": [
+    {
+      "customerBearer": []
+    }
+  ],
+  "paths": {
+    "/checkout-sessions": {
+      "post": {
+        "operationId": "startCommerceCheckout",
+        "summary": "Validate a cart and reserve the stock it needs",
+        "description": "Turns an ACTIVE Section 17A cart into a validated checkout candidate.\n\nEvery line is re-resolved against its owning authority: Food through the Section 9 Food authority (business, branch, capability, menu, service window, item, variant, operational state and production/inventory availability, plus the current price), Shop through the Section 12 catalogue (listing, variant, sell unit, measurement and price), and stock through the Section 14 generic Inventory authority. Nothing the cart, the search projection or the client asserts about price or availability is trusted.\n\nShop groups reserve real physical stock (Section 14 source type CHECKOUT) until `expires_at`. Food reserves nothing. A multi-vendor Shop checkout ends with every required group RESERVED, or with the session FAILED and no hold left behind.\n\nA validation refusal is a FAILED session, not an error envelope: the per-line reason codes are what the customer needs in order to fix the cart, so the session is returned as a resource either way. Errors are reserved for cart preconditions and for an authority that could not answer at all.\n\nThis creates no quote, no payment, no order and no logistics mission.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartCheckoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The checkout session, whether it validated or was refused. Inspect `status`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutSessionEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "The checkout session version, for optimistic concurrency.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/checkout-sessions/{sessionId}": {
+      "get": {
+        "operationId": "getCommerceCheckoutSession",
+        "summary": "Read one checkout session",
+        "description": "Reads a session owned by the authenticated customer.\n\nA live session whose reservation TTL has already elapsed is settled first and reported EXPIRED. It is never reported as valid: the stock behind it is already back in Section 14's available pool, or about to be.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current checkout session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutSessionEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "The checkout session version, for optimistic concurrency.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/checkout-sessions/{sessionId}/cancel": {
+      "post": {
+        "operationId": "cancelCommerceCheckoutSession",
+        "summary": "Abandon a checkout candidate and release its stock",
+        "description": "Releases every hold the session owns and returns the cart to ACTIVE so the customer can edit it again.\n\nCancelling a session that has already finished is a 409, not a second release.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cancelled checkout session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutSessionEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "The checkout session version, for optimistic concurrency.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "customerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "A Customer Service access token. The customer identity is taken from the token subject and from nowhere else: there is no customerId path parameter, query parameter or body field anywhere in this contract."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Standard platform error envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "SessionId": {
+        "name": "sessionId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "A checkout session owned by the authenticated customer. A session belonging to anyone else is reported as not found."
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "The cart version this checkout is requested against. It is required: validating a cart the client has not seen is exactly the stale-checkout defect this section exists to prevent. A mismatch is 409."
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Required on every customer command on this base, which Section 17B inherits from Section 17A unchanged. A repeated key replays the stored response. Checkout is additionally idempotent by construction: a cart that already owns a live session returns that session rather than opening a second one."
+      }
+    },
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CheckoutSessionEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/CheckoutSession"
+          }
+        }
+      },
+      "StartCheckoutRequest": {
+        "type": "object",
+        "required": [
+          "cart_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "cart_id": {
+            "type": "string",
+            "description": "An ACTIVE cart owned by the authenticated customer."
+          }
+        }
+      },
+      "CheckoutSession": {
+        "type": "object",
+        "description": "A validated checkout candidate. It is NOT a quote, NOT an authorization to charge and NOT an order. Section 17D builds and locks the quote from this evidence.",
+        "required": [
+          "id",
+          "cart_id",
+          "cart_version",
+          "domain",
+          "status",
+          "validation_revision",
+          "reservation_ttl_seconds",
+          "expires_at",
+          "reservation_coordination_state",
+          "version",
+          "groups"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "cart_id": {
+            "type": "string"
+          },
+          "cart_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The exact cart version this validation was computed against."
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "FOOD",
+              "SHOP"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "VALIDATING",
+              "VALIDATED",
+              "FAILED",
+              "EXPIRED",
+              "CANCELLED"
+            ],
+            "description": "VALIDATED means every line is currently sellable and every required group holds real stock until expires_at. FAILED, EXPIRED and CANCELLED all guarantee no hold remains."
+          },
+          "validation_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "address_ref": {
+            "type": "string"
+          },
+          "address_snapshotted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "quoted_items_total_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "What the items cost if fulfilled exactly as ordered. Items only: logistics pricing, fees and taxes belong to later sections."
+          },
+          "max_authorized_items_total_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The most the items could legitimately cost once a variable-weight line is actually weighed, given the sell unit's own overfill tolerance. Preparation for Section 17D; nothing in Section 17B may capture, hold or move money against it."
+          },
+          "price_changed": {
+            "type": "boolean",
+            "description": "True when a line's authoritative price differs from the cart snapshot. Section 17B reports the change and quotes from the authoritative price; it never silently creates the final immutable quote."
+          },
+          "catalogue_changed": {
+            "type": "boolean"
+          },
+          "failure_code": {
+            "type": "string",
+            "enum": [
+              "",
+              "LINE_NOT_SELLABLE",
+              "STOCK_UNAVAILABLE",
+              "RESERVATION_FAILED",
+              "CURRENCY_MISMATCH",
+              "COORDINATION_ORPHANED",
+              "CART_GROUPING_VIOLATION"
+            ]
+          },
+          "reservation_ttl_seconds": {
+            "type": "integer",
+            "description": "The configured checkout reservation lifetime. It is deployment configuration; no value is hardcoded."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reservation_coordination_state": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "IN_PROGRESS",
+              "COMPLETE",
+              "COMPENSATING",
+              "COMPENSATED",
+              "ORPHANED"
+            ],
+            "description": "Durable multi-vendor coordination progress. IN_PROGRESS means reservations may exist that nothing has acknowledged yet; recovery releases them."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "settled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckoutGroup"
+            }
+          }
+        }
+      },
+      "CheckoutGroup": {
+        "type": "object",
+        "description": "One Vendor business/branch allocation. A Shop checkout may have many; a Food checkout always has exactly one, because Section 17A binds a Food cart to a single branch.",
+        "required": [
+          "id",
+          "domain",
+          "business_id",
+          "branch_id",
+          "requires_stock_reservation",
+          "reservation_status",
+          "lines"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "FOOD",
+              "SHOP"
+            ]
+          },
+          "business_id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "requires_stock_reservation": {
+            "type": "boolean",
+            "description": "Always false for Food: its production architecture exposes availability, not a reservation interface, so Section 17B reserves nothing on its behalf."
+          },
+          "reservation_status": {
+            "type": "string",
+            "enum": [
+              "NOT_REQUIRED",
+              "PENDING",
+              "RESERVED",
+              "FAILED",
+              "RELEASED"
+            ]
+          },
+          "reservation_source_ref": {
+            "type": "string",
+            "description": "The Section 14 reservation source reference, committed before the Inventory call so a crashed coordination is always recoverable and every retry is idempotent."
+          },
+          "inventory_reservation_ref": {
+            "type": "string"
+          },
+          "reservation_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reservation_failure_code": {
+            "type": "string"
+          },
+          "catalogue_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inventory_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "quoted_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "max_authorized_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckoutLine"
+            }
+          }
+        }
+      },
+      "CheckoutLine": {
+        "type": "object",
+        "description": "One revalidated cart line. Every commercial value is the CURRENT authoritative answer; the snapshot_* values are the cart evidence the customer last saw, kept only so the difference can be reported honestly.",
+        "required": [
+          "id",
+          "cart_item_id",
+          "domain",
+          "business_id",
+          "branch_id",
+          "item_ref",
+          "quantity",
+          "validation_status",
+          "pricing_basis",
+          "reservation_basis"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "group_id": {
+            "type": "string"
+          },
+          "cart_item_id": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "FOOD",
+              "SHOP"
+            ]
+          },
+          "business_id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string"
+          },
+          "item_ref": {
+            "type": "string"
+          },
+          "variant_ref": {
+            "type": "string"
+          },
+          "menu_ref": {
+            "type": "string"
+          },
+          "listing_ref": {
+            "type": "string"
+          },
+          "sell_unit_ref": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "unit_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "price_reference": {
+            "type": "string"
+          },
+          "catalogue_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inventory_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "snapshot_unit_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "snapshot_price_reference": {
+            "type": "string"
+          },
+          "snapshot_catalogue_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "price_changed": {
+            "type": "boolean"
+          },
+          "catalogue_changed": {
+            "type": "boolean"
+          },
+          "pricing_basis": {
+            "type": "string",
+            "enum": [
+              "FIXED_UNIT",
+              "FIXED_MEASURE",
+              "VARIABLE_MEASURE"
+            ]
+          },
+          "requested_measure_ref": {
+            "type": "string"
+          },
+          "expected_measure_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "measure_underfill_bps": {
+            "type": "integer"
+          },
+          "measure_overfill_bps": {
+            "type": "integer"
+          },
+          "quoted_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "max_authorized_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inventory_item_ref": {
+            "type": "string"
+          },
+          "reservation_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reservation_basis": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "SELL_UNIT",
+              "STOCK_MEASURE"
+            ],
+            "description": "SELL_UNIT reserves in the ordered sell-unit count; STOCK_MEASURE reserves in the stock basis measure for variable fulfilment. Vendor Service never invents a conversion between them: a line whose basis cannot be established fails closed."
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "VALID",
+              "CHANGED",
+              "UNAVAILABLE",
+              "INVALID"
+            ]
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "reason_detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

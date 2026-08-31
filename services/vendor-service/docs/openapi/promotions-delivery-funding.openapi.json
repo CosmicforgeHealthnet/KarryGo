@@ -1,0 +1,51 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Vendor Promotions and Delivery Funding", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/vendor/promotions": {
+      "get": {"summary": "List visible promotion campaigns", "responses": {"200": {"description": "Promotion list"}, "401": {"description": "Authentication required"}, "403": {"description": "Scope denied"}}},
+      "post": {"summary": "Create a Vendor-funded promotion campaign", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CampaignInput"}}}}, "responses": {"201": {"description": "Campaign created"}, "403": {"description": "Vendor actors cannot create Platform-funded campaigns"}, "422": {"description": "Invalid campaign"}}}
+    },
+    "/api/v1/vendor/promotions/{promotionId}": {
+      "get": {"summary": "Get an immutable-versioned campaign definition", "parameters": [{"$ref": "#/components/parameters/PromotionId"}], "responses": {"200": {"description": "Campaign"}, "404": {"description": "Not found"}}},
+      "patch": {"summary": "Replace the mutable Vendor-funded campaign definition", "parameters": [{"$ref": "#/components/parameters/PromotionId"}, {"name": "If-Match", "in": "header", "required": true, "schema": {"type": "integer", "minimum": 1}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CampaignInput"}}}}, "responses": {"200": {"description": "Campaign updated with a new version"}, "403": {"description": "Tenant/sponsor/scope denied"}, "409": {"description": "Version conflict"}}}
+    },
+    "/api/v1/vendor/promotions/{promotionId}/status": {
+      "post": {
+        "summary": "Apply a controlled campaign lifecycle transition",
+        "parameters": [{"$ref": "#/components/parameters/PromotionId"}, {"name": "If-Match", "in": "header", "required": true, "schema": {"type": "integer", "minimum": 1}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["status"], "properties": {"status": {"type": "string", "enum": ["DRAFT","SCHEDULED","ACTIVE","PAUSED","ENDED","ARCHIVED"]}}}}}},
+        "responses": {"200": {"description": "Updated campaign"}, "409": {"description": "Version/state conflict"}}
+      }
+    },
+    "/api/v1/vendor/promotions/{promotionId}/coupons": {
+      "post": {
+        "summary": "Create a securely digested coupon activation",
+        "parameters": [{"$ref": "#/components/parameters/PromotionId"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["code"], "properties": {"code": {"type": "string"}, "usage_limit": {"type": "integer", "minimum": 1}, "per_customer_usage_limit": {"type": "integer", "minimum": 1}}}}}},
+        "responses": {"201": {"description": "Coupon created"}}
+      }
+    },
+    "/api/v1/vendor/promotions/{promotionId}/usage": {
+      "get": {"summary": "Read authoritative reserved and consumed usage", "parameters": [{"$ref": "#/components/parameters/PromotionId"}], "responses": {"200": {"description": "Usage evidence"}}}
+    }
+  },
+  "components": {
+    "parameters": {"PromotionId": {"name": "promotionId", "in": "path", "required": true, "schema": {"type": "string"}}},
+    "schemas": {
+      "CampaignInput": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name","promotion_type","currency","starts_at","ends_at","funding_sponsor"],
+        "properties": {
+          "name": {"type": "string"}, "promotion_type": {"type": "string", "enum": ["PERCENTAGE_DISCOUNT","FIXED_DISCOUNT","COUPON","BUNDLE","QUANTITY_BREAK","FREE_DELIVERY","DELIVERY_PERCENTAGE_DISCOUNT","DELIVERY_FLAT_DISCOUNT"]},
+          "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}, "percentage_bps": {"type": "integer", "minimum": 0, "maximum": 10000}, "fixed_amount_minor": {"type": "integer", "minimum": 0},
+          "max_discount_minor": {"type": "integer", "minimum": 1}, "minimum_order_minor": {"type": "integer", "minimum": 0}, "starts_at": {"type": "string", "format": "date-time"}, "ends_at": {"type": "string", "format": "date-time"},
+          "funding_sponsor": {"type": "string", "enum": ["VENDOR"], "description": "Vendor staff API is intentionally restricted to Vendor-funded campaigns."}, "coupon_required": {"type": "boolean"},
+          "global_usage_limit": {"type": "integer", "minimum": 1}, "per_customer_usage_limit": {"type": "integer", "minimum": 1}, "combinability": {"type": "string", "enum": ["EXCLUSIVE","STACKABLE"]}, "priority": {"type": "integer"},
+          "scopes": {"type": "array", "items": {"type": "object", "required": ["type","ref"], "properties": {"type": {"type": "string", "enum": ["BRANCH","CAPABILITY","CATEGORY","ITEM","VARIANT","CUSTOMER_SEGMENT"]}, "ref": {"type": "string"}}}},
+          "bundle_requirements": {"type": "array", "items": {"type": "object"}}, "quantity_tiers": {"type": "array", "items": {"type": "object"}}
+        }
+      }
+    }
+  }
+}

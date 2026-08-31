@@ -1,0 +1,200 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service - Customer Cart",
+    "version": "17A",
+    "description": "Customer cart foundation. Customer identity is derived from the Customer Service bearer token."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/commerce"
+    }
+  ],
+  "security": [
+    {
+      "CustomerBearer": []
+    }
+  ],
+  "paths": {
+    "/carts": {
+      "post": {
+        "operationId": "createOrGetActiveCustomerCart",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "200": { "description": "Active cart" }
+        }
+      }
+    },
+    "/carts/{cartId}": {
+      "get": {
+        "operationId": "getCustomerCart",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" }
+        ],
+        "responses": {
+          "200": { "description": "Customer-owned cart" },
+          "404": { "description": "Cart not found" }
+        }
+      }
+    },
+    "/carts/{cartId}/groups": {
+      "get": {
+        "operationId": "getGroupedShopCart",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" }
+        ],
+        "responses": {
+          "200": { "description": "Shop grouping" }
+        }
+      }
+    },
+    "/carts/{cartId}/items": {
+      "post": {
+        "operationId": "addCustomerCartItem",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Updated cart" }
+        }
+      },
+      "delete": {
+        "operationId": "clearCustomerCart",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Cleared cart" }
+        }
+      }
+    },
+    "/carts/{cartId}/items/{itemId}": {
+      "patch": {
+        "operationId": "updateCustomerCartItemQuantity",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/ItemId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Updated cart" }
+        }
+      },
+      "delete": {
+        "operationId": "removeCustomerCartItem",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/ItemId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Updated cart" }
+        }
+      }
+    },
+    "/carts/{cartId}/delivery-address": {
+      "put": {
+        "operationId": "setCustomerCartDeliveryAddress",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Updated cart" }
+        }
+      },
+      "delete": {
+        "operationId": "removeCustomerCartDeliveryAddress",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Updated cart" }
+        }
+      }
+    },
+    "/carts/{cartId}/receiver": {
+      "put": {
+        "operationId": "setCustomerCartReceiver",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Updated cart" }
+        }
+      },
+      "delete": {
+        "operationId": "removeCustomerCartReceiver",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Updated cart" }
+        }
+      }
+    },
+    "/carts/{cartId}/abandon": {
+      "post": {
+        "operationId": "abandonCustomerCart",
+        "parameters": [
+          { "$ref": "#/components/parameters/CartId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "responses": {
+          "200": { "description": "Abandoned cart" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "CartId": {
+        "name": "cartId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "ItemId": {
+        "name": "itemId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string" }
+      }
+    }
+  }
+}

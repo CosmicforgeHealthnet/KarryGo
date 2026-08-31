@@ -44,7 +44,7 @@ func (f *fakeStaffResolver) addStaff(userID, staffID, vendorID string, active bo
 
 // seedStaff registers a staff affiliation in the fake resolver AND inserts a
 // minimal real vendor_staff row, since vendor_sessions.staff_id is a genuine
-// foreign key to vendor_staff (id) — a real constraint this migration
+// foreign key to vendor_staff (id) â€” a real constraint this migration
 // deliberately enforces (see migrations/000004), so any test that reaches
 // session creation needs a real backing row even while the rest of staff
 // status/affiliation logic is exercised through the fake resolver.
@@ -121,7 +121,7 @@ func setupAuthService(t *testing.T, pool *pgxpool.Pool, staff *fakeStaffResolver
 		Sessions:   vendorauthrepositories.NewSessionRepository(pool),
 		StepUps:    vendorauthrepositories.NewStepUpRepository(pool),
 		Staff:      staff,
-		Notifier:   nil, // OTPDebug=true skips real delivery entirely — see deliverOTP
+		Notifier:   nil, // OTPDebug=true skips real delivery entirely â€” see deliverOTP
 
 		AccessTokenSecret: []byte("test-access-secret"), RefreshTokenSecret: []byte("test-refresh-secret"), OTPSecret: []byte("test-otp-secret"),
 		AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 30 * 24 * time.Hour,
@@ -153,9 +153,19 @@ func testPool(t *testing.T) *pgxpool.Pool {
 func truncateAuthTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, `TRUNCATE vendor_step_up_grants, vendor_sessions, vendor_otp_challenges, vendor_staff, vendor_users RESTART IDENTITY CASCADE`)
-	if err != nil {
-		t.Fatalf("truncate: %v", err)
+
+	// Auth integration tests own challenges, sessions and step-up grants.
+	// They must not TRUNCATE shared Vendor staff/user authority tables.
+	// Doing so with CASCADE can remove unrelated domain seed data such as
+	// the platform Shop measurement catalogue.
+	if _, err := pool.Exec(ctx, `DELETE FROM vendor_step_up_grants`); err != nil {
+		t.Fatalf("clean step-up grants: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM vendor_sessions`); err != nil {
+		t.Fatalf("clean sessions: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM vendor_otp_challenges`); err != nil {
+		t.Fatalf("clean otp challenges: %v", err)
 	}
 }
 
@@ -184,7 +194,7 @@ func TestAuth_FullLoginLifecycle_SingleVendor(t *testing.T) {
 	}
 
 	// The challenge must still be usable since the previous attempt failed
-	// before consuming it (no staff access is checked before Consume) — add
+	// before consuming it (no staff access is checked before Consume) â€” add
 	// staff access now and retry with the SAME still-active code.
 	// First resolve the user id that Start's upsert created.
 	users := vendorauthrepositories.NewUserRepository(pool)
@@ -307,7 +317,7 @@ func TestAuth_MaxAttemptsLocksChallenge(t *testing.T) {
 		}
 	}
 
-	// The CORRECT code must now also fail — the challenge is locked, not just attempts exhausted transiently.
+	// The CORRECT code must now also fail â€” the challenge is locked, not just attempts exhausted transiently.
 	if _, err := auth.Verify(ctx, vendorauthusecases.VerifyInput{Email: "lockout@example.com", OTP: start.DebugOTP, ChallengeID: start.ChallengeID}); err == nil {
 		t.Fatal("expected the correct code to be rejected once the challenge is locked")
 	}
@@ -385,7 +395,7 @@ func TestAuth_SuspendedStaffCannotRefresh(t *testing.T) {
 		t.Fatalf("Verify: %v", err)
 	}
 
-	// Suspend AFTER the session was already issued — refresh must re-check
+	// Suspend AFTER the session was already issued â€” refresh must re-check
 	// status live, not just at login (Section 5 rule 10/13).
 	staff.setActive("staff-sa", false)
 
@@ -421,7 +431,7 @@ func TestAuth_MultiVendorRequiresSelectionWithoutBurningTheOTP(t *testing.T) {
 		t.Fatal("expected no tokens to be issued yet")
 	}
 
-	// The SAME still-active code, now with vendor_id supplied, must succeed —
+	// The SAME still-active code, now with vendor_id supplied, must succeed â€”
 	// proving the ambiguous response did not consume/burn the OTP.
 	result2, err := auth.Verify(ctx, vendorauthusecases.VerifyInput{Email: "multi@example.com", OTP: start.DebugOTP, ChallengeID: start.ChallengeID, VendorID: "vendor-m2"})
 	if err != nil {
@@ -433,7 +443,7 @@ func TestAuth_MultiVendorRequiresSelectionWithoutBurningTheOTP(t *testing.T) {
 }
 
 // sessionIDFromRefreshToken extracts the session id prefix from a refresh
-// token ("<sessionID>.<secret>") — vendor_step_up_grants.session_id is a real
+// token ("<sessionID>.<secret>") â€” vendor_step_up_grants.session_id is a real
 // foreign key to vendor_sessions (id), so step-up tests need the actual
 // session id a real login produced, not a synthetic placeholder.
 func sessionIDFromRefreshToken(token string) string {
@@ -551,7 +561,7 @@ func TestAuth_LogoutRevokesStepUpGrantsForSession(t *testing.T) {
 		t.Fatalf("Logout: %v", err)
 	}
 
-	// The grant, still unconsumed, must now be unusable — logout revokes
+	// The grant, still unconsumed, must now be unusable â€” logout revokes
 	// every active step-up grant tied to the logged-out session (Section 5's
 	// own requirement that a step-up grant "cannot be used after
 	// staff/session revocation").
@@ -581,7 +591,7 @@ func TestAuth_RawOTPNeverPersisted(t *testing.T) {
 		t.Fatalf("query stored challenge: %v", err)
 	}
 	if otpHash == start.DebugOTP {
-		t.Fatal("otp_hash equals the raw code — raw OTP was persisted verbatim")
+		t.Fatal("otp_hash equals the raw code â€” raw OTP was persisted verbatim")
 	}
 	if strings.Contains(otpHash, start.DebugOTP) {
 		t.Fatal("otp_hash contains the raw code as a substring")
@@ -593,7 +603,7 @@ func TestAuth_RawOTPNeverPersisted(t *testing.T) {
 
 // TestAuth_RawOTPNeverLogged is Section 5 security scenario 2: the raw code
 // must never reach the process log, including via the debug/dev delivery
-// shortcut — DebugOTP travels only in the direct API response, never a log
+// shortcut â€” DebugOTP travels only in the direct API response, never a log
 // line. Captures the standard `log` package's default output (what
 // shared/go/httpx and shared/go/logging both write through) across
 // Start/Resend/Verify and asserts the raw code appears nowhere in it.

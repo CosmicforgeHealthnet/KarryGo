@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS cloud_kitchen_occurrences, cloud_kitchen_plan_exceptions, cloud_kitchen_corporate_plans, cloud_kitchen_price_history, cloud_kitchen_quantity_bands, cloud_kitchen_package_components, cloud_kitchen_packages, cloud_kitchen_settings;

@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/shared/go/httpx"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 func TestRequestFeatureFilesExist(t *testing.T) {

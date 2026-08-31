@@ -1,0 +1,5856 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Vendor Service — Section 8G: Corporate Customer CRM",
+    "version": "1.0.0",
+    "description": "Vendor-local commercial relationships with organizations: corporate accounts, lifecycle, branch scope, contacts linked to Section 8A customer relationships, memberships, locations, cost centres, and corporate interactions and tasks reusing the Section 8C engine.\n\nScope boundary. Section 8G describes WHO the vendor deals with. It holds no corporate orders, invoices, credit, budgets, wallets, contracts, quotations, catalogue entitlements, scoring or exports, and it publishes no route, schema or state that could describe one. Money remains payment-wallet-service's authority and customer contact details remain Section 8A's; a contact here is an opaque reference plus a non-identifying label, never an address book entry.\n\nAll routes are mounted under the authenticated vendor base path and are tenant-scoped from the session. There are no internal routes: corporate contact privacy and identity merge are handled through the existing Section 8A event ingress and its PrivacyHandler port."
+  },
+  "servers": [
+    {
+      "url": "/api/v1/vendor",
+      "description": "Authenticated vendor surface."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Corporate CRM",
+      "description": "Section 8G corporate customer relationships."
+    }
+  ],
+  "paths": {
+    "/crm/corporate-customers": {
+      "get": {
+        "operationId": "listCorporateCustomers",
+        "summary": "List corporate customers",
+        "description": "Pages the corporate accounts the caller can see. A branch-scoped operator sees business-wide accounts and branch-scoped accounts covering a branch they hold, and nothing else.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CorporateStatus"
+            },
+            "description": "Filter by relationship status."
+          },
+          {
+            "name": "organization_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/OrganizationType"
+            },
+            "description": "Filter by organization type."
+          },
+          {
+            "name": "branch_ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only accounts covering this branch."
+          },
+          {
+            "name": "account_manager_staff_ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only accounts managed by this staff member."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive match over the organization name. Treated as a literal value, never as a pattern."
+          },
+          {
+            "name": "created_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": ""
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": ""
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "One of updated_at, created_at, organization_name, relationship_started_at. An unrecognised value falls back to updated_at."
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "asc or desc."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCustomerPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCorporateCustomer",
+        "summary": "Open a corporate relationship",
+        "description": "Creates the account in PROSPECT and allocates its vendor-local CORP- reference. Branch scope, the account manager and the external reference are validated against this vendor only.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCustomer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}": {
+      "get": {
+        "operationId": "getCorporateCustomer",
+        "summary": "Get a corporate customer",
+        "description": "Returns the account, a summary of what an operator can act on, and its five most recent interactions.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCustomerDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCorporateCustomer",
+        "summary": "Update a corporate customer",
+        "description": "Applies an optimistically-versioned edit. Status is not editable here: use the lifecycle commands.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCustomer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/activate": {
+      "post": {
+        "operationId": "activateCorporateCustomer",
+        "summary": "Activate a corporate customer",
+        "description": "Moves a PROSPECT, ON_HOLD or INACTIVE account into ACTIVE. Refused with CRM_CORPORATE_CUSTOMER_INVALID_STATE when the transition is not allowed from the current status.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCustomer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/hold": {
+      "post": {
+        "operationId": "holdCorporateCustomer",
+        "summary": "Hold a corporate customer",
+        "description": "Pauses an ACTIVE relationship without ending it. Refused with CRM_CORPORATE_CUSTOMER_INVALID_STATE when the transition is not allowed from the current status.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCustomer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/deactivate": {
+      "post": {
+        "operationId": "deactivateCorporateCustomer",
+        "summary": "Deactivate a corporate customer",
+        "description": "Ends the working relationship while keeping the record and its history. Refused with CRM_CORPORATE_CUSTOMER_INVALID_STATE when the transition is not allowed from the current status.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCustomer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/archive": {
+      "post": {
+        "operationId": "archiveCorporateCustomer",
+        "summary": "Archive a corporate customer",
+        "description": "Terminal. Archiving cancels the account's open tasks in the same transaction and closes the account to new activity; nothing is deleted. Refused with CRM_CORPORATE_CUSTOMER_INVALID_STATE when the transition is not allowed from the current status.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCustomer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/branches": {
+      "get": {
+        "operationId": "getCorporateBranchScopes",
+        "summary": "Get the account's branch scope",
+        "description": "Returns the scope mode and, for BRANCH_SET, the exact branch list.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateBranchScopes"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceCorporateBranchScopes",
+        "summary": "Replace the account's branch scope",
+        "description": "Replaces the branch set wholesale. A branch-scoped caller can neither widen an account beyond their own scope nor remove themselves from it.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateBranchScopeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateBranchScopes"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/contacts": {
+      "get": {
+        "operationId": "listCorporateContacts",
+        "summary": "List account contacts",
+        "description": "Contacts are references to Section 8A customer relationships. This section returns a non-identifying display label and never an email address, phone number or postal address.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CorporateChildStatus"
+            },
+            "description": ""
+          },
+          {
+            "name": "relationship_role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CorporateContactRole"
+            },
+            "description": ""
+          },
+          {
+            "name": "include_privacy_suppressed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Include contacts whose underlying relationship was redacted. They remain non-actionable."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateContactPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCorporateContact",
+        "summary": "Link a person to the account",
+        "description": "Links an existing customer relationship of this vendor as a contact of this account. A redacted relationship cannot be linked, and one person can hold at most one live contact per account.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.contacts.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateContactRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateContact"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/contacts/{contactId}": {
+      "get": {
+        "operationId": "getCorporateContact",
+        "summary": "Get a contact",
+        "description": "Returns one contact of this account.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/ContactId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateContact"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCorporateContact",
+        "summary": "Update a contact",
+        "description": "Changes the relationship role, status or primary flag. Promoting a contact demotes the previous primary in the same transaction.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.contacts.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/ContactId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateContactRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateContact"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/contacts/{contactId}/archive": {
+      "post": {
+        "operationId": "archiveCorporateContact",
+        "summary": "Archive a contact",
+        "description": "Ends the person's role at this organization and deactivates their memberships. The row is kept so historical activity stays attributable.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.contacts.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/ContactId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateContact"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/memberships": {
+      "get": {
+        "operationId": "listCorporateMemberships",
+        "summary": "List memberships",
+        "description": "Memberships describe how contacts participate in the organization's dealings with this vendor, optionally at a site or under a cost centre.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "contact_ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only memberships of this contact."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CorporateChildStatus"
+            },
+            "description": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateMembershipPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCorporateMembership",
+        "summary": "Create a membership",
+        "description": "The contact, site and cost centre must all belong to this same account. One live membership per contact, site, cost centre and role.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.contacts.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateMembershipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateMembership"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/memberships/{membershipId}": {
+      "patch": {
+        "operationId": "updateCorporateMembership",
+        "summary": "Update a membership",
+        "description": "Changes the role, status, site or cost centre of a membership.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.contacts.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/MembershipId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateMembershipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateMembership"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/memberships/{membershipId}/archive": {
+      "post": {
+        "operationId": "archiveCorporateMembership",
+        "summary": "Archive a membership",
+        "description": "Ends the membership while keeping the record.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.contacts.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/MembershipId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateMembership"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/locations": {
+      "get": {
+        "operationId": "listCorporateLocations",
+        "summary": "List account locations",
+        "description": "Sites of the organization this vendor deals with. These are the customer's own addresses and are unrelated to the vendor's branches.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CorporateChildStatus"
+            },
+            "description": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateLocationPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCorporateLocation",
+        "summary": "Create a location",
+        "description": "Address components are bounded and the timezone is validated against the IANA database. The location code is unique per account after normalisation.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.locations.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateLocationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateLocation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/locations/{locationId}": {
+      "get": {
+        "operationId": "getCorporateLocation",
+        "summary": "Get a location",
+        "description": "Returns one site of this account.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/LocationId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateLocation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCorporateLocation",
+        "summary": "Update a location",
+        "description": "Applies an optimistically-versioned edit.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.locations.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/LocationId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateLocationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateLocation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/locations/{locationId}/archive": {
+      "post": {
+        "operationId": "archiveCorporateLocation",
+        "summary": "Archive a location",
+        "description": "The row is kept because cost centres and historical activity may name it; an archived site cannot be attached to anything new.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.locations.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/LocationId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateLocation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/cost-centers": {
+      "get": {
+        "operationId": "listCorporateCostCenters",
+        "summary": "List cost centres",
+        "description": "Cost centres are CRM labels. They carry no budget, limit or balance.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CorporateChildStatus"
+            },
+            "description": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCostCenterPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCorporateCostCenter",
+        "summary": "Create a cost centre",
+        "description": "The code is unique per account after normalisation. An optional site link must belong to the same account.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.cost_centers.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateCostCenterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCostCenter"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/cost-centers/{costCenterId}": {
+      "get": {
+        "operationId": "getCorporateCostCenter",
+        "summary": "Get a cost centre",
+        "description": "Returns one cost centre of this account.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/CostCenterId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCostCenter"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCorporateCostCenter",
+        "summary": "Update a cost centre",
+        "description": "Applies an optimistically-versioned edit.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.cost_centers.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/CostCenterId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateCostCenterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCostCenter"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/cost-centers/{costCenterId}/archive": {
+      "post": {
+        "operationId": "archiveCorporateCostCenter",
+        "summary": "Archive a cost centre",
+        "description": "The row is kept because historical activity may name it.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.corporate.cost_centers.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/CostCenterId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateCostCenter"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/interactions": {
+      "get": {
+        "operationId": "listCorporateInteractions",
+        "summary": "List the account timeline",
+        "description": "Newest-first interactions recorded against this corporate account. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.interactions.read",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "contact_ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only interactions naming this contact."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Literal match over the subject."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateInteractionPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCorporateInteraction",
+        "summary": "Record an interaction",
+        "description": "Records an interaction against the account. Any contact, site or cost centre named must belong to this same account. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.interactions.create",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateInteractionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateInteraction"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/interactions/{interactionId}": {
+      "get": {
+        "operationId": "getCorporateInteraction",
+        "summary": "Get an interaction",
+        "description": "Returns one interaction of this account. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.interactions.read",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/InteractionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateInteraction"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/interactions/{interactionId}/correct": {
+      "post": {
+        "operationId": "correctCorporateInteraction",
+        "summary": "Correct an interaction",
+        "description": "Section 8C's immutable correction: the original is superseded rather than edited, so the record of what was believed at the time survives. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.interactions.manage",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/InteractionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateInteractionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateInteraction"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/tasks": {
+      "get": {
+        "operationId": "listCorporateTasks",
+        "summary": "List account tasks",
+        "description": "Staff follow-up work about this account. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.tasks.read",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "assigned_staff_ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "contact_ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateTaskPage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCorporateTask",
+        "summary": "Open a task",
+        "description": "Opens follow-up work about the account. The assignee must be active staff of this vendor whose scope covers the account. An archived account accepts no new tasks. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.tasks.create",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateTask"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/tasks/{taskId}": {
+      "get": {
+        "operationId": "getCorporateTask",
+        "summary": "Get a task",
+        "description": "Returns one task of this account. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.tasks.read",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/TaskId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateTask"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCorporateTask",
+        "summary": "Update a task",
+        "description": "Edits an open task. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.tasks.manage",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/TaskId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateTask"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/tasks/{taskId}/start": {
+      "post": {
+        "operationId": "startCorporateTask",
+        "summary": "Start a task",
+        "description": "Moves an open task to in progress. The state machine is Section 8C's, so a task cannot be completed twice or resurrected after cancellation. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.tasks.manage",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/TaskId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTaskTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateTask"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/tasks/{taskId}/complete": {
+      "post": {
+        "operationId": "completeCorporateTask",
+        "summary": "Complete a task",
+        "description": "Closes the task as done. The state machine is Section 8C's, so a task cannot be completed twice or resurrected after cancellation. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.tasks.manage",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/TaskId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTaskTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateTask"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/tasks/{taskId}/cancel": {
+      "post": {
+        "operationId": "cancelCorporateTask",
+        "summary": "Cancel a task",
+        "description": "Closes the task without doing it. The state machine is Section 8C's, so a task cannot be completed twice or resurrected after cancellation. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.tasks.manage",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/TaskId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTaskTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateTask"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/corporate-customers/{corporateId}/tasks/{taskId}/reassign": {
+      "post": {
+        "operationId": "reassignCorporateTask",
+        "summary": "Reassign a task",
+        "description": "Moves the task to another staff member, who must be active and scoped to the account. Corporate activity reuses the Section 8C engine, so this operation additionally requires vendor.crm.corporate.read: a caller who may log interactions does not thereby learn which organizations this vendor works with.",
+        "tags": [
+          "Corporate CRM"
+        ],
+        "x-permission": "vendor.crm.tasks.manage",
+        "x-additional-permission": "vendor.crm.corporate.read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorporateId"
+          },
+          {
+            "$ref": "#/components/parameters/TaskId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorporateTaskTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CorporateTask"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or a missing Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the permission, or the account is outside the caller's branch scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account or nested resource for this vendor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, duplicate, invalid state, or a replayed key with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "CorporateId": {
+        "name": "corporateId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Corporate account reference."
+      },
+      "ContactId": {
+        "name": "contactId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Contact reference within this account."
+      },
+      "MembershipId": {
+        "name": "membershipId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Membership reference within this account."
+      },
+      "LocationId": {
+        "name": "locationId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Location reference within this account."
+      },
+      "CostCenterId": {
+        "name": "costCenterId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Cost centre reference within this account."
+      },
+      "InteractionId": {
+        "name": "interactionId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Interaction reference within this account."
+      },
+      "TaskId": {
+        "name": "taskId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Task reference within this account."
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Required on every command. Replaying a key returns the original response; reusing it with a different body is CRM_IDEMPOTENCY_CONFLICT."
+      }
+    },
+    "schemas": {
+      "CorporateStatus": {
+        "type": "string",
+        "enum": [
+          "PROSPECT",
+          "ACTIVE",
+          "ON_HOLD",
+          "INACTIVE",
+          "ARCHIVED"
+        ],
+        "description": "Relationship lifecycle. It describes the commercial relationship, never a commercial document: there is no ordered, invoiced or credit-suspended state here, because Vendor Service Section 8G holds no orders, invoices, credit or budgets."
+      },
+      "OrganizationType": {
+        "type": "string",
+        "enum": [
+          "COMPANY",
+          "INSTITUTION",
+          "SCHOOL",
+          "HOSPITAL",
+          "HOTEL",
+          "RESTAURANT",
+          "RETAILER",
+          "NGO",
+          "ASSOCIATION",
+          "GOVERNMENT",
+          "OTHER"
+        ]
+      },
+      "CorporateScopeMode": {
+        "type": "string",
+        "enum": [
+          "BUSINESS",
+          "BRANCH_SET"
+        ],
+        "description": "BUSINESS makes the account visible to every branch of the vendor. BRANCH_SET restricts it to an explicit branch list, and a branch-scoped operator sees only accounts covering a branch they hold."
+      },
+      "CorporateChildStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "INACTIVE",
+          "ARCHIVED"
+        ]
+      },
+      "CorporateLocationType": {
+        "type": "string",
+        "enum": [
+          "HEADQUARTERS",
+          "OFFICE",
+          "BRANCH",
+          "STORE",
+          "WAREHOUSE",
+          "SITE",
+          "CAMPUS",
+          "OTHER"
+        ]
+      },
+      "CorporateContactRole": {
+        "type": "string",
+        "enum": [
+          "PRIMARY_CONTACT",
+          "PROCUREMENT",
+          "OPERATIONS",
+          "FINANCE",
+          "MANAGEMENT",
+          "ADMINISTRATION",
+          "TECHNICAL",
+          "OTHER"
+        ]
+      },
+      "CorporateMembershipRole": {
+        "type": "string",
+        "enum": [
+          "MEMBER",
+          "MANAGER",
+          "APPROVER",
+          "REQUESTER",
+          "PROCUREMENT",
+          "FINANCE",
+          "OPERATIONS",
+          "OTHER"
+        ],
+        "description": "A membership role is a CRM label describing how a person participates in the organization's dealings with this vendor. It grants no authority: APPROVER does not approve anything, because Section 8G runs no approval workflow."
+      },
+      "CorporateErrorCode": {
+        "type": "string",
+        "enum": [
+          "CRM_CORPORATE_DISABLED",
+          "CRM_CORPORATE_CUSTOMER_NOT_FOUND",
+          "CRM_CORPORATE_CUSTOMER_SCOPE_DENIED",
+          "CRM_CORPORATE_CUSTOMER_VERSION_CONFLICT",
+          "CRM_CORPORATE_CUSTOMER_INVALID_STATE",
+          "CRM_CORPORATE_CUSTOMER_DUPLICATE",
+          "CRM_CORPORATE_CUSTOMER_ARCHIVED",
+          "CRM_CORPORATE_ACCOUNT_MANAGER_INVALID",
+          "CRM_CORPORATE_NESTED_SCOPE_INVALID",
+          "CRM_CORPORATE_CONTACT_NOT_FOUND",
+          "CRM_CORPORATE_CONTACT_DUPLICATE",
+          "CRM_CORPORATE_CONTACT_INVALID_PROFILE",
+          "CRM_CORPORATE_CONTACT_REDACTED",
+          "CRM_CORPORATE_CONTACT_MERGED",
+          "CRM_CORPORATE_MEMBERSHIP_NOT_FOUND",
+          "CRM_CORPORATE_LOCATION_NOT_FOUND",
+          "CRM_CORPORATE_COST_CENTER_NOT_FOUND",
+          "CRM_IDEMPOTENCY_CONFLICT"
+        ]
+      },
+      "CorporateCustomer": {
+        "type": "object",
+        "required": [
+          "corporate_ref",
+          "corporate_customer_code",
+          "organization_name",
+          "organization_type",
+          "status",
+          "scope_mode",
+          "branch_refs",
+          "created_at",
+          "updated_at",
+          "version"
+        ],
+        "properties": {
+          "corporate_ref": {
+            "type": "string",
+            "description": "Opaque vendor-local identifier for the corporate account."
+          },
+          "corporate_customer_code": {
+            "type": "string",
+            "description": "Human-quotable vendor-local reference, CORP-<digits>. It is allocated per vendor and is not a platform-wide identifier.",
+            "pattern": "^CORP-[0-9]{6,12}$"
+          },
+          "organization_name": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "organization_type": {
+            "$ref": "#/components/schemas/OrganizationType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateStatus"
+          },
+          "scope_mode": {
+            "$ref": "#/components/schemas/CorporateScopeMode"
+          },
+          "branch_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Empty when scope_mode is BUSINESS."
+          },
+          "account_manager_staff_ref": {
+            "type": "string",
+            "description": "Vendor staff reference. Must be an active staff member of this vendor.",
+            "nullable": true
+          },
+          "relationship_started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "external_organization_ref": {
+            "type": "string",
+            "description": "Vendor's own reference for the organization in another system. Unique per vendor when present.",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic-concurrency version. Send it back as expected_version on the next write."
+          }
+        }
+      },
+      "CorporateSummary": {
+        "type": "object",
+        "required": [
+          "contact_count",
+          "location_count",
+          "cost_center_count",
+          "membership_count",
+          "open_task_count",
+          "overdue_task_count"
+        ],
+        "properties": {
+          "contact_count": {
+            "type": "integer",
+            "description": "Live, non-suppressed contacts."
+          },
+          "location_count": {
+            "type": "integer"
+          },
+          "cost_center_count": {
+            "type": "integer"
+          },
+          "membership_count": {
+            "type": "integer"
+          },
+          "open_task_count": {
+            "type": "integer"
+          },
+          "overdue_task_count": {
+            "type": "integer"
+          }
+        },
+        "description": "Counts of what an operator can act on: archived children and privacy-suppressed contacts are excluded."
+      },
+      "CorporateCustomerDetail": {
+        "type": "object",
+        "required": [
+          "corporate_customer",
+          "summary",
+          "recent_interactions"
+        ],
+        "properties": {
+          "corporate_customer": {
+            "$ref": "#/components/schemas/CorporateCustomer"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CorporateSummary"
+          },
+          "recent_interactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorporateInteraction"
+            }
+          }
+        }
+      },
+      "CorporateCustomerPage": {
+        "type": "object",
+        "required": [
+          "corporate_customers",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "corporate_customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorporateCustomer"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CorporateCustomerRequest": {
+        "type": "object",
+        "required": [
+          "organization_name"
+        ],
+        "properties": {
+          "organization_name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 250
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 250
+          },
+          "organization_type": {
+            "$ref": "#/components/schemas/OrganizationType"
+          },
+          "scope_mode": {
+            "$ref": "#/components/schemas/CorporateScopeMode"
+          },
+          "branch_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Required when scope_mode is BRANCH_SET; every branch must belong to this vendor and to the caller's own scope."
+          },
+          "account_manager_staff_ref": {
+            "type": "string"
+          },
+          "clear_account_manager": {
+            "type": "boolean",
+            "description": "Update only. Removes the account manager."
+          },
+          "relationship_started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "external_organization_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Required on update."
+          }
+        }
+      },
+      "CorporateTransitionRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CorporateBranchScopes": {
+        "type": "object",
+        "required": [
+          "scope_mode",
+          "branch_refs",
+          "version"
+        ],
+        "properties": {
+          "scope_mode": {
+            "$ref": "#/components/schemas/CorporateScopeMode"
+          },
+          "branch_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic-concurrency version. Send it back as expected_version on the next write."
+          }
+        }
+      },
+      "CorporateBranchScopeRequest": {
+        "type": "object",
+        "required": [
+          "scope_mode",
+          "expected_version"
+        ],
+        "properties": {
+          "scope_mode": {
+            "$ref": "#/components/schemas/CorporateScopeMode"
+          },
+          "branch_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CorporateContact": {
+        "type": "object",
+        "required": [
+          "contact_ref",
+          "customer_profile_ref",
+          "relationship_role",
+          "is_primary_contact",
+          "status",
+          "privacy_suppressed",
+          "actionable",
+          "created_at",
+          "version"
+        ],
+        "properties": {
+          "contact_ref": {
+            "type": "string"
+          },
+          "customer_profile_ref": {
+            "type": "string",
+            "description": "Reference to the Section 8A customer relationship. Contact details themselves are never duplicated here and are never returned by this section."
+          },
+          "display_label": {
+            "type": "string",
+            "description": "Non-identifying label resolved from the Section 8A profile at read time. Null whenever the relationship is privacy-suppressed.",
+            "nullable": true
+          },
+          "relationship_role": {
+            "$ref": "#/components/schemas/CorporateContactRole"
+          },
+          "is_primary_contact": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateChildStatus"
+          },
+          "privacy_suppressed": {
+            "type": "boolean",
+            "description": "True once the underlying customer relationship has been redacted. The link is kept for continuity; the person is not addressable through it."
+          },
+          "actionable": {
+            "type": "boolean",
+            "description": "False when the contact is archived or privacy-suppressed. It is the only signal a caller should act on."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic-concurrency version. Send it back as expected_version on the next write."
+          }
+        }
+      },
+      "CorporateContactPage": {
+        "type": "object",
+        "required": [
+          "contacts",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorporateContact"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CorporateContactRequest": {
+        "type": "object",
+        "required": [
+          "customer_profile_ref"
+        ],
+        "properties": {
+          "customer_profile_ref": {
+            "type": "string",
+            "description": "An existing Section 8A customer relationship of the same vendor."
+          },
+          "relationship_role": {
+            "$ref": "#/components/schemas/CorporateContactRole"
+          },
+          "is_primary_contact": {
+            "type": "boolean",
+            "description": "Promoting a contact demotes the previous primary in the same transaction."
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateChildStatus"
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Required on update."
+          }
+        }
+      },
+      "CorporateMembership": {
+        "type": "object",
+        "required": [
+          "membership_ref",
+          "contact_ref",
+          "membership_role",
+          "status",
+          "created_at",
+          "version"
+        ],
+        "properties": {
+          "membership_ref": {
+            "type": "string"
+          },
+          "contact_ref": {
+            "type": "string"
+          },
+          "location_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost_center_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "membership_role": {
+            "$ref": "#/components/schemas/CorporateMembershipRole"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateChildStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic-concurrency version. Send it back as expected_version on the next write."
+          }
+        }
+      },
+      "CorporateMembershipPage": {
+        "type": "object",
+        "required": [
+          "memberships",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorporateMembership"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CorporateMembershipRequest": {
+        "type": "object",
+        "required": [
+          "contact_ref"
+        ],
+        "properties": {
+          "contact_ref": {
+            "type": "string",
+            "description": "A live contact of this same corporate account."
+          },
+          "location_ref": {
+            "type": "string",
+            "description": "Optional site of this same account."
+          },
+          "cost_center_ref": {
+            "type": "string",
+            "description": "Optional cost centre of this same account."
+          },
+          "clear_location": {
+            "type": "boolean"
+          },
+          "clear_cost_center": {
+            "type": "boolean"
+          },
+          "membership_role": {
+            "$ref": "#/components/schemas/CorporateMembershipRole"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateChildStatus"
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Required on update."
+          }
+        }
+      },
+      "CorporateLocation": {
+        "type": "object",
+        "required": [
+          "location_ref",
+          "location_code",
+          "name",
+          "location_type",
+          "status",
+          "created_at",
+          "version"
+        ],
+        "properties": {
+          "location_ref": {
+            "type": "string"
+          },
+          "location_code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location_type": {
+            "$ref": "#/components/schemas/CorporateLocationType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateChildStatus"
+          },
+          "address_line1": {
+            "type": "string",
+            "nullable": true
+          },
+          "address_line2": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "state_region": {
+            "type": "string",
+            "nullable": true
+          },
+          "postal_code": {
+            "type": "string",
+            "nullable": true
+          },
+          "country_code": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2, upper-cased on write.",
+            "nullable": true,
+            "pattern": "^[A-Z]{2}$"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone name.",
+            "nullable": true
+          },
+          "external_location_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic-concurrency version. Send it back as expected_version on the next write."
+          }
+        }
+      },
+      "CorporateLocationPage": {
+        "type": "object",
+        "required": [
+          "locations",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorporateLocation"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CorporateLocationRequest": {
+        "type": "object",
+        "required": [
+          "location_code",
+          "name"
+        ],
+        "properties": {
+          "location_code": {
+            "type": "string",
+            "description": "Unique per account after normalisation: HQ-1, hq 1 and HQ1 are the same site.",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "location_type": {
+            "$ref": "#/components/schemas/CorporateLocationType"
+          },
+          "address_line1": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "address_line2": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "state_region": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "postal_code": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "country_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2}$"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone name; validated against the embedded IANA database.",
+            "maxLength": 64
+          },
+          "external_location_ref": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateChildStatus"
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Required on update."
+          }
+        }
+      },
+      "CorporateCostCenter": {
+        "type": "object",
+        "required": [
+          "cost_center_ref",
+          "code",
+          "name",
+          "status",
+          "created_at",
+          "version"
+        ],
+        "properties": {
+          "cost_center_ref": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateChildStatus"
+          },
+          "location_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "external_reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic-concurrency version. Send it back as expected_version on the next write."
+          }
+        },
+        "description": "A cost centre is a CRM label used to organise an organization's dealings with this vendor. It carries no budget, limit, currency or balance: Section 8G is not a financial authority, and payment-wallet-service remains the only one."
+      },
+      "CorporateCostCenterPage": {
+        "type": "object",
+        "required": [
+          "cost_centers",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "cost_centers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorporateCostCenter"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CorporateCostCenterRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Unique per account after normalisation.",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "status": {
+            "$ref": "#/components/schemas/CorporateChildStatus"
+          },
+          "location_ref": {
+            "type": "string",
+            "description": "Optional site of this same account."
+          },
+          "clear_location": {
+            "type": "boolean"
+          },
+          "external_reference": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Required on update."
+          }
+        }
+      },
+      "CorporateInteraction": {
+        "type": "object",
+        "required": [
+          "interaction_ref",
+          "corporate_ref",
+          "type",
+          "direction",
+          "outcome",
+          "subject",
+          "note",
+          "occurred_at",
+          "recorded_by_staff_ref",
+          "created_at",
+          "updated_at",
+          "version"
+        ],
+        "properties": {
+          "interaction_ref": {
+            "type": "string"
+          },
+          "corporate_ref": {
+            "type": "string"
+          },
+          "contact_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "location_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost_center_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "description": "Section 8C interaction type vocabulary, unchanged."
+          },
+          "direction": {
+            "type": "string",
+            "description": "Section 8C direction vocabulary, unchanged."
+          },
+          "outcome": {
+            "type": "string",
+            "description": "Section 8C outcome vocabulary, unchanged."
+          },
+          "subject": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recorded_by_staff_ref": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic-concurrency version. Send it back as expected_version on the next write."
+          }
+        },
+        "description": "The Section 8C interaction record with a corporate subject in place of an individual one. The engine, vocabularies, bounds and immutable-correction model are Section 8C's, reused rather than duplicated."
+      },
+      "CorporateInteractionPage": {
+        "type": "object",
+        "required": [
+          "interactions",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "interactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorporateInteraction"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CorporateInteractionRequest": {
+        "type": "object",
+        "required": [
+          "type",
+          "direction",
+          "subject"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contact_ref": {
+            "type": "string",
+            "description": "Optional contact of this same account."
+          },
+          "location_ref": {
+            "type": "string",
+            "description": "Optional site of this same account."
+          },
+          "cost_center_ref": {
+            "type": "string",
+            "description": "Optional cost centre of this same account."
+          }
+        }
+      },
+      "CorporateTask": {
+        "type": "object",
+        "required": [
+          "task_ref",
+          "corporate_ref",
+          "title",
+          "description",
+          "status",
+          "priority",
+          "created_by_staff_ref",
+          "is_overdue",
+          "created_at",
+          "updated_at",
+          "version"
+        ],
+        "properties": {
+          "task_ref": {
+            "type": "string"
+          },
+          "corporate_ref": {
+            "type": "string"
+          },
+          "contact_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "location_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost_center_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Section 8C task state machine, unchanged."
+          },
+          "priority": {
+            "type": "string",
+            "description": "Section 8C priority vocabulary, unchanged."
+          },
+          "assigned_staff_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignee_active": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "created_by_staff_ref": {
+            "type": "string"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelled_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "source_interaction_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_overdue": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Optimistic-concurrency version. Send it back as expected_version on the next write."
+          }
+        },
+        "description": "The Section 8C staff task with a corporate subject. It is internal follow-up work, not an approval, an order or an authorisation of any kind."
+      },
+      "CorporateTaskPage": {
+        "type": "object",
+        "required": [
+          "tasks",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorporateTask"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CorporateTaskRequest": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "priority": {
+            "type": "string"
+          },
+          "assigned_staff_ref": {
+            "type": "string",
+            "description": "Active staff of this vendor whose own scope covers the account."
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "clear_due_at": {
+            "type": "boolean"
+          },
+          "contact_ref": {
+            "type": "string"
+          },
+          "location_ref": {
+            "type": "string"
+          },
+          "cost_center_ref": {
+            "type": "string"
+          },
+          "source_interaction_ref": {
+            "type": "string",
+            "description": "An interaction of this same corporate account."
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Required on update, transition and reassignment."
+          }
+        }
+      },
+      "CorporateTaskTransitionRequest": {
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "assigned_staff_ref": {
+            "type": "string",
+            "description": "Reassignment only."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "$ref": "#/components/schemas/CorporateErrorCode"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

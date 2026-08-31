@@ -26,3 +26,25 @@ func TestNotificationMigrationContainsRequiredTables(t *testing.T) {
 		}
 	}
 }
+
+func TestCommerceSemanticNotificationMigration(t *testing.T) {
+	content, err := os.ReadFile("002_commerce_semantic_notifications.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := string(content)
+	for _, required := range []string{
+		"source_aggregate_type", "source_aggregate_id", "source_event_id",
+		"source_version", "correlation_ref",
+		"uq_notification_messages_semantic_source_recipient",
+		"commerce.vendor.new_order", "commerce.vendor.scheduled_cutoff",
+		"commerce.customer.delay", "commerce.customer_eta_changed",
+	} {
+		if !strings.Contains(sql, required) {
+			t.Errorf("commerce migration missing %q", required)
+		}
+	}
+	if strings.Contains(sql, "CREATE TABLE commerce_vendor_orders") || strings.Contains(sql, "CREATE TABLE commerce_delivery_eta_versions") {
+		t.Fatal("Notification migration creates business-domain authority")
+	}
+}

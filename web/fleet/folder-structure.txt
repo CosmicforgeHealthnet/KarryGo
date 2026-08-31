@@ -1,0 +1,586 @@
+﻿├── .next
+│   └── dev
+│       ├── cache
+│       │   ├── turbopack
+│       │   │   └── v16.3.0-d73f5622
+│       │   │       ├── 00000001.sst
+│       │   │       ├── 00000002.sst
+│       │   │       ├── 00000003.sst
+│       │   │       ├── 00000004.sst
+│       │   │       ├── 00000005.sst
+│       │   │       ├── 00000006.sst
+│       │   │       ├── 00000007.sst
+│       │   │       ├── 00000008.meta
+│       │   │       ├── 00000009.meta
+│       │   │       ├── 00000010.meta
+│       │   │       ├── 00000011.meta
+│       │   │       ├── 00000012.sst
+│       │   │       ├── 00000013.sst
+│       │   │       ├── 00000014.sst
+│       │   │       ├── 00000015.sst
+│       │   │       ├── 00000016.meta
+│       │   │       ├── 00000017.meta
+│       │   │       ├── 00000018.meta
+│       │   │       ├── 00000019.meta
+│       │   │       ├── CURRENT
+│       │   │       └── LOG
+│       │   ├── .rscinfo
+│       │   └── next-devtools-config.json
+│       ├── logs
+│       ├── server
+│       │   ├── app
+│       │   │   ├── (dashboard)
+│       │   │   │   ├── page
+│       │   │   │   │   ├── app-paths-manifest.json
+│       │   │   │   │   ├── build-manifest.json
+│       │   │   │   │   ├── client-components-ssr.js
+│       │   │   │   │   ├── next-font-manifest.json
+│       │   │   │   │   ├── react-loadable-manifest.json
+│       │   │   │   │   └── server-reference-manifest.json
+│       │   │   │   ├── page.js
+│       │   │   │   ├── page.js.map
+│       │   │   │   └── page_client-reference-manifest.js
+│       │   │   └── _not-found
+│       │   │       ├── page
+│       │   │       │   ├── app-paths-manifest.json
+│       │   │       │   ├── build-manifest.json
+│       │   │       │   ├── client-components-ssr.js
+│       │   │       │   ├── next-font-manifest.json
+│       │   │       │   ├── react-loadable-manifest.json
+│       │   │       │   └── server-reference-manifest.json
+│       │   │       ├── page.js
+│       │   │       ├── page.js.map
+│       │   │       └── page_client-reference-manifest.js
+│       │   ├── chunks
+│       │   │   └── ssr
+│       │   │       ├── [externals]__05yr04l._.js
+│       │   │       ├── [externals]__05yr04l._.js.map
+│       │   │       ├── [externals]_next_dist_1e1zfvs._.js
+│       │   │       ├── [externals]_next_dist_1e1zfvs._.js.map
+│       │   │       ├── [root-of-the-server]__0_g1tm1._.js
+│       │   │       ├── [root-of-the-server]__0_g1tm1._.js.map
+│       │   │       ├── [root-of-the-server]__0hmgsoy._.js
+│       │   │       ├── [root-of-the-server]__0hmgsoy._.js.map
+│       │   │       ├── [root-of-the-server]__16o7fiy._.js
+│       │   │       ├── [root-of-the-server]__16o7fiy._.js.map
+│       │   │       ├── [turbopack]_runtime.js
+│       │   │       ├── [turbopack]_runtime.js.map
+│       │   │       ├── _0r5qpmo._.js
+│       │   │       ├── _0r5qpmo._.js.map
+│       │   │       ├── _next-internal_server_app_(dashboard)_page_actions_081_9zj.js
+│       │   │       ├── _next-internal_server_app_(dashboard)_page_actions_081_9zj.js.map
+│       │   │       ├── _next-internal_server_app__not-found_page_actions_0pt47yr.js
+│       │   │       ├── _next-internal_server_app__not-found_page_actions_0pt47yr.js.map
+│       │   │       ├── node_modules_01xbj_9._.js
+│       │   │       ├── node_modules_01xbj_9._.js.map
+│       │   │       ├── node_modules_next_dist_0254xxt._.js
+│       │   │       ├── node_modules_next_dist_0254xxt._.js.map
+│       │   │       ├── node_modules_next_dist_11k1igr._.js
+│       │   │       ├── node_modules_next_dist_11k1igr._.js.map
+│       │   │       ├── node_modules_next_dist_1enk-kb._.js
+│       │   │       ├── node_modules_next_dist_1enk-kb._.js.map
+│       │   │       ├── node_modules_next_dist_client_components_0wpq8j3._.js
+│       │   │       ├── node_modules_next_dist_client_components_0wpq8j3._.js.map
+│       │   │       ├── node_modules_next_dist_client_components_builtin_forbidden_0symwr9.js
+│       │   │       ├── node_modules_next_dist_client_components_builtin_forbidden_0symwr9.js.map
+│       │   │       ├── node_modules_next_dist_client_components_builtin_global-error_0-o-goa.js
+│       │   │       ├── node_modules_next_dist_client_components_builtin_global-error_0-o-goa.js.map
+│       │   │       ├── node_modules_next_dist_client_components_builtin_unauthorized_0l_sp0x.js
+│       │   │       ├── node_modules_next_dist_client_components_builtin_unauthorized_0l_sp0x.js.map
+│       │   │       ├── node_modules_next_dist_compiled_0d323sd._.js
+│       │   │       ├── node_modules_next_dist_compiled_0d323sd._.js.map
+│       │   │       ├── node_modules_next_dist_esm_1bj8o03._.js
+│       │   │       ├── node_modules_next_dist_esm_1bj8o03._.js.map
+│       │   │       ├── node_modules_next_dist_server_route-modules_app-page_0qo_rmc._.js
+│       │   │       ├── node_modules_next_dist_server_route-modules_app-page_0qo_rmc._.js.map
+│       │   │       ├── src_app_(dashboard)_layout_tsx_03wc-ky._.js
+│       │   │       ├── src_app_(dashboard)_layout_tsx_03wc-ky._.js.map
+│       │   │       ├── src_app_(dashboard)_page_tsx_09wn9tw._.js
+│       │   │       └── src_app_(dashboard)_page_tsx_09wn9tw._.js.map
+│       │   ├── app-paths-manifest.json
+│       │   ├── interception-route-rewrite-manifest.js
+│       │   ├── middleware-build-manifest.js
+│       │   ├── middleware-manifest.json
+│       │   ├── next-font-manifest.js
+│       │   ├── next-font-manifest.json
+│       │   ├── pages-manifest.json
+│       │   ├── server-reference-manifest.js
+│       │   └── server-reference-manifest.json
+│       ├── static
+│       │   ├── chunks
+│       │   │   ├── [next]_internal_font_google_geist_a71539c9_module_css_1igg3k2._.single.css
+│       │   │   ├── [next]_internal_font_google_geist_a71539c9_module_css_1igg3k2._.single.css.map
+│       │   │   ├── [next]_internal_font_google_geist_mono_8d43a2aa_module_css_1igg3k2._.single.css
+│       │   │   ├── [next]_internal_font_google_geist_mono_8d43a2aa_module_css_1igg3k2._.single.css.map
+│       │   │   ├── [next]_internal_font_google_space_grotesk_438cf0a8_module_css_1igg3k2._.single.css
+│       │   │   ├── [next]_internal_font_google_space_grotesk_438cf0a8_module_css_1igg3k2._.single.css.map
+│       │   │   ├── [root-of-the-server]__00nxeqe._.css
+│       │   │   ├── [root-of-the-server]__00nxeqe._.css.map
+│       │   │   ├── [turbopack]_browser_dev_hmr-client_hmr-client_ts_1di75ot._.js
+│       │   │   ├── [turbopack]_browser_dev_hmr-client_hmr-client_ts_1di75ot._.js.map
+│       │   │   ├── [turbopack]_browser_dev_hmr-client_hmr-client_ts_1mojsay._.js
+│       │   │   ├── [turbopack]_browser_dev_hmr-client_hmr-client_ts_1mojsay._.js.map
+│       │   │   ├── _08bm286._.js.map
+│       │   │   ├── _0dbyla-._.js
+│       │   │   ├── _0dbyla-._.js.map
+│       │   │   ├── _18x7jxu._.js
+│       │   │   ├── _1anvha4._.js
+│       │   │   ├── _1aw1q2x._.js
+│       │   │   ├── node_modules_@swc_helpers_cjs_1r9vbqw._.js
+│       │   │   ├── node_modules_@swc_helpers_cjs_1r9vbqw._.js.map
+│       │   │   ├── node_modules_next_dist_1e8vcs8._.js
+│       │   │   ├── node_modules_next_dist_1e8vcs8._.js.map
+│       │   │   ├── node_modules_next_dist_20wefz_._.js
+│       │   │   ├── node_modules_next_dist_20wefz_._.js.map
+│       │   │   ├── node_modules_next_dist_build_polyfills_polyfill-nomodule.js
+│       │   │   ├── node_modules_next_dist_build_polyfills_polyfill-nomodule.js.map
+│       │   │   ├── node_modules_next_dist_client_0_90u2t._.js
+│       │   │   ├── node_modules_next_dist_client_0_90u2t._.js.map
+│       │   │   ├── node_modules_next_dist_compiled_1amofcm._.js
+│       │   │   ├── node_modules_next_dist_compiled_1amofcm._.js.map
+│       │   │   ├── node_modules_next_dist_compiled_next-devtools_index_090k2jm.js
+│       │   │   ├── node_modules_next_dist_compiled_next-devtools_index_090k2jm.js.map
+│       │   │   ├── node_modules_next_dist_compiled_react-dom_096_9a-._.js
+│       │   │   ├── node_modules_next_dist_compiled_react-dom_096_9a-._.js.map
+│       │   │   ├── node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js
+│       │   │   ├── node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js.map
+│       │   │   ├── src_app_(dashboard)_page_tsx_10fxdfk._.js
+│       │   │   ├── src_app_(dashboard)_page_tsx_10fxdfk._.js.map
+│       │   │   ├── src_app_globals_css_1igg3k2._.single.css
+│       │   │   ├── src_app_globals_css_1igg3k2._.single.css.map
+│       │   │   └── turbopack-_08bm286._.js
+│       │   ├── development
+│       │   │   ├── _buildManifest.js
+│       │   │   ├── _clientMiddlewareManifest.js
+│       │   │   └── _ssgManifest.js
+│       │   └── media
+│       │       ├── 0c89a48fa5027cee-s.p.2cyn07wtgehh0.woff2
+│       │       ├── 28868e710e86be81-s.2eksvhm1z0jwa.woff2
+│       │       ├── 32687112bd2dd8db-s.1gepa_7fcx9fm.woff2
+│       │       ├── 4fa387ec64143e14-s.2tuy5pz7dlieh.woff2
+│       │       ├── 53b9e256198e5412-s.390ncx5urfkfu.woff2
+│       │       ├── 5ce348bf30bf5439-s.31988l_ccedte.woff2
+│       │       ├── 6306c77e7c8268e4-s.2dbetqa9o8jxf.woff2
+│       │       ├── 7178b3e590c64307-s.21jp631_3pja2.woff2
+│       │       ├── 797e433ab948586e-s.p.0r6juujl39pe6.woff2
+│       │       ├── 7d817b4c03b0c5f1-s.1uyisp29ctx0d.woff2
+│       │       ├── 8a480f0b521d4e75-s.1qq4vpdcun5oj.woff2
+│       │       ├── bbc41e54d2fcbd21-s.1rgnod-3esatf.woff2
+│       │       ├── caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2
+│       │       ├── favicon.2vob68tjqpejf.ico
+│       │       └── fef07dbb0973bf53-s.3p2_lha1f2xer.woff2
+│       ├── types
+│       │   ├── cache-life.d.ts
+│       │   ├── root-params.d.ts
+│       │   ├── routes.d.ts
+│       │   └── validator.ts
+│       ├── build-manifest.json
+│       ├── fallback-build-manifest.json
+│       ├── lock
+│       ├── package.json
+│       ├── prerender-manifest.json
+│       ├── routes-manifest.json
+│       └── trace
+├── public
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── src
+│   ├── app
+│   │   ├── (auth)
+│   │   │   ├── choose-organization
+│   │   │   │   └── page.tsx
+│   │   │   ├── reverify
+│   │   │   │   └── page.tsx
+│   │   │   ├── sign-in
+│   │   │   │   └── page.tsx
+│   │   │   ├── verify
+│   │   │   │   └── page.tsx
+│   │   │   └── layout.tsx
+│   │   ├── (dashboard)
+│   │   │   ├── comms
+│   │   │   │   ├── escalations
+│   │   │   │   │   ├── [escalationId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── notification-rules
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── quality
+│   │   │   │   │   ├── [caseId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── sla
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── support
+│   │   │   │   │   ├── [caseId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── threads
+│   │   │   │       ├── [threadId]
+│   │   │   │       └── page.tsx
+│   │   │   ├── compliance
+│   │   │   │   ├── assets
+│   │   │   │   │   └── [assetId]
+│   │   │   │   ├── corrective-actions
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── incidents
+│   │   │   │   │   ├── [incidentId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── proof-policies
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── proof-records
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── providers
+│   │   │   │   │   └── [providerId]
+│   │   │   │   ├── requirements
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── restrictions
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── safety-references
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── safety-reports
+│   │   │   │   │   ├── [reportId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── crm
+│   │   │   │   ├── contracts
+│   │   │   │   │   ├── [contractId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── customers
+│   │   │   │   │   ├── [customerId]
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── leads
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── opportunities
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── quotations
+│   │   │   │   │   ├── [quotationId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── slas
+│   │   │   │       └── page.tsx
+│   │   │   ├── documents
+│   │   │   │   ├── [documentId]
+│   │   │   │   ├── exports
+│   │   │   │   │   ├── [exportId]
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── imports
+│   │   │   │   │   ├── [importId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── reconciliation
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── search
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── upload
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── finance
+│   │   │   │   ├── budgets
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── claims
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── compensation-rules
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── expenses
+│   │   │   │   │   ├── [expenseId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── invoices
+│   │   │   │   │   ├── [invoiceId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── payroll
+│   │   │   │   │   ├── [periodId]
+│   │   │   │   │   ├── statements
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── profitability
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── receivables
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── reconciliation
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── settlements
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── fleet
+│   │   │   │   ├── assets
+│   │   │   │   │   ├── [assetId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── breakdowns
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── fuel
+│   │   │   │   │   ├── [fuelRecordId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── inspections
+│   │   │   │   │   ├── [inspectionId]
+│   │   │   │   │   ├── templates
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── maintenance
+│   │   │   │   │   └── schedules
+│   │   │   │   │       └── page.tsx
+│   │   │   │   ├── parts
+│   │   │   │   │   ├── stock
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── tyres
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── work-orders
+│   │   │   │       ├── [workOrderId]
+│   │   │   │       └── page.tsx
+│   │   │   ├── onboarding
+│   │   │   │   ├── capabilities
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── create-company
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── documents
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── profile
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── submit
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── verification
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── wallet-provisioning
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── operations
+│   │   │   │   ├── alerts
+│   │   │   │   │   ├── [alertId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── assignments
+│   │   │   │   │   ├── [assignmentId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── control-tower
+│   │   │   │   │   ├── exceptions
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── dispatch
+│   │   │   │   │   ├── plans
+│   │   │   │   │   │   ├── [planId]
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   ├── unassigned
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── geofences
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── marketplace
+│   │   │   │   │   ├── [offerId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── rescue
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── routes
+│   │   │   │   │   ├── [routeId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── trips
+│   │   │   │       ├── [tripId]
+│   │   │   │       └── page.tsx
+│   │   │   ├── private-ops
+│   │   │   │   ├── manifests
+│   │   │   │   │   ├── [manifestId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── orders
+│   │   │   │   │   ├── [orderId]
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   ├── import
+│   │   │   │   │   │   ├── [importId]
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── packages
+│   │   │   │   │   ├── [packageId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── recurring-orders
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── services
+│   │   │   │   │   ├── [serviceId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── shipments
+│   │   │   │       ├── [shipmentId]
+│   │   │   │       └── page.tsx
+│   │   │   ├── providers
+│   │   │   │   ├── [providerId]
+│   │   │   │   ├── add
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── reports
+│   │   │   │   ├── customer-service
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── fleet
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── history
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── library
+│   │   │   │   │   ├── [reportId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── workforce
+│   │   │   │       └── page.tsx
+│   │   │   ├── settings
+│   │   │   │   ├── access-history
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── approval-policies
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── approvals
+│   │   │   │   │   ├── [requestId]
+│   │   │   │   │   ├── delegation
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── audit
+│   │   │   │   │   ├── [auditId]
+│   │   │   │   │   ├── verification
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── branches
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── capabilities
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── closure
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── departments
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── integrations
+│   │   │   │   │   ├── api-clients
+│   │   │   │   │   │   ├── [clientId]
+│   │   │   │   │   │   ├── create
+│   │   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   ├── webhooks
+│   │   │   │   │   │   ├── [webhookId]
+│   │   │   │   │   │   ├── create
+│   │   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── legal-holds
+│   │   │   │   │   ├── [holdId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── locations
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── permissions
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── policies
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── retention
+│   │   │   │   │   ├── run
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   ├── runs
+│   │   │   │   │   │   └── [runId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── roles
+│   │   │   │   │   ├── [roleId]
+│   │   │   │   │   ├── assignments
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── security
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── sessions
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── staff
+│   │   │   │   │   ├── [staffId]
+│   │   │   │   │   ├── invite
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── system
+│   │   │   │   ├── dead-letters
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── jobs
+│   │   │   │   │   ├── [jobId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── reconciliation
+│   │   │   │   │   ├── [caseId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── scheduled-tasks
+│   │   │   │   │   ├── [taskId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── sync
+│   │   │   │       └── page.tsx
+│   │   │   ├── wallet
+│   │   │   │   ├── allocations
+│   │   │   │   │   ├── [allocationId]
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── providers
+│   │   │   │   │   └── [providerId]
+│   │   │   │   ├── reconciliation
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── transactions
+│   │   │   │   │   ├── [transactionId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── withdrawal-policy
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── withdrawals
+│   │   │   │   │   ├── [withdrawalId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── warehouse
+│   │   │   │   ├── [warehouseId]
+│   │   │   │   ├── dock-schedule
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── fulfilment
+│   │   │   │   │   ├── packing
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   ├── picking
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── inventory
+│   │   │   │   │   ├── [itemId]
+│   │   │   │   │   ├── movements
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── put-away
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── receipts
+│   │   │   │   │   ├── [receiptId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── returns
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── transfers
+│   │   │   │   │   ├── reconciliation
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── yard
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── workforce
+│   │   │   │   ├── [personId]
+│   │   │   │   ├── attendance
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── leave
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── performance
+│   │   │   │   │   ├── [providerId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── qualifications
+│   │   │   │   │   ├── providers
+│   │   │   │   │   │   └── page.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── shifts
+│   │   │   │   │   ├── [shiftId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── training
+│   │   │   │   │   ├── [courseId]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   ├── (public)
+│   │   │   └── quotations
+│   │   │       └── [token]
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   └── layout.tsx
+│   └── lib
+│       └── nav.ts
+├── .gitignore
+├── AGENTS.md
+├── CLAUDE.md
+├── eslint.config.mjs
+├── folder-structure.txt
+├── next.config.ts
+├── next-env.d.ts
+├── package.json
+├── postcss.config.mjs
+├── README.md
+└── tsconfig.json

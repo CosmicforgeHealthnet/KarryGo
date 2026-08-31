@@ -16,6 +16,7 @@ import (
 	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
 	identityhttp "cosmicforge/logistics/services/customer-service/internal/features/identity/http"
 	notificationhttp "cosmicforge/logistics/services/customer-service/internal/features/notifications/http"
+	preferences "cosmicforge/logistics/services/customer-service/internal/features/preferences"
 	profilehttp "cosmicforge/logistics/services/customer-service/internal/features/profile/http"
 	profilerepositories "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories"
 	profileusecases "cosmicforge/logistics/services/customer-service/internal/features/profile/usecases"
@@ -96,6 +97,7 @@ func main() {
 	savedLocationService := savedlocationusecases.NewSavedLocationService(
 		savedlocationrepositories.NewPostgresSavedLocationRepository(db),
 	)
+	preferenceStore := preferences.NewStore(db)
 
 	authService := authusecases.NewAuthService(authusecases.Options{
 		Customers:          customerRepo,
@@ -134,8 +136,15 @@ func main() {
 			customerhttp.RegisterCustomerRoutes(group, authService)
 			profilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
 			savedlocationhttp.RegisterSavedLocationRoutes(group, savedLocationService, authService.AccessSigner())
+			savedlocationhttp.RegisterInternalRoutes(
+				group,
+				savedLocationService,
+				serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+			)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner())
 			identityhttp.RegisterIdentityRoutes(group, profileService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+			preferences.RegisterRoutes(group, preferenceStore, authService.AccessSigner())
+			preferences.RegisterInternalRoutes(group, preferenceStore, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 		},
 	})
 }

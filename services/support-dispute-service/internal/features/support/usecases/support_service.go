@@ -10,23 +10,23 @@ import (
 	supportrepositories "cosmicforge/logistics/services/support-dispute-service/internal/features/support/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/logging"
-	"cosmicforge/logistics/shared/go/walletclient"
 )
 
 type SupportService struct {
-	repo     supportrepositories.SupportRepository
-	notifier *supportclients.SupportNotifier
-	identity supportclients.IdentityResolver
-	payments *walletclient.Client // nil disables refunds (local dev)
+	repo                supportrepositories.SupportRepository
+	notifier            *supportclients.SupportNotifier
+	identity            supportclients.IdentityResolver
+	resolutionPublisher supportclients.CommerceResolutionPublisher
 }
 
 // Options configures optional collaborators. Nil/empty fields fall back to safe
-// no-ops so the service runs without notification-service / owning services /
-// payment-wallet (local dev).
+// no-ops so the service runs without notification-service / owning services
+// (local dev). Money authority is deliberately absent: Support adjudicates;
+// the owning commerce workflow and Wallet execute financial action.
 type Options struct {
-	Notifier *supportclients.SupportNotifier
-	Identity supportclients.IdentityResolver
-	Payments *walletclient.Client
+	Notifier            *supportclients.SupportNotifier
+	Identity            supportclients.IdentityResolver
+	ResolutionPublisher supportclients.CommerceResolutionPublisher
 }
 
 func NewSupportService(repo supportrepositories.SupportRepository, opts Options) *SupportService {
@@ -36,7 +36,7 @@ func NewSupportService(repo supportrepositories.SupportRepository, opts Options)
 	if opts.Identity == nil {
 		opts.Identity = supportclients.NoopIdentityResolver{}
 	}
-	return &SupportService{repo: repo, notifier: opts.Notifier, identity: opts.Identity, payments: opts.Payments}
+	return &SupportService{repo: repo, notifier: opts.Notifier, identity: opts.Identity, resolutionPublisher: opts.ResolutionPublisher}
 }
 
 // ─── Inputs ────────────────────────────────────────────────────────────────────
@@ -90,12 +90,10 @@ type EscalateToDisputeInput struct {
 }
 
 type ResolveDisputeInput struct {
-	DisputeID             string
-	Outcome               supportmodels.DisputeOutcome
-	Note                  string
-	AdjudicatorID         string
-	RefundAmountKobo      int64
-	RefundSourceReference string
+	DisputeID     string
+	Outcome       supportmodels.DisputeOutcome
+	Note          string
+	AdjudicatorID string
 }
 
 // ─── Complaint operations ─────────────────────────────────────────────────────
@@ -384,36 +382,11 @@ func (s *SupportService) ResolveDispute(ctx context.Context, in ResolveDisputeIn
 		return supportmodels.Dispute{}, err
 	}
 
-	// Best-effort refund/compensation when the outcome favours the complainant
-	// and the admin supplied the payment reference + amount. Never blocks the
-	// resolution write.
-	s.maybeRefund(ctx, in, dispute)
-
 	if complaint, e := s.repo.GetComplaintByID(ctx, dispute.ComplaintID); e == nil {
 		s.recordEvent(ctx, complaint.ID, "admin", in.AdjudicatorID, "dispute_resolved", map[string]any{"outcome": string(in.Outcome)})
 		s.notifier.NotifyDisputeResolved(ctx, complaint, dispute)
 	}
 	return dispute, nil
-}
-
-func (s *SupportService) maybeRefund(ctx context.Context, in ResolveDisputeInput, dispute supportmodels.Dispute) {
-	favoursComplainant := in.Outcome == supportmodels.DisputeOutcomeFavourComplainant || in.Outcome == supportmodels.DisputeOutcomeSplit
-	if s.payments == nil || !favoursComplainant {
-		return
-	}
-	if in.RefundAmountKobo <= 0 || strings.TrimSpace(in.RefundSourceReference) == "" {
-		return
-	}
-	_, err := s.payments.RequestRefund(ctx, walletclient.RefundRequest{
-		PaymentReference: strings.TrimSpace(in.RefundSourceReference),
-		AmountKobo:       in.RefundAmountKobo,
-		Currency:         "NGN",
-		Reason:           "dispute_resolution",
-		IdempotencyKey:   "dispute-refund-" + dispute.ID,
-	})
-	if err != nil {
-		logging.Error("refund", "dispute=%s ref=%s: %v", dispute.ID, in.RefundSourceReference, err)
-	}
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

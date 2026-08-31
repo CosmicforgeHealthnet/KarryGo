@@ -1,0 +1,18 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Vendor Payable and Withdrawal Authority", "version": "1.0.0"},
+  "servers": [{"url": "/api/v1/payment-wallet"}],
+  "security": [{"ServiceHMACv2": []}],
+  "paths": {
+    "/internal/vendor-finance/{businessId}/summary": {"parameters": [{"$ref": "#/components/parameters/BusinessId"}], "get": {"operationId": "vendorPayableSummary", "responses": {"200": {"description": "Available and held Vendor payable"}}}},
+    "/internal/vendor-finance/{businessId}/transactions": {"parameters": [{"$ref": "#/components/parameters/BusinessId"}], "get": {"operationId": "vendorPayableTransactions", "responses": {"200": {"description": "Vendor-owned financial history"}}}},
+    "/internal/vendor-finance/{businessId}/bank-accounts": {"parameters": [{"$ref": "#/components/parameters/BusinessId"}], "get": {"operationId": "vendorBankAccounts", "responses": {"200": {"description": "Masked Vendor-owned bank accounts"}}}},
+    "/internal/vendor-finance/{businessId}/withdrawals": {
+      "parameters": [{"$ref": "#/components/parameters/BusinessId"}],
+      "get": {"operationId": "vendorWithdrawals", "responses": {"200": {"description": "Vendor-owned withdrawals"}}},
+      "post": {"operationId": "requestVendorWithdrawal", "responses": {"202": {"description": "Available payable atomically reserved"}, "409": {"description": "Insufficient available payable or idempotency mismatch"}}}
+    },
+    "/internal/vendor-finance/{businessId}/withdrawals/{reference}": {"parameters": [{"$ref": "#/components/parameters/BusinessId"}, {"name": "reference", "in": "path", "required": true, "schema": {"type": "string"}}], "get": {"operationId": "vendorWithdrawal", "responses": {"200": {"description": "Scoped withdrawal read-back"}, "404": {"description": "No withdrawal for this Vendor"}}}}
+  },
+  "components": {"securitySchemes": {"ServiceHMACv2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature"}}, "parameters": {"BusinessId": {"name": "businessId", "in": "path", "required": true, "schema": {"type": "string"}}}}
+}

@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS inventory_availability_signal_state;
