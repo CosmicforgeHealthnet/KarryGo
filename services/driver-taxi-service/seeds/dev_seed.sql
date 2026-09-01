@@ -21,8 +21,14 @@ ON CONFLICT (id) DO NOTHING;
 -- caca4b5a-...: fully clean/ready -- the SAME id used throughout this
 -- project's live-testing sessions (see project memory), reused here rather
 -- than creating a redundant second "clean" provider.
-INSERT INTO taxi_providers (id, phone, first_name, last_name, account_status, onboarding_status, identity_verification_status, vehicle_verification_status, document_compliance_status) VALUES
-  ('caca4b5a-7018-4fa8-9d08-c3f14f6d910c', '+2348099990001', 'Ada', 'Okafor', 'active', 'complete', 'verified', 'verified', 'compliant')
+--
+-- accepts_parcels is true ONLY for this one: the column defaults to false, so
+-- without an opted-in driver every parcel booking on a fresh database goes
+-- unmatched and the feature looks broken rather than merely unstaffed. The
+-- other seeded providers keep the default, which is what the matcher's
+-- opt-out path is tested against.
+INSERT INTO taxi_providers (id, phone, first_name, last_name, account_status, onboarding_status, identity_verification_status, vehicle_verification_status, document_compliance_status, accepts_parcels) VALUES
+  ('caca4b5a-7018-4fa8-9d08-c3f14f6d910c', '+2348099990001', 'Ada', 'Okafor', 'active', 'complete', 'verified', 'verified', 'compliant', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- account_status = suspended (otherwise fully compliant).
@@ -140,6 +146,17 @@ INSERT INTO taxi_booking_stops (booking_id, sequence, type, address, lat, lng, s
 ON CONFLICT (booking_id, sequence) DO NOTHING;
 
 -- In progress: pickup already verified, trip underway, nothing settled yet.
+--
+-- Deliberately assigned to the SUSPENDED provider, NOT the clean one.
+-- uq_taxi_bookings_one_active_per_provider is a partial unique index over
+-- provider_id for every in-trip status, so parking a permanent in_progress
+-- booking on the clean provider makes MarkMatched fail with a 23505 for
+-- every future booking -- i.e. the one driver ./cmd/online exists to make
+-- matchable could never actually be matched, and every customer booking sat
+-- at pending_match until its search window elapsed. The suspended provider
+-- can never be offered a ride anyway, so holding the demo trip costs
+-- nothing there. A driver-app tester reaches the active-trip screen by
+-- accepting a real booking, which now works.
 INSERT INTO taxi_bookings (
   id, customer_id, provider_id, vehicle_id, market_id, operating_zone_id,
   vehicle_class, status, pickup_verification_status,
@@ -149,9 +166,9 @@ INSERT INTO taxi_bookings (
   matched_at, accepted_at, arrived_at, started_at, matching_started_at
 ) VALUES (
   'e0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000001',
-  'caca4b5a-7018-4fa8-9d08-c3f14f6d910c', '7e4cc5a5-f9e2-4978-846e-56fdbeb390d9',
+  'b0000000-0000-4000-8000-000000000002', 'c0000000-0000-4000-8000-000000000002',
   'a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000002',
-  'comfort', 'in_progress', 'verified',
+  'economy', 'in_progress', 'verified',
   205000, 'seed-quote-inprogress', 'provisional-dev-v1',
   7.1, 19,
   'cash', 'unpaid',

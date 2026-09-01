@@ -24,6 +24,16 @@ type createBookingRequest struct {
 	// ScheduledAt is phase B9: omit (or send the zero value) for an
 	// immediate booking. RFC3339, e.g. "2026-09-01T14:30:00Z".
 	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
+
+	// Parcel mode. ride_purpose omitted or "passenger" is a normal ride; the
+	// package fields are only valid alongside "parcel".
+	RidePurpose   string `json:"ride_purpose"`
+	ReceiverName  string `json:"receiver_name"`
+	ReceiverPhone string `json:"receiver_phone"`
+	PackageDesc   string `json:"package_desc"`
+	PackageType   string `json:"package_type"`
+	PackageSize   string `json:"package_size"`
+	IsFragile     bool   `json:"is_fragile"`
 }
 
 func (r createBookingRequest) toInput(customerID string) bookingusecases.CreateBookingInput {
@@ -41,6 +51,13 @@ func (r createBookingRequest) toInput(customerID string) bookingusecases.CreateB
 		ReservedDurationMinutes: r.ReservedDurationMinutes,
 		Stops:                   stops,
 		ScheduledAt:             r.ScheduledAt,
+		RidePurpose:             r.RidePurpose,
+		ReceiverName:            r.ReceiverName,
+		ReceiverPhone:           r.ReceiverPhone,
+		PackageDesc:             r.PackageDesc,
+		PackageType:             r.PackageType,
+		PackageSize:             r.PackageSize,
+		IsFragile:               r.IsFragile,
 	}
 }
 
@@ -83,6 +100,11 @@ type cancelBookingRequest struct {
 }
 
 type verifyPickupRequest struct {
+	Code string `json:"code"`
+}
+
+// verifyDeliveryRequest is the driver's drop-off submission for a parcel.
+type verifyDeliveryRequest struct {
 	Code string `json:"code"`
 }
 

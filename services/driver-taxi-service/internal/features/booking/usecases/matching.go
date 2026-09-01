@@ -328,6 +328,19 @@ func (s *BookingService) findEligibleCandidates(ctx context.Context, booking boo
 		if ok, _ := provider.CanGoAvailable(); !ok {
 			continue
 		}
+		// Parcel opt-in. Checked HERE in Postgres, right after the provider
+		// load this loop already pays for, rather than by adding a third
+		// dimension to the Redis availability index: that index is
+		// partitioned by (market, vehicleClass) and a third key would
+		// fragment every existing proximity query for one boolean.
+		//
+		// Consequence, and it is correct rather than a matcher fault: in a
+		// market where few drivers have opted in, a parcel booking will
+		// exhaust its search window and land unmatched more often than a
+		// passenger ride from the same pickup.
+		if booking.IsParcel() && !provider.AcceptsParcels {
+			continue
+		}
 		eligible = append(eligible, candidate)
 	}
 	return eligible
@@ -474,7 +487,7 @@ func (s *BookingService) AcceptBooking(ctx context.Context, bookingID, providerI
 			return s.bookings.MarkAccepted(ctx, exec, bookingID, providerID)
 		})
 	if err != nil {
-		if existing.PaymentMethod == "wallet" && s.payments != nil && existing.PaymentIntentID != nil {
+		if s.payments != nil && existing.PaymentIntentID != nil {
 			// PaymentReference is required by payment-wallet-service's own
 			// validation before it ever tries the source-pair fallback --
 			// see refundIfHeld's own doc comment for how this was found live.
@@ -490,7 +503,7 @@ func (s *BookingService) AcceptBooking(ctx context.Context, bookingID, providerI
 		return bookingmodels.Booking{}, err
 	}
 
-	if existing.PaymentMethod == "wallet" && s.payments != nil {
+	if s.payments != nil {
 		if serr := s.bookings.SetPaymentStatus(ctx, nil, bookingID, bookingmodels.PaymentHeld); serr != nil {
 			logging.Error("taxi-payments", "set payment held booking=%s: %v", bookingID, serr)
 		} else {

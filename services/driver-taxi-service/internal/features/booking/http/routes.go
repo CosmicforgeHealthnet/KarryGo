@@ -49,6 +49,10 @@ func RegisterBookingRoutes(
 	// Pickup verification (phase B5): the passenger's own display screen.
 	customer.GET("/bookings/:id/pickup-code", handler.GetPickupCode)
 	customer.POST("/bookings/:id/pickup-code/resend", handler.ResendPickupCode)
+	// Parcel drop-off: the receiver's code (404 on a passenger ride, so the
+	// concept is never discoverable where it does not apply).
+	customer.GET("/bookings/:id/delivery-code", handler.GetDeliveryCode)
+	customer.POST("/bookings/:id/delivery-code/resend", handler.ResendDeliveryCode)
 	// Two-way reviews (phase B8).
 	customer.POST("/bookings/:id/review", handler.SubmitCustomerReview)
 	customer.GET("/bookings/:id/review", handler.GetCustomerReviews)
@@ -62,6 +66,7 @@ func RegisterBookingRoutes(
 	provider.PUT("/bookings/:id/en-route-pickup", handler.MarkEnRoutePickup)
 	provider.PUT("/bookings/:id/arrived", handler.MarkArrivedAtPickup)
 	provider.POST("/bookings/:id/verify-pickup", handler.VerifyPickup)
+	provider.POST("/bookings/:id/verify-delivery", handler.VerifyDelivery)
 	provider.PUT("/bookings/:id/start", handler.StartTrip)
 	provider.PUT("/bookings/:id/complete", handler.CompleteTrip)
 	provider.PUT("/bookings/:id/cancel", handler.CancelByProvider)

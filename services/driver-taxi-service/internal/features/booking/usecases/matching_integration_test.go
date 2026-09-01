@@ -244,3 +244,68 @@ func seedFixtureForMatching(t *testing.T, db *pgxpool.Pool) (marketID, zoneID st
 	})
 	return marketID, zoneID
 }
+
+// ─── Parcel opt-in ──────────────────────────────────────────────────────────
+
+func TestFindEligibleCandidates_ExcludesDriverWhoDeclinedParcels(t *testing.T) {
+	db := matchingTestDB(t)
+	redisClient := matchingTestRedis(t)
+	svc, marketID, _ := newMatchingService(t, db, redisClient)
+
+	// Fully compliant, available, nearby -- and opted OUT of parcels, which is
+	// the seeded default. Only the parcel filter can exclude them.
+	providerID := seedCompliantOnlineProvider(t, db, redisClient, marketID, 1.0005, -9.9995)
+
+	parcel := bookingmodels.Booking{
+		ID: uuid.NewString(), MarketID: marketID, VehicleClass: "economy",
+		RidePurpose: bookingmodels.RidePurposeParcel,
+		Stops:       []bookingmodels.Stop{{Lat: 1.0, Lng: -10.0}},
+	}
+	for _, c := range svc.findEligibleCandidates(context.Background(), parcel, 15) {
+		if c.ProviderID == providerID {
+			t.Fatal("a driver who never opted into parcels was offered a package")
+		}
+	}
+
+	// The very same driver must still be eligible for a passenger ride --
+	// proving the filter is scoped to parcels, not a blanket exclusion.
+	ride := parcel
+	ride.ID = uuid.NewString()
+	ride.RidePurpose = bookingmodels.RidePurposePassenger
+	var found bool
+	for _, c := range svc.findEligibleCandidates(context.Background(), ride, 15) {
+		if c.ProviderID == providerID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the parcel opt-out also blocked an ordinary passenger ride")
+	}
+}
+
+func TestFindEligibleCandidates_IncludesDriverWhoAcceptsParcels(t *testing.T) {
+	db := matchingTestDB(t)
+	redisClient := matchingTestRedis(t)
+	svc, marketID, _ := newMatchingService(t, db, redisClient)
+
+	providerID := seedCompliantOnlineProvider(t, db, redisClient, marketID, 1.0005, -9.9995)
+	if _, err := db.Exec(context.Background(),
+		`UPDATE taxi_providers SET accepts_parcels = true WHERE id = $1`, providerID); err != nil {
+		t.Fatalf("opt in: %v", err)
+	}
+
+	parcel := bookingmodels.Booking{
+		ID: uuid.NewString(), MarketID: marketID, VehicleClass: "economy",
+		RidePurpose: bookingmodels.RidePurposeParcel,
+		Stops:       []bookingmodels.Stop{{Lat: 1.0, Lng: -10.0}},
+	}
+	var found bool
+	for _, c := range svc.findEligibleCandidates(context.Background(), parcel, 15) {
+		if c.ProviderID == providerID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("an opted-in driver was not offered a package")
+	}
+}

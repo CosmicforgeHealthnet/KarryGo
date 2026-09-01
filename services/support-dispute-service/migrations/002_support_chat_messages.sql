@@ -1,4 +1,4 @@
-CREATE TABLE support_chat_messages (
+CREATE TABLE IF NOT EXISTS support_chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   complaint_id UUID NOT NULL REFERENCES complaints(id) ON DELETE CASCADE,
   sender_type TEXT NOT NULL
@@ -10,8 +10,8 @@ CREATE TABLE support_chat_messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX support_chat_messages_complaint_created_idx
+CREATE INDEX IF NOT EXISTS support_chat_messages_complaint_created_idx
   ON support_chat_messages(complaint_id, created_at);
 
-CREATE INDEX support_complaints_complainant_service_status_idx
+CREATE INDEX IF NOT EXISTS support_complaints_complainant_service_status_idx
   ON complaints(complainant_id, complainant_type, service_type, status);

@@ -69,23 +69,6 @@ func walletBooking(overrides func(*bookingmodels.Booking)) bookingmodels.Booking
 
 // ─── createPaymentIntentForCandidate ───────────────────────────────────────
 
-func TestCreatePaymentIntentForCandidate_SkipsForCash(t *testing.T) {
-	pc := &fakePaymentClient{}
-	svc := NewBookingService(Options{Payments: pc})
-	booking := walletBooking(func(b *bookingmodels.Booking) { b.PaymentMethod = "cash" })
-
-	id, err := svc.createPaymentIntentForCandidate(context.Background(), booking, "provider-1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if id != nil {
-		t.Errorf("id = %v, want nil for a cash booking", id)
-	}
-	if len(pc.createCalls) != 0 {
-		t.Error("CreatePaymentIntent should never be called for cash")
-	}
-}
-
 func TestCreatePaymentIntentForCandidate_SkipsWhenPaymentsNotConfigured(t *testing.T) {
 	svc := NewBookingService(Options{}) // Payments left nil
 	booking := walletBooking(nil)
@@ -139,16 +122,16 @@ func TestCreatePaymentIntentForCandidate_PropagatesError(t *testing.T) {
 
 // ─── holdPayment ────────────────────────────────────────────────────────────
 
-func TestHoldPayment_SkipsForCash(t *testing.T) {
-	pc := &fakePaymentClient{}
-	svc := NewBookingService(Options{Payments: pc})
-	booking := walletBooking(func(b *bookingmodels.Booking) { b.PaymentMethod = "cash" })
+func TestHoldPayment_SkipsWhenPaymentsNotConfigured(t *testing.T) {
+	svc := NewBookingService(Options{}) // Payments left nil
+	intentID := "intent-1"
+	booking := walletBooking(func(b *bookingmodels.Booking) { b.PaymentIntentID = &intentID })
 
+	// An intent id is set, so only the nil-client half of the guard can be
+	// what stops the charge -- local dev without TAXI_PAYMENT_URL must book
+	// without charging anyone rather than failing.
 	if err := svc.holdPayment(context.Background(), booking); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(pc.payCalls) != 0 {
-		t.Error("PayFromWallet should never be called for cash")
 	}
 }
 
@@ -207,16 +190,16 @@ func TestSettlePayment_UsesTheSourcePairNotTheIntentID(t *testing.T) {
 	}
 }
 
-func TestSettlePayment_SkipsForCash(t *testing.T) {
+func TestSettlePayment_SkipsWhenNoIntentID(t *testing.T) {
 	pc := &fakePaymentClient{}
 	svc := NewBookingService(Options{Payments: pc})
-	booking := walletBooking(func(b *bookingmodels.Booking) { b.PaymentMethod = "cash" })
+	booking := walletBooking(nil) // no PaymentIntentID: nothing was ever held
 
 	if err := svc.settlePayment(context.Background(), booking); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(pc.completeCalls) != 0 {
-		t.Error("CompleteJob should never be called for cash")
+		t.Error("CompleteJob should never be called without a held intent")
 	}
 }
 
@@ -266,19 +249,16 @@ func TestRefundIfHeld_RefundsWhenHeld(t *testing.T) {
 	}
 }
 
-func TestRefundIfHeld_SkipsForCash(t *testing.T) {
-	pc := &fakePaymentClient{}
-	svc := NewBookingService(Options{Payments: pc})
+func TestRefundIfHeld_SkipsWhenPaymentsNotConfigured(t *testing.T) {
+	svc := NewBookingService(Options{}) // Payments left nil
 	booking := walletBooking(func(b *bookingmodels.Booking) {
-		b.PaymentMethod = "cash"
-		b.PaymentStatus = bookingmodels.PaymentHeld // should never happen for cash, but prove the method guard anyway
+		// Held status, so only the nil-client half of the guard can stop the
+		// refund attempt.
+		b.PaymentStatus = bookingmodels.PaymentHeld
 	})
 
 	if err := svc.refundIfHeld(context.Background(), booking, "cancelled"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(pc.refundCalls) != 0 {
-		t.Error("RequestRefund should never be called for cash")
 	}
 }
 

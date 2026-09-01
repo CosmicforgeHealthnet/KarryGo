@@ -78,7 +78,7 @@ func TestUpsert_ThenGet_RoundTrips(t *testing.T) {
 		t.Fatalf("Upsert: %v", err)
 	}
 
-	got, err := repo.Get(context.Background(), bookingID)
+	got, err := repo.Get(context.Background(), bookingID, handover.StepPickup)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestUpsert_OnConflictReplacesTheRecord(t *testing.T) {
 		t.Fatalf("second Upsert: %v", err)
 	}
 
-	got, err := repo.Get(context.Background(), bookingID)
+	got, err := repo.Get(context.Background(), bookingID, handover.StepPickup)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestGet_NotFoundBeforeArrival(t *testing.T) {
 	db := testDB(t)
 	repo := NewPostgresRepository(db)
 
-	_, err := repo.Get(context.Background(), uuid.NewString())
+	_, err := repo.Get(context.Background(), uuid.NewString(), handover.StepPickup)
 	if err == nil {
 		t.Fatal("expected an error for a booking with no generated code yet")
 	}
@@ -158,12 +158,12 @@ func TestIncrementAttempts_IsAtomicAndCumulative(t *testing.T) {
 	}
 
 	for i := 1; i <= 3; i++ {
-		if err := repo.IncrementAttempts(context.Background(), bookingID); err != nil {
+		if err := repo.IncrementAttempts(context.Background(), bookingID, handover.StepPickup); err != nil {
 			t.Fatalf("IncrementAttempts[%d]: %v", i, err)
 		}
 	}
 
-	got, err := repo.Get(context.Background(), bookingID)
+	got, err := repo.Get(context.Background(), bookingID, handover.StepPickup)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -182,11 +182,11 @@ func TestMarkVerified_SetsVerifiedAt(t *testing.T) {
 	}
 
 	at := time.Now()
-	if err := repo.MarkVerified(context.Background(), nil, bookingID, at); err != nil {
+	if err := repo.MarkVerified(context.Background(), nil, bookingID, handover.StepPickup, at); err != nil {
 		t.Fatalf("MarkVerified: %v", err)
 	}
 
-	got, err := repo.Get(context.Background(), bookingID)
+	got, err := repo.Get(context.Background(), bookingID, handover.StepPickup)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}

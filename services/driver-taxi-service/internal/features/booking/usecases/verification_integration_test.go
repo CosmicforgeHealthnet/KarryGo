@@ -15,6 +15,7 @@ import (
 	availabilitymodels "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/models"
 	availabilityrepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/handover"
 )
 
 // newVerificationService is newLifecycleService plus real pickup-verification
@@ -111,7 +112,7 @@ func TestVerifyPickup_WrongCodeIncrementsAttemptsAndDoesNotUnlock(t *testing.T) 
 		t.Fatal("expected the wrong code to be refused")
 	}
 
-	rec, gerr := bookingverification.NewPostgresRepository(db).Get(context.Background(), bookingID)
+	rec, gerr := bookingverification.NewPostgresRepository(db).Get(context.Background(), bookingID, handover.StepPickup)
 	if gerr != nil {
 		t.Fatalf("Get: %v", gerr)
 	}
@@ -132,7 +133,7 @@ func TestVerifyPickup_WrongProviderRefused(t *testing.T) {
 	if _, err := svc.MarkArrivedAtPickup(context.Background(), bookingID, providerID); err != nil {
 		t.Fatalf("MarkArrivedAtPickup: %v", err)
 	}
-	rec, err := bookingverification.NewPostgresRepository(db).Get(context.Background(), bookingID)
+	rec, err := bookingverification.NewPostgresRepository(db).Get(context.Background(), bookingID, handover.StepPickup)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}

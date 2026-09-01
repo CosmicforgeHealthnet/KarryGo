@@ -7,6 +7,8 @@ import '../../../dispatch/ui/dispatch_flow_screen.dart';
 import '../../../hauling/data/places_api.dart';
 import '../../../hauling/state/hauling_booking_controller.dart';
 import '../../../hauling/ui/hauling_flow_screen.dart';
+import '../../../taxi/state/taxi_booking_controller.dart';
+import '../../../taxi/ui/taxi_flow_screen.dart';
 import '../widgets/customer_home_map.dart';
 
 class CustomerHomeTab extends StatelessWidget {
@@ -16,6 +18,7 @@ class CustomerHomeTab extends StatelessWidget {
     required this.controller,
     required this.haulingController,
     required this.dispatchController,
+    required this.taxiController,
     required this.placesApi,
   });
 
@@ -23,7 +26,20 @@ class CustomerHomeTab extends StatelessWidget {
   final CustomerAuthController controller;
   final HaulingBookingController haulingController;
   final DispatchBookingController dispatchController;
+  final TaxiBookingController taxiController;
   final PlacesApi placesApi;
+
+  void _openTaxiFlow(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => TaxiFlowScreen(
+          controller: taxiController,
+          placesApi: placesApi,
+        ),
+      ),
+    );
+  }
 
   void _openDispatchFlow(BuildContext context) {
     Navigator.of(context).push(
@@ -51,6 +67,13 @@ class CustomerHomeTab extends StatelessWidget {
 
   void _onServiceTap(BuildContext context, int index) {
     switch (index) {
+      case 0:
+        // Don't wipe a ride restored/in-progress from a previous session —
+        // resume it instead of starting a fresh one.
+        if (taxiController.state.status == TaxiFlowStatus.idle) {
+          taxiController.reset();
+        }
+        _openTaxiFlow(context);
       case 1:
         // Don't wipe a booking restored/in-progress from a previous session —
         // resume it instead of starting a fresh one.

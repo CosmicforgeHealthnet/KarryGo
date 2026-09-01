@@ -44,6 +44,12 @@ type ProfileRepository interface {
 	providerauthrepositories.ProviderRepository
 	UpdateProfile(ctx context.Context, params UpdateProfileParams) (providerauthmodels.Provider, error)
 	UpdatePhoto(ctx context.Context, id, assetID, photoURL string) (providerauthmodels.Provider, error)
+	// SetAcceptsParcels is its own method rather than a field on
+	// UpdateProfileParams: that UPDATE uses preserve-on-empty
+	// (`CASE WHEN $n != '' ...`) semantics, which has no meaning for a
+	// boolean -- a partial profile PUT from a screen that does not render
+	// this toggle would silently opt the driver out of parcels.
+	SetAcceptsParcels(ctx context.Context, providerID string, accepts bool) (providerauthmodels.Provider, error)
 	// SetVehicleOperationalStatus keeps the display-only vehicle_operational_status
 	// dimension in sync as a best-effort side effect of vehicle CRUD. It is never
 	// read by the go-online gate (see providerauthmodels.Provider.CanGoAvailable's
@@ -74,7 +80,8 @@ const providerColumns = `id::text, COALESCE(phone,''), COALESCE(email,''),
 		          driver_license_number, license_expiry_date,
 		          gov_id_url, driver_license_url, vehicle_reg_url,
 		          guarantor_name, guarantor_phone,
-		          emergency_contact_name, emergency_contact_phone, emergency_contact_relationship`
+		          emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+	          accepts_parcels`
 
 func (r *PostgresProfileRepository) UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error) {
 	return providerauthrepositories.NewPostgresProviderRepository(r.db).UpsertByPhone(ctx, phone)
@@ -163,6 +170,21 @@ func (r *PostgresProfileRepository) UpdatePhoto(ctx context.Context, id, assetID
 		WHERE id = $1
 		RETURNING `+providerColumns+`
 	`, id, photoURL, assetID)
+
+	p, err := scanProvider(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return providerauthmodels.Provider{}, apperrors.NotFound("Driver could not be found.", err)
+	}
+	return p, err
+}
+
+func (r *PostgresProfileRepository) SetAcceptsParcels(ctx context.Context, providerID string, accepts bool) (providerauthmodels.Provider, error) {
+	row := r.db.QueryRow(ctx, `
+		UPDATE taxi_providers
+		SET accepts_parcels = $2, updated_at = now()
+		WHERE id = $1
+		RETURNING `+providerColumns+`
+	`, providerID, accepts)
 
 	p, err := scanProvider(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -338,6 +360,7 @@ func scanProvider(row scannable) (providerauthmodels.Provider, error) {
 		&p.GovIDURL, &p.DriverLicenseURL, &p.VehicleRegURL,
 		&p.GuarantorName, &p.GuarantorPhone,
 		&p.EmergencyContactName, &p.EmergencyContactPhone, &p.EmergencyContactRelationship,
+		&p.AcceptsParcels,
 	)
 	return p, err
 }

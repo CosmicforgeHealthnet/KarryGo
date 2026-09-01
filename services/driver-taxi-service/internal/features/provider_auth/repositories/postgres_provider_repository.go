@@ -25,7 +25,8 @@ const providerColumns = `id::text, COALESCE(phone,''), COALESCE(email,''),
 	          driver_license_number, license_expiry_date,
 	          gov_id_url, driver_license_url, vehicle_reg_url,
 	          guarantor_name, guarantor_phone,
-	          emergency_contact_name, emergency_contact_phone, emergency_contact_relationship`
+	          emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+	          accepts_parcels`
 
 // ─── Provider Repository ──────────────────────────────────────────────────────
 
@@ -174,6 +175,7 @@ func scanProvider(row scannable) (providerauthmodels.Provider, error) {
 		&p.GovIDURL, &p.DriverLicenseURL, &p.VehicleRegURL,
 		&p.GuarantorName, &p.GuarantorPhone,
 		&p.EmergencyContactName, &p.EmergencyContactPhone, &p.EmergencyContactRelationship,
+		&p.AcceptsParcels,
 	)
 	return p, err
 }

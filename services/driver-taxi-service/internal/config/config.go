@@ -69,11 +69,10 @@ type Config struct {
 	// NotificationURL and PaymentURL must be BARE ORIGINS ("http://host:port").
 	// shared/go/walletclient and the notification client append their own
 	// "/api/v1/..." paths; a prefixed URL 404s every internal call silently.
-	NotificationURL     string
-	NotificationSecret  []byte
-	PaymentURL          string
-	PaymentSecret       []byte
-	CashPaymentsEnabled bool
+	NotificationURL    string
+	NotificationSecret []byte
+	PaymentURL         string
+	PaymentSecret      []byte
 
 	// RoutesAPIKey enables road-route lookups for the live trip map and the
 	// progress bar. It is a Google Cloud key with the Routes API enabled, and
@@ -182,12 +181,11 @@ func Load() Config {
 		OTPMaxAttempts:  getEnvInt("TAXI_OTP_MAX_ATTEMPTS", 5),
 		OTPDebug:        getEnvBool("TAXI_OTP_DEBUG", false),
 
-		NotificationURL:     os.Getenv("TAXI_NOTIFICATION_URL"),
-		NotificationSecret:  []byte(os.Getenv("TAXI_NOTIFICATION_SECRET")),
-		PaymentURL:          os.Getenv("TAXI_PAYMENT_URL"),
-		PaymentSecret:       []byte(os.Getenv("TAXI_PAYMENT_SECRET")),
-		CashPaymentsEnabled: getEnvBool("TAXI_CASH_PAYMENTS_ENABLED", true),
-		RoutesAPIKey:        os.Getenv("TAXI_ROUTES_API_KEY"),
+		NotificationURL:    os.Getenv("TAXI_NOTIFICATION_URL"),
+		NotificationSecret: []byte(os.Getenv("TAXI_NOTIFICATION_SECRET")),
+		PaymentURL:         os.Getenv("TAXI_PAYMENT_URL"),
+		PaymentSecret:      []byte(os.Getenv("TAXI_PAYMENT_SECRET")),
+		RoutesAPIKey:       os.Getenv("TAXI_ROUTES_API_KEY"),
 
 		PricingRatesJSON:   getEnv("TAXI_PROVISIONAL_RATES", defaultProvisionalRatesJSON),
 		PricingRateVersion: getEnv("TAXI_PRICING_RATE_VERSION", "provisional-dev-v1"),

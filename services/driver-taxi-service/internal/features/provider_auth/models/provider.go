@@ -56,6 +56,10 @@ type Provider struct {
 	VehicleOperationalStatus   string
 	VehicleVerificationStatus  string
 	DocumentComplianceStatus   string
+	// AcceptsParcels is the driver's opt-in to carrying packages. It is NOT
+	// a compliance dimension and deliberately not part of CanGoAvailable --
+	// going online to drive passengers only is entirely legitimate.
+	AcceptsParcels bool
 
 	LocationState string
 	LocationCity  string
@@ -96,6 +100,7 @@ type PublicProvider struct {
 	VehicleOperationalStatus   string `json:"vehicle_operational_status"`
 	VehicleVerificationStatus  string `json:"vehicle_verification_status"`
 	DocumentComplianceStatus   string `json:"document_compliance_status"`
+	AcceptsParcels             bool   `json:"accepts_parcels"`
 
 	LocationState string `json:"location_state"`
 	LocationCity  string `json:"location_city"`
@@ -136,6 +141,7 @@ func (p Provider) Public() PublicProvider {
 		VehicleOperationalStatus:   p.VehicleOperationalStatus,
 		VehicleVerificationStatus:  p.VehicleVerificationStatus,
 		DocumentComplianceStatus:   p.DocumentComplianceStatus,
+		AcceptsParcels:             p.AcceptsParcels,
 
 		LocationState: p.LocationState,
 		LocationCity:  p.LocationCity,

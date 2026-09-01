@@ -22,6 +22,7 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/vehicleclass"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/geo"
+	"cosmicforge/logistics/shared/go/phonenumber"
 )
 
 // MarketLookup resolves which operating zone a coordinate belongs to. Booking
@@ -214,6 +215,17 @@ type CreateBookingInput struct {
 	PaymentMethod  string
 	// ReservedDurationMinutes is hourly-mode only; ignored for standard rides.
 	ReservedDurationMinutes int
+	// RidePurpose is "passenger" (the default when empty) or "parcel". The
+	// package fields below are required for a parcel and must be empty for a
+	// passenger ride -- CreateBooking enforces both directions rather than
+	// quietly ignoring stray values.
+	RidePurpose   string
+	ReceiverName  string
+	ReceiverPhone string
+	PackageDesc   string
+	PackageType   string
+	PackageSize   string
+	IsFragile     bool
 	// Stops must contain at least two points: pickup first, dropoff last.
 	// Anything between is a waypoint. A STANDARD booking is expected to send
 	// exactly two; HOURLY may send more.
@@ -233,6 +245,87 @@ type CreateBookingInput struct {
 // New bookings created here always start at StatusPendingMatch --
 // StatusScheduled handling belongs to phase B9, which is additive on top of
 // this path, not a branch inside it.
+// normalizeRidePurpose validates the passenger/parcel split and returns the
+// purpose plus a normalized receiver phone. Both directions are enforced: a
+// parcel must carry its package and receiver detail, and a passenger ride must
+// carry none of it -- silently dropping stray package fields on a passenger
+// ride would let a client believe it booked a delivery that nobody will treat
+// as one.
+func normalizeRidePurpose(input CreateBookingInput, mode bookingmodels.BookingMode, passengerCount int) (bookingmodels.RidePurpose, string, []apperrors.FieldViolation) {
+	var violations []apperrors.FieldViolation
+
+	purpose := bookingmodels.RidePurpose(strings.ToLower(strings.TrimSpace(input.RidePurpose)))
+	if purpose == "" {
+		purpose = bookingmodels.RidePurposePassenger
+	}
+	if purpose != bookingmodels.RidePurposePassenger && purpose != bookingmodels.RidePurposeParcel {
+		return "", "", []apperrors.FieldViolation{
+			{Field: "ride_purpose", Message: "Ride purpose must be 'passenger' or 'parcel'."},
+		}
+	}
+
+	if purpose == bookingmodels.RidePurposePassenger {
+		// Stray package detail on a passenger ride is a client bug.
+		if strings.TrimSpace(input.PackageDesc) != "" ||
+			strings.TrimSpace(input.PackageType) != "" ||
+			strings.TrimSpace(input.PackageSize) != "" ||
+			strings.TrimSpace(input.ReceiverName) != "" ||
+			strings.TrimSpace(input.ReceiverPhone) != "" ||
+			input.IsFragile {
+			violations = append(violations, apperrors.FieldViolation{
+				Field: "ride_purpose", Message: "Package details are only valid for a package delivery.",
+			})
+		}
+		return purpose, "", violations
+	}
+
+	if strings.TrimSpace(input.PackageDesc) == "" {
+		violations = append(violations, apperrors.FieldViolation{
+			Field: "package_desc", Message: "Describe what is being sent.",
+		})
+	}
+	if strings.TrimSpace(input.ReceiverName) == "" {
+		violations = append(violations, apperrors.FieldViolation{
+			Field: "receiver_name", Message: "Who is receiving the package?",
+		})
+	}
+
+	// Normalized HERE, at creation, not at verification time: dispatch shipped
+	// exactly that bug and it made bookings unfinishable, because the stored
+	// raw string never matched the normalized one submitted at drop-off.
+	receiver := ""
+	rawPhone := strings.TrimSpace(input.ReceiverPhone)
+	if rawPhone == "" {
+		violations = append(violations, apperrors.FieldViolation{
+			Field: "receiver_phone", Message: "A receiver phone number is required.",
+		})
+	} else {
+		normalized, err := phonenumber.NormalizeNigerianPhoneNumber(rawPhone)
+		if err != nil {
+			violations = append(violations, apperrors.FieldViolation{
+				Field: "receiver_phone", Message: "Enter a valid Nigerian phone number.",
+			})
+		} else {
+			receiver = normalized
+		}
+	}
+
+	// A package occupies the car; it does not travel with passengers, and an
+	// hourly parcel reservation is not a product this build offers.
+	if passengerCount > 1 {
+		violations = append(violations, apperrors.FieldViolation{
+			Field: "passenger_count", Message: "A package delivery cannot carry passengers.",
+		})
+	}
+	if mode != bookingmodels.BookingModeStandard {
+		violations = append(violations, apperrors.FieldViolation{
+			Field: "booking_mode", Message: "A package delivery must be a standard booking.",
+		})
+	}
+
+	return purpose, receiver, violations
+}
+
 func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingInput) (bookingmodels.Booking, error) {
 	customerID := strings.TrimSpace(input.CustomerID)
 	if customerID == "" {
@@ -286,10 +379,18 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	if paymentMethod == "" {
 		paymentMethod = "wallet"
 	}
-	if paymentMethod != "wallet" && paymentMethod != "cash" {
+	// Wallet is the only accepted method. A stale client still sending "cash"
+	// gets an explicit 400 rather than a silent upgrade into a real wallet
+	// charge the passenger never chose.
+	if paymentMethod != "wallet" {
 		return bookingmodels.Booking{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
-			{Field: "payment_method", Message: "Payment method must be 'wallet' or 'cash'."},
+			{Field: "payment_method", Message: "Rides are paid from your wallet."},
 		})
+	}
+
+	purpose, receiver, violations := normalizeRidePurpose(input, mode, passengerCount)
+	if len(violations) > 0 {
+		return bookingmodels.Booking{}, apperrors.Validation("Check your details.", violations)
 	}
 
 	// Phase B9: a scheduled ride must be for a real future pickup -- in the
@@ -363,6 +464,20 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		DurationMinutes:         &durationMin,
 		PaymentMethod:           paymentMethod,
 		PaymentStatus:           "unpaid",
+
+		RidePurpose: purpose,
+		// DeliveryVerificationStatus starts 'not_required' for EVERY booking
+		// (the column default). A parcel's window opens at trip start, inside
+		// MarkInProgress's own guarded statement -- never here.
+		DeliveryVerificationStatus: bookingmodels.DeliveryVerificationNotRequired,
+	}
+	if purpose == bookingmodels.RidePurposeParcel {
+		booking.ReceiverName = strings.TrimSpace(input.ReceiverName)
+		booking.ReceiverPhone = receiver
+		booking.PackageDesc = strings.TrimSpace(input.PackageDesc)
+		booking.PackageType = strings.TrimSpace(input.PackageType)
+		booking.PackageSize = strings.TrimSpace(input.PackageSize)
+		booking.IsFragile = input.IsFragile
 	}
 	if input.ScheduledAt != nil {
 		dispatchStartAt := input.ScheduledAt.Add(-s.scheduling.LeadTime)
@@ -431,7 +546,12 @@ type EstimateFareInput struct {
 }
 
 // EstimateFare backs the public, unauthenticated fare-tile screen: one quote
-// per class the resolved zone supports, nothing persisted. This is the ONLY
+// per class the resolved zone supports, nothing persisted.
+//
+// Parcel rides reuse these tiles unchanged: a package occupies a car for the
+// same distance and time a passenger would. package_size is captured for the
+// driver's information only and deliberately does NOT feed pricing in this
+// build -- do not assume otherwise when adding a size surcharge later. This is the ONLY
 // place PricingClient.Quote is called with more than one class -- booking
 // creation above already knows which single class the passenger chose.
 func (s *BookingService) EstimateFare(ctx context.Context, input EstimateFareInput) ([]FareTile, error) {

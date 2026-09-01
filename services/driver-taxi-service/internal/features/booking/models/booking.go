@@ -64,11 +64,41 @@ const (
 	PickupVerificationVerified    PickupVerificationStatus = "verified"
 )
 
-// Payment status values (phase B4). Cash bookings never leave
-// PaymentUnpaid -- for cash, this column records intent only, no wallet
-// call ever runs. PaymentHeld means PayFromWallet succeeded (money is
-// escrowed, not yet the driver's); PaymentPaid means CompleteJob settled it
-// to the driver; PaymentRefunded means RequestRefund succeeded after a
+// RidePurpose distinguishes a ride that carries a PASSENGER from one that
+// carries a PACKAGE. It is deliberately NOT a third BookingMode value:
+// BookingMode answers "standard point-to-point or hourly reservation", which
+// is a different axis entirely, and folding the two together would make
+// "hourly parcel" inexpressible by construction rather than by validation.
+type RidePurpose string
+
+const (
+	RidePurposePassenger RidePurpose = "passenger"
+	RidePurposeParcel    RidePurpose = "parcel"
+)
+
+// DeliveryVerificationStatus tracks the drop-off half of a parcel's handover,
+// mirroring PickupVerificationStatus for the pickup half. The two are separate
+// columns rather than one because they move independently: pickup is verified
+// at the kerb before the trip starts, delivery at the destination before it
+// completes.
+//
+// A passenger ride stays DeliveryVerificationNotRequired forever -- there is
+// nothing to hand over at the end of a ride.
+type DeliveryVerificationStatus string
+
+const (
+	DeliveryVerificationNotRequired DeliveryVerificationStatus = "not_required"
+	DeliveryVerificationPending     DeliveryVerificationStatus = "pending"
+	DeliveryVerificationVerified    DeliveryVerificationStatus = "verified"
+)
+
+// Payment status values (phase B4). Every booking is wallet-paid -- cash was
+// removed so the platform actually collects the fare, matching hauling and
+// dispatch. A booking stays PaymentUnpaid until a driver accepts (and stays
+// there permanently when payments are not configured at all, i.e. local dev
+// without TAXI_PAYMENT_URL). PaymentHeld means PayFromWallet succeeded (money
+// is escrowed, not yet the driver's); PaymentPaid means CompleteJob settled
+// it to the driver; PaymentRefunded means RequestRefund succeeded after a
 // cancel that happened while money was held.
 const (
 	PaymentUnpaid   = "unpaid"
@@ -156,6 +186,17 @@ type Booking struct {
 	Status                   Status
 	PickupVerificationStatus PickupVerificationStatus
 
+	// Parcel mode. Every package field is empty on a passenger ride, which
+	// CreateBooking enforces rather than merely assuming.
+	RidePurpose                RidePurpose
+	ReceiverName               string
+	ReceiverPhone              string
+	PackageDesc                string
+	PackageType                string
+	PackageSize                string
+	IsFragile                  bool
+	DeliveryVerificationStatus DeliveryVerificationStatus
+
 	ScheduledAt         *time.Time
 	DispatchStartAt     *time.Time
 	ReservationStatus   string
@@ -238,6 +279,17 @@ type PublicBooking struct {
 	Status                   Status                   `json:"status"`
 	PickupVerificationStatus PickupVerificationStatus `json:"pickup_verification_status"`
 
+	// The package fields carry omitempty so a passenger ride's wire shape is
+	// byte-identical to what it was before parcel mode existed.
+	RidePurpose                RidePurpose                `json:"ride_purpose"`
+	ReceiverName               string                     `json:"receiver_name,omitempty"`
+	ReceiverPhone              string                     `json:"receiver_phone,omitempty"`
+	PackageDesc                string                     `json:"package_desc,omitempty"`
+	PackageType                string                     `json:"package_type,omitempty"`
+	PackageSize                string                     `json:"package_size,omitempty"`
+	IsFragile                  bool                       `json:"is_fragile,omitempty"`
+	DeliveryVerificationStatus DeliveryVerificationStatus `json:"delivery_verification_status"`
+
 	// ScheduledAt/DispatchStartAt are the only B9 scheduling fields exposed
 	// to clients. ReservationStatus/ReservedProviderID/BackupDispatchAt/
 	// ProviderConfirmedAt stay internal: this build never sets
@@ -277,17 +329,26 @@ func (b Booking) Public() PublicBooking {
 		PaymentStatus:            b.PaymentStatus,
 		Status:                   b.Status,
 		PickupVerificationStatus: b.PickupVerificationStatus,
-		ScheduledAt:              b.ScheduledAt,
-		DispatchStartAt:          b.DispatchStartAt,
-		CancelReason:             b.CancelReason,
-		CancelledBy:              b.CancelledBy,
-		MatchedAt:                b.MatchedAt,
-		AcceptedAt:               b.AcceptedAt,
-		ArrivedAt:                b.ArrivedAt,
-		StartedAt:                b.StartedAt,
-		CompletedAt:              b.CompletedAt,
-		CancelledAt:              b.CancelledAt,
-		CreatedAt:                b.CreatedAt,
+		RidePurpose:              b.RidePurpose,
+		ReceiverName:             b.ReceiverName,
+		ReceiverPhone:            b.ReceiverPhone,
+		PackageDesc:              b.PackageDesc,
+		PackageType:              b.PackageType,
+		PackageSize:              b.PackageSize,
+		IsFragile:                b.IsFragile,
+
+		DeliveryVerificationStatus: b.DeliveryVerificationStatus,
+		ScheduledAt:                b.ScheduledAt,
+		DispatchStartAt:            b.DispatchStartAt,
+		CancelReason:               b.CancelReason,
+		CancelledBy:                b.CancelledBy,
+		MatchedAt:                  b.MatchedAt,
+		AcceptedAt:                 b.AcceptedAt,
+		ArrivedAt:                  b.ArrivedAt,
+		StartedAt:                  b.StartedAt,
+		CompletedAt:                b.CompletedAt,
+		CancelledAt:                b.CancelledAt,
+		CreatedAt:                  b.CreatedAt,
 	}
 	if b.Stops != nil {
 		pub.Stops = make([]PublicStop, len(b.Stops))
@@ -297,6 +358,11 @@ func (b Booking) Public() PublicBooking {
 	}
 	return pub
 }
+
+// IsParcel reports whether this booking carries a package rather than a
+// passenger. Treats the empty string as passenger so a row written before
+// parcel mode existed reads correctly.
+func (b Booking) IsParcel() bool { return b.RidePurpose == RidePurposeParcel }
 
 // IsActive reports whether this booking counts against the customer
 // active-ride guard.

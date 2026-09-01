@@ -7,6 +7,7 @@ class CustomerAppConfig {
     required this.walletApiBaseUrl,
     required this.haulingApiBaseUrl,
     required this.dispatchApiBaseUrl,
+    required this.taxiApiBaseUrl,
     required this.notificationWsUrl,
     required this.googleMapsApiKey,
   });
@@ -22,6 +23,7 @@ class CustomerAppConfig {
   static const defaultWalletApiBaseUrl = 'http://192.168.1.112:8105/api/v1/payment-wallet';
   static const defaultHaulingApiBaseUrl = 'http://192.168.1.112:8104/api/v1/hauling';
   static const defaultDispatchApiBaseUrl = 'http://192.168.1.112:8103/api/v1/customer/dispatch';
+  static const defaultTaxiApiBaseUrl = 'http://192.168.1.112:8102/api/v1/taxi';
   // Realtime websocket endpoint on notification-service (ws:// upgrade, token-gated).
   static const defaultNotificationWsUrl = 'ws://192.168.1.112:8106/api/v1/notifications/ws';
   // No default on purpose — a real key must always come from
@@ -59,6 +61,10 @@ class CustomerAppConfig {
         'DISPATCH_API_BASE_URL',
         defaultValue: defaultDispatchApiBaseUrl,
       ),
+      taxiApiBaseUrl: String.fromEnvironment(
+        'TAXI_API_BASE_URL',
+        defaultValue: defaultTaxiApiBaseUrl,
+      ),
       notificationWsUrl: String.fromEnvironment(
         'NOTIFICATION_WS_URL',
         defaultValue: defaultNotificationWsUrl,
@@ -77,6 +83,11 @@ class CustomerAppConfig {
   final String walletApiBaseUrl;
   final String haulingApiBaseUrl;
   final String dispatchApiBaseUrl;
+
+  /// Note this is the taxi service's whole API base; unlike the dispatch URL
+  /// it carries no `/customer` segment, because taxi splits its customer and
+  /// provider surfaces below this prefix.
+  final String taxiApiBaseUrl;
   final String notificationWsUrl;
   final String googleMapsApiKey;
 }

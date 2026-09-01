@@ -1,14 +1,17 @@
 -- support-dispute-service migrations
 -- Covers all four service types: customer (taxi, dispatch, hauling bookings) and provider complaints.
 
-CREATE TYPE service_type AS ENUM (
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='service_type') THEN
+  CREATE TYPE service_type AS ENUM (
     'taxi',
     'dispatch',
     'hauling',
     'platform'
 );
+END IF; END $$;
 
-CREATE TYPE complaint_status AS ENUM (
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='complaint_status') THEN
+  CREATE TYPE complaint_status AS ENUM (
     'open',
     'under_review',
     'awaiting_evidence',
@@ -16,21 +19,26 @@ CREATE TYPE complaint_status AS ENUM (
     'closed',
     'escalated'
 );
+END IF; END $$;
 
-CREATE TYPE complainant_type AS ENUM (
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='complainant_type') THEN
+  CREATE TYPE complainant_type AS ENUM (
     'customer',
     'taxi_provider',
     'dispatch_provider',
     'hauling_provider'
 );
+END IF; END $$;
 
-CREATE TYPE dispute_outcome AS ENUM (
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='dispute_outcome') THEN
+  CREATE TYPE dispute_outcome AS ENUM (
     'pending',
     'favour_complainant',
     'favour_respondent',
     'split',
     'dismissed'
 );
+END IF; END $$;
 
 -- complaints: the primary ticket raised by any party
 CREATE TABLE IF NOT EXISTS complaints (
@@ -49,10 +57,10 @@ CREATE TABLE IF NOT EXISTS complaints (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_complaints_complainant  ON complaints (complainant_type, complainant_id);
-CREATE INDEX idx_complaints_booking      ON complaints (booking_reference) WHERE booking_reference IS NOT NULL;
-CREATE INDEX idx_complaints_status       ON complaints (status);
-CREATE INDEX idx_complaints_service_type ON complaints (service_type);
+CREATE INDEX IF NOT EXISTS idx_complaints_complainant  ON complaints (complainant_type, complainant_id);
+CREATE INDEX IF NOT EXISTS idx_complaints_booking      ON complaints (booking_reference) WHERE booking_reference IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_complaints_status       ON complaints (status);
+CREATE INDEX IF NOT EXISTS idx_complaints_service_type ON complaints (service_type);
 
 -- evidence: files or text attached to a complaint
 CREATE TABLE IF NOT EXISTS complaint_evidence (
@@ -66,7 +74,7 @@ CREATE TABLE IF NOT EXISTS complaint_evidence (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_evidence_complaint ON complaint_evidence (complaint_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_complaint ON complaint_evidence (complaint_id);
 
 -- disputes: a formal escalation from a complaint, involving two parties
 CREATE TABLE IF NOT EXISTS disputes (
@@ -84,10 +92,10 @@ CREATE TABLE IF NOT EXISTS disputes (
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_disputes_complaint     ON disputes (complaint_id);
-CREATE INDEX idx_disputes_respondent    ON disputes (respondent_type, respondent_id);
-CREATE INDEX idx_disputes_outcome       ON disputes (outcome);
-CREATE INDEX idx_disputes_service_type  ON disputes (service_type);
+CREATE INDEX IF NOT EXISTS idx_disputes_complaint     ON disputes (complaint_id);
+CREATE INDEX IF NOT EXISTS idx_disputes_respondent    ON disputes (respondent_type, respondent_id);
+CREATE INDEX IF NOT EXISTS idx_disputes_outcome       ON disputes (outcome);
+CREATE INDEX IF NOT EXISTS idx_disputes_service_type  ON disputes (service_type);
 
 -- complaint_events: audit trail of status changes and actions
 CREATE TABLE IF NOT EXISTS complaint_events (
@@ -100,4 +108,4 @@ CREATE TABLE IF NOT EXISTS complaint_events (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_complaint_events_complaint ON complaint_events (complaint_id);
+CREATE INDEX IF NOT EXISTS idx_complaint_events_complaint ON complaint_events (complaint_id);

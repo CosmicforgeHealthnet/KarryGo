@@ -352,11 +352,34 @@ func (f *fakeBookingRepo) MarkInProgress(ctx context.Context, exec bookingreposi
 		return bookingmodels.Booking{}, apperrors.Conflict("This ride cannot be updated right now.", nil)
 	}
 	b.Status = bookingmodels.StatusInProgress
+	// Mirrors the real statement's CASE: starting a parcel trip opens the
+	// delivery-verification window, which MarkCompleted then gates on.
+	if b.IsParcel() {
+		b.DeliveryVerificationStatus = bookingmodels.DeliveryVerificationPending
+	}
+	f.byID[bookingID] = b
+	return b, nil
+}
+
+func (f *fakeBookingRepo) MarkDeliveryVerified(ctx context.Context, exec bookingrepositories.Executor, bookingID, providerID string) (bookingmodels.Booking, error) {
+	b, ok := f.byID[bookingID]
+	if !ok || b.ProviderID == nil || *b.ProviderID != providerID ||
+		b.Status != bookingmodels.StatusInProgress ||
+		b.DeliveryVerificationStatus != bookingmodels.DeliveryVerificationPending {
+		return bookingmodels.Booking{}, apperrors.Conflict("This ride cannot be updated right now.", nil)
+	}
+	b.DeliveryVerificationStatus = bookingmodels.DeliveryVerificationVerified
 	f.byID[bookingID] = b
 	return b, nil
 }
 
 func (f *fakeBookingRepo) MarkCompleted(ctx context.Context, exec bookingrepositories.Executor, bookingID, providerID string, actualDistanceKm float64, fareFinalKobo int64) (bookingmodels.Booking, error) {
+	// Mirrors the real guard's `delivery_verification_status <> 'pending'`:
+	// a parcel whose receiver never showed their code cannot be completed.
+	if b, ok := f.byID[bookingID]; ok &&
+		b.DeliveryVerificationStatus == bookingmodels.DeliveryVerificationPending {
+		return bookingmodels.Booking{}, apperrors.Conflict("This ride cannot be updated right now.", nil)
+	}
 	return f.transition(bookingID, providerID, true, []bookingmodels.Status{bookingmodels.StatusInProgress}, bookingmodels.StatusCompleted, func(b *bookingmodels.Booking) {
 		b.ActualDistanceKm = &actualDistanceKm
 		b.FareFinalKobo = &fareFinalKobo
@@ -682,14 +705,21 @@ func TestCreateBooking_DefaultsPaymentMethodToWallet(t *testing.T) {
 }
 
 func TestCreateBooking_RejectsInvalidPaymentMethod(t *testing.T) {
-	repo, markets, pc := newFakeBookingRepo(), newFakeMarkets(), newFakePricing()
-	svc := newService(repo, markets, pc)
+	// "cash" is included deliberately: it used to be accepted, so a stale
+	// client sending it must get an explicit validation error rather than
+	// being silently upgraded into a real wallet charge.
+	for _, method := range []string{"crypto", "cash", "card"} {
+		t.Run(method, func(t *testing.T) {
+			repo, markets, pc := newFakeBookingRepo(), newFakeMarkets(), newFakePricing()
+			svc := newService(repo, markets, pc)
 
-	_, err := svc.CreateBooking(context.Background(), CreateBookingInput{
-		CustomerID: "cust-1", VehicleClass: "economy", PaymentMethod: "crypto", Stops: validStops(),
-	})
-	if errCode(t, err) != apperrors.CodeValidationFailed {
-		t.Fatalf("code = %v, want validation_failed", errCode(t, err))
+			_, err := svc.CreateBooking(context.Background(), CreateBookingInput{
+				CustomerID: "cust-1", VehicleClass: "economy", PaymentMethod: method, Stops: validStops(),
+			})
+			if errCode(t, err) != apperrors.CodeValidationFailed {
+				t.Fatalf("code = %v, want validation_failed", errCode(t, err))
+			}
+		})
 	}
 }
 
@@ -779,5 +809,128 @@ func TestGetByIDForCustomer_WrongCustomerReturnsNotFound(t *testing.T) {
 	_, err = svc.GetByIDForCustomer(context.Background(), created.ID, "cust-2")
 	if errCode(t, err) != apperrors.CodeNotFound {
 		t.Fatalf("code = %v, want not_found", errCode(t, err))
+	}
+}
+
+// ─── Parcel mode ────────────────────────────────────────────────────────────
+
+func parcelInput(mutate func(*CreateBookingInput)) CreateBookingInput {
+	in := CreateBookingInput{
+		CustomerID:    "cust-1",
+		VehicleClass:  "economy",
+		RidePurpose:   "parcel",
+		PackageDesc:   "A4 documents",
+		ReceiverName:  "Ada Receiver",
+		ReceiverPhone: "08055512345",
+		Stops:         validStops(),
+	}
+	if mutate != nil {
+		mutate(&in)
+	}
+	return in
+}
+
+func TestCreateBooking_DefaultsRidePurposeToPassenger(t *testing.T) {
+	repo, markets, pc := newFakeBookingRepo(), newFakeMarkets(), newFakePricing()
+	svc := newService(repo, markets, pc)
+
+	got, err := svc.CreateBooking(context.Background(), CreateBookingInput{
+		CustomerID: "cust-1", VehicleClass: "economy", Stops: validStops(),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.RidePurpose != bookingmodels.RidePurposePassenger {
+		t.Errorf("ride purpose = %q, want passenger", got.RidePurpose)
+	}
+	if got.IsParcel() {
+		t.Error("a booking with no ride_purpose must not be a parcel")
+	}
+	if got.DeliveryVerificationStatus != bookingmodels.DeliveryVerificationNotRequired {
+		t.Errorf("delivery verification = %q, want not_required", got.DeliveryVerificationStatus)
+	}
+}
+
+func TestCreateBooking_ParcelNormalizesReceiverPhone(t *testing.T) {
+	repo, markets, pc := newFakeBookingRepo(), newFakeMarkets(), newFakePricing()
+	svc := newService(repo, markets, pc)
+
+	got, err := svc.CreateBooking(context.Background(), parcelInput(nil))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Normalized at CREATION, not at verification: storing the raw string is
+	// the documented dispatch bug that made deliveries unfinishable.
+	if got.ReceiverPhone != "+2348055512345" {
+		t.Errorf("receiver phone = %q, want +2348055512345", got.ReceiverPhone)
+	}
+	if !got.IsParcel() {
+		t.Error("expected a parcel booking")
+	}
+	if got.PackageDesc != "A4 documents" {
+		t.Errorf("package desc = %q", got.PackageDesc)
+	}
+}
+
+func TestCreateBooking_ParcelRequiresReceiverAndDescription(t *testing.T) {
+	cases := map[string]func(*CreateBookingInput){
+		"no description":  func(in *CreateBookingInput) { in.PackageDesc = "" },
+		"no receiver":     func(in *CreateBookingInput) { in.ReceiverName = "" },
+		"no phone":        func(in *CreateBookingInput) { in.ReceiverPhone = "" },
+		"invalid phone":   func(in *CreateBookingInput) { in.ReceiverPhone = "not-a-number" },
+		"with passengers": func(in *CreateBookingInput) { in.PassengerCount = 2 },
+		"hourly parcel": func(in *CreateBookingInput) {
+			in.BookingMode = "hourly"
+			in.ReservedDurationMinutes = 60
+		},
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			repo, markets, pc := newFakeBookingRepo(), newFakeMarkets(), newFakePricing()
+			svc := newService(repo, markets, pc)
+
+			_, err := svc.CreateBooking(context.Background(), parcelInput(mutate))
+			if errCode(t, err) != apperrors.CodeValidationFailed {
+				t.Fatalf("code = %v, want validation_failed", errCode(t, err))
+			}
+		})
+	}
+}
+
+func TestCreateBooking_RejectsPackageFieldsOnPassengerRide(t *testing.T) {
+	// Silently dropping these would let a client believe it booked a delivery
+	// that nothing downstream will ever treat as one.
+	cases := map[string]func(*CreateBookingInput){
+		"description": func(in *CreateBookingInput) { in.PackageDesc = "documents" },
+		"receiver":    func(in *CreateBookingInput) { in.ReceiverName = "Ada" },
+		"phone":       func(in *CreateBookingInput) { in.ReceiverPhone = "08055512345" },
+		"fragile":     func(in *CreateBookingInput) { in.IsFragile = true },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			repo, markets, pc := newFakeBookingRepo(), newFakeMarkets(), newFakePricing()
+			svc := newService(repo, markets, pc)
+
+			in := CreateBookingInput{
+				CustomerID: "cust-1", VehicleClass: "economy", Stops: validStops(),
+			}
+			mutate(&in)
+			_, err := svc.CreateBooking(context.Background(), in)
+			if errCode(t, err) != apperrors.CodeValidationFailed {
+				t.Fatalf("code = %v, want validation_failed", errCode(t, err))
+			}
+		})
+	}
+}
+
+func TestCreateBooking_RejectsUnknownRidePurpose(t *testing.T) {
+	repo, markets, pc := newFakeBookingRepo(), newFakeMarkets(), newFakePricing()
+	svc := newService(repo, markets, pc)
+
+	_, err := svc.CreateBooking(context.Background(), parcelInput(func(in *CreateBookingInput) {
+		in.RidePurpose = "freight"
+	}))
+	if errCode(t, err) != apperrors.CodeValidationFailed {
+		t.Fatalf("code = %v, want validation_failed", errCode(t, err))
 	}
 }

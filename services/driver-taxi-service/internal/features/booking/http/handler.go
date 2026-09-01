@@ -305,6 +305,57 @@ func (h *BookingHandler) VerifyPickup(c *gin.Context) {
 	respond(c, nethttp.StatusOK, booking.Public())
 }
 
+// ─── Delivery handover (parcel only) ───────────────────────────────────────
+
+// GetDeliveryCode returns the code the receiver shows the driver at drop-off.
+// The code is minted on this first read, not at trip start -- see
+// BookingService.GetDeliveryCode's own doc comment for why.
+func (h *BookingHandler) GetDeliveryCode(c *gin.Context) {
+	id, ok := customerID(c)
+	if !ok {
+		return
+	}
+	credential, err := h.bookings.GetDeliveryCode(c.Request.Context(), c.Param("id"), id)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respond(c, nethttp.StatusOK, credential)
+}
+
+func (h *BookingHandler) ResendDeliveryCode(c *gin.Context) {
+	id, ok := customerID(c)
+	if !ok {
+		return
+	}
+	credential, err := h.bookings.ResendDeliveryCode(c.Request.Context(), c.Param("id"), id)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respond(c, nethttp.StatusOK, credential)
+}
+
+// VerifyDelivery is the driver-initiated check at drop-off. Until it
+// succeeds, MarkCompleted's own SQL guard refuses to complete the trip.
+func (h *BookingHandler) VerifyDelivery(c *gin.Context) {
+	id, ok := providerID(c)
+	if !ok {
+		return
+	}
+	var req verifyDeliveryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	booking, err := h.bookings.VerifyDelivery(c.Request.Context(), c.Param("id"), id, req.Code)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respond(c, nethttp.StatusOK, booking.Public())
+}
+
 // IngestLocationPoints is the batched active-trip GPS upload (phase B6).
 // Never a per-batch failure for one bad point -- see LocationPointResult's
 // own doc comment -- so a 200 with per-point errors is the normal shape for

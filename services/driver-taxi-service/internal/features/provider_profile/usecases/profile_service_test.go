@@ -74,6 +74,11 @@ func (f *fakeProfiles) UpdatePhoto(_ context.Context, _, assetID, url string) (p
 	return f.stored, nil
 }
 
+func (f *fakeProfiles) SetAcceptsParcels(_ context.Context, _ string, accepts bool) (providerauthmodels.Provider, error) {
+	f.stored.AcceptsParcels = accepts
+	return f.stored, nil
+}
+
 func (f *fakeProfiles) SetVehicleOperationalStatus(_ context.Context, _, status string) error {
 	f.stored.VehicleOperationalStatus = status
 	return nil

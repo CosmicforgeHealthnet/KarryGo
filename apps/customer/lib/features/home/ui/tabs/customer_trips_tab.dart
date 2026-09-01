@@ -12,20 +12,26 @@ import '../../../hauling/state/hauling_booking_controller.dart';
 import '../../../hauling/ui/hauling_flow_screen.dart';
 import '../../../hauling/ui/views/hauling_trip_detail_screen.dart';
 import '../../../hauling/ui/widgets/hauling_trip_widgets.dart';
+import '../../../taxi/models/taxi_models.dart' as taxi;
+import '../../../taxi/state/taxi_booking_controller.dart';
+import '../../../taxi/ui/taxi_flow_screen.dart';
+import '../../../taxi/ui/widgets/taxi_trip_widgets.dart';
 
-/// "My Trips" — lists the customer's truck bookings AND bike deliveries in a
-/// single feed split across four tabs (Past / Ongoing / Upcoming / Cancelled).
-/// Backed by both controllers' `loadHistory()` / `bookingHistory`.
+/// "My Trips" — lists the customer's truck bookings, bike deliveries AND car
+/// rides in a single feed split across four tabs (Past / Ongoing / Upcoming /
+/// Cancelled). Backed by each controller's `loadHistory()` / `bookingHistory`.
 class CustomerTripsTab extends StatefulWidget {
   const CustomerTripsTab({
     super.key,
     required this.controller,
     required this.dispatchController,
+    required this.taxiController,
     required this.placesApi,
   });
 
   final HaulingBookingController controller;
   final DispatchBookingController dispatchController;
+  final TaxiBookingController taxiController;
   final PlacesApi placesApi;
 
   @override
@@ -50,6 +56,16 @@ class _DispatchEntry extends _TripEntry {
   final dispatch.DispatchBooking booking;
   @override
   DateTime get sortDate => booking.createdAt;
+}
+
+class _TaxiEntry extends _TripEntry {
+  _TaxiEntry(this.booking);
+  final taxi.TaxiBooking booking;
+  // A taxi booking's created_at is optional on the wire; fall back to the
+  // epoch so a malformed row sorts last instead of crashing the list.
+  @override
+  DateTime get sortDate =>
+      booking.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 class _CustomerTripsTabState extends State<CustomerTripsTab>
@@ -82,6 +98,7 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
     await Future.wait([
       widget.controller.loadHistory(),
       widget.dispatchController.loadHistory(),
+      widget.taxiController.loadHistory(),
     ]);
     if (!mounted) return;
     setState(() => _loadedOnce = true);
@@ -159,6 +176,26 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
           )
           .then((_) => _load());
     }
+  }
+
+  /// Taxi has no standalone trip-detail screen yet, so a finished ride simply
+  /// re-opens the flow at its terminal screen; a live one resumes polling.
+  void _onTaxiTap(taxi.TaxiBooking booking) {
+    if (booking.status.isTerminal) return;
+    widget.taxiController.openActiveBooking(booking);
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => TaxiFlowScreen(
+              controller: widget.taxiController,
+              placesApi: widget.placesApi,
+            ),
+          ),
+        )
+        .then((_) {
+          if (mounted) _load();
+        });
   }
 
   void _onDispatchTap(dispatch.DispatchBooking booking) {
@@ -274,11 +311,13 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
         animation: Listenable.merge([
           widget.controller,
           widget.dispatchController,
+          widget.taxiController,
         ]),
         builder: (context, _) {
           final hauling = widget.controller.state.bookingHistory;
           final dispatchAll =
               widget.dispatchController.state.bookingHistory;
+          final taxiAll = widget.taxiController.state.bookingHistory;
 
           // A delivered trip is treated as completed here: the driver/rider has
           // dropped off the cargo; it only awaits the customer review (or the
@@ -294,6 +333,9 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
                     b.status == dispatch.DispatchBookingStatus.completed ||
                     b.status == dispatch.DispatchBookingStatus.delivered)
                 .map(_DispatchEntry.new),
+            ...taxiAll
+                .where((b) => b.status == taxi.TaxiBookingStatus.completed)
+                .map(_TaxiEntry.new),
           ];
           final ongoing = <_TripEntry>[
             ...hauling
@@ -304,11 +346,16 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
             ...dispatchAll
                 .where((b) => b.status.isSearching || b.status.isActive)
                 .map(_DispatchEntry.new),
+            ...taxiAll
+                .where((b) =>
+                    !b.isUpcoming &&
+                    (b.status.isSearching || b.status.isActive))
+                .map(_TaxiEntry.new),
           ];
-          // Dispatch deliveries have no scheduling, so only hauling can be
-          // "Upcoming".
+          // Dispatch deliveries have no scheduling; hauling and taxi both do.
           final upcoming = <_TripEntry>[
             ...hauling.where((b) => b.isUpcoming).map(_HaulingEntry.new),
+            ...taxiAll.where((b) => b.isUpcoming).map(_TaxiEntry.new),
           ];
           final cancelled = <_TripEntry>[
             ...hauling
@@ -321,6 +368,11 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
                     b.status == dispatch.DispatchBookingStatus.cancelled ||
                     b.status == dispatch.DispatchBookingStatus.unmatched)
                 .map(_DispatchEntry.new),
+            ...taxiAll
+                .where((b) =>
+                    b.status == taxi.TaxiBookingStatus.cancelled ||
+                    b.status == taxi.TaxiBookingStatus.unmatched)
+                .map(_TaxiEntry.new),
           ];
           for (final list in [past, ongoing, upcoming, cancelled]) {
             list.sort((a, b) => b.sortDate.compareTo(a.sortDate));
@@ -361,6 +413,10 @@ class _CustomerTripsTabState extends State<CustomerTripsTab>
                       booking: b,
                       rider: b.providerId == null ? null : _riders[b.providerId],
                       onTap: () => _onDispatchTap(b),
+                    ),
+                  _TaxiEntry(booking: final b) => TaxiTripCard(
+                      booking: b,
+                      onTap: () => _onTaxiTap(b),
                     ),
                 };
               },

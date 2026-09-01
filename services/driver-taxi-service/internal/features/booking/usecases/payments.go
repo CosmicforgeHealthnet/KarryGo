@@ -1,4 +1,4 @@
-// Payment integration (phase B4): wallet + cash, no card. Every wallet call
+// Payment integration (phase B4): wallet only -- no cash, no card. Every wallet call
 // goes through shared/go/walletclient, which this file depends on via a
 // local, narrow PaymentClient interface -- the same "consumer declares what
 // it needs" convention as every other cross-package dependency in this
@@ -80,18 +80,14 @@ func fareKobo(b bookingmodels.Booking) int64 {
 
 // createPaymentIntentForCandidate creates a fresh, unpaid intent for one
 // offer, with the candidate provider already attached. Returns (nil, nil)
-// for a cash booking -- cash never touches the wallet client at all, per
-// this build's "cash is record-only" decision (matching the same decision
-// already made for hauling/dispatch).
+// only when payments are not configured at all (local dev): every booking is
+// wallet-paid now, matching hauling and dispatch.
 func (s *BookingService) createPaymentIntentForCandidate(ctx context.Context, booking bookingmodels.Booking, providerID string) (*string, error) {
-	if booking.PaymentMethod != "wallet" {
-		return nil, nil
-	}
 	if s.payments == nil {
-		// No payment-wallet integration configured (local dev without
-		// TAXI_PAYMENT_URL/_SECRET) -- degrade to the same "no charge"
-		// behavior as cash, rather than blocking every wallet booking from
-		// ever being offered.
+		// The ONE no-charge degrade path left now that cash is gone: no
+		// payment-wallet integration configured (local dev without
+		// TAXI_PAYMENT_URL/_SECRET). Booking still works and charges nobody,
+		// rather than blocking every booking from ever being offered.
 		return nil, nil
 	}
 	intent, err := s.payments.CreatePaymentIntent(ctx, walletclient.PaymentIntentRequest{
@@ -117,12 +113,9 @@ func (s *BookingService) createPaymentIntentForCandidate(ctx context.Context, bo
 // how a hold succeeding but the DB transition then failing (a narrow race
 // against a concurrent timeout) is unwound.
 func (s *BookingService) holdPayment(ctx context.Context, booking bookingmodels.Booking) error {
-	if booking.PaymentMethod != "wallet" || s.payments == nil {
-		return nil
-	}
-	if booking.PaymentIntentID == nil {
-		// No intent was created for this offer (payments not configured, or
-		// a cash booking that should never reach here) -- nothing to hold.
+	if s.payments == nil || booking.PaymentIntentID == nil {
+		// No intent was created for this offer (payments not configured) --
+		// nothing to hold.
 		return nil
 	}
 	_, err := s.payments.PayFromWallet(ctx, *booking.PaymentIntentID, "taxi-pay-"+booking.ID)
@@ -136,19 +129,19 @@ func (s *BookingService) holdPayment(ctx context.Context, booking bookingmodels.
 // not something this call should mask by refusing to record the ride's own
 // completion.
 func (s *BookingService) settlePayment(ctx context.Context, booking bookingmodels.Booking) error {
-	if booking.PaymentMethod != "wallet" || s.payments == nil || booking.PaymentIntentID == nil {
+	if s.payments == nil || booking.PaymentIntentID == nil {
 		return nil
 	}
 	_, err := s.payments.CompleteJob(ctx, PaymentServiceName, booking.ID)
 	return err
 }
 
-// refundIfHeld reverses an escrowed charge on cancellation. A no-op for
-// cash, for payments-not-configured, and for a booking whose payment never
+// refundIfHeld reverses an escrowed charge on cancellation. A no-op when
+// payments are not configured, and for a booking whose payment never
 // actually reached 'held' (cancelling before accept -- the only point money
 // moves at all -- never charged anything).
 func (s *BookingService) refundIfHeld(ctx context.Context, booking bookingmodels.Booking, reason string) error {
-	if booking.PaymentMethod != "wallet" || s.payments == nil || booking.PaymentStatus != bookingmodels.PaymentHeld {
+	if s.payments == nil || booking.PaymentStatus != bookingmodels.PaymentHeld {
 		return nil
 	}
 	_, err := s.payments.RequestRefund(ctx, walletclient.RefundRequest{

@@ -51,6 +51,26 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 	respond(c, nethttp.StatusOK, profile)
 }
 
+// SetParcelPreference toggles whether this driver may be matched to package
+// deliveries. Drivers are opted out by default.
+func (h *ProfileHandler) SetParcelPreference(c *gin.Context) {
+	id, ok := providerID(c)
+	if !ok {
+		return
+	}
+	var req setParcelPreferenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	profile, err := h.profiles.SetAcceptsParcels(c.Request.Context(), id, req.AcceptsParcels)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respond(c, nethttp.StatusOK, profile)
+}
+
 func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	id, ok := providerID(c)
 	if !ok {

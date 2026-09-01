@@ -10,6 +10,7 @@ import '../../hauling/state/hauling_booking_controller.dart';
 import '../../media/data/media_upload_service.dart';
 import '../../notifications/state/notification_controller.dart';
 import '../../profile/ui/customer_profile_screen.dart';
+import '../../taxi/state/taxi_booking_controller.dart';
 import '../../support/data/support_api.dart';
 import '../../wallet/data/wallet_api.dart';
 import 'tabs/customer_home_tab.dart';
@@ -28,6 +29,7 @@ class CustomerHomeScreen extends StatefulWidget {
     required this.mediaUploadService,
     required this.haulingController,
     required this.dispatchController,
+    required this.taxiController,
     required this.placesApi,
     required this.notificationController,
   });
@@ -40,6 +42,7 @@ class CustomerHomeScreen extends StatefulWidget {
   final MediaUploadService mediaUploadService;
   final HaulingBookingController haulingController;
   final DispatchBookingController dispatchController;
+  final TaxiBookingController taxiController;
   final PlacesApi placesApi;
   final NotificationController notificationController;
 
@@ -65,11 +68,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             controller: widget.controller,
             haulingController: widget.haulingController,
             dispatchController: widget.dispatchController,
+            taxiController: widget.taxiController,
             placesApi: widget.placesApi,
           ),
           CustomerTripsTab(
             controller: widget.haulingController,
             dispatchController: widget.dispatchController,
+            taxiController: widget.taxiController,
             placesApi: widget.placesApi,
           ),
           CustomerNotificationsTab(controller: widget.notificationController),
@@ -98,6 +103,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             if (i == 1) {
               widget.haulingController.loadHistory();
               widget.dispatchController.loadHistory();
+              widget.taxiController.loadHistory();
             }
             // Opening Alerts advances the read marker, clears the unread
             // badge, and refreshes the feed.

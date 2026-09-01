@@ -60,6 +60,23 @@ func (s *ProfileService) GetProfile(ctx context.Context, providerID string) (pro
 	return p.Public(), nil
 }
 
+// SetAcceptsParcels toggles the driver's opt-in to carrying packages.
+//
+// Deliberately NOT part of UpdateProfile: that path preserves fields left
+// empty, which cannot express "false" for a boolean, so a profile save from
+// a screen without this toggle would silently opt the driver out.
+func (s *ProfileService) SetAcceptsParcels(ctx context.Context, providerID string, accepts bool) (providerauthmodels.PublicProvider, error) {
+	providerID = strings.TrimSpace(providerID)
+	if providerID == "" {
+		return providerauthmodels.PublicProvider{}, apperrors.Unauthorized("Authentication is required.", nil)
+	}
+	p, err := s.profiles.SetAcceptsParcels(ctx, providerID, accepts)
+	if err != nil {
+		return providerauthmodels.PublicProvider{}, err
+	}
+	return p.Public(), nil
+}
+
 func (s *ProfileService) UpdateProfile(ctx context.Context, input UpdateProfileInput) (providerauthmodels.PublicProvider, error) {
 	firstName := strings.TrimSpace(input.FirstName)
 

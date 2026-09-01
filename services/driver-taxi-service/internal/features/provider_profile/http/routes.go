@@ -25,6 +25,7 @@ func RegisterProfileRoutes(
 	provider.Use(sharedauth.BearerMiddleware(providerSigner, providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
 	provider.GET("/profile", handler.GetProfile)
 	provider.PUT("/profile", handler.UpdateProfile)
+	provider.PUT("/parcel-preference", handler.SetParcelPreference)
 	provider.GET("/contact-availability", handler.CheckContactAvailability)
 	provider.POST("/vehicles", handler.CreateVehicle)
 	provider.GET("/vehicles", handler.ListVehicles)

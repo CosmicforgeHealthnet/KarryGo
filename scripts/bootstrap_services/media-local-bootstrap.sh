@@ -2,42 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/bootstrap_services/_common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+
+LOG_LABEL="media-local"
+
 PG_PORT="${PG_PORT:-5441}"
-PG_DATA_DIR="${PG_DATA_DIR:-/tmp/postgres-media}"
-PG_BIN="${PG_BIN:-$(command -v postgres >/dev/null 2>&1 && dirname "$(command -v postgres)" || echo /opt/homebrew/opt/postgresql@16/bin)}"
-PSQL_BIN="${PSQL_BIN:-$(command -v psql)}"
-INITDB_BIN="${INITDB_BIN:-$(command -v initdb)}"
-PG_CTL_BIN="${PG_CTL_BIN:-$(command -v pg_ctl)}"
-CREATEDB_BIN="${CREATEDB_BIN:-$(command -v createdb)}"
+PG_DATA_DIR="${PG_DATA_DIR:-$KARRYGO_DATA_DIR/postgres-media}"
 
 ROLE_NAME="cosmicforge_logistics"
 ROLE_PASSWORD="cosmicforge_logistics"
 DB_NAME="media_file_service"
-
-log() {
-  printf '\033[1;36m[media-local]\033[0m %s\n' "$*"
-}
-
-ensure_dir() {
-  mkdir -p "$1"
-}
-
-start_postgres() {
-  if lsof -nP -iTCP:"$PG_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-    log "postgres already listening on ${PG_PORT}"
-    return
-  fi
-
-  ensure_dir "$PG_DATA_DIR"
-
-  if [ ! -f "$PG_DATA_DIR/PG_VERSION" ]; then
-    log "initializing postgres cluster in ${PG_DATA_DIR}"
-    "$INITDB_BIN" -D "$PG_DATA_DIR" >/dev/null
-  fi
-
-  log "starting postgres on ${PG_PORT}"
-  "$PG_CTL_BIN" -D "$PG_DATA_DIR" -o "-p $PG_PORT" -l "$PG_DATA_DIR/postgres.log" start
-}
 
 ensure_role_and_db() {
   log "ensuring media role and database exist"

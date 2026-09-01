@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+
+	"cosmicforge/logistics/shared/go/handover"
 )
 
 func testRedis(t *testing.T) *redis.Client {
@@ -28,10 +30,10 @@ func TestRateLimiter_AllowsUpToMaxThenBlocks(t *testing.T) {
 	client := testRedis(t)
 	limiter := NewRateLimiter(client)
 	bookingID := uuid.NewString()
-	t.Cleanup(func() { _ = client.Del(context.Background(), rateKey(bookingID)).Err() })
+	t.Cleanup(func() { _ = client.Del(context.Background(), rateKey(bookingID, handover.StepPickup)).Err() })
 
 	for i := 1; i <= 3; i++ {
-		allowed, err := limiter.Allow(context.Background(), bookingID, time.Minute, 3)
+		allowed, err := limiter.Allow(context.Background(), bookingID, handover.StepPickup, time.Minute, 3)
 		if err != nil {
 			t.Fatalf("Allow[%d]: %v", i, err)
 		}
@@ -40,7 +42,7 @@ func TestRateLimiter_AllowsUpToMaxThenBlocks(t *testing.T) {
 		}
 	}
 
-	allowed, err := limiter.Allow(context.Background(), bookingID, time.Minute, 3)
+	allowed, err := limiter.Allow(context.Background(), bookingID, handover.StepPickup, time.Minute, 3)
 	if err != nil {
 		t.Fatalf("Allow[4]: %v", err)
 	}
@@ -55,16 +57,16 @@ func TestRateLimiter_DifferentBookingsHaveIndependentWindows(t *testing.T) {
 	bookingA := uuid.NewString()
 	bookingB := uuid.NewString()
 	t.Cleanup(func() {
-		_ = client.Del(context.Background(), rateKey(bookingA), rateKey(bookingB)).Err()
+		_ = client.Del(context.Background(), rateKey(bookingA, handover.StepPickup), rateKey(bookingB, handover.StepPickup)).Err()
 	})
 
 	for i := 0; i < 5; i++ {
-		if _, err := limiter.Allow(context.Background(), bookingA, time.Minute, 1); err != nil {
+		if _, err := limiter.Allow(context.Background(), bookingA, handover.StepPickup, time.Minute, 1); err != nil {
 			t.Fatalf("Allow(A): %v", err)
 		}
 	}
 
-	allowed, err := limiter.Allow(context.Background(), bookingB, time.Minute, 1)
+	allowed, err := limiter.Allow(context.Background(), bookingB, handover.StepPickup, time.Minute, 1)
 	if err != nil {
 		t.Fatalf("Allow(B): %v", err)
 	}
@@ -77,12 +79,12 @@ func TestRateLimiter_KeyExpiresAfterWindow(t *testing.T) {
 	client := testRedis(t)
 	limiter := NewRateLimiter(client)
 	bookingID := uuid.NewString()
-	t.Cleanup(func() { _ = client.Del(context.Background(), rateKey(bookingID)).Err() })
+	t.Cleanup(func() { _ = client.Del(context.Background(), rateKey(bookingID, handover.StepPickup)).Err() })
 
-	if _, err := limiter.Allow(context.Background(), bookingID, 2*time.Second, 1); err != nil {
+	if _, err := limiter.Allow(context.Background(), bookingID, handover.StepPickup, 2*time.Second, 1); err != nil {
 		t.Fatalf("Allow: %v", err)
 	}
-	ttl, err := client.TTL(context.Background(), rateKey(bookingID)).Result()
+	ttl, err := client.TTL(context.Background(), rateKey(bookingID, handover.StepPickup)).Result()
 	if err != nil {
 		t.Fatalf("TTL: %v", err)
 	}

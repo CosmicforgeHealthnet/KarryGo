@@ -4,6 +4,13 @@ package providerprofilehttp
 // omitted string field is preserved server-side (see UpdateProfile's
 // preserve-on-empty SQL), so a partial submit never blanks another screen's
 // fields.
+// setParcelPreferenceRequest is its own tiny body rather than a field on
+// updateProfileRequest -- see ProfileService.SetAcceptsParcels for why a
+// boolean cannot ride the preserve-on-empty profile update.
+type setParcelPreferenceRequest struct {
+	AcceptsParcels bool `json:"accepts_parcels"`
+}
+
 type updateProfileRequest struct {
 	FirstName                    string `json:"first_name"`
 	LastName                     string `json:"last_name"`

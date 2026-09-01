@@ -5,6 +5,9 @@ set -euo pipefail
 # Each child script provisions its own Postgres/Redis on its own ports and
 # data dirs, so they do not collide. Children are idempotent and safe to re-run.
 #
+# Data lives under ~/.karrygo/data (override with KARRYGO_DATA_DIR). It is
+# deliberately not /tmp -- macOS sweeps that and silently guts idle clusters.
+#
 # Usage:
 #   bash scripts/bootstrap/bootstrap-all.sh            # run all
 #   bash scripts/bootstrap/bootstrap-all.sh customer hauling   # run a subset
@@ -58,6 +61,7 @@ for service in "${SERVICES[@]}"; do
     SUCCEEDED+=("$service")
   else
     err "${service} bootstrap failed"
+    err "  re-run just this one with: bash scripts/bootstrap_services/${service}-local-bootstrap.sh"
     FAILED+=("$service")
     if [ "$KEEP_GOING" != "1" ]; then
       err "aborting (set KEEP_GOING=1 to continue past failures)"

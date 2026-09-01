@@ -22,9 +22,9 @@ func NewHandler(profile *profileusecases.ProfileService) *Handler {
 	return &Handler{profile: profile}
 }
 
-// GET /internal/customers/:id
+// GET /internal/customers/:customerId
 func (h *Handler) GetCustomer(c *gin.Context) {
-	customer, err := h.profile.GetProfile(c.Request.Context(), c.Param("id"))
+	customer, err := h.profile.GetProfile(c.Request.Context(), c.Param("customerId"))
 	if err != nil {
 		httpx.Abort(c, err)
 		return

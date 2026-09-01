@@ -40,6 +40,9 @@ const bookingColumns = `
 	distance_km, duration_minutes, actual_distance_km,
 	payment_method, payment_status, payment_intent_id,
 	status, pickup_verification_status,
+	ride_purpose, receiver_name, receiver_phone,
+	package_desc, package_type, package_size, is_fragile,
+	delivery_verification_status,
 	scheduled_at, dispatch_start_at, reservation_status, reserved_provider_id::text,
 	backup_dispatch_at, provider_confirmed_at, customer_ready_window, matching_started_at,
 	cancel_reason, cancelled_by,
@@ -169,6 +172,12 @@ type BookingRepository interface {
 	// assigned driver can verify, and a booking that has moved on (e.g.
 	// cancelled) cannot be verified after the fact.
 	MarkPickupVerified(ctx context.Context, exec Executor, bookingID, providerID string) (bookingmodels.Booking, error)
+	// MarkDeliveryVerified: delivery_verification_status 'pending' ->
+	// 'verified', the parcel mirror of MarkPickupVerified. Guarded on
+	// provider_id AND status=in_progress, so only the assigned driver can
+	// verify and only while the package is actually in the car. Until this
+	// succeeds, MarkCompleted's own guard refuses the trip.
+	MarkDeliveryVerified(ctx context.Context, exec Executor, bookingID, providerID string) (bookingmodels.Booking, error)
 	// MarkInProgress is the "start trip" transition. Phase B5: gated on
 	// pickup_verification_status = 'verified' in the guard itself -- see
 	// its own doc comment.
@@ -206,13 +215,17 @@ func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking b
 			booking_mode, vehicle_class, passenger_count, ride_notes, reserved_duration_minutes,
 			fare_estimate_kobo, pricing_quote_reference, pricing_version, distance_km, duration_minutes,
 			payment_method, payment_status, status,
-			scheduled_at, dispatch_start_at, matching_started_at
+			scheduled_at, dispatch_start_at, matching_started_at,
+			ride_purpose, receiver_name, receiver_phone,
+			package_desc, package_type, package_size, is_fragile
 		) VALUES (
 			$1, $2, $3, $4,
 			$5, $6, $7, $8, $9,
 			$10, $11, $12, $13, $14,
 			$15, $16, $17,
-			$18, $19, $20
+			$18, $19, $20,
+			$21, $22, $23,
+			$24, $25, $26, $27
 		)
 		RETURNING `+bookingColumns,
 		id, booking.CustomerID, booking.MarketID, booking.OperatingZoneID,
@@ -220,6 +233,8 @@ func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking b
 		booking.FareEstimateKobo, booking.PricingQuoteReference, booking.PricingVersion, booking.DistanceKm, booking.DurationMinutes,
 		booking.PaymentMethod, booking.PaymentStatus, string(booking.Status),
 		booking.ScheduledAt, booking.DispatchStartAt, booking.MatchingStartedAt,
+		string(booking.RidePurpose), booking.ReceiverName, booking.ReceiverPhone,
+		booking.PackageDesc, booking.PackageType, booking.PackageSize, booking.IsFragile,
 	)
 	created, err := scanBooking(row)
 	if err != nil {
@@ -462,12 +477,35 @@ func (r *PostgresBookingRepository) MarkPickupVerified(ctx context.Context, exec
 	return scanTransitionResult(row)
 }
 
-func (r *PostgresBookingRepository) MarkInProgress(ctx context.Context, exec Executor, bookingID, providerID string) (bookingmodels.Booking, error) {
+func (r *PostgresBookingRepository) MarkDeliveryVerified(ctx context.Context, exec Executor, bookingID, providerID string) (bookingmodels.Booking, error) {
 	if exec == nil {
 		exec = r.db
 	}
 	row := exec.QueryRow(ctx, `
-		UPDATE taxi_bookings SET status = $1, started_at = now(), updated_at = now()
+		UPDATE taxi_bookings SET delivery_verification_status = $1, updated_at = now()
+		WHERE id = $2 AND provider_id = $3 AND status = $4 AND delivery_verification_status = $5
+		RETURNING `+bookingColumns,
+		string(bookingmodels.DeliveryVerificationVerified), bookingID, providerID,
+		string(bookingmodels.StatusInProgress), string(bookingmodels.DeliveryVerificationPending),
+	)
+	return scanTransitionResult(row)
+}
+
+func (r *PostgresBookingRepository) MarkInProgress(ctx context.Context, exec Executor, bookingID, providerID string) (bookingmodels.Booking, error) {
+	if exec == nil {
+		exec = r.db
+	}
+	// The CASE opens the delivery-verification window for a parcel in the SAME
+	// guarded statement that starts the trip -- a second UPDATE could be lost
+	// to a crash between the two, leaving a package in transit that could then
+	// be completed without anyone confirming it reached the receiver.
+	row := exec.QueryRow(ctx, `
+		UPDATE taxi_bookings
+		   SET status = $1, started_at = now(), updated_at = now(),
+		       delivery_verification_status = CASE
+		           WHEN ride_purpose = 'parcel' THEN 'pending'
+		           ELSE delivery_verification_status
+		       END
 		WHERE id = $2 AND provider_id = $3 AND status = $4 AND pickup_verification_status = $5
 		RETURNING `+bookingColumns,
 		string(bookingmodels.StatusInProgress), bookingID, providerID,
@@ -485,6 +523,7 @@ func (r *PostgresBookingRepository) MarkCompleted(ctx context.Context, exec Exec
 		   SET status = $1, completed_at = now(), updated_at = now(),
 		       actual_distance_km = $2, fare_final_kobo = $3
 		WHERE id = $4 AND provider_id = $5 AND status = $6
+		  AND delivery_verification_status <> 'pending'
 		RETURNING `+bookingColumns,
 		string(bookingmodels.StatusCompleted), actualDistanceKm, fareFinalKobo,
 		bookingID, providerID, string(bookingmodels.StatusInProgress),
@@ -852,10 +891,60 @@ func (r *PostgresBookingRepository) ListByCustomer(ctx context.Context, customer
 		}
 		out = append(out, b)
 	}
-	return out, rows.Err()
-	// Deliberately no per-booking stops fetch here (N+1 avoidance) -- history
-	// list views render from the booking row alone; a detail view calls
-	// GetByIDForCustomer for the full route.
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Stops are attached with ONE batched query for the whole page, never a
+	// per-booking fetch: the passenger's trip history renders each ride's
+	// pickup and destination, and taxi keeps those in a separate table
+	// (unlike hauling/dispatch, which carry addresses as booking columns), so
+	// returning bookings without stops leaves the history list with nothing
+	// to show. This closes that gap without reintroducing the N+1 the
+	// previous comment here rightly warned about.
+	if err := r.attachStops(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// attachStops loads every stop for the given bookings in a single query and
+// assigns them, preserving sequence order within each booking.
+func (r *PostgresBookingRepository) attachStops(ctx context.Context, bookings []bookingmodels.Booking) error {
+	if len(bookings) == 0 {
+		return nil
+	}
+	ids := make([]string, len(bookings))
+	for i, b := range bookings {
+		ids[i] = b.ID
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT `+stopColumns+`
+		FROM taxi_booking_stops
+		WHERE booking_id = ANY($1::uuid[])
+		ORDER BY booking_id, sequence ASC
+	`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	byBooking := make(map[string][]bookingmodels.Stop, len(bookings))
+	for rows.Next() {
+		s, err := scanStop(rows)
+		if err != nil {
+			return err
+		}
+		byBooking[s.BookingID] = append(byBooking[s.BookingID], s)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for i := range bookings {
+		bookings[i].Stops = byBooking[bookings[i].ID]
+	}
+	return nil
 }
 
 // HasActiveBooking is a single EXISTS query against bookingmodels.ActiveStatuses,
@@ -900,6 +989,7 @@ type scannable interface {
 func scanBooking(row scannable) (bookingmodels.Booking, error) {
 	var b bookingmodels.Booking
 	var status, pickupVerificationStatus, bookingMode string
+	var ridePurpose, deliveryVerificationStatus string
 	err := row.Scan(
 		&b.ID, &b.CustomerID, &b.ProviderID, &b.VehicleID,
 		&b.MarketID, &b.OperatingZoneID,
@@ -908,6 +998,9 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 		&b.DistanceKm, &b.DurationMinutes, &b.ActualDistanceKm,
 		&b.PaymentMethod, &b.PaymentStatus, &b.PaymentIntentID,
 		&status, &pickupVerificationStatus,
+		&ridePurpose, &b.ReceiverName, &b.ReceiverPhone,
+		&b.PackageDesc, &b.PackageType, &b.PackageSize, &b.IsFragile,
+		&deliveryVerificationStatus,
 		&b.ScheduledAt, &b.DispatchStartAt, &b.ReservationStatus, &b.ReservedProviderID,
 		&b.BackupDispatchAt, &b.ProviderConfirmedAt, &b.CustomerReadyWindow, &b.MatchingStartedAt,
 		&b.CancelReason, &b.CancelledBy,
@@ -917,6 +1010,8 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 	b.BookingMode = bookingmodels.BookingMode(bookingMode)
 	b.Status = bookingmodels.Status(status)
 	b.PickupVerificationStatus = bookingmodels.PickupVerificationStatus(pickupVerificationStatus)
+	b.RidePurpose = bookingmodels.RidePurpose(ridePurpose)
+	b.DeliveryVerificationStatus = bookingmodels.DeliveryVerificationStatus(deliveryVerificationStatus)
 	return b, err
 }
 

@@ -302,6 +302,31 @@ Required local tools:
 
 Default local service config expects the same ports as Docker Compose. Either run local Postgres/Redis on those ports or override the service environment variables.
 
+### Bootstrap scripts and local data directories
+
+`scripts/bootstrap_services/bootstrap-all.sh` provisions every local Postgres and
+Redis, applies migrations, and runs the dev seeds. Run a single service with
+`bash scripts/bootstrap_services/<service>-local-bootstrap.sh`. All of them are
+idempotent and safe to re-run.
+
+Data lives under `~/.karrygo/data/postgres-<service>` and
+`~/.karrygo/data/redis-<port>`. It is deliberately **not** under `/tmp`: macOS
+periodically sweeps `/tmp`, deleting files that have not been accessed for a few
+days while leaving the directory tree behind. That silently guts an idle cluster
+(`PG_VERSION` and `global/pg_control` disappear) and the next bootstrap then dies
+with `initdb: directory ... exists but is not empty`. The scripts now detect that
+state, discard the unrecoverable remains, and re-init — but keeping the data out
+of `/tmp` stops it happening in the first place.
+
+Override with `KARRYGO_DATA_DIR` (the shared base), or per service with
+`PG_DATA_DIR` / `REDIS_DATA_DIR`; ports override with `PG_PORT` / `REDIS_PORT`.
+
+The shared prelude `scripts/bootstrap_services/_common.sh` holds everything the
+scripts do identically — data-dir base, binary discovery, the `LC_ALL`/`LANG`
+export that `initdb` and postgres 16 both require, logging, `start_redis`,
+`start_postgres` (with the corrupt-cluster check), and `list_migrations` (numeric
+ordering, `.down.sql` filtered out). Put shared fixes there, not in one script.
+
 Default local databases:
 
 - `customer_service`

@@ -52,7 +52,7 @@ func newSchedulingTestService(bookings *fakeBookingRepo, leadTime time.Duration)
 
 func validCreateInput(customerID string) CreateBookingInput {
 	return CreateBookingInput{
-		CustomerID: customerID, VehicleClass: "economy", PaymentMethod: "cash",
+		CustomerID: customerID, VehicleClass: "economy", PaymentMethod: "wallet",
 		Stops: []StopInput{{Address: "A", Lat: 6.5, Lng: 3.4}, {Address: "B", Lat: 6.6, Lng: 3.5}},
 	}
 }

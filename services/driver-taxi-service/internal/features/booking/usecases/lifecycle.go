@@ -278,7 +278,7 @@ func (s *BookingService) MarkCompleted(ctx context.Context, input CompleteBookin
 	// whether the money has moved yet.
 	if err := s.settlePayment(ctx, completed); err != nil {
 		logging.Error("taxi-payments", "settle booking=%s: %v", bookingID, err)
-	} else if completed.PaymentMethod == "wallet" && s.payments != nil {
+	} else if s.payments != nil {
 		if serr := s.bookings.SetPaymentStatus(ctx, nil, bookingID, bookingmodels.PaymentPaid); serr != nil {
 			logging.Error("taxi-payments", "set payment paid booking=%s: %v", bookingID, serr)
 		} else {

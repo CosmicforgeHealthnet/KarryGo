@@ -17,5 +17,10 @@ func RegisterIdentityRoutes(group *gin.RouterGroup, profileService *profileuseca
 
 	internal := group.Group("/internal")
 	internal.Use(serviceauth.Middleware(verifier))
-	internal.GET("/customers/:id", handler.GetCustomer)
+	// The wildcard must be named exactly as it is on the sibling
+	// /internal/customers/:customerId/saved-locations/... route: gin panics at
+	// registration when the same path position uses two different wildcard
+	// names, which took customer-service down at startup entirely. The name is
+	// internal to routing — the URL contract is unchanged.
+	internal.GET("/customers/:customerId", handler.GetCustomer)
 }

@@ -11,6 +11,8 @@ import '../features/auth/models/customer_auth_models.dart';
 import '../features/auth/state/customer_auth_controller.dart';
 import '../features/dispatch/data/dispatch_api.dart';
 import '../features/dispatch/state/dispatch_booking_controller.dart';
+import '../features/taxi/data/taxi_api.dart';
+import '../features/taxi/state/taxi_booking_controller.dart';
 import '../features/hauling/data/customer_realtime_listener.dart';
 import '../features/hauling/data/hauling_api.dart';
 import '../features/hauling/data/places_api.dart';
@@ -56,6 +58,7 @@ class _CustomerAppState extends State<CustomerApp> {
   late final MediaUploadService _mediaUploadService;
   late final HaulingBookingController _haulingController;
   late final DispatchBookingController _dispatchController;
+  late final TaxiBookingController _taxiController;
   late final PlacesApi _placesApi;
   late final NotificationApi _notificationApi;
   late final NotificationController _notificationController;
@@ -92,6 +95,7 @@ class _CustomerAppState extends State<CustomerApp> {
     if (_ownsController) _controller.dispose();
     _haulingController.dispose();
     _dispatchController.dispose();
+    _taxiController.dispose();
     _notificationController.dispose();
     _notificationApi.close();
     _supportApi.close();
@@ -160,6 +164,7 @@ class _CustomerAppState extends State<CustomerApp> {
               mediaUploadService: _mediaUploadService,
               haulingController: _haulingController,
               dispatchController: _dispatchController,
+              taxiController: _taxiController,
               placesApi: _placesApi,
               notificationController: _notificationController,
             ),
@@ -247,6 +252,25 @@ class _CustomerAppState extends State<CustomerApp> {
       },
     );
 
+    // Car ride (taxi) flow. No realtime listener: taxi-service exposes
+    // neither a customer realtime channel nor a customer-facing
+    // driver-location endpoint, so this controller polls only. It does take
+    // the wallet client -- rides are wallet-only, like hauling and dispatch.
+    final taxiApi = TaxiApi(
+      config: ApiCoreConfig(baseUrl: config.taxiApiBaseUrl),
+      onAuthFailure: _onAuthFailure,
+    );
+    _taxiController = TaxiBookingController(
+      api: taxiApi,
+      authController: _controller,
+      walletApi: _walletApi,
+      savedLocationsLoader: () async {
+        final session = _controller.state.session;
+        if (session == null) return const <SavedLocation>[];
+        return _authApi.getSavedLocations(accessToken: session.accessToken);
+      },
+    );
+
     // Notifications proxy lives on the customer API base; the websocket connects
     // directly to notification-service.
     _notificationApi = NotificationApi(
@@ -277,6 +301,7 @@ class _CustomerAppState extends State<CustomerApp> {
       _notificationController.loadFeed();
       _haulingController.pokeRefresh();
       _dispatchController.pokeRefresh();
+      _taxiController.pokeRefresh();
     });
   }
 
