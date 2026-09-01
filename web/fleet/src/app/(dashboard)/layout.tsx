@@ -13,19 +13,13 @@ import {
   Briefcase,
   Warehouse,
   Gem,
-  Package,
   Wallet,
   Shield,
-  Layers,
-  MessageSquare,
   FileText,
   ChartNoAxesCombined,
   Lock,
-  Smartphone,
   Route,
   Settings,
-  UserCog,
-  FileCheck,
   Search,
   Bell,
   ClipboardList,
@@ -34,12 +28,8 @@ import {
   GitBranch,
   Radar,
   LifeBuoy,
-  AlertTriangle,
   Car,
-  Wrench,
-  Fuel,
-  Gauge,
-  Bike,
+ 
 } from "lucide-react";
 
 // ===== NAVIGATION SECTIONS =====

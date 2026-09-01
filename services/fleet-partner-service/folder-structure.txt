@@ -1,0 +1,1134 @@
+﻿├── cmd
+│   ├── migration-inventory
+│   │   └── main.go
+│   ├── section31-testgate
+│   │   ├── main.go
+│   │   └── main_test.go
+│   ├── test-migrate
+│   │   └── main.go
+│   ├── worker
+│   │   ├── execution_start_worker.go
+│   │   └── main.go
+│   ├── finance_worker.go
+│   ├── main.go
+│   ├── marketplace_routes.go
+│   ├── provider_membership_routes.go
+│   ├── worker_operations_routes.go
+│   └── workers.go
+├── docs
+│   ├── adr
+│   │   ├── ADR-001-release1-taxi-deferral.md
+│   │   └── ADR-002-release1-ai-automation-deferral.md
+│   ├── asyncapi
+│   │   ├── generate.go
+│   │   ├── section26-events.asyncapi.json
+│   │   └── section55-integrations.asyncapi.json
+│   ├── openapi
+│   │   ├── generate.go
+│   │   ├── generate_sections22_23.go
+│   │   ├── section14-crm.openapi.json
+│   │   ├── section15-private-operations.openapi.json
+│   │   ├── section16-dispatch-routes-control.openapi.json
+│   │   ├── section17-workforce-training.openapi.json
+│   │   ├── section18-assets-maintenance.openapi.json
+│   │   ├── section25-documents-search-exports-imports.openapi.json
+│   │   ├── section26-synchronization.openapi.json
+│   │   ├── section27-background-jobs-scheduling.openapi.json
+│   │   ├── section28-security-privacy-audit.openapi.json
+│   │   ├── section29-reliability-observability.openapi.json
+│   │   ├── section30-backward-compatibility.openapi.json
+│   │   └── section55-integrations.openapi.json
+│   ├── runbooks
+│   │   ├── auth-delivery-failure.md
+│   │   ├── contract-activation-failure.md
+│   │   ├── contract-expiry.md
+│   │   ├── crm-dead-letter-replay.md
+│   │   ├── customer-credit-hold.md
+│   │   ├── organization-activation.md
+│   │   ├── organization-closure.md
+│   │   ├── provider-provisioning-reconciliation.md
+│   │   ├── quotation-acceptance-conflict.md
+│   │   ├── quotation-delivery-failure.md
+│   │   └── sla-unknown-outcome.md
+│   ├── api-conventions.md
+│   ├── approval-system.md
+│   ├── architecture.md
+│   ├── auth-onboarding-iam-provider-audit.md
+│   ├── company-crm.md
+│   ├── company-wallets.md
+│   ├── configuration.md
+│   ├── contracts-and-slas.md
+│   ├── crm-api.md
+│   ├── crm-events.md
+│   ├── crm-workers.md
+│   ├── customer-contacts-and-locations.md
+│   ├── customer-credit-policy.md
+│   ├── document-domain.md
+│   ├── eligibility-and-approval.md
+│   ├── events-and-jobs.md
+│   ├── exports.md
+│   ├── fleet-wallet-integration.md
+│   ├── foundation-audit.md
+│   ├── generic-imports.md
+│   ├── local-development.md
+│   ├── managed-provider-provisioning.md
+│   ├── marketplace-assignments.md
+│   ├── marketplace-assignment-trip-audit.md
+│   ├── master-spec-release1-coverage.json
+│   ├── multi-tenancy.md
+│   ├── organization-lifecycle.md
+│   ├── organization-onboarding.md
+│   ├── passwordless-authentication.md
+│   ├── platform-boundaries.md
+│   ├── prerequisite-stabilization-report.md
+│   ├── provider-allocations.md
+│   ├── provider-authentication-boundary.md
+│   ├── provider-data-minimization.md
+│   ├── provider-withdrawals.md
+│   ├── quotation-customer-access.md
+│   ├── quotations.md
+│   ├── release1-backend-readiness.md
+│   ├── release1-master-spec-acceptance.json
+│   ├── release1-specialized-logistics-classification.json
+│   ├── rollback.md
+│   ├── sales-opportunities.md
+│   ├── section15-private-operations.md
+│   ├── section16-dispatch-routes-control.md
+│   ├── section17-workforce-training.md
+│   ├── section18-assets-maintenance.md
+│   ├── section27-background-jobs-scheduling.md
+│   ├── section28-security-privacy-audit.md
+│   ├── section28-sensitive-column-inventory.json
+│   ├── section29-disaster-recovery.md
+│   ├── section29-reliability-observability.md
+│   ├── section30-database-migrations-backward-compatibility.md
+│   ├── section30-original-api-mapping.md
+│   ├── section31-release-acceptance.md
+│   ├── section31-test-coverage.json
+│   ├── section31-testing-strategy.md
+│   ├── section55-organization-api-clients-and-webhooks.md
+│   ├── security.md
+│   ├── service-contracts.md
+│   ├── staff-iam.md
+│   ├── universal-accept-decline.md
+│   └── wallet-crm-private-operations-audit.md
+├── internal
+│   ├── app
+│   │   ├── app.go
+│   │   ├── app_test.go
+│   │   ├── bulkimports_wiring.go
+│   │   ├── bulkimports_wiring_test.go
+│   │   ├── companywallet_wiring.go
+│   │   ├── companywallet_workers.go
+│   │   ├── crm_wiring.go
+│   │   ├── document_workers.go
+│   │   ├── documents_ports.go
+│   │   ├── exports_wiring.go
+│   │   ├── imports_adapters.go
+│   │   ├── manifests_wiring.go
+│   │   ├── marketplace_ports.go
+│   │   ├── marketplace_wiring.go
+│   │   ├── orders_adapters.go
+│   │   ├── orders_wiring.go
+│   │   ├── packages_adapters.go
+│   │   ├── packages_wiring.go
+│   │   ├── private_acceptance.go
+│   │   ├── private_execution_adapter.go
+│   │   ├── private_execution_events.go
+│   │   ├── privateoperations_wiring.go
+│   │   ├── production_contracts_test.go
+│   │   ├── reconciliation_workers.go
+│   │   ├── recurringorders_wiring.go
+│   │   ├── retention_production_test.go
+│   │   ├── retention_readiness_test.go
+│   │   ├── retentionexec_adapter.go
+│   │   ├── search_ports.go
+│   │   ├── search_wiring.go
+│   │   ├── section15_workers.go
+│   │   ├── section16_wiring.go
+│   │   ├── section16_workers.go
+│   │   ├── section17_18_workers.go
+│   │   ├── section19_21_workers.go
+│   │   ├── section22_23_adapters.go
+│   │   ├── section22_23_adapters_test.go
+│   │   ├── section22_23_workers.go
+│   │   ├── section25_workers.go
+│   │   ├── section26_adapters.go
+│   │   ├── section26_workers.go
+│   │   ├── section29_readiness_test.go
+│   │   ├── servicecatalog_wiring.go
+│   │   ├── shipments_adapters.go
+│   │   ├── shipments_wiring.go
+│   │   ├── stepup_adapter.go
+│   │   └── wiring.go
+│   ├── config
+│   │   ├── config.go
+│   │   └── config_test.go
+│   ├── database
+│   │   ├── migrate.go
+│   │   ├── postgres.go
+│   │   └── tx.go
+│   ├── events
+│   │   ├── envelope.go
+│   │   ├── events_test.go
+│   │   ├── inbox.go
+│   │   ├── outbox.go
+│   │   ├── publisher.go
+│   │   ├── publisher_adapter.go
+│   │   ├── redis_publisher.go
+│   │   ├── redis_publisher_test.go
+│   │   ├── registry.go
+│   │   ├── registry_test.go
+│   │   ├── stream_consumer.go
+│   │   └── stream_consumer_test.go
+│   ├── features
+│   │   ├── accesscontrol
+│   │   │   ├── authorizer.go
+│   │   │   └── doc.go
+│   │   ├── approvals
+│   │   │   ├── http
+│   │   │   │   └── handlers.go
+│   │   │   ├── models
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   ├── approvals.go
+│   │   │   │   └── subjects.go
+│   │   │   ├── usecases
+│   │   │   │   └── service.go
+│   │   │   └── doc.go
+│   │   ├── assets
+│   │   │   ├── doc.go
+│   │   │   ├── domain.go
+│   │   │   ├── domain_test.go
+│   │   │   ├── http.go
+│   │   │   ├── operations.go
+│   │   │   ├── safety_declines.go
+│   │   │   ├── service.go
+│   │   │   └── workers.go
+│   │   ├── assignments
+│   │   │   └── doc.go
+│   │   ├── audit
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   └── repositories
+│   │   │       └── audit.go
+│   │   ├── auth
+│   │   │   ├── clients
+│   │   │   │   ├── fake_sender.go
+│   │   │   │   └── otp_sender.go
+│   │   │   ├── http
+│   │   │   │   └── handlers.go
+│   │   │   ├── models
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   ├── challenges.go
+│   │   │   │   ├── identities.go
+│   │   │   │   ├── security_events.go
+│   │   │   │   └── sessions.go
+│   │   │   └── usecases
+│   │   │       ├── auth_service.go
+│   │   │       ├── session_flows.go
+│   │   │       └── verify.go
+│   │   ├── automation
+│   │   │   ├── doc.go
+│   │   │   ├── section27_runner.go
+│   │   │   └── section27_runner_test.go
+│   │   ├── backgroundops
+│   │   │   └── http
+│   │   │       ├── handlers.go
+│   │   │       ├── internal.go
+│   │   │       └── manifest.go
+│   │   ├── bulkimports
+│   │   │   ├── http
+│   │   │   │   ├── generic.go
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   ├── generic.go
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       ├── generic.go
+│   │   │       ├── generic_worker.go
+│   │   │       ├── service.go
+│   │   │       └── worker.go
+│   │   ├── communications
+│   │   │   └── doc.go
+│   │   ├── companywallet
+│   │   │   ├── http
+│   │   │   │   └── handlers.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   ├── repository.go
+│   │   │   │   └── withdrawals.go
+│   │   │   └── usecases
+│   │   │       ├── allocations.go
+│   │   │       ├── service.go
+│   │   │       ├── statement.go
+│   │   │       ├── withdrawals.go
+│   │   │       └── workers.go
+│   │   ├── compliance
+│   │   │   ├── doc.go
+│   │   │   ├── domain.go
+│   │   │   ├── http.go
+│   │   │   ├── service.go
+│   │   │   └── workers.go
+│   │   ├── contracts
+│   │   │   └── doc.go
+│   │   ├── crm
+│   │   │   ├── http
+│   │   │   │   ├── dto.go
+│   │   │   │   ├── handlers.go
+│   │   │   │   ├── handlers_commercial.go
+│   │   │   │   ├── manifest.go
+│   │   │   │   ├── openapi_contract_test.go
+│   │   │   │   └── public.go
+│   │   │   ├── models
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   ├── contacts.go
+│   │   │   │   ├── contracts.go
+│   │   │   │   ├── credit.go
+│   │   │   │   ├── customers.go
+│   │   │   │   ├── locations.go
+│   │   │   │   ├── notifications.go
+│   │   │   │   ├── opportunities.go
+│   │   │   │   ├── quotations.go
+│   │   │   │   ├── repository.go
+│   │   │   │   └── slas.go
+│   │   │   └── usecases
+│   │   │       ├── contacts.go
+│   │   │       ├── contract_documents.go
+│   │   │       ├── contracts.go
+│   │   │       ├── credit.go
+│   │   │       ├── customers.go
+│   │   │       ├── events.go
+│   │   │       ├── locations.go
+│   │   │       ├── opportunities.go
+│   │   │       ├── quotation_customer.go
+│   │   │       ├── quotation_issue.go
+│   │   │       ├── quotations.go
+│   │   │       ├── service.go
+│   │   │       ├── slas.go
+│   │   │       └── workers.go
+│   │   ├── customers
+│   │   │   └── doc.go
+│   │   ├── dispatch
+│   │   │   ├── control.go
+│   │   │   ├── doc.go
+│   │   │   ├── domain.go
+│   │   │   ├── domain_test.go
+│   │   │   ├── http.go
+│   │   │   ├── optimizer_client.go
+│   │   │   ├── repository.go
+│   │   │   ├── service.go
+│   │   │   └── workers.go
+│   │   ├── documents
+│   │   │   ├── http
+│   │   │   │   ├── external.go
+│   │   │   │   ├── external_test.go
+│   │   │   │   ├── handlers.go
+│   │   │   │   ├── internal.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── documents.go
+│   │   │   └── usecases
+│   │   │       ├── deletion.go
+│   │   │       ├── external_access.go
+│   │   │       ├── ingestion.go
+│   │   │       ├── lifecycle.go
+│   │   │       ├── reconciliation.go
+│   │   │       ├── registry.go
+│   │   │       ├── service.go
+│   │   │       ├── stream_ingestion.go
+│   │   │       └── verification.go
+│   │   ├── eligibility
+│   │   │   ├── enforcement
+│   │   │   │   └── gate.go
+│   │   │   ├── http
+│   │   │   │   └── handlers.go
+│   │   │   ├── models
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   ├── decisions.go
+│   │   │   │   └── state.go
+│   │   │   └── usecases
+│   │   │       ├── build.go
+│   │   │       ├── checks.go
+│   │   │       ├── gate.go
+│   │   │       └── service.go
+│   │   ├── engagement
+│   │   │   ├── communications.go
+│   │   │   ├── domain.go
+│   │   │   ├── http.go
+│   │   │   ├── service.go
+│   │   │   ├── support_quality.go
+│   │   │   └── workers.go
+│   │   ├── exports
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       ├── service.go
+│   │   │       └── worker.go
+│   │   ├── finance
+│   │   │   ├── doc.go
+│   │   │   ├── guards.go
+│   │   │   ├── http.go
+│   │   │   ├── ingestion.go
+│   │   │   ├── models.go
+│   │   │   ├── operator_http.go
+│   │   │   ├── orchestration.go
+│   │   │   ├── queries.go
+│   │   │   ├── repository.go
+│   │   │   └── service.go
+│   │   ├── financeops
+│   │   │   ├── domain.go
+│   │   │   ├── expenses.go
+│   │   │   ├── http.go
+│   │   │   ├── invoices.go
+│   │   │   ├── payroll.go
+│   │   │   ├── service.go
+│   │   │   └── workers.go
+│   │   ├── fuel
+│   │   │   └── doc.go
+│   │   ├── inspections
+│   │   │   └── doc.go
+│   │   ├── integrations
+│   │   │   ├── auth.go
+│   │   │   ├── http.go
+│   │   │   ├── models.go
+│   │   │   ├── security.go
+│   │   │   ├── security_test.go
+│   │   │   ├── service.go
+│   │   │   └── worker.go
+│   │   ├── legalhold
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── legal_holds.go
+│   │   │   └── usecases
+│   │   │       └── service.go
+│   │   ├── maintenance
+│   │   │   └── doc.go
+│   │   ├── manifests
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       └── service.go
+│   │   ├── marketplace
+│   │   │   ├── http
+│   │   │   │   ├── event_handlers.go
+│   │   │   │   ├── internal_handlers.go
+│   │   │   │   ├── internal_handlers_test.go
+│   │   │   │   └── provider_response_handlers.go
+│   │   │   ├── models
+│   │   │   │   ├── decline.go
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   ├── assignments.go
+│   │   │   │   ├── execution_start.go
+│   │   │   │   ├── offers.go
+│   │   │   │   ├── projections.go
+│   │   │   │   ├── trip_delivery_outcomes.go
+│   │   │   │   ├── trip_projection_events.go
+│   │   │   │   └── trips_commands.go
+│   │   │   ├── usecases
+│   │   │   │   ├── acceptance_verification.go
+│   │   │   │   ├── acknowledgement.go
+│   │   │   │   ├── assign.go
+│   │   │   │   ├── assignment_service.go
+│   │   │   │   ├── dispatcher.go
+│   │   │   │   ├── durable_eligibility.go
+│   │   │   │   ├── eligibility.go
+│   │   │   │   ├── event_ingestion.go
+│   │   │   │   ├── execution.go
+│   │   │   │   ├── execution_start_worker.go
+│   │   │   │   ├── offer_response.go
+│   │   │   │   ├── provider_membership_reads.go
+│   │   │   │   ├── provider_reads.go
+│   │   │   │   ├── provider_relay.go
+│   │   │   │   ├── reconciliation_worker.go
+│   │   │   │   └── trip_projection_ingestion.go
+│   │   │   └── doc.go
+│   │   ├── orders
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       └── service.go
+│   │   ├── organizations
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── views.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── onboarding.go
+│   │   │   ├── repositories
+│   │   │   │   ├── branches.go
+│   │   │   │   ├── departments.go
+│   │   │   │   ├── onboarding.go
+│   │   │   │   ├── organizations.go
+│   │   │   │   ├── settings.go
+│   │   │   │   └── verification_wallet_closure.go
+│   │   │   └── usecases
+│   │   │       ├── closure.go
+│   │   │       ├── lifecycle.go
+│   │   │       ├── onboarding_service.go
+│   │   │       └── submission_activation.go
+│   │   ├── packages
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       └── service.go
+│   │   ├── privateoperations
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   ├── manifest.go
+│   │   │   │   └── provider_view_test.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   ├── models_test.go
+│   │   │   │   ├── projection.go
+│   │   │   │   └── projection_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   ├── usecases
+│   │   │   │   ├── execution.go
+│   │   │   │   ├── reconciliation.go
+│   │   │   │   └── service.go
+│   │   │   └── migration_contract_test.go
+│   │   ├── proof
+│   │   │   ├── doc.go
+│   │   │   ├── domain.go
+│   │   │   ├── http.go
+│   │   │   ├── service.go
+│   │   │   └── workers.go
+│   │   ├── providers
+│   │   │   ├── http
+│   │   │   │   ├── testdata
+│   │   │   │   │   ├── membership_summary_independent.json
+│   │   │   │   │   └── membership_summary_organization_managed.json
+│   │   │   │   ├── internal.go
+│   │   │   │   └── internal_test.go
+│   │   │   ├── models
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   ├── providers.go
+│   │   │   │   └── sagas.go
+│   │   │   ├── usecases
+│   │   │   │   ├── lifecycle.go
+│   │   │   │   ├── membership_summary.go
+│   │   │   │   ├── provider_service.go
+│   │   │   │   └── reconciler.go
+│   │   │   └── doc.go
+│   │   ├── recurringorders
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       ├── service.go
+│   │   │       └── worker.go
+│   │   ├── reports
+│   │   │   └── doc.go
+│   │   ├── retention
+│   │   │   ├── service.go
+│   │   │   └── workers.go
+│   │   ├── retentionexecution
+│   │   │   └── http
+│   │   │       ├── handlers.go
+│   │   │       └── manifest.go
+│   │   ├── retentionpolicy
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── retention_policy.go
+│   │   │   └── usecases
+│   │   │       └── service.go
+│   │   ├── routes
+│   │   │   └── doc.go
+│   │   ├── safety
+│   │   │   ├── http
+│   │   │   │   └── handlers.go
+│   │   │   ├── models
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   └── references.go
+│   │   │   ├── usecases
+│   │   │   │   └── service.go
+│   │   │   ├── doc.go
+│   │   │   ├── operations.go
+│   │   │   ├── operations_domain.go
+│   │   │   ├── operations_http.go
+│   │   │   └── operations_workers.go
+│   │   ├── search
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       ├── index_jobs.go
+│   │   │       └── service.go
+│   │   ├── securitysettings
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── security_settings.go
+│   │   │   └── usecases
+│   │   │       └── service.go
+│   │   ├── servicecatalog
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       └── service.go
+│   │   ├── shipments
+│   │   │   ├── http
+│   │   │   │   ├── handlers.go
+│   │   │   │   └── manifest.go
+│   │   │   ├── models
+│   │   │   │   ├── models.go
+│   │   │   │   └── models_test.go
+│   │   │   ├── repositories
+│   │   │   │   └── repository.go
+│   │   │   └── usecases
+│   │   │       └── service.go
+│   │   ├── specialized
+│   │   │   ├── domain.go
+│   │   │   ├── http.go
+│   │   │   ├── service.go
+│   │   │   ├── validation.go
+│   │   │   ├── validation_test.go
+│   │   │   └── workers.go
+│   │   ├── staff
+│   │   │   ├── models
+│   │   │   │   └── models.go
+│   │   │   ├── repositories
+│   │   │   │   ├── invitations.go
+│   │   │   │   ├── members.go
+│   │   │   │   └── roles.go
+│   │   │   ├── usecases
+│   │   │   │   ├── membership_flows.go
+│   │   │   │   ├── resolver.go
+│   │   │   │   └── staff_service.go
+│   │   │   └── doc.go
+│   │   ├── synchronization
+│   │   │   ├── http.go
+│   │   │   └── service.go
+│   │   ├── tracking
+│   │   │   └── doc.go
+│   │   ├── wallets
+│   │   │   └── doc.go
+│   │   ├── warehouse
+│   │   │   ├── doc.go
+│   │   │   ├── domain.go
+│   │   │   ├── http.go
+│   │   │   ├── operations.go
+│   │   │   ├── service.go
+│   │   │   └── workers.go
+│   │   └── workforce
+│   │       ├── doc.go
+│   │       ├── domain.go
+│   │       ├── domain_test.go
+│   │       ├── http.go
+│   │       ├── service.go
+│   │       └── workers.go
+│   ├── integration
+│   │   ├── acceptance_to_canonical_trip_e2e_test.go
+│   │   ├── acknowledgement_http_test.go
+│   │   ├── approvals_test.go
+│   │   ├── assignment_acknowledgement_test.go
+│   │   ├── assignment_expiry_section27_test.go
+│   │   ├── audit_chain_test.go
+│   │   ├── audit_verify_chain_http_test.go
+│   │   ├── auth_http_test.go
+│   │   ├── auth_test.go
+│   │   ├── auto_reassignment_section27_test.go
+│   │   ├── backgroundops_http_section27_test.go
+│   │   ├── backup_restore_test.go
+│   │   ├── bulk_imports_section15_matrix_test.go
+│   │   ├── companywallet_test.go
+│   │   ├── crm_test.go
+│   │   ├── delivery_outcome_projection_test.go
+│   │   ├── documents_external_access_test.go
+│   │   ├── documents_harness_test.go
+│   │   ├── documents_test.go
+│   │   ├── documents_visibility_test.go
+│   │   ├── eligibility_decisions_test.go
+│   │   ├── eligibility_harness_test.go
+│   │   ├── eligibility_http_test.go
+│   │   ├── event_ingestion_test.go
+│   │   ├── events_outbox_test.go
+│   │   ├── execution_start_test.go
+│   │   ├── execution_start_wiring_test.go
+│   │   ├── exports_additional_adapters_test.go
+│   │   ├── exports_test.go
+│   │   ├── field_visibility_test.go
+│   │   ├── finance_cross_service_test.go
+│   │   ├── finance_operations_test.go
+│   │   ├── fleet_hauling_blackbox_test.go
+│   │   ├── generic_imports_correction_test.go
+│   │   ├── generic_imports_scenarios_test.go
+│   │   ├── generic_imports_test.go
+│   │   ├── iam_provider_test.go
+│   │   ├── idor_assets_maintenance_test.go
+│   │   ├── idor_imports_exports_test.go
+│   │   ├── idor_jobs_scheduled_tasks_test.go
+│   │   ├── idor_shared_test.go
+│   │   ├── idor_synchronization_test.go
+│   │   ├── idor_warehouse_fulfilment_test.go
+│   │   ├── integration_more_test.go
+│   │   ├── integration_test.go
+│   │   ├── jobs_section27_test.go
+│   │   ├── manifests_section15_matrix_test.go
+│   │   ├── marketplace_test.go
+│   │   ├── nonce_replay_test.go
+│   │   ├── offer_response_test.go
+│   │   ├── orders_test.go
+│   │   ├── organization_closure_http_test.go
+│   │   ├── organization_onboarding_resume_test.go
+│   │   ├── packages_section15_matrix_test.go
+│   │   ├── private_execution_projection_test.go
+│   │   ├── private_execution_worker_test.go
+│   │   ├── provider_membership_history_test.go
+│   │   ├── provider_membership_summary_test.go
+│   │   ├── provider_provisioning_reconciliation_test.go
+│   │   ├── provider_response_test.go
+│   │   ├── ratelimit_redis_test.go
+│   │   ├── reconciliation_worker_test.go
+│   │   ├── recurring_orders_section15_matrix_test.go
+│   │   ├── retention_execution_new_executors_test.go
+│   │   ├── retention_execution_test.go
+│   │   ├── retention_section27_test.go
+│   │   ├── safety_reference_http_test.go
+│   │   ├── safety_reference_test.go
+│   │   ├── scheduler_section27_test.go
+│   │   ├── search_repair_http_test.go
+│   │   ├── search_test.go
+│   │   ├── section16_dispatch_test.go
+│   │   ├── section17_18_concurrency_test.go
+│   │   ├── section17_18_migration_test.go
+│   │   ├── section17_18_test.go
+│   │   ├── section19_21_migration_test.go
+│   │   ├── section19_21_test.go
+│   │   ├── section22_23_migration_test.go
+│   │   ├── section22_23_test.go
+│   │   ├── section26_stream_redis_test.go
+│   │   ├── section28_test.go
+│   │   ├── section29_capacity_test.go
+│   │   ├── section29_degraded_modes_test.go
+│   │   ├── section29_dr_test.go
+│   │   ├── section31_capacity_profiles_test.go
+│   │   ├── section55_integrations_test.go
+│   │   ├── service_credential_admin_test.go
+│   │   ├── service_credential_scope_test.go
+│   │   ├── shipments_test.go
+│   │   ├── synchronization_section26_test.go
+│   │   ├── trip_projection_test.go
+│   │   ├── trip_reconciliation_test.go
+│   │   └── worker_operations_internal_test.go
+│   ├── jobs
+│   │   ├── errorclass.go
+│   │   ├── jobs.go
+│   │   ├── jobs_unit_test.go
+│   │   ├── maintenance.go
+│   │   └── worker.go
+│   ├── masterreleasecontract
+│   │   ├── coverage_contract_test.go
+│   │   └── section55_contract_test.go
+│   ├── middleware
+│   │   ├── auth.go
+│   │   ├── auth_test.go
+│   │   ├── middleware.go
+│   │   ├── middleware_test.go
+│   │   ├── ratelimit.go
+│   │   ├── ratelimit_test.go
+│   │   └── service_scope.go
+│   ├── observability
+│   │   ├── dbpool.go
+│   │   ├── dbpool_test.go
+│   │   ├── logging.go
+│   │   ├── metrics.go
+│   │   └── metrics_test.go
+│   ├── platform
+│   │   ├── audit
+│   │   │   ├── audit.go
+│   │   │   ├── audit_test.go
+│   │   │   └── chain.go
+│   │   ├── cache
+│   │   │   ├── cache.go
+│   │   │   └── cache_test.go
+│   │   ├── circuitbreaker
+│   │   │   ├── circuitbreaker.go
+│   │   │   └── circuitbreaker_test.go
+│   │   ├── concurrency
+│   │   │   ├── concurrency.go
+│   │   │   └── concurrency_test.go
+│   │   ├── contact
+│   │   │   ├── contact.go
+│   │   │   └── contact_test.go
+│   │   ├── cursor
+│   │   │   ├── cursor.go
+│   │   │   └── cursor_test.go
+│   │   ├── errorcodes
+│   │   │   └── errorcodes.go
+│   │   ├── fieldcrypto
+│   │   │   ├── fieldcrypto.go
+│   │   │   └── fieldcrypto_test.go
+│   │   ├── fieldvisibility
+│   │   │   └── registry.go
+│   │   ├── filters
+│   │   │   ├── filters.go
+│   │   │   └── filters_test.go
+│   │   ├── idempotency
+│   │   │   ├── http.go
+│   │   │   └── idempotency.go
+│   │   ├── ids
+│   │   │   ├── ids.go
+│   │   │   └── ids_test.go
+│   │   ├── migrationlint
+│   │   │   ├── migrationlint.go
+│   │   │   └── migrationlint_test.go
+│   │   ├── money
+│   │   │   ├── money.go
+│   │   │   └── money_test.go
+│   │   ├── noncestore
+│   │   │   └── noncestore.go
+│   │   ├── objectauth
+│   │   │   └── registry.go
+│   │   ├── pgversion
+│   │   │   ├── pgversion.go
+│   │   │   └── pgversion_test.go
+│   │   ├── ratelimit
+│   │   │   ├── ratelimit.go
+│   │   │   └── riskclass.go
+│   │   ├── redact
+│   │   │   ├── redact.go
+│   │   │   └── redact_test.go
+│   │   ├── respond
+│   │   │   └── respond.go
+│   │   ├── retentionexec
+│   │   │   ├── admin.go
+│   │   │   ├── executor_expired_export.go
+│   │   │   ├── executor_org_contact.go
+│   │   │   ├── executor_superseded_projection.go
+│   │   │   ├── executor_support_metadata.go
+│   │   │   ├── model.go
+│   │   │   ├── runner.go
+│   │   │   └── store.go
+│   │   ├── riskregistry
+│   │   │   └── registry.go
+│   │   ├── serviceauth
+│   │   │   ├── admin.go
+│   │   │   ├── model.go
+│   │   │   ├── model_test.go
+│   │   │   ├── secrets.go
+│   │   │   ├── secrets_test.go
+│   │   │   ├── store.go
+│   │   │   └── verifier.go
+│   │   ├── sourceref
+│   │   │   ├── sourceref.go
+│   │   │   └── sourceref_test.go
+│   │   ├── stepup
+│   │   │   └── stepup.go
+│   │   ├── tenant
+│   │   │   ├── tenant.go
+│   │   │   └── tenant_test.go
+│   │   └── tracing
+│   │       ├── tracing.go
+│   │       └── tracing_test.go
+│   ├── platformclients
+│   │   ├── base.go
+│   │   ├── base_test.go
+│   │   ├── clients.go
+│   │   ├── contracts.go
+│   │   ├── dispatch_execution.go
+│   │   ├── execution.go
+│   │   ├── hauling_execution.go
+│   │   ├── hauling_execution_test.go
+│   │   ├── hauling_provider.go
+│   │   ├── media_file.go
+│   │   ├── payment_wallet.go
+│   │   ├── private_execution.go
+│   │   ├── provider_authority.go
+│   │   ├── restrictions.go
+│   │   ├── restrictions_test.go
+│   │   ├── retry_circuit_test.go
+│   │   ├── support_reference.go
+│   │   ├── support_reference_test.go
+│   │   ├── taxi_hauling_disabled_test.go
+│   │   ├── vehicle_authority.go
+│   │   └── verification.go
+│   ├── scheduler
+│   │   ├── cron.go
+│   │   ├── cron_test.go
+│   │   ├── runner.go
+│   │   └── scheduler.go
+│   ├── section15contract
+│   │   └── openapi_test.go
+│   ├── section16contract
+│   │   └── openapi_test.go
+│   ├── section17contract
+│   │   └── openapi_test.go
+│   ├── section18contract
+│   │   └── openapi_test.go
+│   ├── section19_21contract
+│   │   └── openapi_test.go
+│   ├── section22_23contract
+│   │   └── openapi_test.go
+│   ├── section25contract
+│   │   └── openapi_test.go
+│   ├── section26contract
+│   │   ├── asyncapi_test.go
+│   │   └── openapi_test.go
+│   ├── section27contract
+│   │   └── openapi_test.go
+│   ├── section28contract
+│   │   ├── object_authorization_test.go
+│   │   ├── openapi_test.go
+│   │   ├── route_coverage_test.go
+│   │   ├── sensitive_columns_test.go
+│   │   └── sensitivecolumns.go
+│   ├── section29contract
+│   │   └── openapi_test.go
+│   ├── section30contract
+│   │   ├── testdata
+│   │   │   └── provider-v1
+│   │   │       ├── accept.json
+│   │   │       ├── assignment.json
+│   │   │       ├── availability.json
+│   │   │       ├── contract-metadata.json
+│   │   │       ├── decline.json
+│   │   │       ├── error_envelope.json
+│   │   │       ├── independent_login_dispatch.json
+│   │   │       ├── independent_login_hauling.json
+│   │   │       ├── offer_request.json
+│   │   │       ├── provider_profile.json
+│   │   │       ├── trip_execution.json
+│   │   │       └── wallet_earnings.json
+│   │   ├── compatibility_contract_test.go
+│   │   ├── migration_policy_test.go
+│   │   ├── migration_replay_test.go
+│   │   └── replay_helpers_test.go
+│   ├── section31contract
+│   │   ├── ci_contract_test.go
+│   │   └── coverage_contract_test.go
+│   ├── architecture_auth_test.go
+│   └── architecture_test.go
+├── migrations
+│   ├── 000001_platform_foundation.down.sql
+│   ├── 000001_platform_foundation.up.sql
+│   ├── 000002_organizations_foundation.down.sql
+│   ├── 000002_organizations_foundation.up.sql
+│   ├── 000003_corporate_authentication.down.sql
+│   ├── 000003_corporate_authentication.up.sql
+│   ├── 000004_organization_onboarding.down.sql
+│   ├── 000004_organization_onboarding.up.sql
+│   ├── 000005_staff_and_iam.down.sql
+│   ├── 000005_staff_and_iam.up.sql
+│   ├── 000006_approvals.down.sql
+│   ├── 000006_approvals.up.sql
+│   ├── 000007_managed_providers.down.sql
+│   ├── 000007_managed_providers.up.sql
+│   ├── 000008_organization_lifecycle_statuses.down.sql
+│   ├── 000008_organization_lifecycle_statuses.up.sql
+│   ├── 000009_marketplace_and_assignments.down.sql
+│   ├── 000009_marketplace_and_assignments.up.sql
+│   ├── 000010_trip_projections_and_permissions.down.sql
+│   ├── 000010_trip_projections_and_permissions.up.sql
+│   ├── 000011_execution_start_operations.down.sql
+│   ├── 000011_execution_start_operations.up.sql
+│   ├── 000012_trip_projection_lifecycle.down.sql
+│   ├── 000012_trip_projection_lifecycle.up.sql
+│   ├── 000013_assignment_acknowledgements.down.sql
+│   ├── 000013_assignment_acknowledgements.up.sql
+│   ├── 000014_safety_references.down.sql
+│   ├── 000014_safety_references.up.sql
+│   ├── 000015_delivery_outcome_projections.down.sql
+│   ├── 000015_delivery_outcome_projections.up.sql
+│   ├── 000016_wallet_finance_integration.down.sql
+│   ├── 000016_wallet_finance_integration.up.sql
+│   ├── 000017_finance_projection_reconciliation.down.sql
+│   ├── 000017_finance_projection_reconciliation.up.sql
+│   ├── 000018_finance_operator_access.down.sql
+│   ├── 000018_finance_operator_access.up.sql
+│   ├── 000019_eligibility_decisions.down.sql
+│   ├── 000019_eligibility_decisions.up.sql
+│   ├── 000020_approval_execution_binding.down.sql
+│   ├── 000020_approval_execution_binding.up.sql
+│   ├── 000021_fleet_documents.down.sql
+│   ├── 000021_fleet_documents.up.sql
+│   ├── 000022_company_wallets_and_provider_operations.down.sql
+│   ├── 000022_company_wallets_and_provider_operations.up.sql
+│   ├── 000023_company_crm.down.sql
+│   ├── 000023_company_crm.up.sql
+│   ├── 000024_crm_history_documents_tokens.down.sql
+│   ├── 000024_crm_history_documents_tokens.up.sql
+│   ├── 000025_service_catalog.down.sql
+│   ├── 000025_service_catalog.up.sql
+│   ├── 000026_private_orders_and_stops.down.sql
+│   ├── 000026_private_orders_and_stops.up.sql
+│   ├── 000027_shipments_and_cargo.down.sql
+│   ├── 000027_shipments_and_cargo.up.sql
+│   ├── 000028_packages_scans_custody.down.sql
+│   ├── 000028_packages_scans_custody.up.sql
+│   ├── 000029_manifests.down.sql
+│   ├── 000029_manifests.up.sql
+│   ├── 000030_recurring_orders.down.sql
+│   ├── 000030_recurring_orders.up.sql
+│   ├── 000031_bulk_order_imports.down.sql
+│   ├── 000031_bulk_order_imports.up.sql
+│   ├── 000032_private_assignments_execution.down.sql
+│   ├── 000032_private_assignments_execution.up.sql
+│   ├── 000033_private_execution_completion.down.sql
+│   ├── 000033_private_execution_completion.up.sql
+│   ├── 000034_dispatch_routes_candidates.down.sql
+│   ├── 000034_dispatch_routes_candidates.up.sql
+│   ├── 000035_tracking_projections.down.sql
+│   ├── 000035_tracking_projections.up.sql
+│   ├── 000036_geofences_alerts.down.sql
+│   ├── 000036_geofences_alerts.up.sql
+│   ├── 000037_route_optimization.down.sql
+│   ├── 000037_route_optimization.up.sql
+│   ├── 000038_workforce_shifts_leave.down.sql
+│   ├── 000038_workforce_shifts_leave.up.sql
+│   ├── 000039_qualifications_training_performance.down.sql
+│   ├── 000039_qualifications_training_performance.up.sql
+│   ├── 000040_assets_assignments_documents.down.sql
+│   ├── 000040_assets_assignments_documents.up.sql
+│   ├── 000041_inspections_maintenance_breakdowns.down.sql
+│   ├── 000041_inspections_maintenance_breakdowns.up.sql
+│   ├── 000042_inventory_fuel_permissions.down.sql
+│   ├── 000042_inventory_fuel_permissions.up.sql
+│   ├── 000043_compliance_restrictions.down.sql
+│   ├── 000043_compliance_restrictions.up.sql
+│   ├── 000044_safety_incidents_proof.down.sql
+│   ├── 000044_safety_incidents_proof.up.sql
+│   ├── 000045_specialized_logistics.down.sql
+│   ├── 000045_specialized_logistics.up.sql
+│   ├── 000046_warehouse_inventory.down.sql
+│   ├── 000046_warehouse_inventory.up.sql
+│   ├── 000047_fulfilment_terminal_returns.down.sql
+│   ├── 000047_fulfilment_terminal_returns.up.sql
+│   ├── 000048_invoices_receivables.down.sql
+│   ├── 000048_invoices_receivables.up.sql
+│   ├── 000049_expenses_budgets_claims.down.sql
+│   ├── 000049_expenses_budgets_claims.up.sql
+│   ├── 000050_compensation_payroll_settlements.down.sql
+│   ├── 000050_compensation_payroll_settlements.up.sql
+│   ├── 000051_communications_notifications.down.sql
+│   ├── 000051_communications_notifications.up.sql
+│   ├── 000052_support_quality_sla_escalations.down.sql
+│   ├── 000052_support_quality_sla_escalations.up.sql
+│   ├── 000053_search_projections.down.sql
+│   ├── 000053_search_projections.up.sql
+│   ├── 000054_document_visibility.down.sql
+│   ├── 000054_document_visibility.up.sql
+│   ├── 000055_exports.down.sql
+│   ├── 000055_exports.up.sql
+│   ├── 000056_generic_imports.down.sql
+│   ├── 000056_generic_imports.up.sql
+│   ├── 000057_document_checksum_capture_access.down.sql
+│   ├── 000057_document_checksum_capture_access.up.sql
+│   ├── 000058_search_repair_permission.down.sql
+│   ├── 000058_search_repair_permission.up.sql
+│   ├── 000059_exports_additional_datasets.down.sql
+│   ├── 000059_exports_additional_datasets.up.sql
+│   ├── 000060_service_nonce_replay_guard.down.sql
+│   ├── 000060_service_nonce_replay_guard.up.sql
+│   ├── 000061_section25_search_and_exports_completion.down.sql
+│   ├── 000061_section25_search_and_exports_completion.up.sql
+│   ├── 000062_section26_synchronization.down.sql
+│   ├── 000062_section26_synchronization.up.sql
+│   ├── 000063_section27_jobs_completion.down.sql
+│   ├── 000063_section27_jobs_completion.up.sql
+│   ├── 000064_section27_scheduled_tasks.down.sql
+│   ├── 000064_section27_scheduled_tasks.up.sql
+│   ├── 000065_section28_audit_access.down.sql
+│   ├── 000065_section28_audit_access.up.sql
+│   ├── 000066_section28_legal_holds.down.sql
+│   ├── 000066_section28_legal_holds.up.sql
+│   ├── 000067_section28_security_settings.down.sql
+│   ├── 000067_section28_security_settings.up.sql
+│   ├── 000068_section28_retention_policies.down.sql
+│   ├── 000068_section28_retention_policies.up.sql
+│   ├── 000069_section28_audit_chain.down.sql
+│   ├── 000069_section28_audit_chain.up.sql
+│   ├── 000070_section28_closure_workflow.down.sql
+│   ├── 000070_section28_closure_workflow.up.sql
+│   ├── 000071_section28_service_credentials.down.sql
+│   ├── 000071_section28_service_credentials.up.sql
+│   ├── 000072_section28_retention_execution.down.sql
+│   ├── 000072_section28_retention_execution.up.sql
+│   ├── 000073_retention_export_deletion_tracking.down.sql
+│   ├── 000073_retention_export_deletion_tracking.up.sql
+│   ├── 000074_section55_company_integrations.down.sql
+│   ├── 000074_section55_company_integrations.up.sql
+│   ├── migrations_test.go
+│   └── section25_26_completion_test.go
+├── scripts
+│   ├── smoke
+│   │   └── main.go
+│   ├── backup.sh
+│   ├── ci.sh
+│   └── restore-verify.sh
+├── .env.example
+├── folder-structure.txt
+├── go.mod
+├── go.sum
+└── README.md

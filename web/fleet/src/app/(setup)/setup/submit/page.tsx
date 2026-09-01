@@ -30,7 +30,6 @@ type SubmitState = {
   canSubmit: boolean;
   isSubmitted: boolean;
   isApproved: boolean;
-  blockers: string[];
   checklist: ChecklistItem[];
   submissionDate: string | null;
   reviewDate: string | null;
@@ -43,7 +42,6 @@ const MOCK_SUBMIT_STATE: SubmitState = {
   canSubmit: false,
   isSubmitted: false,
   isApproved: false,
-  blockers: ["Company profile incomplete", "Business documents required"],
   submissionDate: null,
   reviewDate: null,
   reviewerNotes: null,
@@ -74,7 +72,6 @@ export default function SubmitForReviewPage() {
   const router = useRouter();
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<SubmitState | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
@@ -84,11 +81,6 @@ export default function SubmitForReviewPage() {
       setLoading(false);
     };
     loadData();
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleSubmit = async () => {
@@ -136,6 +128,13 @@ export default function SubmitForReviewPage() {
   const isComplete = data.isApproved;
   const isSubmitted = data.isSubmitted;
 
+  // Derived from the checklist itself rather than tracked separately, so
+  // the two can't drift: a required, incomplete item is a blocker by
+  // definition, and its own note is the reason.
+  const blockers = data.checklist
+    .filter((item) => item.required && !item.complete)
+    .map((item) => item.notes || item.label);
+
   const formatDate = (date: string | null): string => {
     if (!date) return "N/A";
     const d = new Date(date);
@@ -143,16 +142,13 @@ export default function SubmitForReviewPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ===== HEADER ===== */}
       <div>
-        <div className="flex items-center gap-2 text-sm text-ink-500">
-          <button onClick={handleBack} className="hover:text-primary transition-colors">
-            Onboarding
-          </button>
-          <span>/</span>
-          <span className="text-ink-700 font-medium">Submit for Review</span>
-        </div>
+        <p className="text-xs font-medium text-ink-500">
+          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
+          <span className="text-ink-700">Submit for Review</span>
+        </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">
           Submit for Review
         </h1>
@@ -247,13 +243,6 @@ export default function SubmitForReviewPage() {
                     <div className="mt-0.5 text-xs text-ink-500">{item.notes}</div>
                   )}
                 </div>
-                <div className="flex-shrink-0">
-                  {item.complete ? (
-                    <CheckCircle2 className="h-5 w-5 text-green" />
-                  ) : (
-                    <div className="h-5 w-5 rounded-full border-2 border-ink-300" />
-                  )}
-                </div>
               </div>
             );
           })}
@@ -261,7 +250,7 @@ export default function SubmitForReviewPage() {
       </div>
 
       {/* ===== BLOCKERS ===== */}
-      {data.blockers.length > 0 && !data.isSubmitted && (
+      {blockers.length > 0 && !data.isSubmitted && (
         <div className="rounded-2xl border border-red/20 bg-red-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-red-bg p-2 flex-shrink-0">
@@ -270,7 +259,7 @@ export default function SubmitForReviewPage() {
             <div className="flex-1">
               <h4 className="text-sm font-semibold text-red">Blockers</h4>
               <ul className="mt-2 space-y-1">
-                {data.blockers.map((blocker, index) => (
+                {blockers.map((blocker, index) => (
                   <li key={index} className="text-sm text-red/80 flex items-start gap-2">
                     <span className="text-red text-base">•</span>
                     <span>{blocker}</span>
@@ -328,15 +317,9 @@ export default function SubmitForReviewPage() {
       </button>
 
       {/* ===== FOOTER ===== */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
-        <span className="flex items-center gap-2">
-          <FileCheck className="h-4 w-4" />
-          ORG-08 · Submit for Review
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Clock className="h-4 w-4" />
-          Updated {secondsAgo}s ago
-        </span>
+      <div className="flex items-center gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
+        <FileCheck className="h-4 w-4" />
+        ORG-08 · Submit for Review
       </div>
     </div>
   );

@@ -3,117 +3,203 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 
-function RouteScene() {
-  return (
-    <svg
-      viewBox="0 0 600 700"
-      fill="none"
-      className="absolute inset-0 h-full w-full"
-      aria-hidden="true"
-    >
-      <path
-        id="route"
-        d="M70 610 C 140 560, 120 480, 200 440 C 300 390, 260 300, 360 260 C 430 232, 420 170, 500 120"
-        stroke="url(#roadGradient)"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeDasharray="1 10"
-      />
-
-      {/* stop pins */}
-      <g transform="translate(70 610)">
-        <path
-          d="M0 -20 C 8 -20 14 -14 14 -6 C 14 4 0 16 0 16 C 0 16 -14 4 -14 -6 C -14 -14 -8 -20 0 -20 Z"
-          className="fill-accent"
-        />
-        <circle r="4" className="fill-navy-950" />
-        <text x="20" y="4" className="fill-white/55 font-sans text-[11px]">
-          Ikeja depot
-        </text>
-      </g>
-
-      <g transform="translate(360 260)">
-        {/* <path
-          d="M0 -16 C 6.5 -16 11 -11 11 -5 C 11 3 0 13 0 13 C 0 13 -11 3 -11 -5 C -11 -11 -6.5 -16 0 -16 Z"
-          className="fill-white/70"
-        /> */}
-        <circle r="3" className="fill-navy-950" />
-        {/* <text x="16" y="4" className="fill-white/40 font-sans text-[11px]">
-          Apapa
-        </text> */}
-      </g>
-
-      <g transform="translate(500 120)">
-        <path
-          d="M0 -20 C 8 -20 14 -14 14 -6 C 14 4 0 16 0 16 C 0 16 -14 4 -14 -6 C -14 -14 -8 -20 0 -20 Z"
-          className="fill-accent"
-        />
-        <circle r="4" className="fill-navy-950" />
-        {/* <text x="20" y="4" className="fill-white/55 font-sans text-[11px]">
-          Lagos Island
-        </text> */}
-      </g>
-
-      {/* traveling vehicle */}
-      <g className="motion-safe:block motion-reduce:hidden">
-        <g>
-          <animateMotion dur="7s" repeatCount="indefinite" rotate="auto" path="M70 610 C 140 560, 120 480, 200 440 C 300 390, 260 300, 360 260 C 430 232, 420 170, 500 120" />
-          <circle r="11" className="fill-white/15" />
-          <g transform="translate(-8 -6)">
-            <rect x="0" y="2" width="10" height="7" rx="1.5" className="fill-white" />
-            <path d="M10 4 H14 L16.5 7 V9 H10 Z" className="fill-white" />
-            <circle cx="3.5" cy="9.5" r="1.6" className="fill-navy-950" />
-            <circle cx="13" cy="9.5" r="1.6" className="fill-navy-950" />
-          </g>
-        </g>
-      </g>
-
-      <defs>
-        <linearGradient id="roadGradient" x1="70" y1="610" x2="500" y2="120" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#0E91C7" stopOpacity="0.8" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity="0.25" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
+const AUTH_ROUTES_WITH_BRAND_PANEL = ["/sign-in", "/verify"];
 
 function BrandPanel() {
   return (
-    <div className="relative hidden w-[46%] overflow-hidden bg-navy-950 lg:block">
-      {/* soft organic light instead of a repeating grid */}
-      <div className="pointer-events-none absolute -left-24 -top-24 h-[420px] w-[420px] rounded-full bg-accent/25 blur-[110px]" />
-      <div className="pointer-events-none absolute bottom-[-160px] right-[-100px] h-[380px] w-[380px] rounded-full bg-primary/40 blur-[100px]" />
-
-      <RouteScene />
-
-      <div className="relative flex h-full flex-col justify-between p-12 xl:p-16">
-        <div />
-
-        <div className="max-w-[440px]">
-          <h2 className="font-display text-[34px] font-medium leading-[1.15] tracking-[-0.02em] text-white xl:text-[40px]">
-            Every vehicle, every route, one control tower.
-          </h2>
-          <p className="mt-4 text-[15px] leading-relaxed text-sidebar-text-secondary/80">
-            Sign in to dispatch, track compliance, and keep your whole fleet
-            moving.
-          </p>
-        </div>
-
-        {/* dashboard preview */}
-        <div className="fade-in-up relative -mb-12 -mr-12 self-end xl:-mb-16 xl:-mr-16">
-          <div className="overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/40 ring-1 ring-white/5">
-            <Image
-              src="/images/dashboard-preview.png"
-              alt="KarryGo Fleet OS dashboard"
-              width={1366}
-              height={643}
-              className="block w-[480px] xl:w-[560px]"
-              priority
-            />
+    <div
+      className="relative hidden w-[46%] overflow-hidden lg:block"
+      style={{
+        background:
+          "linear-gradient(135deg, #24248f 0%, #2f30ac 50%, #3a3bc4 100%)",
+      }}
+    >
+      {/* logo */}
+      <div className="absolute left-8 top-8 flex items-center gap-2.5 xl:left-12 xl:top-10">
+        <Image
+          src="/images/fleet-logo.png"
+          alt="KarryGo Fleet OS"
+          width={36}
+          height={36}
+          className="rounded-lg object-contain"
+        />
+        <div>
+          <div className="font-display text-[17px] font-semibold tracking-tight text-white">
+            KarryGo
+          </div>
+          <div className="text-[9px] font-semibold tracking-[0.2em] text-white/60 uppercase">
+            Fleet OS
           </div>
         </div>
       </div>
+
+      <div className="relative flex h-full flex-col justify-between p-12 pt-28 xl:p-16 xl:pt-32">
+        {/* headline */}
+        <div className="max-w-[440px]">
+          <h2 className="font-display text-[34px] font-bold leading-[1.15] tracking-[-0.02em] text-white xl:text-[40px]">
+            Every vehicle,
+            <br />
+            every route,
+            <br />
+            <span className="text-accent">one control tower.</span>
+          </h2>
+          <p className="mt-4 text-[15px] font-normal leading-relaxed text-white/70">
+            Smart fleet management starts here.
+          </p>
+        </div>
+
+        {/* illustration — native colors, no filter */}
+        <div className="fade-in-up relative -mb-12 -ml-16 self-start xl:-mb-16 xl:-ml-20">
+          <Image
+            src="/images/fleet-illustration.png"
+            alt="KarryGo Fleet OS"
+            width={1536}
+            height={1024}
+            className="block w-[520px] xl:w-[600px]"
+            priority
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Decorative backdrop for the form-side panel.
+ * Replaces flat `bg-white` with a soft indigo-tinted gradient, a faint
+ * dot-grid, and a glowing shield motif in the corner — quiet enough not
+ * to compete with the form, present enough that the panel doesn't read
+ * as blank/unfinished next to the brand panel.
+ */
+function FormPanelBackdrop() {
+  return (
+    <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      {/* base tint — replaces pure white */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(160deg, #FBFBFE 0%, #F5F5FC 45%, #EFEFFA 100%)",
+        }}
+      />
+
+      {/* organic wave/blob, bottom-right — sits under the glow, slightly
+          more saturated than the base tint so the corner has depth
+          instead of one flat gradient */}
+      <svg
+        viewBox="0 0 600 500"
+        preserveAspectRatio="xMaxYMax slice"
+        className="absolute -bottom-16 -right-16 h-[420px] w-[520px] xl:h-[500px] xl:w-[620px]"
+        aria-hidden="true"
+      >
+        <path
+          d="M600 90 C 480 40, 380 120, 400 230 C 418 328, 320 360, 340 440 C 355 490, 480 500, 600 470 Z"
+          fill="#E4E3F9"
+          opacity="0.55"
+        />
+        <path
+          d="M600 180 C 500 150, 440 220, 470 300 C 495 365, 430 400, 460 460 C 475 490, 550 495, 600 480 Z"
+          fill="#DAD8F6"
+          opacity="0.5"
+        />
+      </svg>
+
+      {/* dot grid, top-right */}
+      <svg
+        className="absolute right-0 top-0 h-[220px] w-[220px] text-primary/[0.14] xl:h-[260px] xl:w-[260px]"
+        aria-hidden="true"
+      >
+        <defs>
+          <pattern
+            id="auth-dot-grid"
+            width="18"
+            height="18"
+            patternUnits="userSpaceOnUse"
+          >
+            <circle cx="2" cy="2" r="1.6" fill="currentColor" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#auth-dot-grid)" />
+      </svg>
+
+      {/* soft glow halo, bottom-right */}
+      <div className="absolute bottom-4 right-6 h-[280px] w-[280px] rounded-full bg-white/70 blur-2xl xl:h-[340px] xl:w-[340px]" />
+      <div className="absolute bottom-8 right-10 h-[220px] w-[220px] rounded-full bg-primary/[0.10] blur-3xl xl:h-[260px] xl:w-[260px]" />
+
+      {/* glassy 3D shield badge — slightly tilted, compact proportions */}
+      <svg
+        viewBox="0 0 220 220"
+        className="absolute bottom-10 right-4 h-[150px] w-[150px] xl:right-6 xl:h-[190px] xl:w-[190px]"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="auth-shield-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#CDCBF5" />
+            <stop offset="45%" stopColor="#9A97E6" />
+            <stop offset="100%" stopColor="#6C68D6" />
+          </linearGradient>
+          <linearGradient id="auth-shield-highlight" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="auth-check-fill" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#EDECFB" />
+          </linearGradient>
+          <filter id="auth-shield-shadow" x="-40%" y="-40%" width="180%" height="200%">
+            <feDropShadow
+              dx="0"
+              dy="9"
+              stdDeviation="9"
+              floodColor="#4B48A8"
+              floodOpacity="0.28"
+            />
+          </filter>
+          <filter id="auth-check-shadow" x="-80%" y="-80%" width="260%" height="260%">
+            <feDropShadow
+              dx="0"
+              dy="3"
+              stdDeviation="4"
+              floodColor="#2E2B7A"
+              floodOpacity="0.4"
+            />
+          </filter>
+        </defs>
+
+        {/* shield body — shorter/wider proportions, tilted ~8deg */}
+        <g transform="rotate(8 110 108)">
+          <g filter="url(#auth-shield-shadow)">
+            <path
+              d="M110 28 L180 52 V102 C180 144 152 176 110 190 C68 176 40 144 40 102 V52 Z"
+              fill="url(#auth-shield-fill)"
+            />
+            {/* top-left facet highlight, for the bevel/glass feel */}
+            <path
+              d="M110 28 L180 52 V102 C180 105 179 109 179 112 L110 34 L46 54 C44 53 43 52 40 52 Z"
+              fill="url(#auth-shield-highlight)"
+            />
+          </g>
+
+          {/* raised check badge — filled 3D shape, not a stroke */}
+          <g filter="url(#auth-check-shadow)">
+            <circle cx="110" cy="107" r="32" fill="#FFFFFF" fillOpacity="0.14" />
+            <path
+              d="M91 108 C 94 104, 100 104, 103 108 L 108 114 L 128 88 C 131 84, 137 84, 139 88 C 141 91, 141 95, 138 98 L 109 133 C 106 137, 100 137, 97 133 L 88 121 C 85 117, 86 111, 91 108 Z"
+              fill="url(#auth-check-fill)"
+            />
+            {/* thin top-edge highlight on the check to sell the bevel */}
+            <path
+              d="M93 107 L107 122 L136 90"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="1.5"
+              strokeOpacity="0.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </g>
+        </g>
+      </svg>
     </div>
   );
 }
@@ -124,39 +210,27 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isSignIn = pathname === "/sign-in";
+  const showBrandPanel = AUTH_ROUTES_WITH_BRAND_PANEL.includes(pathname);
 
-  if (isSignIn) {
+  if (showBrandPanel) {
     return (
-      <div className="flex min-h-screen bg-white">
-        <div className="relative flex w-full flex-col justify-center px-6 sm:px-12 lg:w-[54%] lg:px-20 xl:px-28">
-          <div className="absolute left-6 top-8 flex items-center gap-2.5 sm:left-12 lg:left-20 xl:left-28">
-            <Image
-              src="/images/fleet-logo.png"
-              alt="KarryGo Fleet OS"
-              width={32}
-              height={32}
-              className="rounded-lg object-contain"
-            />
-            <div>
-              <div className="font-display text-[16px] font-semibold tracking-tight text-ink-950">
-                KarryGo
-              </div>
-              <div className="text-[9px] font-semibold tracking-[0.2em] text-ink-500 uppercase">
-                Fleet OS
-              </div>
-            </div>
-          </div>
-          <div className="fade-in-up w-full max-w-[380px]">{children}</div>
-        </div>
+      <div className="flex min-h-screen">
         <BrandPanel />
+        <div className="relative isolate flex w-full flex-col justify-center px-6 sm:px-12 lg:w-[54%] lg:px-20 xl:px-28">
+          <FormPanelBackdrop />
+          <div className="fade-in-up relative z-10 w-full max-w-[380px]">
+            {children}
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen bg-white">
-      <div className="absolute left-8 top-8 flex items-center gap-2.5">
+    <div className="relative isolate min-h-screen">
+      <FormPanelBackdrop />
+
+      <div className="absolute left-8 top-8 z-10 flex items-center gap-2.5">
         <Image
           src="/images/fleet-logo.png"
           alt="KarryGo Fleet OS"
@@ -174,7 +248,7 @@ export default function AuthLayout({
         </div>
       </div>
 
-      <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-6">
         <div className="fade-in-up w-full max-w-[380px]">{children}</div>
       </div>
     </div>

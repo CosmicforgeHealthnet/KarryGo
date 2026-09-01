@@ -35,7 +35,7 @@
 
   --line: #e0e0ee;
   --surface: #ffffff;
-  --surface-2: #f0f0f8;
+ --surface-2: #fafafa;
   --surface-3: #e8e8f4;
 
   --green: #139a5d;
@@ -90,8 +90,8 @@
   --color-red: var(--red);
   --color-red-bg: var(--red-bg);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
   --font-display: var(--font-space-grotesk);
 }
 
@@ -100,11 +100,18 @@ body {
   color: var(--foreground);
   font-size: 15px;
   line-height: 1.6;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
 }
 
-/* Larger base font sizes for better readability */
+/* Use display font for headlines only */
+h1, h2, h3, .display-text {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
 h1 {
-  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-size: clamp(1.8rem, 4vw, 2.1rem);
   letter-spacing: -0.02em;
 }
 
@@ -115,6 +122,25 @@ h2 {
 
 h3 {
   font-size: clamp(1.1rem, 1.8vw, 1.4rem);
+}
+
+p, .body-text {
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* Monospace for data, code, and numbers in tables */
+code, .mono, .tabular-nums, .data-text {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Better number display in tables and metrics */
+table .numeric,
+.metric-value,
+.stats-number {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 p {
@@ -197,7 +223,7 @@ input,
 textarea,
 select,
 button {
-  font-family: inherit;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: inherit;
 }
 
@@ -302,4 +328,49 @@ main {
   font-size: 13px !important;
   font-weight: 500 !important;
   color: #1a1a2e !important;
+}
+
+/* ===== TYPOGRAPHY IMPROVEMENTS FOR DASHBOARD ===== */
+/* Better readability for data-heavy interfaces */
+.data-grid {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.data-grid .label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.data-grid .value {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: var(--ink-950);
+}
+
+/* Table improvements */
+.table-data {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+}
+
+/* Status badges with better readability */
+.status-badge {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.65rem;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+/* Quick action buttons */
+.action-label {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.75rem;
 }
