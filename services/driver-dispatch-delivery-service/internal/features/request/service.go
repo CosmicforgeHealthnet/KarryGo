@@ -225,7 +225,9 @@ func (s *Service) GetRequestDetail(ctx context.Context, inboxID, providerID stri
 		PackageDesc: booking.PackageDesc, PackageWeight: booking.PackageWeight,
 		PackageType: booking.PackageType, PackageSize: booking.PackageSize, IsFragile: booking.IsFragile,
 		ServiceTier: normalizeServiceTier(booking.ServiceTier), ServiceTierLabel: serviceTierLabel(booking.ServiceTier),
-		ReceiverName: booking.ReceiverName, ReceiverPhone: booking.ReceiverPhone,
+		// The assigned Trip is the contact authority. A request card, including
+		// historical/expired cards, must not reveal receiver identity or contact.
+		ReceiverName: "", ReceiverPhone: "",
 		RemainingSeconds: remaining, ExpiresAt: inbox.ExpiresAt, ReceivedAt: inbox.ReceivedAt,
 	}
 	if s.jobCards != nil {

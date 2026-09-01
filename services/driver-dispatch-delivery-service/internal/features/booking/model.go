@@ -52,30 +52,32 @@ const (
 )
 
 type Booking struct {
-	ID             string   `json:"id"`
-	CustomerID     string   `json:"customer_id"`
-	Status         string   `json:"-"` // coarse persisted status; wire status is derived
-	PickupAddress  string   `json:"pickup_address"`
-	PickupLat      float64  `json:"pickup_lat"`
-	PickupLng      float64  `json:"pickup_lng"`
-	DropoffAddress string   `json:"dropoff_address"`
-	DropoffLat     float64  `json:"dropoff_lat"`
-	DropoffLng     float64  `json:"dropoff_lng"`
-	DistanceKM     float64  `json:"distance_km"`
-	FareAmount     int64    `json:"fare_amount_kobo"`
-	Currency       string   `json:"currency"`
-	PaymentMethod  string   `json:"payment_method"`
-	PaymentStatus  string   `json:"payment_status"`
-	PaymentRef     string   `json:"-"`
-	ReceiverName   string   `json:"receiver_name"`
-	ReceiverPhone  string   `json:"receiver_phone"`
-	PackageDesc    string   `json:"package_desc"`
-	PackageWeight  *float64 `json:"package_weight,omitempty"`
-	PackageType    string   `json:"package_type"`
-	PackageSize    string   `json:"package_size"`
-	IsFragile      bool     `json:"is_fragile"`
-	ServiceTier    string   `json:"service_tier"`
-	ProviderID     string   `json:"provider_id,omitempty"`
+	ID                         string   `json:"id"`
+	CustomerID                 string   `json:"customer_id"`
+	Status                     string   `json:"-"` // coarse persisted status; wire status is derived
+	PickupAddress              string   `json:"pickup_address"`
+	PickupLat                  float64  `json:"pickup_lat"`
+	PickupLng                  float64  `json:"pickup_lng"`
+	DropoffAddress             string   `json:"dropoff_address"`
+	DropoffLat                 float64  `json:"dropoff_lat"`
+	DropoffLng                 float64  `json:"dropoff_lng"`
+	DistanceKM                 float64  `json:"distance_km"`
+	FareAmount                 int64    `json:"fare_amount_kobo"`
+	Currency                   string   `json:"currency"`
+	PaymentMethod              string   `json:"payment_method"`
+	PaymentStatus              string   `json:"payment_status"`
+	PaymentRef                 string   `json:"-"`
+	ReceiverName               string   `json:"receiver_name"`
+	ReceiverPhone              string   `json:"receiver_phone"`
+	PackageDesc                string   `json:"package_desc"`
+	PackageWeight              *float64 `json:"package_weight,omitempty"`
+	PackageType                string   `json:"package_type"`
+	PackageSize                string   `json:"package_size"`
+	IsFragile                  bool     `json:"is_fragile"`
+	ServiceTier                string   `json:"service_tier"`
+	ServiceabilityQuoteRef     string   `json:"serviceability_quote_ref,omitempty"`
+	ServiceabilityQuoteVersion int64    `json:"serviceability_quote_version,omitempty"`
+	ProviderID                 string   `json:"provider_id,omitempty"`
 	// Route geometry for the customer's map. The pickup leg only appears
 	// once a rider is assigned; both are absent when no routing API key is
 	// configured and the app falls back to a straight line.
@@ -152,8 +154,9 @@ func (d DerivedState) WireStatus() string {
 // BookingView is the wire representation returned to the customer app.
 type BookingView struct {
 	Booking
-	Status string `json:"status"`
-	TripID string `json:"trip_id,omitempty"`
+	Status     string                       `json:"status"`
+	TripID     string                       `json:"trip_id,omitempty"`
+	Operations *BookingOperationsProjection `json:"operations,omitempty"`
 }
 
 func (d DerivedState) View() BookingView {
@@ -171,17 +174,82 @@ type LatLngAddress struct {
 }
 
 type CreateBookingInput struct {
-	Pickup        LatLngAddress `json:"pickup"`
-	Dropoff       LatLngAddress `json:"dropoff"`
-	ReceiverName  string        `json:"receiver_name"`
-	ReceiverPhone string        `json:"receiver_phone"`
-	PackageDesc   string        `json:"package_desc"`
-	PackageWeight float64       `json:"package_weight"`
-	PackageType   string        `json:"package_type"`
-	PackageSize   string        `json:"package_size"`
-	IsFragile     bool          `json:"is_fragile"`
-	ServiceTier   string        `json:"service_tier"`
-	PaymentMethod string        `json:"payment_method"`
+	Pickup                 LatLngAddress `json:"pickup"`
+	Dropoff                LatLngAddress `json:"dropoff"`
+	ReceiverName           string        `json:"receiver_name"`
+	ReceiverPhone          string        `json:"receiver_phone"`
+	PackageDesc            string        `json:"package_desc"`
+	PackageWeight          float64       `json:"package_weight"`
+	PackageType            string        `json:"package_type"`
+	PackageSize            string        `json:"package_size"`
+	IsFragile              bool          `json:"is_fragile"`
+	ServiceTier            string        `json:"service_tier"`
+	PaymentMethod          string        `json:"payment_method"`
+	ServiceabilityQuoteRef string        `json:"serviceability_quote_ref,omitempty"`
+}
+
+// BookingOperationsProjection is an additive, secret-free customer read model
+// over the normalized Sections 4-12 tables. Absence means the legacy booking
+// has not entered an additive operational capability.
+type BookingOperationsProjection struct {
+	DeliveryGroup  *DeliveryGroupSummary  `json:"delivery_group,omitempty"`
+	Mission        *MissionSummary        `json:"mission,omitempty"`
+	Serviceability *ServiceabilitySummary `json:"serviceability,omitempty"`
+	Assignment     *AssignmentSummary     `json:"assignment,omitempty"`
+	Handover       *HandoverSummary       `json:"handover,omitempty"`
+	Evidence       *EvidenceSummary       `json:"evidence,omitempty"`
+	Recovery       *RecoverySummary       `json:"recovery,omitempty"`
+	Route          *RouteSummary          `json:"route,omitempty"`
+}
+
+type DeliveryGroupSummary struct {
+	ID      string `json:"id"`
+	State   string `json:"state"`
+	Version int64  `json:"version"`
+}
+
+type MissionSummary struct {
+	ID              string `json:"id"`
+	State           string `json:"state"`
+	Version         int64  `json:"version"`
+	ParcelCount     int64  `json:"parcel_count"`
+	ManifestRef     string `json:"manifest_ref,omitempty"`
+	ManifestVersion int64  `json:"manifest_version,omitempty"`
+	ManifestStatus  string `json:"manifest_status,omitempty"`
+}
+
+type ServiceabilitySummary struct {
+	Reference     string    `json:"reference"`
+	Decision      string    `json:"decision"`
+	PolicyVersion string    `json:"policy_version"`
+	Version       int64     `json:"version"`
+	ExpiresAt     time.Time `json:"expires_at"`
+}
+
+type AssignmentSummary struct {
+	OfferStatus string `json:"offer_status,omitempty"`
+	QueueStatus string `json:"queue_status,omitempty"`
+}
+
+type HandoverSummary struct {
+	Stage  string `json:"stage"`
+	Status string `json:"status"`
+}
+
+type EvidenceSummary struct {
+	Count int64 `json:"count"`
+}
+
+type RecoverySummary struct {
+	AttemptState string `json:"attempt_state,omitempty"`
+	Action       string `json:"action,omitempty"`
+	ReturnState  string `json:"return_state,omitempty"`
+}
+
+type RouteSummary struct {
+	Version        int64  `json:"version"`
+	Status         string `json:"status"`
+	OpenAlertCount int64  `json:"open_alert_count"`
 }
 
 type EstimateRequest struct {

@@ -58,12 +58,13 @@ type OTPChallenge struct {
 
 // Session mirrors a partner_sessions row.
 type Session struct {
-	ID        string
-	PartnerID string
-	TokenHash string
-	ExpiresAt time.Time
-	RevokedAt *time.Time
-	CreatedAt time.Time
+	ID          string
+	PartnerID   string
+	TokenHash   string
+	RefreshHash string
+	ExpiresAt   time.Time
+	RevokedAt   *time.Time
+	CreatedAt   time.Time
 }
 
 // KeyView is the safe API key listing shape (no key_hash, no raw key).

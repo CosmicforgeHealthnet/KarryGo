@@ -72,6 +72,9 @@ func (s *Service) ApplyDispatchCommerceEvent(ctx context.Context, envelope Dispa
 	if s == nil || s.store == nil || s.store.db == nil || !s.enabled {
 		return ErrDependencyMissing
 	}
+	if strings.HasPrefix(envelope.EventType, "dispatch.") {
+		return s.applyDispatchLifecycle(ctx, envelope)
+	}
 	if envelope.EventID == "" || envelope.SourceService != DispatchServiceCaller ||
 		envelope.SchemaVersion != 1 || envelope.AggregateVersion < 1 || envelope.OccurredAt.IsZero() ||
 		envelope.AggregateType != "COMMERCE_MISSION" || !validDispatchCommerceEventType(envelope.EventType) {

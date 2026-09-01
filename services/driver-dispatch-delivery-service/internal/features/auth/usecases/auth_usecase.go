@@ -222,7 +222,7 @@ func (u *AuthUsecase) deliverOTP(ctx context.Context, purpose, phoneNumber, emai
 
 	if !smsDelivered && !emailDelivered && u.requireEmailDelivery {
 		err := fmt.Errorf("%s otp delivery has no configured channel phone_number=%s email=%s", purpose, phoneNumber, email)
-		log.Printf("dispatch rider %s otp delivery failed err=%v", purpose, err)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		return apperrors.Unavailable("Verification code delivery is not configured.", err)
 	}
 
@@ -231,38 +231,38 @@ func (u *AuthUsecase) deliverOTP(ctx context.Context, purpose, phoneNumber, emai
 
 func (u *AuthUsecase) sendSMSOTP(ctx context.Context, purpose, phoneNumber, code string) (bool, error) {
 	if u.notifier == nil {
-		log.Printf("dispatch rider %s otp sms skipped phone_number=%s reason=not_configured", purpose, phoneNumber)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		return false, nil
 	}
 
 	if err := u.notifier.SendOTP(ctx, phoneNumber, code); err != nil {
 		if errors.Is(err, authclients.ErrSMSNotConfigured) {
-			log.Printf("dispatch rider %s otp sms skipped phone_number=%s reason=not_configured", purpose, phoneNumber)
+			log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 			return false, nil
 		}
 
 		wrapped := fmt.Errorf("%s otp sms delivery failed phone_number=%s: %w", purpose, phoneNumber, err)
-		log.Printf("dispatch rider %s otp sms delivery failed phone_number=%s err=%v", purpose, phoneNumber, err)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		return false, apperrors.Unavailable("Verification code delivery is temporarily unavailable.", wrapped)
 	}
 
-	log.Printf("dispatch rider %s otp sms sent phone_number=%s", purpose, phoneNumber)
+	log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 	return true, nil
 }
 
 func (u *AuthUsecase) sendEmailOTP(ctx context.Context, purpose, email, code string) (bool, error) {
 	if strings.TrimSpace(email) == "" {
-		log.Printf("dispatch rider %s otp email skipped reason=no_email_target", purpose)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		return false, nil
 	}
 	if u.emailClient == nil {
 		err := authclients.ErrEmailNotConfigured
 		if u.requireEmailDelivery {
 			wrapped := fmt.Errorf("%s otp email delivery not configured email=%s: %w", purpose, email, err)
-			log.Printf("dispatch rider %s otp email delivery failed email=%s err=%v", purpose, email, err)
+			log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 			return false, apperrors.Unavailable("Verification code delivery is not configured.", wrapped)
 		}
-		log.Printf("dispatch rider %s otp email skipped email=%s reason=not_configured", purpose, email)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		return false, nil
 	}
 
@@ -270,19 +270,19 @@ func (u *AuthUsecase) sendEmailOTP(ctx context.Context, purpose, email, code str
 		if errors.Is(err, authclients.ErrEmailNotConfigured) {
 			if u.requireEmailDelivery {
 				wrapped := fmt.Errorf("%s otp email delivery not configured email=%s: %w", purpose, email, err)
-				log.Printf("dispatch rider %s otp email delivery failed email=%s err=%v", purpose, email, err)
+				log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 				return false, apperrors.Unavailable("Verification code delivery is not configured.", wrapped)
 			}
-			log.Printf("dispatch rider %s otp email skipped email=%s reason=not_configured", purpose, email)
+			log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 			return false, nil
 		}
 
 		wrapped := fmt.Errorf("%s otp email delivery failed email=%s: %w", purpose, email, err)
-		log.Printf("dispatch rider %s otp email delivery failed email=%s err=%v", purpose, email, err)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		return false, apperrors.Unavailable("Verification code delivery is temporarily unavailable.", wrapped)
 	}
 
-	log.Printf("dispatch rider %s otp email sent email=%s", purpose, email)
+	log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 	return true, nil
 }
 
@@ -363,7 +363,7 @@ func (u *AuthUsecase) Start(ctx context.Context, input StartInput) (StartResult,
 	// Dev-only: log OTP and return it in the result for on-screen display.
 	// Never in production.
 	if u.otpDebug {
-		log.Printf("development dispatch rider start otp phone_number=%s otp=%s", phoneNumber, code)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 	}
 
 	if u.publisher != nil {
@@ -434,8 +434,8 @@ func (u *AuthUsecase) SignupStart(ctx context.Context, input SignupStartInput) (
 
 	// Dev-only: log OTP for both delivery channels.  Never log in production.
 	if u.otpDebug {
-		log.Printf("development dispatch rider signup otp phone_number=%s otp=%s", phoneNumber, code)
-		log.Printf("development dispatch rider signup otp email=%s otp=%s", email, code)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 	}
 
 	if u.publisher != nil {
@@ -521,11 +521,11 @@ func (u *AuthUsecase) LoginStart(ctx context.Context, input LoginStartInput) (St
 
 	// Dev-only: log OTP for all available delivery channels.  Never log in production.
 	if u.otpDebug {
-		log.Printf("development dispatch rider login otp phone_number=%s otp=%s", phoneNumber, code)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		if identityEmail != nil {
-			log.Printf("development dispatch rider login otp email=%s otp=%s", *identityEmail, code)
+			log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		} else {
-			log.Printf("development dispatch rider login otp warning: no email on record for phone_number=%s", phoneNumber)
+			log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 		}
 	}
 
@@ -639,7 +639,7 @@ func (u *AuthUsecase) Verify(ctx context.Context, input VerifyInput) (TokenResul
 		// The OTP row carries the email that was supplied (or looked up) during Start.
 		if verifiedOTP.Email != nil && identity.Email == nil {
 			if emailErr := u.identities.UpdateEmail(ctx, identity.ID, *verifiedOTP.Email); emailErr != nil {
-				log.Printf("dispatch rider verify: could not attach otp email to identity id=%s err=%v", identity.ID, emailErr)
+				log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 			} else {
 				identity.Email = verifiedOTP.Email
 			}
@@ -906,7 +906,7 @@ func (u *AuthUsecase) PhoneChangeStart(ctx context.Context, input PhoneChangeSta
 	}
 
 	if u.otpDebug {
-		log.Printf("development dispatch rider phone_change otp phone_number=%s otp=%s", newPhone, code)
+		log.Print("dispatch auth notification outcome recorded; sensitive details omitted")
 	}
 
 	return StartResult{ExpiresInSeconds: u.otp.TTLSeconds()}, nil

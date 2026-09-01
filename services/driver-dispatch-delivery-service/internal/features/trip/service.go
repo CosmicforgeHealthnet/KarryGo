@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/handover"
 	"cosmicforge/logistics/shared/go/phonenumber"
@@ -53,6 +55,17 @@ type CustomerNotifier interface {
 	NotifyCustomerDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{})
 }
 
+// SecureHandoverGate is the additive Sections 9-10 authority. Keeping this as
+// a narrow port lets legacy trips remain unchanged while protected trips use
+// the versioned challenge/evidence domain.
+type SecureHandoverGate interface {
+	Enabled() bool
+	PickupReady(ctx context.Context, tripID string) (bool, error)
+	DeliveryReady(ctx context.Context, tripID string) (bool, error)
+	EnsureDelivery(ctx context.Context, tripID, operationRef string) error
+	MarkInTransit(ctx context.Context, tripID string) error
+}
+
 // ProofSubmitInput carries parsed multipart form data for the SubmitProof service method.
 type ProofSubmitInput struct {
 	TripID        string
@@ -72,13 +85,16 @@ const (
 )
 
 type Service struct {
-	repository     Repository
-	storage        ProofStorage
-	events         TripEventPublisher
-	wallet         WalletSettlementClient
-	notifier       CustomerNotifier
-	now            func() time.Time
-	handoverSecret []byte
+	repository       Repository
+	storage          ProofStorage
+	events           TripEventPublisher
+	wallet           WalletSettlementClient
+	settlement       SettlementReconciler
+	settlementPolicy SettlementRetryPolicy
+	notifier         CustomerNotifier
+	secureHandover   SecureHandoverGate
+	now              func() time.Time
+	handoverSecret   []byte
 }
 
 func NewService(repository Repository, storage ProofStorage) *Service {
@@ -112,6 +128,11 @@ func (s *Service) WithNotifier(notifier CustomerNotifier) *Service {
 // handover codes (call after NewService).
 func (s *Service) WithHandoverSecret(secret []byte) *Service {
 	s.handoverSecret = secret
+	return s
+}
+
+func (s *Service) WithSecureHandover(gate SecureHandoverGate) *Service {
+	s.secureHandover = gate
 	return s
 }
 
@@ -342,7 +363,18 @@ func (s *Service) GetProviderTripDetail(ctx context.Context, tripID, providerID 
 	if err != nil {
 		return nil, err
 	}
-	return &TripDetailResponse{Trip: *trip, StateLog: logs, Proof: proof}, nil
+	result := &TripDetailResponse{Trip: *trip, StateLog: logs, Proof: proof}
+	if reader, ok := s.repository.(providerMissionProjectionRepository); ok {
+		mission, projectionErr := reader.GetProviderMissionProjection(ctx, tripID, providerID)
+		if projectionErr != nil {
+			return nil, projectionErr
+		}
+		if mission != nil {
+			mission.AllowedActions = providerAllowedActions(trip.Status)
+			result.Mission = mission
+		}
+	}
+	return result, nil
 }
 
 func (s *Service) GetProviderProof(ctx context.Context, tripID, providerID string) (*DeliveryProof, error) {
@@ -384,9 +416,12 @@ func (s *Service) MarkArrived(ctx context.Context, tripID, providerID string) (A
 		return ArrivedResponse{}, err
 	}
 	now := s.now()
-	pickup, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, tripID), now)
-	if err != nil {
-		return ArrivedResponse{}, apperrors.Internal("Could not generate a pickup code.", err)
+	var pickup handover.CodeRecord
+	if s.secureHandover == nil || !s.secureHandover.Enabled() {
+		pickup, err = securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, tripID), now)
+		if err != nil {
+			return ArrivedResponse{}, apperrors.Internal("Could not generate a pickup code.", err)
+		}
 	}
 	updated, err := s.repository.MarkArrived(ctx, tripID, providerID, trip.Status, now, pickup)
 	if err != nil {
@@ -411,10 +446,14 @@ func (s *Service) MarkArrived(ctx context.Context, tripID, providerID string) (A
 			ArrivedAt: arrivedAt, OccurredAt: now,
 		})
 	}
+	pickupView, err := s.compatibilityPickupView(*updated)
+	if err != nil {
+		return ArrivedResponse{}, err
+	}
 	return ArrivedResponse{
 		ID: trip.ID, BookingID: trip.BookingID, Status: StatusArrivedPickup,
 		ArrivedAt: arrivedAt, Message: "Customer has been notified you have arrived.",
-		PickupCredential: PickupCredentialViewFrom(*updated),
+		PickupCredential: pickupView,
 	}, nil
 }
 
@@ -432,18 +471,45 @@ func (s *Service) StartTrip(ctx context.Context, tripID, providerID string) (Sta
 	if trip == nil {
 		return StartTripResponse{}, apperrors.NotFound("Trip not found.", nil)
 	}
+	protected := s.secureHandover != nil && s.secureHandover.Enabled()
+	if protected && trip.Status == StatusInProgress {
+		if err = s.secureHandover.EnsureDelivery(ctx, tripID, "trip-start-delivery:"+tripID); err != nil {
+			return StartTripResponse{}, err
+		}
+		if err = s.secureHandover.MarkInTransit(ctx, tripID); err != nil {
+			return StartTripResponse{}, err
+		}
+		startedAt := s.now()
+		if trip.StartedAt != nil {
+			startedAt = *trip.StartedAt
+		}
+		return StartTripResponse{
+			ID: trip.ID, BookingID: trip.BookingID, Status: StatusInProgress,
+			StartedAt: startedAt, DropoffAddress: trip.DropoffAddress,
+			DropoffLat: trip.DropoffLat, DropoffLng: trip.DropoffLng,
+		}, nil
+	}
 	if err := ValidateTransition(trip.Status, StatusInProgress); err != nil {
 		return StartTripResponse{}, err
 	}
-	// The rider cannot start the trip until the customer has verified the
-	// rider's pickup credential (mirrors hauling's ConfirmPickup gate).
-	if trip.PickupCodeVerifiedAt == nil {
+	if protected {
+		ready, gateErr := s.secureHandover.PickupReady(ctx, tripID)
+		if gateErr != nil {
+			return StartTripResponse{}, gateErr
+		}
+		if !ready {
+			return StartTripResponse{}, apperrors.New(409, "SECURE_PICKUP_INCOMPLETE", "Pickup verification, parcel scans, or evidence are incomplete.", nil)
+		}
+	} else if trip.PickupCodeVerifiedAt == nil {
 		return StartTripResponse{}, apperrors.Conflict("The customer has not verified you yet.", nil)
 	}
 	now := s.now()
-	delivery, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, tripID), now)
-	if err != nil {
-		return StartTripResponse{}, apperrors.Internal("Could not generate a delivery code.", err)
+	var delivery handover.CodeRecord
+	if !protected {
+		delivery, err = securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, tripID), now)
+		if err != nil {
+			return StartTripResponse{}, apperrors.Internal("Could not generate a delivery code.", err)
+		}
 	}
 	updated, err := s.repository.MarkTripStarted(ctx, tripID, providerID, now, delivery)
 	if err != nil {
@@ -452,15 +518,24 @@ func (s *Service) StartTrip(ctx context.Context, tripID, providerID string) (Sta
 	if updated == nil {
 		return StartTripResponse{}, apperrors.Conflict("Trip status has already changed.", nil)
 	}
+	if protected {
+		if err = s.secureHandover.EnsureDelivery(ctx, tripID, "trip-start-delivery:"+tripID); err != nil {
+			return StartTripResponse{}, err
+		}
+		if err = s.secureHandover.MarkInTransit(ctx, tripID); err != nil {
+			return StartTripResponse{}, err
+		}
+	}
 	startedAt := now
 	if updated.StartedAt != nil {
 		startedAt = *updated.StartedAt
 	}
 	if s.notifier != nil {
 		s.notifier.NotifyCustomerPickedUp(ctx, trip.CustomerID, trip.BookingID, tripNotifyData(trip))
-		deliveryData := tripNotifyData(trip)
-		deliveryData["code"] = updated.DeliveryCode
-		s.notifier.NotifyCustomerDeliveryCodeReady(ctx, trip.CustomerID, trip.BookingID, deliveryData)
+		if !protected {
+			deliveryData := tripNotifyData(trip)
+			s.notifier.NotifyCustomerDeliveryCodeReady(ctx, trip.CustomerID, trip.BookingID, deliveryData)
+		}
 	}
 	if s.events != nil {
 		_ = s.events.PublishTripStarted(ctx, TripStartedEvent{
@@ -491,6 +566,9 @@ func (s *Service) SubmitProof(ctx context.Context, input ProofSubmitInput) (*Pro
 	}
 	if trip == nil {
 		return nil, apperrors.NotFound("Trip not found.", nil)
+	}
+	if s.secureHandover != nil && s.secureHandover.Enabled() {
+		return nil, apperrors.New(409, "SECURE_EVIDENCE_ROUTE_REQUIRED", "Use the protected capture-session and evidence routes for this trip.", nil)
 	}
 	if err := ValidateTransition(trip.Status, StatusProofSubmitted); err != nil {
 		return nil, err
@@ -620,6 +698,16 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 	if trip == nil {
 		return CompleteResponse{}, apperrors.NotFound("Trip not found.", nil)
 	}
+	protected := s.secureHandover != nil && s.secureHandover.Enabled()
+	if protected {
+		ready, gateErr := s.secureHandover.DeliveryReady(ctx, tripID)
+		if gateErr != nil {
+			return CompleteResponse{}, gateErr
+		}
+		if !ready {
+			return CompleteResponse{}, apperrors.New(409, "SECURE_DELIVERY_INCOMPLETE", "Receiver verification or required delivery evidence is incomplete.", nil)
+		}
+	}
 	// Special case: in_progress means proof hasn't been submitted yet.
 	if trip.Status == StatusInProgress {
 		return CompleteResponse{}, apperrors.New(http.StatusBadRequest, "PROOF_REQUIRED",
@@ -629,13 +717,15 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 		return CompleteResponse{}, err
 	}
 	// Belt-and-suspenders: verify the proof row exists before completing.
-	proof, err := s.repository.GetDeliveryProofByTripID(ctx, tripID)
-	if err != nil {
-		return CompleteResponse{}, err
-	}
-	if proof == nil {
-		return CompleteResponse{}, apperrors.New(http.StatusBadRequest, "PROOF_REQUIRED",
-			"Proof of delivery is missing. Cannot complete trip.", nil)
+	if !protected {
+		proof, proofErr := s.repository.GetDeliveryProofByTripID(ctx, tripID)
+		if proofErr != nil {
+			return CompleteResponse{}, proofErr
+		}
+		if proof == nil {
+			return CompleteResponse{}, apperrors.New(http.StatusBadRequest, "PROOF_REQUIRED",
+				"Proof of delivery is missing. Cannot complete trip.", nil)
+		}
 	}
 	now := s.now()
 	updatedTrip, _, err := s.repository.CompleteTripTx(ctx, CompleteTripInput{
@@ -651,10 +741,14 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 	if updatedTrip.CompletedAt != nil {
 		completedAt = *updatedTrip.CompletedAt
 	}
-	if s.wallet != nil {
+	if s.settlement != nil {
+		if err := s.settlement.HandleTripCompleted(ctx, trip.BookingID, completedAt); err != nil {
+			log.Printf("trip settlement confirmation pending trip_id=%s", trip.ID)
+		}
+	} else if s.wallet != nil {
 		if _, err := s.wallet.CompleteJob(ctx, "dispatch-delivery-service", trip.BookingID); err != nil {
-			log.Printf("wallet settlement failed trip_id=%s booking_id=%s provider_id=%s: %v",
-				trip.ID, trip.BookingID, trip.ProviderID, err)
+			log.Printf("wallet settlement failed trip_id=%s booking_id=%s provider_id=%s",
+				trip.ID, trip.BookingID, trip.ProviderID)
 			// Trip is already completed in the DB. Do not roll back.
 		}
 	}
@@ -670,7 +764,7 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 		ID: trip.ID, BookingID: trip.BookingID, Status: StatusCompleted,
 		FareAmount: trip.FareAmount, Currency: trip.Currency,
 		CompletedAt: completedAt,
-		Message:     "Delivery completed. Your earnings have been updated.",
+		Message:     "Delivery completed. Earnings are confirmed separately by Wallet.",
 	}, nil
 }
 
@@ -692,7 +786,9 @@ const (
 // backlog from before this restart, then ticks on autoCompleteCheckInterval
 // until ctx is cancelled.
 func (s *Service) RunAutoCompleteWorker(ctx context.Context) {
+	defer observability.WorkerRunning("wallet_settlement")()
 	s.autoCompleteProofSubmitted(ctx)
+	s.reconcileSettlements(ctx)
 	ticker := time.NewTicker(autoCompleteCheckInterval)
 	defer ticker.Stop()
 	for {
@@ -701,6 +797,7 @@ func (s *Service) RunAutoCompleteWorker(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.autoCompleteProofSubmitted(ctx)
+			s.reconcileSettlements(ctx)
 		}
 	}
 }
@@ -822,8 +919,8 @@ func (s *Service) CancelTrip(ctx context.Context, tripID, providerID string, req
 				Reason:           reason,
 				IdempotencyKey:   idemKey,
 			}); err != nil {
-				log.Printf("wallet refund failed trip_id=%s booking_id=%s idempotency_key=%s: %v",
-					tripID, bookingID, idemKey, err)
+				log.Printf("wallet refund failed trip_id=%s booking_id=%s",
+					tripID, bookingID)
 			}
 		}()
 	}

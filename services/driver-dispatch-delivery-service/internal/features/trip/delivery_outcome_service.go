@@ -27,6 +27,9 @@ import (
 // would mean two columns could disagree about where a delivery is.
 func (s *Service) ConfirmRecipient(ctx context.Context,
 	input ConfirmRecipientInput) (*ConfirmRecipientResponse, error) {
+	if s.secureHandover != nil && s.secureHandover.Enabled() {
+		return nil, apperrors.New(409, "SECURE_HANDOVER_ROUTE_REQUIRED", "Use the secure delivery verification route for protected trips.", nil)
+	}
 	if err := validateID(input.TripID, "id"); err != nil {
 		return nil, err
 	}

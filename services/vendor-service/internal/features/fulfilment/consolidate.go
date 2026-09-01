@@ -260,6 +260,9 @@ func (p *Planner) platformMission(
 		Currency:      strings.ToUpper(strings.TrimSpace(request.Currency)),
 		CorrelationID: request.CorrelationID,
 	}
+	if group.service == ServiceHauling && len(group.members) > 0 {
+		quoteRequest.PickupStops = haulingQuotePickupStops(group)
+	}
 
 	events := []PlanEvent{{
 		Action:  EventQuoteRequested,
@@ -348,6 +351,29 @@ func (p *Planner) platformMission(
 		MissionID: mission.ID,
 		Detail:    quote.QuoteID,
 	}), nil
+}
+
+func haulingQuotePickupStops(group cluster) []commercequote.PickupStop {
+	stops := make([]commercequote.PickupStop, 0, len(group.members))
+	seen := map[string]bool{}
+	for _, member := range group.members {
+		key := strings.TrimSpace(member.group.BusinessID) + "|" + strings.TrimSpace(member.group.BranchID)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		stops = append(stops, commercequote.PickupStop{
+			StopRef:   key,
+			VendorRef: member.group.BusinessID,
+			BranchRef: member.group.BranchID,
+			Location: commercequote.Point{
+				Latitude:  member.branch.Latitude,
+				Longitude: member.branch.Longitude,
+				Address:   "Vendor branch " + member.group.BranchID,
+			},
+		})
+	}
+	return stops
 }
 
 func hybridPlatformFunding(anchor planned, grossMinor int64) Funding {

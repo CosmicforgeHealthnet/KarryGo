@@ -256,6 +256,11 @@ func main() {
 					c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"success": false, "error": gin.H{"code": "integration_kill_switch", "message": "Hauling writes are temporarily disabled."}})
 					return
 				}
+				if cfg.CommerceIntegrationKillSwitch && strings.Contains(c.Request.URL.Path, "/internal/commerce/") &&
+					c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead && c.Request.Method != http.MethodOptions {
+					c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"success": false, "error": gin.H{"code": "commerce_integration_kill_switch", "message": "Hauling commerce writes are temporarily disabled."}})
+					return
+				}
 				c.Next()
 			})
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService)
@@ -273,7 +278,7 @@ func main() {
 			// secret for the vendor caller, so a deployment that does not
 			// serve commerce quotes exposes no route to probe rather than one
 			// that answers 401 and confirms it exists.
-			if _, trusted := serviceauth.ParseSecrets(cfg.ServiceSecrets)[commercequote.SignatureCaller]; trusted {
+			if _, trusted := serviceauth.ParseSecrets(cfg.ServiceSecrets)[commercequote.SignatureCaller]; trusted && cfg.CommerceIntegrationEnabled {
 				haulingcommercequote.Register(
 					group,
 					haulingcommercequote.NewHandler(haulingcommercequote.New(
@@ -296,7 +301,7 @@ func main() {
 			// creates a real booking and starts provider matching for a fee
 			// the customer has already paid. It is skipped without a booking
 			// service rather than accepting hauls nothing would ever match.
-			if _, trusted := serviceauth.ParseSecrets(cfg.ServiceSecrets)[commercemission.SignatureCaller]; trusted &&
+			if _, trusted := serviceauth.ParseSecrets(cfg.ServiceSecrets)[commercemission.SignatureCaller]; trusted && cfg.CommerceIntegrationEnabled &&
 				bookingService != nil {
 				haulingcommercemission.Register(
 					group,

@@ -1,0 +1,26 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Dispatch secure handover and chain of custody", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/provider/trips/{id}/stops/{stopId}/pickup-credential": {"get": {"summary": "Display the assigned provider pickup credential", "security": [{"providerBearer": []}], "responses": {"200": {"description": "Manifest-bound OTP/QR"}, "404": {"description": "Not assigned or not found"}, "429": {"description": "Issue limit exceeded"}}}},
+    "/api/v1/provider/trips/{id}/stops/{stopId}/parcels/scan": {"post": {"summary": "Append an expected parcel scan", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Scan accepted or replayed"}, "404": {"description": "Parcel is not expected in this context"}}}},
+    "/api/v1/provider/trips/{id}/stops/{stopId}/evidence-session": {"post": {"summary": "Create a verified-stage evidence capture session", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"201": {"description": "Capture session created"}, "409": {"description": "Challenge not consumed or scope conflict"}}}},
+    "/api/v1/provider/trips/{id}/stops/{stopId}/evidence": {"post": {"summary": "Append an authorized MediaRef evidence record", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"201": {"description": "Evidence appended"}, "409": {"description": "Capture or media relation mismatch"}}}},
+    "/api/v1/provider/trips/{id}/delivery/verify": {"post": {"summary": "Verify the receiver-held delivery OTP or QR", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Delivery challenge consumed"}, "409": {"description": "Expired, invalidated, locked, replayed, or wrong scope"}, "429": {"description": "Verification limit exceeded"}}}},
+    "/api/v1/provider/trips/{id}/return/verify": {"post": {"summary": "Verify the sender-held return OTP or QR", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Return challenge consumed and custody released"}, "409": {"description": "Manifest, scan, evidence, or challenge conflict"}}}},
+    "/api/v1/customer/dispatch/bookings/{id}/pickup/verify": {"post": {"summary": "Verify the provider-held pickup OTP or QR", "security": [{"customerBearer": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Pickup challenge consumed"}, "404": {"description": "Booking not owned or challenge not found"}, "409": {"description": "Challenge state or scope conflict"}}}},
+    "/api/v1/customer/dispatch/bookings/{id}/handover/resend": {"post": {"summary": "Rotate an owned handover challenge", "security": [{"customerBearer": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "New version issued; no plaintext secret returned"}, "429": {"description": "Resend limit exceeded"}}}},
+    "/api/v1/customer/dispatch/bookings/{id}/return-credential": {"post": {"summary": "Issue a customer-owned return-to-sender credential", "security": [{"customerBearer": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Manifest-bound return credential"}, "404": {"description": "Return booking not owned"}}}},
+    "/api/v1/internal/commerce/dispatch/missions/{id}/stops/{stopId}/pickup/verify": {"post": {"summary": "Source-scoped internal pickup verification", "security": [{"hmacV2": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Pickup challenge consumed"}, "404": {"description": "Mission/source scope mismatch"}}}},
+    "/api/v1/internal/commerce/dispatch/missions/{id}/handover/resend": {"post": {"summary": "Source-scoped internal challenge rotation", "security": [{"hmacV2": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "New challenge version issued"}, "404": {"description": "Mission/source scope mismatch"}}}},
+    "/api/v1/internal/commerce/dispatch/missions/{id}/stops/{stopId}/return-credential": {"post": {"summary": "Issue a source-scoped return-to-sender credential", "security": [{"hmacV2": []}], "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Manifest-bound return credential"}, "404": {"description": "Mission/source scope mismatch"}}}}
+  },
+  "components": {
+    "parameters": {"IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string"}}},
+    "securitySchemes": {
+      "providerBearer": {"type": "http", "scheme": "bearer"},
+      "customerBearer": {"type": "http", "scheme": "bearer"},
+      "hmacV2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature"}
+    }
+  }
+}

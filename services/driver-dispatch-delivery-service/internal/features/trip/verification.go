@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/handover"
 )
@@ -84,19 +85,23 @@ func (s *Service) ResendDeliveryCodeForCustomer(ctx context.Context, bookingID s
 		return handover.CodeRecord{}, resendWaitError(wait)
 	}
 
-	rec, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
+	rec, err := securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
 	if err != nil {
 		return handover.CodeRecord{}, apperrors.Internal("Could not generate a delivery code.", err)
 	}
 	if err := s.repository.ResendDeliveryCode(ctx, trip.ID, rec); err != nil {
 		return handover.CodeRecord{}, err
 	}
-	return rec, nil
+	rec.Code, err = securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), rec.Code)
+	return rec, err
 }
 
 // GetPickupCredential returns the rider's own pickup credential for
 // redisplay (e.g. after navigating away from the arrived-at-pickup screen).
 func (s *Service) GetPickupCredential(ctx context.Context, providerID, tripID string) (PickupCredentialView, error) {
+	if s.secureHandover != nil && s.secureHandover.Enabled() {
+		return PickupCredentialView{}, apperrors.New(409, "SECURE_HANDOVER_ROUTE_REQUIRED", "Use the stop-bound secure pickup credential route.", nil)
+	}
 	trip, err := s.repository.GetProviderTripByID(ctx, tripID, providerID)
 	if err != nil {
 		return PickupCredentialView{}, err
@@ -107,12 +112,15 @@ func (s *Service) GetPickupCredential(ctx context.Context, providerID, tripID st
 	if trip.PickupCodeHash == "" {
 		return PickupCredentialView{}, apperrors.NotFound("No pickup credential has been generated yet.", nil)
 	}
-	return PickupCredentialViewFrom(*trip), nil
+	return s.compatibilityPickupView(*trip)
 }
 
 // ResendPickupCredential regenerates the rider's pickup credential (e.g.
 // after it expired before the customer could verify it).
 func (s *Service) ResendPickupCredential(ctx context.Context, providerID, tripID string) (PickupCredentialView, error) {
+	if s.secureHandover != nil && s.secureHandover.Enabled() {
+		return PickupCredentialView{}, apperrors.New(409, "SECURE_HANDOVER_ROUTE_REQUIRED", "Use the versioned secure handover resend route.", nil)
+	}
 	trip, err := s.repository.GetProviderTripByID(ctx, tripID, providerID)
 	if err != nil {
 		return PickupCredentialView{}, err
@@ -126,7 +134,7 @@ func (s *Service) ResendPickupCredential(ctx context.Context, providerID, tripID
 		return PickupCredentialView{}, resendWaitError(wait)
 	}
 
-	rec, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, tripID), now)
+	rec, err := securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, tripID), now)
 	if err != nil {
 		return PickupCredentialView{}, apperrors.Internal("Could not generate a pickup code.", err)
 	}
@@ -134,7 +142,22 @@ func (s *Service) ResendPickupCredential(ctx context.Context, providerID, tripID
 		return PickupCredentialView{}, err
 	}
 	expires := rec.ExpiresAt
-	return PickupCredentialView{Code: rec.Code, ExpiresAt: &expires, Verified: false}, nil
+	code, err := securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, tripID), rec.Code)
+	return PickupCredentialView{Code: code, ExpiresAt: &expires, Verified: false}, err
+}
+
+func (s *Service) compatibilityPickupView(item Trip) (PickupCredentialView, error) {
+	code, err := securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, item.ID), item.PickupCode)
+	if err != nil {
+		return PickupCredentialView{}, apperrors.Unavailable("Pickup credential is unavailable.", nil)
+	}
+	item.PickupCode = code
+	return PickupCredentialViewFrom(item), nil
+}
+
+// DecodeDeliveryCode is used by Booking only after its ownership check.
+func (s *Service) DecodeDeliveryCode(tripID, stored string) (string, error) {
+	return securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, tripID), stored)
 }
 
 func resendWaitError(wait time.Duration) error {

@@ -479,6 +479,24 @@ When adding a new feature, prefer this sequence:
 
 ## Dispatch Commerce delivery authority
 
+Dispatch also has an additive, feature-gated customer delivery foundation for
+Delivery Groups, Delivery Missions, ordered stops, Parcels, versioned manifests
+and persisted route/package serviceability snapshots. It does not replace the
+legacy `dispatch_bookings -> delivery_requests -> trips` chain: a foundation
+mission correlates to the canonical Trip when assigned. The customer
+serviceability endpoint creates no booking, match, rider reservation or Wallet
+mutation and reuses `shared/go/dispatchpricing`; deployment must explicitly
+enable both route serviceability and package policy. See
+`services/driver-dispatch-delivery-service/docs/delivery-foundation-serviceability.md`.
+
+The service also owns an additive, feature-gated assignment/queue and
+multi-vendor planning layer. Legacy broadcast stays the rollout default.
+Sequential offers reuse provider availability and canonical Trip creation;
+organization dispatch reuses Fleet/private execution; queue cancellation has
+no financial authority. Versioned plans and immutable manifest membership
+extend the delivery foundation without replacing existing Commerce missions.
+See `services/driver-dispatch-delivery-service/docs/matching-queue-multi-vendor-planning.md`.
+
 `driver-dispatch-delivery-service` owns road-route evidence, motorcycle
 capability, public-marketplace assignment, the canonical multi-pickup mission,
 ordered logical stops, operational parcel custody, replacement/return legs and
@@ -501,3 +519,23 @@ assignment: the existing handover authority must verify both providers, exact
 Parcels/package count, manifest fingerprint and location first. Vendor stores
 only authenticated operational projections, while Wallet remains the sole
 ledger and completion-settlement authority.
+
+Receiver-unavailable recovery and route integrity extend that same authority
+chain behind disabled-by-default flags. Dispatch records the timed delivery
+attempt, controlled contact history, recovery selection, linked return mission,
+approved hub custody checkpoints, operational incidents, immutable route
+versions, and non-punitive route alerts. Return execution re-enters the existing
+assignment/Booking/Trip bridge. Wallet validates money, Media authorizes exact
+mission/Parcel evidence relations, secure handover owns OTP/QR verification,
+and the Section 6 route adapter owns route evidence. Weak-network envelopes are
+replay-safe but cannot verify handover, transfer custody, or complete delivery
+offline. See `services/driver-dispatch-delivery-service/docs/delivery-recovery-route-integrity.md`.
+
+The customer/provider API and persistence reconciliation keeps those authorities
+intact. Feature-protected booking creation is bound to the owning customer's
+unexpired serviceability quote and a customer-scoped idempotency fingerprint.
+The existing customer Booking read and provider Trip read receive only additive,
+secret-free operational projections. Vendor Commerce timeout recovery uses the
+existing plan authority through a source-and-version-scoped HMAC read-back route;
+it does not create another Commerce Mission model. See
+`services/driver-dispatch-delivery-service/docs/api-persistence-reconciliation.md`.

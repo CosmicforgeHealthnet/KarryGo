@@ -52,7 +52,6 @@ export function Sidebar({
   const [loggingOut, setLoggingOut] = useState(false);
   const [isMediumScreen, setIsMediumScreen] = useState(false);
 
-  const token = useAuthStore((s) => s.token);
   const account = useAuthStore((s) => s.account);
   const clearSession = useAuthStore((s) => s.clearSession);
 
@@ -81,11 +80,9 @@ export function Sidebar({
   async function handleLogout() {
     setLoggingOut(true);
     try {
-      if (token) {
-        await authService.logout(token);
-      }
+      await authService.logout();
     } catch {
-      // Best-effort logout
+      window.alert("Server logout could not be confirmed. Please retry when connected.");
     } finally {
       clearSession();
       setLoggingOut(false);

@@ -2059,6 +2059,30 @@ the fully enabled Vendor route count remains **816**. Full traceability is in
 
 **Implementation complete; PostgreSQL certification environment-dependent.**
 
+## Section 30 - Truck / Hauling Commerce integration
+
+**Implementation complete; PostgreSQL certification environment-dependent.**
+Vendor Service now uses the existing Hauling authority for VAN/TRUCK commerce
+execution with committed fulfilment-plan evidence. Hauling quote requests carry
+multi-pickup stops where the fulfilment plan has them; mission creation carries
+operation refs, plan binding, Parcel and manifest evidence, handling metadata
+and scheduled pickup-window metadata.
+
+Hauling migration `014_commerce_mission_execution_controls` adds operation
+fingerprinting, source-versioned read-back and pre-custody cancellation support
+to the existing `commerce_missions` lifecycle. Same operation ref with a
+different semantic payload fails closed; retries with the same payload return
+the existing mission. The Section 30 commerce kill switch is
+`HAULING_COMMERCE_INTEGRATION_KILL_SWITCH`; exposure defaults through
+`HAULING_COMMERCE_INTEGRATION_ENABLED=true` and still requires the
+`vendor-service` entry in `HAULING_SERVICE_SECRETS`.
+
+No Vendor public route was added. Hauling internal commerce routes are
+documented in
+`services/driver-hauling-service/docs/openapi/commerce-hauling-missions.openapi.json`.
+No Taxi goods delivery, Section 32 wholesale, provider app, frontend, duplicate
+Wallet, duplicate OTP/QR authority or duplicate Hauling lifecycle was created.
+
 Vendor migration `000100_commerce_fulfilment_group_parcel_mission` adds the
 post-order operational fulfilment aggregate in eleven tables: the
 FulfilmentGroup rooted on one CommerceOrder, the FulfilmentUnits inside it, the

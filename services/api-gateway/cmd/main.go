@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -64,12 +65,19 @@ func main() {
 	deps := buildPartnerDeps(cfg)
 
 	router := gin.New()
-	router.Use(cors.New(cors.Config{
+	legacyCORS := cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000", "https://karry-go.vercel.app"},
 		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
-	}))
+	})
+	router.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/partner/v1/auth/") {
+			c.Next()
+			return
+		}
+		legacyCORS(c)
+	})
 	router.Use(httpx.RequestID())
 	router.Use(httpx.Logger())
 	router.Use(httpx.Recovery())
@@ -180,6 +188,7 @@ func buildPartnerDeps(cfg config.Config) gatewayDeps {
 	}
 	otpSender := partneraccount.NewSMTPPartnerEmailSender(cfg.PartnerSMTP)
 	accountSvc := partneraccount.NewService(partneraccount.Options{
+		RefreshTTL:        cfg.PartnerAuth.RefreshTTL,
 		Accounts:          accountRepo,
 		Sessions:          infra.NewSessionRepo(pool),
 		Keys:              apiKeyRepo,
@@ -235,6 +244,7 @@ func buildPartnerDeps(cfg config.Config) gatewayDeps {
 			},
 		},
 		accountDeps: partneraccount.Dependencies{
+			BrowserPolicy:      &cfg.PartnerAuth.BrowserPolicy,
 			Service:            accountSvc,
 			BillingService:     billingSvc,
 			InternalServiceKey: cfg.PartnerAuth.InternalServiceKey,
@@ -318,4 +328,5 @@ func runServer(ctx context.Context, cfg config.Config, handler http.Handler) {
 		log.Printf("%s shutdown: %v", serviceName, err)
 	}
 }
+
 // trigger deploy

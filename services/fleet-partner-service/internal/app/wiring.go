@@ -541,7 +541,7 @@ func BuildFinanceService(cfg config.Config, pool *pgxpool.Pool, metrics *observa
 
 // Registrars builds the route registrars for the router.
 func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, identity RouteRegistrar, tenantScoped RouteRegistrar) {
-	authHandler := authhttp.NewHandler(c.Auth, cfg.ContactSecret)
+	authHandler := authhttp.NewHandler(c.Auth, cfg.ContactSecret, cfg.BrowserPolicy)
 	corporateHandler := orghttp.NewHandler(c.Organizations, c.Staff, c.Providers, c.Authorizer, c.Sessions)
 
 	public = func(group *gin.RouterGroup) {

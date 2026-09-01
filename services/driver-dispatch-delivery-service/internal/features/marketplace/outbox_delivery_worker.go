@@ -3,8 +3,11 @@ package marketplace
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"time"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
+	"cosmicforge/logistics/shared/go/logging"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -94,7 +97,9 @@ func NewOutboxWorker(repo *Repository, deliverer EventDeliverer,
 // before any HTTP call, so no database transaction is open while waiting on
 // another service. A crash mid-delivery releases the lease by timeout rather
 // than stranding the event.
-func (w *OutboxWorker) RunOnce(ctx context.Context) (OutboxResult, error) {
+func (w *OutboxWorker) RunOnce(ctx context.Context) (returnedResult OutboxResult, returnedErr error) {
+	started := time.Now()
+	defer func() { observability.Worker("outbox", started, returnedErr) }()
 	var result OutboxResult
 
 	recovered, err := w.repo.RecoverExpiredLeases(ctx, w.repo.db)
@@ -144,13 +149,17 @@ func (w *OutboxWorker) RunOnce(ctx context.Context) (OutboxResult, error) {
 }
 
 // deliverOne sends a single event and records the outcome.
-func (w *OutboxWorker) deliverOne(ctx context.Context, row OutboxRow) (DeliveryOutcome, error) {
+func (w *OutboxWorker) deliverOne(ctx context.Context, row OutboxRow) (result DeliveryOutcome, returnedErr error) {
+	defer func() {
+		observability.OutboxOutcome(w.config.Target, string(result))
+		logging.Structured("info", "dispatch_event_delivery", map[string]any{"event_id": row.ID, "attempt": row.AttemptCount, "outcome": observability.Bounded(string(result), "ACCEPTED", "DUPLICATE", "REJECTED", "UNKNOWN", "RETRYABLE")})
+	}()
 	if !w.deliverer.Configured() {
 		// Not the event's fault — leave it queued rather than burning attempts
 		// against a target that does not exist yet.
 		return DeliveryRetryable, w.repo.MarkDeliveryFailed(ctx, w.repo.db, row.ID,
 			"delivery_target_not_configured", w.config.backoffFor(row.AttemptCount),
-			w.config.MaxAttempts)
+			w.config.MaxAttempts, row.LeaseOwner)
 	}
 
 	envelope, err := w.envelopeFor(row)
@@ -158,7 +167,7 @@ func (w *OutboxWorker) deliverOne(ctx context.Context, row OutboxRow) (DeliveryO
 		// A row we cannot even decode will never become deliverable. Send it
 		// straight to the dead-letter queue instead of retrying ten times.
 		return DeliveryRejected, w.repo.MarkDeliveryFailed(ctx, w.repo.db, row.ID,
-			"envelope_build_failed", 0, 1)
+			"envelope_build_failed", 0, 1, row.LeaseOwner)
 	}
 
 	started := time.Now()
@@ -175,13 +184,13 @@ func (w *OutboxWorker) deliverOne(ctx context.Context, row OutboxRow) (DeliveryO
 	case DeliveryAccepted, DeliveryDuplicate:
 		// DUPLICATE is a success: it is precisely what a redelivery after a
 		// lost response returns, and it proves the consumer holds the event.
-		return outcome.Outcome, w.repo.MarkPublished(ctx, w.repo.db, row.ID)
+		return outcome.Outcome, w.repo.MarkPublished(ctx, w.repo.db, row.ID, row.LeaseOwner)
 
 	case DeliveryRejected:
 		// Permanent. Dead-letter immediately so an operator sees it rather
 		// than letting it churn through the full attempt budget first.
 		return DeliveryRejected, w.repo.MarkDeliveryFailed(ctx, w.repo.db, row.ID,
-			outcome.Code, 0, 1)
+			outcome.Code, 0, 1, row.LeaseOwner)
 
 	case DeliveryUnknown:
 		// We never learned whether the consumer committed, so this is queued
@@ -191,11 +200,11 @@ func (w *OutboxWorker) deliverOne(ctx context.Context, row OutboxRow) (DeliveryO
 		// consumer deduplicates on that pair. Minting a fresh event id here
 		// would turn an ambiguous delivery into a duplicate applied change.
 		return DeliveryUnknown, w.repo.MarkDeliveryFailed(ctx, w.repo.db, row.ID,
-			outcome.Code, w.config.backoffFor(row.AttemptCount), w.config.MaxAttempts)
+			outcome.Code, w.config.backoffFor(row.AttemptCount), w.config.MaxAttempts, row.LeaseOwner)
 
 	default:
 		return DeliveryRetryable, w.repo.MarkDeliveryFailed(ctx, w.repo.db, row.ID,
-			outcome.Code, w.config.backoffFor(row.AttemptCount), w.config.MaxAttempts)
+			outcome.Code, w.config.backoffFor(row.AttemptCount), w.config.MaxAttempts, row.LeaseOwner)
 	}
 }
 
@@ -227,6 +236,7 @@ func (w *OutboxWorker) envelopeFor(row OutboxRow) (Envelope, error) {
 
 // Run drains the outbox on an interval until the context ends.
 func (w *OutboxWorker) Run(ctx context.Context, interval time.Duration) error {
+	defer observability.WorkerRunning("outbox")()
 	if interval <= 0 {
 		interval = 5 * time.Second
 	}
@@ -237,7 +247,10 @@ func (w *OutboxWorker) Run(ctx context.Context, interval time.Duration) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
+			// Durable gauges are collected once by the central periodic collector,
+			// not by every target worker on every delivery interval.
 			if _, err := w.RunOnce(ctx); err != nil && ctx.Err() == nil {
+				log.Printf("dispatch outbox maintenance failed target=%s", w.config.Target)
 				// One bad pass must not kill the worker; the next tick retries.
 				continue
 			}

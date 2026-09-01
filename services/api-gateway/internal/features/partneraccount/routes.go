@@ -1,7 +1,10 @@
 package partneraccount
 
 import (
+	"cosmicforge/logistics/shared/go/browserauth"
 	"github.com/gin-gonic/gin"
+	"net/http"
+	"strings"
 
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/billing"
 )
@@ -12,6 +15,7 @@ import (
 // registered at all (rather than registered and 500-ing), so existing wiring
 // that doesn't yet construct a billing.Service keeps working unchanged.
 type Dependencies struct {
+	BrowserPolicy      *browserauth.Policy
 	Service            *Service
 	BillingService     *billing.Service
 	InternalServiceKey string
@@ -23,17 +27,30 @@ type Dependencies struct {
 // execution routes registered by partner/http.RegisterPartnerRoutes.
 func RegisterAccountRoutes(r *gin.Engine, deps Dependencies) {
 	h := NewHandlers(deps.Service)
+	h.cookie = browserauth.Policy{Name: "karrygo_partner_refresh", Path: "/api/v1/partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode}
+	if deps.BrowserPolicy != nil {
+		h.cookie = *deps.BrowserPolicy
+	}
+	r.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/partner/v1/auth/") {
+			h.cookie.Boundary()(c)
+			return
+		}
+		c.Next()
+	})
+	r.OPTIONS("/api/v1/partner/v1/auth/*path", h.cookie.Boundary())
 
-	// 1. Dashboard auth: register/login public; logout/me require session.
+	// Browser refresh/logout use the cookie and trusted Origin; me uses bearer.
 	auth := r.Group("/api/v1/partner/v1/auth")
 	{
 		auth.POST("/register", h.Register)
 		auth.POST("/login", h.Login)
+		auth.POST("/refresh", h.Refresh)
+		auth.POST("/logout", h.Logout)
 
 		protected := auth.Group("")
 		protected.Use(RequirePartnerSession(deps.Service))
 		{
-			protected.POST("/logout", h.Logout)
 			protected.GET("/me", h.Me)
 		}
 	}

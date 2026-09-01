@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"cosmicforge/logistics/shared/go/browserauth"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +17,8 @@ func newTestRouter() (*gin.Engine, *harness) {
 	h := newHarness()
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterAccountRoutes(r, Dependencies{Service: h.svc, InternalServiceKey: testInternalKey})
+	policy := browserauth.Policy{Name: "karrygo_partner_refresh", Path: "/api/v1/partner/v1/auth", SameSite: http.SameSiteLaxMode, Secure: true, Origins: []string{"http://localhost:3000"}}
+	RegisterAccountRoutes(r, Dependencies{Service: h.svc, InternalServiceKey: testInternalKey, BrowserPolicy: &policy})
 	return r, h
 }
 
@@ -28,6 +30,7 @@ func do(r *gin.Engine, method, path, body string, headers map[string]string) *ht
 		reader = strings.NewReader(body)
 	}
 	req := httptest.NewRequest(method, path, reader)
+	req.Header.Set("Origin", "http://localhost:3000")
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -70,7 +73,7 @@ func TestHTTPRegisterLoginMeLogoutFlow(t *testing.T) {
 		t.Fatalf("register missing token/api_key: %s", w.Body.String())
 	}
 
-	auth := map[string]string{"Authorization": "Bearer " + reg.Data.Token}
+	auth := map[string]string{"Authorization": "Bearer " + reg.Data.Token, "Cookie": w.Result().Cookies()[0].String()}
 
 	// /me works with the session token
 	if w := do(r, http.MethodGet, "/api/v1/partner/v1/auth/me", "", auth); w.Code != http.StatusOK {

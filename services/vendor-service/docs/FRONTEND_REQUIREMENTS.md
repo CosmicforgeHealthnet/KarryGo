@@ -1716,3 +1716,19 @@ verification or support-evidence data from opaque references.
   override, hidden category, import bypass or “admin enable” path.
 - OTP/handover screens must respect server retry, cooldown, expiry and replay
   states; do not locally generate or persist challenge secrets.
+## Section 30 Truck / Hauling Commerce handoff
+
+No frontend implementation was added. Customer/Vendor clients should continue
+to treat VAN/TRUCK platform fulfilment as a server-selected delivery option
+inside checkout/order status, not as a direct truck-booking surface.
+
+Frontend-facing states to handle when exposed by existing order/fulfilment
+responses:
+
+- Hauling unavailable/refused reason codes from the platform delivery option.
+- Pre-custody cancellation pending/succeeded/blocked by custody already
+  started.
+- Scheduled pickup-window display using server-provided branch timezone
+  evidence.
+- Safe generic message for Hauling integration kill-switch/unavailable states;
+  do not reveal internal HMAC, nonce or service-route details.

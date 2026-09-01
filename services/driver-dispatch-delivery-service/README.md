@@ -2,6 +2,8 @@
 
 KarryGo microservice for dispatch delivery rider flows. Dispatch rider auth is owned inside this service at `internal/features/auth`; no separate auth microservice is used.
 
+Sections 15–16 [gap-closure evidence](docs/reliability-integration-gap-closure.md): implementation complete; available Dispatch regression, affected contracts, vet and build pass. PostgreSQL runtime certification remains infrastructure-blocked. The [original partial report](docs/reliability-cross-service-integration.md) is retained as historical evidence.
+
 ## Service
 
 | Property | Value |

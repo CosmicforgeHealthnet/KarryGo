@@ -1,0 +1,15 @@
+DROP TRIGGER IF EXISTS dispatch_trip_handover_identity_guard ON trips;
+DROP FUNCTION IF EXISTS dispatch_invalidate_handover_on_trip_identity_change();
+DROP TRIGGER IF EXISTS dispatch_evidence_ref_append_only ON dispatch_evidence_refs;
+DROP TRIGGER IF EXISTS dispatch_parcel_scan_append_only ON dispatch_parcel_scan_events;
+DROP TRIGGER IF EXISTS dispatch_handover_attempt_append_only ON dispatch_handover_attempts;
+DROP FUNCTION IF EXISTS dispatch_reject_chain_of_custody_mutation();
+DROP TRIGGER IF EXISTS dispatch_handover_terminal_guard ON dispatch_handover_challenges;
+DROP FUNCTION IF EXISTS dispatch_reject_handover_terminal_reactivation();
+DROP TABLE IF EXISTS dispatch_evidence_refs;
+DROP TABLE IF EXISTS dispatch_parcel_scan_events;
+DROP TABLE IF EXISTS dispatch_evidence_capture_sessions;
+DROP TABLE IF EXISTS dispatch_evidence_requirements;
+DROP TABLE IF EXISTS dispatch_handover_operations;
+DROP TABLE IF EXISTS dispatch_handover_attempts;
+DROP TABLE IF EXISTS dispatch_handover_challenges;

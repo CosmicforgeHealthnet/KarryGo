@@ -449,7 +449,7 @@ func Test6K_ListDoesNotReturnReceiverPhone(t *testing.T) {
 	}
 }
 
-func Test6K_DetailIncludesReceiverPhone(t *testing.T) {
+func Test6K_DetailConcealsReceiverPhoneBeforeAcceptance(t *testing.T) {
 	env := newRequestTestEnv(t)
 	providerID := uuid.NewString()
 	_, inbox := newActiveBroadcastAndInbox(t, env, providerID)
@@ -458,8 +458,8 @@ func Test6K_DetailIncludesReceiverPhone(t *testing.T) {
 	w := doRequest(env.engine, http.MethodGet, "/api/v1/provider/requests/"+inbox.ID, tok, "")
 	assertStatus(t, w, http.StatusOK)
 	data := extractData(t, w)
-	if data["receiver_phone"] != "+2348011223344" {
-		t.Fatalf("receiver_phone = %v, want +2348011223344", data["receiver_phone"])
+	if data["receiver_phone"] != "" {
+		t.Fatalf("pre-acceptance request exposed receiver contact")
 	}
 }
 

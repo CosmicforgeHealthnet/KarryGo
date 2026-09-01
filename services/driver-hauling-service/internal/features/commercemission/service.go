@@ -38,12 +38,14 @@ type Matcher interface {
 // Store persists missions and the bookings they execute as.
 type Store interface {
 	FindByMissionRef(ctx context.Context, missionRef string) (Record, bool, error)
+	FindByOperationRef(ctx context.Context, operationRef string) (Record, bool, error)
 
 	// CreateMissionWithBooking writes the booking and the mission in ONE
 	// transaction, so a mission never names a booking that does not exist.
 	CreateMissionWithBooking(ctx context.Context, input CreateInput) (Record, error)
 
 	MarkRefused(ctx context.Context, input RefusalInput) (Record, error)
+	Cancel(ctx context.Context, input CancelInput) (Record, error)
 }
 
 // Options configures the service.
@@ -95,9 +97,15 @@ func (s *Service) Create(
 			"This authority executes HAULING missions only.", nil)
 	}
 
-	if existing, found, err := s.store.FindByMissionRef(ctx, request.MissionRef); err != nil {
+	fingerprint := request.Fingerprint()
+	if existing, found, err := s.store.FindByOperationRef(ctx, request.OperationReference()); err != nil {
 		return commercemission.Mission{}, err
 	} else if found {
+		if strings.TrimSpace(existing.RequestFingerprint) != "" &&
+			existing.RequestFingerprint != fingerprint {
+			return commercemission.Mission{}, apperrors.Conflict(
+				"Mission operation already exists for different terms.", nil)
+		}
 		return existing.Mission(), nil
 	}
 
@@ -105,9 +113,10 @@ func (s *Service) Create(
 	// and silently failed later, when the customer is already waiting.
 	if refusal, refused := s.refuse(request); refused {
 		record, err := s.store.MarkRefused(ctx, RefusalInput{
-			Request:     request,
-			RefusalCode: refusal,
-			CreatedAt:   s.now().UTC(),
+			Request:            request,
+			RequestFingerprint: fingerprint,
+			RefusalCode:        refusal,
+			CreatedAt:          s.now().UTC(),
 		})
 		if err != nil {
 			return commercemission.Mission{}, err
@@ -116,8 +125,9 @@ func (s *Service) Create(
 	}
 
 	record, err := s.store.CreateMissionWithBooking(ctx, CreateInput{
-		Request:   request,
-		CreatedAt: s.now().UTC(),
+		Request:            request,
+		RequestFingerprint: fingerprint,
+		CreatedAt:          s.now().UTC(),
 	})
 	if err != nil {
 		return commercemission.Mission{}, err
@@ -127,9 +137,50 @@ func (s *Service) Create(
 	// leaves a mission a retry can find rather than a provider chasing a
 	// booking nothing recorded.
 	s.matcher.StartCommerceMatching(
-		ctx, record.BookingID, request.Pickup.Latitude, request.Pickup.Longitude,
+		ctx, record.BookingID, primaryPickup(request).Latitude, primaryPickup(request).Longitude,
 	)
 
+	return record.Mission(), nil
+}
+
+func (s *Service) Read(ctx context.Context, operationRef string) (commercemission.Mission, error) {
+	if !s.Ready() {
+		return commercemission.Mission{}, apperrors.Unavailable(
+			"Commerce mission execution is unavailable.", nil)
+	}
+	record, found, err := s.store.FindByOperationRef(ctx, strings.TrimSpace(operationRef))
+	if err != nil {
+		return commercemission.Mission{}, err
+	}
+	if !found {
+		return commercemission.Mission{}, apperrors.NotFound("Commerce mission was not found.", nil)
+	}
+	return record.Mission(), nil
+}
+
+func (s *Service) Cancel(ctx context.Context, request commercemission.CancelRequest) (commercemission.Mission, error) {
+	if !s.Ready() {
+		return commercemission.Mission{}, apperrors.Unavailable(
+			"Commerce mission execution is unavailable.", nil)
+	}
+	operationRef := strings.TrimSpace(request.OperationRef)
+	if operationRef == "" {
+		operationRef = strings.TrimSpace(request.MissionRef)
+	}
+	if operationRef == "" {
+		return commercemission.Mission{}, apperrors.BadRequest("operation_ref is required.", nil)
+	}
+	record, err := s.store.Cancel(ctx, CancelInput{
+		OperationRef: operationRef,
+		ReasonCode:   request.ReasonCode,
+		CancelledAt:  s.now().UTC(),
+	})
+	if errors.Is(err, ErrMissionNotFound) {
+		return commercemission.Mission{}, apperrors.NotFound("Commerce mission was not found.", nil)
+	}
+	if err != nil {
+		return commercemission.Mission{}, err
+	}
 	return record.Mission(), nil
 }
 

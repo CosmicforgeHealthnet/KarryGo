@@ -301,7 +301,7 @@ class _ServicePanel extends StatelessWidget {
     _ServiceOption(
       emoji: '🚖',
       icon: Icons.directions_car_filled_rounded,
-      title: 'Car Ride',
+      title: 'Book a Taxi',
       subtitle: 'Book a ride.',
     ),
     _ServiceOption(
@@ -313,7 +313,7 @@ class _ServicePanel extends StatelessWidget {
     _ServiceOption(
       emoji: '🚛',
       icon: Icons.local_shipping_rounded,
-      title: 'Truck / Hauling',
+      title: 'Truck  Hauling',
       subtitle: 'Book truck or move heavy items.',
     ),
   ];

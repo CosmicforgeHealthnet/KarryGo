@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {"title": "KarryGo Fleet Partner Section 30 Database Migration and Backward Compatibility API", "version": "30.1.0"},
   "paths": {
-    "/internal/fleet-partner/v1/providers/{providerService}/{providerId}/membership-summary": {
+    "/internal/fleet-partner/v1/providers/{providerId}/services/{providerService}/membership-summary": {
       "get": {
         "operationId": "getProviderMembershipSummary",
         "x-auth-class": "internal-hmac-v2",

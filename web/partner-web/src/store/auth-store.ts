@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { AuthAccount, AuthSession } from "@/types";
 
 interface AuthState {
@@ -13,8 +12,8 @@ interface AuthState {
   setHasHydrated: (state: boolean) => void;
 }
 
+// Runtime memory only. Credentials must never be persisted or storage-hydrated.
 export const useAuthStore = create<AuthState>()(
-  persist(
     (set) => ({
       token: null,
       expiresAt: null,
@@ -26,12 +25,5 @@ export const useAuthStore = create<AuthState>()(
       clearSession: () =>
         set({ token: null, expiresAt: null, account: null, isAuthenticated: false }),
       setHasHydrated: (state) => set({ _hasHydrated: state }),
-    }),
-    {
-      name: "karrygo-partner-auth",
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
-      },
-    }
-  )
+    })
 );

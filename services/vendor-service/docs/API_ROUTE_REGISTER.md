@@ -1718,8 +1718,11 @@ Specifications: `docs/openapi/basket-optimization.openapi.json` and
 `docs/openapi/commerce-fulfilment-optimization.openapi.json`.
 
 Cross-service capabilities at that capability's close were reused unchanged.
-Dispatch now declares its accepted Section 28 route-bound multi-pickup
-capability; Hauling's legacy commerce ingress remains single-pickup.
+Dispatch declares its accepted Section 28 route-bound multi-pickup capability.
+Hauling now declares the Section 30 Van/Truck commerce capability: quote,
+mission create, operation read-back and pre-custody cancel are all internal
+HMAC-v2 routes and carry the committed fulfilment stops, Parcel and manifest
+evidence.
 
 ## Dispatch Commerce delivery integration
 
@@ -1815,3 +1818,22 @@ Analytics Service adds three capability routes:
 
 Contract: `services/analytics-service/docs/openapi/commerce-analytics-reporting-reliability.openapi.json`.
 Traceability: `services/vendor-service/docs/SECTION39_TRACEABILITY.md`.
+
+## Truck / Hauling Commerce integration
+
+Vendor adds no public route. It now sends the existing committed fulfilment
+plan to Hauling when the selected platform authority is VAN/TRUCK. Hauling
+remains the Van/Truck lifecycle authority; Vendor stores only opaque mission
+projection and never creates a second truck booking lifecycle.
+
+Hauling commerce internal routes:
+
+| Method | Path | Operation | Authority |
+|---|---|---|---|
+| POST | /api/v1/hauling/internal/commerce/quotes | Quote Van/Truck route, including multi-pickup committed stops | HMAC v2; exact `vendor-service` allowlist; durable nonce |
+| POST | /api/v1/hauling/internal/commerce/missions | Create already-paid commerce hauling mission | HMAC v2; unique operation ref + semantic fingerprint |
+| GET | /api/v1/hauling/internal/commerce/missions/operations/{operationRef} | Read mission by Vendor operation for unknown-outcome recovery | HMAC v2; exact `vendor-service` allowlist |
+| POST | /api/v1/hauling/internal/commerce/missions/operations/{operationRef}/cancel | Cancel pre-custody commerce hauling mission | HMAC v2; post-custody fail-closed |
+
+Contract: `services/driver-hauling-service/docs/openapi/commerce-hauling-missions.openapi.json`.
+Traceability: `services/vendor-service/docs/SECTION30_TRACEABILITY.md`.

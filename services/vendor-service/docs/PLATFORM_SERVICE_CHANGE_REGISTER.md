@@ -802,6 +802,41 @@ eligibility filter deliberately mirrors the matcher's own (radius, truck
 capacity, truck type, proximity-only fallback when a truck cannot be resolved),
 so a quote is never issued that the matcher would refuse to fill.
 
+### Section 30 Truck / Hauling Commerce integration - DONE
+
+**External service changes: YES, in the existing Hauling authority only.**
+Vendor Service now sends committed VAN/TRUCK fulfilment-plan evidence to
+Hauling rather than treating the Hauling mission as a legacy single-pickup
+booking. No Van service, duplicate provider marketplace, duplicate OTP/QR
+domain or duplicate Wallet flow was created.
+
+**Added/extended.**
+- Hauling migration `014_commerce_mission_execution_controls` adds
+  `operation_ref`, semantic `request_fingerprint`, plan binding, pickup stops,
+  Parcel/manifest metadata, scheduled pickup-window metadata, source version
+  and `cancelled` mission state support.
+- `shared/go/commercequote` now accepts multi-pickup stop evidence for
+  VAN/TRUCK route pricing. Hauling prices the total route across all pickup
+  legs and the dropoff with its existing fare model.
+- `shared/go/commercemission` now carries operation refs, plan, stops, Parcels,
+  manifest/version, handling, vehicle requirement, read-back and cancel
+  commands.
+- Hauling adds HMAC-protected internal operation read-back and pre-custody
+  cancellation routes:
+  `GET /api/v1/hauling/internal/commerce/missions/operations/{operationRef}`
+  and
+  `POST /api/v1/hauling/internal/commerce/missions/operations/{operationRef}/cancel`.
+- Vendor's Hauling adapter performs read-back after unknown create/cancel
+  outcomes and rejects same-operation/different-fingerprint retries through
+  the Hauling authority.
+- Config: `HAULING_COMMERCE_INTEGRATION_ENABLED` and
+  `HAULING_COMMERCE_INTEGRATION_KILL_SWITCH`.
+
+**Not changed.** Hauling still creates the canonical `haulage_bookings` row,
+starts existing provider matching, uses existing cargo pickup/delivery handover
+authority, and never receives or controls customer/Vendor financial allocations.
+Wallet remains the only ledger and settlement authority.
+
 ### shared/go/commercequote - NEW
 
 One contract for three services, for the same reason `shared/go/notifications`

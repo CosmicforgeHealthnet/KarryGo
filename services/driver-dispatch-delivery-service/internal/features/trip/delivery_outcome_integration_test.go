@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -16,14 +17,14 @@ func (f *emissionFixture) advanceToInProgress(t *testing.T, ctx context.Context)
 	t.Helper()
 	trip := f.createTrip(t, ctx)
 	now := time.Now().UTC()
-	pickup, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
+	pickup, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.repo.MarkArrived(ctx, trip.ID, f.providerID, StatusAssigned, now, pickup); err != nil {
 		t.Fatal(err)
 	}
-	delivery, err := handover.NewCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
+	delivery, err := securehandover.NewCompatibilityCodeRecord(fghHandoverSecret, handover.BuildChallengeID("dispatch", handover.StepDelivery, trip.ID), now)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,8 +1,8 @@
 package httpx
 
 import (
-	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,7 +14,7 @@ import (
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")
-		if requestID == "" {
+		if requestID == "" || len(requestID) > 128 || strings.IndexFunc(requestID, func(r rune) bool { return r < 33 || r > 126 }) >= 0 {
 			requestID = uuid.NewString()
 		}
 
@@ -25,11 +25,18 @@ func RequestID() gin.HandlerFunc {
 }
 
 func Recovery() gin.HandlerFunc {
-	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
-		logging.Error("panic", "recovered req=%s value=%s", GetRequestID(c), fmt.Sprintf("%v", recovered))
-		RespondError(c, apperrors.Internal("Something went wrong. Please try again.", nil))
-		c.Abort()
-	})
+	return func(c *gin.Context) {
+		defer func() {
+			if recover() != nil {
+				// Gin's default recovery dumps headers and the panic value before
+				// invoking a callback. Neither is safe on credential endpoints.
+				logging.Structured("error", "http_panic", map[string]any{"route": c.FullPath()})
+				RespondError(c, apperrors.Internal("Something went wrong. Please try again.", nil))
+				c.Abort()
+			}
+		}()
+		c.Next()
+	}
 }
 
 func ErrorHandler() gin.HandlerFunc {

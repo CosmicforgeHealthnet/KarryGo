@@ -1,0 +1,428 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Fleet Corporate Browser Authentication",
+    "version": "1.1.0",
+    "description": "Focused browser auth contract supplement. Existing request DTOs remain authoritative; no JSON refresh credential accepted/returned. SameSite deployment policy must match trusted origins. Cookie Path: /fleet-partner/v1/auth"
+  },
+  "paths": {
+    "/fleet-partner/v1/auth/start": {
+      "post": {
+        "summary": "start",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Existing non-secret auth response."
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/verify": {
+      "post": {
+        "summary": "verify",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Access credential and safe session metadata only. Refresh secret exclusively in Set-Cookie.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "HttpOnly; host-only; Secure in production; SameSite=Lax by default; auth-scoped Path; Max-Age/Expires match the server session. Confidential; never expose through browser JavaScript.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessSessionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/resend": {
+      "post": {
+        "summary": "resend",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Existing non-secret auth response."
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/refresh": {
+      "post": {
+        "summary": "refresh",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [
+          {
+            "BrowserRefresh": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Access credential and safe session metadata only. Refresh secret exclusively in Set-Cookie.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "HttpOnly; host-only; Secure in production; SameSite=Lax by default; auth-scoped Path; Max-Age/Expires match the server session. Confidential; never expose through browser JavaScript.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessSessionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/logout": {
+      "post": {
+        "summary": "logout",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [
+          {
+            "BrowserRefresh": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent revocation; matching-scope expired cookie.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "HttpOnly; host-only; Secure in production; SameSite=Lax by default; auth-scoped Path; Max-Age/Expires match the server session. Confidential; never expose through browser JavaScript.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          }
+        },
+        "description": "Cookie absence is accepted. Trusted Origin is still required. No JSON refresh credential."
+      }
+    },
+    "/fleet-partner/v1/auth/select-organization": {
+      "post": {
+        "summary": "select-organization",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [
+          {
+            "BearerAccess": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Access credential and safe session metadata only. Refresh secret exclusively in Set-Cookie.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "HttpOnly; host-only; Secure in production; SameSite=Lax by default; auth-scoped Path; Max-Age/Expires match the server session. Confidential; never expose through browser JavaScript.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessSessionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/step-up/start": {
+      "post": {
+        "summary": "step-up/start",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [
+          {
+            "BearerAccess": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Existing non-secret auth response."
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/step-up/verify": {
+      "post": {
+        "summary": "step-up/verify",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [
+          {
+            "BearerAccess": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing non-secret auth response."
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BrowserRefresh": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "karrygo_fleet_refresh"
+      },
+      "BearerAccess": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "AccessSessionEnvelope": {
+        "type": "object",
+        "description": "Verify nests access fields under data.tokens alongside nextStep/organizations; refresh/select return access fields directly under data.",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccessSession"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "tokens": {
+                    "$ref": "#/components/schemas/AccessSession"
+                  },
+                  "nextStep": {
+                    "type": "string"
+                  },
+                  "identityId": {
+                    "type": "string"
+                  },
+                  "organizations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "AccessSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "accessExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refreshExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

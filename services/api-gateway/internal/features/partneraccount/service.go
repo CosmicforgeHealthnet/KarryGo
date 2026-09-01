@@ -31,6 +31,7 @@ type Options struct {
 	OTPGenerator      func() (string, error)
 	JWTSecret         string
 	JWTTTL            time.Duration
+	RefreshTTL        time.Duration
 	OTPTTL            time.Duration
 	OTPMaxAttempts    int
 	OTPResendCooldown time.Duration
@@ -47,6 +48,7 @@ type Service struct {
 	otpGenerator      func() (string, error)
 	jwtSecret         string
 	jwtTTL            time.Duration
+	refreshTTL        time.Duration
 	otpTTL            time.Duration
 	otpMaxAttempts    int
 	otpResendCooldown time.Duration
@@ -64,13 +66,20 @@ func NewService(o Options) *Service {
 		otpGenerator:      o.OTPGenerator,
 		jwtSecret:         o.JWTSecret,
 		jwtTTL:            o.JWTTTL,
+		refreshTTL:        o.RefreshTTL,
 		otpTTL:            o.OTPTTL,
 		otpMaxAttempts:    o.OTPMaxAttempts,
 		otpResendCooldown: o.OTPResendCooldown,
 		now:               o.Now,
 	}
 	if s.jwtTTL <= 0 {
-		s.jwtTTL = 24 * time.Hour
+		s.jwtTTL = 15 * time.Minute
+	}
+	if s.jwtTTL > 15*time.Minute {
+		s.jwtTTL = 15 * time.Minute
+	}
+	if s.refreshTTL <= 0 {
+		s.refreshTTL = 30 * 24 * time.Hour
 	}
 	if s.otpTTL <= 0 {
 		s.otpTTL = 10 * time.Minute
@@ -151,17 +160,21 @@ type IssuedAPIKey struct {
 
 // RegisterResult is returned by Register.
 type RegisterResult struct {
-	Account   Account
-	Token     string
-	ExpiresAt time.Time
-	APIKey    IssuedAPIKey
+	RefreshToken     string `json:"-"`
+	RefreshExpiresAt time.Time
+	Account          Account
+	Token            string
+	ExpiresAt        time.Time
+	APIKey           IssuedAPIKey
 }
 
 // SessionResult is returned by Login.
 type SessionResult struct {
-	Account   Account
-	Token     string
-	ExpiresAt time.Time
+	RefreshToken     string `json:"-"`
+	RefreshExpiresAt time.Time
+	Account          Account
+	Token            string
+	ExpiresAt        time.Time
 }
 
 // --- request context --------------------------------------------------------
@@ -234,12 +247,12 @@ func (s *Service) Register(ctx context.Context, in RegisterInput, meta RequestMe
 		return nil, delivery.ErrInternal()
 	}
 
-	token, exp, err := s.issueSession(ctx, account.ID, meta)
+	credentials, err := s.issueSession(ctx, account.ID, meta)
 	if err != nil {
 		return nil, delivery.ErrInternal()
 	}
 
-	return &RegisterResult{Account: account, Token: token, ExpiresAt: exp, APIKey: issued}, nil
+	return &RegisterResult{Account: account, Token: credentials.Token, ExpiresAt: credentials.ExpiresAt, RefreshToken: credentials.RefreshToken, RefreshExpiresAt: credentials.RefreshExpiresAt, APIKey: issued}, nil
 }
 
 // Login verifies credentials and issues a session. It never reveals whether the
@@ -264,11 +277,12 @@ func (s *Service) Login(ctx context.Context, in LoginInput, meta RequestMeta) (*
 		return nil, apiErr(http.StatusUnauthorized, "invalid_credentials", "Email or password is incorrect.")
 	}
 
-	token, exp, err := s.issueSession(ctx, account.ID, meta)
+	credentials, err := s.issueSession(ctx, account.ID, meta)
 	if err != nil {
 		return nil, delivery.ErrInternal()
 	}
-	return &SessionResult{Account: *account, Token: token, ExpiresAt: exp}, nil
+	credentials.Account = *account
+	return credentials, nil
 }
 
 // Logout revokes a session by its token hash.
@@ -501,21 +515,15 @@ func (s *Service) issueKey(ctx context.Context, partnerID, env, label, descripti
 	}, nil
 }
 
-func (s *Service) issueSession(ctx context.Context, partnerID string, meta RequestMeta) (string, time.Time, error) {
-	token, exp, err := signSessionJWT(s.jwtSecret, partnerID, s.jwtTTL, s.now())
+func (s *Service) issueSession(ctx context.Context, partnerID string, meta RequestMeta) (*SessionResult, error) {
+	credentials, params, err := s.newCredentials(partnerID, "", meta)
 	if err != nil {
-		return "", time.Time{}, err
+		return nil, err
 	}
-	if err := s.sessions.CreateSession(ctx, CreateSessionParams{
-		PartnerID: partnerID,
-		TokenHash: hashToken(token),
-		IPAddress: meta.IPAddress,
-		UserAgent: meta.UserAgent,
-		ExpiresAt: exp,
-	}); err != nil {
-		return "", time.Time{}, err
+	if err = s.sessions.CreateSession(ctx, params); err != nil {
+		return nil, err
 	}
-	return token, exp, nil
+	return credentials, nil
 }
 
 func normalizeEmail(email string) string {

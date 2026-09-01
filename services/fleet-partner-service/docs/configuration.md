@@ -1,5 +1,25 @@
 # Configuration
 
+## Browser refresh-cookie boundary
+
+`FLEET_PARTNER_AUTH_WEB_ORIGINS` is a comma-separated list of exact HTTPS origins
+in production (no path, trailing slash, wildcard or credentials). Development/test
+defaults to `http://localhost:3000`. Set the real corporate web origins explicitly;
+do not copy an assumed production hostname. Startup rejects invalid policy.
+
+`FLEET_PARTNER_AUTH_COOKIE_NAME` defaults to `karrygo_fleet_refresh`;
+`FLEET_PARTNER_AUTH_COOKIE_SAMESITE` defaults to `lax` (`strict`/`none` supported).
+`FLEET_PARTNER_AUTH_COOKIE_SECURE` defaults true outside development/test and
+cannot be disabled there. SameSite None always requires Secure. Use None only
+for a genuinely cross-site deployment; browser third-party-cookie policy may
+still block it. Prefer same-site HTTPS hosting and Lax.
+
+HttpOnly=true, host-only scope and `/fleet-partner/v1/auth` Path are not optional.
+Cookie Max-Age/Expires follow the existing `FLEET_PARTNER_REFRESH_TOKEN_TTL` (720h
+default). The existing access TTL remains 15m by default. Logout deletes using
+identical scope/flags. Auth POSTs require trusted Origin, including logout with
+no cookie. No raw credential may appear in logs, analytics or support captures.
+
 Configuration is loaded once at startup (`internal/config.Load`) and
 validated; **missing mandatory settings abort startup** with a message that
 never contains secret values. Env names follow the repository prefix

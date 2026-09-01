@@ -11,7 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/apiresponse"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/assignment"
 	authhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/http"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
@@ -21,17 +23,23 @@ import (
 	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
 	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
 	dispatchcommercequote "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercequote"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/deliveryrecovery"
 	identityhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/identity/http"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/missionplanning"
 	notificationhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/notifications/http"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/privateexecution"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/profile"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/restrictions"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/routeintegrity"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vehicle"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
@@ -39,7 +47,9 @@ import (
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/walletclient"
 )
 
 // dispatchSessionRevokerAdapter bridges the auth session repository to the
@@ -62,6 +72,9 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	engine.Use(middleware.RequestLogger())
 	engine.Use(httpx.Recovery())
 	engine.Use(httpx.ErrorHandler())
+	if cfg.ProviderOrganizationModeEnabled {
+		engine.Use(apiresponse.ProviderPrivacy(providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)))
+	}
 
 	registerHealthRoutes(engine, cfg, func(ctx context.Context) error {
 		if err := db.Ping(ctx); err != nil {
@@ -224,6 +237,153 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		)
 	}
 
+	// Sections 7-8 are independently gated and additive. The legacy request
+	// routes above remain registered regardless of these flags.
+	if len(cfg.VendorServiceSecret) > 0 && cfg.MultiVendorPlanningEnabled && !cfg.AssignmentKillSwitch {
+		planningRoutes := missionplanning.NewSection6RouteAuthority(
+			dispatchcommercequote.NewHTTPRoutePlanner(cfg.RouteServiceURL, cfg.RouteServiceTimeout),
+			serviceability.NewCircularZone(serviceability.Point{Latitude: cfg.ServiceZoneCenterLat, Longitude: cfg.ServiceZoneCenterLng}, cfg.ServiceZoneRadiusKM, cfg.ServiceRestrictedZones),
+			cfg.ServiceabilityDegradedMode,
+		)
+		missionplanning.Register(engine.Group("/api/v1/internal"),
+			missionplanning.NewHandler(missionplanning.New(missionplanning.NewRepository(db), missionplanning.NewPlannerWithCapacity(cfg.PlanningMaxWeightGrams, cfg.PlanningMaxVolumeML, cfg.PlanningCapacityPolicyVersion), true).WithRouteAuthority(planningRoutes)),
+			serviceauth.NewVerifier(serviceauth.Secrets{dispatchcommerce.SignatureCaller: cfg.VendorServiceSecret}, 5*time.Minute),
+			db, []string{dispatchcommerce.SignatureCaller})
+	}
+	var assignmentRuntime *assignment.Service
+	if (len(cfg.VendorServiceSecret) > 0 || cfg.ReplacementHandoverEnabled) && (cfg.SequentialAssignmentEnabled || cfg.OrganizationAssignmentEnabled || cfg.AdminAssistedAssignmentEnabled) && !cfg.AssignmentKillSwitch && tripService != nil {
+		repository := assignment.NewRepository(db)
+		service := assignment.New(repository, assignment.NewCanonicalTripAdapter(db, tripService, repository), assignment.Policy{
+			SequentialEnabled: cfg.SequentialAssignmentEnabled, QueueEnabled: cfg.DispatchQueueEnabled,
+			OrganizationEnabled: cfg.OrganizationAssignmentEnabled,
+			AdminEnabled:        cfg.AdminAssistedAssignmentEnabled, OfferWindow: cfg.AssignmentOfferWindow,
+			QueueRetryInterval: cfg.AssignmentQueueRetryInterval, InitialRadiusKM: cfg.AvailabilityRadiusKM, MaxRadiusKM: 50,
+			ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
+			ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
+		}).WithCandidateFinder(assignment.NewCandidateAuthority(db, availabilityLiveStore, cfg.AvailabilityRadiusKM)).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookingService))
+		assignmentRuntime = service
+		if cfg.OrganizationAssignmentEnabled && cfg.FleetServiceURL != "" && len(cfg.FleetServiceSecret) > 0 {
+			service.WithOrganizationAuthority(assignment.NewFleetOrganizationAuthority(providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)))
+		}
+		handler := assignment.NewHandler(service)
+		if len(cfg.VendorServiceSecret) > 0 {
+			assignment.RegisterInternal(engine.Group("/api/v1/internal"), handler,
+				serviceauth.NewVerifier(serviceauth.Secrets{dispatchcommerce.SignatureCaller: cfg.VendorServiceSecret}, 5*time.Minute), db, []string{dispatchcommerce.SignatureCaller})
+		}
+		assignment.RegisterProvider(engine, authService.TokenUsecase(), handler)
+		if cfg.DispatchQueueEnabled {
+			assignment.RegisterCustomer(engine, sharedauth.NewTokenSigner(cfg.CustomerTokenSecret), handler)
+			if secrets := serviceauth.ParseSecrets(cfg.ServiceSecrets); len(secrets) > 0 {
+				if secret, ok := secrets["api-gateway"]; ok {
+					assignment.RegisterPartnerInternal(engine.Group("/api/v1/internal"), handler, serviceauth.NewVerifier(serviceauth.Secrets{"api-gateway": secret}, 5*time.Minute), db, []string{"api-gateway"})
+				}
+			}
+		}
+		if cfg.AdminAssistedAssignmentEnabled {
+			if secrets := serviceauth.ParseSecrets(cfg.ServiceSecrets); len(secrets) > 0 {
+				if secret, ok := secrets["admin-backoffice-service"]; ok {
+					assignment.RegisterAdminInternal(engine.Group("/api/v1/internal"), handler, serviceauth.NewVerifier(serviceauth.Secrets{"admin-backoffice-service": secret}, 5*time.Minute), db, []string{"admin-backoffice-service"})
+				}
+			}
+		}
+	}
+
+	// Sections 9-10 are a separate, disabled-by-default security authority.
+	// It binds the existing Trip to the Sections 7-8 mission/manifest/custody
+	// model and replaces no legacy route while disabled.
+	var handoverRuntime *securehandover.Service
+	if cfg.HandoverChallengeEnabled && tripService != nil {
+		handoverRepository, handoverErr := securehandover.NewRepository(db, cfg.HandoverSecret)
+		if handoverErr != nil {
+			panic(fmt.Errorf("configure secure handover repository: %w", handoverErr))
+		}
+		handoverService, handoverErr := securehandover.NewService(handoverRepository, cfg.HandoverSecret, securehandover.Policy{
+			Enabled: cfg.HandoverChallengeEnabled, PickupEvidenceEnabled: cfg.PickupEvidenceGateEnabled,
+			DeliveryEvidenceEnabled: cfg.DeliveryEvidenceGateEnabled, QREnabled: cfg.HandoverQREnabled,
+			TTL: cfg.HandoverChallengeTTL, CaptureTTL: cfg.HandoverCaptureSessionTTL,
+			ResendCooldown: cfg.HandoverResendCooldown, MaxAttempts: cfg.HandoverMaxAttempts,
+			MaxResends: cfg.HandoverMaxResends, PolicyVersion: cfg.HandoverPolicyVersion,
+			EmailAllowed: cfg.HandoverEmailAllowed, InAppAllowed: cfg.HandoverInAppAllowed,
+			PushAllowed: cfg.HandoverPushAllowed, SMSAllowed: cfg.HandoverSMSAllowed,
+			ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
+			ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
+		})
+		if handoverErr != nil {
+			panic(fmt.Errorf("configure secure handover service: %w", handoverErr))
+		}
+		handoverService.WithRateLimiter(securehandover.NewRedisRateLimiter(redisClient)).
+			WithMediaAuthorizer(newMediaAttachmentAuthorizer(mediaClient))
+		if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+			handoverService.WithNotifier(securehandover.NewNotificationTransport(notifications.Client{
+				BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout},
+			}))
+		}
+		tripService.WithSecureHandover(handoverService)
+		handoverRuntime = handoverService
+		handoverHandler := securehandover.NewHandler(handoverService)
+		securehandover.RegisterProvider(engine, authService.TokenUsecase(), handoverHandler)
+		securehandover.RegisterCustomer(engine, sharedauth.NewTokenSigner(cfg.CustomerTokenSecret), handoverHandler)
+		internalSecrets := serviceauth.Secrets{}
+		if len(cfg.VendorServiceSecret) > 0 {
+			internalSecrets[dispatchcommerce.SignatureCaller] = cfg.VendorServiceSecret
+		}
+		if secret, ok := serviceauth.ParseSecrets(cfg.ServiceSecrets)["api-gateway"]; ok {
+			internalSecrets["api-gateway"] = secret
+		}
+		if len(internalSecrets) > 0 {
+			allowed := make([]string, 0, len(internalSecrets))
+			for caller := range internalSecrets {
+				allowed = append(allowed, caller)
+			}
+			securehandover.RegisterInternal(engine.Group("/api/v1/internal"), handoverHandler,
+				serviceauth.NewVerifier(internalSecrets, 5*time.Minute), db, allowed)
+		}
+	}
+
+	// Delivery recovery extends the canonical Trip and existing handover,
+	// assignment, route, Wallet and commerce-mission authorities. Registration
+	// is feature-gated and therefore cannot alter legacy failed-delivery flows.
+	if cfg.DeliveryRecoveryEnabled && tripService != nil {
+		recovery := deliveryrecovery.New(deliveryrecovery.NewRepository(db), deliveryrecovery.Policy{
+			Enabled: true, ReturnEnabled: cfg.ReturnWorkflowEnabled, HubHoldEnabled: cfg.HubHoldEnabled,
+			ReplacementEnabled: cfg.ReplacementHandoverEnabled, GracePeriod: cfg.ReceiverGracePeriod,
+			MaximumSameDayWindow: cfg.RecoverySameDayWindow,
+		}).WithHandover(deliveryrecovery.NewTripHandoverInvalidator(db, handoverRuntime)).
+			WithRoutes(deliveryrecovery.NewSection6ReturnRouter(
+				dispatchcommercequote.NewHTTPRoutePlanner(cfg.RouteServiceURL, cfg.RouteServiceTimeout),
+				serviceability.NewCircularZone(serviceability.Point{Latitude: cfg.ServiceZoneCenterLat, Longitude: cfg.ServiceZoneCenterLng}, cfg.ServiceZoneRadiusKM, cfg.ServiceRestrictedZones),
+			)).
+			WithHubAuthority(deliveryrecovery.NewConfiguredHubAuthority(cfg.ApprovedHoldHubs)).
+			WithHubEvidenceAuthority(newMediaAttachmentAuthorizer(mediaClient)).
+			WithFinancialAuthority(deliveryrecovery.NewWalletRecoveryAuthority(walletclient.Client{BaseURL: cfg.WalletServiceURL, ServiceName: cfg.WalletServiceSource, Secret: cfg.WalletServiceSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout}}))
+		if assignmentRuntime != nil {
+			recovery.WithReplacement(deliveryrecovery.NewAssignmentReplacementAdapter(assignmentRuntime))
+		}
+		recoveryHandler := deliveryrecovery.NewHandler(recovery)
+		deliveryrecovery.RegisterProvider(engine, authService.TokenUsecase(), recoveryHandler)
+		deliveryrecovery.RegisterCustomer(engine, sharedauth.NewTokenSigner(cfg.CustomerTokenSecret), recoveryHandler)
+		if cfg.ReplacementHandoverEnabled {
+			if secret, ok := serviceauth.ParseSecrets(cfg.ServiceSecrets)["admin-backoffice-service"]; ok {
+				deliveryrecovery.RegisterEmergencyInternal(engine.Group("/api/v1/internal"), recoveryHandler,
+					serviceauth.NewVerifier(serviceauth.Secrets{"admin-backoffice-service": secret}, 5*time.Minute), db, []string{"admin-backoffice-service"})
+			}
+		}
+	}
+
+	if cfg.RouteAlertsEnabled && tripService != nil {
+		routeService := routeintegrity.New(routeintegrity.NewRepository(db),
+			routeintegrity.NewSection6RouteAuthority(dispatchcommercequote.NewHTTPRoutePlanner(cfg.RouteServiceURL, cfg.RouteServiceTimeout)),
+			routeintegrity.Policy{Enabled: true, OfflineReplayEnabled: cfg.OfflineReplayEnabled, CorridorMeters: cfg.RouteDeviationMeters,
+				WrongWayToleranceDegrees: cfg.RouteWrongWayToleranceDegrees, StationaryThreshold: cfg.RouteStationaryThreshold,
+				StaleThreshold: cfg.RouteStaleThreshold, HighRiskCorridorMeters: cfg.RouteHighRiskDeviationMeters,
+				HighRiskStaleThreshold: cfg.RouteHighRiskStaleThreshold, MaximumAccuracyMeters: cfg.RouteMaximumAccuracyMeters,
+				MaximumClientClockSkew: cfg.OfflineMaximumClientClockSkew})
+		routeHandler := routeintegrity.NewHandler(routeService)
+		routeintegrity.RegisterProvider(engine, authService.TokenUsecase(), routeHandler)
+		routeintegrity.RegisterCustomer(engine, sharedauth.NewTokenSigner(cfg.CustomerTokenSecret), routeHandler)
+		routeintegrity.StartSubscribers(context.Background(), redisClient, routeService)
+	}
+
 	if requestService != nil {
 		requestfeature.RegisterRoutes(engine, authService.TokenUsecase(), requestfeature.NewHandler(requestService))
 	}
@@ -232,6 +392,10 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	}
 	if bookingService != nil {
 		customerSigner := sharedauth.NewTokenSigner(cfg.CustomerTokenSecret)
+		bookingService.WithServiceabilityQuoteAuthority(
+			serviceability.NewRepository(db),
+			cfg.RouteServiceabilityEnabled && cfg.PackagePolicyEnabled,
+		)
 		bookingfeature.RegisterRoutes(
 			engine,
 			customerSigner,
@@ -246,6 +410,30 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 				bookingfeature.NewTrackHandler(bookingService, customerSigner, redisClient),
 			)
 		}
+	}
+
+	// Sections 4-6 are a gated pre-booking decision surface. Registration
+	// requires both policies, so merely deploying the additive schema cannot
+	// alter or expose an unfinished path to legacy customers.
+	if cfg.RouteServiceabilityEnabled && cfg.PackagePolicyEnabled {
+		serviceability.RegisterRoutes(
+			engine,
+			sharedauth.NewTokenSigner(cfg.CustomerTokenSecret),
+			serviceability.NewHandler(serviceability.New(serviceability.Options{
+				Store: serviceability.NewRepository(db),
+				Routes: serviceability.NewRoutePlannerAdapter(
+					dispatchcommercequote.NewHTTPRoutePlanner(cfg.RouteServiceURL, cfg.RouteServiceTimeout),
+				),
+				Zones: serviceability.NewCircularZone(
+					serviceability.Point{Latitude: cfg.ServiceZoneCenterLat, Longitude: cfg.ServiceZoneCenterLng},
+					cfg.ServiceZoneRadiusKM,
+					cfg.ServiceRestrictedZones,
+				),
+				TTL:          cfg.ServiceabilityTTL,
+				MaxRouteKM:   cfg.ServiceabilityMaxRouteKM,
+				DegradedMode: cfg.ServiceabilityDegradedMode,
+			})),
+		)
 	}
 
 	// Internal identity lookup for support-dispute-service (HMAC service auth).
@@ -358,10 +546,33 @@ func registerMarketplaceRoutes(engine *gin.Engine, cfg config.Config, db *pgxpoo
 // function. It starts nothing when the feature flag is off or the fleet client
 // is unconfigured, so an incomplete deployment does not spin a worker that can
 // only fail.
-func StartMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+func StartMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool.Pool, trips ...*tripfeature.Service) func() {
+	return startMarketplaceWorkers(ctx, cfg, db, nil, nil, trips...)
+}
+
+func StartMarketplaceWorkersWithAssignment(ctx context.Context, cfg config.Config, db *pgxpool.Pool, live availability.LiveStore, bookings *bookingfeature.Service, trips ...*tripfeature.Service) func() {
+	return startMarketplaceWorkers(ctx, cfg, db, live, bookings, trips...)
+}
+
+func startMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool.Pool, live availability.LiveStore, bookings *bookingfeature.Service, trips ...*tripfeature.Service) func() {
+	stopTelemetry := observability.StartCollector(ctx, db, cfg.MetricsInterval)
 	stopOutbox := startOutboxWorker(ctx, cfg, db)
 	stopCommerceOutbox := startCommerceOutboxWorker(ctx, cfg, db)
-	stopEventWorkers := func() { stopCommerceOutbox(); stopOutbox() }
+	stopAnalytics := startAnalyticsOutboxWorker(ctx, cfg, db)
+	stopAssignment := startAssignmentWorker(ctx, cfg, db, live, bookings, trips...)
+	stopHandover := startSecureHandoverWorker(ctx, cfg, db)
+	stopRecovery := startDeliveryRecoveryWorker(ctx, cfg, db, live, bookings, trips...)
+	stopRecoveryNotifications := startRecoveryNotificationWorker(ctx, cfg, db)
+	stopEventWorkers := func() {
+		stopTelemetry()
+		stopAnalytics()
+		stopRecoveryNotifications()
+		stopRecovery()
+		stopHandover()
+		stopAssignment()
+		stopCommerceOutbox()
+		stopOutbox()
+	}
 
 	if !cfg.FleetRelayEnabled {
 		log.Printf("marketplace: relay worker disabled by DISPATCH_FLEET_RELAY_ENABLED")
@@ -408,6 +619,108 @@ func StartMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool
 	}
 }
 
+func startDeliveryRecoveryWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool, live availability.LiveStore, bookings *bookingfeature.Service, trips ...*tripfeature.Service) func() {
+	if !cfg.DeliveryRecoveryEnabled || db == nil {
+		return func() {}
+	}
+	recovery := deliveryrecovery.New(deliveryrecovery.NewRepository(db), deliveryrecovery.Policy{
+		Enabled: true, ReturnEnabled: cfg.ReturnWorkflowEnabled, HubHoldEnabled: cfg.HubHoldEnabled,
+		ReplacementEnabled: cfg.ReplacementHandoverEnabled, GracePeriod: cfg.ReceiverGracePeriod,
+		MaximumSameDayWindow: cfg.RecoverySameDayWindow,
+	}).WithReliabilityPolicy(cfg.ServiceName+"-recovery", cfg.ExternalOperationLease, cfg.ExternalOperationRetryLimit, cfg.ExternalOperationBackoffBase, cfg.ExternalOperationBackoffMax)
+	if (cfg.SequentialAssignmentEnabled || cfg.OrganizationAssignmentEnabled || cfg.AdminAssistedAssignmentEnabled) && !cfg.AssignmentKillSwitch && len(trips) > 0 && trips[0] != nil {
+		repository := assignment.NewRepository(db)
+		assignmentService := assignment.New(repository, assignment.NewCanonicalTripAdapter(db, trips[0], repository), assignment.Policy{
+			SequentialEnabled: cfg.SequentialAssignmentEnabled, OrganizationEnabled: cfg.OrganizationAssignmentEnabled, AdminEnabled: cfg.AdminAssistedAssignmentEnabled, QueueEnabled: cfg.DispatchQueueEnabled, OfferWindow: cfg.AssignmentOfferWindow,
+			QueueRetryInterval: cfg.AssignmentQueueRetryInterval, InitialRadiusKM: cfg.AvailabilityRadiusKM, MaxRadiusKM: 50,
+			ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
+			ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
+		}).WithCandidateFinder(assignment.NewCandidateAuthority(db, live, cfg.AvailabilityRadiusKM)).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookings))
+		if cfg.OrganizationAssignmentEnabled && cfg.FleetServiceURL != "" && len(cfg.FleetServiceSecret) > 0 {
+			assignmentService.WithOrganizationAuthority(assignment.NewFleetOrganizationAuthority(providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)))
+		}
+		recovery.WithReplacement(deliveryrecovery.NewAssignmentReplacementAdapter(assignmentService))
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); recovery.RunWorker(workerCtx, cfg.RecoveryWorkerInterval) }()
+	return func() { cancel(); <-done }
+}
+
+func startRecoveryNotificationWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+	if db == nil || cfg.NotificationURL == "" || len(cfg.NotificationSecret) == 0 {
+		return func() {}
+	}
+	notifier := notifications.Client{
+		BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout},
+	}
+	deliverer := bookingfeature.LifecycleNotificationDeliverer{Notifier: notifier, Other: deliveryrecovery.NewRecoveryNotificationDeliverer(deliveryrecovery.NewRepository(db), notifier)}
+	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), deliverer, marketplace.OutboxWorkerConfig{
+		Owner: cfg.ServiceName + "-recovery-notifications", SourceService: "driver-dispatch-delivery-service", Target: "notification-service",
+		Lease: cfg.EventDeliveryLease, BatchSize: cfg.EventDeliveryBatchSize, MaxAttempts: cfg.EventDeliveryRetryLimit,
+		BaseBackoff: cfg.EventDeliveryBackoffBase, MaxBackoff: cfg.EventDeliveryBackoffMax,
+	})
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); _ = worker.Run(workerCtx, cfg.EventDeliveryInterval) }()
+	return func() { cancel(); <-done }
+}
+
+func startSecureHandoverWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+	if !cfg.HandoverChallengeEnabled || db == nil {
+		return func() {}
+	}
+	repository, err := securehandover.NewRepository(db, cfg.HandoverSecret)
+	if err != nil {
+		log.Printf("secure handover: expiry worker not started: %v", err)
+		return func() {}
+	}
+	service, err := securehandover.NewService(repository, cfg.HandoverSecret, securehandover.Policy{
+		Enabled: true, EmailAllowed: cfg.HandoverEmailAllowed, InAppAllowed: cfg.HandoverInAppAllowed,
+		PushAllowed: cfg.HandoverPushAllowed, SMSAllowed: cfg.HandoverSMSAllowed,
+		ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
+		ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
+	})
+	if err != nil {
+		log.Printf("secure handover: expiry worker not started: %v", err)
+		return func() {}
+	}
+	if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+		service.WithNotifier(securehandover.NewNotificationTransport(notifications.Client{
+			BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout},
+		}))
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		service.RunExpiryWorker(workerCtx, cfg.HandoverWorkerInterval)
+	}()
+	return func() { cancel(); <-done }
+}
+
+func startAssignmentWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool, live availability.LiveStore, bookings *bookingfeature.Service, trips ...*tripfeature.Service) func() {
+	if (!cfg.SequentialAssignmentEnabled && !cfg.OrganizationAssignmentEnabled && !cfg.AdminAssistedAssignmentEnabled) || cfg.AssignmentKillSwitch || db == nil {
+		return func() {}
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	repository := assignment.NewRepository(db)
+	var tripAuthority assignment.TripEnsurer
+	if len(trips) > 0 && trips[0] != nil {
+		tripAuthority = assignment.NewCanonicalTripAdapter(db, trips[0], repository)
+	}
+	service := assignment.New(repository, tripAuthority, assignment.Policy{
+		SequentialEnabled: cfg.SequentialAssignmentEnabled, QueueEnabled: cfg.DispatchQueueEnabled,
+		OrganizationEnabled: cfg.OrganizationAssignmentEnabled, AdminEnabled: cfg.AdminAssistedAssignmentEnabled,
+		OfferWindow: cfg.AssignmentOfferWindow, QueueRetryInterval: cfg.AssignmentQueueRetryInterval,
+		ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
+		ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
+	}).WithCandidateFinder(assignment.NewCandidateAuthority(db, live, cfg.AvailabilityRadiusKM)).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookings))
+	go func() { defer close(done); service.RunWorker(workerCtx, cfg.AssignmentWorkerInterval) }()
+	return func() { cancel(); <-done }
+}
+
 func startCommerceOutboxWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
 	if !cfg.CommerceEventDeliveryEnabled {
 		log.Printf("commerce: lifecycle outbox worker disabled by DISPATCH_COMMERCE_EVENT_DELIVERY_ENABLED")
@@ -422,7 +735,7 @@ func startCommerceOutboxWorker(ctx context.Context, cfg config.Config, db *pgxpo
 		log.Printf("commerce: lifecycle outbox worker not started; Vendor callback configuration incomplete")
 		return func() {}
 	}
-	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), deliverer,
+	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), marketplace.VendorLifecycleDeliverer{Transport: deliverer},
 		marketplace.OutboxWorkerConfig{Owner: cfg.ServiceName + "-commerce-events",
 			SourceService: cfg.ServiceName, Target: "vendor-service",
 			Lease: cfg.EventDeliveryLease, BatchSize: cfg.EventDeliveryBatchSize,

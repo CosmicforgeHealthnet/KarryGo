@@ -1,5 +1,11 @@
 # Provider app handoff: Commerce delivery
 
+## Reliability and replacement status
+
+Critical Booking/Trip notifications now retry from durable intents. A queued or unknown send is not delivered; clients must render current authorized domain state rather than count notifications. No OTP/QR secret is included in generic lifecycle events.
+
+The existing assignment inbox may return `purpose=PROVIDER_REPLACEMENT` and `incident_ref`. Accepting such an offer returns the existing Trip and `REPLACEMENT_READY`: it does not transfer custody, authorize completion, or start a second Trip. Continue through the established provider-transfer challenge/scans/evidence flow. Recovery exhaustion requires Operations review; clients cannot force a provider or financial outcome. No frontend code was implemented in this closure.
+
 Commerce jobs appear in the existing public Dispatch marketplace. They use the
 same offer ranking and acceptance flow as other public jobs; the provider app
 must not label them as company/Fleet private assignments.

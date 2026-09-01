@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -400,6 +401,7 @@ func (r *Repository) PublishEventTo(ctx context.Context, q Querier, targetServic
 
 // OutboxRow is a claimed event awaiting delivery.
 type OutboxRow struct {
+	LeaseOwner       string
 	ID               string
 	EventType        string
 	SchemaVersion    int
@@ -425,6 +427,7 @@ func (r *Repository) ClaimOutbox(ctx context.Context, q Querier, owner string,
 
 func (r *Repository) ClaimOutboxForTarget(ctx context.Context, q Querier, owner,
 	targetService string, lease time.Duration, limit int) ([]OutboxRow, error) {
+	owner += ":" + uuid.NewString()
 	rows, err := q.Query(ctx, `
 		WITH claimed AS (
 			SELECT id FROM dispatch_marketplace_outbox
@@ -457,6 +460,7 @@ func (r *Repository) ClaimOutboxForTarget(ctx context.Context, q Querier, owner,
 			&row.CorrelationID, &row.CausationID, &row.AttemptCount, &row.CreatedAt); err != nil {
 			return nil, fmt.Errorf("marketplace: scan outbox: %w", err)
 		}
+		row.LeaseOwner = owner
 		claimed = append(claimed, row)
 	}
 	return claimed, rows.Err()
@@ -475,12 +479,16 @@ func (r *Repository) RecoverExpiredLeases(ctx context.Context, q Querier) (int64
 }
 
 // MarkPublished records a successful delivery.
-func (r *Repository) MarkPublished(ctx context.Context, q Querier, id string) error {
+func (r *Repository) MarkPublished(ctx context.Context, q Querier, id string, leaseOwner ...string) error {
+	owner := ""
+	if len(leaseOwner) > 0 {
+		owner = leaseOwner[0]
+	}
 	_, err := q.Exec(ctx, `
 		UPDATE dispatch_marketplace_outbox SET
 			status = 'PUBLISHED', published_at = now(), lease_owner = NULL,
 			lease_expires_at = NULL, last_error = NULL
-		WHERE id = $1`, id)
+		WHERE id = $1 AND ($2='' OR (status='IN_FLIGHT' AND lease_owner=$2))`, id, owner)
 	if err != nil {
 		return fmt.Errorf("marketplace: mark published: %w", err)
 	}
@@ -489,7 +497,11 @@ func (r *Repository) MarkPublished(ctx context.Context, q Querier, id string) er
 
 // MarkDeliveryFailed schedules a retry or moves the event to dead letter.
 func (r *Repository) MarkDeliveryFailed(ctx context.Context, q Querier, id string,
-	lastError string, backoff time.Duration, maxAttempts int) error {
+	lastError string, backoff time.Duration, maxAttempts int, leaseOwner ...string) error {
+	owner := ""
+	if len(leaseOwner) > 0 {
+		owner = leaseOwner[0]
+	}
 	_, err := q.Exec(ctx, `
 		UPDATE dispatch_marketplace_outbox SET
 			status = CASE WHEN attempt_count + 1 >= $4 THEN 'DEAD_LETTER' ELSE 'FAILED' END,
@@ -498,7 +510,7 @@ func (r *Repository) MarkDeliveryFailed(ctx context.Context, q Querier, id strin
 			lease_owner = NULL,
 			lease_expires_at = NULL,
 			last_error = $2
-		WHERE id = $1`, id, lastError, backoff.Seconds(), maxAttempts)
+		WHERE id = $1 AND ($5='' OR (status='IN_FLIGHT' AND lease_owner=$5))`, id, lastError, backoff.Seconds(), maxAttempts, owner)
 	if err != nil {
 		return fmt.Errorf("marketplace: mark delivery failed: %w", err)
 	}

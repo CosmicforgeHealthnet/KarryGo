@@ -15,7 +15,15 @@ const sourceService = "driver-dispatch-delivery-service"
 // because a notification could not be sent. Send errors are logged, not
 // returned.
 type BookingNotifier struct {
-	notifier notifications.Notifier
+	notifier         notifications.Notifier
+	durableLifecycle bool
+}
+
+// Production Booking/Trip transitions persist lifecycle intent atomically.
+// Only the existing tightly scoped delivery-code transport stays direct.
+func (n *BookingNotifier) WithDurableLifecycle() *BookingNotifier {
+	n.durableLifecycle = true
+	return n
 }
 
 // NewBookingNotifier builds a BookingNotifier from the notification-service base
@@ -74,8 +82,8 @@ func (n *BookingNotifier) NotifyCustomerPickupVerificationRequired(ctx context.C
 }
 
 // NotifyCustomerDeliveryCodeReady tells the customer their delivery
-// verification code is ready to share with the rider. The code is included
-// in data so it can be surfaced in the notification body.
+// verification code is ready. Generic events do not carry the credential;
+// the customer reads it through the ownership-scoped Booking endpoint.
 func (n *BookingNotifier) NotifyCustomerDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
 	n.send(ctx, notifications.EventPackageDeliveryCodeReady, notifications.RecipientCustomer, customerID, bookingID, data)
 }
@@ -108,6 +116,9 @@ func (n *BookingNotifier) NotifyCustomerCancelledByProvider(ctx context.Context,
 // logical event to the same recipient still dedupe. Title/body resolve from
 // the seeded template keyed on the event type.
 func (n *BookingNotifier) send(ctx context.Context, eventType, recipientType, recipientID, bookingID string, data map[string]interface{}) {
+	if n.durableLifecycle && eventType != notifications.EventPackageDeliveryCodeReady {
+		return
+	}
 	if recipientID == "" {
 		return
 	}

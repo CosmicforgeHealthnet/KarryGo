@@ -63,6 +63,31 @@ func (r *SessionRepository) GetByID(ctx context.Context, sessionID string) (*mod
 	return scanSession(row)
 }
 
+// LockByID uses the same family-before-row order as refresh, logout and reuse
+// containment. The family is resolved from storage, never from JWT/body claims.
+// The caller must keep this transaction open through the session transition.
+func (r *SessionRepository) LockByID(ctx context.Context, q database.Querier, sessionID string) (*models.Session, error) {
+	var familyID string
+	if err := q.QueryRow(ctx, `SELECT session_family_id FROM fleet_partner_corporate_sessions WHERE id=$1`, sessionID).Scan(&familyID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("auth: resolve session family: %w", err)
+	}
+	if err := r.LockFamily(ctx, q, familyID); err != nil {
+		return nil, err
+	}
+	return scanSession(q.QueryRow(ctx, `SELECT `+sessionColumns+` FROM fleet_partner_corporate_sessions WHERE id=$1 FOR UPDATE`, sessionID))
+}
+
+// FamilyCompromised is checked while holding LockFamily, including legacy
+// inconsistent families that might contain an ACTIVE row beside compromised history.
+func (r *SessionRepository) FamilyCompromised(ctx context.Context, q database.Querier, familyID string) (bool, error) {
+	var compromised bool
+	err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fleet_partner_corporate_sessions WHERE session_family_id=$1 AND status='COMPROMISED')`, familyID).Scan(&compromised)
+	return compromised, err
+}
+
 // Status returns just the status column for a session, without the full row
 // scan GetByID does. It is the per-request check the corporate bearer
 // middleware runs so that revoking one session takes effect on its next
@@ -86,9 +111,41 @@ func (r *SessionRepository) Status(ctx context.Context, sessionID string) (strin
 // matches revoked and compromised sessions too, because finding a revoked
 // session by its hash is exactly how token reuse is detected.
 func (r *SessionRepository) LockByRefreshHash(ctx context.Context, q database.Querier, refreshHash string) (*models.Session, error) {
+	// Lock the existing family before any individual row, so revocation cannot
+	// miss a successor inserted by a concurrent rotation. Callers use WithinTx.
+	var familyID string
+	if err := q.QueryRow(ctx, `SELECT session_family_id FROM fleet_partner_corporate_sessions WHERE refresh_token_hash=$1`, refreshHash).Scan(&familyID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("auth: resolve session family: %w", err)
+	}
+	if err := r.LockFamily(ctx, q, familyID); err != nil {
+		return nil, err
+	}
 	row := q.QueryRow(ctx, `SELECT `+sessionColumns+`
 		FROM fleet_partner_corporate_sessions WHERE refresh_token_hash = $1 FOR UPDATE`, refreshHash)
 	return scanSession(row)
+}
+
+// LockFamily follows the service's transaction-scoped advisory lock convention.
+// The family comes from persisted session metadata, never a client authority field.
+func (r *SessionRepository) LockFamily(ctx context.Context, q database.Querier, familyID string) error {
+	_, err := q.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "fleet-auth-family:"+familyID)
+	return err
+}
+
+// LogoutFamily revokes active credentials without falsely classifying a normal
+// logout as compromise. Caller holds LockFamily for the duration of the transaction.
+func (r *SessionRepository) LogoutFamily(ctx context.Context, q database.Querier, familyID string) (int64, error) {
+	return r.RevokeActiveFamily(ctx, q, familyID, "logout")
+}
+
+// RevokeActiveFamily revokes the logical browser session, including organization
+// transitions. Caller holds LockFamily; historical compromised rows stay intact.
+func (r *SessionRepository) RevokeActiveFamily(ctx context.Context, q database.Querier, familyID, reason string) (int64, error) {
+	tag, err := q.Exec(ctx, `UPDATE fleet_partner_corporate_sessions SET status='REVOKED',revoked_at=now(),revocation_reason=$2,updated_at=now() WHERE session_family_id=$1 AND status='ACTIVE'`, familyID, reason)
+	return tag.RowsAffected(), err
 }
 
 // ListForIdentity returns the identity's own sessions, newest first.

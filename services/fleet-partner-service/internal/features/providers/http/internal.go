@@ -51,7 +51,7 @@ func NewInternalHandler(service *usecases.Service, allowedCallers []string) *Int
 // root.
 func InternalRoutes() []Route {
 	return []Route{
-		{Method: "GET", Path: "/providers/:providerService/:providerId/membership-summary", OperationID: "getProviderMembershipSummary"},
+		{Method: "GET", Path: "/providers/:providerId/services/:providerService/membership-summary", OperationID: "getProviderMembershipSummary"},
 	}
 }
 

@@ -1,3 +1,6 @@
+import { refreshSession } from "@/lib/browser-session";
+import { useAuthStore } from "@/store/auth-store";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 export interface ApiFieldError {
@@ -46,18 +49,36 @@ interface ApiErrorEnvelope {
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
-  token?: string
+  token?: string,
+  retried = false
 ): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  const currentToken = token && useAuthStore.getState().token;
+  if (currentToken) {
+    headers.set("Authorization", `Bearer ${currentToken}`);
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
+    cache: "no-store",
   });
+
+  if (res.status === 401 && currentToken && !retried) {
+    let next: string;
+    try {
+      // A delayed 401 for the previous token must not rotate again.
+      const latest = useAuthStore.getState().token;
+      next = latest && latest !== currentToken ? latest : (await refreshSession()).token;
+    } catch {
+      useAuthStore.getState().clearSession();
+      throw new ApiError(401, "session_expired", "Please sign in again.");
+    }
+    return apiFetch<T>(path, options, next, true);
+  }
+  if (res.status === 401 && retried) useAuthStore.getState().clearSession();
 
   let body: ApiSuccessEnvelope<T> | ApiErrorEnvelope;
   try {

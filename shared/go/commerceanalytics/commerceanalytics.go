@@ -70,6 +70,12 @@ type Envelope struct {
 }
 
 func ValidateEnvelope(e Envelope) error {
+	if IsDispatchRouteEvent(e.EventType) {
+		if e.SourceService != "driver-dispatch-delivery-service" || e.SourceAggregate != "dispatch_route_metric" || e.EventID == "" || e.SourceID != e.EventID || e.SourceVersion != 1 || e.SchemaVersion != 1 || e.OccurredAt.IsZero() || e.BusinessID != "" || e.VendorID != "" || e.BranchID != "" {
+			return errors.New("invalid Dispatch route metric authority")
+		}
+		return ValidateDispatchRouteMetric(e.Payload)
+	}
 	if strings.TrimSpace(e.EventID) == "" {
 		return errors.New("event id is required")
 	}
@@ -98,6 +104,9 @@ func ValidateEnvelope(e Envelope) error {
 }
 
 func KnownEventType(eventType string) bool {
+	if IsDispatchRouteEvent(eventType) {
+		return true
+	}
 	switch eventType {
 	case EventOrderCompleted, EventOrderAccepted, EventOrderRejected, EventOrderCancelled,
 		EventOrderRefunded, EventItemAvailability, EventInventoryMovement, EventWasteExpiry,

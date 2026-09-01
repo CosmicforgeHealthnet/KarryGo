@@ -1,0 +1,223 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KarryGo Dispatch Delivery Recovery and Route Integrity",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/provider/trips/{id}/delivery-attempts": {
+      "post": {
+        "summary": "Start delivery attempt grace period",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Attempt started"
+          },
+          "409": {
+            "description": "Current Trip state conflicts"
+          }
+        }
+      }
+    },
+    "/api/v1/provider/trips/{id}/delivery-attempts/{attemptId}/contact": {
+      "post": {
+        "summary": "Append receiver contact attempt",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Contact recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/provider/trips/{id}/delivery-attempts/{attemptId}/fail": {
+      "post": {
+        "summary": "Record receiver unavailable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recovery options returned"
+          },
+          "409": {
+            "description": "Grace/contact policy not satisfied"
+          }
+        }
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/delivery-option": {
+      "post": {
+        "summary": "Select an allowed delivery recovery",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recovery selected"
+          },
+          "409": {
+            "description": "Action or authority unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/provider/trips/{id}/breakdown": {
+      "post": {
+        "summary": "Report incident and request replacement",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Incident recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/provider/trips/{id}/hub-hold/checkpoints": {
+      "post": {
+        "summary": "Record approved hub custody checkpoint",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checkpoint recorded"
+          },
+          "409": {
+            "description": "Hub, manifest, parcel, or Media relation mismatch"
+          }
+        }
+      }
+    },
+    "/api/v1/internal/dispatch/v1/trips/{id}/emergency-recovery": {
+      "post": {
+        "summary": "Record controlled emergency recovery",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Emergency operation recorded"
+          },
+          "401": {
+            "description": "HMAC boundary rejected"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "operator_ref",
+                  "reason_code",
+                  "expected_trip_version"
+                ],
+                "properties": {
+                  "operator_ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason_code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "expected_trip_version": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "safe_note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/provider/trips/{id}/reroute": {
+      "post": {
+        "summary": "Create a new expected route version",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Route version created"
+          }
+        }
+      }
+    },
+    "/api/v1/provider/offline-commands": {
+      "post": {
+        "summary": "Reconcile an offline command envelope",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored command decision"
+          },
+          "409": {
+            "description": "Stale version or fingerprint conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/route-status": {
+      "get": {
+        "summary": "Read customer-owned route freshness",
+        "responses": {
+          "200": {
+            "description": "Minimized route status"
+          },
+          "404": {
+            "description": "Not found or not owned"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    }
+  }
+}

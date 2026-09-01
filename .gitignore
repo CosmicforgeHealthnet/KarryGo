@@ -35,3 +35,8 @@ credentials/
 # Local generated executables
 services/customer-service/cmd.exe
 services/vendor-service/vendor-test-runner.exe
+
+# Local Codex and generated test/build artifacts
+.codex-cache/
+/cmd.exe
+/*.out.txt

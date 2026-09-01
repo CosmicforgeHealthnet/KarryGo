@@ -19,6 +19,9 @@
 package commercemission
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -35,6 +38,8 @@ const (
 
 	// Path is appended to the authority's own internal commerce base.
 	Path = "/internal/commerce/missions"
+
+	OperationPath = Path + "/operations"
 )
 
 // Service names the logistics authority that will execute the mission.
@@ -85,6 +90,8 @@ const (
 	// real answer, not a failure: commerce must handle it rather than retry
 	// forever.
 	StatusRefused Status = "REFUSED"
+
+	StatusCancelled Status = "CANCELLED"
 )
 
 // Point is a pickup or dropoff location.
@@ -106,12 +113,76 @@ type Load struct {
 	Fragile      bool   `json:"fragile,omitempty"`
 }
 
+type ReadyWindow struct {
+	From     time.Time `json:"from,omitempty"`
+	To       time.Time `json:"to,omitempty"`
+	Timezone string    `json:"timezone,omitempty"`
+}
+
+type PlanBinding struct {
+	PlanRef         string `json:"plan_ref,omitempty"`
+	PlanVersion     int64  `json:"plan_version,omitempty"`
+	PlanFingerprint string `json:"plan_fingerprint,omitempty"`
+	MissionSlotRef  string `json:"mission_slot_ref,omitempty"`
+}
+
+type Handling struct {
+	Fragile         bool     `json:"fragile,omitempty"`
+	Upright         bool     `json:"upright,omitempty"`
+	SpillLiquid     bool     `json:"spill_liquid,omitempty"`
+	Hot             bool     `json:"hot,omitempty"`
+	Chilled         bool     `json:"chilled,omitempty"`
+	Frozen          bool     `json:"frozen,omitempty"`
+	HighValue       bool     `json:"high_value,omitempty"`
+	SpecialHandling []string `json:"special_handling,omitempty"`
+}
+
+type PickupStop struct {
+	StopRef         string      `json:"stop_ref"`
+	PhysicalStopRef string      `json:"physical_stop_ref,omitempty"`
+	VendorRef       string      `json:"vendor_ref,omitempty"`
+	BranchRef       string      `json:"branch_ref,omitempty"`
+	ManifestRef     string      `json:"manifest_ref,omitempty"`
+	ManifestVersion int64       `json:"manifest_version,omitempty"`
+	Location        Point       `json:"location"`
+	ReadyWindow     ReadyWindow `json:"ready_window,omitempty"`
+	ParcelRefs      []string    `json:"parcel_refs,omitempty"`
+	Handling        Handling    `json:"handling,omitempty"`
+}
+
+type Parcel struct {
+	ParcelRef       string          `json:"parcel_ref"`
+	VendorRef       string          `json:"vendor_ref,omitempty"`
+	BranchRef       string          `json:"branch_ref,omitempty"`
+	FulfilmentUnit  string          `json:"fulfilment_unit,omitempty"`
+	VendorOrderRef  string          `json:"vendor_order_ref,omitempty"`
+	PickupStopRef   string          `json:"pickup_stop_ref,omitempty"`
+	ManifestRef     string          `json:"manifest_ref,omitempty"`
+	ManifestVersion int64           `json:"manifest_version,omitempty"`
+	Manifest        json.RawMessage `json:"manifest,omitempty"`
+	WeightGrams     int64           `json:"weight_grams,omitempty"`
+	LengthMm        int64           `json:"length_mm,omitempty"`
+	WidthMm         int64           `json:"width_mm,omitempty"`
+	HeightMm        int64           `json:"height_mm,omitempty"`
+	PackageCount    int64           `json:"package_count,omitempty"`
+	Handling        Handling        `json:"handling,omitempty"`
+}
+
+type VehicleRequirement struct {
+	Class              VehicleClass `json:"class,omitempty"`
+	MaxWeightGrams     int64        `json:"max_weight_grams,omitempty"`
+	MaxVolumeMl        int64        `json:"max_volume_ml,omitempty"`
+	LongestDimensionMm int64        `json:"longest_dimension_mm,omitempty"`
+}
+
 // Request asks a logistics authority to execute one commerce mission.
 type Request struct {
 	// MissionRef is Vendor Service's own mission identity and the idempotency
 	// key. Re-sending the same MissionRef must return the same mission rather
 	// than creating a second one.
 	MissionRef string `json:"mission_ref"`
+
+	OperationRef string `json:"operation_ref,omitempty"`
 
 	ParentOrderRef string `json:"parent_order_ref"`
 
@@ -129,9 +200,14 @@ type Request struct {
 	QuoteID        string `json:"quote_id,omitempty"`
 	QuoteReference string `json:"quote_reference,omitempty"`
 
-	Pickup  Point `json:"pickup"`
-	Dropoff Point `json:"dropoff"`
-	Load    Load  `json:"load"`
+	Plan        *PlanBinding       `json:"plan,omitempty"`
+	Pickup      Point              `json:"pickup"`
+	PickupStops []PickupStop       `json:"pickup_stops,omitempty"`
+	Dropoff     Point              `json:"dropoff"`
+	Parcels     []Parcel           `json:"parcels,omitempty"`
+	Vehicle     VehicleRequirement `json:"vehicle,omitempty"`
+	Load        Load               `json:"load"`
+	Handling    Handling           `json:"handling,omitempty"`
 
 	Currency string `json:"currency"`
 
@@ -144,15 +220,66 @@ type Request struct {
 	RequestedAt time.Time `json:"requested_at"`
 }
 
+func (r Request) OperationReference() string {
+	if value := strings.TrimSpace(r.OperationRef); value != "" {
+		return value
+	}
+	return strings.TrimSpace(r.MissionRef)
+}
+
+func (r Request) Fingerprint() string {
+	payload := struct {
+		OperationRef    string             `json:"operation_ref"`
+		MissionRef      string             `json:"mission_ref"`
+		ParentOrderRef  string             `json:"parent_order_ref"`
+		VendorOrderRefs []string           `json:"vendor_order_refs"`
+		CustomerRef     string             `json:"customer_ref"`
+		Service         Service            `json:"service"`
+		VehicleClass    VehicleClass       `json:"vehicle_class"`
+		QuoteID         string             `json:"quote_id"`
+		QuoteReference  string             `json:"quote_reference"`
+		Plan            *PlanBinding       `json:"plan,omitempty"`
+		Pickup          Point              `json:"pickup"`
+		PickupStops     []PickupStop       `json:"pickup_stops,omitempty"`
+		Dropoff         Point              `json:"dropoff"`
+		Parcels         []Parcel           `json:"parcels,omitempty"`
+		Vehicle         VehicleRequirement `json:"vehicle,omitempty"`
+		Load            Load               `json:"load"`
+		Handling        Handling           `json:"handling,omitempty"`
+		Currency        string             `json:"currency"`
+		AgreedFeeMinor  int64              `json:"agreed_fee_minor"`
+		RequestedAt     time.Time          `json:"requested_at"`
+	}{
+		OperationRef: r.OperationReference(), MissionRef: strings.TrimSpace(r.MissionRef),
+		ParentOrderRef: strings.TrimSpace(r.ParentOrderRef), VendorOrderRefs: r.VendorOrderRefs,
+		CustomerRef: strings.TrimSpace(r.CustomerRef), Service: r.Service, VehicleClass: r.VehicleClass,
+		QuoteID: strings.TrimSpace(r.QuoteID), QuoteReference: strings.TrimSpace(r.QuoteReference),
+		Plan: r.Plan, Pickup: r.Pickup, PickupStops: r.PickupStops, Dropoff: r.Dropoff,
+		Parcels: r.Parcels, Vehicle: r.Vehicle, Load: r.Load, Handling: r.Handling,
+		Currency: strings.ToUpper(strings.TrimSpace(r.Currency)), AgreedFeeMinor: r.AgreedFeeMinor,
+		RequestedAt: r.RequestedAt.UTC(),
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "unfingerprintable"
+	}
+	sum := sha256.Sum256(encoded)
+	return hex.EncodeToString(sum[:])
+}
+
 // Mission is the authority's answer.
 type Mission struct {
 	MissionRef string `json:"mission_ref"`
+
+	OperationRef string `json:"operation_ref,omitempty"`
 
 	// ExternalRef is the authority's own booking or trip identity, so commerce
 	// can follow execution without knowing that service's internals.
 	ExternalRef string `json:"external_ref"`
 
 	Status Status `json:"status"`
+
+	Version int64 `json:"version,omitempty"`
 
 	// RefusalCode is required when Status is REFUSED, so commerce can act on
 	// the reason rather than retrying blindly.
@@ -163,6 +290,13 @@ type Mission struct {
 	AcceptedFeeMinor int64 `json:"accepted_fee_minor"`
 
 	AcceptedAt time.Time `json:"accepted_at"`
+}
+
+type CancelRequest struct {
+	OperationRef    string `json:"operation_ref,omitempty"`
+	MissionRef      string `json:"mission_ref,omitempty"`
+	ReasonCode      string `json:"reason_code,omitempty"`
+	ExpectedVersion int64  `json:"expected_version,omitempty"`
 }
 
 // Envelope is the standard platform response shape.
@@ -210,7 +344,7 @@ func (r Request) Validate() (string, bool) {
 		return "service must be DISPATCH or HAULING", false
 	case r.VehicleClass != "" && !r.VehicleClass.Valid():
 		return "vehicle_class is not a known class", false
-	case !validCoordinate(r.Pickup.Latitude, r.Pickup.Longitude):
+	case len(r.PickupStops) == 0 && !validCoordinate(r.Pickup.Latitude, r.Pickup.Longitude):
 		return "pickup coordinates are out of range", false
 	case !validCoordinate(r.Dropoff.Latitude, r.Dropoff.Longitude):
 		return "dropoff coordinates are out of range", false
@@ -224,6 +358,50 @@ func (r Request) Validate() (string, bool) {
 		return "agreed_fee_minor cannot be negative", false
 	case r.Load.PackageCount < 0 || r.Load.WeightGrams < 0:
 		return "load values cannot be negative", false
+	}
+	if len(r.PickupStops) > 0 {
+		seenStops := map[string]bool{}
+		seenParcels := map[string]bool{}
+		for _, parcel := range r.Parcels {
+			ref := strings.TrimSpace(parcel.ParcelRef)
+			if ref == "" {
+				return "parcel_ref is required", false
+			}
+			if seenParcels[ref] {
+				return "parcel_refs must be unique", false
+			}
+			seenParcels[ref] = true
+			if parcel.WeightGrams < 0 || parcel.PackageCount < 0 {
+				return "parcel measurements cannot be negative", false
+			}
+		}
+		for _, stop := range r.PickupStops {
+			ref := strings.TrimSpace(stop.StopRef)
+			if ref == "" {
+				return "pickup stop ref is required", false
+			}
+			if seenStops[ref] {
+				return "pickup stop refs must be unique", false
+			}
+			seenStops[ref] = true
+			if !validCoordinate(stop.Location.Latitude, stop.Location.Longitude) {
+				return "pickup stop coordinates are out of range", false
+			}
+			for _, parcelRef := range stop.ParcelRefs {
+				if !seenParcels[strings.TrimSpace(parcelRef)] {
+					return "pickup stop references an unknown parcel", false
+				}
+			}
+			if !stop.ReadyWindow.From.IsZero() || !stop.ReadyWindow.To.IsZero() {
+				if stop.ReadyWindow.From.IsZero() || stop.ReadyWindow.To.IsZero() ||
+					stop.ReadyWindow.To.Before(stop.ReadyWindow.From) {
+					return "pickup ready window is invalid", false
+				}
+				if strings.TrimSpace(stop.ReadyWindow.Timezone) == "" {
+					return "pickup ready window timezone is required", false
+				}
+			}
+		}
 	}
 	return "", true
 }
@@ -243,7 +421,7 @@ func VerifyMission(request Request, mission Mission) error {
 			return ErrInvalidRequest
 		}
 		return nil
-	case StatusAccepted:
+	case StatusAccepted, StatusCancelled:
 	default:
 		return ErrInvalidRequest
 	}

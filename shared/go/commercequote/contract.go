@@ -125,6 +125,26 @@ type Point struct {
 	Address string `json:"address,omitempty"`
 }
 
+// ReadyWindow is the time window a pickup stop can serve. It is scheduling
+// evidence only; the hauling authority remains responsible for deciding
+// provider availability.
+type ReadyWindow struct {
+	From     time.Time `json:"from,omitempty"`
+	To       time.Time `json:"to,omitempty"`
+	Timezone string    `json:"timezone,omitempty"`
+}
+
+// PickupStop lets Vendor Service quote the same committed multi-stop
+// fulfilment route it will later ask Hauling to execute.
+type PickupStop struct {
+	StopRef         string      `json:"stop_ref"`
+	PhysicalStopRef string      `json:"physical_stop_ref,omitempty"`
+	VendorRef       string      `json:"vendor_ref,omitempty"`
+	BranchRef       string      `json:"branch_ref,omitempty"`
+	Location        Point       `json:"location"`
+	ReadyWindow     ReadyWindow `json:"ready_window,omitempty"`
+}
+
 // Load is what is actually being carried.
 //
 // Every measurement is a caller statement of what it knows. WeightEvidence
@@ -154,8 +174,12 @@ type Request struct {
 
 	VehicleClass VehicleClass `json:"vehicle_class"`
 
-	Pickup  Point `json:"pickup"`
-	Dropoff Point `json:"dropoff"`
+	// Pickup is kept for the historical single-pickup contract. New
+	// consolidated hauling plans should send PickupStops and the first stop is
+	// then used for provider proximity.
+	Pickup      Point        `json:"pickup"`
+	PickupStops []PickupStop `json:"pickup_stops,omitempty"`
+	Dropoff     Point        `json:"dropoff"`
 
 	Load Load `json:"load"`
 
@@ -252,8 +276,31 @@ func (r Request) Validate() (string, bool) {
 		return "vehicle_class is not a supported class", false
 	}
 
-	if !validCoordinate(r.Pickup.Latitude, r.Pickup.Longitude) {
+	if len(r.PickupStops) == 0 && !validCoordinate(r.Pickup.Latitude, r.Pickup.Longitude) {
 		return "pickup coordinates are missing or invalid", false
+	}
+
+	seenStops := map[string]bool{}
+	for _, stop := range r.PickupStops {
+		if trim(stop.StopRef) == "" {
+			return "pickup stop ref is required", false
+		}
+		if seenStops[trim(stop.StopRef)] {
+			return "pickup stop refs must be unique", false
+		}
+		seenStops[trim(stop.StopRef)] = true
+		if !validCoordinate(stop.Location.Latitude, stop.Location.Longitude) {
+			return "pickup stop coordinates are missing or invalid", false
+		}
+		if !stop.ReadyWindow.From.IsZero() || !stop.ReadyWindow.To.IsZero() {
+			if stop.ReadyWindow.From.IsZero() || stop.ReadyWindow.To.IsZero() ||
+				stop.ReadyWindow.To.Before(stop.ReadyWindow.From) {
+				return "pickup ready window is invalid", false
+			}
+			if trim(stop.ReadyWindow.Timezone) == "" {
+				return "pickup ready window timezone is required", false
+			}
+		}
 	}
 
 	if !validCoordinate(r.Dropoff.Latitude, r.Dropoff.Longitude) {

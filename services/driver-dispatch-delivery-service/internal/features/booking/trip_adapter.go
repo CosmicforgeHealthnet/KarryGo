@@ -2,6 +2,7 @@ package booking
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
@@ -14,6 +15,13 @@ import (
 // subscriber runs, but synchronously, so the caller can verify the outcome.
 type TripCancelAdapter struct {
 	Trips *tripfeature.Service
+}
+
+func (a TripCancelAdapter) DecodeDeliveryCode(tripID, stored string) (string, error) {
+	if a.Trips == nil {
+		return "", fmt.Errorf("delivery credential authority unavailable")
+	}
+	return a.Trips.DecodeDeliveryCode(tripID, stored)
 }
 
 func (a TripCancelAdapter) CancelForCustomer(ctx context.Context, bookingID, reason string) error {

@@ -16,9 +16,9 @@ func RequestLogger() gin.HandlerFunc {
 
 		log.Printf(
 			"request_id=%s method=%s path=%s status=%d latency_ms=%d",
-			httpx.GetRequestID(c),
+			httpx.LogRequestID(c),
 			c.Request.Method,
-			c.Request.URL.Path,
+			c.FullPath(),
 			c.Writer.Status(),
 			time.Since(start).Milliseconds(),
 		)

@@ -181,13 +181,13 @@ function ProfileTab() {
   };
 
   const handleLogout = async () => {
-    if (!token) return;
     setLogoutLoading(true);
     try {
-      await authService.logout(token);
+      await authService.logout();
       clearSession();
       router.push("/login");
-    } catch (err) {
+    } catch {
+      window.alert("Server logout could not be confirmed. Please retry when connected.");
       clearSession();
       router.push("/login");
     } finally {

@@ -8,7 +8,7 @@
     "/internal/analytics/v1/commerce-events": {
       "post": {
         "summary": "Ingest committed commerce analytics event",
-        "description": "Internal HMAC v2 endpoint for authoritative operational services. Idempotent by eventId. Unknown schema or event type fails closed.",
+        "description": "Internal HMAC v2 endpoint for authoritative operational services. Signed caller must equal sourceService. Idempotent by eventId. Also accepts Dispatch-only dispatch.route.created.v1, dispatch.route.versioned.v1, dispatch.route.rerouted.v1 and dispatch.route_alert.opened.v1 envelopes from the existing Dispatch outbox. Route payload permits only route_version, state, policy_version, alert_type, severity, distance_bucket_km and duration_bucket_minutes; exact coordinates, provider and customer identities are rejected. These feed an independent route daily read model, not Vendor reliability. Unknown schema/event type fails closed; changed route event fingerprints conflict.",
         "x-internal": true,
         "responses": {
           "202": { "description": "Processed" },

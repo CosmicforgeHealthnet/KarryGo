@@ -1,0 +1,23 @@
+DROP TRIGGER IF EXISTS dispatch_route_fix_append_only ON dispatch_route_location_fixes;
+DROP TRIGGER IF EXISTS dispatch_contact_attempt_append_only ON dispatch_delivery_contact_attempts;
+DROP TRIGGER IF EXISTS dispatch_hub_checkpoint_append_only ON dispatch_hub_hold_checkpoints;
+DROP TRIGGER IF EXISTS dispatch_emergency_recovery_append_only ON dispatch_emergency_recovery_actions;
+DROP TRIGGER IF EXISTS dispatch_expected_route_history_guard ON dispatch_expected_routes;
+DROP FUNCTION IF EXISTS dispatch_protect_expected_route_history();
+DROP FUNCTION IF EXISTS dispatch_reject_recovery_history_mutation();
+DROP TABLE IF EXISTS dispatch_device_commands;
+DROP TABLE IF EXISTS dispatch_route_alerts;
+DROP TABLE IF EXISTS dispatch_route_location_fixes;
+DROP TABLE IF EXISTS dispatch_expected_routes;
+DROP TABLE IF EXISTS dispatch_emergency_recovery_actions;
+DROP TABLE IF EXISTS dispatch_delivery_incidents;
+DROP TABLE IF EXISTS dispatch_hub_hold_checkpoints;
+DROP TABLE IF EXISTS dispatch_hub_hold_operations;
+DROP TABLE IF EXISTS dispatch_return_workflows;
+DROP TABLE IF EXISTS dispatch_delivery_recovery_actions;
+DROP TABLE IF EXISTS dispatch_delivery_contact_attempts;
+DROP TABLE IF EXISTS dispatch_delivery_attempt_operations;
+DROP TABLE IF EXISTS dispatch_delivery_attempts;
+ALTER TABLE dispatch_handover_challenges DROP CONSTRAINT IF EXISTS dispatch_handover_challenges_stage_check;
+ALTER TABLE dispatch_handover_challenges ADD CONSTRAINT dispatch_handover_challenges_stage_check
+    CHECK (stage IN ('PICKUP','DELIVERY','PROVIDER_TRANSFER'));

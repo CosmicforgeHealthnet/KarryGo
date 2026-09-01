@@ -16,6 +16,11 @@ func TestClientReadsSignedOrganizationManagedSummary(t *testing.T) {
 	secret := []byte("section30-test-secret")
 	verifier := serviceauth.NewVerifier(serviceauth.Secrets{caller: secret}, time.Minute)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/internal/fleet-partner/v1/providers/provider_fixture/services/driver-hauling-service/membership-summary" {
+			t.Errorf("incorrect membership route: %s", r.URL.Path)
+			w.WriteHeader(404)
+			return
+		}
 		if _, err := verifier.VerifyRequest(r); err != nil {
 			t.Fatalf("verify signed request: %v", err)
 		}

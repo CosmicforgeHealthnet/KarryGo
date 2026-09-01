@@ -51,6 +51,12 @@ func (r *Repository) Ingest(ctx context.Context, event commerceanalytics.Envelop
 		return false, err
 	}
 	if tag.RowsAffected() == 0 {
+		if commerceanalytics.IsDispatchRouteEvent(event.EventType) {
+			var stored string
+			if err := tx.QueryRow(ctx, `SELECT payload_hash FROM analytics_commerce_events WHERE event_id=$1 AND event_type=$2 AND source_service=$3`, event.EventID, event.EventType, event.SourceService).Scan(&stored); err != nil || stored != hash {
+				return false, errors.New("analytics event identity conflict")
+			}
+		}
 		return false, ErrDuplicateEvent
 	}
 	if err := r.applyAggregate(ctx, tx, event); err != nil {
@@ -63,6 +69,11 @@ func (r *Repository) Ingest(ctx context.Context, event commerceanalytics.Envelop
 }
 
 func (r *Repository) applyAggregate(ctx context.Context, tx pgx.Tx, e commerceanalytics.Envelope) error {
+	// Route metrics are an independent downstream read model over the existing
+	// immutable ingest store, never Vendor reliability or operational truth.
+	if commerceanalytics.IsDispatchRouteEvent(e.EventType) {
+		return nil
+	}
 	day := e.OccurredAt.UTC().Truncate(24 * time.Hour)
 	businessID := first(e.BusinessID, e.VendorID)
 	branchID := e.BranchID

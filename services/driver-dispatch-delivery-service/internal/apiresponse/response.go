@@ -20,6 +20,9 @@ type successResponse struct {
 
 // RespondSuccess writes a standard success envelope with an optional message.
 func RespondSuccess(c *gin.Context, status int, message string, data interface{}) {
+	if c.GetString("dispatch_rider_id") != "" {
+		data = providerView(data, c.GetBool("dispatch_conceal_finance"))
+	}
 	if status == 0 {
 		status = http.StatusOK
 	}

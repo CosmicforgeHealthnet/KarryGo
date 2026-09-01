@@ -301,8 +301,62 @@ type TripListResponse struct {
 
 type TripDetailResponse struct {
 	Trip
-	StateLog []TripStateLog `json:"state_log"`
-	Proof    *DeliveryProof `json:"proof"`
+	StateLog []TripStateLog             `json:"state_log"`
+	Proof    *DeliveryProof             `json:"proof"`
+	Mission  *ProviderMissionProjection `json:"mission,omitempty"`
+}
+
+// ProviderMissionProjection is the provider-safe normalized operational view
+// attached to the canonical Trip read. It contains no handover secret/hash,
+// customer financial state or internal assignment audit.
+type ProviderMissionProjection struct {
+	MissionID       string                `json:"mission_id"`
+	DeliveryGroupID string                `json:"delivery_group_id"`
+	State           string                `json:"state"`
+	Version         int64                 `json:"version"`
+	Stops           []ProviderMissionStop `json:"stops"`
+	Manifest        *ProviderManifest     `json:"manifest,omitempty"`
+	Parcels         []ProviderParcel      `json:"parcels"`
+	AllowedActions  []string              `json:"allowed_actions"`
+	Handover        *ProviderHandover     `json:"handover,omitempty"`
+	Recovery        *ProviderRecovery     `json:"recovery,omitempty"`
+	Route           *ProviderRoute        `json:"route,omitempty"`
+}
+
+type ProviderMissionStop struct {
+	ID       string         `json:"id"`
+	StopRef  string         `json:"stop_ref"`
+	Sequence int            `json:"sequence"`
+	Type     string         `json:"type"`
+	Location map[string]any `json:"location"`
+}
+
+type ProviderManifest struct {
+	Reference string `json:"reference"`
+	Version   int64  `json:"version"`
+	Status    string `json:"status"`
+}
+
+type ProviderParcel struct {
+	Reference     string `json:"reference"`
+	ScannableCode string `json:"scannable_code"`
+	State         string `json:"state"`
+}
+
+type ProviderHandover struct {
+	Stage  string `json:"stage"`
+	Status string `json:"status"`
+}
+
+type ProviderRecovery struct {
+	AttemptState string `json:"attempt_state,omitempty"`
+	Action       string `json:"action,omitempty"`
+}
+
+type ProviderRoute struct {
+	Version        int64  `json:"version"`
+	Status         string `json:"status"`
+	OpenAlertCount int64  `json:"open_alert_count"`
 }
 
 type TripResponse = TripDetailResponse
