@@ -1,9 +1,11 @@
 package bookingmodels
 
 import (
+	"encoding/json"
 	"math"
 	"time"
 
+	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -245,6 +247,75 @@ type PublicBooking struct {
 
 	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
+
+	// Commerce is present only for a Hauling Commerce mission and contains
+	// operational evidence needed by the assigned provider. It deliberately
+	// carries no customer charge, Vendor margin, commission or settlement.
+	Commerce *CommerceOperations `json:"commerce,omitempty"`
+}
+
+type CommerceParcel struct {
+	ParcelRef       string                   `json:"parcel_ref"`
+	PickupStopRef   string                   `json:"pickup_stop_ref,omitempty"`
+	ManifestRef     string                   `json:"manifest_ref,omitempty"`
+	ManifestVersion int64                    `json:"manifest_version,omitempty"`
+	WeightGrams     int64                    `json:"weight_grams,omitempty"`
+	LengthMm        int64                    `json:"length_mm,omitempty"`
+	WidthMm         int64                    `json:"width_mm,omitempty"`
+	HeightMm        int64                    `json:"height_mm,omitempty"`
+	PackageCount    int64                    `json:"package_count,omitempty"`
+	Handling        commercemission.Handling `json:"handling,omitempty"`
+}
+
+type CommerceOperations struct {
+	SourceType             string                       `json:"source_type"`
+	OperationRef           string                       `json:"operation_ref"`
+	VehicleClass           string                       `json:"vehicle_class"`
+	PickupStops            []commercemission.PickupStop `json:"pickup_stops"`
+	Parcels                []CommerceParcel             `json:"parcels"`
+	ManifestRef            string                       `json:"manifest_ref,omitempty"`
+	ManifestVersion        int64                        `json:"manifest_version,omitempty"`
+	Handling               commercemission.Handling     `json:"handling,omitempty"`
+	PickupWindowStart      *time.Time                   `json:"pickup_window_start,omitempty"`
+	PickupWindowEnd        *time.Time                   `json:"pickup_window_end,omitempty"`
+	PickupTimezone         string                       `json:"pickup_timezone,omitempty"`
+	LoadingDurationSeconds int64                        `json:"loading_duration_seconds,omitempty"`
+}
+
+type commerceParcelWire struct {
+	ParcelRef       string                   `json:"parcel_ref"`
+	PickupStopRef   string                   `json:"pickup_stop_ref,omitempty"`
+	ManifestRef     string                   `json:"manifest_ref,omitempty"`
+	ManifestVersion int64                    `json:"manifest_version,omitempty"`
+	WeightGrams     int64                    `json:"weight_grams,omitempty"`
+	LengthMm        int64                    `json:"length_mm,omitempty"`
+	WidthMm         int64                    `json:"width_mm,omitempty"`
+	HeightMm        int64                    `json:"height_mm,omitempty"`
+	PackageCount    int64                    `json:"package_count,omitempty"`
+	Handling        commercemission.Handling `json:"handling,omitempty"`
+	Manifest        json.RawMessage          `json:"manifest,omitempty"`
+}
+
+// SanitizeCommerceParcels projects only provider-operational fields. The raw
+// manifest may contain Vendor order detail and is intentionally discarded.
+func SanitizeCommerceParcels(raw []byte) ([]CommerceParcel, error) {
+	var source []commerceParcelWire
+	if len(raw) != 0 {
+		if err := json.Unmarshal(raw, &source); err != nil {
+			return nil, err
+		}
+	}
+	result := make([]CommerceParcel, 0, len(source))
+	for _, parcel := range source {
+		result = append(result, CommerceParcel{
+			ParcelRef: parcel.ParcelRef, PickupStopRef: parcel.PickupStopRef,
+			ManifestRef: parcel.ManifestRef, ManifestVersion: parcel.ManifestVersion,
+			WeightGrams: parcel.WeightGrams, LengthMm: parcel.LengthMm,
+			WidthMm: parcel.WidthMm, HeightMm: parcel.HeightMm,
+			PackageCount: parcel.PackageCount, Handling: parcel.Handling,
+		})
+	}
+	return result, nil
 }
 
 // PickupCodeRecord returns the driver's pickup credential state as a

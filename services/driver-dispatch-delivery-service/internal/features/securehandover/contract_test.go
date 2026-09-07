@@ -39,6 +39,7 @@ func TestSecureHandoverRouterOpenAPIAndRegisterParity(t *testing.T) {
 		"/:id/handover/resend":                 "/api/v1/customer/dispatch/bookings/{id}/handover/resend",
 		"/:id/return-credential":               "/api/v1/customer/dispatch/bookings/{id}/return-credential",
 		"/:id/stops/:stopId/pickup/verify":     "/api/v1/internal/commerce/dispatch/missions/{id}/stops/{stopId}/pickup/verify",
+		"/:id/stops/:stopId/handover/:stage":  "/api/v1/internal/commerce/dispatch/missions/{id}/stops/{stopId}/handover/{stage}",
 	}
 	for ginPath, openAPIPath := range routes {
 		if !strings.Contains(string(httpSource), ginPath) {
@@ -47,7 +48,7 @@ func TestSecureHandoverRouterOpenAPIAndRegisterParity(t *testing.T) {
 		if _, ok := contract.Paths[openAPIPath]; !ok {
 			t.Errorf("OpenAPI missing %s", openAPIPath)
 		}
-		registerPath := strings.NewReplacer("{id}", ":id", "{stopId}", ":stopId").Replace(openAPIPath)
+		registerPath := strings.NewReplacer("{id}", ":id", "{stopId}", ":stopId", "{stage}", ":stage").Replace(openAPIPath)
 		if !strings.Contains(string(registerRaw), registerPath) {
 			t.Errorf("route register missing %s", registerPath)
 		}

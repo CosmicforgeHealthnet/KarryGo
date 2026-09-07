@@ -57,6 +57,18 @@ func newTestClient(t *testing.T, baseURL string) *Client {
 	})
 }
 
+func TestRequestValidateBoundsLoadingDuration(t *testing.T) {
+	request := validRequest()
+	request.Load.LoadingDurationSeconds = MaxLoadingDurationSeconds
+	if reason, ok := request.Validate(); !ok {
+		t.Fatalf("maximum loading duration refused: %s", reason)
+	}
+	request.Load.LoadingDurationSeconds++
+	if _, ok := request.Validate(); ok {
+		t.Fatal("unbounded loading duration accepted")
+	}
+}
+
 func TestClient_ServiceableQuoteRoundTrip(t *testing.T) {
 	want := Quote{
 		QuoteID:            "dq_1",
@@ -199,7 +211,6 @@ func TestClient_RefusesInvalidRequestsBeforeSending(t *testing.T) {
 	cases := map[string]func(*Request){
 		"no reference":     func(r *Request) { r.QuoteReference = "" },
 		"bad class":        func(r *Request) { r.VehicleClass = "HELICOPTER" },
-		"car class":        func(r *Request) { r.VehicleClass = "CAR" },
 		"null island":      func(r *Request) { r.Dropoff = Point{} },
 		"bad currency":     func(r *Request) { r.Currency = "N" },
 		"no packages":      func(r *Request) { r.Load.PackageCount = 0 },

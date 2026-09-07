@@ -8,6 +8,7 @@ package orders
 
 import (
 	"context"
+	handoverintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/handover"
 	"fmt"
 	"strings"
 	"time"
@@ -57,11 +58,12 @@ func (snapshotRestrictedGoodsAuthority) ValidateOrderForFulfilment(_ context.Con
 
 // Service owns Section 17E order orchestration.
 type Service struct {
-	store   *Store
-	quotes  QuoteAuthority
-	scopes  ScopeResolver
-	enabled bool
-	now     func() time.Time
+	handover handoverintegration.Router
+	store    *Store
+	quotes   QuoteAuthority
+	scopes   ScopeResolver
+	enabled  bool
+	now      func() time.Time
 
 	// payments is the Section 17F money authority. It is nil until
 	// SetPaymentAuthority wires one, so a deployment without Wallet

@@ -1445,7 +1445,7 @@ Backend only. No frontend was implemented.
 | Return initiation + return status | READY | `POST /fulfilment/parcels/{parcelId}/returns` |
 | Handover OTP/QR action on a vendor mission | PARTIAL | the mission carries a `handover_ref`; the credential itself is issued and verified by its owning authority, not by this service |
 | Provider transfer display | PARTIAL | modelled and safe to render, but no logistics authority emits a transfer event yet |
-| **Taxi commerce delivery** | **DEFERRED** | `driver-taxi-service` has no commerce mission ingress. Do not build a Taxi option; selecting it is refused server-side |
+| **Taxi commerce delivery** | **BACKEND_GATED** | Distinct Taxi Goods CAR authority exists behind false-by-default flags. Future UI must consume server selection only; it must not expose provider choice or call passenger booking APIs |
 
 ### Vocabulary for the interface
 
@@ -1500,7 +1500,7 @@ Each decision carries:
 | Field | Use |
 |---|---|
 | `minimum_physical_class` | what the load actually needs; may be `CAR` |
-| `selected_vehicle_class` / `selected_service` | what will run it; never `CAR` |
+| `selected_vehicle_class` / `selected_service` | what will run it; `CAR` / `TAXI` only when the gated Taxi Goods authority is available |
 | `executable` | false means nothing can currently run it |
 | `primary_reason` | one controlled code — the headline |
 | `supporting_reasons` | ordered controlled codes — the detail |
@@ -1732,3 +1732,20 @@ responses:
   evidence.
 - Safe generic message for Hauling integration kill-switch/unavailable states;
   do not reveal internal HMAC, nonce or service-route details.
+
+## Section 32 — future custody UI (backend only)
+
+The Vendor branch operator receives the pickup OTP/QR presented by the provider,
+then sends it transiently to the authenticated Vendor pickup relay. Show success
+only for a canonical CONSUMED observation. A transport success is insufficient.
+On HANDOVER_OUTCOME_UNKNOWN read back the same physical mission; do not create
+a new operation or imply offline completion. Never cache credentials, include
+them in analytics, or expose receiver delivery credentials to Vendor staff.
+
+Dispatch, Hauling, Taxi and Vendor-owned relays are independently disabled by default and
+must be enabled only where the corresponding canonical deployment is certified.
+Dispatch now provides the VendorMission-compatible custody authority. Provider
+delivery UI continues to call that logistics authority and remains outside this
+backend-only task.
+
+FRONTEND CODE CHANGED: NO

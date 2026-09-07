@@ -44,6 +44,7 @@ type memoryStore struct {
 	added    int
 	request  StartRequest
 	strategy Strategy
+	expired  int
 }
 
 func (m *memoryStore) Start(_ context.Context, request StartRequest, strategy Strategy, candidates []Candidate, _ time.Duration, _ string, _ bool) (Assignment, error) {
@@ -68,6 +69,7 @@ func (m *memoryStore) Decline(context.Context, string, string, Decision, time.Ti
 	return Assignment{}, nil
 }
 func (m *memoryStore) ExpireOffers(context.Context, time.Time, time.Duration, int) (int, error) {
+	m.expired++
 	return 0, nil
 }
 func (m *memoryStore) ApplyQueueOption(context.Context, string, string, QueueOption, time.Time) (QueueEntry, error) {
@@ -121,6 +123,30 @@ func TestQueuePriorityIsServerOwned(t *testing.T) {
 	}
 	if store.request.Priority != 50 || store.request.PriorityReason != "NORMAL" {
 		t.Fatalf("priority=%d reason=%s", store.request.Priority, store.request.PriorityReason)
+	}
+}
+
+func TestSequentialRolloutServiceTierSelection(t *testing.T) {
+	policy := Policy{RolloutServiceTiers: "express, priority"}
+	if !policy.SequentialSelected("EXPRESS") || !policy.SequentialSelected("priority") {
+		t.Fatal("configured tiers were not selected")
+	}
+	if policy.SequentialSelected("standard") {
+		t.Fatal("outside-cohort tier was selected")
+	}
+	if !(Policy{}).SequentialSelected("standard") {
+		t.Fatal("empty selector must preserve existing global-flag compatibility")
+	}
+}
+
+func TestDrainMaintenanceCreatesNoNewAssignmentWork(t *testing.T) {
+	store := &memoryStore{}
+	service := New(store, nil, Policy{})
+	if err := service.RunDrainMaintenance(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if store.expired != 0 || len(store.started) != 0 || store.added != 0 {
+		t.Fatalf("drain mode created assignment work: expired=%d started=%d added=%d", store.expired, len(store.started), store.added)
 	}
 }
 

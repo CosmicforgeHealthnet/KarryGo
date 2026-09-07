@@ -109,19 +109,19 @@ func (a *section17FMissionAuthority) CancelMission(
 	ctx context.Context, operationRef, reasonCode string,
 ) error {
 	if a == nil || a.dispatch == nil || !a.dispatch.Configured() {
-		return a.cancelHaulingMission(ctx, operationRef, reasonCode)
+		return a.cancelLegacyMission(ctx, operationRef, reasonCode)
 	}
 	mission, err := a.dispatch.ReadOperation(ctx, operationRef)
 	if err != nil {
 		// No mission was committed yet; there is no Dispatch execution to
 		// cancel and Vendor may safely cancel its pre-execution allocation.
 		if errors.Is(err, dispatchcommerce.ErrInvalidRequest) {
-			haulingErr := a.cancelHaulingMission(ctx, operationRef, reasonCode)
-			if haulingErr == nil || errors.Is(haulingErr, commercemission.ErrInvalidRequest) ||
-				errors.Is(haulingErr, commercemission.ErrNotConfigured) {
+			legacyErr := a.cancelLegacyMission(ctx, operationRef, reasonCode)
+			if legacyErr == nil || errors.Is(legacyErr, commercemission.ErrInvalidRequest) ||
+				errors.Is(legacyErr, commercemission.ErrNotConfigured) {
 				return nil
 			}
-			return haulingErr
+			return legacyErr
 		}
 		return err
 	}

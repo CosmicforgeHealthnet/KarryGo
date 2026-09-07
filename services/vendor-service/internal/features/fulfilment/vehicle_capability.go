@@ -246,10 +246,9 @@ func DefaultCapabilityPolicy() CapabilityPolicy {
 					SpecialHandlingHighValue,
 				},
 				SupportsMulti: false,
-				// driver-taxi-service is a passenger service with no goods
-				// concept in code. Modelling the class is honest; marking it
-				// executable would be a delivery nobody can perform.
-				GoodsModeActive: false,
+				// Taxi Goods is a distinct production capability; the runtime
+				// Vendor flag and authority availability still fail closed.
+				GoodsModeActive: true,
 			},
 			{
 				Class:                       VehicleVan,

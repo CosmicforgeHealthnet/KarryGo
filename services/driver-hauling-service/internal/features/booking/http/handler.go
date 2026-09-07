@@ -226,11 +226,11 @@ func (h *BookingHandler) VerifyDriverAtPickup(c *gin.Context) {
 		return
 	}
 	var req verifyDriverRequest
-	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Code) == "" {
-		httpx.Abort(c, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "code", Message: "Verification code is required."}}))
+	if err := c.ShouldBindJSON(&req); err != nil || credentialValue(req.Code, req.QRToken) == "" {
+		httpx.Abort(c, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "credential", Message: "An OTP or QR token is required."}}))
 		return
 	}
-	booking, err := h.svc.VerifyDriverAtPickup(c.Request.Context(), claims.Subject, c.Param("id"), req.Code)
+	booking, err := h.svc.VerifyDriverAtPickup(c.Request.Context(), claims.Subject, c.Param("id"), credentialValue(req.Code, req.QRToken))
 	if err != nil {
 		httpx.Abort(c, err)
 		return
@@ -238,9 +238,8 @@ func (h *BookingHandler) VerifyDriverAtPickup(c *gin.Context) {
 	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
 }
 
-// GetVerificationCode returns the customer's own delivery verification code
-// for redisplay (?step=delivery — the pickup credential belongs to the
-// driver and is not readable here).
+// GetVerificationCode returns status for the customer's delivery challenge.
+// It never redisplays either bearer credential.
 func (h *BookingHandler) GetVerificationCode(c *gin.Context) {
 	claims, ok := sharedauth.ClaimsFromContext(c)
 	if !ok {
@@ -472,11 +471,11 @@ func (h *BookingHandler) ConfirmDelivery(c *gin.Context) {
 	}
 	var req confirmDeliveryRequest
 	_ = c.ShouldBindJSON(&req)
-	if strings.TrimSpace(req.Code) == "" {
-		httpx.Abort(c, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "code", Message: "Delivery verification code is required."}}))
+	if credentialValue(req.Code, req.QRToken) == "" {
+		httpx.Abort(c, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "credential", Message: "A delivery OTP or QR token is required."}}))
 		return
 	}
-	booking, err := h.svc.ConfirmDelivery(c.Request.Context(), c.Param("id"), claims.Subject, req.Code, req.ProofPhotoURL, req.SignatureURL)
+	booking, err := h.svc.ConfirmDelivery(c.Request.Context(), c.Param("id"), claims.Subject, credentialValue(req.Code, req.QRToken), req.ProofPhotoURL, req.SignatureURL)
 	if err != nil {
 		httpx.Abort(c, err)
 		return
@@ -484,8 +483,15 @@ func (h *BookingHandler) ConfirmDelivery(c *gin.Context) {
 	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
 }
 
-// GetPickupCredential returns the authenticated driver's own pickup
-// credential for redisplay.
+func credentialValue(code, qrToken string) string {
+	if value := strings.TrimSpace(qrToken); value != "" {
+		return value
+	}
+	return strings.TrimSpace(code)
+}
+
+// GetPickupCredential returns the authenticated driver's pickup challenge
+// status. Credentials are returned only by issue/resend commands.
 func (h *BookingHandler) GetPickupCredential(c *gin.Context) {
 	claims, ok := sharedauth.ClaimsFromContext(c)
 	if !ok {

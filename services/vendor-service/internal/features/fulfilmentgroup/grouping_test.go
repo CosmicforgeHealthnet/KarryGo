@@ -334,17 +334,16 @@ func TestBuildPlanMissions_SplitsWhenAuthorityCannotMultiStop(t *testing.T) {
 	}
 }
 
-// An authority with no commerce ingress is skipped, not planned against. A plan
-// naming it would be a delivery nobody performs.
-func TestBuildPlanMissions_SkipsInactiveAuthority(t *testing.T) {
+func TestBuildPlanMissions_PlansTaxiGoodsWithDeclaredCapability(t *testing.T) {
 	taxi := candidate("u1", "biz-a", "br-a", "dest-1", 100)
 	taxi.Authority = AuthorityTaxi
 
-	missions := BuildPlanMissions([]Candidate{taxi},
-		map[Authority]Capability{}, Stop{Address: "12 Customer Road"}, "NGN")
+	missions := BuildPlanMissions([]Candidate{taxi}, map[Authority]Capability{
+		AuthorityTaxi: {Authority: AuthorityTaxi, MaxPickupStops: 1},
+	}, Stop{Address: "12 Customer Road"}, "NGN")
 
-	if len(missions) != 0 {
-		t.Fatalf("missions = %d; taxi has no commerce ingress and must not be planned", len(missions))
+	if len(missions) != 1 || missions[0].Authority != AuthorityTaxi {
+		t.Fatalf("Taxi Goods missions = %+v; want one TAXI mission", missions)
 	}
 }
 

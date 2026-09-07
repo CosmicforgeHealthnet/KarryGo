@@ -35,18 +35,7 @@ func TestMigrationReplay(t *testing.T) {
 	dir := "../../migrations"
 
 	if err := ApplyMigrations(ctx, pool, dir); err != nil {
-		t.Fatalf("apply migrations before cleanup: %v", err)
-	}
-	// A shared external test database may carry rows left behind by another
-	// package's tests run earlier in the same `go test -p 1 ./...` invocation
-	// (each package is independently correct in isolation â€” see
-	// docs/IMPLEMENTATION_STATUS.md's Section 5 entry for this exact,
-	// documented test-infrastructure caveat). Clearing dependent Section 5
-	// rows here keeps this migration-runner test robust regardless of what
-	// ran before it, without weakening what it actually proves about
-	// ApplyMigrations/RollbackLastMigration.
-	if _, err := pool.Exec(ctx, `TRUNCATE vendor_staff_role_assignments, vendor_step_up_grants, vendor_sessions, vendor_otp_challenges, vendor_staff, vendor_users RESTART IDENTITY CASCADE`); err != nil {
-		t.Fatalf("clear dependent rows before rollback test: %v", err)
+		t.Fatalf("apply migrations before replay: %v", err)
 	}
 
 	migrations, err := ListMigrations(dir)
@@ -112,45 +101,11 @@ func TestMigrationReplay(t *testing.T) {
 		t.Fatalf("expected %s to be tracked again after reapply", last.Version)
 	}
 
-	// TestMigrationReplay deliberately performs destructive shared-database
-	// cleanup above using TRUNCATE ... CASCADE so that rollback can be tested
-	// regardless of rows left by earlier integration packages. That cascade
-	// can also empty platform-owned seed tables introduced by older migrations
-	// while those migrations remain recorded as already applied.
-	//
-	// Before returning, restore a pristine all-migrations-applied database.
-	// This prevents later packages in `go test -p 1 ./...` from inheriting a
-	// schema whose migration tracker is current but whose immutable/platform
-	// seed data was removed by this test.
-	if _, err := pool.Exec(ctx, `DROP SCHEMA public CASCADE`); err != nil {
-		t.Fatalf("reset shared migration-test schema: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `CREATE SCHEMA public`); err != nil {
-		t.Fatalf("recreate shared migration-test schema: %v", err)
-	}
-	if err := ApplyMigrations(ctx, pool, dir); err != nil {
-		t.Fatalf("restore shared migration-test database: %v", err)
-	}
-	if err := MigrationsCurrent(ctx, pool, dir); err != nil {
-		t.Fatalf("restored migration-test database is not current: %v", err)
-	}
-
-	// Section 12A's controlled measurement catalogue is a useful canary for
-	// destructive CASCADE leakage because later Shop integration tests depend
-	// on it while it is owned by an earlier migration.
-	var restoredMeasureDefinitions int
-	if err := pool.QueryRow(ctx, `
-        SELECT count(*)
-        FROM shop_measure_definitions
-    `).Scan(&restoredMeasureDefinitions); err != nil {
-		t.Fatalf("verify restored measurement seed: %v", err)
-	}
-	if restoredMeasureDefinitions < 40 {
-		t.Fatalf(
-			"shared migration-test database restoration incomplete: measurement definitions=%d",
-			restoredMeasureDefinitions,
-		)
-	}
+	// The isolated Vendor runner gives this package its own cloned database.
+	// Do not destroy and rebuild the shared public schema here: the rollback
+	// and reapply above are the migration replay contract, while schema-wide
+	// cleanup needlessly consumes PostgreSQL lock-table capacity and can erase
+	// immutable evidence or platform-owned seed rows.
 }
 
 // TestSection5SchemaExists is a focused, migration-position-independent check

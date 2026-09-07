@@ -52,6 +52,8 @@ type durableQuery struct {
 }
 
 var durableQueries = []durableQuery{
+	{name: "dispatch_rollout_booking_total", labelA: "mode", labelB: "service_tier", allowedA: []string{"LEGACY", "PROTECTED"}, allowedB: []string{"standard", "express"},
+		sql: `SELECT modes.mode,tiers.tier,count(b.id)::float8,0::float8 FROM (VALUES('LEGACY'),('PROTECTED')) modes(mode) CROSS JOIN (VALUES('standard'),('express')) tiers(tier) LEFT JOIN dispatch_bookings b ON b.rollout_protection_mode=modes.mode AND b.service_tier=tiers.tier GROUP BY 1,2`},
 	{name: "dispatch_reconciliation_exhausted", labelA: "worker", labelB: "outcome", allowedA: []string{"wallet_settlement", "wallet_hold", "notification", "replacement"}, allowedB: []string{"manual_review"},
 		sql: `SELECT 'wallet_settlement','manual_review',count(*)::float8,0::float8 FROM trips WHERE wallet_settlement_state='DEAD_LETTER' UNION ALL SELECT 'wallet_hold','manual_review',count(*)::float8,0::float8 FROM dispatch_bookings WHERE hold_reconciliation_state='DEAD_LETTER' UNION ALL SELECT 'notification','manual_review',count(*)::float8,0::float8 FROM dispatch_handover_challenges WHERE notification_state='DEAD_LETTER' UNION ALL SELECT 'replacement','manual_review',count(*)::float8,0::float8 FROM dispatch_delivery_incidents WHERE recovery_result='MANUAL_REVIEW'`},
 	{name: "dispatch_reconciliation_attempts_total", labelA: "worker", labelB: "outcome", allowedA: []string{"wallet_settlement", "wallet_hold", "notification", "replacement"}, allowedB: []string{"attempts"},

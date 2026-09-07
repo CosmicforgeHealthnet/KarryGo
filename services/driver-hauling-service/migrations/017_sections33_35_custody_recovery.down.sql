@@ -1,0 +1,11 @@
+DROP TRIGGER IF EXISTS custody_evidence_immutable ON custody_evidence;
+DROP TRIGGER IF EXISTS hauling_custody_completion_guard ON haulage_bookings;
+DROP FUNCTION IF EXISTS guard_hauling_custody_completion();
+DROP TRIGGER IF EXISTS custody_manifests_immutable ON custody_manifests;
+DROP FUNCTION IF EXISTS reject_custody_immutable_mutation();
+DROP TABLE IF EXISTS custody_request_nonces;
+DROP TABLE IF EXISTS custody_operation_outbox;
+DROP TABLE IF EXISTS custody_evidence;
+DROP TABLE IF EXISTS custody_operations;
+DROP TABLE IF EXISTS custody_mission_state;
+DROP TABLE IF EXISTS custody_manifests;

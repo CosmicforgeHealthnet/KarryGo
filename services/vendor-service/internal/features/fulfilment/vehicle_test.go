@@ -72,19 +72,20 @@ func TestServiceFor_VanAndTruckBothHauling(t *testing.T) {
 	}
 }
 
-// Section 17C must work without taxi. The car class is structurally excluded:
-// it cannot be selected, and it cannot be mapped to a service.
-func TestTaxiIsNeverReachable(t *testing.T) {
-	if _, err := ServiceFor(VehicleCar); !errors.Is(err, ErrNoSuitableVehicle) {
-		t.Fatal("VehicleCar must not map to any service while taxi is not production-ready")
+// CAR is routable only through the distinct Taxi Goods authority. Deployment
+// readiness remains controlled by the planner's availability and feature flag.
+func TestTaxiGoodsCarIsReachableOnlyThroughTaxi(t *testing.T) {
+	service, err := ServiceFor(VehicleCar)
+	if err != nil || service != ServiceTaxi {
+		t.Fatalf("VehicleCar service = %q, %v; want TAXI", service, err)
 	}
 
-	if _, ok := classRank(VehicleCar); ok {
-		t.Fatal("VehicleCar must not be selectable")
+	if _, ok := classRank(VehicleCar); !ok {
+		t.Fatal("VehicleCar must be selectable when Taxi Goods is available")
 	}
 
-	// Even if a deployment somehow offered a car capability, selection must
-	// skip it rather than choose it.
+	// A deployment with a car capability may select it; planner availability
+	// is the separate gate that prevents disabled Taxi Goods routing.
 	capabilities := append(DefaultCapabilities(), Capability{
 		Class:                 VehicleCar,
 		MaxWeightGrams:        100000,
@@ -109,7 +110,7 @@ func TestTaxiIsNeverReachable(t *testing.T) {
 	}
 
 	if selection.Class == VehicleCar {
-		t.Fatal("selection chose the car class; taxi must never be selected")
+		t.Fatal("selection chose CAR while Taxi Goods availability was false")
 	}
 }
 

@@ -6,7 +6,14 @@
 package handover
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"cosmicforge/logistics/shared/go/auth"
@@ -61,13 +68,77 @@ func VerifyCode(secret []byte, challengeID, code, expectedHash string) bool {
 // Services scan their own columns into/out of this struct; it is not
 // persisted by this package.
 type CodeRecord struct {
-	Code        string
-	Hash        string
-	ExpiresAt   time.Time
-	Attempts    int
-	ResendCount int
-	LastSentAt  *time.Time
-	VerifiedAt  *time.Time
+	Code         string
+	Hash         string
+	QRToken      string
+	QRHash       string
+	ChallengeRef string
+	Version      int64
+	Service      string
+	ProviderID   string
+	OwnerID      string
+	BookingID    string
+	Stage        Step
+	ExpiresAt    time.Time
+	Attempts     int
+	ResendCount  int
+	LastSentAt   *time.Time
+	VerifiedAt   *time.Time
+}
+
+const SecureHandoverPurpose = "hauling-secure-handover-v1"
+
+// NewSecureCodeRecord issues two independent in-memory credentials for one
+// logical handover challenge. Only Hash and QRHash belong in persistence.
+func NewSecureCodeRecord(secret []byte, service string, stage Step, challengeRef string, version int64, bookingID, providerID, ownerID string, resendCount int, now time.Time) (CodeRecord, error) {
+	code, err := GenerateCode()
+	if err != nil {
+		return CodeRecord{}, err
+	}
+	var tokenBytes [32]byte
+	if _, err = rand.Read(tokenBytes[:]); err != nil {
+		return CodeRecord{}, err
+	}
+	record := CodeRecord{
+		Code: code, QRToken: base64.RawURLEncoding.EncodeToString(tokenBytes[:]),
+		ChallengeRef: strings.TrimSpace(challengeRef), Version: version,
+		Service: strings.TrimSpace(service), Stage: stage, BookingID: strings.TrimSpace(bookingID),
+		ProviderID: strings.TrimSpace(providerID), OwnerID: strings.TrimSpace(ownerID),
+		// PostgreSQL stores timestamptz at microsecond precision. Normalize before
+		// hashing so a persisted-and-reloaded expiry reproduces the same binding.
+		ExpiresAt: now.UTC().Truncate(time.Microsecond).Add(DefaultTTL), ResendCount: resendCount,
+	}
+	if record.ChallengeRef == "" || record.Version < 1 || record.BookingID == "" || record.ProviderID == "" || record.OwnerID == "" {
+		return CodeRecord{}, fmt.Errorf("secure handover binding is incomplete")
+	}
+	record.Hash = secureHash(secret, "OTP", record, record.Code)
+	record.QRHash = secureHash(secret, "QR", record, record.QRToken)
+	return record, nil
+}
+
+// VerifySecureCredential compares the keyed digest in constant time. OTP and
+// QR use separate purpose labels while sharing the same authoritative binding.
+func VerifySecureCredential(secret []byte, method string, record CodeRecord, credential, expectedHash string) bool {
+	actual := secureHash(secret, strings.ToUpper(strings.TrimSpace(method)), record, strings.TrimSpace(credential))
+	return hmac.Equal([]byte(actual), []byte(expectedHash))
+}
+
+func secureHash(secret []byte, method string, record CodeRecord, credential string) string {
+	mac := hmac.New(sha256.New, secret)
+	parts := []string{
+		SecureHandoverPurpose, strings.TrimSpace(record.Service), string(record.Stage),
+		strings.TrimSpace(record.ChallengeRef), strconv.FormatInt(record.Version, 10),
+		strings.TrimSpace(record.BookingID), strings.TrimSpace(record.ProviderID),
+		strings.TrimSpace(record.OwnerID), record.ExpiresAt.UTC().Format(time.RFC3339Nano),
+		strings.ToUpper(strings.TrimSpace(method)), credential,
+	}
+	for i, part := range parts {
+		if i > 0 {
+			_, _ = mac.Write([]byte{0})
+		}
+		_, _ = mac.Write([]byte(part))
+	}
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // NewCodeRecord generates a fresh code and returns the record to persist.

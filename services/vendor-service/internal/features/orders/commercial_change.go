@@ -468,6 +468,20 @@ func (s *Service) ApplyCheaperFulfilmentBenefit(ctx context.Context, parentOrder
 	if !created && adjustment.WalletStatus == WalletRefunded {
 		return adjustment, nil
 	}
+	unlock, err := s.store.lockAdjustment(ctx, adjustment.ID)
+	if err != nil {
+		return adjustment, err
+	}
+	defer unlock()
+	// Another caller may have completed the deterministic refund while this
+	// caller waited for the database lock. Re-read before touching Wallet.
+	adjustment, err = s.store.GetAdjustment(ctx, adjustment.ID)
+	if err != nil {
+		return AdjustmentEvidence{}, err
+	}
+	if adjustment.WalletStatus == WalletRefunded {
+		return adjustment, nil
+	}
 	if err = s.store.MarkAdjustmentRequested(ctx, adjustment.ID, s.now().UTC()); err != nil {
 		return adjustment, err
 	}

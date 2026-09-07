@@ -1837,3 +1837,43 @@ Hauling commerce internal routes:
 
 Contract: `services/driver-hauling-service/docs/openapi/commerce-hauling-missions.openapi.json`.
 Traceability: `services/vendor-service/docs/SECTION30_TRACEABILITY.md`.
+
+## Taxi Goods Commerce integration
+
+Vendor adds no public route. With both feature flags enabled and dependencies
+configured, a frozen CAR plan is quoted and executed by Taxi Goods—not by the
+passenger booking or direct-customer parcel APIs.
+
+| Method | Path | Operation | Authority |
+|---|---|---|---|
+| POST | /api/v1/taxi/internal/commerce/quotes | Persist authoritative CAR Goods quote | HMAC v2; exact `vendor-service` allowlist; durable nonce |
+| POST | /api/v1/taxi/internal/commerce/missions | Create an already-paid Taxi Goods mission bound to its quote | HMAC v2; idempotent operation/fingerprint |
+| GET | /api/v1/taxi/internal/commerce/missions/operations/{operationRef} | Unknown-outcome read-back | HMAC v2; source-scoped |
+| GET | /api/v1/taxi/internal/commerce/missions/{missionRef} | Read source-owned mission | HMAC v2; source-scoped |
+| POST | /api/v1/taxi/internal/commerce/missions/{missionRef}/cancel | Pre-custody cancellation | HMAC v2; optimistic version |
+| POST | /api/v1/taxi/internal/commerce/missions/{missionRef}/pickup/verify | Vendor verifies provider-held pickup credential | HMAC v2; one-use challenge |
+| POST | /api/v1/taxi/internal/commerce/missions/{missionRef}/receiver | Change the receiver before terminal custody and rotate delivery credentials when needed | HMAC v2; Vendor source scope; versioned idempotent operation |
+| POST | /api/v1/taxi/internal/operations/goods/missions/{missionRef}/reassign | Reassign an eligible provider before unsafe custody states | HMAC v2; exact operations-service allowlist; versioned idempotent operation |
+
+Provider Goods routes are bearer-protected under
+`/api/v1/taxi/provider/goods`. Contract:
+`services/driver-taxi-service/docs/openapi/taxi-goods.openapi.json`.
+Traceability: `services/vendor-service/docs/SECTION29_TRACEABILITY.md`.
+
+## Section 32 — authoritative handover read-back
+
+| Method | Path | Service / caller | Authentication | Idempotency | Purpose / gate / authority |
+|---|---|---|---|---|---|
+| GET | `/api/v1/taxi/internal/commerce/missions/{missionRef}/handover/{stage}` | Taxi Goods / Vendor | Existing HMAC, exact Vendor caller, durable nonce | Read-only | Opaque PICKUP/DELIVERY observation; existing Taxi Goods composition; Taxi owns challenges |
+| GET | `/api/v1/internal/commerce/dispatch/missions/{missionRef}/stops/{stopRef}/handover/{stage}` | Dispatch / Vendor | HMAC v2, caller allowlist, durable nonce | Read-only | Opaque pickup observation scoped to the frozen stop; Dispatch owns challenges |
+| GET | `/api/v1/internal/commerce/dispatch/missions/{missionRef}/handover/{stage}` | Dispatch / Vendor | HMAC v2, caller allowlist, durable nonce | Read-only | Opaque delivery observation; Dispatch owns receiver challenge |
+| POST | `/api/v1/internal/commerce/dispatch/missions/{missionRef}/stops/{stopRef}/pickup/verify` | Dispatch / Vendor | HMAC v2, caller allowlist, durable nonce | Required header; canonical operation store | Transient pickup credential relay; Dispatch commits custody |
+| GET | `/api/v1/hauling/internal/commerce/missions/{missionRef}/handover/{stage}` | Hauling / Vendor | HMAC v2, caller allowlist, durable nonce | Read-only | Opaque pickup/delivery observation; Hauling owns challenges |
+| POST | `/api/v1/hauling/internal/commerce/missions/{missionRef}/handover/PICKUP/confirm` | Hauling / Vendor | HMAC v2, caller allowlist, durable nonce | Required header; canonical consumed-state reconciliation | Transient pickup credential relay; Hauling commits verification |
+| GET | `/api/v1/vendor/commerce/orders/{vendorOrderId}/missions/{missionId}/handover/{stage}` | Vendor / authenticated vendor staff | Vendor bearer + business/branch scope | Read-only | Authority chosen from frozen mission; returns only opaque canonical observation; per-authority relay gate |
+| POST | `/api/v1/vendor/commerce/orders/{vendorOrderId}/missions/{missionId}/handover/pickup/confirm` | Vendor / authenticated vendor staff | Vendor bearer + `vendor.orders.manage` + business/branch scope | Required `Idempotency-Key`; namespaced by mission/staff | Relays OTP/QR in memory and never echoes or persists it |
+
+Vendor-owned missions use the same two Vendor routes above. The normalized
+adapter binds and calls Dispatch's distinct VendorMission custody authority;
+canonical internal routes are documented in the Dispatch route register.
+`PENDING_EXTERNAL_DEPENDENCY = NONE`.

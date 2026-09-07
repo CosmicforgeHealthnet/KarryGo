@@ -192,6 +192,7 @@ func ignoreAlreadyFinal(err error) error {
 // create one.
 type section17FMissionAuthority struct {
 	dispatch *dispatchcommerce.Client
+	taxi     *commercemission.Client
 	hauling  *commercemission.Client
 }
 
@@ -218,10 +219,28 @@ func newSection17FMissionAuthority(
 	return authority
 }
 
+func newSection17FMissionAuthorityWithTaxi(
+	dispatchEnabled bool, dispatchURL, dispatchSecret string,
+	taxiEnabled bool, taxiURL, taxiSecret string,
+	haulingEnabled bool, haulingURL, haulingSecret string,
+	timeout time.Duration,
+) *section17FMissionAuthority {
+	authority := newSection17FMissionAuthority(dispatchEnabled, dispatchURL, dispatchSecret, haulingEnabled, haulingURL, haulingSecret, timeout)
+	if taxiEnabled {
+		authority.taxi = commercemission.New(commercemission.Options{
+			BaseURL: taxiURL, APIBase: commercemission.TaxiAPIBase,
+			Service: string(orders.LogisticsTaxi), Secret: taxiSecret, Timeout: timeout,
+		})
+	}
+	return authority
+}
+
 func (a *section17FMissionAuthority) legacyClientFor(
 	service orders.LogisticsService,
 ) *commercemission.Client {
 	switch service {
+	case orders.LogisticsTaxi:
+		return a.taxi
 	case orders.LogisticsHauling:
 		return a.hauling
 	default:

@@ -22,4 +22,11 @@ Parcel identity is not handover authorization. No OTP/QR, evidence chain, recove
 
 All capability flags default to false: `DISPATCH_SEQUENTIAL_MATCHING_ENABLED`, `DISPATCH_QUEUE_ENABLED`, `DISPATCH_ORGANIZATION_ASSIGNMENT_ENABLED`, `DISPATCH_ADMIN_ASSISTED_ASSIGNMENT_ENABLED`, and `DISPATCH_MULTI_STOP_MISSIONS_ENABLED`. The older internal aliases `DISPATCH_SEQUENTIAL_ASSIGNMENT_ENABLED` and `DISPATCH_MULTI_VENDOR_PLANNING_ENABLED` are accepted for deployment compatibility. `DISPATCH_ASSIGNMENT_KILL_SWITCH` disables new paths. Offer and worker timing are centrally configured, including `DISPATCH_QUEUE_RETRY_INTERVAL_SECONDS`; capacity defaults are centrally configurable and callers may only lower, never raise, their effective limit.
 
+`DISPATCH_ASSIGNMENT_ROLLOUT_SERVICE_TIERS` is a server-owned sequential
+cohort selector. When configured, a sequential request outside those tiers is
+handled by the existing `BROADCAST_FIRST_ACCEPT` compatibility path. During a
+kill switch the worker performs drain-only reconciliation: it creates no new
+offer or Queue work, but it still completes canonical Trip creation for an
+already accepted winner and reconciles previously requested Wallet outcomes.
+
 New clients display server offer expiry and queue state, send `Idempotency-Key` on decisions, prompt for explicit requote on stale pricing, and never treat a parcel reference as custody proof. Legacy clients are unaffected.

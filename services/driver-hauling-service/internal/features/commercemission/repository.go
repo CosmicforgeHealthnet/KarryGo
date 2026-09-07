@@ -281,9 +281,9 @@ func insertMission(
 			request_fingerprint,agreed_fee_minor,currency,quote_id,quote_reference,status,refusal_code,
 			plan_ref,plan_version,plan_fingerprint,mission_slot_ref,vehicle_class,pickup_stops,parcels,
 			manifest_ref,manifest_version,handling_requirements,pickup_window_start,pickup_window_end,
-			pickup_timezone,created_at,updated_at)
+			pickup_timezone,loading_duration_seconds,created_at,updated_at)
 		VALUES($1,$2,$3,$4,$5::uuid,$6::uuid,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-		       $21,$22,$23,$24,$25,$26,$27,$27)
+		       $21,$22,$23,$24,$25,$26,$27,$28,$28)
 		RETURNING `+missionColumns,
 		request.MissionRef, request.OperationReference(), request.ParentOrderRef,
 		request.VendorOrderRefs, request.CustomerRef, bookingID, fingerprint,
@@ -291,7 +291,8 @@ func insertMission(
 		request.QuoteID, request.QuoteReference, status, refusalCode,
 		plan.PlanRef, plan.PlanVersion, plan.PlanFingerprint, plan.MissionSlotRef,
 		vehicleClass(request), pickups, parcels, manifestRef(request), manifestVersion(request),
-		handling, nullTime(window.From), nullTime(window.To), window.Timezone, createdAt))
+		handling, nullTime(window.From), nullTime(window.To), window.Timezone,
+		request.Load.LoadingDurationSeconds, createdAt))
 }
 
 type rowScanner interface{ Scan(...any) error }

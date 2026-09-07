@@ -77,21 +77,31 @@ type Booking struct {
 	ServiceTier                string   `json:"service_tier"`
 	ServiceabilityQuoteRef     string   `json:"serviceability_quote_ref,omitempty"`
 	ServiceabilityQuoteVersion int64    `json:"serviceability_quote_version,omitempty"`
-	ProviderID                 string   `json:"provider_id,omitempty"`
+
+	RolloutProtectionMode    string `json:"rollout_protection_mode,omitempty"`
+	RolloutPolicyVersion     string `json:"rollout_policy_version,omitempty"`
+	HandoverRequired         bool   `json:"handover_required,omitempty"`
+	PickupEvidenceRequired   bool   `json:"pickup_evidence_required,omitempty"`
+	DeliveryEvidenceRequired bool   `json:"delivery_evidence_required,omitempty"`
+	ProviderTransferRequired bool   `json:"provider_transfer_required,omitempty"`
+
+	ProviderID string `json:"provider_id,omitempty"`
+
 	// Route geometry for the customer's map. The pickup leg only appears
 	// once a rider is assigned; both are absent when no routing API key is
 	// configured and the app falls back to a straight line.
-	RoutePickupPolyline   string     `json:"route_pickup_polyline,omitempty"`
-	RoutePickupDistanceM  *int64     `json:"route_pickup_distance_m,omitempty"`
-	RoutePickupDurationS  *int64     `json:"route_pickup_duration_s,omitempty"`
-	RouteDropoffPolyline  string     `json:"route_dropoff_polyline,omitempty"`
-	RouteDropoffDistanceM *int64     `json:"route_dropoff_distance_m,omitempty"`
-	RouteDropoffDurationS *int64     `json:"route_dropoff_duration_s,omitempty"`
-	CancelReason          string     `json:"cancel_reason,omitempty"`
-	CancelledAt           *time.Time `json:"cancelled_at,omitempty"`
-	CompletedAt           *time.Time `json:"completed_at,omitempty"`
-	CreatedAt             time.Time  `json:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at"`
+	RoutePickupPolyline   string `json:"route_pickup_polyline,omitempty"`
+	RoutePickupDistanceM  *int64 `json:"route_pickup_distance_m,omitempty"`
+	RoutePickupDurationS  *int64 `json:"route_pickup_duration_s,omitempty"`
+	RouteDropoffPolyline  string `json:"route_dropoff_polyline,omitempty"`
+	RouteDropoffDistanceM *int64 `json:"route_dropoff_distance_m,omitempty"`
+	RouteDropoffDurationS *int64 `json:"route_dropoff_duration_s,omitempty"`
+
+	CancelReason string     `json:"cancel_reason,omitempty"`
+	CancelledAt  *time.Time `json:"cancelled_at,omitempty"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 // DerivedState is the joined broadcast + trip state used to compute the
@@ -104,7 +114,7 @@ type DerivedState struct {
 	TripProviderID  string
 
 	// Delivery handover credential (customer's own code, verified by the
-	// rider). Read-only here — resend/generation is owned by the trip
+	// rider). Read-only here â€” resend/generation is owned by the trip
 	// feature via TripControl. The rider's pickup credential is never
 	// exposed to the customer, so it is not part of this state.
 	DeliveryCode          string

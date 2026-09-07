@@ -520,7 +520,7 @@ At the time Section 8A closed: Section 8B and everything after it. Section 8B ha
 
 ## External dependencies blocking full activation (not blocking further Vendor Service sections)
 
-- **PENDING_EXTERNAL_DEPENDENCY â€” LOGISTICS OTP/QR** (see [architecture/07_EXISTING_OTP_QR_INTEGRATION.md](architecture/07_EXISTING_OTP_QR_INTEGRATION.md)): blocks only final confirmed-handover activation of platform-delivery fulfilment units.
+- **RESOLVED IN SECTION 32 — LOGISTICS OTP/QR** (see [architecture/07_EXISTING_OTP_QR_INTEGRATION.md](architecture/07_EXISTING_OTP_QR_INTEGRATION.md) and [SECTION32_TRACEABILITY.md](SECTION32_TRACEABILITY.md)): Dispatch, Hauling, Taxi Goods and Vendor-owned delivery now have approved two-stage authorities. Activation remains controlled by disabled-by-default rollout flags.
 - **Vendor admin review product**: Verification's Vendor authority and signed callback/read-back paths are implemented, but `admin-backoffice-service` remains a scaffold with no operator work queue/UI. Formal cases remain honestly `PENDING_REVIEW` until an authorized admin-service caller decides them.
 
 ## Section 8B â€” Tags & Advanced Segmentation Engine
@@ -2366,10 +2366,11 @@ commercial and Parcel identities, appends a plan version, transitions funding
 through Wallet and reuses Dispatch Section 28. Clean post-custody conversion is
 hard-blocked.
 
-Secure Vendor handover status is `PARTIAL`: Dispatch has an authority for its
-own missions, but no approved VendorMission-compatible authority exists.
-Custody-moving Vendor actions are dependency-gated and return 503 rather than
-accepting client proof. Full traceability is in `SECTION31_TRACEABILITY.md`.
+The Section 31 secure Vendor handover dependency was closed by Section 32:
+Dispatch now owns a distinct VendorMission-compatible custody authority.
+Custody-moving Vendor actions still return 503 whenever either safe-default
+flag or the authority dependency is absent. Full traceability is in
+`SECTION32_TRACEABILITY.md`.
 
 ## Operational evidence, exceptions, returns and provider transfer
 
@@ -2442,3 +2443,42 @@ Analytics, Notification and handover authorities remain authoritative.
 Analytics read routes are HMAC/allowlist/scope protected, and Shop Commerce
 now rejects pharmacy/medicine products on product create/update, bulk import
 and checkout revalidation. Traceability is in `SECTION40_TRACEABILITY.md`.
+
+## Section 29 — Taxi Goods Delivery extension
+
+Implemented behind `TAXI_GOODS_DELIVERY_ENABLED=false` in both Taxi and Vendor.
+CAR now maps to the distinct Taxi Goods quote/mission authority. Vendor restores
+the exact service, vehicle class, fee, and authority quote from the customer's
+frozen Section 17C mission before execution; it never guesses from order domain
+or fee and never calls the passenger booking surface. See
+`SECTION29_TRACEABILITY.md` and the Taxi Goods OpenAPI contract.
+
+Final gap closure adds explicit idempotent provider-reassignment and receiver-
+change workflows, atomic OTP/opaque-QR verification against binding changes,
+and a leased Taxi outbox publisher for HMAC-authenticated Vendor projection.
+PostgreSQL/Redis integration, migration replay, and repeated concurrency tests
+certify these paths while both runtime flags remain false by default.
+
+## Section 32 — approved handover integration
+
+This audit uses the local implementation, including uncommitted Sections 29/30.
+Section 29 is closed. Section 32 does not reopen passenger Taxi and Vendor
+Commerce does not implement a challenge authority.
+
+| Authority | Mission type | Current finding | Challenge owner / contract |
+|---|---|---|---|
+| Dispatch | MOTORCYCLE | AVAILABLE / INTEGRATED | `securehandover`; source-scoped pickup verify plus opaque pickup/delivery read-back, HMAC v2, caller allowlist and nonce |
+| Hauling | VAN/TRUCK | AVAILABLE / INTEGRATED | booking `SecureHandoverRepository`; Commerce pickup confirm plus opaque pickup/delivery read-back, HMAC v2, caller allowlist and nonce |
+| Taxi Goods | CAR | AVAILABLE / INTEGRATED | `goods`; pickup verify plus opaque pickup/delivery read-back, Vendor-only HMAC and durable nonce |
+| Vendor-owned | VendorMission | AVAILABLE / INTEGRATED | Dispatch `vendorownedhandover`; distinct mirrored custody binding, OTP/QR authority, HMAC v2 and canonical read-back |
+
+All four authorities are wired through one Vendor relay/projection boundary
+and independently disabled-by-default capability flags. Dispatch owns the new
+VendorMission challenge/custody state in migration `000055`; Vendor keeps no
+credential or credential hash. `PENDING_EXTERNAL_DEPENDENCY = NONE`.
+
+The adapter contract covers canonical read-back after unknown outcomes, wrong
+authority/mission rejection, concurrent duplicate confirmation, stale
+projection protection and credential-free serialization. Canonical Dispatch,
+Hauling and Taxi suites retain OTP/QR mutual consumption, resend, binding,
+expiry, attempt and concurrency ownership.

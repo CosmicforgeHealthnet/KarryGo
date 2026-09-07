@@ -16,6 +16,7 @@ import (
 const (
 	DispatchServiceCaller = "driver-dispatch-delivery-service"
 	HaulingServiceCaller  = "driver-hauling-service"
+	TaxiServiceCaller     = "driver-taxi-service"
 )
 
 type logisticsEventIngress struct{ service *Service }
@@ -34,7 +35,7 @@ type logisticsEventRequest struct {
 func (h *logisticsEventIngress) allowCaller(c *gin.Context) {
 	caller, _ := c.Get("service_name")
 	name, _ := caller.(string)
-	if name != DispatchServiceCaller && name != HaulingServiceCaller {
+	if name != DispatchServiceCaller && name != HaulingServiceCaller && name != TaxiServiceCaller {
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
@@ -87,7 +88,9 @@ func (h *logisticsEventIngress) post(c *gin.Context) {
 	caller, _ := c.Get("service_name")
 	name, _ := caller.(string)
 	source := LogisticsDispatch
-	if name == HaulingServiceCaller {
+	if name == TaxiServiceCaller {
+		source = LogisticsTaxi
+	} else if name == HaulingServiceCaller {
 		source = LogisticsHauling
 	}
 	updated, parent, err := h.service.ApplyLogisticsEvent(c, LogisticsOrderEvent{

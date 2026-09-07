@@ -55,10 +55,11 @@ func TestPlanMissions_ConsolidatedPlatformMission(t *testing.T) {
 		VendorOrders: []orders.VendorOrder{vendorA, vendorB},
 	}
 	plans := []orders.MissionPlan{{
-		PlanMissionRef: "plan-mission-1",
-		Service:        orders.LogisticsDispatch,
-		VendorOrderIDs: []string{"vo-a", "vo-b"},
-		AgreedFeeMinor: 150_000,
+		PlanMissionRef:         "plan-mission-1",
+		Service:                orders.LogisticsDispatch,
+		VendorOrderIDs:         []string{"vo-a", "vo-b"},
+		AgreedFeeMinor:         150_000,
+		LoadingDurationSeconds: 30 * 60,
 	}}
 
 	missions := projection().planMissions(order, plans, unitsFor(vendorA, vendorB))
@@ -85,6 +86,9 @@ func TestPlanMissions_ConsolidatedPlatformMission(t *testing.T) {
 	// inbound logistics event names. Correlation must stay an equality check.
 	if mission.SlotRef != "plan-mission-1" {
 		t.Fatalf("slot ref = %q; want the plan mission reference", mission.SlotRef)
+	}
+	if mission.LoadingDurationSeconds != 30*60 {
+		t.Fatalf("loading duration = %d; want %d", mission.LoadingDurationSeconds, 30*60)
 	}
 }
 
@@ -357,9 +361,8 @@ func TestAuthorityCapabilities_MatchTheExecutingContract(t *testing.T) {
 		t.Fatalf("legacy Hauling capability overstated: %+v", hauling)
 	}
 
-	// Taxi has no commerce ingress, so there is no capability to state and
-	// nothing that could accidentally select it.
-	if _, found := capabilities[fulfilmentgroup.AuthorityTaxi]; found {
-		t.Error("taxi has no commerce mission ingress and must declare no capability")
+	taxi, found := capabilities[fulfilmentgroup.AuthorityTaxi]
+	if !found || taxi.MultiStopPickup || taxi.MaxPickupStops != 1 {
+		t.Fatalf("Taxi Goods single-pickup capability not declared: %+v", taxi)
 	}
 }

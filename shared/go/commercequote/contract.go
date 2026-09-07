@@ -38,13 +38,13 @@ const QuotePath = "/internal/commerce/quotes"
 
 // VehicleClass is the carrier class the caller has determined the load needs.
 //
-// CAR is deliberately absent. driver-taxi-service has no production
-// goods-delivery capability, and a class in this contract would be an
-// invitation to call one.
+// CAR is executed only by driver-taxi-service's distinct Taxi Goods
+// authority. It must never be translated to the passenger booking API.
 type VehicleClass string
 
 const (
 	VehicleMotorcycle VehicleClass = "MOTORCYCLE"
+	VehicleCar        VehicleClass = "CAR"
 	VehicleVan        VehicleClass = "VAN"
 	VehicleTruck      VehicleClass = "TRUCK"
 )
@@ -52,7 +52,7 @@ const (
 // Valid reports whether a class is one this contract carries.
 func (v VehicleClass) Valid() bool {
 	switch v {
-	case VehicleMotorcycle, VehicleVan, VehicleTruck:
+	case VehicleMotorcycle, VehicleCar, VehicleVan, VehicleTruck:
 		return true
 	default:
 		return false
@@ -162,8 +162,19 @@ type Load struct {
 
 	LargeLoad bool `json:"large_load,omitempty"`
 
+	// LoadingDurationSeconds is the expected time needed to load the cargo at
+	// the pickup stop(s). It is scheduling evidence only: it may extend the
+	// authority's ETA, but it never lets the caller set a fee or a provider.
+	// Zero preserves the authority's legacy/default loading-time policy.
+	LoadingDurationSeconds int64 `json:"loading_duration_seconds,omitempty"`
+
 	Capabilities []string `json:"capabilities,omitempty"`
 }
+
+// MaxLoadingDurationSeconds bounds caller-provided loading evidence to eight
+// hours. Longer operations need an explicitly planned operational workflow,
+// not an unbounded value on an ordinary Commerce quote.
+const MaxLoadingDurationSeconds int64 = 8 * 60 * 60
 
 // Request is one quote request.
 type Request struct {
@@ -318,6 +329,11 @@ func (r Request) Validate() (string, bool) {
 	if r.Load.TotalWeightGrams < 0 || r.Load.TotalVolumeMl < 0 ||
 		r.Load.LongestDimensionMm < 0 {
 		return "load measurements must not be negative", false
+	}
+
+	if r.Load.LoadingDurationSeconds < 0 ||
+		r.Load.LoadingDurationSeconds > MaxLoadingDurationSeconds {
+		return "load.loading_duration_seconds must be between 0 and 28800", false
 	}
 
 	return "", true

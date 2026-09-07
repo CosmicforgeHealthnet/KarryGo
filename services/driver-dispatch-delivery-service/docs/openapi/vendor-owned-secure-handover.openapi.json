@@ -1,0 +1,27 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Dispatch Vendor-owned Secure Handover Authority",
+    "version": "1.0.0",
+    "description": "HMAC-v2 internal authority. Credentials are write-only inputs or narrow Notification commands and never appear in responses."
+  },
+  "servers": [{"url": "/api/v1/internal/commerce/vendor-owned"}],
+  "security": [{"ServiceHMACv2": []}],
+  "paths": {
+    "/missions": {"post": {"operationId": "bindVendorDeliveryMission", "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"201": {"description": "Pickup challenge created or replayed"}}}},
+    "/missions/{missionRef}/handover/{stage}": {"get": {"operationId": "readVendorHandover", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/Stage"}], "responses": {"200": {"description": "Opaque authoritative observation"}}}},
+    "/missions/{missionRef}/handover/{stage}/confirm": {"post": {"operationId": "confirmVendorHandover", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/Stage"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Canonical challenge consumed"}}}},
+    "/missions/{missionRef}/handover/{stage}/resend": {"post": {"operationId": "resendVendorHandover", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/Stage"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Both credentials rotated"}}}},
+    "/missions/{missionRef}/reassignments": {"post": {"operationId": "reassignVendorProvider", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Provider binding changed and challenge rotated"}}}},
+    "/missions/{missionRef}/receiver-changes": {"post": {"operationId": "changeVendorReceiver", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Receiver binding changed and challenge rotated"}}}},
+    "/missions/{missionRef}/cancellations": {"post": {"operationId": "cancelVendorDeliveryMission", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Mission cancelled and active challenge invalidated"}}}}
+  },
+  "components": {
+    "securitySchemes": {"ServiceHMACv2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature"}},
+    "parameters": {
+      "MissionRef": {"name": "missionRef", "in": "path", "required": true, "schema": {"type": "string"}},
+      "Stage": {"name": "stage", "in": "path", "required": true, "schema": {"type": "string", "enum": ["PICKUP", "DELIVERY"]}},
+      "IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string"}}
+    }
+  }
+}

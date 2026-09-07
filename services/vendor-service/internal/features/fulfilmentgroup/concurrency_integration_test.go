@@ -12,7 +12,9 @@ package fulfilmentgroup
 
 import (
 	"context"
+	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -22,6 +24,69 @@ import (
 
 	"cosmicforge/logistics/services/vendor-service/internal/database"
 )
+
+// seedCommerceParentOrderEvidence creates the real immutable agreement chain
+// required by commerce_parent_orders. Tests must not bypass the quote contract
+// with a partial ParentOrder row.
+func seedCommerceParentOrderEvidence(t *testing.T, pool *pgxpool.Pool, orderID, customerID string, now time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin commerce evidence seed: %v", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	suffix := uuid.NewString()
+	cartID := "cart_fixture_" + suffix
+	checkoutID := "checkout_fixture_" + suffix
+	planID := "plan_fixture_" + suffix
+	quoteID := "quote_fixture_" + suffix
+	fingerprint := strings.Repeat(strings.ReplaceAll(uuid.NewString(), "-", ""), 2)
+	expiresAt := now.Add(time.Hour)
+
+	statements := []struct {
+		query string
+		args  []any
+	}{
+		{`INSERT INTO commerce_carts(id,customer_id,domain,status,version,expires_at,created_at,updated_at)
+		  VALUES($1,$2,'FOOD','CONVERTED',1,$3,$4,$4)`, []any{cartID, customerID, expiresAt, now}},
+		{`INSERT INTO commerce_checkout_sessions(
+			id,customer_id,cart_id,cart_version,domain,status,validation_revision,address_ref,address_snapshotted_at,
+			currency,quoted_items_total_minor,max_authorized_items_total_minor,reservation_ttl_seconds,expires_at,validated_at,created_at,updated_at)
+		  VALUES($1,$2,$3,1,'FOOD','VALIDATED',1,'fixture-address',$4,'NGN',0,0,900,$5,$4,$4,$4)`, []any{checkoutID, customerID, cartID, now, expiresAt}},
+		{`INSERT INTO commerce_fulfilment_plans(
+			id,checkout_session_id,customer_id,checkout_validation_revision,status,mode,plan_revision,currency,
+			delivery_gross_minor,delivery_customer_minor,delivery_vendor_funded_minor,delivery_platform_funded_minor,
+			expires_at,version,planned_at,created_at,updated_at)
+		  VALUES($1,$2,$3,1,'PLANNED','SINGLE',1,'NGN',0,0,0,0,$4,1,$5,$5,$5)`, []any{planID, checkoutID, customerID, expiresAt, now}},
+		{`INSERT INTO commerce_quotes(
+			id,customer_id,checkout_session_id,checkout_validation_revision,cart_id,cart_version,
+			fulfilment_plan_id,fulfilment_plan_revision,fulfilment_plan_version,quote_version,
+			material_fingerprint,quote_fingerprint,currency,selected_fulfilment_mode,address_snapshot,expires_at,
+			product_subtotal_minor,max_product_subtotal_minor,delivery_subtotal_minor,fee_subtotal_minor,tax_subtotal_minor,
+			discount_total_minor,subsidy_total_minor,final_payable_minor,quoted_total_minor,max_authorized_total_minor,
+			funding_breakdown,price_disclosure_snapshot,created_at)
+		  VALUES($1,$2,$3,1,$4,1,$5,1,1,1,$6,$6,'NGN','SINGLE','{}'::jsonb,$7,
+			0,0,0,0,0,0,0,0,0,0,'{}'::jsonb,'{}'::jsonb,$8)`, []any{quoteID, customerID, checkoutID, cartID, planID, fingerprint, expiresAt, now}},
+		{`INSERT INTO commerce_parent_orders(
+			id,customer_id,quote_id,quote_version,quote_fingerprint,checkout_session_id,checkout_validation_revision,
+			cart_id,cart_version,fulfilment_plan_id,fulfilment_plan_revision,fulfilment_plan_version,domain,currency,
+			selected_fulfilment_mode,address_snapshot,customer_approved_total_minor,max_authorized_total_minor,
+			product_subtotal_minor,delivery_subtotal_minor,fee_subtotal_minor,tax_subtotal_minor,discount_total_minor,
+			subsidy_total_minor,funding_breakdown,price_disclosure_snapshot,state,vendor_order_count,created_at,updated_at)
+		  VALUES($1,$2,$3,1,$4,$5,1,$6,1,$7,1,1,'FOOD','NGN','SINGLE','{}'::jsonb,
+			0,0,0,0,0,0,0,0,'{}'::jsonb,'{}'::jsonb,'CREATED',1,$8,$8)`, []any{orderID, customerID, quoteID, fingerprint, checkoutID, cartID, planID, now}},
+	}
+	for _, statement := range statements {
+		if _, err = tx.Exec(ctx, statement.query, statement.args...); err != nil {
+			t.Fatalf("seed commerce evidence: %v", err)
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatalf("commit commerce evidence seed: %v", err)
+	}
+}
 
 func integrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
@@ -60,18 +125,16 @@ func seedGroup(t *testing.T, store *Store) (Group, Unit) {
 	businessID := "biz_" + uuid.NewString()
 	branchID := "br_" + uuid.NewString()
 
-	if _, err := store.db.Exec(ctx, `
-		INSERT INTO commerce_parent_orders (id, customer_id, currency, state, created_at, updated_at)
-		VALUES ($1,$2,'NGN','CREATED',$3,$3)`, orderID, customerID, now); err != nil {
-		t.Skipf("parent order shape differs from this test's assumption: %v", err)
-	}
+	seedCommerceParentOrderEvidence(t, store.db, orderID, customerID, now)
 	if _, err := store.db.Exec(ctx, `
 		INSERT INTO commerce_vendor_orders (
 			id, parent_order_id, customer_id, business_id, branch_id,
-			domain, currency, status, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,'FOOD','NGN','PAID',$6,$6)`,
-		vendorOrderID, orderID, customerID, businessID, branchID, now); err != nil {
-		t.Skipf("vendor order shape differs from this test's assumption: %v", err)
+			domain, currency, quote_group_ref, product_subtotal_minor, max_product_subtotal_minor,
+			delivery_responsibility, delivery_fee_beneficiary, customer_payable_minor, vendor_payable_minor,
+			fulfilment_mode, status, inventory_state, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,'FOOD','NGN',$6,0,0,'NONE','NONE',0,0,'SINGLE','PAID','NOT_REQUIRED',$7,$7)`,
+		vendorOrderID, orderID, customerID, businessID, branchID, "quote_group_"+uuid.NewString(), now); err != nil {
+		t.Fatalf("seed vendor order: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -117,14 +180,22 @@ func TestIntegration_ConcurrentReplansProduceOneVersion(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	if _, err := store.ActivatePlan(ctx, group.ID, PlanInput{
+	initial, err := store.ActivatePlan(ctx, group.ID, PlanInput{
 		ExpectedVersion: 0,
 		Reason:          ReasonInitialPlan,
 		DeliveryMode:    ModePlatform,
 		IdempotencyKey:  "initial",
 		Missions:        []PlanMission{slotFor(unit.ID, "slot-1", 1)},
-	}, now); err != nil {
+	}, now)
+	if err != nil {
 		t.Fatalf("initial plan: %v", err)
+	}
+	persistedGroup, err := store.GetGroup(ctx, group.ID)
+	if err != nil {
+		t.Fatalf("read group after initial plan: %v", err)
+	}
+	if initial.Version != 1 || persistedGroup.CurrentPlanVersion != initial.Version {
+		t.Fatalf("initial plan/group versions=%d/%d; want 1/1", initial.Version, persistedGroup.CurrentPlanVersion)
 	}
 
 	var wait sync.WaitGroup
@@ -155,14 +226,17 @@ func TestIntegration_ConcurrentReplansProduceOneVersion(t *testing.T) {
 			if versions[index] != 2 {
 				t.Errorf("winner produced version %d; want 2", versions[index])
 			}
-		case err == ErrStalePlan || err == ErrVersionConflict:
+		case errors.Is(err, ErrStalePlan) || errors.Is(err, ErrVersionConflict):
 			stale++
 		default:
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 	if winners != 1 || stale != 1 {
-		t.Fatalf("winners=%d stale=%d; want exactly one of each", winners, stale)
+		latestGroup, readErr := store.GetGroup(ctx, group.ID)
+		plans, plansErr := store.ListPlans(ctx, group.ID)
+		t.Fatalf("winners=%d stale=%d errors=%v current=%d plans=%d read_error=%v plans_error=%v; want exactly one of each",
+			winners, stale, results, latestGroup.CurrentPlanVersion, len(plans), readErr, plansErr)
 	}
 
 	plans, err := store.ListPlans(ctx, group.ID)

@@ -46,6 +46,7 @@ func seedMarketAndZone(t *testing.T, db *pgxpool.Pool, centerLat, centerLng, rad
 		t.Fatalf("seed zone: %v", err)
 	}
 	t.Cleanup(func() {
+		_, _ = db.Exec(context.Background(), `DELETE FROM operating_zones WHERE id = $1`, zoneID)
 		_, _ = db.Exec(context.Background(), `DELETE FROM markets WHERE id = $1`, marketID)
 	})
 	return marketID, zoneID
@@ -54,9 +55,9 @@ func seedMarketAndZone(t *testing.T, db *pgxpool.Pool, centerLat, centerLng, rad
 func TestResolveZone_PointInsideRadiusResolves(t *testing.T) {
 	db := testDB(t)
 	repo := NewPostgresMarketRepository(db)
-	marketID, zoneID := seedMarketAndZone(t, db, 1.00, -10.00, 10)
+	marketID, zoneID := seedMarketAndZone(t, db, 70.00, -140.00, 10)
 
-	zone, err := repo.ResolveZone(context.Background(), geo.Point{Lat: 1.00, Lng: -10.00})
+	zone, err := repo.ResolveZone(context.Background(), geo.Point{Lat: 70.00, Lng: -140.00})
 	if err != nil {
 		t.Fatalf("ResolveZone: %v", err)
 	}
@@ -68,7 +69,7 @@ func TestResolveZone_PointInsideRadiusResolves(t *testing.T) {
 func TestResolveZone_PointOutsideEveryZoneReturnsNotFound(t *testing.T) {
 	db := testDB(t)
 	repo := NewPostgresMarketRepository(db)
-	seedMarketAndZone(t, db, 1.00, -10.00, 10) // isolated test point, 10km radius
+	seedMarketAndZone(t, db, 70.00, -140.00, 10) // isolated test point, 10km radius
 
 	// Thousands of km from the seeded zone, genuinely outside any 10km zone.
 	_, err := repo.ResolveZone(context.Background(), geo.Point{Lat: -40.00, Lng: 100.00})
@@ -89,10 +90,10 @@ func TestResolveZone_PicksNearestWhenZonesOverlap(t *testing.T) {
 	// Two overlapping zones with different centers; the point sits closer to
 	// the second. ResolveZone must pick the nearer one, not the first row
 	// Postgres happens to return.
-	_, nearZoneID := seedMarketAndZone(t, db, 1.0005, -9.9995, 15) // ~70m from the query point
-	_, farZoneID := seedMarketAndZone(t, db, 1.08, -9.97, 15)      // several km further, but still within 15km
+	_, nearZoneID := seedMarketAndZone(t, db, 70.0005, -139.9995, 15) // tens of metres from the query point
+	_, farZoneID := seedMarketAndZone(t, db, 70.08, -139.97, 15)      // several km further, but still within 15km
 
-	zone, err := repo.ResolveZone(ctx, geo.Point{Lat: 1.0000, Lng: -10.0000})
+	zone, err := repo.ResolveZone(ctx, geo.Point{Lat: 70.0000, Lng: -140.0000})
 	if err != nil {
 		t.Fatalf("ResolveZone: %v", err)
 	}
@@ -106,12 +107,12 @@ func TestResolveZone_IgnoresInactiveZones(t *testing.T) {
 	repo := NewPostgresMarketRepository(db)
 	ctx := context.Background()
 
-	_, zoneID := seedMarketAndZone(t, db, 1.00, -10.00, 10)
+	_, zoneID := seedMarketAndZone(t, db, 70.00, -140.00, 10)
 	if _, err := db.Exec(ctx, `UPDATE operating_zones SET status = 'inactive' WHERE id = $1`, zoneID); err != nil {
 		t.Fatalf("deactivate zone: %v", err)
 	}
 
-	_, err := repo.ResolveZone(ctx, geo.Point{Lat: 1.00, Lng: -10.00})
+	_, err := repo.ResolveZone(ctx, geo.Point{Lat: 70.00, Lng: -140.00})
 	if err == nil {
 		t.Fatal("an inactive zone must not be resolved into")
 	}

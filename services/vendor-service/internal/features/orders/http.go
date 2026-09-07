@@ -666,6 +666,7 @@ func RegisterVendorRoutes(root *gin.RouterGroup, service *Service, enabled bool,
 	if root == nil || service == nil || !enabled {
 		return
 	}
+	registerHandoverRoutes(root, service)
 	handler := NewHandler(service)
 	group := root.Group("/commerce/orders")
 	if len(idempotencyStores) > 0 {

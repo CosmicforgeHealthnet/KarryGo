@@ -292,6 +292,7 @@ func (a *section17CCheckoutAuthority) lines(
 // registers, in that service's own test.
 const (
 	dispatchQuoteAPIBase = "/api/v1"
+	taxiQuoteAPIBase     = "/api/v1/taxi"
 	haulingQuoteAPIBase  = "/api/v1/hauling"
 )
 
@@ -326,10 +327,11 @@ func buildSection17CFulfilmentService(
 			cfg.HaulingSecret, cfg.Fulfilment.QuoteTimeout,
 		),
 
-		// Taxi is deliberately not wired. driver-taxi-service has no
-		// production goods-delivery capability, the shared quote contract has
-		// no CAR class, and fulfilment.ServiceFor refuses one. Section 17C
-		// works without taxi by construction, not by omission.
+		Taxi: newSection17CQuoteAuthority(
+			cfg.Flags.TaxiGoodsDeliveryEnabled,
+			cfg.TaxiURL, taxiQuoteAPIBase, "TAXI",
+			cfg.TaxiSecret, cfg.Fulfilment.QuoteTimeout,
+		),
 
 		ConsolidationRadiusMeters: cfg.Fulfilment.ConsolidationRadiusMeters,
 		PlanTTL:                   cfg.Fulfilment.PlanTTL,
@@ -349,6 +351,7 @@ func buildSection17CFulfilmentService(
 		// about a service that will never be asked.
 		MultiPickup: map[fulfilment.Service]bool{
 			fulfilment.ServiceDispatch: cfg.Fulfilment.DispatchMultiPickupSupported,
+			fulfilment.ServiceTaxi:     false,
 			fulfilment.ServiceHauling:  cfg.Fulfilment.HaulingMultiPickupSupported,
 		},
 	})

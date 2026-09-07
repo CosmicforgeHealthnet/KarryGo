@@ -49,13 +49,11 @@ const (
 )
 
 // LogisticsService names the executing authority.
-//
-// Taxi is deliberately absent. It is not required for commerce, and a mission
-// must never be created against an integration that is not ready.
 type LogisticsService string
 
 const (
 	LogisticsDispatch LogisticsService = "DISPATCH"
+	LogisticsTaxi     LogisticsService = "TAXI"
 	LogisticsHauling  LogisticsService = "HAULING"
 )
 
@@ -158,14 +156,17 @@ type MissionRequest struct {
 // authority. It is populated by the fulfilment aggregate after the active plan
 // and its stable parcels have been committed; callers cannot supply it.
 type MissionExecution struct {
-	PlanRef         string
-	PlanVersion     int64
-	PlanFingerprint string
-	Mode            string
-	ServiceClass    string
-	Stops           []MissionStop
-	Parcels         []MissionParcel
-	PromisedBy      time.Time
+	PlanRef                 string
+	PlanVersion             int64
+	PlanFingerprint         string
+	AuthorityQuoteID        string
+	AuthorityQuoteReference string
+	Mode                    string
+	ServiceClass            string
+	Stops                   []MissionStop
+	Parcels                 []MissionParcel
+	PromisedBy              time.Time
+	LoadingDurationSeconds  int64
 }
 
 type MissionStop struct {
@@ -179,7 +180,7 @@ type MissionParcel struct {
 	Manifest                                                json.RawMessage
 	ManifestVersion                                         int64
 	WeightGrams, LengthMM, WidthMM, HeightMM, PackageCount  int64
-	Fragile                                                 bool
+	Fragile, Upright, StackRestricted                       bool
 	TemperatureControl                                      string
 }
 
@@ -252,6 +253,13 @@ type FulfilmentProjection interface {
 // unavailable.
 type MissionExecutionProjection interface {
 	MissionExecution(ctx context.Context, order ParentOrder, plan MissionPlan) (MissionExecution, error)
+}
+
+// MissionPlanResolver restores the logistics authority and vehicle class from
+// the customer's frozen Section 17C mission. This prevents later order code
+// from guessing an authority from domain or fee size.
+type MissionPlanResolver interface {
+	ResolveMissionPlan(ctx context.Context, order ParentOrder, plan MissionPlan) (MissionPlan, error)
 }
 
 // SetFulfilmentProjection wires the operational fulfilment aggregate.
@@ -362,6 +370,14 @@ func (s *Service) ActivateFulfilment(
 	if err != nil {
 		return outcome, err
 	}
+	if resolver, ok := s.fulfilmentProjection.(MissionPlanResolver); ok {
+		for index := range plans {
+			plans[index], err = resolver.ResolveMissionPlan(ctx, order, plans[index])
+			if err != nil {
+				return outcome, err
+			}
+		}
+	}
 	outcome.VendorOwnDelivery = countVendorOwn(order)
 
 	// The fulfilment aggregate is made durable BEFORE the first authority
@@ -452,16 +468,17 @@ type MissionPlan struct {
 	// operation reference. Normal activation leaves it empty and derives the
 	// established value; Hybrid fallback passes the PlatformMissionRef value
 	// so Vendor, Dispatch and recovery all name the same operation.
-	MissionRef     string
-	PlanMissionRef string
-	Service        LogisticsService
-	VehicleClass   string
-	AgreedFeeMinor int64
-	VendorOrderIDs []string
-	PickupBusiness string
-	PickupBranch   string
-	WeightGrams    int64
-	PackageCount   int64
+	MissionRef             string
+	PlanMissionRef         string
+	Service                LogisticsService
+	VehicleClass           string
+	AgreedFeeMinor         int64
+	VendorOrderIDs         []string
+	PickupBusiness         string
+	PickupBranch           string
+	WeightGrams            int64
+	PackageCount           int64
+	LoadingDurationSeconds int64
 }
 
 // PlanMissions groups an order's platform-executed allocations into missions.
@@ -536,8 +553,9 @@ func vendorOrderFulfillable(status VendorStatus) bool {
 
 // serviceFor picks the executing authority for one allocation.
 //
-// Food and small Shop consignments go to dispatch; a Shop allocation heavy
-// enough to need a truck goes to hauling. Taxi is never chosen.
+// This is a legacy fallback for projections that cannot restore the frozen
+// Section 17C authority. Production resolves the actual service and vehicle
+// through MissionPlanResolver before any mission is persisted or called.
 func serviceFor(vendorOrder VendorOrder) LogisticsService {
 	if vendorOrder.Domain == "SHOP" && vendorOrder.DeliveryGrossMinor >= haulingFeeThreshold {
 		return LogisticsHauling

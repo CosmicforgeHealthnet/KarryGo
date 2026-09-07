@@ -83,6 +83,10 @@ type commerceMissionScopeReader interface {
 	ListCompletedCommerceBookings(ctx context.Context, limit int) ([]string, error)
 }
 
+type commerceProviderMetadataReader interface {
+	CommerceProviderMetadata(ctx context.Context, bookingID string) (*bookingmodels.CommerceOperations, error)
+}
+
 var ErrPaymentOutcomeUnknown = errors.New("payment authority outcome is unknown")
 
 type PaymentHoldInput struct {
@@ -106,6 +110,7 @@ type BookingService struct {
 	restrictions       RestrictionGate
 	activeMatches      sync.Map // map[bookingID]*matchHandle
 	handoverSecret     []byte
+	secureHandover     bookingrepo.SecureHandoverRepository
 	routes             routing.Fetcher
 }
 
@@ -133,6 +138,9 @@ type Options struct {
 	// nil disables route fetching; every consumer then falls back to
 	// straight-line geometry.
 	Routes routing.Fetcher
+	// SecureHandover is optional for isolated tests. Production automatically
+	// uses the Postgres booking repository's existing handover authority.
+	SecureHandover bookingrepo.SecureHandoverRepository
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -150,6 +158,10 @@ func NewBookingService(opts Options) *BookingService {
 	if searchWindow < matchTimeout {
 		searchWindow = matchTimeout
 	}
+	secureHandover := opts.SecureHandover
+	if secureHandover == nil {
+		secureHandover, _ = opts.Bookings.(bookingrepo.SecureHandoverRepository)
+	}
 	return &BookingService{
 		bookings:           opts.Bookings,
 		availability:       opts.Availability,
@@ -163,6 +175,7 @@ func NewBookingService(opts Options) *BookingService {
 		allowCashPayments:  opts.AllowCashPayments,
 		restrictions:       opts.Restrictions,
 		handoverSecret:     opts.HandoverSecret,
+		secureHandover:     secureHandover,
 		routes:             opts.Routes,
 	}
 }
@@ -965,7 +978,7 @@ func (s *BookingService) GetProviderBooking(ctx context.Context, id, providerID 
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.NotFound("Booking could not be found.", nil)
 	}
-	return b.Public(), nil
+	return s.providerBookingView(ctx, b)
 }
 
 // GetProviderBookingReview returns the customer's review for one of the
@@ -994,9 +1007,35 @@ func (s *BookingService) ListProviderBookings(ctx context.Context, providerID st
 	}
 	result := make([]bookingmodels.PublicBooking, len(bookings))
 	for i, b := range bookings {
-		result[i] = b.Public()
+		result[i], err = s.providerBookingView(ctx, b)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return result, nil
+}
+
+func (s *BookingService) providerBookingView(ctx context.Context, b bookingmodels.Booking) (bookingmodels.PublicBooking, error) {
+	view := b.Public()
+	reader, ok := s.bookings.(commerceProviderMetadataReader)
+	if !ok {
+		return view, nil
+	}
+	metadata, err := reader.CommerceProviderMetadata(ctx, b.ID)
+	if err != nil {
+		return bookingmodels.PublicBooking{}, err
+	}
+	if metadata == nil {
+		return view, nil
+	}
+	view.Commerce = metadata
+	// The provider has a separate earnings projection. Commerce customer price,
+	// payment method and settlement state do not belong on this operational view.
+	view.FareEstimateKobo = nil
+	view.FareFinalKobo = nil
+	view.PaymentMethod = ""
+	view.PaymentStatus = ""
+	return view, nil
 }
 
 // earningsLookback caps how many of the provider's most recent bookings feed the
@@ -1103,6 +1142,17 @@ func (s *BookingService) MarkEnRoutePickup(ctx context.Context, id, providerID s
 	return updated.Public(), nil
 }
 
+func (s *BookingService) nextSecureHandoverVersion(ctx context.Context, bookingID string, stage handover.Step) (int64, error) {
+	current, _, err := s.secureHandover.GetHandoverChallenge(ctx, bookingID, stage)
+	if errors.Is(err, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+		return 1, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return current.Version + 1, nil
+}
+
 // MarkArrivedAtPickup transitions the booking to arrived_at_pickup and
 // generates the driver's pickup credential (shown on the driver's own app and
 // verified by the customer). The credential is returned to the caller (the
@@ -1116,7 +1166,16 @@ func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, id, providerID
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return ArrivedAtPickupResult{}, apperrors.Forbidden("You cannot update this booking.", nil)
 	}
-	rec, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepPickup, id), time.Now())
+	var rec handover.CodeRecord
+	if s.secureHandover != nil {
+		version, versionErr := s.nextSecureHandoverVersion(ctx, id, handover.StepPickup)
+		if versionErr != nil {
+			return ArrivedAtPickupResult{}, versionErr
+		}
+		rec, err = handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepPickup, uuid.NewString(), version, id, providerID, b.CustomerID, 0, time.Now())
+	} else {
+		rec, err = handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepPickup, id), time.Now())
+	}
 	if err != nil {
 		return ArrivedAtPickupResult{}, apperrors.Internal("Could not generate a pickup code.", err)
 	}
@@ -1128,8 +1187,13 @@ func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, id, providerID
 	s.notifier.NotifyCustomerArrivedPickup(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	s.notifier.NotifyCustomerPickupVerificationRequired(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	return ArrivedAtPickupResult{
-		Booking:          updated.Public(),
-		PickupCredential: pickupCredentialViewFrom(updated),
+		Booking: updated.Public(),
+		PickupCredential: func() PickupCredentialView {
+			if rec.Version > 0 {
+				return securePickupCredentialView(rec, "ACTIVE")
+			}
+			return pickupCredentialViewFrom(updated)
+		}(),
 	}, nil
 }
 
@@ -1141,7 +1205,16 @@ func (s *BookingService) MarkEnRouteDelivery(ctx context.Context, id, providerID
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
 	}
-	rec, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepDelivery, id), time.Now())
+	var rec handover.CodeRecord
+	if s.secureHandover != nil {
+		version, versionErr := s.nextSecureHandoverVersion(ctx, id, handover.StepDelivery)
+		if versionErr != nil {
+			return bookingmodels.PublicBooking{}, versionErr
+		}
+		rec, err = handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepDelivery, uuid.NewString(), version, id, providerID, b.CustomerID, 0, time.Now())
+	} else {
+		rec, err = handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepDelivery, id), time.Now())
+	}
 	if err != nil {
 		return bookingmodels.PublicBooking{}, apperrors.Internal("Could not generate a delivery code.", err)
 	}
@@ -1151,7 +1224,13 @@ func (s *BookingService) MarkEnRouteDelivery(ctx context.Context, id, providerID
 	}
 	_ = s.addEvent(ctx, id, "driver_en_route_delivery", bookingmodels.ActorProvider, providerID)
 	s.notifier.NotifyCustomerEnRouteDelivery(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
-	s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id, "code": updated.DeliveryCode})
+	deliveryPayload := map[string]interface{}{"booking_id": id, "code": rec.Code}
+	if rec.Version > 0 {
+		deliveryPayload["qr_token"] = rec.QRToken
+		deliveryPayload["challenge_ref"] = rec.ChallengeRef
+		deliveryPayload["version"] = rec.Version
+	}
+	s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.CustomerID, id, deliveryPayload)
 	return updated.Public(), nil
 }
 
@@ -1190,6 +1269,19 @@ func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID, co
 	}
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
+	}
+	if s.secureHandover != nil {
+		updated, consumed, consumeErr := s.secureHandover.ConsumeHandoverChallenge(ctx, id, handover.StepDelivery, providerID, strings.TrimSpace(code), s.handoverSecret, proofPhotoURL, signatureURL)
+		if consumeErr != nil && !errors.Is(consumeErr, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+			return bookingmodels.PublicBooking{}, consumeErr
+		}
+		if consumeErr == nil && consumed {
+			_ = s.addEvent(ctx, id, "cargo_delivered", bookingmodels.ActorProvider, providerID)
+			s.notifier.NotifyCustomerDelivered(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
+		}
+		if consumeErr == nil {
+			return updated.Public(), nil
+		}
 	}
 	if err := s.verifyDeliveryCode(ctx, id, b, code); err != nil {
 		return bookingmodels.PublicBooking{}, err

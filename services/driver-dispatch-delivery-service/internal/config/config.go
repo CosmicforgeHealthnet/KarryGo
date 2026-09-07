@@ -98,6 +98,7 @@ type Config struct {
 	PlanningMaxWeightGrams         int64
 	PlanningMaxVolumeML            int64
 	PlanningCapacityPolicyVersion  string
+	AssignmentRolloutServiceTiers  string
 
 	// Additive secure handover/evidence controls. Safe defaults preserve the
 	// legacy Trip OTP/proof workflow until an environment opts in.
@@ -105,6 +106,9 @@ type Config struct {
 	PickupEvidenceGateEnabled   bool
 	DeliveryEvidenceGateEnabled bool
 	HandoverQREnabled           bool
+	// VendorOwnedHandoverEnabled exposes the separate VendorMission custody
+	// authority. It is independent of marketplace Trip rollout and defaults off.
+	VendorOwnedHandoverEnabled  bool
 	HandoverChallengeTTL        time.Duration
 	HandoverWorkerInterval      time.Duration
 	HandoverCaptureSessionTTL   time.Duration
@@ -116,6 +120,11 @@ type Config struct {
 	HandoverInAppAllowed        bool
 	HandoverPushAllowed         bool
 	HandoverSMSAllowed          bool
+	RolloutPolicyVersion        string
+	HandoverRolloutCustomerIDs  string
+	HandoverRolloutSourceTypes  string
+	HandoverRolloutSourceRefs   string
+	HandoverRolloutServiceTiers string
 
 	// Additive delivery-recovery and route-integrity controls. All default off
 	// so existing Trip/failure/location behavior remains the rollout baseline.
@@ -274,10 +283,12 @@ func Load() (Config, error) {
 		PlanningMaxWeightGrams:         int64(getEnvInt("DISPATCH_MOTORCYCLE_MAX_WEIGHT_GRAMS", 25000)),
 		PlanningMaxVolumeML:            int64(getEnvInt("DISPATCH_MOTORCYCLE_MAX_VOLUME_ML", 120000)),
 		PlanningCapacityPolicyVersion:  getEnv("DISPATCH_CAPACITY_POLICY_VERSION", "dispatch_motorcycle_capacity_v1"),
+		AssignmentRolloutServiceTiers:  getEnv("DISPATCH_ASSIGNMENT_ROLLOUT_SERVICE_TIERS", ""),
 		HandoverChallengeEnabled:       getEnvBool("DISPATCH_HANDOVER_CHALLENGE_ENABLED", false),
 		PickupEvidenceGateEnabled:      getEnvBool("DISPATCH_PICKUP_EVIDENCE_GATE_ENABLED", false),
 		DeliveryEvidenceGateEnabled:    getEnvBool("DISPATCH_DELIVERY_EVIDENCE_GATE_ENABLED", false),
 		HandoverQREnabled:              getEnvBool("DISPATCH_HANDOVER_QR_ENABLED", false),
+		VendorOwnedHandoverEnabled:     getEnvBool("DISPATCH_VENDOR_OWNED_HANDOVER_ENABLED", false),
 		HandoverChallengeTTL:           time.Duration(getEnvInt("DISPATCH_HANDOVER_CHALLENGE_TTL_SECONDS", 900)) * time.Second,
 		HandoverWorkerInterval:         time.Duration(getEnvInt("DISPATCH_HANDOVER_WORKER_INTERVAL_SECONDS", 30)) * time.Second,
 		HandoverCaptureSessionTTL:      time.Duration(getEnvInt("DISPATCH_EVIDENCE_CAPTURE_SESSION_TTL_SECONDS", 600)) * time.Second,
@@ -289,6 +300,11 @@ func Load() (Config, error) {
 		HandoverInAppAllowed:           getEnvBool("DELIVERY_HANDOVER_IN_APP_ALLOWED", true),
 		HandoverPushAllowed:            getEnvBool("DELIVERY_HANDOVER_PUSH_ALLOWED", true),
 		HandoverSMSAllowed:             getEnvBool("DELIVERY_HANDOVER_SMS_ALLOWED", false),
+		RolloutPolicyVersion:           getEnv("DISPATCH_ROLLOUT_POLICY_VERSION", "dispatch_rollout_v1"),
+		HandoverRolloutCustomerIDs:     getEnv("DISPATCH_HANDOVER_ROLLOUT_CUSTOMER_IDS", ""),
+		HandoverRolloutSourceTypes:     getEnv("DISPATCH_HANDOVER_ROLLOUT_SOURCE_TYPES", ""),
+		HandoverRolloutSourceRefs:      getEnv("DISPATCH_HANDOVER_ROLLOUT_SOURCE_REFS", ""),
+		HandoverRolloutServiceTiers:    getEnv("DISPATCH_HANDOVER_ROLLOUT_SERVICE_TIERS", ""),
 		DeliveryRecoveryEnabled:        getEnvBool("DISPATCH_DELIVERY_RECOVERY_ENABLED", false),
 		ReturnWorkflowEnabled:          getEnvBool("DISPATCH_RETURN_WORKFLOW_ENABLED", false),
 		HubHoldEnabled:                 getEnvBool("DISPATCH_HUB_HOLD_ENABLED", false),
@@ -387,6 +403,28 @@ func Load() (Config, error) {
 	if cfg.AppEnv != "development" && cfg.AppEnv != "test" && strings.HasPrefix(string(cfg.HandoverSecret), "development-") {
 		return Config{}, fmt.Errorf("a deployment handover key is required outside development")
 	}
+	if (cfg.PickupEvidenceGateEnabled || cfg.DeliveryEvidenceGateEnabled || cfg.HandoverQREnabled) && !cfg.HandoverChallengeEnabled {
+		return Config{}, fmt.Errorf("DISPATCH_HANDOVER_CHALLENGE_ENABLED is required for evidence gates and handover QR")
+	}
+	if cfg.HandoverChallengeEnabled && strings.TrimSpace(cfg.HandoverRolloutCustomerIDs) == "" &&
+		strings.TrimSpace(cfg.HandoverRolloutSourceTypes) == "" && strings.TrimSpace(cfg.HandoverRolloutSourceRefs) == "" {
+		return Config{}, fmt.Errorf("a server-owned handover rollout cohort is required when DISPATCH_HANDOVER_CHALLENGE_ENABLED is true")
+	}
+	if cfg.VendorOwnedHandoverEnabled && (len(cfg.VendorServiceSecret) == 0 || strings.TrimSpace(cfg.NotificationURL) == "" || len(cfg.NotificationSecret) == 0) {
+		return Config{}, fmt.Errorf("VENDOR_SERVICE_SECRET, DISPATCH_NOTIFICATION_URL and DISPATCH_NOTIFICATION_SECRET are required when DISPATCH_VENDOR_OWNED_HANDOVER_ENABLED is true")
+	}
+	if cfg.MultiVendorPlanningEnabled && (!cfg.HandoverChallengeEnabled || !cfg.PickupEvidenceGateEnabled || !cfg.DeliveryEvidenceGateEnabled) {
+		return Config{}, fmt.Errorf("protected handover plus pickup and delivery evidence are required when DISPATCH_MULTI_STOP_MISSIONS_ENABLED is true")
+	}
+	if cfg.MultiVendorPlanningEnabled && !csvContains(cfg.HandoverRolloutSourceTypes, "VENDOR_COMMERCE") {
+		return Config{}, fmt.Errorf("VENDOR_COMMERCE must be selected by DISPATCH_HANDOVER_ROLLOUT_SOURCE_TYPES when multi-stop missions are enabled")
+	}
+	if cfg.SequentialAssignmentEnabled && strings.TrimSpace(cfg.AssignmentRolloutServiceTiers) == "" {
+		return Config{}, fmt.Errorf("DISPATCH_ASSIGNMENT_ROLLOUT_SERVICE_TIERS is required when sequential matching is enabled")
+	}
+	if cfg.DispatchQueueEnabled && !cfg.SequentialAssignmentEnabled && !cfg.OrganizationAssignmentEnabled && !cfg.AdminAssistedAssignmentEnabled {
+		return Config{}, fmt.Errorf("at least one assignment strategy is required when DISPATCH_QUEUE_ENABLED is true")
+	}
 	if (cfg.ReturnWorkflowEnabled || cfg.HubHoldEnabled || cfg.ReplacementHandoverEnabled) && !cfg.DeliveryRecoveryEnabled {
 		return Config{}, fmt.Errorf("DISPATCH_DELIVERY_RECOVERY_ENABLED is required for return, hub-hold or replacement recovery")
 	}
@@ -402,6 +440,9 @@ func Load() (Config, error) {
 	if cfg.ReplacementHandoverEnabled && !cfg.SequentialAssignmentEnabled {
 		return Config{}, fmt.Errorf("DISPATCH_SEQUENTIAL_MATCHING_ENABLED is required when DISPATCH_REPLACEMENT_HANDOVER_ENABLED is true")
 	}
+	if cfg.ReplacementHandoverEnabled && !cfg.HandoverChallengeEnabled {
+		return Config{}, fmt.Errorf("DISPATCH_HANDOVER_CHALLENGE_ENABLED is required when DISPATCH_REPLACEMENT_HANDOVER_ENABLED is true")
+	}
 	if cfg.OfflineReplayEnabled && !cfg.RouteAlertsEnabled {
 		return Config{}, fmt.Errorf("DISPATCH_ROUTE_ALERTS_ENABLED is required when DISPATCH_OFFLINE_REPLAY_ENABLED is true")
 	}
@@ -409,6 +450,16 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("DISPATCH_ROUTE_SERVICE_URL is required when DISPATCH_ROUTE_ALERTS_ENABLED is true")
 	}
 	return cfg, nil
+}
+
+func csvContains(raw, expected string) bool {
+	expected = strings.ToUpper(strings.TrimSpace(expected))
+	for _, value := range strings.Split(raw, ",") {
+		if strings.ToUpper(strings.TrimSpace(value)) == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func getEnvFloat(key string, fallback float64) float64 {

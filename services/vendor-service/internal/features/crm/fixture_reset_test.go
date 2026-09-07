@@ -44,9 +44,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// crmFixtureTables is the state every CRM test starts from empty. It is the
-// same list the previous TRUNCATE named; the FK closure below extends it to
-// anything that references these, so a table cannot be missed by omission.
+// crmFixtureTables is the mutable state every CRM test starts from empty. The
+// FK closure below extends it to anything that references these, so a table
+// cannot be missed by omission. vendor_audit_log is intentionally excluded:
+// it is append-only production evidence, and the isolated package database is
+// the authority that clears it between package runs.
 var crmFixtureTables = []string{
 	"crm_task_trigger_evaluations",
 	"crm_relationship_signals", "crm_customer_value_projections", "crm_loyalty_tier_definitions",
@@ -71,7 +73,7 @@ var crmFixtureTables = []string{
 	"crm_privacy_processing_history", "crm_privacy_projections",
 	"crm_consent_projections", "crm_customer_order_facts", "crm_customer_branch_relations",
 	"crm_customer_identity_links", "vendor_customer_profiles", "vendor_inbox_processed_events",
-	"vendor_service_nonces", "vendor_outbox", "vendor_audit_log", "vendor_idempotency_keys",
+	"vendor_service_nonces", "vendor_outbox", "vendor_idempotency_keys",
 }
 
 // crmFallbackTruncate is what the reset used to do, kept as the safety net.

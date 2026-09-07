@@ -421,11 +421,13 @@ func (s *Service) evaluate(
 		Serviceable:        true,
 		ReasonCode:         commercequote.ReasonServiceable,
 		DistanceKm:         distance,
-		EstimatedMinutes:   estimatedMinutes(distance),
-		FeeMinor:           fare.FareEstimateKobo,
-		Currency:           currencyNGN,
-		BaseMinor:          fare.BreakdownKobo.BaseFareKobo,
-		DistanceMinor:      fare.BreakdownKobo.PerKmFareKobo,
+		EstimatedMinutes: estimatedMinutes(
+			distance, request.Load.LoadingDurationSeconds,
+		),
+		FeeMinor:      fare.FareEstimateKobo,
+		Currency:      currencyNGN,
+		BaseMinor:     fare.BreakdownKobo.BaseFareKobo,
+		DistanceMinor: fare.BreakdownKobo.PerKmFareKobo,
 		SurchargeMinor: fare.BreakdownKobo.WeightSurcharge +
 			fare.BreakdownKobo.HelperFeeKobo,
 		AvailableProviders: eligible,
@@ -571,12 +573,16 @@ func haversineKm(lat1, lng1, lat2, lng2 float64) float64 {
 // It is deliberately conservative and separate from dispatch's bike ETA: a
 // truck through Lagos traffic is not a motorcycle, and reusing the bike figure
 // would promise the customer a time this service cannot keep.
-func estimatedMinutes(distanceKm float64) int {
+func estimatedMinutes(distanceKm float64, loadingDurationSeconds ...int64) int {
 	const (
-		averageSpeedKmh = 14.0
-		loadingMinutes  = 25
-		minimumMinutes  = 40
+		averageSpeedKmh       = 14.0
+		defaultLoadingMinutes = 25
+		minimumMinutes        = 40
 	)
+	loadingMinutes := defaultLoadingMinutes
+	if len(loadingDurationSeconds) > 0 && loadingDurationSeconds[0] > 0 {
+		loadingMinutes = int(math.Ceil(float64(loadingDurationSeconds[0]) / 60))
+	}
 
 	minutes := int(math.Ceil(distanceKm/averageSpeedKmh*60)) + loadingMinutes
 

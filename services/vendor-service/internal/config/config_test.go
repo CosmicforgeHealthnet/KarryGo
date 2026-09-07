@@ -389,3 +389,15 @@ func TestLoad_Section17EFlagDefaultsOff(t *testing.T) {
 		t.Fatal("COMMERCE_ORDERS_ENABLED must default off")
 	}
 }
+
+func TestLoad_TaxiGoodsFlagDefaultsOff(t *testing.T) {
+	if Load().Flags.TaxiGoodsDeliveryEnabled {
+		t.Fatal("TAXI_GOODS_DELIVERY_ENABLED must default off in Vendor")
+	}
+}
+
+func TestLoad_Section32RelayFlagsDefaultOff(t *testing.T) {
+	if Section32DispatchHandoverEnabled() || Section32HaulingHandoverEnabled() || Section32TaxiHandoverEnabled() || Section32VendorOwnedHandoverEnabled() {
+		t.Fatal("Section 32 authority relays must default off")
+	}
+}

@@ -94,19 +94,25 @@ func (r *Repository) CreateMultiStop(ctx context.Context, input createMultiStopI
 	for _, parcel := range req.Parcels {
 		totalWeight += parcel.WeightGrams
 	}
+	protection := r.protection(req.CustomerRef, req.OperationRef, serviceTier(req.Mode))
 	var bookingID string
 	if err = tx.QueryRow(ctx, `INSERT INTO dispatch_bookings(
 		customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,
 		dropoff_lat,dropoff_lng,fare_amount,currency,payment_method,payment_status,
 		payment_ref,receiver_name,receiver_phone,package_desc,package_weight,
-		package_type,package_size,is_fragile,service_tier)
+		package_type,package_size,is_fragile,service_tier,
+		rollout_protection_mode,rollout_policy_version,handover_required,
+		pickup_evidence_required,delivery_evidence_required,provider_transfer_required)
 		VALUES($1::uuid,'searching',$2,$3,$4,$5,$6,$7,$8,$9,'wallet','paid',$10,
-		$11,$12,$13,$14,'commerce','large',$15,$16) RETURNING id::text`,
+		$11,$12,$13,$14,'commerce','large',$15,$16,$17,$18,$19,$20,$21,$22) RETURNING id::text`,
 		req.CustomerRef, first.Location.Address, first.Location.Latitude, first.Location.Longitude,
 		req.Receiver.Address, req.Receiver.Latitude, req.Receiver.Longitude, input.Quote.FeeMinor,
 		input.Quote.Currency, req.FundingReference, receiverDisplay(req.Receiver), req.Receiver.Phone,
 		fmt.Sprintf("Commerce multi-stop mission with %d parcels", len(req.Parcels)),
-		float64(totalWeight)/1000, hasFragile(req.Parcels), serviceTier(req.Mode)).Scan(&bookingID); err != nil {
+		float64(totalWeight)/1000, hasFragile(req.Parcels), serviceTier(req.Mode),
+		protection.Mode, protection.PolicyVersion, protection.HandoverRequired,
+		protection.PickupEvidenceRequired, protection.DeliveryEvidenceRequired,
+		protection.ProviderTransferRequired).Scan(&bookingID); err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
 

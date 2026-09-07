@@ -2,6 +2,7 @@ package bookingrepo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -66,6 +67,42 @@ func (r *PostgresBookingRepository) CommerceMissionScope(ctx context.Context, bo
 		return "", nil, false, nil
 	}
 	return parentID, vendorIDs, err == nil, err
+}
+
+func (r *PostgresBookingRepository) CommerceProviderMetadata(ctx context.Context, bookingID string) (*bookingmodels.CommerceOperations, error) {
+	var (
+		metadata                   bookingmodels.CommerceOperations
+		pickups, parcels, handling []byte
+	)
+	err := r.db.QueryRow(ctx, `
+		SELECT operation_ref,vehicle_class,pickup_stops,parcels,manifest_ref,
+		       manifest_version,handling_requirements,pickup_window_start,
+		       pickup_window_end,pickup_timezone,loading_duration_seconds
+		  FROM commerce_missions
+		 WHERE booking_id=$1 AND status IN ('accepted','cancelled')`, bookingID).Scan(
+		&metadata.OperationRef, &metadata.VehicleClass, &pickups, &parcels,
+		&metadata.ManifestRef, &metadata.ManifestVersion, &handling,
+		&metadata.PickupWindowStart, &metadata.PickupWindowEnd,
+		&metadata.PickupTimezone, &metadata.LoadingDurationSeconds,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	metadata.SourceType = "VENDOR_COMMERCE"
+	if err = json.Unmarshal(pickups, &metadata.PickupStops); err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(handling, &metadata.Handling); err != nil {
+		return nil, err
+	}
+	metadata.Parcels, err = bookingmodels.SanitizeCommerceParcels(parcels)
+	if err != nil {
+		return nil, err
+	}
+	return &metadata, nil
 }
 
 func (r *PostgresBookingRepository) ListCompletedCommerceBookings(ctx context.Context, limit int) ([]string, error) {
@@ -220,6 +257,31 @@ func (r *PostgresBookingRepository) MarkEnRoutePickup(ctx context.Context, id st
 // freshly generated pickup credential (the driver's own code, later verified
 // by the customer), resetting its attempt/resend counters.
 func (r *PostgresBookingRepository) MarkArrivedAtPickup(ctx context.Context, id string, pickup handover.CodeRecord) (bookingmodels.Booking, error) {
+	if pickup.Version > 0 {
+		tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		row := tx.QueryRow(ctx, `
+			UPDATE haulage_bookings
+			SET status=$2,updated_at=now(),pickup_code='',pickup_code_hash='',
+			    pickup_code_expires_at=NULL,pickup_code_attempts=0,
+			    pickup_code_resend_count=0,pickup_code_last_sent_at=now(),pickup_code_verified_at=NULL
+			WHERE id=$1 AND status=$3 AND provider_id=$4 RETURNING `+bookingSelectCols,
+			id, bookingmodels.StatusArrivedAtPickup, bookingmodels.StatusEnRoutePickup, pickup.ProviderID)
+		updated, err := scanBookingNotFound(row)
+		if err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		if err = insertIssuedSecureChallenge(ctx, tx, pickup); err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		return updated, nil
+	}
 	row := r.db.QueryRow(ctx, `
 		UPDATE haulage_bookings
 		SET status=$2, updated_at=now(),
@@ -245,6 +307,31 @@ func (r *PostgresBookingRepository) MarkPickedUp(ctx context.Context, id string)
 // freshly generated delivery credential (the customer's own code, later
 // verified by the driver), resetting its attempt/resend counters.
 func (r *PostgresBookingRepository) MarkEnRouteDelivery(ctx context.Context, id string, delivery handover.CodeRecord) (bookingmodels.Booking, error) {
+	if delivery.Version > 0 {
+		tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		row := tx.QueryRow(ctx, `
+			UPDATE haulage_bookings
+			SET status=$2,updated_at=now(),delivery_code='',delivery_code_hash='',
+			    delivery_code_expires_at=NULL,delivery_code_attempts=0,
+			    delivery_code_resend_count=0,delivery_code_last_sent_at=now(),delivery_code_verified_at=NULL
+			WHERE id=$1 AND status=$3 AND provider_id=$4 RETURNING `+bookingSelectCols,
+			id, bookingmodels.StatusEnRouteDelivery, bookingmodels.StatusPickedUp, delivery.ProviderID)
+		updated, err := scanBookingNotFound(row)
+		if err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		if err = insertIssuedSecureChallenge(ctx, tx, delivery); err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		return updated, nil
+	}
 	row := r.db.QueryRow(ctx, `
 		UPDATE haulage_bookings
 		SET status=$2, updated_at=now(),
@@ -281,6 +368,20 @@ func (r *PostgresBookingRepository) MarkPickupVerified(ctx context.Context, id s
 // ResendPickupCode regenerates the driver's pickup credential (called by the
 // provider when their displayed code expired or was lost).
 func (r *PostgresBookingRepository) ResendPickupCode(ctx context.Context, id string, rec handover.CodeRecord) error {
+	if rec.Version > 0 {
+		tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if err = supersedeAndInsertSecureChallenge(ctx, tx, rec); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE haulage_bookings SET pickup_code='',pickup_code_hash='',pickup_code_expires_at=NULL,pickup_code_attempts=0,pickup_code_resend_count=$2,pickup_code_last_sent_at=now(),pickup_code_verified_at=NULL,updated_at=now() WHERE id=$1 AND provider_id=$3`, id, rec.ResendCount, rec.ProviderID); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE haulage_bookings
 		SET pickup_code=$2, pickup_code_hash=$3, pickup_code_expires_at=$4,
@@ -294,6 +395,20 @@ func (r *PostgresBookingRepository) ResendPickupCode(ctx context.Context, id str
 // ResendDeliveryCode regenerates the customer's delivery credential (called
 // by the customer when their displayed code expired or was lost).
 func (r *PostgresBookingRepository) ResendDeliveryCode(ctx context.Context, id string, rec handover.CodeRecord) error {
+	if rec.Version > 0 {
+		tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if err = supersedeAndInsertSecureChallenge(ctx, tx, rec); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE haulage_bookings SET delivery_code='',delivery_code_hash='',delivery_code_expires_at=NULL,delivery_code_attempts=0,delivery_code_resend_count=$2,delivery_code_last_sent_at=now(),delivery_code_verified_at=NULL,updated_at=now() WHERE id=$1 AND customer_id=$3`, id, rec.ResendCount, rec.OwnerID); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE haulage_bookings
 		SET delivery_code=$2, delivery_code_hash=$3, delivery_code_expires_at=$4,

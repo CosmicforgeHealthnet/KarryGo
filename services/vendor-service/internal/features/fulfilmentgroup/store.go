@@ -740,7 +740,7 @@ func (s *Store) ActivatePlan(
 	}
 
 	if in.ExpectedVersion != group.CurrentPlanVersion {
-		return Plan{}, ErrStalePlan
+		return Plan{}, fmt.Errorf("%w: expected version %d, current version %d", ErrStalePlan, in.ExpectedVersion, group.CurrentPlanVersion)
 	}
 
 	if err = assertMissionUnits(ctx, tx, groupID, in.Missions); err != nil {
@@ -755,6 +755,23 @@ func (s *Store) ActivatePlan(
 
 	planID := "cfpv_" + uuid.NewString()
 	fingerprint := Fingerprint(in.DeliveryMode, in.Missions)
+
+	// Retire the current row before inserting its ACTIVE replacement. The
+	// partial unique index permits only one ACTIVE plan per group, and both
+	// writes are in this transaction: if any later write fails, rollback makes
+	// the prior plan active again, so no intermediate state is observable.
+	if group.CurrentPlanVersion > 0 {
+		tag, updateErr := tx.Exec(ctx, `
+			UPDATE commerce_fulfilment_plan_versions
+			   SET status = 'SUPERSEDED', superseded_at = $1
+			 WHERE group_id = $2 AND status = 'ACTIVE'`, now, groupID)
+		if updateErr != nil {
+			return Plan{}, updateErr
+		}
+		if tag.RowsAffected() != 1 {
+			return Plan{}, ErrVersionConflict
+		}
+	}
 
 	plan, err := scanPlan(tx.QueryRow(ctx, `
 		INSERT INTO commerce_fulfilment_plan_versions (
@@ -774,16 +791,9 @@ func (s *Store) ActivatePlan(
 		return Plan{}, translateConstraint(err)
 	}
 
-	// The previous version becomes history. It is marked superseded, never
-	// edited to look like it always said what the new one says.
+	// The previous version is now history. Its execution reservation is
+	// released when it never progressed beyond REQUESTED.
 	if group.CurrentPlanVersion > 0 {
-		if _, err = tx.Exec(ctx, `
-			UPDATE commerce_fulfilment_plan_versions
-			   SET status = 'SUPERSEDED', superseded_at = $1
-			 WHERE group_id = $2 AND status = 'ACTIVE' AND id <> $3`,
-			now, groupID, planID); err != nil {
-			return Plan{}, err
-		}
 		// A reservation the previous version made but never bound stops
 		// occupying its slot. It stays readable: the mission really was
 		// requested, and a plan history that loses that cannot explain itself.
@@ -1041,12 +1051,13 @@ func insertPlanMissions(
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO commerce_fulfilment_plan_missions (
 				id, plan_id, group_id, slot_ref, sequence, owner, authority,
-				service_class, vehicle_class, planned_cost_minor, currency, created_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+				service_class, vehicle_class, planned_cost_minor, currency,
+				loading_duration_seconds, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 			missionID, plan.ID, plan.GroupID, mission.SlotRef, mission.Sequence,
 			mission.Owner, mission.Authority, mission.ServiceClass,
 			mission.VehicleClass, mission.PlannedCostMinor, mission.Currency,
-			now); err != nil {
+			mission.LoadingDurationSeconds, now); err != nil {
 			return nil, translateConstraint(err)
 		}
 		mission.ID = missionID
@@ -1092,7 +1103,8 @@ func insertPlanMissions(
 func loadPlanMissions(ctx context.Context, q querier, planID string) ([]PlanMission, error) {
 	rows, err := q.Query(ctx, `
 		SELECT id, plan_id, slot_ref, sequence, owner, authority,
-		       service_class, vehicle_class, planned_cost_minor, currency, created_at
+		       service_class, vehicle_class, planned_cost_minor, currency,
+		       loading_duration_seconds, created_at
 		  FROM commerce_fulfilment_plan_missions
 		 WHERE plan_id = $1 ORDER BY sequence`, planID)
 	if err != nil {
@@ -1105,7 +1117,8 @@ func loadPlanMissions(ctx context.Context, q querier, planID string) ([]PlanMiss
 		if err = rows.Scan(&mission.ID, &mission.PlanID, &mission.SlotRef,
 			&mission.Sequence, &mission.Owner, &mission.Authority,
 			&mission.ServiceClass, &mission.VehicleClass,
-			&mission.PlannedCostMinor, &mission.Currency, &mission.CreatedAt); err != nil {
+			&mission.PlannedCostMinor, &mission.Currency,
+			&mission.LoadingDurationSeconds, &mission.CreatedAt); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -2432,7 +2445,7 @@ func translateConstraint(err error) error {
 	case "23505": // unique_violation
 		switch {
 		case strings.Contains(pgErr.ConstraintName, "plan_versions"):
-			return ErrStalePlan
+			return fmt.Errorf("%w: constraint %s", ErrStalePlan, pgErr.ConstraintName)
 		case strings.Contains(pgErr.ConstraintName, "one_live_slot"),
 			strings.Contains(pgErr.ConstraintName, "mission_refs"):
 			return ErrConflict

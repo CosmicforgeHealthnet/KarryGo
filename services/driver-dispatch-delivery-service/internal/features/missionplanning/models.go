@@ -1,6 +1,10 @@
 package missionplanning
 
-import "time"
+import (
+	"time"
+
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
+)
 
 const PolicyVersion = "dispatch_multi_vendor_planning_v2"
 
@@ -65,7 +69,8 @@ type PlanRequest struct {
 	PaymentRef          string    `json:"payment_ref,omitempty"`
 	ServiceabilityRef   string    `json:"serviceability_ref,omitempty"`
 	// RouteEvidence is populated only by the server-owned Section 6 adapter.
-	RouteEvidence *RouteEvidence `json:"-"`
+	RouteEvidence *RouteEvidence     `json:"-"`
+	Protection    rollout.Protection `json:"-"`
 }
 type RouteEvidence struct {
 	Reference       string  `json:"reference"`

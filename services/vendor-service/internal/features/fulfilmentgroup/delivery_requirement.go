@@ -9,9 +9,9 @@ package fulfilmentgroup
 //
 // The record exists because a plan version alone cannot answer the question
 // people actually ask. A plan says a van was used. It does not say that a
-// motorcycle was refused for weight, that a car would have been the smallest
-// suitable class, and that the car was unavailable because driver-taxi-service
-// has no goods mode. Those three facts are the answer, and they have to be
+// motorcycle was refused for weight, that a car was the smallest suitable
+// class, and whether the gated Taxi Goods authority was available. Those facts
+// are the answer, and they have to be
 // stored at the moment the decision is taken because the thresholds and the
 // integrations they refer to will both have moved by the time anyone asks.
 //

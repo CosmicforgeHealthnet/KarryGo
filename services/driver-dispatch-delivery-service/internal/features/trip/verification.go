@@ -99,7 +99,14 @@ func (s *Service) ResendDeliveryCodeForCustomer(ctx context.Context, bookingID s
 // GetPickupCredential returns the rider's own pickup credential for
 // redisplay (e.g. after navigating away from the arrived-at-pickup screen).
 func (s *Service) GetPickupCredential(ctx context.Context, providerID, tripID string) (PickupCredentialView, error) {
-	if s.secureHandover != nil && s.secureHandover.Enabled() {
+	if err := validateID(tripID, "id"); err != nil {
+		return PickupCredentialView{}, err
+	}
+	protected, err := s.secureHandoverRequired(ctx, tripID)
+	if err != nil {
+		return PickupCredentialView{}, err
+	}
+	if protected {
 		return PickupCredentialView{}, apperrors.New(409, "SECURE_HANDOVER_ROUTE_REQUIRED", "Use the stop-bound secure pickup credential route.", nil)
 	}
 	trip, err := s.repository.GetProviderTripByID(ctx, tripID, providerID)
@@ -118,7 +125,14 @@ func (s *Service) GetPickupCredential(ctx context.Context, providerID, tripID st
 // ResendPickupCredential regenerates the rider's pickup credential (e.g.
 // after it expired before the customer could verify it).
 func (s *Service) ResendPickupCredential(ctx context.Context, providerID, tripID string) (PickupCredentialView, error) {
-	if s.secureHandover != nil && s.secureHandover.Enabled() {
+	if err := validateID(tripID, "id"); err != nil {
+		return PickupCredentialView{}, err
+	}
+	protected, err := s.secureHandoverRequired(ctx, tripID)
+	if err != nil {
+		return PickupCredentialView{}, err
+	}
+	if protected {
 		return PickupCredentialView{}, apperrors.New(409, "SECURE_HANDOVER_ROUTE_REQUIRED", "Use the versioned secure handover resend route.", nil)
 	}
 	trip, err := s.repository.GetProviderTripByID(ctx, tripID, providerID)

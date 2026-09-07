@@ -58,6 +58,7 @@ import (
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
 	"cosmicforge/logistics/services/vendor-service/internal/features/taxonomy"
 	"cosmicforge/logistics/services/vendor-service/internal/features/vendors"
+	handoverintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/handover"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
 )
 
@@ -128,7 +129,7 @@ import (
 // command surface.
 //
 // The figure is measured from production route registration, never targeted.
-const ExpectedRouteCount = 855
+const ExpectedRouteCount = 857
 
 // allFlagsOn enables every CRM module, because the inventory must describe the
 // full surface a fully-enabled deployment exposes.
@@ -251,7 +252,9 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	// Section 17E: the vendor order queue and its lifecycle commands. Like the
 	// delivery policy above it belongs to the vendor staff base, because it is
 	// driven by vendor staff IAM rather than by a customer token.
-	orders.RegisterVendorRoutes(protected, &orders.Service{}, true)
+	orderService := &orders.Service{}
+	orderService.SetHandoverAuthorities(handoverintegration.Router{"TAXI": handoverintegration.Unavailable{}})
+	orders.RegisterVendorRoutes(protected, orderService, true)
 	orders.RegisterSection21VendorRoutes(protected, orders.NewSection21Service(orders.Section21Options{Enabled: true}), true)
 
 	// The post-order fulfilment aggregate: groups, pickup obligations, parcels,

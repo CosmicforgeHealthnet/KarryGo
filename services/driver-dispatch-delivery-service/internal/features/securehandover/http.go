@@ -59,8 +59,17 @@ func RegisterInternal(group *gin.RouterGroup, handler *Handler, verifier *servic
 	routes := group.Group("/commerce/dispatch/missions")
 	routes.Use(authority.ServiceBoundary(verifier, authority.NewPostgresNonceClaimer(db), allowed)...)
 	routes.POST("/:id/stops/:stopId/pickup/verify", handler.verifySourcePickup)
+	routes.GET("/:id/stops/:stopId/handover/:stage", handler.readSourceHandover)
+	routes.GET("/:id/handover/:stage", handler.readSourceHandover)
 	routes.POST("/:id/handover/resend", handler.resendSource)
 	routes.POST("/:id/stops/:stopId/return-credential", handler.returnCredentialSource)
+}
+
+func (h *Handler) readSourceHandover(c *gin.Context) {
+	caller, _ := c.Get("service_name")
+	stage := Stage(strings.ToUpper(strings.TrimSpace(c.Param("stage"))))
+	result, err := h.service.ReadBySource(c.Request.Context(), stringValue(caller), c.Param("id"), c.Param("stopId"), stage)
+	respond(c, http.StatusOK, result, err)
 }
 
 func (h *Handler) pickupCredential(c *gin.Context) {

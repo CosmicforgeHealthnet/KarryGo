@@ -137,6 +137,7 @@ type Options struct {
 	Branches     BranchAuthority
 	VendorOwn    VendorDeliveryAuthority
 	Dispatch     QuoteAuthority
+	Taxi         QuoteAuthority
 	Hauling      QuoteAuthority
 	Capabilities []Capability
 
@@ -192,6 +193,7 @@ type Planner struct {
 	branches     BranchAuthority
 	vendorOwn    VendorDeliveryAuthority
 	dispatch     QuoteAuthority
+	taxi         QuoteAuthority
 	hauling      QuoteAuthority
 	capabilities []Capability
 	policy       CapabilityPolicy
@@ -260,6 +262,7 @@ func NewPlanner(options Options) (*Planner, error) {
 		branches:                  options.Branches,
 		vendorOwn:                 options.VendorOwn,
 		dispatch:                  options.Dispatch,
+		taxi:                      options.Taxi,
 		hauling:                   options.Hauling,
 		capabilities:              capabilities,
 		policy:                    policy,
@@ -276,6 +279,7 @@ func NewPlanner(options Options) (*Planner, error) {
 func (p *Planner) availableServices() map[Service]bool {
 	return map[Service]bool{
 		ServiceDispatch: p.dispatch != nil && p.dispatch.Available(),
+		ServiceTaxi:     p.taxi != nil && p.taxi.Available(),
 		ServiceHauling:  p.hauling != nil && p.hauling.Available(),
 	}
 }
@@ -284,6 +288,8 @@ func (p *Planner) authorityFor(service Service) QuoteAuthority {
 	switch service {
 	case ServiceDispatch:
 		return p.dispatch
+	case ServiceTaxi:
+		return p.taxi
 	case ServiceHauling:
 		return p.hauling
 	default:

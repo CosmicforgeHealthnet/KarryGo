@@ -53,6 +53,19 @@ type Policy struct {
 	ReconciliationBackoffMax  time.Duration
 }
 
+// ProtectionSnapshot is the immutable Booking admission policy used after
+// creation. Environment flags decide whether new work can be selected; this
+// snapshot decides whether an existing Trip may use a legacy path.
+type ProtectionSnapshot struct {
+	Mode                     string
+	PolicyVersion            string
+	HandoverRequired         bool
+	PickupEvidenceRequired   bool
+	DeliveryEvidenceRequired bool
+	ProviderTransferRequired bool
+	ExistingChallenge        bool
+}
+
 func (p Policy) normalized() Policy {
 	if p.TTL <= 0 {
 		p.TTL = 15 * time.Minute
@@ -143,6 +156,16 @@ type Challenge struct {
 	OptimisticVersion        int64      `json:"optimistic_version"`
 	CreatedAt                time.Time  `json:"created_at"`
 	UpdatedAt                time.Time  `json:"updated_at"`
+}
+
+// Observation is the narrow internal Commerce read-back contract. It omits
+// hashes, credential material, attempt counters and recipient details.
+type Observation struct {
+	MissionRef    string `json:"mission_ref"`
+	HandoverRef   string `json:"handover_ref"`
+	Stage         Stage  `json:"stage"`
+	Status        Status `json:"status"`
+	SourceVersion int64  `json:"source_version"`
 }
 
 type PendingNotification struct {

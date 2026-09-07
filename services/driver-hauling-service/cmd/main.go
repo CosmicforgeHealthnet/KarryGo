@@ -43,7 +43,9 @@ import (
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
+	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/routing"
@@ -197,6 +199,10 @@ func main() {
 		Enabled: cfg.FleetIntegrationEnabled, KillSwitch: cfg.FleetIntegrationKillSwitch,
 	})
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
+	var custodyMedia *mediaclient.Client
+	if strings.TrimSpace(cfg.MediaURL) != "" && strings.TrimSpace(cfg.MediaToken) != "" {
+		custodyMedia = mediaclient.New(mediaclient.Config{BaseURL: cfg.MediaURL, ServiceName: "driver-hauling-service", Token: cfg.MediaToken, HTTPClient: &http.Client{Timeout: 10 * time.Second}})
+	}
 	privateExecutionService := privateexecution.NewService(
 		privateexecution.NewRepository(db),
 		privateexecution.NewHTTPAcceptanceVerifier(cfg.FleetServiceURL, cfg.FleetServiceCaller,
@@ -269,6 +275,11 @@ func main() {
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo, redisClient)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
 			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+			if len(serviceauth.ParseSecrets(cfg.ServiceSecrets)) > 0 {
+				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "HAULING"), inboundVerifier,
+					custodyops.MediaFileAuthorizer{Client: custodyMedia, AllowedOwners: map[string]struct{}{"driver-hauling-service": {}, "vendor-service": {}}},
+					custodyops.Policy{}, []string{"vendor-service", "operations-service"})
+			}
 
 			// The internal commerce delivery-quote contract (Vendor Service
 			// Section 17C). It answers serviceability and price for a route;
@@ -303,6 +314,9 @@ func main() {
 			// service rather than accepting hauls nothing would ever match.
 			if _, trusted := serviceauth.ParseSecrets(cfg.ServiceSecrets)[commercemission.SignatureCaller]; trusted && cfg.CommerceIntegrationEnabled &&
 				bookingService != nil {
+				bookinghttp.RegisterCommerceHandover(group, bookingService, db,
+					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+					[]string{commercemission.SignatureCaller})
 				haulingcommercemission.Register(
 					group,
 					haulingcommercemission.NewHandler(haulingcommercemission.New(

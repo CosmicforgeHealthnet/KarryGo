@@ -66,9 +66,9 @@ func TestSection17FFulfilmentMigrationApplyRollbackReapply(t *testing.T) {
 		}
 	}
 
-	// Only dispatch and hauling may execute a commerce mission. Taxi is not a
-	// value this column can hold.
-	var taxiRejected bool
+	// The current schema admits the three approved platform authorities.
+	// Section 32 adds Taxi to the original Section 17F closed allowlist.
+	var approvedAuthorities bool
 	if err = pool.QueryRow(ctx, `
 		SELECT EXISTS(
 			SELECT 1 FROM pg_constraint
@@ -76,9 +76,9 @@ func TestSection17FFulfilmentMigrationApplyRollbackReapply(t *testing.T) {
 			   AND contype='c'
 			   AND pg_get_constraintdef(oid) LIKE '%DISPATCH%'
 			   AND pg_get_constraintdef(oid) LIKE '%HAULING%'
-			   AND pg_get_constraintdef(oid) NOT LIKE '%TAXI%')
-		`).Scan(&taxiRejected); err != nil || !taxiRejected {
-		t.Fatalf("commerce_order_missions does not restrict the executor to dispatch/hauling: %v", err)
+			   AND pg_get_constraintdef(oid) LIKE '%TAXI%')
+		`).Scan(&approvedAuthorities); err != nil || !approvedAuthorities {
+		t.Fatalf("commerce_order_missions lacks the approved execution allowlist: %v", err)
 	}
 
 	rollbackUntilRemoved(t, ctx, pool, "000082_vendor_commerce_fulfilment_activation")

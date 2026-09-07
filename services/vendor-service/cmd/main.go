@@ -824,6 +824,9 @@ func main() {
 		cfg.WalletURL, cfg.WalletSecret, cfg.Fulfilment.QuoteTimeout,
 	))
 	fulfilmentOpsService.SetVendorMissionOrderAuthority(orderService)
+	fulfilmentOpsService.SetVendorHandoverAuthority(newVendorOwnedRuntimeHandover(
+		db, cfg.DispatchURL, cfg.DispatchSecret, config.Section32VendorOwnedHandoverEnabled(),
+	))
 
 	// Section 21 Prompt 1 commerce foundations. Orders remains the conversion
 	// authority and Production remains the capacity authority.

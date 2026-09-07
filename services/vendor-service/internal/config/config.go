@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	handoverintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/handover"
 	"cosmicforge/logistics/shared/go/redisx"
 )
 
@@ -147,6 +148,10 @@ type FulfilmentConfig struct {
 	// capability by accident.
 	DispatchMultiPickupSupported bool
 	HaulingMultiPickupSupported  bool
+	// HaulingSecureHandoverRequired marks deployments/cohorts whose Commerce
+	// activation depends on the Section 30 secure OTP+QR contract. It defaults
+	// true and fails closed while the audited dependency is PARTIAL.
+	HaulingSecureHandoverRequired bool
 
 	// ExpiryInterval is the background sweep period for lapsed plans.
 	ExpiryInterval time.Duration
@@ -479,6 +484,9 @@ func Load() Config {
 			HaulingMultiPickupSupported: getEnvBool(
 				"HAULING_MULTI_PICKUP_SUPPORTED", false,
 			),
+			HaulingSecureHandoverRequired: getEnvBool(
+				"HAULING_SECURE_HANDOVER_REQUIRED", true,
+			),
 			ExpiryInterval: time.Duration(getEnvInt("COMMERCE_FULFILMENT_EXPIRY_INTERVAL_SECONDS", 60)) * time.Second,
 		},
 
@@ -554,6 +562,12 @@ func (c Config) Validate() error {
 	requireCreds(c.Flags.DispatchCommerceIntegrationEnabled, "DISPATCH_COMMERCE_INTEGRATION_ENABLED", c.DispatchURL, c.DispatchSecret, "VENDOR_DISPATCH_URL", "VENDOR_DISPATCH_SECRET")
 	requireCreds(c.Flags.TaxiGoodsDeliveryEnabled, "TAXI_GOODS_DELIVERY_ENABLED", c.TaxiURL, c.TaxiSecret, "VENDOR_TAXI_URL", "VENDOR_TAXI_SECRET")
 	requireCreds(c.Flags.HaulingCommerceIntegrationEnabled, "HAULING_COMMERCE_INTEGRATION_ENABLED", c.HaulingURL, c.HaulingSecret, "VENDOR_HAULING_URL", "VENDOR_HAULING_SECRET")
+	if c.Flags.HaulingCommerceIntegrationEnabled &&
+		c.Fulfilment.HaulingSecureHandoverRequired &&
+		!handoverintegration.HaulingSecureHandover().Available() {
+		problems = append(problems,
+			"HAULING_COMMERCE_INTEGRATION_ENABLED is blocked: HAULING_SECURE_HANDOVER is not AVAILABLE")
+	}
 	for _, integration := range []struct{ name, urlValue, secret string }{{"Vendor Wallet onboarding", c.WalletURL, c.WalletSecret}, {"Vendor Media validation", c.MediaURL, c.MediaSecret}} {
 		if (strings.TrimSpace(integration.urlValue) == "") != (strings.TrimSpace(integration.secret) == "") {
 			problems = append(problems, integration.name+" requires both URL and secret or neither")

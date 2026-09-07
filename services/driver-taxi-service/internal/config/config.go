@@ -55,6 +55,18 @@ type Config struct {
 	// other service reads these codes, so it needs no cross-service match.
 	HandoverSecret []byte
 
+	// Taxi Goods is a distinct Vendor Commerce product. It is disabled by
+	// default and uses its own pricing and handover namespaces so passenger
+	// fare/PIN configuration cannot accidentally activate it.
+	TaxiGoodsDeliveryEnabled bool
+	TaxiGoodsPricingJSON     string
+	TaxiGoodsHandoverSecret  []byte
+	TaxiGoodsQuoteTTL        time.Duration
+	MediaURL                 string
+	MediaToken               string
+	VendorURL                string
+	VendorSecret             []byte
+
 	// Token TTLs
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
@@ -167,11 +179,19 @@ func Load() Config {
 			DB:       getEnvInt("TAXI_NOTIFICATION_REDIS_DB", getEnvInt("TAXI_REDIS_DB", 0)),
 		},
 
-		ProviderTokenSecret:   []byte(os.Getenv("TAXI_PROVIDER_TOKEN_SECRET")),
-		ProviderRefreshSecret: []byte(os.Getenv("TAXI_PROVIDER_REFRESH_SECRET")),
-		ProviderOTPSecret:     []byte(os.Getenv("TAXI_PROVIDER_OTP_SECRET")),
-		CustomerTokenSecret:   []byte(os.Getenv("TAXI_CUSTOMER_TOKEN_SECRET")),
-		HandoverSecret:        []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
+		ProviderTokenSecret:      []byte(os.Getenv("TAXI_PROVIDER_TOKEN_SECRET")),
+		ProviderRefreshSecret:    []byte(os.Getenv("TAXI_PROVIDER_REFRESH_SECRET")),
+		ProviderOTPSecret:        []byte(os.Getenv("TAXI_PROVIDER_OTP_SECRET")),
+		CustomerTokenSecret:      []byte(os.Getenv("TAXI_CUSTOMER_TOKEN_SECRET")),
+		HandoverSecret:           []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
+		TaxiGoodsDeliveryEnabled: getEnvBool("TAXI_GOODS_DELIVERY_ENABLED", false),
+		TaxiGoodsPricingJSON:     os.Getenv("TAXI_GOODS_PRICING"),
+		TaxiGoodsHandoverSecret:  []byte(os.Getenv("TAXI_GOODS_HANDOVER_SECRET")),
+		TaxiGoodsQuoteTTL:        time.Duration(getEnvInt("TAXI_GOODS_QUOTE_TTL_SECONDS", 900)) * time.Second,
+		MediaURL:                 os.Getenv("TAXI_MEDIA_URL"),
+		MediaToken:               os.Getenv("TAXI_MEDIA_TOKEN"),
+		VendorURL:                os.Getenv("TAXI_VENDOR_URL"),
+		VendorSecret:             []byte(os.Getenv("TAXI_VENDOR_SECRET")),
 
 		AccessTokenTTL:  time.Duration(getEnvInt("TAXI_ACCESS_TOKEN_TTL_SECONDS", 3600)) * time.Second,
 		RefreshTokenTTL: time.Duration(getEnvInt("TAXI_REFRESH_TOKEN_TTL_DAYS", 30)) * 24 * time.Hour,
@@ -284,11 +304,48 @@ func (c Config) Validate() error {
 	if c.TelemetryStaleSeconds <= 0 {
 		problems = append(problems, "TAXI_TELEMETRY_STALE_SECONDS must be greater than zero")
 	}
+	if c.TaxiGoodsDeliveryEnabled {
+		if strings.TrimSpace(c.TaxiGoodsPricingJSON) == "" {
+			problems = append(problems, "TAXI_GOODS_PRICING is required when TAXI_GOODS_DELIVERY_ENABLED=true")
+		}
+		if len(c.TaxiGoodsHandoverSecret) < 32 {
+			problems = append(problems, "TAXI_GOODS_HANDOVER_SECRET must be at least 32 bytes when Taxi Goods is enabled")
+		}
+		if c.TaxiGoodsQuoteTTL <= 0 {
+			problems = append(problems, "TAXI_GOODS_QUOTE_TTL_SECONDS must be greater than zero")
+		}
+		if strings.TrimSpace(c.MediaURL) == "" || strings.TrimSpace(c.MediaToken) == "" {
+			problems = append(problems, "TAXI_MEDIA_URL and TAXI_MEDIA_TOKEN are required when Taxi Goods is enabled")
+		}
+		if strings.TrimSpace(c.PaymentURL) == "" || len(c.PaymentSecret) == 0 {
+			problems = append(problems, "TAXI_PAYMENT_URL and TAXI_PAYMENT_SECRET are required when Taxi Goods is enabled")
+		}
+		if len(serviceSecretsFor(c.ServiceSecrets)["vendor-service"]) == 0 {
+			problems = append(problems, "TAXI_SERVICE_SECRETS must allow vendor-service when Taxi Goods is enabled")
+		}
+		if strings.TrimSpace(c.VendorURL) == "" || len(c.VendorSecret) == 0 {
+			problems = append(problems, "TAXI_VENDOR_URL and TAXI_VENDOR_SECRET are required when Taxi Goods is enabled")
+		}
+	}
 
 	if len(problems) > 0 {
 		return errors.New("configuration invalid: " + strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+func serviceSecretsFor(raw string) map[string]string {
+	out := map[string]string{}
+	for _, part := range strings.Split(raw, ",") {
+		name, secret, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
+			name, secret, ok = strings.Cut(strings.TrimSpace(part), ":")
+		}
+		if ok {
+			out[strings.TrimSpace(name)] = strings.TrimSpace(secret)
+		}
+	}
+	return out
 }
 
 // urlPath returns the path portion of a configured internal base URL, or "" if

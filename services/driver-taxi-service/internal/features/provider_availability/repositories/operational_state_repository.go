@@ -106,6 +106,7 @@ func (r *PostgresOperationalStateRepository) Transition(
 		VALUES ($1, $2, $3, $4, now(), 1)
 		ON CONFLICT (provider_id) DO UPDATE
 		   SET state = $2, reason = $3, booking_id = $4, effective_at = now(),
+		       goods_mission_id = NULL,
 		       version = provider_operational_state.version + 1
 		 WHERE provider_operational_state.version = $5
 		RETURNING provider_id::text, state, reason, booking_id::text, effective_at, version,

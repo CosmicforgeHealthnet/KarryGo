@@ -22,6 +22,7 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	"cosmicforge/logistics/services/vendor-service/internal/features/production"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
+	handoverintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/handover"
 	supportintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/support"
 	"cosmicforge/logistics/services/vendor-service/internal/jobs"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
@@ -66,15 +67,33 @@ func buildSection17EOrderService(
 	// nothing reserved.
 	service.SetFulfilmentAuthorities(
 		newSection17FInventoryAuthority(stock),
-		newSection17FMissionAuthority(
+		newSection17FMissionAuthorityWithTaxi(
 			cfg.Flags.DispatchCommerceIntegrationEnabled,
 			cfg.DispatchURL, cfg.DispatchSecret,
+			cfg.Flags.TaxiGoodsDeliveryEnabled,
+			cfg.TaxiURL, cfg.TaxiSecret,
 			cfg.Flags.HaulingCommerceIntegrationEnabled,
 			cfg.HaulingURL, cfg.HaulingSecret,
 			cfg.Fulfilment.QuoteTimeout,
 		),
 	)
 	service.SetRestrictedGoodsAuthority(newRestrictedGoodsFulfilmentAuthority(db))
+	handoverAuthorities := handoverintegration.Router{}
+	if config.Section32DispatchHandoverEnabled() && cfg.Flags.DispatchCommerceIntegrationEnabled {
+		handoverAuthorities["DISPATCH"] = &handoverintegration.Dispatch{Origin: cfg.DispatchURL, Secret: []byte(cfg.DispatchSecret), Enabled: true}
+	}
+	if config.Section32HaulingHandoverEnabled() && cfg.Flags.HaulingCommerceIntegrationEnabled {
+		handoverAuthorities["HAULING"] = &handoverintegration.Hauling{Origin: cfg.HaulingURL, Secret: []byte(cfg.HaulingSecret), Enabled: true}
+	}
+	if config.Section32TaxiHandoverEnabled() && cfg.Flags.TaxiGoodsDeliveryEnabled {
+		handoverAuthorities["TAXI"] = &handoverintegration.Taxi{Origin: cfg.TaxiURL, Secret: []byte(cfg.TaxiSecret), Enabled: true}
+	}
+	if config.Section32VendorOwnedHandoverEnabled() && cfg.DispatchURL != "" && cfg.DispatchSecret != "" {
+		handoverAuthorities["VENDOR_OWN_DELIVERY"] = &handoverintegration.VendorOwned{Origin: cfg.DispatchURL, Secret: []byte(cfg.DispatchSecret), Enabled: true}
+	}
+	if len(handoverAuthorities) > 0 {
+		service.SetHandoverAuthorities(handoverAuthorities)
+	}
 	if productionService != nil {
 		service.SetProductionActivator(productionService)
 	}

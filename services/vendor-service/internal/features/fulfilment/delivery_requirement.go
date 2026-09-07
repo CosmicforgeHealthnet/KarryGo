@@ -418,12 +418,21 @@ type TimingProfile struct {
 
 	PromisedBy *time.Time `json:"promised_by,omitempty"`
 
+	// LoadingDurationSeconds is optional vendor/operations evidence for the
+	// time required to hand the load to the carrier. It can affect scheduling
+	// and authority ETA, never pricing chosen by Vendor Service.
+	LoadingDurationSeconds int64 `json:"loading_duration_seconds,omitempty"`
+
 	EstimatedTransitMinutes int `json:"estimated_transit_minutes,omitempty"`
 }
 
 // Validate reports the first reason a timing profile is not meaningful.
 func (t TimingProfile) Validate() error {
 	if t.EstimatedTransitMinutes < 0 {
+		return ErrRequirementInvalid
+	}
+	if t.LoadingDurationSeconds < 0 ||
+		t.LoadingDurationSeconds > 8*60*60 {
 		return ErrRequirementInvalid
 	}
 

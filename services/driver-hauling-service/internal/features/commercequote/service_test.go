@@ -130,6 +130,35 @@ func TestQuote_ServiceableVan(t *testing.T) {
 	}
 }
 
+func TestQuote_LoadingDurationExtendsETAWithoutChangingFare(t *testing.T) {
+	service := newService(
+		newFakeStore(),
+		fakeAvailability{providers: []availabilityrepositories.ProviderStatus{
+			nearProvider("p1", "t1"),
+		}},
+		fakeTrucks{trucks: map[string]TruckInfo{
+			"t1": {TruckType: "van", CapacityKg: 1000, Status: "active"},
+		}},
+	)
+	legacy, err := service.Quote(context.Background(), "vendor-service", baseRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := baseRequest()
+	request.QuoteReference = "vq_loading"
+	request.Load.LoadingDurationSeconds = 90 * 60
+	withLoading, err := service.Quote(context.Background(), "vendor-service", request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withLoading.EstimatedMinutes <= legacy.EstimatedMinutes {
+		t.Fatalf("loading duration did not extend ETA: legacy=%d loading=%d", legacy.EstimatedMinutes, withLoading.EstimatedMinutes)
+	}
+	if withLoading.FeeMinor != legacy.FeeMinor {
+		t.Fatalf("caller loading duration changed price: legacy=%d loading=%d", legacy.FeeMinor, withLoading.FeeMinor)
+	}
+}
+
 func TestQuote_ServiceableTruckMultiStopScheduledRoute(t *testing.T) {
 	request := baseRequest()
 	request.VehicleClass = commercequote.VehicleTruck

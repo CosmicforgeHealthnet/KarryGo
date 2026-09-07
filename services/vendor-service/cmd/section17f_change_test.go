@@ -124,10 +124,22 @@ func (q *scriptedQuotes) ApproveReplacementQuote(
 func changeFixture(
 	t *testing.T, replacementTotalDelta int64,
 ) (section17EFixture, orders.ParentOrder, *scriptedQuotes, *fakeAuthority) {
+	return changeFixtureWithModes(t, replacementTotalDelta, "", "")
+}
+
+func changeFixtureWithModes(
+	t *testing.T, replacementTotalDelta int64, originalMode, replacementMode string,
+) (section17EFixture, orders.ParentOrder, *scriptedQuotes, *fakeAuthority) {
 	t.Helper()
 
 	authority := newFakeAuthority()
-	fixture := withPayment(buildSection17EFixture(t, true, false), authority)
+	var fixture section17EFixture
+	if originalMode == "" {
+		fixture = buildSection17EFixture(t, true, false)
+	} else {
+		fixture = buildSection17EFixtureWithVariableAndMode(t, true, false, false, originalMode)
+	}
+	fixture = withPayment(fixture, authority)
 	stock, missions := &fakeInventory{}, newFakeMissions()
 	fixture.service.SetFulfilmentAuthorities(stock, missions)
 
@@ -139,8 +151,11 @@ func changeFixture(
 	}
 
 	replacementTotal := order.CustomerApprovedTotalMinor + replacementTotalDelta
+	if replacementMode == "" {
+		replacementMode = order.SelectedFulfilmentMode
+	}
 	quotes := newScriptedQuotes(replacementTotal)
-	quotes.quoteID, quotes.fingerprint = seedReplacementQuote(t, fixture, order, replacementTotal)
+	quotes.quoteID, quotes.fingerprint = seedReplacementQuote(t, fixture, order, replacementTotal, replacementMode)
 	fixture.service.SetCommercialChangeAuthority(quotes)
 	return fixture, order, quotes, authority
 }
@@ -152,7 +167,7 @@ func changeFixture(
 // plan references to satisfy those foreign keys while carrying its own version,
 // fingerprint and total — which is exactly what a requote produces.
 func seedReplacementQuote(
-	t *testing.T, fixture section17EFixture, order orders.ParentOrder, total int64,
+	t *testing.T, fixture section17EFixture, order orders.ParentOrder, total int64, selectedMode string,
 ) (string, string) {
 	t.Helper()
 	ctx := context.Background()
@@ -170,14 +185,14 @@ func seedReplacementQuote(
 			fee_subtotal_minor,tax_subtotal_minor,discount_total_minor,subsidy_total_minor,
 			final_payable_minor,quoted_total_minor,max_authorized_total_minor,
 			funding_breakdown,price_disclosure_snapshot)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,2,$10,$11,$12,'SINGLE',
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,2,$10,$11,$12,$13,
 		       '{"source_address_ref":"addr_new","address":"9 New Street"}'::jsonb,
 		       now()+interval '30 minutes',
-		       $13,$13,0,0,0,0,0,$13,$13,$13,'{}'::jsonb,'{}'::jsonb)`,
+		       $14,$14,0,0,0,0,0,$14,$14,$14,'{}'::jsonb,'{}'::jsonb)`,
 		quoteID, order.CustomerID, order.CheckoutSessionID, order.CheckoutValidationRevision,
 		order.CartID, order.CartVersion, order.FulfilmentPlanID, order.FulfilmentPlanRevision,
 		order.FulfilmentPlanVersion, replacementFingerprint("m"+fixture.env.suffix),
-		fingerprint, order.Currency, total)
+		fingerprint, order.Currency, selectedMode, total)
 
 	return quoteID, fingerprint
 }

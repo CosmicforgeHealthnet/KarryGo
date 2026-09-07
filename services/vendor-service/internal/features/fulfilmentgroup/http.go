@@ -630,6 +630,8 @@ func (h *Handler) getRiderMission(c *gin.Context) {
 
 type riderActionBody struct {
 	EvidenceRef string   `json:"evidence_ref"`
+	Method      string   `json:"method"`
+	Credential  string   `json:"credential"`
 	ReasonCode  string   `json:"reason_code"`
 	ParcelRefs  []string `json:"parcel_refs"`
 }
@@ -665,7 +667,7 @@ func (h *Handler) executeRiderAction(c *gin.Context) {
 		respondError(c, err)
 		return
 	}
-	value, err := h.service.ExecuteRiderAction(c, actor, c.Param("missionId"), RiderActionRequest{Action: action, OperationRef: key, ExpectedVersion: version, EvidenceRef: body.EvidenceRef, ReasonCode: body.ReasonCode, ParcelRefs: body.ParcelRefs})
+	value, err := h.service.ExecuteRiderAction(c, actor, c.Param("missionId"), RiderActionRequest{Action: action, OperationRef: key, ExpectedVersion: version, EvidenceRef: body.EvidenceRef, Method: body.Method, Credential: body.Credential, ReasonCode: body.ReasonCode, ParcelRefs: body.ParcelRefs})
 	if err != nil {
 		respondError(c, err)
 		return

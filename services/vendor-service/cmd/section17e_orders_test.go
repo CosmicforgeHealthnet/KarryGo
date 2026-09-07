@@ -52,6 +52,12 @@ func buildSection17EFixture(t *testing.T, multiVendor, vendorOwnDeliveryForA boo
 }
 
 func buildSection17EFixtureWithVariable(t *testing.T, multiVendor, vendorOwnDeliveryForA, variable bool) section17EFixture {
+	return buildSection17EFixtureWithVariableAndMode(t, multiVendor, vendorOwnDeliveryForA, variable, "")
+}
+
+func buildSection17EFixtureWithVariableAndMode(
+	t *testing.T, multiVendor, vendorOwnDeliveryForA, variable bool, initialMode string,
+) section17EFixture {
 	t.Helper()
 
 	env := newSection17CEnv(t)
@@ -62,6 +68,19 @@ func buildSection17EFixtureWithVariable(t *testing.T, multiVendor, vendorOwnDeli
 		quoteFixture = seedSection17DSource(t, env, variable, multiVendor, nil)
 	}
 	ctx := context.Background()
+	if initialMode != "" {
+		// The plan is the authority for the mode frozen into the quote. Set the
+		// fixture's intended mode before quote creation; immutable quote evidence
+		// is never updated after insertion.
+		env.exec(ctx, `UPDATE commerce_fulfilment_plans SET mode=$2 WHERE id=$1`, quoteFixture.planID, initialMode)
+	}
+	// Vendor B in the multi-vendor fixture uses a platform delivery subsidy.
+	// Supply the same durable approval evidence production activation requires,
+	// before the quote freezes the plan.
+	env.exec(ctx, `UPDATE commerce_fulfilment_plans
+		SET delivery_policy_snapshot=jsonb_build_object(
+			'hybrid_platform_approval_ref',$2::text)
+		WHERE id=$1`, quoteFixture.planID, "platform_approval_"+env.suffix)
 
 	if vendorOwnDeliveryForA {
 		// Vendor-owned delivery is priced by the vendor's own policy, so the

@@ -36,16 +36,21 @@ import (
 	bookingtelemetry "cosmicforge/logistics/services/taxi-service/internal/features/booking/telemetry"
 	bookingusecases "cosmicforge/logistics/services/taxi-service/internal/features/booking/usecases"
 	bookingverification "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification"
+	goods "cosmicforge/logistics/services/taxi-service/internal/features/goods"
 
 	identityhttp "cosmicforge/logistics/services/taxi-service/internal/features/identity/http"
 	operationshttp "cosmicforge/logistics/services/taxi-service/internal/features/operations/http"
 
 	"cosmicforge/logistics/services/taxi-service/internal/idempotency"
+	taxioutbox "cosmicforge/logistics/services/taxi-service/internal/outbox"
 	"cosmicforge/logistics/services/taxi-service/internal/pricing"
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/mediaclient"
+	"cosmicforge/logistics/shared/go/notifications"
 	sharedrouting "cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -65,6 +70,13 @@ func main() {
 	pricingRates, err := pricing.ParseRatesJSON(cfg.PricingRatesJSON)
 	if err != nil {
 		logging.Fatal("configuration", "%v", err)
+	}
+	var goodsPricing goods.PricingPolicy
+	if cfg.TaxiGoodsDeliveryEnabled {
+		goodsPricing, err = goods.ParsePricingPolicy(cfg.TaxiGoodsPricingJSON)
+		if err != nil {
+			logging.Fatal("configuration", "%v", err)
+		}
 	}
 	logging.Notice("taxi-service", "migration=%t redis=%s", cfg.Migration, cfg.Redis.Addr)
 
@@ -190,11 +202,13 @@ func main() {
 	// requires both in production, so this branch only ever taken in local
 	// dev without payment-wallet-service running.
 	var paymentClient bookingusecases.PaymentClient
+	var walletAuthority walletclient.Client
 	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
-		paymentClient = walletclient.Client{
+		walletAuthority = walletclient.Client{
 			BaseURL: cfg.PaymentURL, HTTPClient: &http.Client{Timeout: 10 * time.Second},
 			ServiceName: bookingusecases.PaymentServiceName, Secret: cfg.PaymentSecret,
 		}
+		paymentClient = walletAuthority
 		logging.Notice("taxi-payments", "wallet integration enabled url=%s", cfg.PaymentURL)
 	} else {
 		logging.Notice("taxi-payments", "wallet integration disabled (no TAXI_PAYMENT_URL/_SECRET) -- rides will not be charged")
@@ -255,6 +269,37 @@ func main() {
 		opsVerifier = serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	}
 
+	goodsRepo := goods.NewRepository(db)
+	var goodsSettlement goods.SettlementAuthority
+	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
+		goodsSettlement = goods.NewWalletAdapter(walletAuthority)
+	}
+	var goodsMedia goods.MediaAuthority
+	var taxiMediaClient *mediaclient.Client
+	if strings.TrimSpace(cfg.MediaURL) != "" && strings.TrimSpace(cfg.MediaToken) != "" {
+		taxiMediaClient = mediaclient.New(mediaclient.Config{
+			BaseURL: cfg.MediaURL, ServiceName: "driver-taxi-service", Token: cfg.MediaToken,
+			HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		})
+		goodsMedia = goods.NewMediaAdapter(taxiMediaClient)
+	}
+	goodsNotifier := goods.NewRedisNotificationAdapter(notifications.RedisPublisher{Client: notificationRedis})
+	goodsService := goods.NewService(goods.Options{
+		Repository: goodsRepo, Markets: marketRepo, Candidates: availabilityStore,
+		Routing: routingClient, Settlement: goodsSettlement, Media: goodsMedia,
+		Notifier: goodsNotifier, Pricing: goodsPricing, Enabled: cfg.TaxiGoodsDeliveryEnabled,
+		HandoverSecret: cfg.TaxiGoodsHandoverSecret, QuoteTTL: cfg.TaxiGoodsQuoteTTL,
+		MatchRadiusKM: cfg.MatchMaxRadiusKm,
+	})
+	goodsOutboxPublisher := taxioutbox.NewPublisher(
+		taxioutbox.NewStore(db),
+		taxioutbox.VendorClient{BaseURL: cfg.VendorURL, Secret: cfg.VendorSecret, HTTPClient: &http.Client{Timeout: 10 * time.Second}},
+		"taxi-goods-"+uuid.NewString(),
+	)
+	if err := goodsService.AssertDependencies(); err != nil {
+		logging.Fatal("configuration", "%v", err)
+	}
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "taxi-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -267,18 +312,25 @@ func main() {
 			"taxi trip lifecycle",
 			"taxi active-trip telemetry",
 			"taxi two-way reviews and earnings insights",
+			"feature-gated Vendor Commerce Taxi Goods delivery",
 		},
 		ReadyChecks: []func(context.Context) error{
 			db.Ping,
 			func(ctx context.Context) error { return redisClient.Ping(ctx).Err() },
 		},
 		Register: func(group *gin.RouterGroup) {
+			if opsVerifier != nil {
+				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "TAXI_GOODS"), opsVerifier,
+					custodyops.MediaFileAuthorizer{Client: taxiMediaClient, AllowedOwners: map[string]struct{}{"driver-taxi-service": {}, "vendor-service": {}}},
+					custodyops.Policy{}, []string{"vendor-service", "operations-service"})
+			}
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService, cfg.OTPDebug)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
 			availabilityhttp.RegisterAvailabilityRoutes(group, availabilityService,
 				authService.AccessSigner(), customerSigner, cfg.MatchMaxRadiusKm)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService.AccessSigner(), customerSigner, idempotencyStore)
 			operationshttp.RegisterOperationsRoutes(group, bookingService, opsVerifier)
+			goods.RegisterRoutes(group, goodsService, opsVerifier, authService.AccessSigner())
 			// Closes baseline spec finding 3.3 (phase B11): the last piece
 			// needed before support-dispute-service can resolve a taxi
 			// driver's identity for a complaint/dispute, the same way it
@@ -307,6 +359,24 @@ func main() {
 			},
 			func(ctx context.Context) error {
 				bookingService.RunAutoCompleteWorker(ctx, 5*time.Minute, 30*time.Minute)
+				return nil
+			},
+			func(ctx context.Context) error {
+				if cfg.TaxiGoodsDeliveryEnabled {
+					goodsService.RunSettlementWorker(ctx, time.Minute)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				if cfg.TaxiGoodsDeliveryEnabled {
+					goodsService.RunRecoveryWorker(ctx, 30*time.Second)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				if cfg.TaxiGoodsDeliveryEnabled {
+					goodsOutboxPublisher.Run(ctx, time.Second)
+				}
 				return nil
 			},
 		},

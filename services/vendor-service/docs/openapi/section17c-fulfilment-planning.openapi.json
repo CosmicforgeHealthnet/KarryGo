@@ -203,6 +203,7 @@
             "type": "string",
             "enum": [
               "MOTORCYCLE",
+              "CAR",
               "VAN",
               "TRUCK"
             ],

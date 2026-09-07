@@ -39,14 +39,49 @@ type fakeAuthority struct {
 
 	refunds     []orders.RefundLegRequest
 	refundFails bool
+
+	deliveryFunding map[string]orders.DeliveryFundingResult
 }
 
 func newFakeAuthority() *fakeAuthority {
 	return &fakeAuthority{
-		configured: true,
-		answer:     map[string]string{},
-		readAnswer: map[string]string{},
+		configured:      true,
+		answer:          map[string]string{},
+		readAnswer:      map[string]string{},
+		deliveryFunding: map[string]orders.DeliveryFundingResult{},
 	}
+}
+
+func (a *fakeAuthority) ApplyDeliveryFunding(
+	_ context.Context, request orders.DeliveryFundingRequest,
+) (orders.DeliveryFundingResult, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if existing, ok := a.deliveryFunding[request.SourceReference]; ok {
+		return existing, nil
+	}
+	result := orders.DeliveryFundingResult{
+		Reference: "df_" + request.IdempotencyKey, Status: "APPLIED",
+		VendorOrderID: request.VendorOrderID, SponsoringVendorID: request.SponsoringVendorID,
+		AuthoritativeDeliveryMinor: request.AuthoritativeDeliveryMinor,
+		CustomerContributionMinor:  request.CustomerContributionMinor,
+		VendorSubsidyMinor:         request.VendorSubsidyMinor,
+		PlatformSubsidyMinor:       request.PlatformSubsidyMinor,
+	}
+	a.deliveryFunding[request.SourceReference] = result
+	return result, nil
+}
+
+func (a *fakeAuthority) GetDeliveryFunding(
+	_ context.Context, sourceReference string,
+) (orders.DeliveryFundingResult, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	result, ok := a.deliveryFunding[sourceReference]
+	if !ok {
+		return orders.DeliveryFundingResult{}, errors.New("delivery funding operation not found")
+	}
+	return result, nil
 }
 
 func (a *fakeAuthority) Configured() bool { return a.configured }
@@ -123,6 +158,7 @@ func (a *fakeAuthority) callCount() int {
 // fixture.
 func withPayment(fixture section17EFixture, authority *fakeAuthority) section17EFixture {
 	fixture.service.SetPaymentAuthority(orders.PaymentOptions{Authority: authority})
+	fixture.service.SetDeliveryFundingAuthority(authority)
 	return fixture
 }
 

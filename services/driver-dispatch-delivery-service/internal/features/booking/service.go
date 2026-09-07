@@ -16,6 +16,7 @@ import (
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/geo"
@@ -76,6 +77,10 @@ type serviceabilityQuoteAuthority interface {
 	AuthorizeBooking(context.Context, string, string, serviceability.BookingBinding, time.Time) (serviceability.Quote, error)
 }
 
+type serviceabilityObserver interface {
+	ObserveBooking(context.Context, string, string, CreateBookingInput) (string, string, error)
+}
+
 type idempotentBookingCreator interface {
 	InsertIdempotent(context.Context, Booking, string, string, string, int64, string) (Booking, bool, error)
 }
@@ -94,7 +99,9 @@ type Service struct {
 	notifier           LifecycleNotifier
 	commerceSettlement CommerceDeliverySettlementAuthority
 	serviceability     serviceabilityQuoteAuthority
+	observer           serviceabilityObserver
 	protectedCreate    bool
+	rolloutPolicy      rollout.Policy
 	radiusKM           float64
 	now                func() time.Time
 	// routes fetches road geometry for the live map and the progress bar.
@@ -150,6 +157,19 @@ func (s *Service) WithCommerceSettlement(authority CommerceDeliverySettlementAut
 func (s *Service) WithServiceabilityQuoteAuthority(authority serviceabilityQuoteAuthority, required bool) *Service {
 	s.serviceability = authority
 	s.protectedCreate = required
+	return s
+}
+
+func (s *Service) WithServiceabilityObserver(observer serviceabilityObserver) *Service {
+	s.observer = observer
+	return s
+}
+
+// WithRolloutPolicy configures server-owned cohort selection. The resulting
+// protection snapshot is persisted with the Booking and is therefore not
+// weakened by a later environment flag change.
+func (s *Service) WithRolloutPolicy(policy rollout.Policy) *Service {
+	s.rolloutPolicy = policy
 	return s
 }
 
@@ -212,6 +232,13 @@ func (s *Service) CreateBookingWithKey(ctx context.Context, customerID, idempote
 	}
 	in.ReceiverPhone = normalizedReceiverPhone
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if s.observer != nil && !s.protectedCreate {
+		observationKey := idempotencyKey
+		if observationKey == "" {
+			observationKey = "observe:" + bookingCreateFingerprint(in)
+		}
+		_, _, _ = s.observer.ObserveBooking(ctx, customerID, observationKey, in)
+	}
 	quoteRef := strings.TrimSpace(in.ServiceabilityQuoteRef)
 	if s.protectedCreate && (idempotencyKey == "" || quoteRef == "") {
 		return BookingView{}, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "serviceability_quote_ref", Message: "A serviceability quote and Idempotency-Key are required."}})
@@ -274,6 +301,18 @@ func (s *Service) CreateBookingWithKey(ctx context.Context, customerID, idempote
 		ServiceabilityQuoteRef:     quoteRef,
 		ServiceabilityQuoteVersion: quoteVersion,
 	}
+	protection := s.rolloutPolicy.Protect(rollout.Context{
+		CustomerID:  customerID,
+		SourceType:  "CUSTOMER",
+		SourceRef:   customerID,
+		ServiceTier: booking.ServiceTier,
+	})
+	booking.RolloutProtectionMode = protection.Mode
+	booking.RolloutPolicyVersion = protection.PolicyVersion
+	booking.HandoverRequired = protection.HandoverRequired
+	booking.PickupEvidenceRequired = protection.PickupEvidenceRequired
+	booking.DeliveryEvidenceRequired = protection.DeliveryEvidenceRequired
+	booking.ProviderTransferRequired = protection.ProviderTransferRequired
 	if in.PackageWeight > 0 {
 		weight := in.PackageWeight
 		booking.PackageWeight = &weight

@@ -48,6 +48,8 @@ type Config struct {
 	NotificationSecret  []byte
 	PaymentURL          string
 	PaymentSecret       []byte
+	MediaURL            string
+	MediaToken          string
 	CashPaymentsEnabled bool
 
 	// RoutesAPIKey enables road-route lookups for the live trip map and the
@@ -131,13 +133,15 @@ func Load() Config {
 		NotificationSecret:  []byte(os.Getenv("HAULING_NOTIFICATION_SECRET")),
 		PaymentURL:          os.Getenv("HAULING_PAYMENT_URL"),
 		PaymentSecret:       []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
+		MediaURL:            os.Getenv("HAULING_MEDIA_URL"),
+		MediaToken:          os.Getenv("HAULING_MEDIA_TOKEN"),
 		CashPaymentsEnabled: getEnvBool("HAULING_CASH_PAYMENTS_ENABLED", false),
 		RoutesAPIKey:        os.Getenv("HAULING_ROUTES_API_KEY"),
 
 		ServiceSecrets:                  os.Getenv("HAULING_SERVICE_SECRETS"),
 		FleetIntegrationEnabled:         getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),
 		FleetIntegrationKillSwitch:      getEnvBool("HAULING_FLEET_INTEGRATION_KILL_SWITCH", false),
-		CommerceIntegrationEnabled:      getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", true),
+		CommerceIntegrationEnabled:      getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", false),
 		CommerceIntegrationKillSwitch:   getEnvBool("HAULING_COMMERCE_INTEGRATION_KILL_SWITCH", false),
 		FleetAllowedCallers:             getEnv("HAULING_FLEET_ALLOWED_CALLERS", "fleet-partner-service"),
 		OutboxWorkerEnabled:             getEnvBool("HAULING_OUTBOX_WORKER_ENABLED", false),
@@ -202,6 +206,11 @@ func (c Config) Validate() error {
 		}
 		if strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" || len(c.FleetServiceSecret) == 0 {
 			problems = append(problems, "FLEET_PARTNER_SERVICE_URL, FLEET_PARTNER_SERVICE_CALLER and FLEET_PARTNER_SERVICE_SECRET are required when private execution is enabled")
+		}
+	}
+	if c.CommerceIntegrationEnabled && !c.CommerceIntegrationKillSwitch {
+		if strings.TrimSpace(c.MediaURL) == "" || strings.TrimSpace(c.MediaToken) == "" {
+			problems = append(problems, "HAULING_MEDIA_URL and HAULING_MEDIA_TOKEN are required when Commerce integration is enabled")
 		}
 	}
 	if c.ProviderOrganizationModeEnabled {

@@ -42,6 +42,12 @@ All new behavior defaults off:
 
 - `DISPATCH_ROUTE_SERVICEABILITY_ENABLED=false`
 - `DISPATCH_PACKAGE_POLICY_ENABLED=false`
+
+Rollout semantics are deliberately simple: both false is `OFF`, exactly one
+true is `OBSERVE_ONLY`, and both true is `ENFORCED`. Observe-only evaluates and
+persists the target decision for a valid legacy booking and emits bounded
+comparison metrics, but ignores observer errors and does not reject, reprice,
+reserve, debit, or start matching because of the observed result.
 - `DISPATCH_SERVICEABILITY_DEGRADED_MODE_ENABLED=false`
 - `DISPATCH_SERVICEABILITY_TTL_SECONDS=900`
 - `DISPATCH_SERVICEABILITY_MAX_ROUTE_KM=60`

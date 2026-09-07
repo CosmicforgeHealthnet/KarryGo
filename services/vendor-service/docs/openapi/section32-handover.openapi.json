@@ -1,0 +1,27 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Vendor Section 32 pickup relay", "version": "32.0.0", "description": "Backend-only integration for Dispatch, Hauling and Taxi Goods. Each relay has an independent disabled-by-default capability flag. Vendor-owned delivery remains fail-closed pending an approved authority. Vendor stores opaque observations only; canonical lifecycle events drive order progress."},
+  "servers": [{"url": "/api/v1/vendor"}],
+  "security": [{"vendorBearer": []}],
+  "paths": {
+    "/commerce/orders/{vendorOrderId}/missions/{missionId}/handover/{stage}": {
+      "parameters": [{"$ref": "#/components/parameters/Order"}, {"$ref": "#/components/parameters/Mission"}, {"name": "stage", "in": "path", "required": true, "schema": {"type": "string", "enum": ["PICKUP", "DELIVERY"]}}],
+      "get": {"operationId": "readCommerceHandover", "description": "Authenticated business/branch-scoped read of a linked physical mission. No receiver credentials.", "responses": {"200": {"description": "Allowlisted canonical observation"}, "404": {"description": "Mission outside actor scope"}, "503": {"description": "HANDOVER_NOT_AVAILABLE"}}}
+    },
+    "/commerce/orders/{vendorOrderId}/missions/{missionId}/handover/pickup/confirm": {
+      "parameters": [{"$ref": "#/components/parameters/Order"}, {"$ref": "#/components/parameters/Mission"}],
+      "post": {"operationId": "confirmCommercePickupHandover", "description": "Staff with vendor.orders.manage relays provider-presented pickup credentials. Authority is resolved from the frozen mission. Canonical idempotency owns replay; unknown outcomes are read back without a second mutation. No offline confirmation.",
+        "parameters": [{"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 128}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["handover_ref", "method", "credential"], "properties": {"handover_ref": {"type": "string"}, "method": {"type": "string", "enum": ["OTP", "QR"]}, "credential": {"type": "string", "writeOnly": true, "maxLength": 4096}}}}}},
+        "responses": {"200": {"description": "Canonical handover observation; HTTP success alone does not establish custody"}, "400": {"description": "Invalid scope or command"}, "403": {"description": "Forbidden"}, "404": {"description": "Mission outside actor scope"}, "409": {"description": "HANDOVER_REJECTED"}, "503": {"description": "HANDOVER_NOT_AVAILABLE or HANDOVER_OUTCOME_UNKNOWN; reconcile by read-back"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"vendorBearer": {"type": "http", "scheme": "bearer"}},
+    "parameters": {
+      "Order": {"name": "vendorOrderId", "in": "path", "required": true, "schema": {"type": "string"}},
+      "Mission": {"name": "missionId", "in": "path", "required": true, "schema": {"type": "string"}}
+    }
+  }
+}

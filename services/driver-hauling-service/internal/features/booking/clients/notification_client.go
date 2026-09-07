@@ -148,8 +148,15 @@ func (n *BookingNotifier) send(ctx context.Context, eventType, recipientType, re
 	if recipientID == "" {
 		return
 	}
+	dedupeRef := bookingID + ":" + recipientID
+	// Credential resends are distinct logical deliveries. Use only the safe
+	// challenge reference—not either bearer secret—to keep each version
+	// independently deliverable while retrying the same version remains deduped.
+	if challengeRef, ok := data["challenge_ref"].(string); ok && challengeRef != "" {
+		dedupeRef += ":" + challengeRef
+	}
 	_, err := n.notifier.Send(ctx, notifications.Request{
-		IDempotencyKey: notifications.IdempotencyKey(sourceService, eventType, bookingID+":"+recipientID),
+		IDempotencyKey: notifications.IdempotencyKey(sourceService, eventType, dedupeRef),
 		SourceService:  sourceService,
 		EventType:      eventType,
 		Recipient: notifications.Recipient{

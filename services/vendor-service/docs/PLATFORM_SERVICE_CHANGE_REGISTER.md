@@ -117,7 +117,7 @@ Everything Vendor Service implementation requires outside `services/vendor-servi
 - **Authority/boundary**: this is a platform-wide logistics capability, not something Vendor Service is authorized to build a duplicate of; it should be built once, coordinated across the owning logistics services, most plausibly as an extension of dispatch's existing `ConfirmRecipient`/WP6.3 idempotency/fingerprint scaffolding
 - **New/changed migration**: yes, on whichever service ends up owning it
 - **New/changed route**: yes
-- **Status**: **PENDING_EXTERNAL_DEPENDENCY** â€” this is the specification's own Case C outcome, not a Vendor Service implementation gap. Blocks only the final confirmed-handover step of platform-delivery fulfilment; does not block anything else in Vendor Service.
+- **Status**: **RESOLVED IN SECTION 32** — Dispatch, Hauling, Taxi Goods and the distinct Dispatch-owned VendorMission custody capability now provide approved two-stage OTP/QR handover. Vendor Service remains relay/projection only; rollout is disabled by default.
 
 ## 7. `driver-taxi-service` â€” future GOODS_DELIVERY capability
 
@@ -1138,6 +1138,25 @@ or configuration is required in any other service.
 - **Taxi goods mode.** Would make `VehicleCar.GoodsModeActive` meaningful. It
   needs a goods capability, a commerce mission ingress and a quote contract in
   `driver-taxi-service`, plus `CAR` in `shared/go/commercequote.VehicleClass`.
+
+## Section 29 superseding change — Taxi Goods Delivery
+
+The earlier Taxi deferrals above describe their original sections and are
+superseded for Section 29 by a real, false-by-default integration.
+
+| Service / contract | Status | Section 29 change |
+|---|---|---|
+| `driver-taxi-service` | IMPLEMENTED_GATED | Distinct Goods capability/settings, vehicle cargo profile, CAR quote, Taxi Goods Mission, matching, two-stage secure handover, explicit provider/receiver rebinding, Media references, Wallet Commerce settlement, and leased/retrying Vendor outbox delivery |
+| `vendor-service` | IMPLEMENTED_GATED | CAR selection and TAXI routing through shared clients; frozen quote/service binding; unknown-outcome read-back; cancellation; Taxi lifecycle ingress |
+| `shared/go/commercequote` | ADDITIVE | Added `CAR`; existing classes unchanged |
+| `shared/go/commercemission` | ADDITIVE | Added `TAXI`, `CAR`, and Taxi API base; Dispatch/Hauling unchanged |
+| `payment-wallet-service` | REUSED | Existing trusted Commerce delivery release; provider type `taxi`; no customer debit |
+| `media-file-service` | REUSED | Evidence ownership validation; Taxi stores opaque references only |
+| `notification-service` | REUSED | Receiver delivery credential transport |
+
+Both `TAXI_GOODS_DELIVERY_ENABLED` flags remain false by default. Passenger
+Taxi and direct-customer `ride_purpose=parcel` are unchanged and are not used
+for Vendor Commerce. Traceability: `SECTION29_TRACEABILITY.md`.
 - **Multi-pickup runtime.** `ServiceabilitySnapshot.MultiPickup` and
   `VehicleCapability.SupportsMulti` exist so this becomes configuration rather
   than a redesign. Both dispatch and hauling would first need to model a
@@ -1193,11 +1212,11 @@ All Vendor Service only, all defaulting to off or to the platform default:
 ## Vendor-owned and Hybrid delivery runtime — current dependency status
 
 This entry supersedes the historical Section 5 OTP/QR absence classification.
-`shared/go/handover` and Dispatch now provide a secure authority for Dispatch
-Commerce missions, so the platform capability is `PARTIAL`. No approved
-VendorMission-compatible adapter exists. Vendor pickup, receiver completion
-and return therefore remain fail-closed behind `VendorHandoverAuthority`; no
-competing credential domain or secret storage was added.
+`shared/go/handover` and Dispatch now provide both the established Dispatch
+Commerce authority and the distinct Section 32 VendorMission custody
+authority. Vendor pickup and receiver completion remain fail-closed behind
+`VendorHandoverAuthority` whenever rollout is disabled; no competing
+credential domain or Vendor secret storage was added.
 
 Wallet changed through migration `000012_commerce_delivery_responsibility_transition`
 and an internal HMAC v2 command/read-back contract. Dispatch is reused through
@@ -1219,8 +1238,8 @@ touched by this capability.
 | `notification-service` | REUSED | Existing outbox/notification integrations only; no new notification authority. |
 | `support-dispute-service` | REUSED | Controlled `SUPPORT` recovery may be projected; no automatic support case is fabricated. |
 
-Section 31 remains truthful: Vendor secure handover is partial/dependency-gated
-and Vendor Rider → platform provider post-custody transfer is not present.
+Section 31's dependency classification is superseded by Section 32. Vendor
+Rider → platform provider post-custody transfer remains not present.
 
 ## Realtime, notifications and confidence ETA
 
@@ -1236,3 +1255,20 @@ and Vendor Rider → platform provider post-custody transfer is not present.
 
 All outbound user delivery remains Notification Service-owned. Vendor and
 Dispatch provide only controlled semantic data and opaque recipient references.
+
+## Section 32 — approved handover relay boundary
+
+Vendor `internal/integrations/handover` now defines a narrow read/pickup-confirm
+port, frozen mission binding, allowlisted observation, unavailable adapter, and
+unknown-outcome read-back without automatic second mutation. No challenge engine,
+credential generation, resend state or credential persistence is permitted.
+Dispatch, Hauling and Taxi Goods expose source-scoped opaque read-back and
+pickup-confirm contracts over their existing service-auth boundaries. Vendor
+resolves the executor from the frozen mission, relays the credential only in
+memory, always reconciles canonical state, and stores only the allowlisted
+observation in migrations `000113`/`000114`/`000115`. Each authority relay flag defaults
+off independently.
+Dispatch now supplies the production `VendorHandoverAuthority` through its
+distinct `vendorownedhandover` capability and migration `000055`. Vendor adds
+only the HMAC adapter and existing opaque projection; no substitute challenge
+engine or secret state was added. `PENDING_EXTERNAL_DEPENDENCY = NONE`.

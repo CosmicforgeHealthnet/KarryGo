@@ -44,6 +44,17 @@ func (s *Service) WithRateLimiter(limiter RateLimiter) *Service       { s.limite
 
 func (s *Service) Enabled() bool { return s != nil && s.policy.Enabled }
 
+func (s *Service) Required(ctx context.Context, tripID string) (bool, error) {
+	if s == nil || s.repo == nil {
+		return false, nil
+	}
+	protection, err := s.repo.ProtectionByTrip(ctx, tripID)
+	if err != nil {
+		return false, err
+	}
+	return protection.HandoverRequired || protection.ExistingChallenge, nil
+}
+
 func (s *Service) IssuePickup(ctx context.Context, providerID, tripID, stopRef, operationRef string) (Credential, error) {
 	if !s.Enabled() {
 		return Credential{}, apperrors.Unavailable("Secure handover is not enabled.", nil)
@@ -192,6 +203,35 @@ func (s *Service) VerifyPickupBySource(ctx context.Context, caller, missionRef, 
 		return Challenge{}, apperrors.NotFound("Pickup handover was not found.", nil)
 	}
 	return s.verify(ctx, context, Actor{Type: sourceActor(caller), Ref: caller, SourceRef: context.SourceRef}, StagePickup, command)
+}
+
+// ReadBySource returns only an opaque challenge observation for an existing
+// Commerce mission. It is the canonical reconciliation path after a caller
+// loses the response to a verification request.
+func (s *Service) ReadBySource(ctx context.Context, caller, missionRef, stopRef string, stage Stage) (Observation, error) {
+	if !s.Enabled() || (stage != StagePickup && stage != StageDelivery) {
+		return Observation{}, apperrors.Unavailable("Secure handover is not enabled.", nil)
+	}
+	handoverContext, err := s.repo.ResolveMission(ctx, missionRef, stage, stopRef)
+	if err != nil {
+		return Observation{}, mapError(err)
+	}
+	if (caller == "vendor-service" && handoverContext.SourceType != "VENDOR_COMMERCE") ||
+		(caller == "api-gateway" && handoverContext.SourceType != "PARTNER_API") {
+		return Observation{}, apperrors.NotFound("Handover was not found.", nil)
+	}
+	challenge, err := s.repo.LatestChallenge(ctx, handoverContext.TripID, stage)
+	if err != nil {
+		return Observation{}, mapError(err)
+	}
+	if challenge.MissionRef != handoverContext.MissionRef || challenge.StopRef != handoverContext.StopRef {
+		return Observation{}, apperrors.NotFound("Handover was not found.", nil)
+	}
+	version := challenge.OptimisticVersion
+	if version < 1 {
+		version = 1
+	}
+	return Observation{MissionRef: missionRef, HandoverRef: challenge.ChallengeRef, Stage: challenge.Stage, Status: challenge.Status, SourceVersion: version}, nil
 }
 
 func (s *Service) VerifyDelivery(ctx context.Context, providerID, tripID string, command VerifyCommand) (Challenge, error) {
@@ -380,15 +420,35 @@ func (s *Service) SubmitEvidence(ctx context.Context, providerID, tripID, stopRe
 }
 
 func (s *Service) PickupReady(ctx context.Context, tripID string) (bool, error) {
-	return s.repo.StageReady(ctx, tripID, StagePickup, s.policy.PickupEvidenceEnabled)
+	protection, err := s.repo.ProtectionByTrip(ctx, tripID)
+	if err != nil {
+		return false, err
+	}
+	required, err := s.repo.StageEvidenceRequired(ctx, tripID, StagePickup)
+	if err != nil {
+		return false, err
+	}
+	return s.repo.StageReady(ctx, tripID, StagePickup, protection.PickupEvidenceRequired || required)
 }
 
 func (s *Service) DeliveryReady(ctx context.Context, tripID string) (bool, error) {
-	return s.repo.StageReady(ctx, tripID, StageDelivery, s.policy.DeliveryEvidenceEnabled)
+	protection, err := s.repo.ProtectionByTrip(ctx, tripID)
+	if err != nil {
+		return false, err
+	}
+	required, err := s.repo.StageEvidenceRequired(ctx, tripID, StageDelivery)
+	if err != nil {
+		return false, err
+	}
+	return s.repo.StageReady(ctx, tripID, StageDelivery, protection.DeliveryEvidenceRequired || required)
 }
 
 func (s *Service) ReturnReady(ctx context.Context, tripID string) (bool, error) {
-	return s.repo.StageReady(ctx, tripID, StageReturn, s.policy.DeliveryEvidenceEnabled)
+	required, err := s.repo.StageEvidenceRequired(ctx, tripID, StageReturn)
+	if err != nil {
+		return false, err
+	}
+	return s.repo.StageReady(ctx, tripID, StageReturn, required)
 }
 
 func (s *Service) MarkInTransit(ctx context.Context, tripID string) error {
@@ -406,9 +466,6 @@ func (s *Service) InvalidateForReceiverChange(ctx context.Context, tripID string
 func (s *Service) Expire(ctx context.Context) (int64, error) { return s.repo.Expire(ctx, s.now(), 100) }
 
 func (s *Service) RunExpiryWorker(ctx context.Context, interval time.Duration) {
-	if !s.Enabled() {
-		return
-	}
 	defer observability.WorkerRunning("handover")()
 	if interval <= 0 {
 		interval = 30 * time.Second

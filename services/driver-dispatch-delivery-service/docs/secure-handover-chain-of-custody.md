@@ -2,6 +2,15 @@
 
 The capability is additive and disabled by default. `DISPATCH_HANDOVER_CHALLENGE_ENABLED` switches Trip handover from the legacy code/proof flow to versioned, manifest-bound pickup and delivery challenges. Pickup and delivery remain separate stages:
 
+New protected admission also requires a server-owned cohort selected through
+`DISPATCH_HANDOVER_ROLLOUT_CUSTOMER_IDS`,
+`DISPATCH_HANDOVER_ROLLOUT_SOURCE_TYPES`, or
+`DISPATCH_HANDOVER_ROLLOUT_SOURCE_REFS`; the optional service-tier selector
+narrows that cohort. The selected Booking stores an immutable rollout policy
+snapshot. Turning the global flag off later removes new secure routes, but the
+Trip gate still reads the persisted snapshot and rejects legacy completion.
+Challenge expiry and notification reconciliation continue in drain mode.
+
 - At pickup, the assigned provider retrieves a provider-held OTP/QR. The owning customer or an allowlisted, source-scoped Vendor/partner adapter submits it. Successful verification consumes both representations of that challenge. Planned multi-stop missions must also scan every expected parcel and, when configured, attach authorized evidence before custody activates.
 - At delivery, notification-service transports a new receiver-held credential through configured email, in-app, or push channels. The assigned provider submits it. Required delivery evidence is appended before custody releases and the canonical Trip becomes completion-eligible.
 

@@ -8,6 +8,7 @@ func TestHandoverKeyMustBeSeparateAndProductionSafe(t *testing.T) {
 	t.Setenv("DISPATCH_RIDER_REFRESH_TOKEN_SECRET", "test-refresh")
 	t.Setenv("DISPATCH_RIDER_OTP_SECRET", "test-auth-otp-key-long-enough")
 	t.Setenv("DISPATCH_HANDOVER_CHALLENGE_ENABLED", "true")
+	t.Setenv("DISPATCH_HANDOVER_ROLLOUT_CUSTOMER_IDS", "internal-security-test")
 	for _, key := range []string{"test-auth-otp-key-long-enough", "development-handover-code-secret"} {
 		t.Setenv("APP_ENV", "production")
 		t.Setenv("HANDOVER_CODE_SECRET", key)

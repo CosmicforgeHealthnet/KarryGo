@@ -202,6 +202,11 @@ func NewPostgresBookingRepository(db *pgxpool.Pool) *PostgresBookingRepository {
 }
 
 func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking bookingmodels.Booking, stops []bookingmodels.Stop) (bookingmodels.Booking, error) {
+	// Preserve the pre-parcel API contract: callers compiled before
+	// ride_purpose existed send the zero value, which is passenger travel.
+	if booking.RidePurpose == "" {
+		booking.RidePurpose = bookingmodels.RidePurposePassenger
+	}
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return bookingmodels.Booking{}, err

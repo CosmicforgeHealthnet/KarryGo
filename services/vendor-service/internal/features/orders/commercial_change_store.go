@@ -333,6 +333,28 @@ func (s *Store) EnsureAdjustment(ctx context.Context, order ParentOrder, leg Pay
 	return s.ensureAdjustment(ctx, order, leg, "CHEAPER_REPLAN", difference, original, eligible, policy, "REFUND", key, now)
 }
 
+// lockAdjustment serializes the external financial effect for one immutable
+// adjustment across goroutines and service instances. A session advisory lock
+// is held only around the Wallet call and its local acknowledgement; PostgreSQL
+// releases it automatically if the process or connection dies.
+func (s *Store) lockAdjustment(ctx context.Context, adjustmentID string) (func(), error) {
+	if s == nil || s.db == nil {
+		return nil, ErrDependencyMissing
+	}
+	connection, err := s.db.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = connection.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended($1,0))`, adjustmentID); err != nil {
+		connection.Release()
+		return nil, err
+	}
+	return func() {
+		_, _ = connection.Exec(context.Background(), `SELECT pg_advisory_unlock(hashtextextended($1,0))`, adjustmentID)
+		connection.Release()
+	}, nil
+}
+
 func (s *Store) EnsureCancellationAdjustment(ctx context.Context, order ParentOrder, vendor VendorOrder, leg PaymentLegRecord, policy, key string, now time.Time) (AdjustmentEvidence, error) {
 	adj, _, err := s.ensureAdjustment(ctx, order, leg, "CANCELLATION_REFUND", leg.AmountMinor, leg.AmountMinor, 0, policy, "REFUND", key, now)
 	if err != nil {

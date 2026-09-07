@@ -12,6 +12,7 @@ import (
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/handover"
@@ -382,6 +383,16 @@ type fakeQuoteAuthority struct {
 	err   error
 }
 
+type fakeObserver struct {
+	called bool
+	err    error
+}
+
+func (o *fakeObserver) ObserveBooking(context.Context, string, string, CreateBookingInput) (string, string, error) {
+	o.called = true
+	return "OUTSIDE_SERVICE_AREA", "REFUSED_UNSAFE", o.err
+}
+
 func (a fakeQuoteAuthority) AuthorizeBooking(_ context.Context, _, _ string, _ serviceability.BookingBinding, _ time.Time) (serviceability.Quote, error) {
 	return a.quote, a.err
 }
@@ -540,6 +551,37 @@ func TestCreateBookingHappyPath(t *testing.T) {
 	}
 	if repo.bookings[view.ID].PaymentStatus != PaymentHeld {
 		t.Fatalf("payment status = %s, want held", repo.bookings[view.ID].PaymentStatus)
+	}
+}
+
+func TestObserveOnlyDoesNotRejectOrChangeLegacyBooking(t *testing.T) {
+	repo := newFakeRepo()
+	observer := &fakeObserver{err: errors.New("route observer unavailable")}
+	service := newTestService(repo, &fakeBroadcast{repo: repo}, &fakeTrips{}, &fakeLive{}, &fakePayments{}).
+		WithServiceabilityObserver(observer)
+	view, err := service.CreateBooking(context.Background(), testCustomer, validCreateInput())
+	if err != nil {
+		t.Fatalf("observe-only changed legacy acceptance: %v", err)
+	}
+	if !observer.called || view.Status != WireSearching {
+		t.Fatalf("observer called=%v status=%s", observer.called, view.Status)
+	}
+}
+
+func TestSelectedBookingPersistsProtectedRolloutSnapshot(t *testing.T) {
+	repo := newFakeRepo()
+	service := newTestService(repo, &fakeBroadcast{repo: repo}, &fakeTrips{}, &fakeLive{}, &fakePayments{}).
+		WithRolloutPolicy(rollout.Policy{
+			Selector: rollout.NewSelector(testCustomer, "", "", ""), HandoverAvailable: true,
+			PickupEvidenceAvailable: true, DeliveryEvidenceAvailable: true, ProviderTransferAvailable: true,
+		})
+	view, err := service.CreateBooking(context.Background(), testCustomer, validCreateInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := repo.bookings[view.ID]
+	if stored.RolloutProtectionMode != rollout.ModeProtected || !stored.HandoverRequired || !stored.PickupEvidenceRequired || !stored.DeliveryEvidenceRequired || !stored.ProviderTransferRequired {
+		t.Fatalf("protected snapshot not persisted: %+v", stored)
 	}
 }
 

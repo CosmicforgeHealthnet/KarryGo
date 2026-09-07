@@ -234,8 +234,8 @@ func TestEngine_NeverAnswersWithSeveralMotorcycles(t *testing.T) {
 		t.Fatalf("load refused: %s", decision.PrimaryReason)
 	}
 
-	if decision.SelectedClass != VehicleVan {
-		t.Fatalf("selected %s, want VAN - one vehicle, not three bikes",
+	if decision.SelectedClass != VehicleCar {
+		t.Fatalf("selected %s, want CAR - one vehicle, not several bikes",
 			decision.SelectedClass)
 	}
 
@@ -248,14 +248,7 @@ func TestEngine_NeverAnswersWithSeveralMotorcycles(t *testing.T) {
 // The taxi gate
 // -----------------------------------------------------------------------------
 
-// THE TAXI FAIL-CLOSED INVARIANT.
-//
-// A load whose smallest suitable class is a car must never produce a taxi
-// mission, because driver-taxi-service has no goods-delivery mode. It falls
-// through to the next executable class, and the decision says so - otherwise
-// an operator reading the van cannot tell a heavy order from a disabled
-// integration.
-func TestEngine_CarIsModelledButNeverExecuted(t *testing.T) {
+func TestEngine_CarRoutesToTaxiGoodsWhenEnabled(t *testing.T) {
 	// Past every motorcycle limit, comfortably inside the car envelope.
 	decision := decide(t, loadOf(120_000, 300_000, 1_400, 20))
 
@@ -264,39 +257,18 @@ func TestEngine_CarIsModelledButNeverExecuted(t *testing.T) {
 			decision.MinimumPhysicalClass)
 	}
 
-	if decision.SelectedClass == VehicleCar {
-		t.Fatal("a car was selected; taxi has no goods mode")
+	if decision.SelectedClass != VehicleCar || decision.SelectedService != ServiceTaxi {
+		t.Fatalf("selected %s/%s, want CAR/TAXI", decision.SelectedClass, decision.SelectedService)
 	}
 
-	if decision.SelectedService == ServiceTaxi {
-		t.Fatal("a mission was routed to TAXI")
-	}
-
-	if decision.SelectedClass != VehicleVan {
-		t.Fatalf("fell through to %s, want VAN", decision.SelectedClass)
-	}
-
-	if got := candidateFor(t, decision, VehicleCar).ReasonCode; got != ReasonGoodsModeDisabled {
-		t.Fatalf("car refused for %q, want GOODS_MODE_DISABLED", got)
-	}
-
-	if !hasReason(decision, ReasonCarPhysicallySuitable) {
-		t.Fatal("decision does not record that a car would have been right")
-	}
-
-	if !hasReason(decision, ReasonEscalatedAboveMinimum) {
-		t.Fatal("decision does not record that it escalated above the minimum")
-	}
 }
 
-// Switching every integration on must not make the car reachable. The gate is
-// structural, not a configuration flag an operator can flip by accident.
-func TestEngine_CarGateSurvivesEveryIntegrationBeingEnabled(t *testing.T) {
+func TestEngine_TaxiGoodsRuntimeGateFailsClosed(t *testing.T) {
 	serviceability := ServiceabilitySnapshot{
 		Integrations: map[Service]bool{
 			ServiceDispatch: true,
 			ServiceHauling:  true,
-			ServiceTaxi:     true,
+			ServiceTaxi:     false,
 		},
 		ServiceArea: map[Service]bool{ServiceTaxi: true},
 		MultiPickup: map[Service]bool{ServiceTaxi: true},
@@ -306,7 +278,7 @@ func TestEngine_CarGateSurvivesEveryIntegrationBeingEnabled(t *testing.T) {
 	decision := decideWith(t, loadOf(120_000, 300_000, 1_400, 20), serviceability)
 
 	if decision.SelectedClass == VehicleCar || decision.SelectedService == ServiceTaxi {
-		t.Fatal("enabling the taxi integration made a car mission selectable")
+		t.Fatal("disabled Taxi Goods integration made a car mission selectable")
 	}
 }
 
@@ -1021,7 +993,7 @@ func TestEngine_WeightBoundaryIsExact(t *testing.T) {
 	}{
 		{"one under", limit.MaxWeightGrams - 1, VehicleMotorcycle},
 		{"exactly at", limit.MaxWeightGrams, VehicleMotorcycle},
-		{"one over", limit.MaxWeightGrams + 1, VehicleVan},
+		{"one over", limit.MaxWeightGrams + 1, VehicleCar},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			decision := decide(t, loadOf(testCase.weight, 1_000, 200, 1))

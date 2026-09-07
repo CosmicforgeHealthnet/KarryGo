@@ -4,20 +4,14 @@
 // (internal/integrations/dispatch, /taxi, /hauling) whenever a mission
 // involves a vendor pickup or a customer delivery handover.
 //
-// # PENDING_EXTERNAL_DEPENDENCY — LOGISTICS OTP/QR
+// # PLATFORM SECURE OTP/QR — AVAILABLE
 //
-// Audit verdict (see docs/architecture/07_EXISTING_OTP_QR_INTEGRATION.md and
-// docs/architecture/00_REPOSITORY_AUDIT_BASELINE.md): OTP_QR_STATUS = NOT_PRESENT.
-// No service in the platform today generates a one-time code or QR token,
-// issues it to a sender/receiver, and verifies a returned code/scan against
-// that server-issued value with expiry/resend/invalidation semantics.
-// Delivery confirmation today (driver-dispatch-delivery-service's
-// SubmitProof/ConfirmRecipient, driver-hauling-service's ConfirmDelivery) is
-// evidence capture — a photo, a signature, and a static receiver-phone string
-// match — not a challenge-response credential. This is a real, disclosed gap
-// in the wider platform, not something vendor-service invents a workaround
-// for and not something vendor-service is authorized to build a duplicate
-// implementation of.
+// Dispatch, Hauling and Taxi Goods each report OTP_QR_STATUS = AVAILABLE and
+// remain their own challenge authority. Hauling owns the
+// hash-only, expiring, attempt-bounded, versioned pickup/delivery lifecycle;
+// OTP and opaque QR are alternative single-use credentials for one challenge.
+// Vendor Service does not retrieve either secret and must not build a second
+// challenge engine. readiness.go exposes only the safe dependency projection.
 //
 // This package therefore defines ONLY the shape vendor-service's commerce
 // integrations will call once the authoritative logistics OTP/QR system
@@ -26,10 +20,8 @@
 //	STAGE 1  Vendor/Sender -> Pickup Provider -> pickup OTP/QR confirmation -> custody transferred
 //	STAGE 2  Delivery Provider -> Receiver -> delivery OTP/QR confirmation -> delivery completed
 //
-// Planned contract (not implemented; will be defined precisely once the
-// owning logistics service — most likely driver-dispatch-delivery-service,
-// given it already has the closest analog, ConfirmRecipient/WP6.3 — builds a
-// real challenge-response credential):
+// The separate Vendor-owned Rider mission port below remains an abstraction;
+// Hauling availability does not make Vendor the credential authority:
 //   - IssuePickupChallenge(mission, vendorHandoverSessionRef) — one challenge
 //     per vendor pickup handover session, not one per parcel; every parcel in
 //     that pickup stays bound to the session's manifest.
@@ -46,10 +38,7 @@
 //     customer-service, driver-hauling-service, or
 //     driver-dispatch-delivery-service.
 //
-// Recorded in docs/PLATFORM_SERVICE_CHANGE_REGISTER.md with status
-// PENDING_EXTERNAL_DEPENDENCY. This absence blocks only the final activation
-// of platform-delivery handover confirmation for vendor commerce orders; it
-// does not block vendor onboarding, catalogues, CRM, inventory, purchasing,
-// commerce checkout, or fulfilment-plan architecture, none of which depend on
-// this package.
+// Hauling Commerce readiness is READY, while the Hauling Commerce feature flag
+// remains disabled by default. Other logistics modes retain their own truthful
+// capability state.
 package handover

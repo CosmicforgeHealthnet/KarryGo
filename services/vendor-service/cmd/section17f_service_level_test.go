@@ -32,12 +32,9 @@ import (
 // charge would be unmistakable in the assertions below.
 const serviceLevelUpgradeDelta int64 = 40_000
 
-// switchToFasterService sets up the precondition this test is about: an order
-// that was paid for at BALANCED, and a replacement quote that is FASTEST.
-//
-// It writes both directly, because the mode is frozen evidence on the paid
-// order and on the replacement quote rather than something the change chain
-// derives. The rows belong to this test's own isolated fixture.
+// switchToFasterService verifies the immutable fixture precondition: the
+// original agreement was created at BALANCED and its replacement was inserted
+// at FASTEST. It deliberately performs no UPDATE against frozen quote evidence.
 func switchToFasterService(
 	t *testing.T,
 	fixture section17EFixture,
@@ -46,19 +43,15 @@ func switchToFasterService(
 ) {
 	t.Helper()
 
-	ctx := context.Background()
-
-	fixture.env.exec(ctx,
-		`UPDATE commerce_parent_orders SET selected_fulfilment_mode='BALANCED' WHERE id=$1`,
-		order.ID)
-
-	fixture.env.exec(ctx,
-		`UPDATE commerce_quotes SET selected_fulfilment_mode='BALANCED' WHERE id=$1`,
-		order.QuoteID)
-
-	fixture.env.exec(ctx,
-		`UPDATE commerce_quotes SET selected_fulfilment_mode='FASTEST' WHERE id=$1`,
-		replacementQuoteID)
+	if got := orderFulfilmentMode(t, fixture, order.ID); got != "BALANCED" {
+		t.Fatalf("fixture order mode=%s, want BALANCED", got)
+	}
+	if got := fulfilmentMode(t, fixture, order.QuoteID); got != "BALANCED" {
+		t.Fatalf("fixture original quote mode=%s, want BALANCED", got)
+	}
+	if got := fulfilmentMode(t, fixture, replacementQuoteID); got != "FASTEST" {
+		t.Fatalf("fixture replacement quote mode=%s, want FASTEST", got)
+	}
 }
 
 // fulfilmentMode reads a quote's frozen service level back from the database,
@@ -110,8 +103,9 @@ func adjustmentCount(t *testing.T, fixture section17EFixture, changeID string) i
 // Five things have to be true at once, and they are asserted in the order the
 // customer experiences them.
 func TestSection17FChange_ServiceLevelUpgradeRequiresApprovalAndChargesOnce(t *testing.T) {
-	fixture, order, quotes, authority := changeFixture(t, serviceLevelUpgradeDelta)
+	fixture, order, quotes, authority := changeFixtureWithModes(t, serviceLevelUpgradeDelta, "BALANCED", "FASTEST")
 	ctx := context.Background()
+	paymentCallsBeforeChange := authority.callCount()
 
 	paidTotal := order.CustomerApprovedTotalMinor
 	switchToFasterService(t, fixture, order, quotes.quoteID)
@@ -162,8 +156,8 @@ func TestSection17FChange_ServiceLevelUpgradeRequiresApprovalAndChargesOnce(t *t
 			pending.WalletStatus)
 	}
 
-	if calls := authority.callCount(); calls != 0 {
-		t.Fatalf("the payment authority was called %d times before approval", calls)
+	if calls := authority.callCount(); calls != paymentCallsBeforeChange {
+		t.Fatalf("the payment authority gained calls before approval: %d -> %d", paymentCallsBeforeChange, calls)
 	}
 
 	if adjustments := adjustmentCount(t, fixture, change.ID); adjustments != 0 {
@@ -196,8 +190,8 @@ func TestSection17FChange_ServiceLevelUpgradeRequiresApprovalAndChargesOnce(t *t
 		t.Fatal("a wrong fingerprint approved a paid price increase")
 	}
 
-	if calls := authority.callCount(); calls != 0 {
-		t.Fatalf("a rejected approval still called the payment authority %d times", calls)
+	if calls := authority.callCount(); calls != paymentCallsBeforeChange {
+		t.Fatalf("a rejected approval changed payment calls: %d -> %d", paymentCallsBeforeChange, calls)
 	}
 
 	// ---------------------------------------------------------------------
@@ -282,8 +276,9 @@ func TestSection17FChange_ServiceLevelUpgradeRequiresApprovalAndChargesOnce(t *t
 // for. Without this, "approval is required" could be satisfied by a flow that
 // applies the change anyway once the customer has looked at it.
 func TestSection17FChange_DeclinedServiceLevelUpgradeChargesNothing(t *testing.T) {
-	fixture, order, quotes, authority := changeFixture(t, serviceLevelUpgradeDelta)
+	fixture, order, quotes, authority := changeFixtureWithModes(t, serviceLevelUpgradeDelta, "BALANCED", "FASTEST")
 	ctx := context.Background()
+	paymentCallsBeforeChange := authority.callCount()
 
 	switchToFasterService(t, fixture, order, quotes.quoteID)
 
@@ -295,8 +290,8 @@ func TestSection17FChange_DeclinedServiceLevelUpgradeChargesNothing(t *testing.T
 		t.Fatalf("RejectCommercialChange: %v", err)
 	}
 
-	if calls := authority.callCount(); calls != 0 {
-		t.Fatalf("a declined upgrade called the payment authority %d times", calls)
+	if calls := authority.callCount(); calls != paymentCallsBeforeChange {
+		t.Fatalf("a declined upgrade changed payment calls: %d -> %d", paymentCallsBeforeChange, calls)
 	}
 
 	if adjustments := adjustmentCount(t, fixture, change.ID); adjustments != 0 {
@@ -314,7 +309,7 @@ func TestSection17FChange_DeclinedServiceLevelUpgradeChargesNothing(t *testing.T
 		t.Fatalf("approving a rejected change returned %v, want ErrCommercialChangeConflict", err)
 	}
 
-	if calls := authority.callCount(); calls != 0 {
-		t.Fatalf("approving a rejected change charged the customer: %d calls", calls)
+	if calls := authority.callCount(); calls != paymentCallsBeforeChange {
+		t.Fatalf("approving a rejected change changed payment calls: %d -> %d", paymentCallsBeforeChange, calls)
 	}
 }
