@@ -39,7 +39,7 @@ func TestSecureHandoverRouterOpenAPIAndRegisterParity(t *testing.T) {
 		"/:id/handover/resend":                 "/api/v1/customer/dispatch/bookings/{id}/handover/resend",
 		"/:id/return-credential":               "/api/v1/customer/dispatch/bookings/{id}/return-credential",
 		"/:id/stops/:stopId/pickup/verify":     "/api/v1/internal/commerce/dispatch/missions/{id}/stops/{stopId}/pickup/verify",
-		"/:id/stops/:stopId/handover/:stage":  "/api/v1/internal/commerce/dispatch/missions/{id}/stops/{stopId}/handover/{stage}",
+		"/:id/stops/:stopId/handover/:stage":   "/api/v1/internal/commerce/dispatch/missions/{id}/stops/{stopId}/handover/{stage}",
 	}
 	for ginPath, openAPIPath := range routes {
 		if !strings.Contains(string(httpSource), ginPath) {

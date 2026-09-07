@@ -132,6 +132,7 @@ func TestAcceptanceToCanonicalTripDispatchHarness(t *testing.T) {
 		FleetRelayRetryLimit:                  5,
 		FleetRelayBackoffBase:                 100 * time.Millisecond,
 		FleetRelayInterval:                    100 * time.Millisecond,
+		HandoverSecret:                        []byte("stage-one-handover-code-secret"),
 		AccessTokenSecret:                     accessSecret,
 		AccessTokenTTL:                        time.Hour,
 		RefreshTokenTTL:                       time.Hour,

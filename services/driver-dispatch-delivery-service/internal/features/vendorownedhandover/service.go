@@ -25,7 +25,10 @@ func NewService(repo *Repository, policy Policy) *Service {
 func (s *Service) WithNotifier(n notifications.Notifier) *Service { s.notifier = n; return s }
 func (s *Service) WithRateLimiter(l interface {
 	Allow(context.Context, string, int, time.Duration) error
-}) *Service                      { s.limiter = l; return s }
+}) *Service {
+	s.limiter = l
+	return s
+}
 func (s *Service) Enabled() bool { return s != nil && s.repo != nil && s.policy.Enabled }
 
 func (s *Service) Bind(ctx context.Context, b MissionBinding) (Observation, error) {
@@ -75,6 +78,20 @@ func (s *Service) Confirm(ctx context.Context, c ConfirmCommand, caller, correla
 		}
 	}
 	return o, nil
+}
+func (s *Service) IssueReturn(ctx context.Context, mission, operation, correlation string) (Observation, error) {
+	if !s.Enabled() {
+		return Observation{}, ErrDisabled
+	}
+	issue, _, err := s.repo.IssueReturn(ctx, strings.TrimSpace(mission), strings.TrimSpace(operation), correlation, s.now())
+	if err != nil {
+		return Observation{}, err
+	}
+	if err = s.deliver(ctx, issue, false); err != nil {
+		_ = s.repo.Invalidate(ctx, issue.HandoverRef, "NOTIFICATION_FAILED", s.now())
+		return Observation{}, err
+	}
+	return issue.Observation, nil
 }
 func (s *Service) Resend(ctx context.Context, mission string, stage Stage, provider, operation, caller, correlation string) (Observation, error) {
 	if !s.Enabled() {
