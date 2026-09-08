@@ -53,7 +53,7 @@ func (a *VendorOwned) Bind(ctx context.Context, b Binding, operation, correlatio
 	return data.toVendor(b)
 }
 func (a *VendorOwned) Read(ctx context.Context, b Binding, stage, correlation string) (Observation, error) {
-	if b.Authority != "VENDOR_OWN_DELIVERY" || !b.Valid() || (stage != "PICKUP" && stage != "DELIVERY") {
+	if b.Authority != "VENDOR_OWN_DELIVERY" || !b.Valid() || (stage != "PICKUP" && stage != "DELIVERY" && stage != "RETURN") {
 		return Observation{}, ErrInvalid
 	}
 	if _, err := a.Bind(ctx, b, "bind:"+b.FulfilmentRef, correlation); err != nil && err != ErrRejected {
@@ -87,6 +87,26 @@ func (a *VendorOwned) ConfirmDelivery(ctx context.Context, b Binding, handoverRe
 		return Observation{}, err
 	}
 	return a.Read(ctx, b, "DELIVERY", correlation)
+}
+
+func (a *VendorOwned) EnsureReturn(ctx context.Context, b Binding, operation, correlation string) (Observation, error) {
+	if b.Authority != "VENDOR_OWN_DELIVERY" || !b.Valid() {
+		return Observation{}, ErrInvalid
+	}
+	var data authorityObservation
+	if err := a.call(ctx, http.MethodPost, "/"+url.PathEscape(b.MissionRef)+"/returns", map[string]any{}, operation, correlation, &data); err != nil {
+		return Observation{}, err
+	}
+	return data.toVendor(b)
+}
+
+func (a *VendorOwned) ConfirmReturn(ctx context.Context, b Binding, handoverRef, method, credential, operation, correlation string) (Observation, error) {
+	body := map[string]any{"challenge_ref": handoverRef, "provider_ref": b.ProviderRef, "method": method, "credential": credential, "manifest_ref": b.ManifestRef, "manifest_version": b.ManifestVersion}
+	var data authorityObservation
+	if err := a.call(ctx, http.MethodPost, "/"+url.PathEscape(b.MissionRef)+"/handover/RETURN/confirm", body, operation, correlation, &data); err != nil {
+		return Observation{}, err
+	}
+	return a.Read(ctx, b, "RETURN", correlation)
 }
 
 type authorityObservation struct {

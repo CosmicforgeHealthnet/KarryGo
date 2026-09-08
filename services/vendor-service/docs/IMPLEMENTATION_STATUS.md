@@ -2482,3 +2482,25 @@ authority/mission rejection, concurrent duplicate confirmation, stale
 projection protection and credential-free serialization. Canonical Dispatch,
 Hauling and Taxi suites retain OTP/QR mutual consumption, resend, binding,
 expiry, attempt and concurrency ownership.
+
+## Sections 33–35 — final authority-local closure
+
+This entry supersedes the earlier Dispatch-only operational-evidence status.
+Dispatch, Hauling and Taxi now each persist the shared authority-local custody
+contract in their own database. Dispatch also owns VendorMission custody
+through `vendorownedhandover`; its former return-unavailable adapter gap is
+closed.
+
+The contract covers immutable/versioned exact manifests, typed Media-backed
+evidence, structured exceptions and recovery, category-specific explicit
+returns, authenticated incidents, completion freeze, capability-safe
+replacement, atomic two-provider transfer, receiver challenge regeneration,
+cross-authority provenance, bounded policy-backed Wallet allocations, durable
+outbox events, HMAC v2 and replay prevention. Vendor adds no custody route,
+credential store, physical mission authority, or migration.
+
+Traceability: `docs/SECTION33_35_TRACEABILITY.md` and repository root
+`docs/SECTION33_35_TRACEABILITY.md`.
+
+**SECTION 37 — INTENTIONALLY SKIPPED / OUT OF CURRENT SCOPE.** No Section 41+
+work was started and no frontend code changed.

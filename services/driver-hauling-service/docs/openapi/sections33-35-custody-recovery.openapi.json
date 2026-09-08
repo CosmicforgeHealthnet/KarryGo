@@ -1,0 +1,18 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Hauling Custody Recovery API", "version": "1.0.0", "description": "Sections 33-35 authority-local VAN/TRUCK custody contract."},
+  "paths": {
+    "/api/v1/hauling/internal/custody/v1/manifests/freeze": {"post": {"operationId": "haulingFreezeCustodyManifest", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Frozen"}}}},
+    "/api/v1/hauling/internal/custody/v1/manifests/confirm": {"post": {"operationId": "haulingConfirmExactPickupParcels", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Confirmed"}}}},
+    "/api/v1/hauling/internal/custody/v1/evidence": {"post": {"operationId": "haulingRecordTypedEvidence", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Recorded"}}}},
+    "/api/v1/hauling/internal/custody/v1/exceptions": {"post": {"operationId": "haulingReportException", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Recorded"}}}},
+    "/api/v1/hauling/internal/custody/v1/returns": {"post": {"operationId": "haulingStartReturn", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Started"}}}},
+    "/api/v1/hauling/internal/custody/v1/returns/complete": {"post": {"operationId": "haulingCompleteReturn", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Completed"}}}},
+    "/api/v1/hauling/internal/custody/v1/incidents": {"post": {"operationId": "haulingReportInternalIncident", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Frozen"}}}},
+    "/api/v1/hauling/internal/custody/v1/replacements": {"post": {"operationId": "haulingAssignReplacement", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Assigned"}}}},
+    "/api/v1/hauling/internal/custody/v1/transfers": {"post": {"operationId": "haulingCompleteTransfer", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Transferred"}}}},
+    "/api/v1/hauling/internal/custody/v1/earning-allocations": {"post": {"operationId": "haulingRecordWalletAllocation", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Recorded"}}}},
+    "/api/v1/hauling/provider/custody/missions/{missionRef}/incidents": {"post": {"operationId": "haulingProviderReportsIncident", "security": [{"providerBearer": []}], "parameters": [{"name": "missionRef", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"201": {"description": "Recorded"}, "403": {"description": "Not current provider"}}}}
+  },
+  "components": {"securitySchemes": {"serviceHmacV2": {"type": "apiKey", "in": "header", "name": "X-KarryGo-Signature"}, "providerBearer": {"type": "http", "scheme": "bearer"}}, "schemas": {"IncidentReason": {"type": "string", "enum": ["BREAKDOWN", "ILLNESS", "SAFETY_INCIDENT"]}}}
+}

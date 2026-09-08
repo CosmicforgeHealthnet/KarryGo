@@ -6,6 +6,8 @@ DROP FUNCTION IF EXISTS reject_custody_immutable_mutation();
 DROP TABLE IF EXISTS custody_request_nonces;
 DROP TABLE IF EXISTS custody_operation_outbox;
 DROP TABLE IF EXISTS custody_evidence;
+DROP TABLE IF EXISTS custody_earning_allocations;
 DROP TABLE IF EXISTS custody_operations;
 DROP TABLE IF EXISTS custody_mission_state;
+DROP TABLE IF EXISTS custody_parcel_confirmations;
 DROP TABLE IF EXISTS custody_manifests;

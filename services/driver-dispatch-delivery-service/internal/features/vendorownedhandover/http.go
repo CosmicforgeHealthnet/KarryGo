@@ -29,6 +29,12 @@ func Register(group *gin.RouterGroup, h *Handler, verifier *serviceauth.Verifier
 	g.POST("/:missionRef/reassignments", h.reassign)
 	g.POST("/:missionRef/receiver-changes", h.changeReceiver)
 	g.POST("/:missionRef/cancellations", h.cancel)
+	g.POST("/:missionRef/returns", h.issueReturn)
+}
+
+func (h *Handler) issueReturn(c *gin.Context) {
+	o, err := h.service.IssueReturn(c, c.Param("missionRef"), c.GetHeader("Idempotency-Key"), c.GetHeader("X-Correlation-ID"))
+	respond(c, http.StatusCreated, o, err)
 }
 
 func (h *Handler) bind(c *gin.Context) {

@@ -92,6 +92,49 @@ func TestVendorOwnedHandoverPostgresOTPVsQRRace(t *testing.T) {
 	}
 }
 
+func TestVendorOwnedReturnPostgresOTPVsQRAndCompletionRace(t *testing.T) {
+	f := newVendorAuthorityFixture(t)
+	defer f.cleanup()
+	pickup, err := f.service.Read(context.Background(), f.binding.MissionRef, vendorownedhandover.Pickup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.service.Confirm(context.Background(), command(f, vendorownedhandover.Pickup, pickup.HandoverRef, "OTP", f.recorder.get(pickup.HandoverRef, "OTP"), "pickup-before-return"), "vendor-service", "return-race"); err != nil {
+		t.Fatal(err)
+	}
+	issued, err := f.service.IssueReturn(context.Background(), f.binding.MissionRef, "issue-return", "return-race")
+	if err != nil {
+		t.Fatal(err)
+	}
+	methods := []string{"OTP", "QR"}
+	start := make(chan struct{})
+	errs := make(chan error, len(methods))
+	for _, method := range methods {
+		go func(method string) {
+			<-start
+			_, verifyErr := f.service.Confirm(context.Background(), command(f, vendorownedhandover.Return, issued.HandoverRef, method, f.recorder.get(issued.HandoverRef, method), "return-"+method), "vendor-service", "return-race")
+			errs <- verifyErr
+		}(method)
+	}
+	close(start)
+	success := 0
+	for range methods {
+		if <-errs == nil {
+			success++
+		}
+	}
+	if success != 1 {
+		t.Fatalf("successful return consumes=%d, want 1", success)
+	}
+	var status string
+	if err = f.pool.QueryRow(context.Background(), `SELECT status FROM dispatch_vendor_delivery_missions WHERE mission_ref=$1`, f.binding.MissionRef).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "RETURNED" {
+		t.Fatalf("mission status=%s", status)
+	}
+}
+
 func TestVendorOwnedHandoverPostgresSameCredentialRaces(t *testing.T) {
 	for _, method := range []string{"OTP", "QR"} {
 		t.Run(method, func(t *testing.T) {

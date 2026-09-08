@@ -42,3 +42,34 @@ func TestCanonicalRefsRejectsDuplicates(t *testing.T) {
 		t.Fatal("same set rejected")
 	}
 }
+
+func TestAlternativeReceiverRequiresChallengeRotation(t *testing.T) {
+	p := Policy{}
+	command := ExceptionCommand{
+		Reason: ExceptionReceiverUnavailable, RecoveryAction: ActionAlternativeReceiver,
+		ReceiverRef: "receiver-new", PreviousReceiverChallengeRef: "challenge-old",
+		ReplacementReceiverChallengeRef: "challenge-new",
+	}
+	if err := p.ValidateException(command); err != nil {
+		t.Fatal(err)
+	}
+	command.ReplacementReceiverChallengeRef = command.PreviousReceiverChallengeRef
+	if err := p.ValidateException(command); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("error=%v", err)
+	}
+}
+
+func TestCrossAuthorityTransferRequiresCompleteProvenance(t *testing.T) {
+	repo := &Repository{}
+	command := TransferCommand{
+		OperationRef: "operation-1", MissionRef: "mission-1", TenantRef: "tenant-1",
+		TransferRef: "transfer-1", OldProviderRef: "rider-1", NewProviderRef: "provider-2",
+		ManifestRef: "manifest-1", ManifestVersion: 1, ParcelRefs: []string{"parcel-1"},
+		PackageCount: 1, EvidenceRef: "evidence-1", OldProviderConfirm: true,
+		NewProviderConfirm: true, NewReceiverChallengeRef: "challenge-2",
+		OldAuthority: "VENDOR_OWNED", NewAuthority: "DISPATCH",
+	}
+	if _, err := repo.CompleteTransfer(t.Context(), command); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("incomplete cross-authority provenance error=%v", err)
+	}
+}

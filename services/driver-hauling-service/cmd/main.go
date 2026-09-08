@@ -280,6 +280,7 @@ func main() {
 					custodyops.MediaFileAuthorizer{Client: custodyMedia, AllowedOwners: map[string]struct{}{"driver-hauling-service": {}, "vendor-service": {}}},
 					custodyops.Policy{}, []string{"vendor-service", "operations-service"})
 			}
+			custodyops.RegisterProvider(group, custodyops.NewRepository(db, "HAULING"), authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService)
 
 			// The internal commerce delivery-quote contract (Vendor Service
 			// Section 17C). It answers serviceability and price for a route;

@@ -1,3 +1,10 @@
+ALTER TABLE dispatch_vendor_handover_challenges DROP CONSTRAINT IF EXISTS dispatch_vendor_handover_challenges_stage_check;
+DELETE FROM dispatch_vendor_handover_challenges WHERE stage IN ('RETURN','PROVIDER_TRANSFER');
+ALTER TABLE dispatch_vendor_handover_challenges ADD CONSTRAINT dispatch_vendor_handover_challenges_stage_check CHECK (stage IN ('PICKUP','DELIVERY'));
+ALTER TABLE dispatch_vendor_delivery_missions DROP CONSTRAINT IF EXISTS dispatch_vendor_delivery_missions_status_check;
+UPDATE dispatch_vendor_delivery_missions SET status='FAILED' WHERE status IN ('RETURN_REQUIRED','RETURNED','REPLACEMENT_REQUIRED','TRANSFER_REQUIRED');
+ALTER TABLE dispatch_vendor_delivery_missions ADD CONSTRAINT dispatch_vendor_delivery_missions_status_check CHECK (status IN ('ASSIGNED','PICKUP_REQUIRED','PICKED_UP','DELIVERY_REQUIRED','DELIVERED','COMPLETED','CANCELLED','FAILED'));
+
 DROP TRIGGER IF EXISTS custody_evidence_immutable ON custody_evidence;
 DROP TRIGGER IF EXISTS vendor_owned_custody_completion_guard ON dispatch_vendor_delivery_missions;
 DROP FUNCTION IF EXISTS guard_vendor_owned_custody_completion();
@@ -8,6 +15,8 @@ DROP FUNCTION IF EXISTS reject_custody_immutable_mutation();
 DROP TABLE IF EXISTS custody_request_nonces;
 DROP TABLE IF EXISTS custody_operation_outbox;
 DROP TABLE IF EXISTS custody_evidence;
+DROP TABLE IF EXISTS custody_earning_allocations;
 DROP TABLE IF EXISTS custody_operations;
 DROP TABLE IF EXISTS custody_mission_state;
+DROP TABLE IF EXISTS custody_parcel_confirmations;
 DROP TABLE IF EXISTS custody_manifests;

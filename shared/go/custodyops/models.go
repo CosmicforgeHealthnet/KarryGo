@@ -73,32 +73,34 @@ type Parcel struct {
 }
 
 type FreezeManifestCommand struct {
-	OperationRef    string    `json:"operation_ref"`
-	MissionRef      string    `json:"mission_ref"`
-	TenantRef       string    `json:"tenant_ref"`
-	BusinessRef     string    `json:"business_ref"`
-	BranchRef       string    `json:"branch_ref"`
-	ManifestRef     string    `json:"manifest_ref"`
-	ManifestVersion int64     `json:"manifest_version"`
-	PickupStopRef   string    `json:"pickup_stop_ref"`
-	Parcels         []Parcel  `json:"parcels"`
-	CreatedAt       time.Time `json:"created_at"`
+	OperationRef         string    `json:"operation_ref"`
+	MissionRef           string    `json:"mission_ref"`
+	TenantRef            string    `json:"tenant_ref"`
+	BusinessRef          string    `json:"business_ref"`
+	BranchRef            string    `json:"branch_ref"`
+	ManifestRef          string    `json:"manifest_ref"`
+	ManifestVersion      int64     `json:"manifest_version"`
+	PickupStopRef        string    `json:"pickup_stop_ref"`
+	ReceiverChallengeRef string    `json:"receiver_challenge_ref"`
+	Parcels              []Parcel  `json:"parcels"`
+	CreatedAt            time.Time `json:"created_at"`
 }
 
 type Manifest struct {
-	Authority       string    `json:"authority"`
-	MissionRef      string    `json:"mission_ref"`
-	TenantRef       string    `json:"tenant_ref"`
-	BusinessRef     string    `json:"business_ref"`
-	BranchRef       string    `json:"branch_ref"`
-	ManifestRef     string    `json:"manifest_ref"`
-	ManifestVersion int64     `json:"manifest_version"`
-	PickupStopRef   string    `json:"pickup_stop_ref"`
-	ParcelRefs      []string  `json:"parcel_refs"`
-	PackageCount    int64     `json:"package_count"`
-	CreatedAt       time.Time `json:"created_at"`
-	FrozenAt        time.Time `json:"frozen_at"`
-	Status          string    `json:"status"`
+	Authority            string    `json:"authority"`
+	MissionRef           string    `json:"mission_ref"`
+	TenantRef            string    `json:"tenant_ref"`
+	BusinessRef          string    `json:"business_ref"`
+	BranchRef            string    `json:"branch_ref"`
+	ManifestRef          string    `json:"manifest_ref"`
+	ManifestVersion      int64     `json:"manifest_version"`
+	PickupStopRef        string    `json:"pickup_stop_ref"`
+	ReceiverChallengeRef string    `json:"receiver_challenge_ref"`
+	ParcelRefs           []string  `json:"parcel_refs"`
+	PackageCount         int64     `json:"package_count"`
+	CreatedAt            time.Time `json:"created_at"`
+	FrozenAt             time.Time `json:"frozen_at"`
+	Status               string    `json:"status"`
 }
 
 type ConfirmParcelsCommand struct {
@@ -141,27 +143,29 @@ type Evidence struct {
 }
 
 type ExceptionCommand struct {
-	OperationRef    string          `json:"operation_ref"`
-	MissionRef      string          `json:"mission_ref"`
-	TenantRef       string          `json:"tenant_ref"`
-	ProviderRef     string          `json:"provider_ref"`
-	ActorRef        string          `json:"actor_ref"`
-	Stage           string          `json:"stage"`
-	Reason          ExceptionReason `json:"reason_code"`
-	RecoveryAction  RecoveryAction  `json:"recovery_action"`
-	ManifestRef     string          `json:"manifest_ref"`
-	ManifestVersion int64           `json:"manifest_version"`
-	ParcelRefs      []string        `json:"parcel_refs,omitempty"`
-	MediaRef        string          `json:"media_ref,omitempty"`
-	SafeNote        string          `json:"safe_note,omitempty"`
-	OccurredAt      time.Time       `json:"occurred_at"`
-	Latitude        *float64        `json:"latitude,omitempty"`
-	Longitude       *float64        `json:"longitude,omitempty"`
-	ScheduledFor    *time.Time      `json:"scheduled_for,omitempty"`
-	ReceiverRef     string          `json:"receiver_ref,omitempty"`
-	HoldingRef      string          `json:"holding_ref,omitempty"`
-	FeeQuoteRef     string          `json:"fee_quote_ref,omitempty"`
-	FeeApprovalRef  string          `json:"fee_approval_ref,omitempty"`
+	OperationRef                    string          `json:"operation_ref"`
+	MissionRef                      string          `json:"mission_ref"`
+	TenantRef                       string          `json:"tenant_ref"`
+	ProviderRef                     string          `json:"provider_ref"`
+	ActorRef                        string          `json:"actor_ref"`
+	Stage                           string          `json:"stage"`
+	Reason                          ExceptionReason `json:"reason_code"`
+	RecoveryAction                  RecoveryAction  `json:"recovery_action"`
+	ManifestRef                     string          `json:"manifest_ref"`
+	ManifestVersion                 int64           `json:"manifest_version"`
+	ParcelRefs                      []string        `json:"parcel_refs,omitempty"`
+	MediaRef                        string          `json:"media_ref,omitempty"`
+	SafeNote                        string          `json:"safe_note,omitempty"`
+	OccurredAt                      time.Time       `json:"occurred_at"`
+	Latitude                        *float64        `json:"latitude,omitempty"`
+	Longitude                       *float64        `json:"longitude,omitempty"`
+	ScheduledFor                    *time.Time      `json:"scheduled_for,omitempty"`
+	ReceiverRef                     string          `json:"receiver_ref,omitempty"`
+	PreviousReceiverChallengeRef    string          `json:"previous_receiver_challenge_ref,omitempty"`
+	ReplacementReceiverChallengeRef string          `json:"replacement_receiver_challenge_ref,omitempty"`
+	HoldingRef                      string          `json:"holding_ref,omitempty"`
+	FeeQuoteRef                     string          `json:"fee_quote_ref,omitempty"`
+	FeeApprovalRef                  string          `json:"fee_approval_ref,omitempty"`
 }
 
 type ReturnCommand struct {
@@ -178,6 +182,16 @@ type ReturnCommand struct {
 	Reason           string   `json:"reason_code"`
 	CategoryPolicy   string   `json:"category_policy"`
 	EvidenceRef      string   `json:"evidence_ref"`
+}
+
+type ReturnCompletionCommand struct {
+	OperationRef   string   `json:"operation_ref"`
+	MissionRef     string   `json:"mission_ref"`
+	TenantRef      string   `json:"tenant_ref"`
+	ProviderRef    string   `json:"provider_ref"`
+	ReturnManifest string   `json:"return_manifest_ref"`
+	ParcelRefs     []string `json:"parcel_refs"`
+	EvidenceRef    string   `json:"evidence_ref"`
 }
 
 type IncidentCommand struct {
@@ -226,6 +240,30 @@ type TransferCommand struct {
 	OldProviderConfirm      bool     `json:"old_provider_confirmed"`
 	NewProviderConfirm      bool     `json:"new_provider_confirmed"`
 	NewReceiverChallengeRef string   `json:"new_receiver_challenge_ref"`
+	OldAuthority            string   `json:"old_authority,omitempty"`
+	OldAuthorityMissionRef  string   `json:"old_authority_mission_ref,omitempty"`
+	NewAuthority            string   `json:"new_authority,omitempty"`
+	NewAuthorityMissionRef  string   `json:"new_authority_mission_ref,omitempty"`
+	FinancialAllocationRef  string   `json:"financial_allocation_ref,omitempty"`
+	SourceEventRef          string   `json:"source_event_ref,omitempty"`
+	SourceVersion           int64    `json:"source_version,omitempty"`
+}
+
+type ProviderAllocation struct {
+	ProviderRef string `json:"provider_ref"`
+	AmountMinor int64  `json:"amount_minor"`
+}
+
+type AllocationCommand struct {
+	OperationRef       string               `json:"operation_ref"`
+	MissionRef         string               `json:"mission_ref"`
+	TenantRef          string               `json:"tenant_ref"`
+	PolicyRef          string               `json:"allocation_policy_ref"`
+	ApprovedTotalMinor int64                `json:"approved_provider_earning_minor"`
+	Currency           string               `json:"currency"`
+	WalletOperationRef string               `json:"wallet_operation_ref"`
+	WalletStatus       string               `json:"wallet_status"`
+	Allocations        []ProviderAllocation `json:"allocations"`
 }
 
 type Result struct {

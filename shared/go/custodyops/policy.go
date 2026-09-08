@@ -53,6 +53,12 @@ func (p Policy) ValidateException(command ExceptionCommand) error {
 	if command.RecoveryAction == ActionAlternativeReceiver && trim(command.ReceiverRef) == "" {
 		return ErrInvalid
 	}
+	if command.RecoveryAction == ActionAlternativeReceiver && (trim(command.PreviousReceiverChallengeRef) == "" || trim(command.ReplacementReceiverChallengeRef) == "" || command.PreviousReceiverChallengeRef == command.ReplacementReceiverChallengeRef) {
+		return ErrInvalid
+	}
+	if command.RecoveryAction == ActionReschedule && trim(command.PreviousReceiverChallengeRef) != "" && trim(command.ReplacementReceiverChallengeRef) == "" {
+		return ErrInvalid
+	}
 	if (trim(command.FeeQuoteRef) == "") != (trim(command.FeeApprovalRef) == "") {
 		return ErrInvalid
 	}

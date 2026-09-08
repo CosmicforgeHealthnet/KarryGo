@@ -32,6 +32,18 @@ CREATE TABLE custody_mission_state (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE custody_parcel_confirmations (
+  operation_ref TEXT PRIMARY KEY,
+  mission_ref TEXT NOT NULL REFERENCES custody_manifests(mission_ref),
+  pickup_stop_ref TEXT NOT NULL,
+  provider_ref TEXT NOT NULL,
+  parcel_refs TEXT[] NOT NULL,
+  package_count BIGINT NOT NULL CHECK (package_count > 0),
+  request_fingerprint TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (mission_ref, pickup_stop_ref)
+);
+
 CREATE TABLE custody_operations (
   operation_ref TEXT PRIMARY KEY,
   mission_ref TEXT NOT NULL REFERENCES custody_manifests(mission_ref),
@@ -40,7 +52,7 @@ CREATE TABLE custody_operations (
     'RETURN_STARTED','RETURN_HANDOVER_REQUIRED','RETURN_COMPLETED',
     'REPLACEMENT_REQUIRED','REPLACEMENT_ASSIGNED','PROVIDER_TRANSFER_REQUIRED',
     'PROVIDER_TRANSFER_COMPLETED','WAIT_REQUESTED','RESCHEDULED','RECEIVER_CHANGED',
-    'MISSION_DELIVERED','MISSION_COMPLETED'
+    'MISSION_DELIVERED','MISSION_COMPLETED','EARNING_ALLOCATION_PENDING_READBACK','EARNING_ALLOCATION_FINAL'
   )),
   request_fingerprint TEXT NOT NULL,
   state TEXT NOT NULL,
@@ -49,6 +61,19 @@ CREATE TABLE custody_operations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX custody_operations_mission_idx ON custody_operations(mission_ref, created_at);
+
+CREATE TABLE custody_earning_allocations (
+  operation_ref TEXT PRIMARY KEY,
+  mission_ref TEXT NOT NULL REFERENCES custody_manifests(mission_ref),
+  policy_ref TEXT NOT NULL,
+  approved_total_minor BIGINT NOT NULL CHECK (approved_total_minor >= 0),
+  currency TEXT NOT NULL,
+  wallet_operation_ref TEXT NOT NULL UNIQUE,
+  wallet_status TEXT NOT NULL CHECK (wallet_status IN ('APPLIED','UNKNOWN')),
+  allocations JSONB NOT NULL CHECK (jsonb_typeof(allocations) = 'array'),
+  total_allocated_minor BIGINT NOT NULL CHECK (total_allocated_minor >= 0 AND total_allocated_minor <= approved_total_minor),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 CREATE TABLE custody_evidence (
   id TEXT PRIMARY KEY,

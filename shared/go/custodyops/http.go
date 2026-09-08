@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -16,6 +17,32 @@ type Handler struct {
 	media   MediaAuthorizer
 	policy  Policy
 	allowed map[string]struct{}
+}
+
+func RegisterProvider(group *gin.RouterGroup, repo *Repository, signer *sharedauth.TokenSigner, role, service string) {
+	if group == nil || repo == nil || signer == nil {
+		return
+	}
+	h := &Handler{repo: repo}
+	g := group.Group("/provider/custody")
+	g.Use(sharedauth.BearerMiddleware(signer, role, service))
+	g.POST("/missions/:missionRef/incidents", h.providerIncident)
+}
+
+func (h *Handler) providerIncident(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		failHTTP(c, ErrUnauthorized)
+		return
+	}
+	var command IncidentCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	command.MissionRef = strings.TrimSpace(c.Param("missionRef"))
+	command.ProviderRef = claims.Subject
+	result, err := h.repo.ReportIncident(c, command)
+	respondHTTP(c, http.StatusCreated, result, err)
 }
 
 func RegisterInternal(group *gin.RouterGroup, repo *Repository, verifier *serviceauth.Verifier, media MediaAuthorizer, policy Policy, allowedCallers []string) {
@@ -35,9 +62,11 @@ func RegisterInternal(group *gin.RouterGroup, repo *Repository, verifier *servic
 	g.POST("/evidence", h.recordEvidence)
 	g.POST("/exceptions", h.reportException)
 	g.POST("/returns", h.startReturn)
+	g.POST("/returns/complete", h.completeReturn)
 	g.POST("/incidents", h.reportIncident)
 	g.POST("/replacements", h.assignReplacement)
 	g.POST("/transfers", h.completeTransfer)
+	g.POST("/earning-allocations", h.finalizeAllocation)
 }
 
 func (h *Handler) authorize() gin.HandlerFunc {
@@ -104,6 +133,14 @@ func (h *Handler) startReturn(c *gin.Context) {
 	result, err := h.repo.StartReturn(c, command)
 	respondHTTP(c, http.StatusCreated, result, err)
 }
+func (h *Handler) completeReturn(c *gin.Context) {
+	var command ReturnCompletionCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	result, err := h.repo.CompleteReturn(c, command)
+	respondHTTP(c, http.StatusOK, result, err)
+}
 func (h *Handler) reportIncident(c *gin.Context) {
 	var command IncidentCommand
 	if !bindJSON(c, &command) {
@@ -126,6 +163,14 @@ func (h *Handler) completeTransfer(c *gin.Context) {
 		return
 	}
 	result, err := h.repo.CompleteTransfer(c, command)
+	respondHTTP(c, http.StatusOK, result, err)
+}
+func (h *Handler) finalizeAllocation(c *gin.Context) {
+	var command AllocationCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	result, err := h.repo.FinalizeAllocation(c, command)
 	respondHTTP(c, http.StatusOK, result, err)
 }
 func respondHTTP(c *gin.Context, status int, result any, err error) {

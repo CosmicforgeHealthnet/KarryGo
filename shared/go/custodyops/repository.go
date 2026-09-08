@@ -51,7 +51,10 @@ func digest(value any) string {
 }
 
 func (r *Repository) transact(ctx context.Context, fn func(pgx.Tx) error) error {
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	// Per-mission advisory locks serialize every custody mutation. READ COMMITTED
+	// then refreshes the snapshot after a waiter acquires that lock, allowing it
+	// to observe the winner's idempotency row instead of surfacing SQLSTATE 40001.
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return err
 	}
@@ -71,7 +74,8 @@ func (r *Repository) FreezeManifest(ctx context.Context, command FreezeManifestC
 	command.OperationRef, command.MissionRef, command.TenantRef = trim(command.OperationRef), trim(command.MissionRef), trim(command.TenantRef)
 	command.BusinessRef, command.BranchRef = trim(command.BusinessRef), trim(command.BranchRef)
 	command.ManifestRef, command.PickupStopRef = trim(command.ManifestRef), trim(command.PickupStopRef)
-	if command.OperationRef == "" || command.MissionRef == "" || command.TenantRef == "" || command.BusinessRef == "" || command.BranchRef == "" || command.ManifestRef == "" || command.PickupStopRef == "" || command.ManifestVersion < 1 || len(command.Parcels) == 0 {
+	command.ReceiverChallengeRef = trim(command.ReceiverChallengeRef)
+	if command.OperationRef == "" || command.MissionRef == "" || command.TenantRef == "" || command.BusinessRef == "" || command.BranchRef == "" || command.ManifestRef == "" || command.PickupStopRef == "" || command.ReceiverChallengeRef == "" || command.ManifestVersion < 1 || len(command.Parcels) == 0 {
 		return Manifest{}, ErrInvalid
 	}
 	parcelRefs := make([]string, 0, len(command.Parcels))
@@ -103,7 +107,7 @@ func (r *Repository) FreezeManifest(ctx context.Context, command FreezeManifestC
 			if existingFP != fp {
 				return ErrConflict
 			}
-			return nil
+			return tx.QueryRow(ctx, `SELECT receiver_challenge_ref FROM custody_mission_state WHERE mission_ref=$1`, command.MissionRef).Scan(&result.ReceiverChallengeRef)
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
@@ -112,14 +116,14 @@ func (r *Repository) FreezeManifest(ctx context.Context, command FreezeManifestC
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO custody_mission_state(mission_ref,tenant_ref,manifest_ref,manifest_version,status,version) VALUES($1,$2,$3,$4,'MANIFEST_FROZEN',1)`, command.MissionRef, command.TenantRef, command.ManifestRef, command.ManifestVersion)
+		_, err = tx.Exec(ctx, `INSERT INTO custody_mission_state(mission_ref,tenant_ref,manifest_ref,manifest_version,receiver_challenge_ref,status,version) VALUES($1,$2,$3,$4,$5,'MANIFEST_FROZEN',1)`, command.MissionRef, command.TenantRef, command.ManifestRef, command.ManifestVersion, command.ReceiverChallengeRef)
 		if err != nil {
 			return err
 		}
 		if err = r.recordTx(ctx, tx, command.OperationRef, command.MissionRef, "MANIFEST_FROZEN", fp, map[string]any{"manifest_ref": command.ManifestRef, "manifest_version": command.ManifestVersion, "parcel_refs": parcelRefs, "package_count": packageCount}); err != nil {
 			return err
 		}
-		result = Manifest{Authority: r.authority, MissionRef: command.MissionRef, TenantRef: command.TenantRef, BusinessRef: command.BusinessRef, BranchRef: command.BranchRef, ManifestRef: command.ManifestRef, ManifestVersion: command.ManifestVersion, PickupStopRef: command.PickupStopRef, ParcelRefs: parcelRefs, PackageCount: packageCount, CreatedAt: command.CreatedAt, FrozenAt: now, Status: "FROZEN"}
+		result = Manifest{Authority: r.authority, MissionRef: command.MissionRef, TenantRef: command.TenantRef, BusinessRef: command.BusinessRef, BranchRef: command.BranchRef, ManifestRef: command.ManifestRef, ManifestVersion: command.ManifestVersion, PickupStopRef: command.PickupStopRef, ReceiverChallengeRef: command.ReceiverChallengeRef, ParcelRefs: parcelRefs, PackageCount: packageCount, CreatedAt: command.CreatedAt, FrozenAt: now, Status: "FROZEN"}
 		return nil
 	})
 	return result, normalizeDBError(err)
@@ -164,6 +168,19 @@ func (r *Repository) ConfirmParcels(ctx context.Context, command ConfirmParcelsC
 		}
 		if current != "" && current != command.ProviderRef {
 			return ErrUnauthorized
+		}
+		var confirmationFP string
+		if err := tx.QueryRow(ctx, `SELECT request_fingerprint FROM custody_parcel_confirmations WHERE mission_ref=$1 AND pickup_stop_ref=$2`, command.MissionRef, command.PickupStopRef).Scan(&confirmationFP); err == nil {
+			if confirmationFP != fp {
+				return ErrConflict
+			}
+			result = Result{OperationRef: command.OperationRef, MissionRef: command.MissionRef, State: "PARCEL_CONFIRMED", Version: 1, CreatedAt: now, Replayed: true}
+			return nil
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO custody_parcel_confirmations(operation_ref,mission_ref,pickup_stop_ref,provider_ref,parcel_refs,package_count,request_fingerprint) VALUES($1,$2,$3,$4,$5,$6,$7)`, command.OperationRef, command.MissionRef, command.PickupStopRef, command.ProviderRef, refs, command.PackageCount, fp); err != nil {
+			return err
 		}
 		_, err := tx.Exec(ctx, `UPDATE custody_mission_state SET current_provider_ref=$2,status='PICKED_UP',version=version+1,updated_at=now() WHERE mission_ref=$1`, command.MissionRef, command.ProviderRef)
 		if err != nil {
@@ -287,6 +304,9 @@ func (r *Repository) ApplyOperation(ctx context.Context, kind string, command an
 			}
 		}
 		newState := operationState(kind)
+		if strings.HasPrefix(kind, "EARNING_ALLOCATION_") {
+			newState = status
+		}
 		_, err := tx.Exec(ctx, `UPDATE custody_mission_state SET status=$2,version=version+1,updated_at=now() WHERE mission_ref=$1`, missionRef, newState)
 		if err != nil {
 			return err
@@ -301,7 +321,16 @@ func (r *Repository) ReportException(ctx context.Context, command ExceptionComma
 	if err := policy.ValidateException(command); err != nil {
 		return Result{}, err
 	}
-	return r.ApplyOperation(ctx, "EXCEPTION_REPORTED", command, command.OperationRef, command.MissionRef, command.TenantRef, command.ProviderRef, func(tx pgx.Tx) error {
+	kind := "EXCEPTION_REPORTED"
+	switch command.RecoveryAction {
+	case ActionWait:
+		kind = "WAIT_REQUESTED"
+	case ActionReschedule:
+		kind = "RESCHEDULED"
+	case ActionAlternativeReceiver:
+		kind = "RECEIVER_CHANGED"
+	}
+	return r.ApplyOperation(ctx, kind, command, command.OperationRef, command.MissionRef, command.TenantRef, command.ProviderRef, func(tx pgx.Tx) error {
 		var manifest string
 		var version int64
 		if err := tx.QueryRow(ctx, `SELECT manifest_ref,manifest_version FROM custody_manifests WHERE mission_ref=$1`, command.MissionRef).Scan(&manifest, &version); err != nil {
@@ -345,6 +374,47 @@ func (r *Repository) StartReturn(ctx context.Context, command ReturnCommand) (Re
 				return ErrConflict
 			}
 		}
+		_, err := tx.Exec(ctx, `INSERT INTO custody_operation_outbox(id,aggregate_ref,event_type,payload) VALUES($1,$2,'custody.return_handover_required.v1',$3)`, uuid.NewString(), command.MissionRef, mustJSON(command))
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (r *Repository) CompleteReturn(ctx context.Context, command ReturnCompletionCommand) (Result, error) {
+	command.ReturnManifest, command.EvidenceRef = trim(command.ReturnManifest), trim(command.EvidenceRef)
+	if command.ReturnManifest == "" || command.EvidenceRef == "" {
+		return Result{}, ErrInvalid
+	}
+	refs, err := CanonicalRefs(command.ParcelRefs)
+	if err != nil {
+		return Result{}, err
+	}
+	command.ParcelRefs = refs
+	return r.ApplyOperation(ctx, "RETURN_COMPLETED", command, command.OperationRef, command.MissionRef, command.TenantRef, command.ProviderRef, func(tx pgx.Tx) error {
+		var status string
+		if err := tx.QueryRow(ctx, `SELECT status FROM custody_mission_state WHERE mission_ref=$1`, command.MissionRef).Scan(&status); err != nil {
+			return err
+		}
+		if status != "RETURN_REQUIRED" {
+			return ErrConflict
+		}
+		var evidenceType EvidenceType
+		if err := tx.QueryRow(ctx, `SELECT evidence_type FROM custody_evidence WHERE id=$1 AND mission_ref=$2`, command.EvidenceRef, command.MissionRef).Scan(&evidenceType); err != nil {
+			return err
+		}
+		if evidenceType != EvidenceReturn {
+			return ErrConflict
+		}
+		var payload []byte
+		if err := tx.QueryRow(ctx, `SELECT payload FROM custody_operations WHERE mission_ref=$1 AND operation_type='RETURN_STARTED' ORDER BY created_at DESC LIMIT 1`, command.MissionRef).Scan(&payload); err != nil {
+			return err
+		}
+		var started ReturnCommand
+		if json.Unmarshal(payload, &started) != nil || started.ReturnManifest != command.ReturnManifest || !sameRefs(started.ParcelRefs, refs) {
+			return ErrConflict
+		}
 		return nil
 	})
 }
@@ -361,16 +431,19 @@ func (r *Repository) AssignReplacement(ctx context.Context, command AssignReplac
 		return Result{}, ErrInvalid
 	}
 	return r.ApplyOperation(ctx, "REPLACEMENT_ASSIGNED", command, command.OperationRef, command.MissionRef, command.TenantRef, command.OldProviderRef, func(tx pgx.Tx) error {
-		var status string
+		var status, receiverChallenge string
 		var manifest string
 		var version, count int64
-		if err := tx.QueryRow(ctx, `SELECT s.status,m.manifest_ref,m.manifest_version,m.package_count FROM custody_mission_state s JOIN custody_manifests m USING(mission_ref) WHERE s.mission_ref=$1`, command.MissionRef).Scan(&status, &manifest, &version, &count); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT s.status,s.receiver_challenge_ref,m.manifest_ref,m.manifest_version,m.package_count FROM custody_mission_state s JOIN custody_manifests m USING(mission_ref) WHERE s.mission_ref=$1`, command.MissionRef).Scan(&status, &receiverChallenge, &manifest, &version, &count); err != nil {
 			return err
 		}
-		if status != "REPLACEMENT_REQUIRED" || manifest != command.ManifestRef || version != command.ManifestVersion || command.CapacityCount < count {
+		if status != "REPLACEMENT_REQUIRED" || receiverChallenge != command.ReceiverChallenge || manifest != command.ManifestRef || version != command.ManifestVersion || command.CapacityCount < count {
 			return ErrConflict
 		}
-		_, err := tx.Exec(ctx, `UPDATE custody_mission_state SET replacement_provider_ref=$2,receiver_challenge_ref='',status='TRANSFER_REQUIRED' WHERE mission_ref=$1`, command.MissionRef, command.NewProviderRef)
+		if _, err := tx.Exec(ctx, `UPDATE custody_mission_state SET replacement_provider_ref=$2,receiver_challenge_ref='',status='TRANSFER_REQUIRED' WHERE mission_ref=$1`, command.MissionRef, command.NewProviderRef); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO custody_operation_outbox(id,aggregate_ref,event_type,payload) VALUES($1,$2,'custody.provider_transfer_required.v1',$3)`, uuid.NewString(), command.MissionRef, mustJSON(command))
 		return err
 	})
 }
@@ -378,6 +451,14 @@ func (r *Repository) AssignReplacement(ctx context.Context, command AssignReplac
 func (r *Repository) CompleteTransfer(ctx context.Context, command TransferCommand) (Result, error) {
 	if trim(command.TransferRef) == "" || trim(command.OldProviderRef) == "" || trim(command.NewProviderRef) == "" || command.OldProviderRef == command.NewProviderRef || trim(command.EvidenceRef) == "" || !command.OldProviderConfirm || !command.NewProviderConfirm || trim(command.NewReceiverChallengeRef) == "" {
 		return Result{}, ErrInvalid
+	}
+	command.OldAuthority, command.NewAuthority = trim(command.OldAuthority), trim(command.NewAuthority)
+	command.OldAuthorityMissionRef, command.NewAuthorityMissionRef = trim(command.OldAuthorityMissionRef), trim(command.NewAuthorityMissionRef)
+	command.FinancialAllocationRef, command.SourceEventRef = trim(command.FinancialAllocationRef), trim(command.SourceEventRef)
+	if command.OldAuthority != "" || command.NewAuthority != "" {
+		if command.OldAuthority == "" || command.NewAuthority == "" || command.OldAuthorityMissionRef == "" || command.NewAuthorityMissionRef == "" || command.FinancialAllocationRef == "" || command.SourceEventRef == "" || command.SourceVersion < 1 {
+			return Result{}, ErrInvalid
+		}
 	}
 	refs, err := CanonicalRefs(command.ParcelRefs)
 	if err != nil {
@@ -407,6 +488,38 @@ func (r *Repository) CompleteTransfer(ctx context.Context, command TransferComma
 	return result, err
 }
 
+func (r *Repository) FinalizeAllocation(ctx context.Context, command AllocationCommand) (Result, error) {
+	command.PolicyRef, command.Currency, command.WalletOperationRef = trim(command.PolicyRef), strings.ToUpper(trim(command.Currency)), trim(command.WalletOperationRef)
+	command.WalletStatus = strings.ToUpper(trim(command.WalletStatus))
+	if command.PolicyRef == "" || command.Currency == "" || command.WalletOperationRef == "" || command.ApprovedTotalMinor < 0 || (command.WalletStatus != "APPLIED" && command.WalletStatus != "UNKNOWN") || len(command.Allocations) == 0 {
+		return Result{}, ErrInvalid
+	}
+	seen := map[string]struct{}{}
+	var total int64
+	for i := range command.Allocations {
+		command.Allocations[i].ProviderRef = trim(command.Allocations[i].ProviderRef)
+		if command.Allocations[i].ProviderRef == "" || command.Allocations[i].AmountMinor < 0 {
+			return Result{}, ErrInvalid
+		}
+		if _, ok := seen[command.Allocations[i].ProviderRef]; ok {
+			return Result{}, ErrInvalid
+		}
+		seen[command.Allocations[i].ProviderRef] = struct{}{}
+		total += command.Allocations[i].AmountMinor
+		if total > command.ApprovedTotalMinor {
+			return Result{}, ErrPolicy
+		}
+	}
+	state := "EARNING_ALLOCATION_PENDING_READBACK"
+	if command.WalletStatus == "APPLIED" {
+		state = "EARNING_ALLOCATION_FINAL"
+	}
+	return r.ApplyOperation(ctx, state, command, command.OperationRef, command.MissionRef, command.TenantRef, "", func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO custody_earning_allocations(operation_ref,mission_ref,policy_ref,approved_total_minor,currency,wallet_operation_ref,wallet_status,allocations,total_allocated_minor) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, command.OperationRef, command.MissionRef, command.PolicyRef, command.ApprovedTotalMinor, command.Currency, command.WalletOperationRef, command.WalletStatus, mustJSON(command.Allocations), total)
+		return err
+	})
+}
+
 func validReturnPolicy(value string) bool {
 	switch strings.ToUpper(trim(value)) {
 	case "PREPARED_FOOD_NO_RESTOCK", "PREPARED_FOOD_DISPOSAL", "RETAIL_RETURN_TO_VENDOR", "RETAIL_INSPECTION", "RETAIL_QUARANTINE":
@@ -418,8 +531,12 @@ func operationState(kind string) string {
 	switch kind {
 	case "EXCEPTION_REPORTED":
 		return "RECOVERY_REQUIRED"
+	case "WAIT_REQUESTED", "RESCHEDULED", "RECEIVER_CHANGED":
+		return "RECOVERY_REQUIRED"
 	case "RETURN_STARTED":
 		return "RETURN_REQUIRED"
+	case "RETURN_COMPLETED":
+		return "RETURNED"
 	case "REPLACEMENT_REQUIRED":
 		return "REPLACEMENT_REQUIRED"
 	case "REPLACEMENT_ASSIGNED":

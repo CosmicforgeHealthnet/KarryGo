@@ -1272,3 +1272,25 @@ Dispatch now supplies the production `VendorHandoverAuthority` through its
 distinct `vendorownedhandover` capability and migration `000055`. Vendor adds
 only the HMAC adapter and existing opaque projection; no substitute challenge
 engine or secret state was added. `PENDING_EXTERNAL_DEPENDENCY = NONE`.
+
+## Sections 33–35 — superseding platform change record
+
+| Service | Final change |
+|---|---|
+| `driver-dispatch-delivery-service` | Migration `000056`; authority-local custody routes; Vendor-owned RETURN authority; existing Dispatch provider incident/replacement retained |
+| `driver-hauling-service` | Migration `017`; VAN/TRUCK manifest, evidence, exception, return, provider incident, replacement, transfer and allocation contract |
+| `driver-taxi-service` | Migration `011`; Taxi Goods parity for the same custody/recovery contract |
+| `vendor-service` | Adapter-only Vendor-owned RETURN relay and projection boundary; no custody route or schema |
+| `media-file-service` | Reused through authenticated reference read-back; media bytes remain outside mission services |
+| `payment-wallet-service` | Unchanged financial authority; custody records only an approved policy/Wallet operation result and cannot debit customers |
+| `notification-service` | Reused by Dispatch Vendor-owned return challenge delivery |
+| `shared/go/custodyops` | Shared code contract instantiated separately by each execution authority; not a shared database or new service authority |
+
+This record supersedes the earlier statement that Hauling was untouched and
+Vendor Rider → platform post-custody transfer was absent. Cross-authority
+transfer now requires explicit old/new authority mission references, exact
+manifest/Parcel scope, two-provider evidence, financial allocation reference,
+and source event/version. Vendor never mutates execution authority in its own
+database.
+
+**SECTION 37 — INTENTIONALLY SKIPPED / OUT OF CURRENT SCOPE.**

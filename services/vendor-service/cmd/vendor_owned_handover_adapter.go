@@ -64,6 +64,20 @@ func (a *vendorOwnedRuntimeHandover) VerifyReceiver(ctx context.Context, r fulfi
 	}
 	return fulfilmentgroup.HandoverVerification{OpaqueRef: o.HandoverRef, EvidenceRef: "dispatch:" + o.HandoverRef}, nil
 }
-func (a *vendorOwnedRuntimeHandover) VerifyReturn(context.Context, fulfilmentgroup.VendorHandoverRequest) (fulfilmentgroup.HandoverVerification, error) {
-	return fulfilmentgroup.HandoverVerification{}, fulfilmentgroup.ErrHandoverUnavailable
+func (a *vendorOwnedRuntimeHandover) VerifyReturn(ctx context.Context, r fulfilmentgroup.VendorHandoverRequest) (fulfilmentgroup.HandoverVerification, error) {
+	b, err := a.binding(ctx, r)
+	if err != nil {
+		return fulfilmentgroup.HandoverVerification{}, err
+	}
+	if _, err = a.authority.EnsureReturn(ctx, b, "return:"+r.OperationRef, r.OperationRef); err != nil && !errors.Is(err, handover.ErrRejected) {
+		return fulfilmentgroup.HandoverVerification{}, err
+	}
+	if r.EvidenceRef == "" || r.Method == "" || r.Credential == "" {
+		return fulfilmentgroup.HandoverVerification{}, fulfilmentgroup.ErrHandoverUnavailable
+	}
+	o, err := a.authority.ConfirmReturn(ctx, b, r.EvidenceRef, r.Method, r.Credential, "vendor-return:"+r.OperationRef, r.OperationRef)
+	if err != nil || o.Status != "CONSUMED" {
+		return fulfilmentgroup.HandoverVerification{}, fulfilmentgroup.ErrHandoverUnavailable
+	}
+	return fulfilmentgroup.HandoverVerification{OpaqueRef: o.HandoverRef, EvidenceRef: "dispatch:" + o.HandoverRef}, nil
 }

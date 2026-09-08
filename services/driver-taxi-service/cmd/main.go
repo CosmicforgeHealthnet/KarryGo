@@ -324,6 +324,7 @@ func main() {
 					custodyops.MediaFileAuthorizer{Client: taxiMediaClient, AllowedOwners: map[string]struct{}{"driver-taxi-service": {}, "vendor-service": {}}},
 					custodyops.Policy{}, []string{"vendor-service", "operations-service"})
 			}
+			custodyops.RegisterProvider(group, custodyops.NewRepository(db, "TAXI_GOODS"), authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService)
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService, cfg.OTPDebug)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
 			availabilityhttp.RegisterAvailabilityRoutes(group, availabilityService,

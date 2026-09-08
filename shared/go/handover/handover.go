@@ -25,6 +25,7 @@ type Step string
 const (
 	StepPickup           Step = "pickup"
 	StepDelivery         Step = "delivery"
+	StepReturn           Step = "return"
 	StepProviderTransfer Step = "provider_transfer"
 )
 

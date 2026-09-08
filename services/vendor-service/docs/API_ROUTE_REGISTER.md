@@ -1877,3 +1877,19 @@ Vendor-owned missions use the same two Vendor routes above. The normalized
 adapter binds and calls Dispatch's distinct VendorMission custody authority;
 canonical internal routes are documented in the Dispatch route register.
 `PENDING_EXTERNAL_DEPENDENCY = NONE`.
+
+## Sections 33–35 — authority-local custody routes
+
+Vendor registers no custody route. It calls/projects the canonical authority
+selected by the frozen Commerce mission. Each internal route below is HMAC v2,
+exact-caller-allowlisted, nonce-replay-protected and idempotent.
+
+| Authority | Base path | Operations |
+|---|---|---|
+| Dispatch MOTORCYCLE and Vendor-owned | `/api/v1/internal/custody/v1` | `POST /manifests/freeze`, `/manifests/confirm`, `/evidence`, `/exceptions`, `/returns`, `/returns/complete`, `/incidents`, `/replacements`, `/transfers`, `/earning-allocations` |
+| Hauling VAN/TRUCK | `/api/v1/hauling/internal/custody/v1` | Same ten internal operations; provider incident at `POST /api/v1/hauling/provider/custody/missions/{missionRef}/incidents` |
+| Taxi Goods CAR | `/api/v1/taxi/internal/custody/v1` | Same ten internal operations; provider incident at `POST /api/v1/taxi/provider/custody/missions/{missionRef}/incidents` |
+
+Dispatch provider incident reporting continues through its existing
+bearer-protected delivery-recovery route; it is not duplicated here. Machine
+contracts live under each execution service's `docs/openapi` directory.

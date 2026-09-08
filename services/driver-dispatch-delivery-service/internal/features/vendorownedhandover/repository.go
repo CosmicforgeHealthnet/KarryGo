@@ -157,7 +157,7 @@ func (r *Repository) Confirm(ctx context.Context, c ConfirmCommand, caller, corr
 	var manifestVersion, version int64
 	var expires time.Time
 	var attempts, maxAttempts int
-	err = tx.QueryRow(ctx, `SELECT m.status,m.provider_ref,m.receiver_ref,m.receiver_phone,h.manifest_ref,h.status,h.otp_keyed_hash,h.qr_keyed_hash,h.manifest_version,h.version,h.expires_at,h.attempt_count,h.max_attempts FROM dispatch_vendor_delivery_missions m JOIN dispatch_vendor_handover_challenges h ON h.mission_ref=m.mission_ref WHERE m.mission_ref=$1 AND h.challenge_ref=$2 AND h.stage=$3 FOR UPDATE OF m,h`, c.MissionRef, c.ChallengeRef, c.Stage).Scan(&missionStatus, &provider, &receiver, &phone, &manifest, &status, &otpHash, &qrHash, &manifestVersion, &version, &expires, &attempts, &maxAttempts)
+	err = tx.QueryRow(ctx, `SELECT m.status,m.provider_ref,h.receiver_ref,m.receiver_phone,h.manifest_ref,h.status,h.otp_keyed_hash,h.qr_keyed_hash,h.manifest_version,h.version,h.expires_at,h.attempt_count,h.max_attempts FROM dispatch_vendor_delivery_missions m JOIN dispatch_vendor_handover_challenges h ON h.mission_ref=m.mission_ref WHERE m.mission_ref=$1 AND h.challenge_ref=$2 AND h.stage=$3 FOR UPDATE OF m,h`, c.MissionRef, c.ChallengeRef, c.Stage).Scan(&missionStatus, &provider, &receiver, &phone, &manifest, &status, &otpHash, &qrHash, &manifestVersion, &version, &expires, &attempts, &maxAttempts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Observation{}, false, nil, ErrNotFound
 	}
