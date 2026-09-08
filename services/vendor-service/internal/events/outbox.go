@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -252,11 +253,26 @@ func RedactError(err error) string {
 		return ""
 	}
 	message := err.Error()
+	for _, rule := range secretErrorRules {
+		message = rule.pattern.ReplaceAllString(message, rule.replacement)
+	}
+	message = longDigitRun.ReplaceAllString(message, "[REDACTED_PAN]")
 	if len(message) > 300 {
 		message = message[:300]
 	}
 	return message
 }
+
+var secretErrorRules = []struct {
+	pattern     *regexp.Regexp
+	replacement string
+}{
+	{regexp.MustCompile(`(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+`), `${1}[REDACTED]`},
+	{regexp.MustCompile(`(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+`), `${1}[REDACTED]`},
+	{regexp.MustCompile(`(?i)(["']?(?:otp|cvv|password|passcode|refresh[_-]?token|session[_-]?token|api[_-]?key|hmac[_-]?secret|service[_-]?secret|gateway[_-]?secret|private[_-]?key|card[_-]?pan)["']?\s*[:=]\s*)["']?[^\s,;}]+`), `${1}[REDACTED]`},
+}
+
+var longDigitRun = regexp.MustCompile(`\b[0-9][0-9 -]{10,21}[0-9]\b`)
 
 // DomainPublisher appends domain events onto the outbox inside the caller's
 // transaction, which is what makes "state changed" and "event recorded"

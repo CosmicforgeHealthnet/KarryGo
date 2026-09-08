@@ -17,6 +17,7 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/jobs"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/ratelimit"
+	"cosmicforge/logistics/services/vendor-service/internal/privacy"
 
 	vendorauthclients "cosmicforge/logistics/services/vendor-service/internal/features/auth/clients"
 	vendorauthhttp "cosmicforge/logistics/services/vendor-service/internal/features/auth/http"
@@ -1092,6 +1093,20 @@ func main() {
 		})
 		workers = append(workers, func(runCtx context.Context) error {
 			retention.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+	if cfg.Flags.VendorPrivacyRetentionEnabled {
+		// The flag is a claim kill switch only. Pending work remains durable and
+		// becomes eligible again when the worker is re-enabled.
+		retentionWorker := privacy.NewRetentionWorker(db, privacy.DefaultMaxAttempts)
+		retentionJob := jobs.Job{Name: "vendor-privacy-retention", Interval: time.Minute,
+			Pass: func(runCtx context.Context) error {
+				_, err := retentionWorker.RunPass(runCtx, privacy.DefaultBatchSize)
+				return err
+			}}
+		workers = append(workers, func(runCtx context.Context) error {
+			retentionJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
 			return nil
 		})
 	}

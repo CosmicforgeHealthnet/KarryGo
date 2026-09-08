@@ -1294,3 +1294,15 @@ and source event/version. Vendor never mutates execution authority in its own
 database.
 
 **SECTION 37 — INTENTIONALLY SKIPPED / OUT OF CURRENT SCOPE.**
+
+## Sections 40-42 final closure
+
+| Service | Change | Authority impact |
+|---|---|---|
+| `vendor-service` | Migration `000116`; semantic command fingerprints; atomic idempotency reclaim; transaction-bound inbox; secret-safe outbox errors; retention/legal-hold worker | Vendor-local operational data only |
+| `payment-wallet-service` | REUSED / NOT CHANGED | Sole money and ledger authority preserved |
+| `media-file-service` | REUSED / NOT CHANGED | Media bytes and signed access preserved |
+| `customer-service` | REUSED / NOT CHANGED | Reusable customer preferences preserved |
+| Dispatch / Hauling / Taxi | REUSED / NOT CHANGED | Mission execution and OTP/QR authority preserved |
+
+No route, frontend contract, or external service schema changed.

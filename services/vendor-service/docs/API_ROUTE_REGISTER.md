@@ -1893,3 +1893,10 @@ exact-caller-allowlisted, nonce-replay-protected and idempotent.
 Dispatch provider incident reporting continues through its existing
 bearer-protected delivery-recovery route; it is not duplicated here. Machine
 contracts live under each execution service's `docs/openapi` directory.
+
+## Sections 40-42 closure
+
+No public, Vendor-authenticated, provider, or internal HTTP route is added.
+The change hardens the existing command middleware/event repositories and adds
+an internal database worker controlled by `VENDOR_PRIVACY_RETENTION_ENABLED`.
+Existing route counts and OpenAPI contracts are unchanged.

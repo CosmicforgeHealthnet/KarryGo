@@ -287,7 +287,10 @@ func TestSection7MigrationsRollbackAndReapplyAsAPair(t *testing.T) {
 	if dsn == "" {
 		t.Skip("VENDOR_SERVICE_TEST_DATABASE_URL not set; skipping real-Postgres Section 7 replay")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// This test intentionally traverses the full migration stack back to
+	// Section 7. The repository now has more than one hundred migrations, so a
+	// request-sized 30-second deadline is no longer an honest CI bound.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
@@ -353,7 +356,9 @@ func TestSection8AMigrationsRollbackAndReapplyAsAPair(t *testing.T) {
 	if dsn == "" {
 		t.Skip("VENDOR_SERVICE_TEST_DATABASE_URL not set; skipping real-Postgres Section 8A replay")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Like the Section 7 replay above, this is a deep historical migration
+	// traversal rather than an online request.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {

@@ -47,8 +47,8 @@ const parentColumns = `
 	p.id,p.customer_id,p.quote_id,p.quote_version,p.quote_fingerprint,
 	p.checkout_session_id,p.checkout_validation_revision,p.cart_id,p.cart_version,
 	p.fulfilment_plan_id,p.fulfilment_plan_revision,p.fulfilment_plan_version,
-	p.domain,p.currency,p.selected_fulfilment_mode,p.address_snapshot,
-	p.has_receiver,p.receiver_snapshot,
+	p.domain,p.currency,p.selected_fulfilment_mode,COALESCE(p.operational_address_snapshot,p.address_snapshot),
+	p.has_receiver,COALESCE(p.operational_receiver_snapshot,p.receiver_snapshot),
 	p.customer_approved_total_minor,p.max_authorized_total_minor,
 	p.product_subtotal_minor,p.delivery_subtotal_minor,p.fee_subtotal_minor,
 	p.tax_subtotal_minor,p.discount_total_minor,p.subsidy_total_minor,
@@ -625,7 +625,12 @@ func loadParent(ctx context.Context, q queryer, customerID, orderID string) (Par
 	// latest applied address and plan.
 	var appliedAddress []byte
 	var appliedPlan string
-	if overlayErr := q.QueryRow(ctx, `SELECT applied_address_snapshot,applied_fulfilment_plan_id FROM commerce_order_change_applications WHERE parent_order_id=$1 ORDER BY applied_at DESC,id DESC LIMIT 1`, order.ID).Scan(&appliedAddress, &appliedPlan); overlayErr == nil {
+	if overlayErr := q.QueryRow(ctx, `SELECT a.applied_address_snapshot,a.applied_fulfilment_plan_id
+		FROM commerce_order_change_applications a
+		WHERE a.parent_order_id=$1
+		  AND NOT EXISTS (SELECT 1 FROM vendor_privacy_retention_jobs j
+		                  WHERE j.parent_order_id=a.parent_order_id AND j.status='MINIMIZED')
+		ORDER BY a.applied_at DESC,a.id DESC LIMIT 1`, order.ID).Scan(&appliedAddress, &appliedPlan); overlayErr == nil {
 		if jsonErr := json.Unmarshal(appliedAddress, &order.Address); jsonErr != nil {
 			return ParentOrder{}, jsonErr
 		}

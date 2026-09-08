@@ -107,7 +107,9 @@ func iamTestPool(t *testing.T) *pgxpool.Pool {
 	if dsn == "" {
 		t.Skip("VENDOR_SERVICE_TEST_DATABASE_URL not set; skipping real-Postgres staff IAM integration test")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// TRUNCATE ... CASCADE must inspect the full migrated FK graph. Keep a
+	// bounded test deadline, but size it for the current 100+ migration schema.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {

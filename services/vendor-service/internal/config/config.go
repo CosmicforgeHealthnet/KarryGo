@@ -281,10 +281,13 @@ type FeatureFlags struct {
 	VendorCRMIntelligenceEnabled       bool
 	VendorCRMIntelligenceWorkerEnabled bool
 	VendorCRMExportsEnabled            bool
-	VendorInventoryEnabled             bool
-	VendorInventoryWritesEnabled       bool
-	VendorPurchasingEnabled            bool
-	VendorRecipesEnabled               bool
+	// VendorPrivacyRetentionEnabled is a kill switch for new worker claims.
+	// Disabling it leaves every pending job and retained evidence untouched.
+	VendorPrivacyRetentionEnabled bool
+	VendorInventoryEnabled        bool
+	VendorInventoryWritesEnabled  bool
+	VendorPurchasingEnabled       bool
+	VendorRecipesEnabled          bool
 	// VendorCostEnabled is Section 16D's master switch. It is separate from
 	// VendorRecipesEnabled on purpose: a vendor can run recipes and production
 	// without exposing what its inputs cost, which is the same separation the
@@ -411,6 +414,7 @@ func Load() Config {
 			VendorCRMIntelligenceEnabled:       getEnvBool("VENDOR_CRM_INTELLIGENCE_ENABLED", false),
 			VendorCRMIntelligenceWorkerEnabled: getEnvBool("VENDOR_CRM_INTELLIGENCE_WORKER_ENABLED", false),
 			VendorCRMExportsEnabled:            getEnvBool("VENDOR_CRM_EXPORTS_ENABLED", false),
+			VendorPrivacyRetentionEnabled:      getEnvBool("VENDOR_PRIVACY_RETENTION_ENABLED", false),
 
 			VendorInventoryEnabled:       getEnvBool("VENDOR_INVENTORY_ENABLED", false),
 			VendorInventoryWritesEnabled: getEnvBool("VENDOR_INVENTORY_WRITES_ENABLED", false),
@@ -608,6 +612,7 @@ func (c Config) Validate() error {
 			c.Flags.VendorCRMCorporateEnabled ||
 			c.Flags.VendorCRMIntelligenceEnabled ||
 			c.Flags.VendorCRMExportsEnabled ||
+			c.Flags.VendorPrivacyRetentionEnabled ||
 			c.Flags.VendorInventoryEnabled || c.Flags.VendorPurchasingEnabled || c.Flags.VendorRecipesEnabled ||
 			c.Flags.VendorCostEnabled ||
 			c.Flags.CommerceFoodEnabled || c.Flags.VendorFoodCatalogueWritesEnabled ||

@@ -35,7 +35,7 @@ func (s *Service) handoverBinding(ctx context.Context, actor Actor, orderID, mis
 	var parcelJSON []byte
 	err = s.store.db.QueryRow(ctx, `
 		SELECT vm.id,vm.id,vm.business_id,vm.branch_id,COALESCE(vm.assigned_staff_id,''),
-		       po.customer_id,COALESCE(po.receiver_snapshot->>'receiver_phone',''),
+		       po.customer_id,COALESCE(COALESCE(po.operational_receiver_snapshot,po.receiver_snapshot)->>'receiver_phone',''),
 		       vm.plan_id||':'||vm.plan_mission_id,pv.version,jsonb_agg(p.id ORDER BY p.id)
 		  FROM commerce_vendor_missions vm
 		  JOIN commerce_fulfilment_groups g ON g.id=vm.group_id

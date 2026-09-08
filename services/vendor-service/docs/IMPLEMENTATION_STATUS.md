@@ -2502,5 +2502,19 @@ credential store, physical mission authority, or migration.
 Traceability: `docs/SECTION33_35_TRACEABILITY.md` and repository root
 `docs/SECTION33_35_TRACEABILITY.md`.
 
-**SECTION 37 — INTENTIONALLY SKIPPED / OUT OF CURRENT SCOPE.** No Section 41+
-work was started and no frontend code changed.
+**SECTION 37 — INTENTIONALLY SKIPPED / OUT OF CURRENT SCOPE.** At the time of
+the Sections 33-35 closure no Section 41+ work had started; no frontend code
+changed.
+
+## Sections 40-42 final security, recovery and schema closure
+
+Sections 40, 41 and 42 are implementation-complete. Additive migration
+`000116_sections40_42_security_recovery` adds complete idempotency metadata and
+policy-driven operational receiver/location minimization with durable legal
+holds, restricted evidence, bounded legacy discovery and a dead-letter-capable
+worker. Semantic JSON fingerprints, atomic expired-key reclaim,
+transaction-bound fingerprinted inbox claims and credential-safe durable worker
+errors close the code gaps found by the repository audit.
+
+No route or frontend was added and no service authority moved. See
+`SECTION40_42_TRACEABILITY.md` for the closure and domain-model matrices.
