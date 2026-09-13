@@ -56,10 +56,10 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	}
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: member, ActorType: tenant.ActorTypeOrganizationUser, ActorID: member, CorrelationID: "sections-17-18-test"}
 	media := sectionMedia{files: map[string]platformclients.FileMetadata{
-		"member-clean":   {FileID: "member-clean", OwnerID: member, UploadState: "COMPLETE", ScanState: "CLEAN"},
-		"org-clean":      {FileID: "org-clean", OwnerID: org.ID, UploadState: "COMPLETE", ScanState: "CLEAN"},
-		"other-clean":    {FileID: "other-clean", OwnerID: "different-owner", UploadState: "COMPLETE", ScanState: "CLEAN"},
-		"org-quarantine": {FileID: "org-quarantine", OwnerID: org.ID, UploadState: "COMPLETE", ScanState: "QUARANTINED"},
+		"member-clean":   {FileID: "member-clean", OwnerID: member, UploadState: "COMPLETED", ScanState: "CLEAN"},
+		"org-clean":      {FileID: "org-clean", OwnerID: org.ID, UploadState: "COMPLETED", ScanState: "CLEAN"},
+		"other-clean":    {FileID: "other-clean", OwnerID: "different-owner", UploadState: "COMPLETED", ScanState: "CLEAN"},
+		"org-quarantine": {FileID: "org-quarantine", OwnerID: org.ID, UploadState: "COMPLETED", ScanState: "QUARANTINED"},
 	}}
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	now := time.Now().UTC().Truncate(time.Second)

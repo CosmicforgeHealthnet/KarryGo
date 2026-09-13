@@ -22,7 +22,7 @@ type section2223Media struct{}
 
 func (section2223Media) Configured() bool { return true }
 func (section2223Media) GetFile(_ context.Context, meta platformclients.CallMeta, id string) (platformclients.FileMetadata, error) {
-	return platformclients.FileMetadata{FileID: id, OwnerID: meta.OrganizationID, UploadState: "COMPLETE", ScanState: "CLEAN", SourceVersion: 1}, nil
+	return platformclients.FileMetadata{FileID: id, OwnerID: meta.OrganizationID, UploadState: "COMPLETED", ScanState: "CLEAN", SourceVersion: 1}, nil
 }
 
 func (section2223Media) AuthorizeUpload(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaUploadRequest) (platformclients.MediaUploadGrant, error) {
