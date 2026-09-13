@@ -1,27 +1,181 @@
 {
-  "openapi": "3.0.3",
   "info": {
+    "description": "HMAC-v2 authenticated, read-only service-facing food catalogue discovery. This surface is internal and is not exposed through the public vendor gateway.",
     "title": "KarryGo Vendor Service - Section 9C Food Discovery",
-    "version": "1.0.0",
-    "description": "HMAC-v2 authenticated, read-only service-facing food catalogue discovery. This surface is internal and is not exposed through the public vendor gateway."
+    "version": "1.0.0"
   },
-  "servers": [{"url": "/internal/vendor/v1", "description": "Internal service-to-service surface."}],
-  "tags": [{"name": "Food Discovery", "description": "Effective food catalogue discovery and freshness."}],
+  "openapi": "3.0.3",
   "paths": {
     "/food/branches/{branchId}/catalogue": {
-      "get": {"operationId": "discoverFoodCatalogue", "tags": ["Food Discovery"], "responses": {"200": {"description": "Effective sellable catalogue snapshot."}, "401": {"description": "Missing or invalid HMAC credentials."}, "403": {"description": "Caller is not allowlisted."}}}
-    },
-    "/food/branches/{branchId}/search": {
-      "get": {"operationId": "searchFoodCatalogue", "tags": ["Food Discovery"], "responses": {"200": {"description": "Bounded effective catalogue search."}, "401": {"description": "Missing or invalid HMAC credentials."}, "403": {"description": "Caller is not allowlisted."}}}
-    },
-    "/food/branches/{branchId}/revision": {
-      "get": {"operationId": "getFoodCatalogueRevision", "tags": ["Food Discovery"], "responses": {"200": {"description": "Catalogue revision and freshness marker."}, "401": {"description": "Missing or invalid HMAC credentials."}, "403": {"description": "Caller is not allowlisted."}}}
+      "get": {
+        "operationId": "discoverFoodCatalogue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Effective sellable catalogue snapshot."
+          },
+          "401": {
+            "description": "Missing or invalid HMAC credentials."
+          },
+          "403": {
+            "description": "Caller is not allowlisted."
+          }
+        },
+        "tags": [
+          "Food Discovery"
+        ]
+      }
     },
     "/food/branches/{branchId}/items/{itemId}/sellability": {
-      "get": {"operationId": "getFoodItemSellability", "tags": ["Food Discovery"], "responses": {"200": {"description": "Effective sellability and bounded reason."}, "401": {"description": "Missing or invalid HMAC credentials."}, "403": {"description": "Caller is not allowlisted."}}}
+      "get": {
+        "operationId": "getFoodItemSellability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Effective sellability and bounded reason."
+          },
+          "401": {
+            "description": "Missing or invalid HMAC credentials."
+          },
+          "403": {
+            "description": "Caller is not allowlisted."
+          }
+        },
+        "tags": [
+          "Food Discovery"
+        ]
+      }
     },
     "/food/branches/{branchId}/pricing/resolve": {
-      "post": {"operationId": "resolveFoodDiscoveryPrice", "tags": ["Food Discovery"], "responses": {"200": {"description": "Effective price and price-version reference."}, "401": {"description": "Missing or invalid HMAC credentials."}, "403": {"description": "Caller is not allowlisted."}}}
+      "post": {
+        "operationId": "resolveFoodDiscoveryPrice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Effective price and price-version reference."
+          },
+          "401": {
+            "description": "Missing or invalid HMAC credentials."
+          },
+          "403": {
+            "description": "Caller is not allowlisted."
+          }
+        },
+        "tags": [
+          "Food Discovery"
+        ]
+      }
+    },
+    "/food/branches/{branchId}/revision": {
+      "get": {
+        "operationId": "getFoodCatalogueRevision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catalogue revision and freshness marker."
+          },
+          "401": {
+            "description": "Missing or invalid HMAC credentials."
+          },
+          "403": {
+            "description": "Caller is not allowlisted."
+          }
+        },
+        "tags": [
+          "Food Discovery"
+        ]
+      }
+    },
+    "/food/branches/{branchId}/search": {
+      "get": {
+        "operationId": "searchFoodCatalogue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded effective catalogue search."
+          },
+          "401": {
+            "description": "Missing or invalid HMAC credentials."
+          },
+          "403": {
+            "description": "Caller is not allowlisted."
+          }
+        },
+        "tags": [
+          "Food Discovery"
+        ]
+      }
     }
-  }
+  },
+  "servers": [
+    {
+      "description": "Internal service-to-service surface.",
+      "url": "/internal/vendor/v1"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Effective food catalogue discovery and freshness.",
+      "name": "Food Discovery"
+    }
+  ]
 }

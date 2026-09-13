@@ -1,0 +1,3 @@
+# Wallet UNKNOWN outcome
+
+Trigger: a payment, refund, or settlement stays `UNKNOWN` beyond its reconciliation SLO. Inspect the operation ID, order/payment projection, durable job attempts, oldest-job metric, and Wallet read-back response using correlation IDs—not tokens or payloads. First disable affected new payment admissions if the rate is growing, retain the same operation ID, and query Payment Wallet authority. Never mark paid/refunded manually or create a replacement operation. Re-run the idempotent reconciliation job; escalate to Wallet ownership when read-back remains unavailable or contradictory. Recovery is verified only when Wallet returns a terminal result, Vendor projection matches it, and no duplicate ledger operation exists.

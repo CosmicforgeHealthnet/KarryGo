@@ -59,7 +59,8 @@ func (r *InboxRepository) ClaimTx(ctx context.Context, q querier, sourceService,
 			Scan(&storedType, &storedFingerprint); loadErr != nil {
 			return false, fmt.Errorf("inbox: inspect duplicate: %w", loadErr)
 		}
-		if storedType != eventType || (payloadFingerprint != "" && storedFingerprint != nil && *storedFingerprint != payloadFingerprint) {
+		if storedType != eventType ||
+			(payloadFingerprint != "" && (storedFingerprint == nil || *storedFingerprint != payloadFingerprint)) {
 			return false, ErrPayloadMismatch
 		}
 		return false, nil

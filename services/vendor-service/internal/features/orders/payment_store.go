@@ -386,6 +386,28 @@ func refreshPaymentState(
 			return PaymentOperation{}, err
 		}
 	}
+	if outbox != nil && state == PaymentHeld && previousState != string(PaymentHeld) {
+		var quoteRef, currency string
+		var quoteVersion, orderVersion, approvedTotal int64
+		if err = tx.QueryRow(ctx, `
+			SELECT quote_id,quote_version,currency,customer_approved_total_minor,version
+			  FROM commerce_parent_orders WHERE id=$1`, parentOrderID).
+			Scan(&quoteRef, &quoteVersion, &currency, &approvedTotal, &orderVersion); err != nil {
+			return PaymentOperation{}, err
+		}
+		if err = outbox.Publish(ctx, tx, "commerce.checkout.paid", "ParentOrder",
+			parentOrderID, orderVersion, "", operationID, operationID, map[string]any{
+				"parent_order_ref":             parentOrderID,
+				"quote_ref":                    quoteRef,
+				"quote_version":                quoteVersion,
+				"payment_operation_ref":        operationID,
+				"currency":                     currency,
+				"approved_total_minor":         approvedTotal,
+				"payment_authority_status_ref": string(state),
+			}); err != nil {
+			return PaymentOperation{}, err
+		}
+	}
 
 	return loadOperationBy(ctx, tx, `o.id=$1`, operationID)
 }

@@ -1,0 +1,79 @@
+name: Vendor Sections 46-48 gates
+
+on:
+  pull_request:
+    paths:
+      - 'services/vendor-service/**'
+      - 'shared/go/**'
+      - '.github/workflows/vendor-section46-48.yml'
+  push:
+    branches: [staging]
+
+permissions:
+  contents: read
+
+jobs:
+  vendor-quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: karrygo_test, POSTGRES_PASSWORD: karrygo_test, POSTGRES_DB: vendor_test}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U karrygo_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      GOFLAGS: -buildvcs=false
+      VENDOR_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/vendor_test?sslmode=disable
+      VENDOR_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.26.6', cache: true}
+      - name: No frontend application changes
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD -- \
+            'apps/**' 'web/**' 'frontend/**' 'mobile/**' > "$RUNNER_TEMP/frontend-changes.txt"
+          test ! -s "$RUNNER_TEMP/frontend-changes.txt"
+      - name: Formatting and whitespace
+        shell: bash
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$base" ]; then base="${{ github.event.before }}"; fi
+          git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.go' > "$RUNNER_TEMP/changed-go.txt"
+          if [ -s "$RUNNER_TEMP/changed-go.txt" ]; then
+            test -z "$(xargs -r gofmt -l < "$RUNNER_TEMP/changed-go.txt")"
+          fi
+          git diff --check
+      - name: Configuration, topology, route, event and worker contracts
+        working-directory: services/vendor-service
+        run: go test ./internal/config ./internal/operational ./internal/crmcontract ./internal/events ./internal/jobs -count=1 -p 1 -timeout=600s
+      - name: VPS deployment bundle
+        env:
+          VENDOR_IMAGE: ghcr.io/cosmicforgehealthnet/vendor-service:ci-validation
+          VENDOR_ENV_FILE: ${{ github.workspace }}/deploy/vendor-service/vendor.env.example
+        run: |
+          docker compose -f deploy/vendor-service/docker-compose.staging.yml config --quiet
+          docker build -f services/vendor-service/Dockerfile -t "$VENDOR_IMAGE" .
+      - name: Vendor tests
+        working-directory: services/vendor-service
+        run: go test ./... -count=1 -p 1 -timeout=1200s
+      - name: Vet and build
+        working-directory: services/vendor-service
+        run: go vet ./... && go build ./...
+      - name: Secret and credential guards
+        shell: bash
+        run: |
+          ! git grep -n -I -E -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|sk-proj-[A-Za-z0-9_-]{20,}' -- services/vendor-service shared/go
+          test -z "$(git ls-files --others --exclude-standard | grep -E '(^|/)\.env($|\.)' | grep -Ev '\.env\.(example|sample|template)$' || true)"
+          test -z "$(git grep -n -I -E 'log\.(Print|Printf|Info|Debug).*([Oo][Tt][Pp]|[Qq][Rr]|[Tt]oken|[Pp]assword|[Ss]ecret)' -- services/vendor-service shared/go -- '*.go' ':!**/*_test.go' || true)"

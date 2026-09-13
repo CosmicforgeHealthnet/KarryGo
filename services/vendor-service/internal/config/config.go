@@ -23,6 +23,11 @@ import (
 type Config struct {
 	AppEnv   string
 	HTTPAddr string
+	// ProcessMode controls deployment topology. "api" serves HTTP without
+	// claiming jobs, "worker" claims jobs without a public listener, and
+	// "all" preserves the legacy combined development mode.
+	ProcessMode string
+	LoadErrors  []string
 
 	Migration bool
 
@@ -370,9 +375,23 @@ type FeatureFlags struct {
 // Load reads configuration from the environment. It never panics; call
 // Validate to reject an unsafe configuration explicitly.
 func Load() Config {
-	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8112"),
+	var loadErrors []string
+	boolValue := func(key string, fallback bool) bool {
+		raw := os.Getenv(key)
+		if raw == "" {
+			return fallback
+		}
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			loadErrors = append(loadErrors, key+" must be a boolean")
+			return fallback
+		}
+		return value
+	}
+	cfg := Config{
+		AppEnv:      getEnv("APP_ENV", "development"),
+		HTTPAddr:    getEnv("HTTP_ADDR", ":8112"),
+		ProcessMode: strings.ToLower(strings.TrimSpace(getEnv("VENDOR_PROCESS_MODE", "all"))),
 
 		Migration: getEnvBool("VENDOR_MIGRATION", false),
 
@@ -537,13 +556,25 @@ func Load() Config {
 			SupportMax: getEnvInt("VENDOR_SUPPORT_RATE_MAX", 10), SupportWindowSeconds: getEnvInt("VENDOR_SUPPORT_RATE_WINDOW_SECONDS", 3600),
 		},
 	}
+	// Re-parse the operational controls strictly. Existing feature parsing is
+	// retained for compatibility; these controls are release gates and a typo
+	// must be a boot error rather than silently selecting a fallback.
+	cfg.Migration = boolValue("VENDOR_MIGRATION", false)
+	cfg.Flags.VendorServiceEnabled = boolValue("VENDOR_SERVICE_ENABLED", false)
+	cfg.Flags.CommerceFulfilmentWorkersEnabled = boolValue("COMMERCE_FULFILMENT_WORKERS_ENABLED", false)
+	cfg.Flags.CommerceGlobalKillSwitch = boolValue("COMMERCE_GLOBAL_KILL_SWITCH", false)
+	cfg.LoadErrors = loadErrors
+	return cfg
 }
 
 // Validate rejects unsafe partial configuration. A feature flag being on
 // without its required downstream credentials is refused rather than
 // silently degrading to an insecure or no-op integration.
 func (c Config) Validate() error {
-	var problems []string
+	problems := append([]string(nil), c.LoadErrors...)
+	if c.ProcessMode != "all" && c.ProcessMode != "api" && c.ProcessMode != "worker" {
+		problems = append(problems, "VENDOR_PROCESS_MODE must be one of all, api, worker")
+	}
 
 	if strings.TrimSpace(c.DatabaseURL) == "" {
 		problems = append(problems, "VENDOR_DATABASE_URL is required")

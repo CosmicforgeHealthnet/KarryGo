@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"cosmicforge/logistics/services/vendor-service/internal/events"
 	"cosmicforge/logistics/services/vendor-service/internal/features/checkoutquote"
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
@@ -142,8 +143,10 @@ func buildSection17EFixtureWithVariableAndMode(
 	evaluator := staffusecases.NewAuthorizationEvaluator(
 		staffrepositories.NewAssignmentRepository(env.pool),
 	)
+	orderStore := orders.NewStore(env.pool)
+	orderStore.SetEventPublisher(events.NewDomainPublisher(events.NewOutboxRepository(env.pool)))
 	service, err := orders.NewService(orders.Options{
-		Store:   orders.NewStore(env.pool),
+		Store:   orderStore,
 		Quotes:  fixture.quotes,
 		Scopes:  section17EScopeAdapter{evaluator: evaluator},
 		Enabled: true,
@@ -219,6 +222,21 @@ func TestSection17EOrders_FoodParentOrderHasOneVendorOrder(t *testing.T) {
 	}
 	if vendorOrder.ReservationRef == "" {
 		t.Fatal("vendor order carries no Inventory reservation reference")
+	}
+	var parentEvents int
+	if err = fixture.env.pool.QueryRow(ctx, `SELECT count(*) FROM vendor_outbox
+		WHERE event_type='commerce.order.created' AND aggregate_type='ParentOrder' AND aggregate_id=$1`, parent.ID).
+		Scan(&parentEvents); err != nil || parentEvents != 1 {
+		t.Fatalf("transactional ParentOrder events=%d err=%v, want 1", parentEvents, err)
+	}
+	var safePayload bool
+	if err = fixture.env.pool.QueryRow(ctx, `SELECT
+		payload->'payload'->>'quote_ref'=$2 AND
+		(payload->'payload'->>'vendor_order_count')::bigint=1 AND
+		NOT (payload->'payload' ? 'customer_ref')
+		FROM vendor_outbox WHERE event_type='commerce.order.created' AND aggregate_id=$1`, parent.ID, fixture.quoteID).
+		Scan(&safePayload); err != nil || !safePayload {
+		t.Fatalf("minimum-data ParentOrder payload safe=%t err=%v", safePayload, err)
 	}
 }
 

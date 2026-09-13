@@ -1306,3 +1306,41 @@ database.
 | Dispatch / Hauling / Taxi | REUSED / NOT CHANGED | Mission execution and OTP/QR authority preserved |
 
 No route, frontend contract, or external service schema changed.
+
+## Section 43 — API contract certification
+
+| Service / contract | Change | Authority impact |
+|---|---|---|
+| `vendor-service` router | AUDITED / UNCHANGED | 857 routes before and after; zero added, changed, deprecated or removed |
+| Vendor OpenAPI authority | CHANGED | 48 files validated; 867 globally unique operation IDs; structural path/response/ref/security gaps closed; no route semantics renamed |
+| Vendor order/substitution contracts | CHANGED | Existing required Idempotency-Key and If-Match behavior is now explicit |
+| Vendor Section 16D cost commands | HARDENED | Existing shared idempotency store is now applied as command middleware; Vendor remains cost-policy/projection authority only |
+| API Gateway | AUDITED / NOT CHANGED | No Vendor proxy mapping exists; no internal Vendor contract is exposed by the gateway |
+| `payment-wallet-service` | REUSED / NOT CHANGED | Sole hold, allocation, capture, settlement, refund, ledger and customer-debit authority preserved |
+| `media-file-service` | REUSED / NOT CHANGED | Media bytes and signed access authority preserved |
+| `customer-service` | REUSED / NOT CHANGED | Canonical identity and reusable preference authority preserved |
+| `verification-compliance-service` | REUSED / NOT CHANGED | Verification truth preserved |
+| Dispatch / Hauling / Taxi Goods / VendorMission | REUSED / NOT CHANGED | Mission, provider, custody and OTP/QR authority preserved; Vendor remains relay/status only |
+
+No migration, frontend change, pharmacy/medicine commerce, Order Guarantee
+route, or Section 44+ capability was introduced. Deterministic evidence:
+`docs/SECTION43_ROUTE_PARITY.json`; narrative traceability:
+`docs/SECTION43_TRACEABILITY.md`.
+
+## Sections 44–45 — event catalogue and durable workers
+
+| Service / contract | Change | Authority impact |
+|---|---|---|
+| `vendor-service` event envelope/outbox/inbox | HARDENED / CATALOGUED | Existing transactional outbox retained; quote approval, ParentOrder creation and Wallet-confirmed paid projection now append canonical events atomically; inbox fingerprint edge case closed |
+| Vendor durable worker framework | HARDENED / CATALOGUED | Existing leases, heartbeat, bounded retry, dead letter and replay retained; persisted failures now use common credential redaction |
+| Payment Wallet | REUSED / NOT CHANGED | Sole payment, refund, settlement and ledger authority preserved |
+| Dispatch / Hauling / Taxi Goods / VendorMission | REUSED / NOT CHANGED | Execution, assignment, custody and OTP/QR authority preserved |
+| Media / Customer / Verification / Notification | REUSED / NOT CHANGED | Existing canonical authorities preserved |
+| Search / Analytics | PROJECTION ONLY | No transactional catalogue or commerce authority granted |
+
+Routes added/changed/removed: 0/0/0. Migrations added: 0. Historical
+migrations changed: 0. Frontend changes: none. Order Guarantee remains
+`FUTURE_DISABLED`; pharmacy/medicine commerce remains out of scope.
+# Final production-GO external actions (2026-09-10)
+
+No receiving service contract was changed. Platform/DevOps must supply the deployment evidence enumerated in `FINAL_PRODUCTION_GO_CERTIFICATION.md`: declared Vendor ingress and internal-route isolation, distinct API/worker units, encrypted PostgreSQL backup plus restore drill, monitoring/alerts, reciprocal staging HMAC credentials/allowlists, live cross-service certification, and bounded staging SLO measurements. Until those actions pass, production GO is blocked.

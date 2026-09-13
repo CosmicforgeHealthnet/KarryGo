@@ -2518,3 +2518,93 @@ errors close the code gaps found by the repository audit.
 
 No route or frontend was added and no service authority moved. See
 `SECTION40_42_TRACEABILITY.md` for the closure and domain-model matrices.
+
+## Section 43 — API contract families
+
+**COMPLETE / RELEASE-CERTIFIED.** The fully enabled production router remains
+857 routes before and after this work. Across 48 Vendor OpenAPI files, 867
+declarations map to 857 unique production operations; router-to-OpenAPI and
+OpenAPI-to-router mismatch counts are both zero. Ten mature cross-section
+declaration overlaps are explicitly allowlisted and guarded.
+
+All operations now have globally unique operation IDs, responses, valid local
+references, valid security-scheme references, and required declarations for
+every path template. Missing idempotency and optimistic-version headers were
+aligned with the existing Vendor order, substitution and Section 16 command
+behavior. Section 16D cost writes now use their already-injected shared
+idempotency store. No route, migration, frontend, or authority was added or
+moved. The route/register artifact and full matrix are in
+`SECTION43_ROUTE_PARITY.json` and `SECTION43_TRACEABILITY.md`.
+
+Order Guarantee is `FUTURE_DISABLED`. Pharmacy/medicine commerce remains out of
+scope and unimplemented. Wallet, Media, Customer preference, Verification,
+Dispatch, Hauling, Taxi Goods, VendorMission, and handover/QR authorities remain
+preserved.
+
+Certification completed on 2026-09-09:
+
+- `go test ./... -count=1` — PASS.
+- isolated PostgreSQL/Redis regression — all 66 packages PASS in aggregate. The
+  initial full run passed 65/66 and exposed a certification-only Section 13
+  measurement that counted asynchronous database-wide transaction statistics;
+  the measurement was scoped to the search pool's traced SQL statements and its
+  isolated rerun passed against the same 48,000-row corpus. Production behavior
+  was not changed by this correction.
+- `go vet ./...` and `go build ./...` — PASS.
+- shared `serviceauth` HMAC test suite — PASS.
+- Section 43 OpenAPI validation — PASS: 48 documents, 867 operations, 867
+  globally unique operation IDs, zero unresolved local references, zero missing
+  responses, zero missing required path parameters, and zero invalid security
+  scheme references.
+- formatter, deterministic parity artifact and Git whitespace checks — PASS.
+
+## Sections 44–45 — event catalogue and durable workers
+
+**COMPLETE / RELEASE-CERTIFIED.** The repository-native envelope,
+`vendor_outbox`, transactional inbox,
+durable coordinator and domain-row worker patterns remain canonical. There are
+39 authority-reviewed event contracts and 27 worker-requirement mappings.
+
+Three real publication gaps were closed without schema changes:
+`commerce.quote.locked` now reaches the transactional outbox once per immutable
+approval, `commerce.order.created` reaches it once per ParentOrder, and
+`commerce.checkout.paid` is emitted only after authoritative Wallet confirmation
+changes the payment operation to `HELD`. An `UNKNOWN` Wallet outcome remains
+non-paid. Inbox fingerprint matching now rejects a late
+fingerprint if the original event identity was claimed without one. Persisted
+durable-worker failures now reuse the Section 40 event credential redactor,
+including OTP, QR, access/payment/bank credentials, PAN/CVV and service secrets.
+The outbox exposes bounded pending/dead-letter/oldest-pending metrics without
+event or tenant identifiers.
+The durable coordinator now exposes a low-cardinality health/metrics snapshot
+covering retained backlog, persistent retry, dead letters, stale leases and
+dependency availability; disabled workers remain visible and do not consume or
+erase pending work.
+
+No route, migration, frontend, external service, custody code or Section 43
+contract was changed. Order Guarantee remains future-disabled. Full matrices
+and machine parity are in `SECTION44_45_TRACEABILITY.md`,
+`SECTION44_EVENT_PARITY.json` and `SECTION45_WORKER_CATALOGUE.json`.
+
+Certification completed on 2026-09-10:
+
+- Vendor isolated runner: the full pass completed 65/66; the only failure was
+  the Section 13 scale fixture exceeding its 10-minute seed context. That
+  package passed on its fresh isolated rerun, and the final changed `events`
+  and `cmd` packages also passed independently. Effective package result:
+  66/66, with the initial timeout retained here rather than hidden.
+- `go test ./... -count=1`, `go vet ./...`, and `go build ./...` — PASS.
+- Section 44/45 deterministic catalogue validation — PASS: 39 events, 27
+  worker requirements, two future-disabled events, zero parity gaps.
+- Section 43 OpenAPI regression — PASS: 867 operations, zero quality changes.
+- changed-Go-file formatting and `git diff --check` — PASS.
+- Migration replay — NOT REQUIRED; no migration was added or changed.
+# Final production-readiness closure (2026-09-10)
+
+Repository implementation remains complete. Local `api`, `worker`, and `all` process probes pass after closing a worker-only nil-server panic and enforcing PostgreSQL connectivity at worker startup. Production GO remains blocked because deployed ingress, encrypted backups/restore drill, monitoring/alerts, staging credentials/allowlists, live multi-service black-box flows, failure injection, and bounded staging performance/SLO measurements are unavailable. The authoritative register is `docs/FINAL_PRODUCTION_GO_CERTIFICATION.md`.
+
+## Final DevOps execution (2026-09-11)
+
+The actual backend deployment convention was confirmed from repository and GitHub metadata: immutable GHCR images are deployed over SSH to Docker Compose under `/opt/karrygo` on a VPS. Vendor now has a repository-native deployment bundle following that convention: a Vendor-specific production image, a PostgreSQL-advisory-locked migration binary, distinct API and Worker Compose units, and a workflow enforcing migration -> API readiness -> Worker rollout. The API publishes only on VPS loopback and the Worker publishes no port. Compose validation, image build, and the packaged migration-tip verification (116 records) pass locally.
+
+This does not promote Sections 47/48 or production GO. The VPS shell, existing reverse proxy/TLS/DNS, Vendor environment file, PostgreSQL backup provider, monitoring control plane, and downstream staging credentials/allowlists are unavailable from this task. The exact remaining operator commands and pass conditions are in `deploy/vendor-service/README.md`; the authoritative production decision remains `PRODUCTION GO: BLOCKED`.

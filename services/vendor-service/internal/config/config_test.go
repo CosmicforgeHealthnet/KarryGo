@@ -29,8 +29,34 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Auth.OTPDebug {
 		t.Fatal("Auth.OTPDebug must default to false")
 	}
+	if cfg.ProcessMode != "all" {
+		t.Fatalf("process mode default = %q; want all", cfg.ProcessMode)
+	}
 	if cfg.Auth.OTPTTL <= 0 || cfg.Auth.AccessTokenTTL <= 0 || cfg.Auth.RefreshTokenTTL <= 0 || cfg.Auth.StepUpTTL <= 0 {
 		t.Fatal("expected positive default TTLs for Auth")
+	}
+}
+
+func TestLoadRejectsInvalidOperationalBoolean(t *testing.T) {
+	t.Setenv("COMMERCE_GLOBAL_KILL_SWITCH", "definitely")
+	cfg := withAuthSecrets(Load())
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("invalid kill-switch value must fail startup")
+	}
+}
+
+func TestValidateProcessModes(t *testing.T) {
+	for _, mode := range []string{"all", "api", "worker"} {
+		cfg := withAuthSecrets(Load())
+		cfg.ProcessMode = mode
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("mode %s: %v", mode, err)
+		}
+	}
+	cfg := withAuthSecrets(Load())
+	cfg.ProcessMode = "mystery"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("unknown process mode must fail startup")
 	}
 }
 

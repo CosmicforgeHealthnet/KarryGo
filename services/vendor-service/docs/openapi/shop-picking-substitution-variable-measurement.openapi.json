@@ -1,14 +1,280 @@
 {
+  "info": {
+    "title": "Shop picking, substitution and variable measurement",
+    "version": "1.0.0"
+  },
   "openapi": "3.0.3",
-  "info": {"title": "Shop picking, substitution and variable measurement", "version": "1.0.0"},
   "paths": {
-    "/api/v1/commerce/substitution-cases": {"get": {"summary": "Read pending customer substitution cases", "responses": {"200": {"description": "OK"}}}},
-    "/api/v1/commerce/substitution-cases/{caseId}": {"get": {"summary": "Read one customer-scoped case", "responses": {"200": {"description": "OK"}}}},
-    "/api/v1/commerce/substitution-cases/{caseId}/accept": {"post": {"summary": "Accept a substitution case with OCC", "responses": {"200": {"description": "OK"}}}},
-    "/api/v1/commerce/substitution-cases/{caseId}/reject": {"post": {"summary": "Reject a substitution case with OCC", "responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking-queue": {"get": {"summary": "Read immutable Shop picking snapshots and current evidence", "responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking": {"get": {"summary": "Read immutable Shop picking snapshots", "responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/quality": {"post": {"summary": "Record one structured quality result with OCC", "responses": {"204": {"description": "Recorded"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/actual-quantity": {"post": {"summary": "Record exact variable quantity with OCC", "responses": {"200": {"description": "Recorded"}}}}
+    "/api/v1/commerce/substitution-cases": {
+      "get": {
+        "operationId": "shop_picking_substitution_variable_measurement_openapi_get_api_v1_commerce_substitution_cases_2239f1b8",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Read pending customer substitution cases"
+      }
+    },
+    "/api/v1/commerce/substitution-cases/{caseId}": {
+      "get": {
+        "operationId": "shop_picking_substitution_variable_measurement_openapi_get_api_v1_commerce_substitution_cases_caseId_84799ee2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Read one customer-scoped case"
+      }
+    },
+    "/api/v1/commerce/substitution-cases/{caseId}/accept": {
+      "post": {
+        "operationId": "shop_picking_substitution_variable_measurement_openapi_post_api_v1_commerce_substitution_cases_caseId_accept_224dd0ab",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Accept a substitution case with OCC"
+      }
+    },
+    "/api/v1/commerce/substitution-cases/{caseId}/reject": {
+      "post": {
+        "operationId": "shop_picking_substitution_variable_measurement_openapi_post_api_v1_commerce_substitution_cases_caseId_reject_b631c934",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Reject a substitution case with OCC"
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/actual-quantity": {
+      "post": {
+        "operationId": "shop_picking_substitution_variable_measurement_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_lines_lineId_actual_quantity_63f0ec0a",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded"
+          }
+        },
+        "summary": "Record exact variable quantity with OCC"
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/quality": {
+      "post": {
+        "operationId": "shop_picking_substitution_variable_measurement_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_lines_lineId_quality_3ce0c83f",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          }
+        },
+        "summary": "Record one structured quality result with OCC"
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking": {
+      "get": {
+        "operationId": "shop_picking_substitution_variable_measurement_openapi_get_api_v1_vendor_commerce_orders_vendorOrderId_picking_3ee85aeb",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Read immutable Shop picking snapshots"
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking-queue": {
+      "get": {
+        "operationId": "shop_picking_substitution_variable_measurement_openapi_get_api_v1_vendor_commerce_orders_vendorOrderId_picking_queue_5e2f3755",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Read immutable Shop picking snapshots and current evidence"
+      }
+    }
   }
 }

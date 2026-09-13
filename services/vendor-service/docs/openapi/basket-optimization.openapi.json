@@ -1,1786 +1,209 @@
 {
-  "openapi": "3.0.3",
-  "info": {
-    "title": "Vendor Service - Basket Optimization and Recurring Baskets",
-    "version": "1.0.0",
-    "description": "Customer shopping optimization: Optimize My Cart, budget shopping, and recurring baskets.\n\nTHE RULE THAT GOVERNS EVERY ROUTE: optimization returns a PROPOSAL, and it never silently mutates the customer's cart. Evaluating is free and commits nobody; accepting is a separate, refusable act that creates a NEW cart version and requires an authoritative requote afterwards.\n\nWHAT NONE OF THESE ROUTES DO: create a logistics mission, reserve a provider, reserve stock, create a payment intent, create an order, or charge anybody. Evaluating a hundred candidate baskets creates exactly zero of each - a property of how the service is composed rather than a promise about how it behaves.\n\nNOTHING IS FABRICATED. Every candidate is a real active listing with an authoritative price and authoritative sellable stock. No product, price, stock level, vendor, equivalence or quality score is invented, and when no basket fits a budget the answer says how far short it falls and which constraint is holding it there rather than manufacturing a cheaper one.\n\nTHE SEARCH IS BOUNDED and says so. An unbounded search over a catalogue would be a denial-of-service vector wearing an optimizer's name."
-  },
-  "servers": [
-    {
-      "url": "/api/v1/commerce"
-    }
-  ],
-  "tags": [
-    {
-      "name": "Budget shopping",
-      "description": "What is the best basket that fits this budget?"
-    },
-    {
-      "name": "Optimize My Cart",
-      "description": "Could the current cart be cheaper delivered?"
-    },
-    {
-      "name": "Recurring baskets",
-      "description": "A reusable list of needs, re-shopped every occurrence."
-    }
-  ],
-  "paths": {
-    "/basket/optimize": {
-      "post": {
-        "tags": [
-          "Budget shopping"
-        ],
-        "summary": "Find the best basket for a budget and a list of needs",
-        "description": "Quote-only. Creates no missions, no reservations, no payment intents and no orders.\n\nThe budget is evaluated on the FINAL DELIVERED TOTAL - merchandise plus delivery. Returning a basket whose merchandise fits and whose delivered total does not, and calling it a fit, is the specific failure this contract exists to prevent.\n\nA result that fits no budget is returned with 200. It is a successful answer that states the minimum feasible delivered total, the shortfall and the binding constraints.",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OptimizeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Result"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basket/cart/optimize": {
-      "post": {
-        "tags": [
-          "Optimize My Cart"
-        ],
-        "summary": "Propose a cheaper equivalent of the current cart",
-        "description": "Returns proposals. THE CART IS NOT TOUCHED - no new version, no rewritten lines, no substitution applied. A variant identical to the current cart is not offered, because there is nothing to accept.",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OptimizeCartRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Result"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basket/proposals/{proposalId}": {
-      "get": {
-        "tags": [
-          "Optimize My Cart"
-        ],
-        "summary": "Read one proposal",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "proposalId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Proposal"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basket/proposals/{proposalId}/accept": {
-      "post": {
-        "tags": [
-          "Optimize My Cart"
-        ],
-        "summary": "Accept a proposal, creating a new cart version",
-        "description": "The ONE route in this document that changes the customer's cart.\n\nIt takes no body. The proposal identifies the basket and everything about that basket was computed server-side; accepting a client-supplied total or line list would let a customer approve one thing and receive another.\n\nIdempotent. Accepting twice returns the SAME cart version rather than making a second one, so a double-tapped button is harmless. Refused with 409 when the proposal has expired or when the cart moved underneath it - applying it then would discard whatever the customer did in between.\n\nrequote_required is always true. The proposal's totals were an estimate against prices and stock at the moment it was built; the authoritative money is the CheckoutQuote produced from the new cart version.",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "proposalId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Acceptance"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basket/recurring": {
-      "post": {
-        "tags": [
-          "Recurring baskets"
-        ],
-        "summary": "Create a recurring basket",
-        "description": "Stores REQUIREMENTS AND PREFERENCES, not 'buy exactly these SKUs from these vendors again'. Every occurrence re-evaluates active listings, sellable stock, current prices, eligible vendors and the delivery plan.\n\nThe timezone is required and must be an IANA name. 'Every Tuesday at nine' means nine in the customer's morning; a schedule resolved against server-local time drifts with deployments.\n\nAn auto-approving policy REQUIRES a spending ceiling. An unbounded standing purchase authority is not a preference this API offers, and the request is refused rather than silently downgraded.",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Template"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Template"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "Recurring baskets"
-        ],
-        "summary": "List the customer's recurring baskets",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/TemplateList"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basket/recurring/{templateId}": {
-      "get": {
-        "tags": [
-          "Recurring baskets"
-        ],
-        "summary": "Read one recurring basket",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "templateId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Template"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Recurring baskets"
-        ],
-        "summary": "Edit a recurring basket",
-        "description": "expected_version is REQUIRED, as a query parameter or an If-Match header. Two people editing one household's recurring basket must not silently overwrite each other, and an edit that declines to say what it was based on cannot be checked.",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "templateId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "expected_version",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Template"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Template"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basket/recurring/{templateId}/state": {
-      "put": {
-        "tags": [
-          "Recurring baskets"
-        ],
-        "summary": "Pause or resume a recurring basket",
-        "description": "A disabled template generates nothing. Separate from deletion on purpose: a customer pausing for a holiday should not lose the list they spent time building.",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "templateId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "expected_version",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "enabled": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Template"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basket/recurring/{templateId}/occurrences": {
-      "get": {
-        "tags": [
-          "Recurring baskets"
-        ],
-        "summary": "List generated occurrences",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "templateId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/OccurrenceList"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basket/recurring/{templateId}/generate": {
-      "post": {
-        "tags": [
-          "Recurring baskets"
-        ],
-        "summary": "Shop a recurring list now",
-        "description": "Goes through exactly the same claim-first path as the scheduled sweep, so a customer tapping this while the worker is generating the same occurrence still produces ONE generation.\n\nGenerating is not ordering. The stages are distinct and each has its own gate: generation, proposal, customer acceptance, cart version, quote, order, payment. This route produces the first two.",
-        "security": [
-          {
-            "customerBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "templateId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Generation"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not owned by this customer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The proposal expired, or the underlying state changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request could not be understood.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
   "components": {
-    "securitySchemes": {
-      "customerBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Customer Service access token. The customer is taken from the verified subject claim and never from a request body."
-      }
-    },
     "schemas": {
-      "Error": {
-        "type": "object",
+      "Acceptance": {
         "properties": {
-          "success": {
-            "type": "boolean",
-            "enum": [
-              false
-            ]
+          "cart_ref": {
+            "type": "string"
           },
+          "cart_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "proposal_id": {
+            "type": "string"
+          },
+          "replayed": {
+            "description": "True when this acceptance had already happened and the same cart version is being returned.",
+            "type": "boolean"
+          },
+          "requote_required": {
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "Error": {
+        "properties": {
           "error": {
-            "type": "object",
             "properties": {
               "code": {
                 "type": "string"
+              },
+              "fields": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
               },
               "message": {
                 "type": "string"
               },
               "request_id": {
                 "type": "string"
-              },
-              "fields": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
               }
-            }
-          }
-        }
-      },
-      "Requirement": {
-        "type": "object",
-        "description": "One thing the customer needs. A requirement is a NEED, not a SKU: 'two litres of permitted milk' survives a vendor going out of stock, changing price or leaving the platform, and 'listing lst_9f21 x2' does not.",
-        "required": [
-          "quantity"
-        ],
-        "properties": {
-          "ref": {
-            "type": "string",
-            "description": "Caller-chosen label. Carries no authority."
-          },
-          "product_ref": {
-            "type": "string"
-          },
-          "variant_ref": {
-            "type": "string"
-          },
-          "listing_ref": {
-            "type": "string"
-          },
-          "category_ref": {
-            "type": "string",
-            "description": "A canonical taxonomy node, for a need stated as a need rather than as a product. This is what lets a recurring basket re-shop instead of re-buying a decision made months ago."
-          },
-          "quantity": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 1,
-            "description": "Satisfied exactly or reported as unmet. A cheaper basket is never produced by quietly delivering fewer items."
-          },
-          "sell_unit_ref": {
-            "type": "string"
-          },
-          "required_brand": {
-            "type": "string",
-            "description": "HARD. No objective, no budget shortfall and no saving may set it aside; a cheaper substitute of another brand is not offered at any price."
-          },
-          "minimum_quality_grade": {
-            "type": "string",
-            "description": "HARD. Checkable because the catalogue states which grades a listing offers. Note the asymmetry with the QUALITY_BALANCED objective: a stated grade requirement is checkable, and RANKING two listings by quality is not, because the platform holds no ordinal quality signal."
-          },
-          "substitution": {
-            "type": "string",
-            "enum": [
-              "EXACT_ONLY",
-              "SAME_PRODUCT_ANY_VENDOR",
-              "EQUIVALENT_PRODUCT"
-            ],
-            "description": "Defaults to EXACT_ONLY. The most restrictive value is the default on purpose: a customer who said nothing about substitution has not consented to any.\n\nSAME_PRODUCT_ANY_VENDOR is barely a substitution - the same manufactured article bought at a different shop. EQUIVALENT_PRODUCT additionally permits a different product the taxonomy authority maps to the same canonical node, subject to brand and quality constraints.\n\nNothing is ever substituted on name similarity. Equivalence comes from a manufacturer trade identifier, the catalogue product identity or the taxonomy authority - never from two products sounding alike."
-          },
-          "preferred_brands": {
-            "type": "array",
-            "items": {
-              "type": "string"
             },
-            "description": "SOFT. Breaks ties among candidates that already satisfy every hard constraint."
-          }
-        }
-      },
-      "Variant": {
-        "type": "object",
-        "properties": {
-          "proposal_id": {
-            "type": "string",
-            "description": "Present when this variant was persisted as an acceptable offer."
-          },
-          "objective": {
-            "type": "string",
-            "enum": [
-              "VALUE",
-              "FEWEST_VENDORS",
-              "QUALITY_BALANCED"
-            ]
-          },
-          "currency": {
-            "type": "string"
-          },
-          "merchandise_total_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "delivery_total_minor": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Priced by the quote-only fulfilment planner against real logistics quotes. It is never estimated as a fixed fee per vendor, because delivery is most of the difference between two baskets of the same groceries and a made-up fee would decide the comparison."
-          },
-          "final_delivered_total_minor": {
-            "type": "integer",
-            "format": "int64",
-            "description": "The only number the customer pays, and the only one a budget is evaluated against."
-          },
-          "vendor_count": {
-            "type": "integer"
-          },
-          "mission_count": {
-            "type": "integer"
-          },
-          "fulfilment_mode": {
-            "type": "string"
-          },
-          "expected_delivery_range": {
-            "type": "object",
-            "properties": {
-              "earliest_minutes": {
-                "type": "integer"
-              },
-              "latest_minutes": {
-                "type": "integer"
-              }
-            }
-          },
-          "lines": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProposedLine"
-            }
-          },
-          "substitutions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Substitution"
-            }
-          },
-          "constraints_satisfied": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "reasons": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "fulfilment_plan_summary": {
             "type": "object"
           },
-          "fits_budget": {
-            "type": "boolean"
-          },
-          "fingerprint": {
-            "type": "string"
-          }
-        }
-      },
-      "Result": {
-        "type": "object",
-        "properties": {
-          "currency": {
-            "type": "string"
-          },
-          "variants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Variant"
-            }
-          },
-          "budget_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "fits_budget": {
-            "type": "boolean"
-          },
-          "minimum_feasible_delivered_total_minor": {
-            "type": "integer",
-            "format": "int64",
-            "description": "The cheapest COMPLETE basket satisfying every hard constraint, whatever it costs. Computed from real candidates, and absent when no complete basket exists - quoting a price for something that cannot be bought would be worse than saying nothing."
-          },
-          "budget_shortfall_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "no_complete_basket": {
-            "type": "boolean",
-            "description": "At least one requirement cannot be satisfied at ANY price. A different answer from 'too expensive', and kept apart from it."
-          },
-          "unmet_requirements": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "requirement_ref": {
-                  "type": "string"
-                },
-                "binding_constraints": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          },
-          "binding_constraints": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "search_truncated": {
-            "type": "boolean",
-            "description": "A configured bound stopped the search before every candidate basket was evaluated. Reported rather than hidden: an optimizer that silently truncates and presents its answer as the best available is claiming a thoroughness it does not have."
-          },
-          "optimality_note": {
-            "type": "string",
+          "success": {
             "enum": [
-              "BEST_VALID_CANDIDATE_UNDER_CONFIGURED_SEARCH"
+              false
             ],
-            "description": "The exact claim this API makes. Not 'the cheapest basket': the search is bounded, so for most inputs some baskets were never looked at, and a stronger word would be a stronger claim than the implementation supports."
-          },
-          "quality_variant_unavailable_reason": {
-            "type": "string",
-            "description": "Why no QUALITY_BALANCED variant was produced. The platform holds a quality-grade SELECTION vocabulary for fresh goods and no ordinal quality score for anything, so for most requests this variant genuinely cannot be produced - and inventing a score to fill the slot would be presenting a fabrication as advice."
-          },
-          "evaluated_baskets": {
-            "type": "integer"
-          }
-        }
-      },
-      "OptimizeRequest": {
-        "type": "object",
-        "required": [
-          "currency",
-          "address_ref",
-          "requirements"
-        ],
-        "properties": {
-          "currency": {
-            "type": "string"
-          },
-          "budget_minor": {
-            "type": "integer",
-            "format": "int64",
-            "description": "A ceiling on the FINAL DELIVERED total. Omit for no budget."
-          },
-          "address_ref": {
-            "type": "string",
-            "description": "The customer's OWN saved-location reference. Raw coordinates are deliberately not accepted: pricing a delivery to an address the caller has no connection to would leak serviceability information about arbitrary points on the map."
-          },
-          "fulfilment_preference": {
-            "type": "string",
-            "enum": [
-              "FASTEST",
-              "BALANCED",
-              "SAVER"
-            ]
-          },
-          "objectives": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "VALUE",
-                "FEWEST_VENDORS",
-                "QUALITY_BALANCED"
-              ]
-            }
-          },
-          "requirements": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Requirement"
-            }
-          }
-        }
-      },
-      "OptimizeCartRequest": {
-        "type": "object",
-        "properties": {
-          "substitution_allowance": {
-            "type": "string",
-            "enum": [
-              "EXACT_ONLY",
-              "SAME_PRODUCT_ANY_VENDOR",
-              "EQUIVALENT_PRODUCT"
-            ]
-          },
-          "fulfilment_preference": {
-            "type": "string",
-            "enum": [
-              "FASTEST",
-              "BALANCED",
-              "SAVER"
-            ]
-          },
-          "objectives": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "VALUE",
-                "FEWEST_VENDORS",
-                "QUALITY_BALANCED"
-              ]
-            }
-          }
-        }
-      },
-      "ProposedLine": {
-        "type": "object",
-        "properties": {
-          "requirement_ref": {
-            "type": "string"
-          },
-          "listing_ref": {
-            "type": "string"
-          },
-          "product_ref": {
-            "type": "string"
-          },
-          "variant_ref": {
-            "type": "string"
-          },
-          "sell_unit_ref": {
-            "type": "string"
-          },
-          "business_id": {
-            "type": "string"
-          },
-          "branch_id": {
-            "type": "string"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "brand": {
-            "type": "string"
-          },
-          "quantity": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "unit_price_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "line_total_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "price_reference": {
-            "type": "string"
-          },
-          "catalogue_revision": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "quoted_available_quantity": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Stock AT THE TIME OF QUOTING. Named for what it is: nothing here reserved it, and checkout revalidates it."
-          }
-        }
-      },
-      "Substitution": {
-        "type": "object",
-        "properties": {
-          "requirement_ref": {
-            "type": "string"
-          },
-          "from_listing_ref": {
-            "type": "string"
-          },
-          "from_display_name": {
-            "type": "string"
-          },
-          "from_brand": {
-            "type": "string"
-          },
-          "from_unit_price_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "to_listing_ref": {
-            "type": "string"
-          },
-          "to_display_name": {
-            "type": "string"
-          },
-          "to_brand": {
-            "type": "string"
-          },
-          "to_unit_price_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "equivalence_basis": {
-            "type": "string",
-            "enum": [
-              "EXACT_LISTING",
-              "SAME_CATALOGUE_PRODUCT",
-              "SAME_TRADE_IDENTIFIER",
-              "SAME_CANONICAL_CATEGORY"
-            ],
-            "description": "The authority that says these two are interchangeable. There is deliberately no value meaning 'the names looked similar'."
-          },
-          "unit_price_delta_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "vendor_changed": {
             "type": "boolean"
           }
-        }
-      },
-      "Proposal": {
-        "type": "object",
-        "properties": {
-          "proposal_id": {
-            "type": "string"
-          },
-          "base_cart_ref": {
-            "type": "string"
-          },
-          "base_cart_version": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "objective": {
-            "type": "string"
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "OPEN",
-              "ACCEPTED",
-              "EXPIRED",
-              "SUPERSEDED"
-            ]
-          },
-          "currency": {
-            "type": "string"
-          },
-          "merchandise_total_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "delivery_total_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "final_delivered_total_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "vendor_count": {
-            "type": "integer"
-          },
-          "lines": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProposedLine"
-            }
-          },
-          "substitutions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Substitution"
-            }
-          },
-          "fingerprint": {
-            "type": "string"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "accepted_cart_version": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "Acceptance": {
-        "type": "object",
-        "properties": {
-          "proposal_id": {
-            "type": "string"
-          },
-          "cart_ref": {
-            "type": "string"
-          },
-          "cart_version": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "replayed": {
-            "type": "boolean",
-            "description": "True when this acceptance had already happened and the same cart version is being returned."
-          },
-          "requote_required": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          }
-        }
-      },
-      "Template": {
-        "type": "object",
-        "required": [
-          "name",
-          "currency",
-          "address_ref",
-          "requirements",
-          "cadence",
-          "timezone"
-        ],
-        "properties": {
-          "template_id": {
-            "type": "string",
-            "readOnly": true
-          },
-          "name": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "address_ref": {
-            "type": "string"
-          },
-          "requirements": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Requirement"
-            }
-          },
-          "fulfilment_preference": {
-            "type": "string",
-            "enum": [
-              "",
-              "FASTEST",
-              "BALANCED",
-              "SAVER"
-            ]
-          },
-          "objective": {
-            "type": "string",
-            "enum": [
-              "VALUE",
-              "FEWEST_VENDORS",
-              "QUALITY_BALANCED"
-            ]
-          },
-          "approval_policy": {
-            "type": "string",
-            "enum": [
-              "ALWAYS_ASK",
-              "AUTO_IF_UNCHANGED",
-              "AUTO_VENDOR_CHANGE_WITHIN_CEILING"
-            ],
-            "description": "Defaults to ALWAYS_ASK. Silence is not consent.\n\nAUTO_VENDOR_CHANGE_WITHIN_CEILING permits a VENDOR change for the SAME product, within the ceiling - the article is unchanged, so the customer receives exactly what they chose from a different shop. No policy permits a different product, a different brand, an unmet quantity or a material price rise without asking."
-          },
-          "ceiling_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "cadence": {
-            "type": "string",
-            "enum": [
-              "DAILY",
-              "WEEKLY",
-              "FORTNIGHTLY",
-              "MONTHLY"
-            ]
-          },
-          "timezone": {
-            "type": "string",
-            "description": "IANA zone name. Required."
-          },
-          "local_hour": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 23
-          },
-          "local_minute": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 59
-          },
-          "weekday": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 6
-          },
-          "day_of_month": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 28,
-            "description": "Capped at 28: a monthly basket that silently skipped February would recur less often than the customer was told."
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "version": {
-            "type": "integer",
-            "format": "int64",
-            "readOnly": true
-          }
-        }
-      },
-      "TemplateList": {
-        "type": "object",
-        "properties": {
-          "templates": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Template"
-            }
-          }
-        }
+        },
+        "type": "object"
       },
       "Generation": {
-        "type": "object",
         "properties": {
+          "comparison": {
+            "$ref": "#/components/schemas/PlanComparison"
+          },
           "generation_id": {
             "type": "string"
           },
-          "template_id": {
+          "occurrence_at": {
+            "format": "date-time",
             "type": "string"
           },
           "occurrence_key": {
-            "type": "string",
-            "description": "The deterministic identity of one scheduled moment: the local wall-clock time plus its zone. Derived only from the schedule, so a retry, a replay, a restart and a duplicate scheduler delivery all present the same key and collide on a unique index rather than creating a second generation."
+            "description": "The deterministic identity of one scheduled moment: the local wall-clock time plus its zone. Derived only from the schedule, so a retry, a replay, a restart and a duplicate scheduler delivery all present the same key and collide on a unique index rather than creating a second generation.",
+            "type": "string"
           },
-          "occurrence_at": {
-            "type": "string",
-            "format": "date-time"
+          "proposal_id": {
+            "type": "string"
           },
-          "timezone": {
+          "reason": {
             "type": "string"
           },
           "state": {
-            "type": "string",
+            "description": "AUTO_APPROVED means the occurrence is inside the bounded preauthorization the customer themselves configured. It creates no order and moves no money.",
             "enum": [
               "PROPOSED",
               "AWAITING_APPROVAL",
               "AUTO_APPROVED",
               "UNFULFILLABLE"
             ],
-            "description": "AUTO_APPROVED means the occurrence is inside the bounded preauthorization the customer themselves configured. It creates no order and moves no money."
-          },
-          "proposal_id": {
             "type": "string"
           },
-          "comparison": {
-            "$ref": "#/components/schemas/PlanComparison"
+          "template_id": {
+            "type": "string"
           },
-          "reason": {
+          "timezone": {
             "type": "string"
           }
-        }
+        },
+        "type": "object"
       },
       "OccurrenceList": {
-        "type": "object",
         "properties": {
           "occurrences": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/Generation"
-            }
+            },
+            "type": "array"
           }
-        }
+        },
+        "type": "object"
       },
-      "PlanComparison": {
-        "type": "object",
-        "description": "SAME_VENDOR versus OPTIMIZED, both priced against TODAY's catalogue. The same-vendor side is not last week's receipt: a customer deciding whether to accept a change needs to know what declining it would cost now.",
+      "OptimizeCartRequest": {
         "properties": {
-          "same_vendor_plan_available": {
-            "type": "boolean"
-          },
-          "same_vendor_unavailable_reason": {
+          "fulfilment_preference": {
+            "enum": [
+              "FASTEST",
+              "BALANCED",
+              "SAVER"
+            ],
             "type": "string"
           },
-          "same_vendor_merchandise_minor": {
-            "type": "integer",
-            "format": "int64"
+          "objectives": {
+            "items": {
+              "enum": [
+                "VALUE",
+                "FEWEST_VENDORS",
+                "QUALITY_BALANCED"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           },
-          "same_vendor_delivery_minor": {
-            "type": "integer",
-            "format": "int64"
+          "substitution_allowance": {
+            "enum": [
+              "EXACT_ONLY",
+              "SAME_PRODUCT_ANY_VENDOR",
+              "EQUIVALENT_PRODUCT"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OptimizeRequest": {
+        "properties": {
+          "address_ref": {
+            "description": "The customer's OWN saved-location reference. Raw coordinates are deliberately not accepted: pricing a delivery to an address the caller has no connection to would leak serviceability information about arbitrary points on the map.",
+            "type": "string"
           },
-          "same_vendor_final_total_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "same_vendor_vendor_count": {
+          "budget_minor": {
+            "description": "A ceiling on the FINAL DELIVERED total. Omit for no budget.",
+            "format": "int64",
             "type": "integer"
           },
-          "optimized_merchandise_minor": {
-            "type": "integer",
-            "format": "int64"
+          "currency": {
+            "type": "string"
           },
-          "optimized_delivery_minor": {
-            "type": "integer",
-            "format": "int64"
+          "fulfilment_preference": {
+            "enum": [
+              "FASTEST",
+              "BALANCED",
+              "SAVER"
+            ],
+            "type": "string"
           },
-          "optimized_final_total_minor": {
-            "type": "integer",
-            "format": "int64"
+          "objectives": {
+            "items": {
+              "enum": [
+                "VALUE",
+                "FEWEST_VENDORS",
+                "QUALITY_BALANCED"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           },
-          "optimized_vendor_count": {
-            "type": "integer"
-          },
-          "merchandise_delta_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/Requirement"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "currency",
+          "address_ref",
+          "requirements"
+        ],
+        "type": "object"
+      },
+      "PlanComparison": {
+        "description": "SAME_VENDOR versus OPTIMIZED, both priced against TODAY's catalogue. The same-vendor side is not last week's receipt: a customer deciding whether to accept a change needs to know what declining it would cost now.",
+        "properties": {
           "delivery_delta_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "final_total_delta_minor": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "vendor_count_delta": {
+            "format": "int64",
             "type": "integer"
           },
           "expected_delivery_delta_minutes": {
             "type": "integer"
           },
+          "final_total_delta_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
           "material_changes": {
-            "type": "array",
             "items": {
-              "type": "string",
               "enum": [
                 "DIFFERENT_PRODUCT",
                 "DIFFERENT_BRAND",
@@ -1789,23 +212,1611 @@
                 "MATERIAL_PRICE_INCREASE",
                 "SPENDING_CEILING_EXCEEDED",
                 "NO_MATERIAL_CHANGE"
-              ]
-            }
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "merchandise_delta_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "optimized_delivery_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "optimized_final_total_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "optimized_merchandise_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "optimized_vendor_count": {
+            "type": "integer"
+          },
+          "same_vendor_delivery_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "same_vendor_final_total_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "same_vendor_merchandise_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "same_vendor_plan_available": {
+            "type": "boolean"
+          },
+          "same_vendor_unavailable_reason": {
+            "type": "string"
+          },
+          "same_vendor_vendor_count": {
+            "type": "integer"
+          },
+          "substitutions": {
+            "items": {
+              "$ref": "#/components/schemas/Substitution"
+            },
+            "type": "array"
           },
           "vendor_changes": {
-            "type": "array",
             "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "vendor_count_delta": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Proposal": {
+        "properties": {
+          "accepted_cart_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "base_cart_ref": {
+            "type": "string"
+          },
+          "base_cart_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "delivery_total_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "final_delivered_total_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedLine"
+            },
+            "type": "array"
+          },
+          "merchandise_total_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "proposal_id": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "ACCEPTED",
+              "EXPIRED",
+              "SUPERSEDED"
+            ],
+            "type": "string"
+          },
+          "substitutions": {
+            "items": {
+              "$ref": "#/components/schemas/Substitution"
+            },
+            "type": "array"
+          },
+          "vendor_count": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ProposedLine": {
+        "properties": {
+          "branch_id": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "business_id": {
+            "type": "string"
+          },
+          "catalogue_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "line_total_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "listing_ref": {
+            "type": "string"
+          },
+          "price_reference": {
+            "type": "string"
+          },
+          "product_ref": {
+            "type": "string"
+          },
+          "quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "quoted_available_quantity": {
+            "description": "Stock AT THE TIME OF QUOTING. Named for what it is: nothing here reserved it, and checkout revalidates it.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "requirement_ref": {
+            "type": "string"
+          },
+          "sell_unit_ref": {
+            "type": "string"
+          },
+          "unit_price_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "variant_ref": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Requirement": {
+        "description": "One thing the customer needs. A requirement is a NEED, not a SKU: 'two litres of permitted milk' survives a vendor going out of stock, changing price or leaving the platform, and 'listing lst_9f21 x2' does not.",
+        "properties": {
+          "category_ref": {
+            "description": "A canonical taxonomy node, for a need stated as a need rather than as a product. This is what lets a recurring basket re-shop instead of re-buying a decision made months ago.",
+            "type": "string"
+          },
+          "listing_ref": {
+            "type": "string"
+          },
+          "minimum_quality_grade": {
+            "description": "HARD. Checkable because the catalogue states which grades a listing offers. Note the asymmetry with the QUALITY_BALANCED objective: a stated grade requirement is checkable, and RANKING two listings by quality is not, because the platform holds no ordinal quality signal.",
+            "type": "string"
+          },
+          "preferred_brands": {
+            "description": "SOFT. Breaks ties among candidates that already satisfy every hard constraint.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "product_ref": {
+            "type": "string"
+          },
+          "quantity": {
+            "description": "Satisfied exactly or reported as unmet. A cheaper basket is never produced by quietly delivering fewer items.",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "ref": {
+            "description": "Caller-chosen label. Carries no authority.",
+            "type": "string"
+          },
+          "required_brand": {
+            "description": "HARD. No objective, no budget shortfall and no saving may set it aside; a cheaper substitute of another brand is not offered at any price.",
+            "type": "string"
+          },
+          "sell_unit_ref": {
+            "type": "string"
+          },
+          "substitution": {
+            "description": "Defaults to EXACT_ONLY. The most restrictive value is the default on purpose: a customer who said nothing about substitution has not consented to any.\n\nSAME_PRODUCT_ANY_VENDOR is barely a substitution - the same manufactured article bought at a different shop. EQUIVALENT_PRODUCT additionally permits a different product the taxonomy authority maps to the same canonical node, subject to brand and quality constraints.\n\nNothing is ever substituted on name similarity. Equivalence comes from a manufacturer trade identifier, the catalogue product identity or the taxonomy authority - never from two products sounding alike.",
+            "enum": [
+              "EXACT_ONLY",
+              "SAME_PRODUCT_ANY_VENDOR",
+              "EQUIVALENT_PRODUCT"
+            ],
+            "type": "string"
+          },
+          "variant_ref": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "Result": {
+        "properties": {
+          "binding_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "budget_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "budget_shortfall_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "evaluated_baskets": {
+            "type": "integer"
+          },
+          "fits_budget": {
+            "type": "boolean"
+          },
+          "minimum_feasible_delivered_total_minor": {
+            "description": "The cheapest COMPLETE basket satisfying every hard constraint, whatever it costs. Computed from real candidates, and absent when no complete basket exists - quoting a price for something that cannot be bought would be worse than saying nothing.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "no_complete_basket": {
+            "description": "At least one requirement cannot be satisfied at ANY price. A different answer from 'too expensive', and kept apart from it.",
+            "type": "boolean"
+          },
+          "optimality_note": {
+            "description": "The exact claim this API makes. Not 'the cheapest basket': the search is bounded, so for most inputs some baskets were never looked at, and a stronger word would be a stronger claim than the implementation supports.",
+            "enum": [
+              "BEST_VALID_CANDIDATE_UNDER_CONFIGURED_SEARCH"
+            ],
+            "type": "string"
+          },
+          "quality_variant_unavailable_reason": {
+            "description": "Why no QUALITY_BALANCED variant was produced. The platform holds a quality-grade SELECTION vocabulary for fresh goods and no ordinal quality score for anything, so for most requests this variant genuinely cannot be produced - and inventing a score to fill the slot would be presenting a fabrication as advice.",
+            "type": "string"
+          },
+          "search_truncated": {
+            "description": "A configured bound stopped the search before every candidate basket was evaluated. Reported rather than hidden: an optimizer that silently truncates and presents its answer as the best available is claiming a thoroughness it does not have.",
+            "type": "boolean"
+          },
+          "unmet_requirements": {
+            "items": {
+              "properties": {
+                "binding_constraints": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "requirement_ref": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/Variant"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Substitution": {
+        "properties": {
+          "equivalence_basis": {
+            "description": "The authority that says these two are interchangeable. There is deliberately no value meaning 'the names looked similar'.",
+            "enum": [
+              "EXACT_LISTING",
+              "SAME_CATALOGUE_PRODUCT",
+              "SAME_TRADE_IDENTIFIER",
+              "SAME_CANONICAL_CATEGORY"
+            ],
+            "type": "string"
+          },
+          "from_brand": {
+            "type": "string"
+          },
+          "from_display_name": {
+            "type": "string"
+          },
+          "from_listing_ref": {
+            "type": "string"
+          },
+          "from_unit_price_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requirement_ref": {
+            "type": "string"
+          },
+          "to_brand": {
+            "type": "string"
+          },
+          "to_display_name": {
+            "type": "string"
+          },
+          "to_listing_ref": {
+            "type": "string"
+          },
+          "to_unit_price_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unit_price_delta_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "vendor_changed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "Template": {
+        "properties": {
+          "address_ref": {
+            "type": "string"
+          },
+          "approval_policy": {
+            "description": "Defaults to ALWAYS_ASK. Silence is not consent.\n\nAUTO_VENDOR_CHANGE_WITHIN_CEILING permits a VENDOR change for the SAME product, within the ceiling - the article is unchanged, so the customer receives exactly what they chose from a different shop. No policy permits a different product, a different brand, an unmet quantity or a material price rise without asking.",
+            "enum": [
+              "ALWAYS_ASK",
+              "AUTO_IF_UNCHANGED",
+              "AUTO_VENDOR_CHANGE_WITHIN_CEILING"
+            ],
+            "type": "string"
+          },
+          "cadence": {
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "FORTNIGHTLY",
+              "MONTHLY"
+            ],
+            "type": "string"
+          },
+          "ceiling_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "day_of_month": {
+            "description": "Capped at 28: a monthly basket that silently skipped February would recur less often than the customer was told.",
+            "maximum": 28,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "fulfilment_preference": {
+            "enum": [
+              "",
+              "FASTEST",
+              "BALANCED",
+              "SAVER"
+            ],
+            "type": "string"
+          },
+          "local_hour": {
+            "maximum": 23,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "local_minute": {
+            "maximum": 59,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "objective": {
+            "enum": [
+              "VALUE",
+              "FEWEST_VENDORS",
+              "QUALITY_BALANCED"
+            ],
+            "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/Requirement"
+            },
+            "type": "array"
+          },
+          "template_id": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "timezone": {
+            "description": "IANA zone name. Required.",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "readOnly": true,
+            "type": "integer"
+          },
+          "weekday": {
+            "maximum": 6,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "currency",
+          "address_ref",
+          "requirements",
+          "cadence",
+          "timezone"
+        ],
+        "type": "object"
+      },
+      "TemplateList": {
+        "properties": {
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/Template"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Variant": {
+        "properties": {
+          "constraints_satisfied": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "delivery_total_minor": {
+            "description": "Priced by the quote-only fulfilment planner against real logistics quotes. It is never estimated as a fixed fee per vendor, because delivery is most of the difference between two baskets of the same groceries and a made-up fee would decide the comparison.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected_delivery_range": {
+            "properties": {
+              "earliest_minutes": {
+                "type": "integer"
+              },
+              "latest_minutes": {
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "final_delivered_total_minor": {
+            "description": "The only number the customer pays, and the only one a budget is evaluated against.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "fits_budget": {
+            "type": "boolean"
+          },
+          "fulfilment_mode": {
+            "type": "string"
+          },
+          "fulfilment_plan_summary": {
+            "type": "object"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedLine"
+            },
+            "type": "array"
+          },
+          "merchandise_total_minor": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mission_count": {
+            "type": "integer"
+          },
+          "objective": {
+            "enum": [
+              "VALUE",
+              "FEWEST_VENDORS",
+              "QUALITY_BALANCED"
+            ],
+            "type": "string"
+          },
+          "proposal_id": {
+            "description": "Present when this variant was persisted as an acceptable offer.",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "substitutions": {
+            "items": {
+              "$ref": "#/components/schemas/Substitution"
+            },
+            "type": "array"
+          },
+          "vendor_count": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "customerBearer": {
+        "bearerFormat": "JWT",
+        "description": "Customer Service access token. The customer is taken from the verified subject claim and never from a request body.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Customer shopping optimization: Optimize My Cart, budget shopping, and recurring baskets.\n\nTHE RULE THAT GOVERNS EVERY ROUTE: optimization returns a PROPOSAL, and it never silently mutates the customer's cart. Evaluating is free and commits nobody; accepting is a separate, refusable act that creates a NEW cart version and requires an authoritative requote afterwards.\n\nWHAT NONE OF THESE ROUTES DO: create a logistics mission, reserve a provider, reserve stock, create a payment intent, create an order, or charge anybody. Evaluating a hundred candidate baskets creates exactly zero of each - a property of how the service is composed rather than a promise about how it behaves.\n\nNOTHING IS FABRICATED. Every candidate is a real active listing with an authoritative price and authoritative sellable stock. No product, price, stock level, vendor, equivalence or quality score is invented, and when no basket fits a budget the answer says how far short it falls and which constraint is holding it there rather than manufacturing a cheaper one.\n\nTHE SEARCH IS BOUNDED and says so. An unbounded search over a catalogue would be a denial-of-service vector wearing an optimizer's name.",
+    "title": "Vendor Service - Basket Optimization and Recurring Baskets",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/basket/cart/optimize": {
+      "post": {
+        "description": "Returns proposals. THE CART IS NOT TOUCHED - no new version, no rewritten lines, no substitution applied. A variant identical to the current cart is not offered, because there is nothing to accept.",
+        "operationId": "basket_optimization_openapi_post_basket_cart_optimize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizeCartRequest"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Result"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Propose a cheaper equivalent of the current cart",
+        "tags": [
+          "Optimize My Cart"
+        ]
+      }
+    },
+    "/basket/optimize": {
+      "post": {
+        "description": "Quote-only. Creates no missions, no reservations, no payment intents and no orders.\n\nThe budget is evaluated on the FINAL DELIVERED TOTAL - merchandise plus delivery. Returning a basket whose merchandise fits and whose delivered total does not, and calling it a fit, is the specific failure this contract exists to prevent.\n\nA result that fits no budget is returned with 200. It is a successful answer that states the minimum feasible delivered total, the shortfall and the binding constraints.",
+        "operationId": "basket_optimization_openapi_post_basket_optimize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Result"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Find the best basket for a budget and a list of needs",
+        "tags": [
+          "Budget shopping"
+        ]
+      }
+    },
+    "/basket/proposals/{proposalId}": {
+      "get": {
+        "operationId": "basket_optimization_openapi_get_basket_proposals_proposalId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Proposal"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Read one proposal",
+        "tags": [
+          "Optimize My Cart"
+        ]
+      }
+    },
+    "/basket/proposals/{proposalId}/accept": {
+      "post": {
+        "description": "The ONE route in this document that changes the customer's cart.\n\nIt takes no body. The proposal identifies the basket and everything about that basket was computed server-side; accepting a client-supplied total or line list would let a customer approve one thing and receive another.\n\nIdempotent. Accepting twice returns the SAME cart version rather than making a second one, so a double-tapped button is harmless. Refused with 409 when the proposal has expired or when the cart moved underneath it - applying it then would discard whatever the customer did in between.\n\nrequote_required is always true. The proposal's totals were an estimate against prices and stock at the moment it was built; the authoritative money is the CheckoutQuote produced from the new cart version.",
+        "operationId": "basket_optimization_openapi_post_basket_proposals_proposalId_accept",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Acceptance"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Accept a proposal, creating a new cart version",
+        "tags": [
+          "Optimize My Cart"
+        ]
+      }
+    },
+    "/basket/recurring": {
+      "get": {
+        "operationId": "basket_optimization_openapi_get_basket_recurring",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TemplateList"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "List the customer's recurring baskets",
+        "tags": [
+          "Recurring baskets"
+        ]
+      },
+      "post": {
+        "description": "Stores REQUIREMENTS AND PREFERENCES, not 'buy exactly these SKUs from these vendors again'. Every occurrence re-evaluates active listings, sellable stock, current prices, eligible vendors and the delivery plan.\n\nThe timezone is required and must be an IANA name. 'Every Tuesday at nine' means nine in the customer's morning; a schedule resolved against server-local time drifts with deployments.\n\nAn auto-approving policy REQUIRES a spending ceiling. An unbounded standing purchase authority is not a preference this API offers, and the request is refused rather than silently downgraded.",
+        "operationId": "basket_optimization_openapi_post_basket_recurring",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Template"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Template"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Create a recurring basket",
+        "tags": [
+          "Recurring baskets"
+        ]
+      }
+    },
+    "/basket/recurring/{templateId}": {
+      "get": {
+        "operationId": "basket_optimization_openapi_get_basket_recurring_templateId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Template"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Read one recurring basket",
+        "tags": [
+          "Recurring baskets"
+        ]
+      },
+      "put": {
+        "description": "expected_version is REQUIRED, as a query parameter or an If-Match header. Two people editing one household's recurring basket must not silently overwrite each other, and an edit that declines to say what it was based on cannot be checked.",
+        "operationId": "basket_optimization_openapi_put_basket_recurring_templateId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
               "type": "string"
             }
           },
-          "substitutions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Substitution"
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
             }
           }
-        }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Template"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Template"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Edit a recurring basket",
+        "tags": [
+          "Recurring baskets"
+        ]
+      }
+    },
+    "/basket/recurring/{templateId}/generate": {
+      "post": {
+        "description": "Goes through exactly the same claim-first path as the scheduled sweep, so a customer tapping this while the worker is generating the same occurrence still produces ONE generation.\n\nGenerating is not ordering. The stages are distinct and each has its own gate: generation, proposal, customer acceptance, cart version, quote, order, payment. This route produces the first two.",
+        "operationId": "basket_optimization_openapi_post_basket_recurring_templateId_generate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Generation"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Shop a recurring list now",
+        "tags": [
+          "Recurring baskets"
+        ]
+      }
+    },
+    "/basket/recurring/{templateId}/occurrences": {
+      "get": {
+        "operationId": "basket_optimization_openapi_get_basket_recurring_templateId_occurrences",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OccurrenceList"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "List generated occurrences",
+        "tags": [
+          "Recurring baskets"
+        ]
+      }
+    },
+    "/basket/recurring/{templateId}/state": {
+      "put": {
+        "description": "A disabled template generates nothing. Separate from deletion on purpose: a customer pausing for a holiday should not lose the list they spent time building.",
+        "operationId": "basket_optimization_openapi_put_basket_recurring_templateId_state",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Template"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found, or not owned by this customer."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The proposal expired, or the underlying state changed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The request could not be understood."
+          }
+        },
+        "security": [
+          {
+            "customerBearer": []
+          }
+        ],
+        "summary": "Pause or resume a recurring basket",
+        "tags": [
+          "Recurring baskets"
+        ]
       }
     }
-  }
+  },
+  "servers": [
+    {
+      "url": "/api/v1/commerce"
+    }
+  ],
+  "tags": [
+    {
+      "description": "What is the best basket that fits this budget?",
+      "name": "Budget shopping"
+    },
+    {
+      "description": "Could the current cart be cheaper delivered?",
+      "name": "Optimize My Cart"
+    },
+    {
+      "description": "A reusable list of needs, re-shopped every occurrence.",
+      "name": "Recurring baskets"
+    }
+  ]
 }

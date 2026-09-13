@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"cosmicforge/logistics/services/vendor-service/internal/events"
 	"cosmicforge/logistics/services/vendor-service/internal/features/checkoutquote"
 )
 
@@ -91,7 +92,7 @@ func seedSection17DSourceWithOptions(t *testing.T, env *s17cEnv, variable, multi
 		env.exec(ctx, `INSERT INTO commerce_fulfilment_plan_groups(id,plan_id,customer_id,checkout_group_id,business_id,branch_id,serviceable,reason_code,authority,mission_id,vehicle_class,gross_fee_minor,customer_fee_minor,vendor_funded_minor,platform_funded_minor) VALUES($1,$2,$3,$4,$5,$6,true,'SERVICEABLE','PLATFORM_LOGISTICS',$7,'MOTORCYCLE',$8,$9,$10,$11)`, "plan_group_"+string(rune('a'+index))+"_"+env.suffix, planID, customerID, group.id, group.business, group.branch, missionID, group.delivery, group.customer, group.vendor, group.platform)
 	}
 
-	options := checkoutquote.Options{Store: checkoutquote.NewStore(env.pool), Promotions: checkoutquote.NoPromotions{}, QuoteTTL: 5 * time.Minute}
+	options := checkoutquote.Options{Store: checkoutquote.NewStore(env.pool, events.NewDomainPublisher(events.NewOutboxRepository(env.pool))), Promotions: checkoutquote.NoPromotions{}, QuoteTTL: 5 * time.Minute}
 	if now != nil {
 		options.Now = now
 	}
@@ -116,6 +117,16 @@ func TestSection17DQuote_ImmutableApprovalHistoryAndNoSilentRecompute(t *testing
 	approved, err := fixture.service.Approve(ctx, fixture.customerID, first.ID, first.QuoteFingerprint)
 	if err != nil || approved.State != checkoutquote.StateApproved {
 		t.Fatalf("approve: state=%s err=%v", approved.State, err)
+	}
+	var lockedEvents int
+	if err = env.pool.QueryRow(ctx, `SELECT count(*) FROM vendor_outbox WHERE event_type='commerce.quote.locked' AND aggregate_type='CommerceQuote' AND aggregate_id=$1`, first.ID).Scan(&lockedEvents); err != nil || lockedEvents != 1 {
+		t.Fatalf("transactional quote locked events=%d err=%v", lockedEvents, err)
+	}
+	if _, err = fixture.service.Approve(ctx, fixture.customerID, first.ID, first.QuoteFingerprint); err != nil {
+		t.Fatalf("idempotent approval: %v", err)
+	}
+	if err = env.pool.QueryRow(ctx, `SELECT count(*) FROM vendor_outbox WHERE event_type='commerce.quote.locked' AND aggregate_id=$1`, first.ID).Scan(&lockedEvents); err != nil || lockedEvents != 1 {
+		t.Fatalf("idempotent quote locked events=%d err=%v", lockedEvents, err)
 	}
 	if _, err = env.pool.Exec(ctx, `UPDATE commerce_quotes SET quoted_total_minor=1 WHERE id=$1`, first.ID); err == nil {
 		t.Fatal("database allowed immutable quote mutation")

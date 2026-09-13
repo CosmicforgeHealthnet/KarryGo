@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	vendorevents "cosmicforge/logistics/services/vendor-service/internal/events"
 )
 
 type queryer interface {
@@ -16,9 +18,18 @@ type queryer interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-type Store struct{ db *pgxpool.Pool }
+type Store struct {
+	db     *pgxpool.Pool
+	outbox *vendorevents.DomainPublisher
+}
 
-func NewStore(db *pgxpool.Pool) *Store { return &Store{db: db} }
+func NewStore(db *pgxpool.Pool, publishers ...*vendorevents.DomainPublisher) *Store {
+	store := &Store{db: db}
+	if len(publishers) > 0 {
+		store.outbox = publishers[0]
+	}
+	return store
+}
 
 func (s *Store) LoadSource(ctx context.Context, customerID, sessionID, planID string, now time.Time) (SourceSnapshot, error) {
 	if s == nil || s.db == nil {
@@ -666,6 +677,17 @@ func (s *Store) Approve(ctx context.Context, customerID, quoteID, fingerprint st
 	}
 	if tag.RowsAffected() == 1 {
 		if _, err = tx.Exec(ctx, `INSERT INTO commerce_quote_events(id,quote_id,customer_id,action,quote_version,quote_fingerprint,occurred_at) VALUES($1,$2,$3,'commerce.quote.approved',$4,$5,$6)`, "cqe_"+uuid.NewString(), quoteID, customerID, quoteVersion, fingerprint, now); err != nil {
+			return Quote{}, err
+		}
+		if err = s.outbox.Publish(ctx, tx, "commerce.quote.locked", "CommerceQuote", quoteID, quoteVersion, "", quoteID, quoteID, map[string]any{
+			"quote_ref":                      quoteID,
+			"quote_version":                  quoteVersion,
+			"quote_fingerprint":              fingerprint,
+			"expires_at":                     storedQuote.ExpiresAt.UTC(),
+			"currency":                       storedQuote.Currency,
+			"final_total_minor":              storedQuote.FinalPayableMinor,
+			"maximum_authorized_total_minor": storedQuote.MaxAuthorizedTotalMinor,
+		}); err != nil {
 			return Quote{}, err
 		}
 	}

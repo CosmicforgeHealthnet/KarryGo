@@ -27,8 +27,10 @@ package section13security
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1043,29 +1045,30 @@ func TestSection13LargeSearchPathsAreIndexCapable(t *testing.T) {
 // pg_stat_statements is not assumed to be installed; enabling a PostgreSQL
 // extension during certification is out of scope.
 func TestSection13ScaleHasNoPerDocumentQueryLoop(t *testing.T) {
-	pool, ctx := ensureScaleCorpus(t)
+	_, ctx := ensureScaleCorpus(t)
+	config, err := pgxpool.ParseConfig(os.Getenv("VENDOR_SERVICE_TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracer := &section13QueryCounter{}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
 
 	engine := searchprojection.NewFoodSearchEngine(searchprojection.NewPostgresFoodSearchBackend(pool))
 
-	transactions := func() int64 {
-		var value int64
-		if err := pool.QueryRow(ctx,
-			`SELECT xact_commit + xact_rollback FROM pg_stat_database WHERE datname = current_database()`,
-		).Scan(&value); err != nil {
-			t.Fatal(err)
-		}
-		return value
-	}
-
 	measure := func(pageSize int) (hits int, cost int64) {
-		before := transactions()
+		tracer.queries.Store(0)
 		response, err := engine.Search(ctx, searchprojection.FoodEngineSearchRequest{
 			Query: "jollof rice", Generation: scaleGeneration, PageSize: pageSize,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		return len(response.Hits), transactions() - before
+		return len(response.Hits), tracer.queries.Load()
 	}
 
 	// Warm the connection pool first, so pool growth is not mistaken for query
@@ -1095,4 +1098,28 @@ func TestSection13ScaleHasNoPerDocumentQueryLoop(t *testing.T) {
 		t.Fatalf("returning %d more hits cost %d more transactions; search cost is scaling with hit count",
 			hitGrowth, growth)
 	}
+}
+
+// section13QueryCounter observes only the dedicated pool used by the search
+// under measurement. pg_stat_database is asynchronous and includes unrelated
+// setup connections, which made the old test attribute delayed corpus-seeding
+// commits to the larger page and report a deterministic false N+1.
+type section13QueryCounter struct {
+	queries atomic.Int64
+}
+
+func (counter *section13QueryCounter) TraceQueryStart(
+	ctx context.Context,
+	_ *pgx.Conn,
+	_ pgx.TraceQueryStartData,
+) context.Context {
+	counter.queries.Add(1)
+	return ctx
+}
+
+func (*section13QueryCounter) TraceQueryEnd(
+	context.Context,
+	*pgx.Conn,
+	pgx.TraceQueryEndData,
+) {
 }

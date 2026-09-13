@@ -551,15 +551,38 @@ func appendEvent(
 	if err != nil {
 		return err
 	}
-	if outbox != nil && vendorOrderID != "" {
-		return outbox.Publish(ctx, tx, action, "VendorOrder", vendorOrderID, aggregateVersion, vendorBusinessID, actorRef, actorRef, map[string]any{
+	if outbox != nil {
+		aggregateType := "ParentOrder"
+		aggregateID := parentID
+		payload := map[string]any{
 			"from": from, "to": to,
 			"parent_order_ref": parentID,
 			"vendor_order_ref": vendorOrderID,
 			"customer_ref":     customerID,
 			"business_ref":     vendorBusinessID,
 			"source_version":   aggregateVersion,
-		})
+		}
+		if vendorOrderID != "" {
+			aggregateType = "VendorOrder"
+			aggregateID = vendorOrderID
+		} else if action == ActionOrderCreated {
+			var quoteRef, currency string
+			var quoteVersion, vendorOrderCount int64
+			if err := tx.QueryRow(ctx, `SELECT quote_id,quote_version,currency,vendor_order_count FROM commerce_parent_orders WHERE id=$1`, parentID).
+				Scan(&quoteRef, &quoteVersion, &currency, &vendorOrderCount); err != nil {
+				return err
+			}
+			payload = map[string]any{
+				"parent_order_ref":   parentID,
+				"quote_ref":          quoteRef,
+				"quote_version":      quoteVersion,
+				"order_version":      aggregateVersion,
+				"vendor_order_count": vendorOrderCount,
+				"currency":           currency,
+				"occurred_at":        now.UTC(),
+			}
+		}
+		return outbox.Publish(ctx, tx, action, aggregateType, aggregateID, aggregateVersion, vendorBusinessID, actorRef, actorRef, payload)
 	}
 	return nil
 }

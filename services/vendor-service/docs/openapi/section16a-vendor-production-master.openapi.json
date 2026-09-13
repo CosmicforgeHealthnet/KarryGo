@@ -1,113 +1,1002 @@
 {
-  "openapi": "3.1.0",
+  "components": {
+    "securitySchemes": {
+      "VendorBearer": {
+        "bearerFormat": "JWT",
+        "description": "Verified Vendor staff token; business and branch scope are derived server-side from membership.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
   "info": {
     "title": "Vendor Production Master Data - Section 16A",
     "version": "16A"
   },
+  "openapi": "3.1.0",
   "paths": {
     "/api/v1/vendor/ingredients": {
-      "get": { "summary": "List ingredients" },
-      "post": { "summary": "Create ingredient" }
-    },
-    "/api/v1/vendor/ingredients/{ingredientId}": {
-      "get": { "summary": "Get ingredient" },
-      "put": {
-        "summary": "Update ingredient",
+      "get": {
+        "operationId": "section16a_vendor_production_master_openapi_get_api_v1_vendor_ingredients",
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "List ingredients"
+      },
+      "post": {
+        "operationId": "section16a_vendor_production_master_openapi_post_api_v1_vendor_ingredients",
         "parameters": [
           {
-            "name": "If-Match",
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
             "in": "header",
+            "name": "Idempotency-Key",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
           }
-        ]
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Create ingredient"
+      }
+    },
+    "/api/v1/vendor/ingredients/{ingredientId}": {
+      "get": {
+        "operationId": "section16a_vendor_production_master_openapi_get_api_v1_vendor_ingredients_ingredientId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ingredientId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Get ingredient"
+      },
+      "put": {
+        "operationId": "section16a_vendor_production_master_openapi_put_api_v1_vendor_ingredients_ingredientId",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ingredientId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Update ingredient"
       }
     },
     "/api/v1/vendor/ingredients/{ingredientId}/archive": {
       "post": {
-        "summary": "Archive ingredient",
+        "operationId": "section16a_vendor_production_master_openapi_post_api_v1_vendor_ingredients_ingredientId_archive",
         "parameters": [
           {
-            "name": "If-Match",
             "in": "header",
+            "name": "If-Match",
             "required": true,
-            "schema": { "type": "string" }
-          }
-        ]
-      }
-    },
-    "/api/v1/vendor/ingredients/{ingredientId}/conversions": {
-      "get": { "summary": "List ingredient-specific unit conversions" },
-      "post": { "summary": "Create ingredient-specific unit conversion" }
-    },
-    "/api/v1/vendor/ingredients/{ingredientId}/conversions/{conversionId}": {
-      "put": {
-        "summary": "Update ingredient-specific unit conversion",
-        "parameters": [
+            "schema": {
+              "type": "string"
+            }
+          },
           {
-            "name": "If-Match",
-            "in": "header",
+            "in": "path",
+            "name": "ingredientId",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Archive ingredient"
       }
     },
     "/api/v1/vendor/ingredients/{ingredientId}/branches/{branchId}": {
-      "get": { "summary": "Read ingredient branch configuration" },
-      "put": { "summary": "Configure ingredient branch / Inventory mapping" }
-    },
-    "/api/v1/vendor/packaging-materials": {
-      "get": { "summary": "List packaging materials" },
-      "post": { "summary": "Create packaging material" }
-    },
-    "/api/v1/vendor/packaging-materials/{packagingId}": {
-      "get": { "summary": "Get packaging material" },
-      "put": {
-        "summary": "Update packaging material",
+      "get": {
+        "operationId": "section16a_vendor_production_master_openapi_get_api_v1_vendor_ingredients_ingredientId_branches_branchId",
         "parameters": [
           {
-            "name": "If-Match",
-            "in": "header",
+            "in": "path",
+            "name": "ingredientId",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Read ingredient branch configuration"
+      },
+      "put": {
+        "operationId": "section16a_vendor_production_master_openapi_put_api_v1_vendor_ingredients_ingredientId_branches_branchId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ingredientId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Configure ingredient branch / Inventory mapping"
+      }
+    },
+    "/api/v1/vendor/ingredients/{ingredientId}/conversions": {
+      "get": {
+        "operationId": "section16a_vendor_production_master_openapi_get_api_v1_vendor_ingredients_ingredientId_conversions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ingredientId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "List ingredient-specific unit conversions"
+      },
+      "post": {
+        "operationId": "section16a_vendor_production_master_openapi_post_api_v1_vendor_ingredients_ingredientId_conversions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ingredientId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Create ingredient-specific unit conversion"
+      }
+    },
+    "/api/v1/vendor/ingredients/{ingredientId}/conversions/{conversionId}": {
+      "put": {
+        "operationId": "section16a_vendor_production_master_openapi_put_api_v1_vendor_ingredients_ingredientId_conversions_conversionId",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ingredientId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Update ingredient-specific unit conversion"
+      }
+    },
+    "/api/v1/vendor/packaging-materials": {
+      "get": {
+        "operationId": "section16a_vendor_production_master_openapi_get_api_v1_vendor_packaging_materials",
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "List packaging materials"
+      },
+      "post": {
+        "operationId": "section16a_vendor_production_master_openapi_post_api_v1_vendor_packaging_materials",
+        "parameters": [
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Create packaging material"
+      }
+    },
+    "/api/v1/vendor/packaging-materials/{packagingId}": {
+      "get": {
+        "operationId": "section16a_vendor_production_master_openapi_get_api_v1_vendor_packaging_materials_packagingId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "packagingId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Get packaging material"
+      },
+      "put": {
+        "operationId": "section16a_vendor_production_master_openapi_put_api_v1_vendor_packaging_materials_packagingId",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "packagingId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Update packaging material"
       }
     },
     "/api/v1/vendor/packaging-materials/{packagingId}/archive": {
       "post": {
-        "summary": "Archive packaging material",
+        "operationId": "section16a_vendor_production_master_openapi_post_api_v1_vendor_packaging_materials_packagingId_archive",
         "parameters": [
           {
-            "name": "If-Match",
             "in": "header",
+            "name": "If-Match",
             "required": true,
-            "schema": { "type": "string" }
-          }
-        ]
-      }
-    },
-    "/api/v1/vendor/packaging-materials/{packagingId}/conversions": {
-      "get": { "summary": "List packaging unit conversions" },
-      "post": { "summary": "Create packaging unit conversion" }
-    },
-    "/api/v1/vendor/packaging-materials/{packagingId}/conversions/{conversionId}": {
-      "put": {
-        "summary": "Update packaging unit conversion",
-        "parameters": [
+            "schema": {
+              "type": "string"
+            }
+          },
           {
-            "name": "If-Match",
-            "in": "header",
+            "in": "path",
+            "name": "packagingId",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Archive packaging material"
       }
     },
     "/api/v1/vendor/packaging-materials/{packagingId}/branches/{branchId}": {
-      "get": { "summary": "Read packaging branch configuration" },
-      "put": { "summary": "Configure packaging branch / Inventory mapping" }
+      "get": {
+        "operationId": "section16a_vendor_production_master_openapi_get_api_v1_vendor_packaging_materials_packagingId_branches_branchId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "packagingId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Read packaging branch configuration"
+      },
+      "put": {
+        "operationId": "section16a_vendor_production_master_openapi_put_api_v1_vendor_packaging_materials_packagingId_branches_branchId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "packagingId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Configure packaging branch / Inventory mapping"
+      }
+    },
+    "/api/v1/vendor/packaging-materials/{packagingId}/conversions": {
+      "get": {
+        "operationId": "section16a_vendor_production_master_openapi_get_api_v1_vendor_packaging_materials_packagingId_conversions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "packagingId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "List packaging unit conversions"
+      },
+      "post": {
+        "operationId": "section16a_vendor_production_master_openapi_post_api_v1_vendor_packaging_materials_packagingId_conversions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "packagingId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Create packaging unit conversion"
+      }
+    },
+    "/api/v1/vendor/packaging-materials/{packagingId}/conversions/{conversionId}": {
+      "put": {
+        "operationId": "section16a_vendor_production_master_openapi_put_api_v1_vendor_packaging_materials_packagingId_conversions_conversionId",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "packagingId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Update packaging unit conversion"
+      }
     }
-  }
+  },
+  "security": [
+    {
+      "VendorBearer": []
+    }
+  ]
 }

@@ -247,14 +247,14 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 		delivery.NewHandler(delivery.NewService(nil, nil, true)),
 		true,
 	)
-	promotions.RegisterRoutes(protected, promotions.NewHandler(promotions.NewService(nil, nil, nil, true)), true)
+	promotions.RegisterRoutes(protected, promotions.NewHandler(promotions.NewService(nil, nil, nil, true), store), true)
 
 	// Section 17E: the vendor order queue and its lifecycle commands. Like the
 	// delivery policy above it belongs to the vendor staff base, because it is
 	// driven by vendor staff IAM rather than by a customer token.
 	orderService := &orders.Service{}
 	orderService.SetHandoverAuthorities(handoverintegration.Router{"TAXI": handoverintegration.Unavailable{}})
-	orders.RegisterVendorRoutes(protected, orderService, true)
+	orders.RegisterVendorRoutes(protected, orderService, true, store)
 	orders.RegisterSection21VendorRoutes(protected, orders.NewSection21Service(orders.Section21Options{Enabled: true}), true)
 
 	// The post-order fulfilment aggregate: groups, pickup obligations, parcels,

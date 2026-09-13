@@ -1,56 +1,698 @@
 {
-  "openapi": "3.0.3",
   "info": {
+    "description": "Authenticated vendor-management routes for schedules, operational availability, branch overrides, pricing history/resolution, preparation profiles, logistics profiles and availability-source configuration. This document contains no discovery or internal consumption routes.",
     "title": "KarryGo Vendor Service - Section 9B Food Operations",
-    "version": "1.0.0",
-    "description": "Authenticated vendor-management routes for schedules, operational availability, branch overrides, pricing history/resolution, preparation profiles, logistics profiles and availability-source configuration. This document contains no discovery or internal consumption routes."
+    "version": "1.0.0"
   },
-  "servers": [{"url": "/api/v1/vendor", "description": "Authenticated vendor surface."}],
-  "tags": [{"name": "Food Operations", "description": "Section 9B management operations."}],
+  "openapi": "3.0.3",
   "paths": {
-    "/food/menus/{menuId}/schedules": {
-      "post": {"operationId": "createFoodSchedule", "tags": ["Food Operations"], "responses": {"201": {"description": "Created."}}},
-      "get": {"operationId": "listFoodSchedules", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
-    },
-    "/food/menus/{menuId}/schedules/{scheduleId}": {
-      "get": {"operationId": "getFoodSchedule", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "patch": {"operationId": "updateFoodSchedule", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
-    },
-    "/food/menus/{menuId}/schedules/{scheduleId}/archive": {
-      "post": {"operationId": "archiveFoodSchedule", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
-    },
     "/food/items/{itemId}/availability": {
-      "get": {"operationId": "getFoodAvailability", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "put": {"operationId": "setFoodAvailability", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
-    },
-    "/food/items/{itemId}/availability/effective": {
-      "get": {"operationId": "getEffectiveFoodAvailability", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+      "get": {
+        "operationId": "getFoodAvailability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "put": {
+        "operationId": "setFoodAvailability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
     },
     "/food/items/{itemId}/availability-source": {
-      "get": {"operationId": "getFoodAvailabilitySource", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "put": {"operationId": "setFoodAvailabilitySource", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "delete": {"operationId": "clearFoodAvailabilitySource", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+      "delete": {
+        "operationId": "clearFoodAvailabilitySource",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "get": {
+        "operationId": "getFoodAvailabilitySource",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "put": {
+        "operationId": "setFoodAvailabilitySource",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
+    },
+    "/food/items/{itemId}/availability/effective": {
+      "get": {
+        "operationId": "getEffectiveFoodAvailability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
     },
     "/food/items/{itemId}/branch-override": {
-      "get": {"operationId": "getFoodBranchOverride", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "put": {"operationId": "setFoodBranchOverride", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "delete": {"operationId": "clearFoodBranchOverride", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
-    },
-    "/food/items/{itemId}/pricing/history": {
-      "get": {"operationId": "listFoodPriceHistory", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
-    },
-    "/food/items/{itemId}/pricing/resolve": {
-      "post": {"operationId": "resolveFoodPrice", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
-    },
-    "/food/items/{itemId}/prep-profile": {
-      "get": {"operationId": "getFoodPrepProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "put": {"operationId": "setFoodPrepProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "delete": {"operationId": "clearFoodPrepProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+      "delete": {
+        "operationId": "clearFoodBranchOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "get": {
+        "operationId": "getFoodBranchOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "put": {
+        "operationId": "setFoodBranchOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
     },
     "/food/items/{itemId}/logistics-profile": {
-      "get": {"operationId": "getFoodLogisticsProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "put": {"operationId": "setFoodLogisticsProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}},
-      "delete": {"operationId": "clearFoodLogisticsProfile", "tags": ["Food Operations"], "responses": {"200": {"description": "Success."}}}
+      "delete": {
+        "operationId": "clearFoodLogisticsProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "get": {
+        "operationId": "getFoodLogisticsProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "put": {
+        "operationId": "setFoodLogisticsProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
+    },
+    "/food/items/{itemId}/prep-profile": {
+      "delete": {
+        "operationId": "clearFoodPrepProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "get": {
+        "operationId": "getFoodPrepProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "put": {
+        "operationId": "setFoodPrepProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
+    },
+    "/food/items/{itemId}/pricing/history": {
+      "get": {
+        "operationId": "listFoodPriceHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
+    },
+    "/food/items/{itemId}/pricing/resolve": {
+      "post": {
+        "operationId": "resolveFoodPrice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
+    },
+    "/food/menus/{menuId}/schedules": {
+      "get": {
+        "operationId": "listFoodSchedules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menuId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "post": {
+        "operationId": "createFoodSchedule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menuId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
+    },
+    "/food/menus/{menuId}/schedules/{scheduleId}": {
+      "get": {
+        "operationId": "getFoodSchedule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menuId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      },
+      "patch": {
+        "operationId": "updateFoodSchedule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menuId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
+    },
+    "/food/menus/{menuId}/schedules/{scheduleId}/archive": {
+      "post": {
+        "operationId": "archiveFoodSchedule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menuId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          }
+        },
+        "tags": [
+          "Food Operations"
+        ]
+      }
     }
-  }
+  },
+  "servers": [
+    {
+      "description": "Authenticated vendor surface.",
+      "url": "/api/v1/vendor"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Section 9B management operations.",
+      "name": "Food Operations"
+    }
+  ]
 }

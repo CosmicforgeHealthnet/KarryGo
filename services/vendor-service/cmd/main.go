@@ -66,6 +66,8 @@ func main() {
 	}
 	logging.Notice("vendor-service", "migration=%t vendor_service_enabled=%t redis=%s",
 		cfg.Migration, cfg.Flags.VendorServiceEnabled, cfg.Redis.Addr)
+	logging.Notice("vendor-service", "process_mode=%s workers_enabled=%t kill_switch=%t",
+		cfg.ProcessMode, cfg.ProcessMode != "api", cfg.Flags.CommerceGlobalKillSwitch)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -84,6 +86,9 @@ func main() {
 	defer redisClient.Close()
 
 	logConnectivity(ctx, cfg.Redis.Addr, db, redisClient)
+	if err := requireWorkerDatabase(ctx, cfg.ProcessMode, db); err != nil {
+		logging.Fatal("database", "worker startup readiness failed: %v", err)
+	}
 
 	if cfg.Migration {
 		logging.Notice("migration", "mode enabled")
@@ -475,7 +480,7 @@ func main() {
 	deliveryHandler := delivery.NewHandler(deliveryService)
 	promotionService := promotions.NewService(db, productionService, cfg.Auth.OTPSecret, cfg.Flags.CommerceQuoteLockEnabled)
 	promotionService.SetEventPublisher(events.NewDomainPublisher(outboxRepo))
-	promotionHandler := promotions.NewHandler(promotionService)
+	promotionHandler := promotions.NewHandler(promotionService, idempotencyStore)
 	accessSigner := sharedauth.NewTokenSigner(cfg.Auth.AccessTokenSecret)
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	workers := []func(context.Context) error{}
@@ -1177,6 +1182,12 @@ func main() {
 		})
 	}
 
+	// Deployment topology is decided after workers are assembled so the same
+	// domain wiring is used by every mode. API instances never claim work. The
+	// global kill switch also stops new claims while leaving database-backed
+	// pending jobs, outbox rows, audit and reads untouched.
+	workers = workersForProcess(cfg.ProcessMode, cfg.Flags.CommerceGlobalKillSwitch, workers)
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "vendor-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -1193,12 +1204,7 @@ func main() {
 			"canonical Food/Shop taxonomy: versions, vocabulary, mapping and governance",
 			"Food and Shop search projections: ranking, filters, facets, suggestions",
 		},
-		ReadyChecks: []func(context.Context) error{
-			db.Ping,
-			func(ctx context.Context) error {
-				return redisClient.Ping(ctx).Err()
-			},
-		},
+		ReadyChecks: []func(context.Context) error{db.Ping},
 		Register: func(group *gin.RouterGroup) {
 			vendorauthhttp.RegisterRoutes(group, authHandler, accessSigner, sessionRepo, staffResolverAdapter{staff: staffRepo})
 
@@ -1356,8 +1362,25 @@ func main() {
 			// own caller allowlist.
 			section13Components.registerInternalRoutes(router, inboundVerifier)
 		},
-		Workers: workers,
+		Workers:     workers,
+		DisableHTTP: cfg.ProcessMode == "worker",
 	})
+}
+
+func requireWorkerDatabase(ctx context.Context, mode string, db interface{ Ping(context.Context) error }) error {
+	if mode != "worker" {
+		return nil
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return db.Ping(pingCtx)
+}
+
+func workersForProcess(mode string, killSwitch bool, workers []func(context.Context) error) []func(context.Context) error {
+	if mode == "api" || killSwitch {
+		return nil
+	}
+	return workers
 }
 
 func logConnectivity(ctx context.Context, redisAddr string, db interface{ Ping(context.Context) error }, redisClient interface {

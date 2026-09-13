@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "generated_for": "section-48",
+  "gates": [
+    {"name":"configuration and topology unit","command":"go test ./internal/config ./internal/operational ./cmd","status":"PASS","evidence":"focused packages and local api/worker/all runtime probes passed; worker no-listener panic and database startup gate fixed","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"deployment bundle","command":"docker compose config plus docker build","status":"PASS","evidence":"VPS Compose resolves separate API/Worker units; Vendor image packages service, dedicated migration binary and migrations","blocking":true,"dependency_status":"LOCAL_DOCKER"},
+    {"name":"dedicated migration job","command":"docker run --entrypoint /bin/vendor-migrate","status":"PASS","evidence":"packaged runner acquired advisory lock and verified all 116 migration records against isolated PostgreSQL","blocking":true,"dependency_status":"ISOLATED_POSTGRES"},
+    {"name":"vendor full test","command":"go test ./... -count=1 -p 1 -timeout=1200s","status":"PASS","evidence":"all packages passed","blocking":true,"dependency_status":"LOCAL_AND_POSTGRES"},
+    {"name":"real PostgreSQL integration","command":"scripts/test-vendor-isolated.ps1","status":"PASS","evidence":"116 migrations; 43 measurement definitions; 67/67 test-bearing packages passed on fresh clones","blocking":true,"dependency_status":"ISOLATED_POSTGRES"},
+    {"name":"Section 43 route parity","command":"go test ./internal/crmcontract","status":"PASS","evidence":"contract package passed in focused, full, and isolated runs","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"Sections 44-45 parity","command":"go test ./internal/crmcontract ./internal/events ./internal/jobs","status":"PASS","evidence":"all catalogue packages passed focused and isolated","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"IDOR and failure injection","command":"67-package isolated Vendor suite","status":"PASS","evidence":"existing security, tenant, concurrency and recovery suites passed on per-package PostgreSQL clones","blocking":true,"dependency_status":"ISOLATED_POSTGRES"},
+    {"name":"cross-service black-box","command":"Vendor adapter and contract suites","status":"PARTIAL","evidence":"Vendor-side Wallet/Dispatch/Hauling/Media/Support/handover contracts passed; live multi-service staging harness not executed","blocking":true,"dependency_status":"STAGING_SERVICES_REQUIRED"},
+    {"name":"frontend requirements documentation","command":"audit UI_UX_REQUIREMENTS.md and FRONTEND_REQUIREMENTS.md","status":"PASS","evidence":"required dashboard, role, branch, order, stock, commerce and degraded-state vocabulary present","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"no frontend change","command":"CI explicit path diff guard","status":"PASS","evidence":"working-tree explicit apps/web/frontend/mobile boundary empty","blocking":true,"dependency_status":"GIT_BASE"},
+    {"name":"security and secret scan","command":"CI private-key/token/env/log guards","status":"PASS","evidence":"private-key/provider-token and untracked-env checks passed without printing values","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"functional commerce","command":"full and isolated Vendor suites","status":"PASS","evidence":"pricing, funding, variable-weight, substitution, RFQ, refund, handover and actual optimizer-mode contracts passed","blocking":true,"dependency_status":"LOCAL_AND_POSTGRES"},
+    {"name":"advanced commerce","command":"basket/RFQ/recurring and fulfilment suites","status":"PASS","evidence":"implemented capabilities and dependency gates passed; unsupported modes were not fabricated","blocking":true,"dependency_status":"LOCAL_AND_POSTGRES"},
+    {"name":"Order Guarantee disabled","command":"go test ./internal/operational","status":"PASS","evidence":"future-disabled catalogue contract passed","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"performance capacity","command":"bounded isolated staging profile","status":"NOT_EXECUTED","blocking":true,"dependency_status":"STAGING_ENVIRONMENT_REQUIRED"},
+    {"name":"backup restore","command":"isolated deployment restore drill","status":"NOT_EXECUTED","blocking":true,"dependency_status":"DEPLOYMENT_DEPENDENCY"},
+    {"name":"migration integrity","command":"isolated runner template replay","status":"PASS","evidence":"116 historical migrations replayed; no migration file changed","blocking":true,"dependency_status":"ISOLATED_POSTGRES"},
+    {"name":"observability contracts","command":"shared logging/observability plus Vendor worker health suites","status":"PASS","evidence":"redaction, low-cardinality registry and backlog/dead-letter health tests passed","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"go vet","command":"go vet ./...","status":"PASS","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"go build","command":"go build ./...","status":"PASS","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"gofmt","command":"gofmt -l on changed Go files","status":"PASS","evidence":"all changed Go files formatted","blocking":true,"dependency_status":"LOCAL"},
+    {"name":"git diff check","command":"git diff --check","status":"PASS","evidence":"pre-final and final integrity checks clean","blocking":true,"dependency_status":"LOCAL"}
+  ]
+}

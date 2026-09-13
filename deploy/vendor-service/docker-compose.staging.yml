@@ -1,0 +1,54 @@
+name: karrygo-vendor-staging
+
+x-vendor-common: &vendor-common
+  image: ${VENDOR_IMAGE:?VENDOR_IMAGE must name an immutable Vendor image}
+  env_file:
+    - ${VENDOR_ENV_FILE:-/opt/karrygo/vendor-service/vendor.env}
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  stop_grace_period: 30s
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "5"
+
+services:
+  vendor-migrate:
+    <<: *vendor-common
+    profiles: [operations]
+    entrypoint: ["/bin/vendor-migrate"]
+    environment:
+      VENDOR_MIGRATIONS_DIR: /srv/vendor-service/migrations
+      VENDOR_MIGRATION_TIMEOUT: ${VENDOR_MIGRATION_TIMEOUT:-30m}
+    restart: "no"
+
+  vendor-api:
+    <<: *vendor-common
+    container_name: karrygo-vendor-api-staging
+    environment:
+      VENDOR_PROCESS_MODE: api
+      VENDOR_MIGRATION: "false"
+      HTTP_ADDR: :8112
+    ports:
+      - "127.0.0.1:${VENDOR_API_HOST_PORT:-8112}:8112"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8112/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  vendor-worker:
+    <<: *vendor-common
+    container_name: karrygo-vendor-worker-staging
+    environment:
+      VENDOR_PROCESS_MODE: worker
+      VENDOR_MIGRATION: "false"
+    restart: unless-stopped

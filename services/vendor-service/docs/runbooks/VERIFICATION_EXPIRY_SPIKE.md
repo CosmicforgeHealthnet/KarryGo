@@ -1,0 +1,3 @@
+# Verification expiry spike
+
+Trigger: expired/stale verification projections exceed the normal threshold. Inspect expiry distribution, Verification readiness, projection event lag, affected capability and correlation IDs. Fail closed for activation/reverification, retain existing business data, restore the authority/event feed, and perform authoritative read-back. Never extend badges locally or treat stale verification as verified. Escalate on authority inconsistency or broad expiry caused by policy/version change. Verify projections match Verification, expired badges are absent, and activation rules pass only for current evidence.

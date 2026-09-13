@@ -1,133 +1,788 @@
 {
-  "openapi": "3.1.0",
+  "components": {
+    "securitySchemes": {
+      "VendorBearer": {
+        "bearerFormat": "JWT",
+        "description": "Verified Vendor staff token; business and branch scope are derived server-side from membership.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
   "info": {
     "title": "Vendor Recipes - Section 16B",
     "version": "16B"
   },
+  "openapi": "3.1.0",
   "paths": {
     "/api/v1/vendor/recipes": {
       "get": {
+        "operationId": "section16b_vendor_recipes_openapi_get_api_v1_vendor_recipes",
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "List Vendor recipes"
       },
       "post": {
+        "operationId": "section16b_vendor_recipes_openapi_post_api_v1_vendor_recipes",
+        "parameters": [
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Create typed Food/Pastry/Cloud Kitchen recipe"
       }
     },
     "/api/v1/vendor/recipes/{recipeId}": {
       "get": {
+        "operationId": "section16b_vendor_recipes_openapi_get_api_v1_vendor_recipes_recipeId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Get recipe"
       }
     },
     "/api/v1/vendor/recipes/{recipeId}/archive": {
       "post": {
-        "summary": "Archive recipe after active version has been retired",
+        "operationId": "section16b_vendor_recipes_openapi_post_api_v1_vendor_recipes_recipeId_archive",
         "parameters": [
           {
-            "name": "If-Match",
             "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Archive recipe after active version has been retired"
       }
     },
     "/api/v1/vendor/recipes/{recipeId}/versions": {
       "get": {
+        "operationId": "section16b_vendor_recipes_openapi_get_api_v1_vendor_recipes_recipeId_versions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "List immutable recipe version history"
       },
       "post": {
+        "operationId": "section16b_vendor_recipes_openapi_post_api_v1_vendor_recipes_recipeId_versions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Create new DRAFT recipe version"
       }
     },
     "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}": {
       "get": {
+        "operationId": "section16b_vendor_recipes_openapi_get_api_v1_vendor_recipes_recipeId_versions_versionId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Read recipe version with Ingredient and Packaging requirements"
       },
       "put": {
-        "summary": "Update DRAFT yield/waste definition",
+        "operationId": "section16b_vendor_recipes_openapi_put_api_v1_vendor_recipes_recipeId_versions_versionId",
         "parameters": [
           {
-            "name": "If-Match",
             "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
             }
-          }
-        ]
-      }
-    },
-    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/components": {
-      "put": {
-        "summary": "Replace DRAFT Ingredient BOM",
-        "parameters": [
+          },
           {
-            "name": "If-Match",
-            "in": "header",
+            "in": "path",
+            "name": "recipeId",
             "required": true,
             "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
               "type": "string"
             }
           }
-        ]
-      }
-    },
-    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/packaging": {
-      "put": {
-        "summary": "Replace DRAFT Packaging requirements",
-        "parameters": [
-          {
-            "name": "If-Match",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
           }
-        ]
-      }
-    },
-    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/validate": {
-      "post": {
-        "summary": "Validate activation readiness without changing state"
+        },
+        "summary": "Update DRAFT yield/waste definition"
       }
     },
     "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/activate": {
       "post": {
-        "summary": "Atomically retire previous ACTIVE version and activate this DRAFT",
+        "operationId": "section16b_vendor_recipes_openapi_post_api_v1_vendor_recipes_recipeId_versions_versionId_activate",
         "parameters": [
           {
-            "name": "If-Match",
             "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Atomically retire previous ACTIVE version and activate this DRAFT"
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/components": {
+      "put": {
+        "operationId": "section16b_vendor_recipes_openapi_put_api_v1_vendor_recipes_recipeId_versions_versionId_components",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Replace DRAFT Ingredient BOM"
+      }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/packaging": {
+      "put": {
+        "operationId": "section16b_vendor_recipes_openapi_put_api_v1_vendor_recipes_recipeId_versions_versionId_packaging",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Replace DRAFT Packaging requirements"
       }
     },
     "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/retire": {
       "post": {
-        "summary": "Retire an ACTIVE recipe version",
+        "operationId": "section16b_vendor_recipes_openapi_post_api_v1_vendor_recipes_recipeId_versions_versionId_retire",
         "parameters": [
           {
-            "name": "If-Match",
             "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Retire an ACTIVE recipe version"
       }
     },
     "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/scale": {
       "post": {
+        "operationId": "section16b_vendor_recipes_openapi_post_api_v1_vendor_recipes_recipeId_versions_versionId_scale",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Calculate exact scaled planning requirements without mutating Inventory"
       }
+    },
+    "/api/v1/vendor/recipes/{recipeId}/versions/{versionId}/validate": {
+      "post": {
+        "operationId": "section16b_vendor_recipes_openapi_post_api_v1_vendor_recipes_recipeId_versions_versionId_validate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Validate activation readiness without changing state"
+      }
     }
-  }
+  },
+  "security": [
+    {
+      "VendorBearer": []
+    }
+  ]
 }

@@ -97,6 +97,32 @@ func TestSection14IDurableLeaseHasOneOwner(t *testing.T) {
 	}
 }
 
+func TestDurableWorkerHealthSurfacesBacklogAndDeadLetters(t *testing.T) {
+	pool, ctx := durablePool(t)
+	coordinator := NewDurableCoordinator(pool)
+	readyName, deadName := jobName(t), jobName(t)
+	if err := coordinator.ensure(ctx, readyName, 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := coordinator.ensure(ctx, deadName, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE vendor_job_controls SET status='DEAD_LETTER' WHERE job_name=$1`, deadName); err != nil {
+		t.Fatal(err)
+	}
+	health, err := coordinator.Health(ctx, true, true, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if health.State != WorkerBlocked || health.PendingCount < 1 || health.DeadLetterCount < 1 {
+		t.Fatalf("health did not surface durable backlog: %+v", health)
+	}
+	metrics := health.Metrics()
+	if metrics["vendor_worker_dead_letter_total"] < 1 || metrics["vendor_worker_pending_total"] < 1 {
+		t.Fatalf("worker metrics incomplete: %+v", metrics)
+	}
+}
+
 // TestSection14IExpiredLeaseIsRecovered proves a worker that died holding a
 // lease does not strand the job forever.
 func TestSection14IExpiredLeaseIsRecovered(t *testing.T) {

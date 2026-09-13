@@ -183,6 +183,12 @@ func TestSection17FPayment_BindsOneLegPerVendorOrder(t *testing.T) {
 	if order.PaymentState != string(orders.PaymentHeld) {
 		t.Fatalf("order payment state=%q, want HELD mirrored", order.PaymentState)
 	}
+	var paidEvents int
+	if err = fixture.env.pool.QueryRow(ctx, `SELECT count(*) FROM vendor_outbox
+		WHERE event_type='commerce.checkout.paid' AND aggregate_type='ParentOrder' AND aggregate_id=$1`, order.ID).
+		Scan(&paidEvents); err != nil || paidEvents != 1 {
+		t.Fatalf("Wallet-confirmed checkout events=%d err=%v, want 1", paidEvents, err)
+	}
 
 	// The binding carries the whole approved agreement.
 	if operation.Binding.QuoteFingerprint != fixture.finger ||

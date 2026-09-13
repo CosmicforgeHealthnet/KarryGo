@@ -1900,3 +1900,48 @@ No public, Vendor-authenticated, provider, or internal HTTP route is added.
 The change hardens the existing command middleware/event repositories and adds
 an internal database worker controlled by `VENDOR_PRIVACY_RETENTION_ENABLED`.
 Existing route counts and OpenAPI contracts are unchanged.
+
+## Section 43 — API contract family index
+
+The canonical fully enabled Vendor router contains **857 routes before and 857
+routes after Section 43**. Routes added/changed/deprecated/removed: none. The
+existing `ready_for_pickup` compatibility alias remains active beside
+`ready-for-pickup`; Section 43 adds no alias. The exact method/path inventory,
+including its authoritative OpenAPI source and the bidirectional zero-gap
+comparison, is `SECTION43_ROUTE_PARITY.json`. Existing detailed route tables in
+this register remain the human route catalogue and are exercised by the global
+route-register test.
+
+| Family | Actual surface | Caller/authentication | Authorization | Retry/concurrency | Authority | OpenAPI authority | Status / notes |
+|---|---|---|---|---|---|---|---|
+| Vendor Authentication | `/api/v1/vendor/auth` | Anonymous challenge or Vendor refresh token, per operation | Session/challenge binding; rate limited | Challenge/session semantics; no business identity trusted from body | Vendor authentication | `section5-auth-staff-iam.openapi.json` | ACTIVE |
+| Vendor Business | Mature `/api/v1/vendor` business, brand, branch, staff, role, permission and settings paths | Vendor bearer | Membership, business, branch and permission policy | Idempotency-Key and expectedVersion where the registered command requires them | Vendor | Section 5–7 contracts | ACTIVE |
+| Vendor CRM | `/api/v1/vendor/crm` | Vendor bearer | Tenant-scoped CRM permission; privacy-safe projection | Command idempotency and expectedVersion per operation | Vendor CRM projection; Customer retains reusable preference truth | Section 8 contracts | ACTIVE |
+| Vendor Catalogue | Existing `/api/v1/vendor/food`, `/shop`, `/pastry`, taxonomy and production catalogue paths | Vendor bearer | Business/branch/catalogue ownership | Command idempotency; version contract where mutable | Vendor catalogue | Sections 9–13 and 16 contracts | ACTIVE; pharmacy excluded |
+| Vendor Inventory | Existing inventory, stocktake, reservation, transfer, lot and reorder paths | Vendor bearer | Business/branch inventory policy | Idempotency-Key plus optimistic version on stock mutations | Vendor inventory | Section 12B/14 contracts | ACTIVE |
+| Vendor Purchasing | `/api/v1/vendor/purchasing` plus mature supplier/receipt paths | Vendor bearer | Vendor and branch purchasing policy | Idempotency-Key + If-Match on stateful commands | Vendor purchasing; Wallet refs only | `section15-vendor-purchasing.openapi.json` | ACTIVE |
+| Vendor Orders | `/api/v1/vendor/commerce/orders` | Vendor bearer | Vendor/branch/order object policy | Idempotency-Key on writes; If-Match on order/line transitions | Vendor order orchestration | Sections 17E/18 and focused Shop contract | ACTIVE; underscore alias retained |
+| Vendor Delivery | Existing `/api/v1/vendor/delivery` and `/fulfilment` paths | Vendor bearer | Vendor/mission projection policy | Idempotency-Key + If-Match where command-capable | Dispatch/Hauling/Taxi Goods/VendorMission execution; Vendor projection only | Delivery, fulfilment and Section 32 contracts | ACTIVE / DEPENDENCY_GATED |
+| Customer Food | Existing Food discovery adapter plus `/api/v1/commerce` selection | Customer bearer where customer-owned; bounded discovery otherwise | Customer subject and sellability policy | No duplicate write surface | Food catalogue projection | Sections 9C and 17 contracts | ACTIVE; repository-compatible path retained |
+| Customer Shop | Existing Shop discovery adapter plus `/api/v1/commerce` selection | Customer bearer where customer-owned; bounded discovery otherwise | Customer subject, restricted-goods and sellability policy | No duplicate write surface | Shop catalogue projection | Section 12 and commerce contracts | ACTIVE; medicine rejected |
+| Commerce Cart/Checkout/Order | `/api/v1/commerce` | Customer bearer | Customer subject from token; object ownership | Idempotency-Key/fingerprint replay; If-Match/quote version where stateful | Vendor orchestration; Wallet retains money truth | Sections 17A–18 | ACTIVE / payment dependency-gated |
+| Internal Integrations | `/internal/vendor/v1`, `/api/v1/internal`, and mature root internal paths | HMAC v2 service identity | Exact caller allowlist and resource/source scope | Nonce replay protection; operation/event idempotency; source version | Named source authority | Per-section internal OpenAPI operations | ACTIVE; never public bearer |
+| Advanced Commerce | Existing basket, fulfilment optimizer, RFQ, group and recurring paths | Customer or Vendor bearer by operation | Subject/business scope | Typed operation idempotency and immutable quote/cart versions | Existing pricing, Inventory and Wallet boundaries | Basket, fulfilment and Section 21 contracts | ACTIVE / DEPENDENCY_GATED |
+| Order Guarantee | none | none | none | none | Future only | none | FUTURE_DISABLED |
+
+Section 43 contract-only corrections changed no route path or method. OpenAPI
+metadata was completed for operation IDs, path parameters, responses, security,
+idempotency and concurrency; the Section 16D cost command group now uses its
+already-injected idempotency store consistently with adjacent Section 16
+families. See `SECTION43_TRACEABILITY.md` for the family matrix, approved
+duplicate declarations, gateway result, authority statements and test evidence.
+
+## Sections 44–45 — event and worker contracts
+
+No HTTP route was added, changed, aliased, deprecated or removed. Event
+publication, consumption, replay and worker recovery remain code-level/internal
+operational contracts; no public replay endpoint was introduced. The Section
+43 inventory therefore remains 857 production routes and 867 OpenAPI
+declarations without regeneration. Event and worker authority is recorded in
+`SECTION44_EVENT_PARITY.json`, `SECTION45_WORKER_CATALOGUE.json` and
+`SECTION44_45_TRACEABILITY.md`.

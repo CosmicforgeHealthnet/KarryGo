@@ -1,30 +1,995 @@
 {
+  "info": {
+    "title": "Vendor Order Lifecycle",
+    "version": "18.0.0"
+  },
   "openapi": "3.0.3",
-  "info": {"title": "Vendor Order Lifecycle", "version": "18.0.0"},
   "paths": {
-    "/api/v1/commerce/substitutions/{proposalId}": {"get": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/commerce/substitutions/{proposalId}/approve": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/commerce/substitutions/{proposalId}/reject": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/commerce/substitution-cases": {"get": {"responses": {"200": {"description": "Pending substitution cases"}}}},
-    "/api/v1/commerce/substitution-cases/{caseId}": {"get": {"responses": {"200": {"description": "Customer-scoped substitution case"}}}},
-    "/api/v1/commerce/substitution-cases/{caseId}/accept": {"post": {"responses": {"200": {"description": "Accepted"}}}},
-    "/api/v1/commerce/substitution-cases/{caseId}/reject": {"post": {"responses": {"200": {"description": "Rejected"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/delivered": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/delivering": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/availability": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/substitutions": {"post": {"responses": {"201": {"description": "Created"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking-queue": {"get": {"responses": {"200": {"description": "Immutable Shop picking snapshots and current evidence"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking": {"get": {"responses": {"200": {"description": "Immutable Shop picking snapshots and current evidence"}}}, "post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/quality": {"post": {"responses": {"204": {"description": "Recorded"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/actual-quantity": {"post": {"responses": {"200": {"description": "Recorded measured quantity"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/pack": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/pickup": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/preparing": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/ready-for-pickup": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/ready_for_pickup": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/reject": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/start_picking": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/start_preparing": {"post": {"responses": {"200": {"description": "OK"}}}},
-    "/internal/vendor/v1/commerce/logistics-events": {"post": {"description": "Authenticated Dispatch/Hauling lifecycle evidence ingress; not public.", "responses": {"200": {"description": "OK"}, "401": {"description": "Invalid service authentication"}, "403": {"description": "Caller or mission forbidden"}}}}
+    "/api/v1/commerce/substitution-cases": {
+      "get": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_get_api_v1_commerce_substitution_cases_2239f1b8",
+        "responses": {
+          "200": {
+            "description": "Pending substitution cases"
+          }
+        }
+      }
+    },
+    "/api/v1/commerce/substitution-cases/{caseId}": {
+      "get": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_get_api_v1_commerce_substitution_cases_caseId_84799ee2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer-scoped substitution case"
+          }
+        }
+      }
+    },
+    "/api/v1/commerce/substitution-cases/{caseId}/accept": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_commerce_substitution_cases_caseId_accept_224dd0ab",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/v1/commerce/substitution-cases/{caseId}/reject": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_commerce_substitution_cases_caseId_reject_b631c934",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rejected"
+          }
+        }
+      }
+    },
+    "/api/v1/commerce/substitutions/{proposalId}": {
+      "get": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_get_api_v1_commerce_substitutions_proposalId_b173e987",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/commerce/substitutions/{proposalId}/approve": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_commerce_substitutions_proposalId_approve_d9620749",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/commerce/substitutions/{proposalId}/reject": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_commerce_substitutions_proposalId_reject_984ec10b",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/delivered": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_delivered_652e7ed4",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/delivering": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_delivering_26371ed3",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/actual-quantity": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_lines_lineId_actual_quantity_63f0ec0a",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded measured quantity"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/availability": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_lines_lineId_availability_564b7085",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/quality": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_lines_lineId_quality_3ce0c83f",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/substitutions": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_lines_lineId_substitutions_3b11e5d4",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/pack": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_pack_9989d8dd",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking": {
+      "get": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_get_api_v1_vendor_commerce_orders_vendorOrderId_picking_3ee85aeb",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Immutable Shop picking snapshots and current evidence"
+          }
+        }
+      },
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_picking_4ae58bfb",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/picking-queue": {
+      "get": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_get_api_v1_vendor_commerce_orders_vendorOrderId_picking_queue_5e2f3755",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Immutable Shop picking snapshots and current evidence"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/pickup": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_pickup_9828fd20",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/preparing": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_preparing_2efb1830",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/ready-for-pickup": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_ready_for_pickup_835992e8",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/ready_for_pickup": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_ready_for_pickup_6e9c17c8",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/reject": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_reject_c5ecdb97",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/start_picking": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_start_picking_47f72468",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/start_preparing": {
+      "post": {
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_start_preparing_4a886bc7",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/internal/vendor/v1/commerce/logistics-events": {
+      "post": {
+        "description": "Authenticated Dispatch/Hauling lifecycle evidence ingress; not public.",
+        "operationId": "section18_vendor_order_lifecycle_openapi_post_internal_vendor_v1_commerce_logistics_events_16e4812a",
+        "parameters": [
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required optimistic version. A stale or missing version returns 409.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Invalid service authentication"
+          },
+          "403": {
+            "description": "Caller or mission forbidden"
+          }
+        }
+      }
+    }
   }
 }
