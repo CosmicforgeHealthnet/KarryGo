@@ -23,6 +23,24 @@ func (m sectionMedia) Configured() bool { return true }
 func (m sectionMedia) GetFile(_ context.Context, _ platformclients.CallMeta, id string) (platformclients.FileMetadata, error) {
 	return m.files[id], nil
 }
+func (m sectionMedia) AuthorizeUpload(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaUploadRequest) (platformclients.MediaUploadGrant, error) {
+	return platformclients.MediaUploadGrant{}, nil
+}
+func (m sectionMedia) CompleteUpload(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaUploadGrant, _, _ string, _ []byte) (platformclients.MediaObjectState, error) {
+	return platformclients.MediaObjectState{}, nil
+}
+func (m sectionMedia) ReadObject(_ context.Context, _ platformclients.CallMeta, _ string) (platformclients.MediaObjectState, error) {
+	return platformclients.MediaObjectState{}, nil
+}
+func (m sectionMedia) AuthorizeDownload(_ context.Context, _ platformclients.CallMeta, _ string) (platformclients.MediaDownloadGrant, error) {
+	return platformclients.MediaDownloadGrant{}, nil
+}
+func (m sectionMedia) ReadContent(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaDownloadGrant, _ int64) ([]byte, error) {
+	return nil, nil
+}
+func (m sectionMedia) RequestDeletion(_ context.Context, _ platformclients.CallMeta, _, _ string) (platformclients.MediaDeletionOutcome, error) {
+	return platformclients.MediaDeletionOutcome{}, nil
+}
 
 func TestSection17And18EndToEnd(t *testing.T) {
 	pool := testPool(t)

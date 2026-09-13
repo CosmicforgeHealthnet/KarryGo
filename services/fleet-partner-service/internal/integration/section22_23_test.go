@@ -25,6 +25,25 @@ func (section2223Media) GetFile(_ context.Context, meta platformclients.CallMeta
 	return platformclients.FileMetadata{FileID: id, OwnerID: meta.OrganizationID, UploadState: "COMPLETE", ScanState: "CLEAN", SourceVersion: 1}, nil
 }
 
+func (section2223Media) AuthorizeUpload(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaUploadRequest) (platformclients.MediaUploadGrant, error) {
+	return platformclients.MediaUploadGrant{}, nil
+}
+func (section2223Media) CompleteUpload(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaUploadGrant, _, _ string, _ []byte) (platformclients.MediaObjectState, error) {
+	return platformclients.MediaObjectState{}, nil
+}
+func (section2223Media) ReadObject(_ context.Context, _ platformclients.CallMeta, _ string) (platformclients.MediaObjectState, error) {
+	return platformclients.MediaObjectState{}, nil
+}
+func (section2223Media) AuthorizeDownload(_ context.Context, _ platformclients.CallMeta, _ string) (platformclients.MediaDownloadGrant, error) {
+	return platformclients.MediaDownloadGrant{}, nil
+}
+func (section2223Media) ReadContent(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaDownloadGrant, _ int64) ([]byte, error) {
+	return nil, nil
+}
+func (section2223Media) RequestDeletion(_ context.Context, _ platformclients.CallMeta, _, _ string) (platformclients.MediaDeletionOutcome, error) {
+	return platformclients.MediaDeletionOutcome{}, nil
+}
+
 type sectionPosting struct {
 	mu              sync.Mutex
 	submitted, read int
