@@ -13,11 +13,11 @@ requirements: 17 active mappings, seven dependency-gated, two not applicable
 because the accepted implementation is event/read-time driven, and one
 future-disabled.
 
-ROUTES ADDED: 0  
-ROUTES CHANGED: 0  
-ROUTES REMOVED: 0  
-MIGRATIONS ADDED: 0  
-HISTORICAL MIGRATIONS CHANGED: 0  
+ROUTES ADDED: 0
+ROUTES CHANGED: 0
+ROUTES REMOVED: 0
+MIGRATIONS ADDED: 0
+HISTORICAL MIGRATIONS CHANGED: 0
 FRONTEND CHANGED: NO
 
 ## Infrastructure audit
