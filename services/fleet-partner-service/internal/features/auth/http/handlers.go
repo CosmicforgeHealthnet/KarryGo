@@ -5,6 +5,7 @@ package http
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -24,15 +25,35 @@ type Handler struct {
 	service       *authusecases.Service
 	contactSecret []byte
 	cookie        browserauth.Policy
+	sessionMarker browserauth.Policy
 }
 
 // NewHandler builds the handler.
+//
+// cookie is the sensitive refresh-token cookie, scoped narrowly to the auth
+// API path so it's never sent to endpoints that don't need it. sessionMarker
+// is a separate, non-sensitive cookie set alongside it with Path=/ — it
+// carries no credential, it exists purely so edge middleware (which can't
+// see the narrowly-scoped refresh cookie on other paths) can tell whether a
+// browser plausibly has a session, for routing purposes only. Real
+// authorization always happens server-side via the access/refresh tokens.
 func NewHandler(service *authusecases.Service, contactSecret []byte, policies ...browserauth.Policy) *Handler {
-	policy := browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode}
-	if len(policies) > 0 {
-		policy = policies[0]
-	}
-	return &Handler{service: service, contactSecret: contactSecret, cookie: policy}
+    refreshPolicy, _ := browserauth.Load("FLEET_PARTNER_BROWSER", os.Getenv("APP_ENV"), "karrygo_fleet_refresh", "/fleet-partner/v1/auth")
+    markerPolicy, _ := browserauth.Load("FLEET_PARTNER_BROWSER", os.Getenv("APP_ENV"), "karrygo_has_session", "/")
+    
+    if len(policies) > 0 {
+        refreshPolicy = policies[0]
+    }
+    if len(policies) > 1 {
+        markerPolicy = policies[1]
+    }
+    
+    return &Handler{
+        service:       service,
+        contactSecret: contactSecret,
+        cookie:        refreshPolicy,
+        sessionMarker: markerPolicy,
+    }
 }
 
 // startRequest is the signup/login request. There is deliberately no password
@@ -80,6 +101,20 @@ func (h *Handler) RegisterAuthenticatedRoutes(group *gin.RouterGroup) {
 	group.POST("/auth/step-up/verify", h.cookie.Boundary(), h.stepUpVerify)
 	group.GET("/sessions", h.listSessions)
 	group.DELETE("/sessions/:sessionId", h.revokeSession)
+}
+
+// setSessionCookies sets both the real (narrowly-scoped) refresh cookie and
+// the Path=/ marker cookie that lets frontend routing middleware see that a
+// session exists. Called everywhere a token pair is issued or rotated.
+func (h *Handler) setSessionCookies(c *gin.Context, tokens *authusecases.TokenPair) {
+	h.cookie.Set(c, tokens.RefreshToken, tokens.RefreshExpiresAt)
+	h.sessionMarker.Set(c, "1", tokens.RefreshExpiresAt)
+}
+
+// clearSessionCookies clears both cookies on logout.
+func (h *Handler) clearSessionCookies(c *gin.Context) {
+	h.cookie.Clear(c)
+	h.sessionMarker.Clear(c)
 }
 
 func (h *Handler) start(c *gin.Context) {
@@ -133,7 +168,7 @@ func (h *Handler) verify(c *gin.Context) {
 		return
 	}
 	if result.Tokens != nil {
-		h.cookie.Set(c, result.Tokens.RefreshToken, result.Tokens.RefreshExpiresAt)
+		h.setSessionCookies(c, result.Tokens)
 	}
 	respond.OK(c, verifyResponse(result))
 }
@@ -208,7 +243,7 @@ func (h *Handler) refresh(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	h.cookie.Set(c, tokens.RefreshToken, tokens.RefreshExpiresAt)
+	h.setSessionCookies(c, tokens)
 	respond.OK(c, gin.H{
 		"accessToken":      tokens.AccessToken,
 		"accessExpiresAt":  tokens.AccessExpiresAt,
@@ -224,7 +259,7 @@ func (h *Handler) logout(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	h.cookie.Clear(c)
+	h.clearSessionCookies(c)
 	respond.OK(c, gin.H{"loggedOut": true})
 }
 
@@ -249,7 +284,7 @@ func (h *Handler) selectOrganization(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	h.cookie.Set(c, tokens.RefreshToken, tokens.RefreshExpiresAt)
+	h.setSessionCookies(c, tokens)
 	respond.OK(c, gin.H{
 		"accessToken":      tokens.AccessToken,
 		"accessExpiresAt":  tokens.AccessExpiresAt,

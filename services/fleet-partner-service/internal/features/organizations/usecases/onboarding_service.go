@@ -11,6 +11,8 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 
+	
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/enforcement"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
@@ -69,6 +71,115 @@ func NewService(opts Options) *Service {
 		opts.Audit = audit.NewRecorder()
 	}
 	return &Service{opts: opts}
+}
+
+// UpdateOrganizationInput contains the fields that can be updated.
+type UpdateOrganizationInput struct {
+    OrganizationID     string
+    LegalName          string
+    TradingName        string
+    RegistrationNumber string
+    CountryCode        string
+    Timezone           string
+    DefaultCurrency    string
+    ExpectedVersion    int64
+    RequestID          string
+    CorrelationID      string
+}
+
+// UpdateOrganization updates an organization's editable fields.
+// Only allowed when the organization is in DRAFT status.
+func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizationInput) (*models.Organization, error) {
+    // Validate required fields
+    if input.LegalName == "" || input.CountryCode == "" {
+        return nil, apperrors.Validation("Legal name and country are required.", []apperrors.FieldViolation{
+            {Field: "legalName", Message: "Required."},
+            {Field: "countryCode", Message: "Required."},
+        })
+    }
+
+    // Get the current organization
+    organization, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
+    if err != nil {
+        return nil, err
+    }
+
+    // Only allow updates in DRAFT status
+    if organization.Status != models.OrganizationStatusDraft {
+        return nil, apperrors.Conflict(
+            "Company can only be edited while in DRAFT status. Current status: "+organization.Status,
+            nil,
+        )
+    }
+
+    // Preserve the operating capabilities if they exist
+    capabilities := organization.OperatingCapabilities
+    if capabilities == nil {
+        capabilities = []string{}
+    }
+
+    // Create updated organization
+    updatedOrg := &models.Organization{
+        ID:                    organization.ID,
+        Status:                organization.Status, // Keep as DRAFT
+        LegalName:             input.LegalName,
+        TradingName:           input.TradingName,
+        RegistrationNumber:    input.RegistrationNumber,
+        CountryCode:           input.CountryCode,
+        Timezone:              input.Timezone,
+        DefaultCurrency:       input.DefaultCurrency,
+        OperatingCapabilities: capabilities,
+        Version:               organization.Version,
+    }
+
+    // Update in database
+    err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+        if err := s.opts.Organizations.Update(ctx, tx, updatedOrg); err != nil {
+            return err
+        }
+
+        // Record audit entry
+        entry := audit.Entry{
+            OrganizationID: organization.ID,
+            ActorType:      "system",
+            ActorID:        "api",
+            Action:         "organization.updated",
+            ResourceType:   "organization",
+            ResourceID:     organization.ID,
+            PreviousValues: map[string]any{
+                "legalName": organization.LegalName,
+                "tradingName": organization.TradingName,
+                "countryCode": organization.CountryCode,
+                "timezone": organization.Timezone,
+                "defaultCurrency": organization.DefaultCurrency,
+            },
+            NewValues: map[string]any{
+                "legalName": input.LegalName,
+                "tradingName": input.TradingName,
+                "countryCode": input.CountryCode,
+                "timezone": input.Timezone,
+                "defaultCurrency": input.DefaultCurrency,
+            },
+            RequestID:     input.RequestID,
+            CorrelationID: input.CorrelationID,
+        }
+        if err := s.opts.Audit.Record(ctx, tx, entry); err != nil {
+            return err
+        }
+
+        // Publish event
+        return s.opts.Events.Publish(ctx, tx, "organization.updated.v1", "organization",
+            organization.ID, organization.Version+1, organization.ID, input.CorrelationID, map[string]any{
+                "organizationId": organization.ID,
+                "legalName":      input.LegalName,
+                "countryCode":    input.CountryCode,
+            })
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    return updatedOrg, nil
 }
 
 // OrganizationStatus returns an organization's name and status. It backs the
@@ -407,11 +518,512 @@ type AttachDocumentInput struct {
 	ExpiresAt    *time.Time
 }
 
+// ---- Representatives ----
+
+// CreateRepresentativeInput contains the data for creating a representative.
+type CreateRepresentativeInput struct {
+	OrganizationID          string
+	FullName                string
+	RoleTitle               string
+	Email                   string
+	Phone                   string
+	AuthorityType           string
+	AuthorityDocumentFileID *string
+	IdentityReference       *string
+	IsOnboardingOwner       bool
+	RequestID               string
+	CorrelationID           string
+}
+
+// CreateRepresentative creates an authorized representative for the organization.
+func (s *Service) CreateRepresentative(ctx context.Context, input CreateRepresentativeInput) (*models.Representative, error) {
+	// Validate required fields
+	if input.FullName == "" {
+		return nil, apperrors.Validation("Full name is required.", []apperrors.FieldViolation{
+			{Field: "fullName", Message: "Required."},
+		})
+	}
+	if input.RoleTitle == "" {
+		return nil, apperrors.Validation("Role title is required.", []apperrors.FieldViolation{
+			{Field: "roleTitle", Message: "Required."},
+		})
+	}
+	if input.Email == "" {
+		return nil, apperrors.Validation("Email is required.", []apperrors.FieldViolation{
+			{Field: "email", Message: "Required."},
+		})
+	}
+	if input.Phone == "" {
+		return nil, apperrors.Validation("Phone is required.", []apperrors.FieldViolation{
+			{Field: "phone", Message: "Required."},
+		})
+	}
+	if input.AuthorityType == "" {
+		return nil, apperrors.Validation("Authority type is required.", []apperrors.FieldViolation{
+			{Field: "authorityType", Message: "Required."},
+		})
+	}
+
+	// Check if organization exists and is in DRAFT status
+	org, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	if org.Status != models.OrganizationStatusDraft {
+		return nil, apperrors.Conflict("Representatives can only be added while the organization is in DRAFT status.", nil)
+	}
+
+	// Create the representative
+	rep := &models.Representative{
+		ID:                      ids.New("rep"),
+		OrganizationID:          input.OrganizationID,
+		FullName:                input.FullName,
+		RoleTitle:               input.RoleTitle,
+		Email:                   input.Email,
+		Phone:                   input.Phone,
+		AuthorityType:           input.AuthorityType,
+		AuthorityDocumentFileID: input.AuthorityDocumentFileID,
+		IdentityReference:       input.IdentityReference,
+		IsOnboardingOwner:       input.IsOnboardingOwner,
+		Status:                  "ACTIVE",
+		EffectiveFrom:           s.opts.Now(),
+	}
+
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Onboarding.CreateRepresentative(ctx, tx, input.OrganizationID, rep); err != nil {
+			return err
+		}
+
+		// Mark AUTHORIZED_REPRESENTATIVE stage as COMPLETE
+		if err := s.opts.Onboarding.UpsertStage(ctx, tx, input.OrganizationID, models.StageAuthorizedRepresentative, models.StageStatusComplete, nil, nil); err != nil {
+			return err
+		}
+
+		// Record audit entry
+		entry := audit.Entry{
+			OrganizationID: input.OrganizationID,
+			ActorType:      "system",
+			ActorID:        "api",
+			Action:         "representative.created",
+			ResourceType:   "representative",
+			ResourceID:     rep.ID,
+			NewValues: map[string]any{
+				"fullName":     input.FullName,
+				"roleTitle":    input.RoleTitle,
+				"email":        input.Email,
+				"authorityType": input.AuthorityType,
+			},
+			RequestID:     input.RequestID,
+			CorrelationID: input.CorrelationID,
+		}
+		if err := s.opts.Audit.Record(ctx, tx, entry); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	s.metricsStage(models.StageAuthorizedRepresentative, models.StageStatusComplete)
+	return rep, nil
+}
+
+// ListRepresentatives returns all representatives for an organization.
+func (s *Service) ListRepresentatives(ctx context.Context, organizationID string) ([]models.Representative, error) {
+	// Check if organization exists
+	_, err := s.opts.Organizations.GetByID(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.opts.Onboarding.ListRepresentatives(ctx, organizationID)
+}
+
+// UpdateRepresentativeInput contains the data for updating a representative.
+type UpdateRepresentativeInput struct {
+	OrganizationID          string
+	RepresentativeID        string
+	FullName                string
+	RoleTitle               string
+	Email                   string
+	Phone                   string
+	AuthorityType           string
+	AuthorityDocumentFileID *string
+	Status                  string
+	EffectiveTo             *time.Time
+	ExpectedVersion         int64
+	RequestID               string
+	CorrelationID           string
+}
+
+// UpdateRepresentative updates an existing representative.
+func (s *Service) UpdateRepresentative(ctx context.Context, input UpdateRepresentativeInput) (*models.Representative, error) {
+	// Validate required fields
+	if input.FullName == "" {
+		return nil, apperrors.Validation("Full name is required.", []apperrors.FieldViolation{
+			{Field: "fullName", Message: "Required."},
+		})
+	}
+	if input.RoleTitle == "" {
+		return nil, apperrors.Validation("Role title is required.", []apperrors.FieldViolation{
+			{Field: "roleTitle", Message: "Required."},
+		})
+	}
+
+	// Check if organization exists and is in DRAFT status
+	org, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	if org.Status != models.OrganizationStatusDraft {
+		return nil, apperrors.Conflict("Representatives can only be updated while the organization is in DRAFT status.", nil)
+	}
+
+	// Build the representative object for update
+	rep := &models.Representative{
+		FullName:                input.FullName,
+		RoleTitle:               input.RoleTitle,
+		Email:                   input.Email,
+		Phone:                   input.Phone,
+		AuthorityType:           input.AuthorityType,
+		AuthorityDocumentFileID: input.AuthorityDocumentFileID,
+		Status:                  input.Status,
+		EffectiveTo:             input.EffectiveTo,
+	}
+
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Onboarding.UpdateRepresentative(ctx, tx, input.OrganizationID, input.RepresentativeID, rep, input.ExpectedVersion); err != nil {
+			return err
+		}
+
+		// Record audit entry
+		entry := audit.Entry{
+			OrganizationID: input.OrganizationID,
+			ActorType:      "system",
+			ActorID:        "api",
+			Action:         "representative.updated",
+			ResourceType:   "representative",
+			ResourceID:     input.RepresentativeID,
+			NewValues: map[string]any{
+				"fullName":  input.FullName,
+				"roleTitle": input.RoleTitle,
+				"status":    input.Status,
+			},
+			RequestID:     input.RequestID,
+			CorrelationID: input.CorrelationID,
+		}
+		return s.opts.Audit.Record(ctx, tx, entry)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return rep, nil
+}
+
+// ---- Capabilities ----
+
+// GetCapabilities returns the organization's capability statuses.
+func (s *Service) GetCapabilities(ctx context.Context, organizationID string) (map[string]string, error) {
+	// Check if organization exists
+	_, err := s.opts.Organizations.GetByID(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.opts.Onboarding.ListCapabilities(ctx, organizationID)
+}
+
+// SetCapabilitiesInput contains the capabilities to set.
+type SetCapabilitiesInput struct {
+	OrganizationID string
+	Capabilities   []string
+	RequestID      string
+	CorrelationID  string
+}
+
+// SetCapabilities updates the organization's requested capabilities.
+func (s *Service) SetCapabilities(ctx context.Context, input SetCapabilitiesInput) ([]string, error) {
+	// Check if organization exists and is in DRAFT status
+	org, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	if org.Status != models.OrganizationStatusDraft {
+		return nil, apperrors.Conflict("Capabilities can only be updated while the organization is in DRAFT status.", nil)
+	}
+
+	// Validate capabilities against supported list
+	supported := make(map[string]bool)
+	for _, cap := range models.SupportedCapabilities {
+		supported[cap] = true
+	}
+
+	validCapabilities := []string{}
+	for _, cap := range input.Capabilities {
+		if supported[cap] {
+			validCapabilities = append(validCapabilities, cap)
+		}
+	}
+
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Onboarding.ReplaceCapabilities(ctx, tx, input.OrganizationID, validCapabilities); err != nil {
+			return err
+		}
+
+		// Mark OPERATING_CAPABILITIES stage as COMPLETE if capabilities exist
+		if len(validCapabilities) > 0 {
+			if err := s.opts.Onboarding.UpsertStage(ctx, tx, input.OrganizationID, models.StageOperatingCapabilities, models.StageStatusComplete, nil, nil); err != nil {
+				return err
+			}
+		}
+
+		// Record audit entry
+		entry := audit.Entry{
+			OrganizationID: input.OrganizationID,
+			ActorType:      "system",
+			ActorID:        "api",
+			Action:         "capabilities.set",
+			ResourceType:   "organization",
+			ResourceID:     input.OrganizationID,
+			NewValues: map[string]any{
+				"capabilities": validCapabilities,
+			},
+			RequestID:     input.RequestID,
+			CorrelationID: input.CorrelationID,
+		}
+		return s.opts.Audit.Record(ctx, tx, entry)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return validCapabilities, nil
+}
+
+// ---- Profile (Headquarters) ----
+
+// ---- Profile (Headquarters) ----
+
+// GetProfile returns the organization's business profile.
+// Returns nil, nil if no profile exists yet.
+func (s *Service) GetProfile(ctx context.Context, organizationID string) (*models.Profile, error) {
+	// Check if organization exists
+	_, err := s.opts.Organizations.GetByID(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	profile, err := s.opts.Onboarding.GetProfile(ctx, organizationID)
+	if errors.Is(err, orgrepos.ErrNotFound) {
+		// No profile yet — return nil, nil (not an error)
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return profile, nil
+}
+
+// UpdateProfileInput contains the data for updating a business profile.
+type UpdateProfileInput struct {
+	OrganizationID      string
+	BusinessType        *string
+	IncorporationDate   *time.Time
+	TaxReference        *string
+	RegisteredAddress   map[string]any
+	OperatingAddress    map[string]any
+	BusinessEmail       *string
+	BusinessPhone       *string
+	Website             *string
+	BusinessDescription *string
+	ExpectedVersion     int64
+	RequestID           string
+	CorrelationID       string
+}
+
+// UpdateProfile updates the organization's business profile.
+func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (*models.Profile, error) {
+	// Check if organization exists and is in DRAFT status
+	org, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	if org.Status != models.OrganizationStatusDraft {
+		return nil, apperrors.Conflict("Profile can only be updated while the organization is in DRAFT status.", nil)
+	}
+
+	profile := &models.Profile{
+		OrganizationID:      input.OrganizationID,
+		BusinessType:        input.BusinessType,
+		IncorporationDate:   input.IncorporationDate,
+		TaxReference:        input.TaxReference,
+		RegisteredAddress:   input.RegisteredAddress,
+		OperatingAddress:    input.OperatingAddress,
+		BusinessEmail:       input.BusinessEmail,
+		BusinessPhone:       input.BusinessPhone,
+		Website:             input.Website,
+		BusinessDescription: input.BusinessDescription,
+	}
+
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Onboarding.UpsertProfile(ctx, tx, input.OrganizationID, profile, input.ExpectedVersion); err != nil {
+			return err
+		}
+
+		// Mark HEADQUARTERS stage as COMPLETE
+		if err := s.opts.Onboarding.UpsertStage(ctx, tx, input.OrganizationID, models.StageHeadquarters, models.StageStatusComplete, nil, nil); err != nil {
+			return err
+		}
+
+		// Record audit entry
+		entry := audit.Entry{
+			OrganizationID: input.OrganizationID,
+			ActorType:      "system",
+			ActorID:        "api",
+			Action:         "profile.updated",
+			ResourceType:   "profile",
+			ResourceID:     input.OrganizationID,
+			NewValues: map[string]any{
+				"businessEmail": input.BusinessEmail,
+				"businessPhone": input.BusinessPhone,
+			},
+			RequestID:     input.RequestID,
+			CorrelationID: input.CorrelationID,
+		}
+		return s.opts.Audit.Record(ctx, tx, entry)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return profile, nil
+}
 // AttachDocument validates file ownership and readiness with
 // media-file-service before recording the reference.
 //
 // A file owned by another organization, or one that is not fully uploaded and
 // scanned, is refused. No binary content is ever stored locally.
+
+
+// RequestDocumentUploadAuthorizationInput contains the data for requesting an upload grant.
+type RequestDocumentUploadAuthorizationInput struct {
+	Tenant           tenant.Context
+	DocumentType     string
+	UploadPurpose    string
+	AllowedMIMETypes []string
+	MaxSizeBytes     int64
+	IdempotencyKey   string
+}
+
+// RequestDocumentUploadAuthorization requests a single-use upload grant from media service.
+func (s *Service) RequestDocumentUploadAuthorization(ctx context.Context, input RequestDocumentUploadAuthorizationInput) (*platformclients.MediaUploadGrant, error) {
+	if input.DocumentType == "" {
+		return nil, apperrors.Validation("Document type is required.", []apperrors.FieldViolation{
+			{Field: "documentType", Message: "Required."},
+		})
+	}
+	if input.IdempotencyKey == "" {
+		return nil, apperrors.Validation("Idempotency key is required.", []apperrors.FieldViolation{
+			{Field: "idempotencyKey", Message: "Required."},
+		})
+	}
+
+	// Default upload purpose if not provided
+	purpose := input.UploadPurpose
+	if purpose == "" {
+		purpose = "document_file"
+	}
+
+	// Default allowed MIME types if not provided
+	mimeTypes := input.AllowedMIMETypes
+	if len(mimeTypes) == 0 {
+		mimeTypes = []string{"application/pdf", "image/jpeg", "image/png", "image/webp"}
+	}
+
+	// Default max size if not provided
+	maxSize := input.MaxSizeBytes
+	if maxSize <= 0 {
+		maxSize = 25 * 1024 * 1024 // 25MB
+	}
+
+	grant, err := s.opts.Contracts.Media.AuthorizeUpload(ctx, platformclients.CallMeta{
+		OrganizationID: input.Tenant.OrganizationID,
+		RequestID:      input.Tenant.RequestID,
+		CorrelationID:  input.Tenant.CorrelationID,
+		IdempotencyKey: input.IdempotencyKey,
+	}, platformclients.MediaUploadRequest{
+		OwnerType:        "organization",
+		OwnerReference:   input.Tenant.OrganizationID,
+		DocumentCategory: input.DocumentType,
+		UploadPurpose:    purpose,
+		AllowedMIMETypes: mimeTypes,
+		MaxSizeBytes:     maxSize,
+		RetentionClass:   "STANDARD",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &grant, nil
+}
+
+// CompleteDocumentUploadInput contains the data for completing an upload.
+type CompleteDocumentUploadInput struct {
+	Tenant           tenant.Context
+	MediaObjectID    string
+	AuthorizationID  string
+	UploadToken      string
+	DeclaredMIME     string
+	DeclaredSize     int64
+	DeclaredChecksum string
+	Content          []byte
+}
+
+// CompleteDocumentUpload completes the upload with the file bytes.
+func (s *Service) CompleteDocumentUpload(ctx context.Context, input CompleteDocumentUploadInput) (*platformclients.MediaObjectState, error) {
+	if input.MediaObjectID == "" {
+		return nil, apperrors.Validation("Media object ID is required.", []apperrors.FieldViolation{
+			{Field: "mediaObjectId", Message: "Required."},
+		})
+	}
+	if input.AuthorizationID == "" {
+		return nil, apperrors.Validation("Authorization ID is required.", []apperrors.FieldViolation{
+			{Field: "authorizationId", Message: "Required."},
+		})
+	}
+	if input.UploadToken == "" {
+		return nil, apperrors.Validation("Upload token is required.", []apperrors.FieldViolation{
+			{Field: "uploadToken", Message: "Required."},
+		})
+	}
+	if len(input.Content) == 0 {
+		return nil, apperrors.Validation("File content is required.", []apperrors.FieldViolation{
+			{Field: "file", Message: "Required."},
+		})
+	}
+
+	grant := platformclients.MediaUploadGrant{
+		AuthorizationID: input.AuthorizationID,
+		MediaObjectID:   input.MediaObjectID,
+		UploadToken:     input.UploadToken,
+	}
+
+	state, err := s.opts.Contracts.Media.CompleteUpload(ctx, platformclients.CallMeta{
+		OrganizationID: input.Tenant.OrganizationID,
+		RequestID:      input.Tenant.RequestID,
+		CorrelationID:  input.Tenant.CorrelationID,
+	}, grant, input.DeclaredMIME, input.DeclaredChecksum, input.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	return &state, nil
+}
+
+
 func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput) (*models.Document, error) {
 	if input.FileID == "" || input.DocumentType == "" {
 		return nil, apperrors.Validation("A document type and file are required.", []apperrors.FieldViolation{
@@ -419,7 +1031,9 @@ func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput)
 	}
 
 	metadata, err := s.opts.Contracts.Media.GetFile(ctx, platformclients.CallMeta{
-		RequestID: input.Tenant.RequestID, CorrelationID: input.Tenant.CorrelationID,
+		OrganizationID: input.Tenant.OrganizationID,
+		RequestID:      input.Tenant.RequestID,
+		CorrelationID:  input.Tenant.CorrelationID,
 	}, input.FileID)
 	if err != nil {
 		// Unconfigured or unreachable media service must not let an
@@ -447,8 +1061,34 @@ func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput)
 		if err := s.opts.Onboarding.AttachDocument(ctx, tx, input.Tenant.OrganizationID, document); err != nil {
 			return err
 		}
+
+		// Recompute BUSINESS_DOCUMENTS completion from the actual current
+		// document set (read through this same transaction, so the row just
+		// inserted above is visible), never from this single attach alone.
+		existing, err := s.opts.Onboarding.ListDocumentsTx(ctx, tx, input.Tenant.OrganizationID)
+		if err != nil {
+			return err
+		}
+		present := make(map[string]bool, len(existing))
+		for _, d := range existing {
+			if d.Status != models.DocumentStatusRejected && d.Status != models.DocumentStatusExpired {
+				present[d.DocumentType] = true
+			}
+		}
+		stageStatus := models.StageStatusInProgress
+		complete := true
+		for _, required := range models.RequiredDocumentTypes {
+			if !present[required] {
+				complete = false
+				break
+			}
+		}
+		if complete {
+			stageStatus = models.StageStatusComplete
+		}
+
 		if err := s.opts.Onboarding.UpsertStage(ctx, tx, input.Tenant.OrganizationID,
-			models.StageBusinessDocuments, models.StageStatusInProgress, nil, nil); err != nil {
+			models.StageBusinessDocuments, stageStatus, nil, nil); err != nil {
 			return err
 		}
 		entry := audit.EntryFromTenant(input.Tenant, "organization.document_attached", "organization_document", document.ID)
