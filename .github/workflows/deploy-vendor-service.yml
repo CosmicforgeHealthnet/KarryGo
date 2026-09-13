@@ -60,8 +60,15 @@ jobs:
           script: |
             set -eu
             cd /opt/karrygo/vendor-service
-            test -f vendor.env
-            test "$(stat -c '%a' vendor.env)" = "600"
+            if [ ! -f vendor.env ]; then
+              echo "ERROR: /opt/karrygo/vendor-service/vendor.env is missing"
+              exit 1
+            fi
+            mode="$(stat -c '%a' vendor.env)"
+            if [ "$mode" != "600" ]; then
+              echo "ERROR: vendor.env must have mode 600; actual mode=$mode"
+              exit 1
+            fi
             export VENDOR_IMAGE='${{ env.VENDOR_IMAGE }}'
             export VENDOR_ENV_FILE=/opt/karrygo/vendor-service/vendor.env
             docker compose -f docker-compose.staging.yml config --quiet

@@ -76,4 +76,4 @@ jobs:
         run: |
           ! git grep -n -I -E -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|sk-proj-[A-Za-z0-9_-]{20,}' -- services/vendor-service shared/go
           test -z "$(git ls-files --others --exclude-standard | grep -E '(^|/)\.env($|\.)' | grep -Ev '\.env\.(example|sample|template)$' || true)"
-          test -z "$(git grep -n -I -E 'log\.(Print|Printf|Info|Debug).*([Oo][Tt][Pp]|[Qq][Rr]|[Tt]oken|[Pp]assword|[Ss]ecret)' -- services/vendor-service shared/go -- '*.go' ':!**/*_test.go' || true)"
+          test -z "$(git grep -n -I -E 'log\.(Print|Printf|Info|Debug).*([Oo][Tt][Pp]|[Qq][Rr]|[Tt]oken|[Pp]assword|[Ss]ecret)' -- 'services/vendor-service/**' 'shared/go/**' ':(exclude)**/*_test.go' || true)"
