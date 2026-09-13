@@ -104,6 +104,7 @@ func (f FileMetadata) Ready() bool {
 	return f.UploadState == "COMPLETED" &&
 		(f.ScanState == "PENDING" || f.ScanState == "CLEAN" || f.ScanState == "NOT_REQUIRED")
 }
+
 // MediaContract is the file metadata and ownership capability.
 // MediaContract is the file metadata and ownership capability.
 type MediaContract interface {
@@ -301,6 +302,7 @@ func (u UnconfiguredMedia) CompleteUpload(context.Context, CallMeta, MediaUpload
 	return MediaObjectState{}, notConfigured(u.Service)
 }
 func (u UnconfiguredMedia) Configured() bool { return false }
+
 // UnconfiguredProvider fails closed for every provider call.
 type UnconfiguredProvider struct{ Service string }
 
@@ -372,7 +374,6 @@ func NewUnconfiguredContracts() ContractSet {
 }
 
 type UnconfiguredHaulingLinks struct{}
-
 
 func (UnconfiguredHaulingLinks) CreateProviderLink(context.Context, CallMeta, HaulingLinkRequest) (HaulingLink, error) {
 	return HaulingLink{}, notConfigured("driver-hauling-service")

@@ -113,14 +113,14 @@ func BuildMarketplaceService(cfg config.Config, pool *pgxpool.Pool, metrics *obs
 	}
 
 	return mktusecases.NewService(mktusecases.Options{
-		Pool:         pool,
-		Projections:  mktrepos.NewProjectionRepository(pool),
-		Offers:       mktrepos.NewOfferRepository(pool),
-		Assignments:  mktrepos.NewAssignmentRepository(pool),
+		Pool:            pool,
+		Projections:     mktrepos.NewProjectionRepository(pool),
+		Offers:          mktrepos.NewOfferRepository(pool),
+		Assignments:     mktrepos.NewAssignmentRepository(pool),
 		ExecutionStarts: mktrepos.NewExecutionStartRepository(pool),
-		Trips:        mktrepos.NewTripRepository(pool),
-		Commands:     mktrepos.NewCommandRepository(pool),
-		Executions:   executions,
+		Trips:           mktrepos.NewTripRepository(pool),
+		Commands:        mktrepos.NewCommandRepository(pool),
+		Executions:      executions,
 		Eligibility: mktusecases.NewEligibilityChecker(
 			NewMembershipReader(providerrepos.NewRepository(pool)),
 			executions,

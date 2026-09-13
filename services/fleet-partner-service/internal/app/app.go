@@ -218,7 +218,7 @@ func BuildRouter(opts Options) *gin.Engine {
 
 	// Corporate web API: Bearer token + tenant resolution.
 	corporate := router.Group("/fleet-partner/v1")
-corporate.Use(middleware.RequireJSON("/fleet-partner/v1/organizations/:organizationId/documents/upload-content"))
+	corporate.Use(middleware.RequireJSON("/fleet-partner/v1/organizations/:organizationId/documents/upload-content"))
 	corporate.Use(middleware.CorporateBearer(opts.TokenSigner))
 	{
 		// Identity-scoped routes: a verified session, organization scope not

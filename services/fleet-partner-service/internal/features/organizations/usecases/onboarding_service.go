@@ -11,8 +11,6 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 
-	
-
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/enforcement"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
@@ -75,111 +73,111 @@ func NewService(opts Options) *Service {
 
 // UpdateOrganizationInput contains the fields that can be updated.
 type UpdateOrganizationInput struct {
-    OrganizationID     string
-    LegalName          string
-    TradingName        string
-    RegistrationNumber string
-    CountryCode        string
-    Timezone           string
-    DefaultCurrency    string
-    ExpectedVersion    int64
-    RequestID          string
-    CorrelationID      string
+	OrganizationID     string
+	LegalName          string
+	TradingName        string
+	RegistrationNumber string
+	CountryCode        string
+	Timezone           string
+	DefaultCurrency    string
+	ExpectedVersion    int64
+	RequestID          string
+	CorrelationID      string
 }
 
 // UpdateOrganization updates an organization's editable fields.
 // Only allowed when the organization is in DRAFT status.
 func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizationInput) (*models.Organization, error) {
-    // Validate required fields
-    if input.LegalName == "" || input.CountryCode == "" {
-        return nil, apperrors.Validation("Legal name and country are required.", []apperrors.FieldViolation{
-            {Field: "legalName", Message: "Required."},
-            {Field: "countryCode", Message: "Required."},
-        })
-    }
+	// Validate required fields
+	if input.LegalName == "" || input.CountryCode == "" {
+		return nil, apperrors.Validation("Legal name and country are required.", []apperrors.FieldViolation{
+			{Field: "legalName", Message: "Required."},
+			{Field: "countryCode", Message: "Required."},
+		})
+	}
 
-    // Get the current organization
-    organization, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
-    if err != nil {
-        return nil, err
-    }
+	// Get the current organization
+	organization, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
 
-    // Only allow updates in DRAFT status
-    if organization.Status != models.OrganizationStatusDraft {
-        return nil, apperrors.Conflict(
-            "Company can only be edited while in DRAFT status. Current status: "+organization.Status,
-            nil,
-        )
-    }
+	// Only allow updates in DRAFT status
+	if organization.Status != models.OrganizationStatusDraft {
+		return nil, apperrors.Conflict(
+			"Company can only be edited while in DRAFT status. Current status: "+organization.Status,
+			nil,
+		)
+	}
 
-    // Preserve the operating capabilities if they exist
-    capabilities := organization.OperatingCapabilities
-    if capabilities == nil {
-        capabilities = []string{}
-    }
+	// Preserve the operating capabilities if they exist
+	capabilities := organization.OperatingCapabilities
+	if capabilities == nil {
+		capabilities = []string{}
+	}
 
-    // Create updated organization
-    updatedOrg := &models.Organization{
-        ID:                    organization.ID,
-        Status:                organization.Status, // Keep as DRAFT
-        LegalName:             input.LegalName,
-        TradingName:           input.TradingName,
-        RegistrationNumber:    input.RegistrationNumber,
-        CountryCode:           input.CountryCode,
-        Timezone:              input.Timezone,
-        DefaultCurrency:       input.DefaultCurrency,
-        OperatingCapabilities: capabilities,
-        Version:               organization.Version,
-    }
+	// Create updated organization
+	updatedOrg := &models.Organization{
+		ID:                    organization.ID,
+		Status:                organization.Status, // Keep as DRAFT
+		LegalName:             input.LegalName,
+		TradingName:           input.TradingName,
+		RegistrationNumber:    input.RegistrationNumber,
+		CountryCode:           input.CountryCode,
+		Timezone:              input.Timezone,
+		DefaultCurrency:       input.DefaultCurrency,
+		OperatingCapabilities: capabilities,
+		Version:               organization.Version,
+	}
 
-    // Update in database
-    err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
-        if err := s.opts.Organizations.Update(ctx, tx, updatedOrg); err != nil {
-            return err
-        }
+	// Update in database
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Organizations.Update(ctx, tx, updatedOrg); err != nil {
+			return err
+		}
 
-        // Record audit entry
-        entry := audit.Entry{
-            OrganizationID: organization.ID,
-            ActorType:      "system",
-            ActorID:        "api",
-            Action:         "organization.updated",
-            ResourceType:   "organization",
-            ResourceID:     organization.ID,
-            PreviousValues: map[string]any{
-                "legalName": organization.LegalName,
-                "tradingName": organization.TradingName,
-                "countryCode": organization.CountryCode,
-                "timezone": organization.Timezone,
-                "defaultCurrency": organization.DefaultCurrency,
-            },
-            NewValues: map[string]any{
-                "legalName": input.LegalName,
-                "tradingName": input.TradingName,
-                "countryCode": input.CountryCode,
-                "timezone": input.Timezone,
-                "defaultCurrency": input.DefaultCurrency,
-            },
-            RequestID:     input.RequestID,
-            CorrelationID: input.CorrelationID,
-        }
-        if err := s.opts.Audit.Record(ctx, tx, entry); err != nil {
-            return err
-        }
+		// Record audit entry
+		entry := audit.Entry{
+			OrganizationID: organization.ID,
+			ActorType:      "system",
+			ActorID:        "api",
+			Action:         "organization.updated",
+			ResourceType:   "organization",
+			ResourceID:     organization.ID,
+			PreviousValues: map[string]any{
+				"legalName":       organization.LegalName,
+				"tradingName":     organization.TradingName,
+				"countryCode":     organization.CountryCode,
+				"timezone":        organization.Timezone,
+				"defaultCurrency": organization.DefaultCurrency,
+			},
+			NewValues: map[string]any{
+				"legalName":       input.LegalName,
+				"tradingName":     input.TradingName,
+				"countryCode":     input.CountryCode,
+				"timezone":        input.Timezone,
+				"defaultCurrency": input.DefaultCurrency,
+			},
+			RequestID:     input.RequestID,
+			CorrelationID: input.CorrelationID,
+		}
+		if err := s.opts.Audit.Record(ctx, tx, entry); err != nil {
+			return err
+		}
 
-        // Publish event
-        return s.opts.Events.Publish(ctx, tx, "organization.updated.v1", "organization",
-            organization.ID, organization.Version+1, organization.ID, input.CorrelationID, map[string]any{
-                "organizationId": organization.ID,
-                "legalName":      input.LegalName,
-                "countryCode":    input.CountryCode,
-            })
-    })
-    if err != nil {
-        return nil, err
-    }
+		// Publish event
+		return s.opts.Events.Publish(ctx, tx, "organization.updated.v1", "organization",
+			organization.ID, organization.Version+1, organization.ID, input.CorrelationID, map[string]any{
+				"organizationId": organization.ID,
+				"legalName":      input.LegalName,
+				"countryCode":    input.CountryCode,
+			})
+	})
+	if err != nil {
+		return nil, err
+	}
 
-    return updatedOrg, nil
+	return updatedOrg, nil
 }
 
 // OrganizationStatus returns an organization's name and status. It backs the
@@ -608,9 +606,9 @@ func (s *Service) CreateRepresentative(ctx context.Context, input CreateRepresen
 			ResourceType:   "representative",
 			ResourceID:     rep.ID,
 			NewValues: map[string]any{
-				"fullName":     input.FullName,
-				"roleTitle":    input.RoleTitle,
-				"email":        input.Email,
+				"fullName":      input.FullName,
+				"roleTitle":     input.RoleTitle,
+				"email":         input.Email,
 				"authorityType": input.AuthorityType,
 			},
 			RequestID:     input.RequestID,
@@ -901,12 +899,12 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 
 	return profile, nil
 }
+
 // AttachDocument validates file ownership and readiness with
 // media-file-service before recording the reference.
 //
 // A file owned by another organization, or one that is not fully uploaded and
 // scanned, is refused. No binary content is ever stored locally.
-
 
 // RequestDocumentUploadAuthorizationInput contains the data for requesting an upload grant.
 type RequestDocumentUploadAuthorizationInput struct {
@@ -1022,7 +1020,6 @@ func (s *Service) CompleteDocumentUpload(ctx context.Context, input CompleteDocu
 
 	return &state, nil
 }
-
 
 func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput) (*models.Document, error) {
 	if input.FileID == "" || input.DocumentType == "" {

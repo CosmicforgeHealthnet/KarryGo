@@ -38,22 +38,22 @@ type Handler struct {
 // browser plausibly has a session, for routing purposes only. Real
 // authorization always happens server-side via the access/refresh tokens.
 func NewHandler(service *authusecases.Service, contactSecret []byte, policies ...browserauth.Policy) *Handler {
-    refreshPolicy, _ := browserauth.Load("FLEET_PARTNER_BROWSER", os.Getenv("APP_ENV"), "karrygo_fleet_refresh", "/fleet-partner/v1/auth")
-    markerPolicy, _ := browserauth.Load("FLEET_PARTNER_BROWSER", os.Getenv("APP_ENV"), "karrygo_has_session", "/")
-    
-    if len(policies) > 0 {
-        refreshPolicy = policies[0]
-    }
-    if len(policies) > 1 {
-        markerPolicy = policies[1]
-    }
-    
-    return &Handler{
-        service:       service,
-        contactSecret: contactSecret,
-        cookie:        refreshPolicy,
-        sessionMarker: markerPolicy,
-    }
+	refreshPolicy, _ := browserauth.Load("FLEET_PARTNER_BROWSER", os.Getenv("APP_ENV"), "karrygo_fleet_refresh", "/fleet-partner/v1/auth")
+	markerPolicy, _ := browserauth.Load("FLEET_PARTNER_BROWSER", os.Getenv("APP_ENV"), "karrygo_has_session", "/")
+
+	if len(policies) > 0 {
+		refreshPolicy = policies[0]
+	}
+	if len(policies) > 1 {
+		markerPolicy = policies[1]
+	}
+
+	return &Handler{
+		service:       service,
+		contactSecret: contactSecret,
+		cookie:        refreshPolicy,
+		sessionMarker: markerPolicy,
+	}
 }
 
 // startRequest is the signup/login request. There is deliberately no password

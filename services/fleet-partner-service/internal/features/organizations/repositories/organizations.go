@@ -17,7 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"cosmicforge/logistics/shared/go/apperrors" 
+	"cosmicforge/logistics/shared/go/apperrors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
@@ -69,15 +69,15 @@ func NewOrganizationRepository(db database.Querier) *OrganizationRepository {
 // Update performs a full update of an organization's editable fields.
 // Only updates if the organization is in DRAFT status.
 func (r *OrganizationRepository) Update(ctx context.Context, q database.Querier, org *models.Organization) error {
-    // Validate timezone and currency
-    if err := ValidateTimezone(org.Timezone); err != nil {
-        return err
-    }
-    if err := ValidateCurrency(org.DefaultCurrency); err != nil {
-        return err
-    }
+	// Validate timezone and currency
+	if err := ValidateTimezone(org.Timezone); err != nil {
+		return err
+	}
+	if err := ValidateCurrency(org.DefaultCurrency); err != nil {
+		return err
+	}
 
-    tag, err := q.Exec(ctx, `
+	tag, err := q.Exec(ctx, `
         UPDATE fleet_partner_organizations SET
             legal_name = $1,
             trading_name = $2,
@@ -89,33 +89,33 @@ func (r *OrganizationRepository) Update(ctx context.Context, q database.Querier,
             version = version + 1,
             updated_at = now()
         WHERE id = $8 AND version = $9 AND status = $10`,
-        org.LegalName,
-        org.TradingName,
-        org.RegistrationNumber,
-        org.CountryCode,
-        org.Timezone,
-        org.DefaultCurrency,
-        // We need to marshal capabilities
-        org.OperatingCapabilities,
-        org.ID,
-        org.Version,
-        models.OrganizationStatusDraft, // Only allow updates in DRAFT status
-    )
-    if err != nil {
-        return fmt.Errorf("organizations: update: %w", err)
-    }
-    if tag.RowsAffected() == 0 {
-        // Check if the row exists and what status it has
-        existing, err := r.GetByID(ctx, org.ID)
-        if err != nil {
-            return err
-        }
-        if existing.Status != models.OrganizationStatusDraft {
-            return apperrors.Conflict("Company can only be edited while in DRAFT status.", nil)
-        }
-        return concurrency.ErrVersionMismatch
-    }
-    return nil
+		org.LegalName,
+		org.TradingName,
+		org.RegistrationNumber,
+		org.CountryCode,
+		org.Timezone,
+		org.DefaultCurrency,
+		// We need to marshal capabilities
+		org.OperatingCapabilities,
+		org.ID,
+		org.Version,
+		models.OrganizationStatusDraft, // Only allow updates in DRAFT status
+	)
+	if err != nil {
+		return fmt.Errorf("organizations: update: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		// Check if the row exists and what status it has
+		existing, err := r.GetByID(ctx, org.ID)
+		if err != nil {
+			return err
+		}
+		if existing.Status != models.OrganizationStatusDraft {
+			return apperrors.Conflict("Company can only be edited while in DRAFT status.", nil)
+		}
+		return concurrency.ErrVersionMismatch
+	}
+	return nil
 }
 
 // Create inserts a new organization foundation record after validating the

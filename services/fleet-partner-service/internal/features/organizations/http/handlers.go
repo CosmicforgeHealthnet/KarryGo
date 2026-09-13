@@ -2,10 +2,10 @@
 package http
 
 import (
+	"io"
 	"net/http"
-		"time"  
-		"io"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -53,9 +53,9 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.GET("/organizations/current", h.currentOrganization)
 	group.PUT("/organizations/:organizationId", h.updateOrganization)
 	group.PUT("/organizations/:organizationId/stages/:stage", h.markStage)
-	group.POST("/organizations/:organizationId/representatives", h.createRepresentative)   
-	group.GET("/organizations/:organizationId/representatives", h.listRepresentatives)   
-	group.PUT("/organizations/:organizationId/representatives/:representativeId", h.updateRepresentative) 
+	group.POST("/organizations/:organizationId/representatives", h.createRepresentative)
+	group.GET("/organizations/:organizationId/representatives", h.listRepresentatives)
+	group.PUT("/organizations/:organizationId/representatives/:representativeId", h.updateRepresentative)
 	group.GET("/organizations/:organizationId/capabilities", h.getCapabilities)
 	group.PUT("/organizations/:organizationId/capabilities", h.updateCapabilities)
 	group.GET("/organizations/:organizationId/profile", h.getProfile)
@@ -180,13 +180,13 @@ func (h *Handler) createOrganization(c *gin.Context) {
 }
 
 type updateOrganizationRequest struct {
-    LegalName          string `json:"legalName"`
-    TradingName        string `json:"tradingName"`
-    RegistrationNumber string `json:"registrationNumber"`
-    CountryCode        string `json:"countryCode"`
-    OrganizationType   string `json:"organizationType"`
-    Timezone           string `json:"timezone"`
-    DefaultCurrency    string `json:"defaultCurrency"`
+	LegalName          string `json:"legalName"`
+	TradingName        string `json:"tradingName"`
+	RegistrationNumber string `json:"registrationNumber"`
+	CountryCode        string `json:"countryCode"`
+	OrganizationType   string `json:"organizationType"`
+	Timezone           string `json:"timezone"`
+	DefaultCurrency    string `json:"defaultCurrency"`
 }
 
 type createRepresentativeRequest struct {
@@ -201,13 +201,13 @@ type createRepresentativeRequest struct {
 }
 
 type updateRepresentativeRequest struct {
-	FullName                string  `json:"fullName"`
-	RoleTitle               string  `json:"roleTitle"`
-	Email                   string  `json:"email"`
-	Phone                   string  `json:"phone"`
-	AuthorityType           string  `json:"authorityType"`
-	AuthorityDocumentFileID *string `json:"authorityDocumentFileId"`
-	Status                  string  `json:"status"`
+	FullName                string     `json:"fullName"`
+	RoleTitle               string     `json:"roleTitle"`
+	Email                   string     `json:"email"`
+	Phone                   string     `json:"phone"`
+	AuthorityType           string     `json:"authorityType"`
+	AuthorityDocumentFileID *string    `json:"authorityDocumentFileId"`
+	Status                  string     `json:"status"`
 	EffectiveTo             *time.Time `json:"effectiveTo"`
 }
 
@@ -295,7 +295,7 @@ func (h *Handler) completeDocumentUpload(c *gin.Context) {
 	declaredSize, _ := strconv.ParseInt(c.PostForm("declaredSize"), 10, 64)
 	declaredChecksum := c.PostForm("declaredChecksum")
 
-file, _, err := c.Request.FormFile("file")
+	file, _, err := c.Request.FormFile("file")
 	if err != nil {
 		respond.Error(c, apperrors.BadRequest("File is required.", nil))
 		return
@@ -324,63 +324,63 @@ file, _, err := c.Request.FormFile("file")
 	}
 
 	respond.OK(c, gin.H{
-		"mediaObjectId":   state.MediaObjectID,
-		"uploadStatus":    state.UploadStatus,
-		"safetyStatus":    state.SafetyStatus,
-		"sizeBytes":       state.SizeBytes,
-		"detectedMime":    state.DetectedMIME,
-		"sourceVersion":   state.SourceVersion,
+		"mediaObjectId": state.MediaObjectID,
+		"uploadStatus":  state.UploadStatus,
+		"safetyStatus":  state.SafetyStatus,
+		"sizeBytes":     state.SizeBytes,
+		"detectedMime":  state.DetectedMIME,
+		"sourceVersion": state.SourceVersion,
 	})
 }
 
 func (h *Handler) updateOrganization(c *gin.Context) {
-    tenantCtx, ok := requireTenant(c)
-    if !ok || !requireScopedPath(c, tenantCtx) {
-        return
-    }
-    if !h.authorize(c, tenantCtx, "organization.update") {
-        return
-    }
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
 
-    var request updateOrganizationRequest
-    if err := c.ShouldBindJSON(&request); err != nil {
-        respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
-        return
-    }
+	var request updateOrganizationRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
 
-    expectedVersion, err := expectedVersionFrom(c)
-    if err != nil {
-        respond.Error(c, err)
-        return
-    }
+	expectedVersion, err := expectedVersionFrom(c)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
 
-    organization, err := h.organizations.UpdateOrganization(c.Request.Context(), orgusecases.UpdateOrganizationInput{
-        OrganizationID:     tenantCtx.OrganizationID,
-        LegalName:          request.LegalName,
-        TradingName:        request.TradingName,
-        RegistrationNumber: request.RegistrationNumber,
-        CountryCode:        request.CountryCode,
-        Timezone:           request.Timezone,
-        DefaultCurrency:    request.DefaultCurrency,
-        ExpectedVersion:    expectedVersion,
-        RequestID:          tenantCtx.RequestID,
-        CorrelationID:      tenantCtx.CorrelationID,
-    })
-    if err != nil {
-        respond.Error(c, err)
-        return
-    }
+	organization, err := h.organizations.UpdateOrganization(c.Request.Context(), orgusecases.UpdateOrganizationInput{
+		OrganizationID:     tenantCtx.OrganizationID,
+		LegalName:          request.LegalName,
+		TradingName:        request.TradingName,
+		RegistrationNumber: request.RegistrationNumber,
+		CountryCode:        request.CountryCode,
+		Timezone:           request.Timezone,
+		DefaultCurrency:    request.DefaultCurrency,
+		ExpectedVersion:    expectedVersion,
+		RequestID:          tenantCtx.RequestID,
+		CorrelationID:      tenantCtx.CorrelationID,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
 
-    respond.OK(c, gin.H{
-        "organizationId":  organization.ID,
-        "legalName":       organization.LegalName,
-        "tradingName":     organization.TradingName,
-        "status":          organization.Status,
-        "countryCode":     organization.CountryCode,
-        "timezone":        organization.Timezone,
-        "defaultCurrency": organization.DefaultCurrency,
-        "version":         organization.Version,
-    })
+	respond.OK(c, gin.H{
+		"organizationId":  organization.ID,
+		"legalName":       organization.LegalName,
+		"tradingName":     organization.TradingName,
+		"status":          organization.Status,
+		"countryCode":     organization.CountryCode,
+		"timezone":        organization.Timezone,
+		"defaultCurrency": organization.DefaultCurrency,
+		"version":         organization.Version,
+	})
 }
 
 func (h *Handler) createRepresentative(c *gin.Context) {
@@ -645,7 +645,6 @@ func (h *Handler) updateProfile(c *gin.Context) {
 		"version":             profile.Version,
 	})
 }
-
 
 func (h *Handler) markStage(c *gin.Context) {
 	tenantCtx, ok := requireTenant(c)
