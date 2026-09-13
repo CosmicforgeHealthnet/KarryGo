@@ -42,7 +42,9 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+    logging.Fatal("config", "failed to load .env file: %v", err)
+}
 
 	cfg, err := config.Load()
 	if err != nil {

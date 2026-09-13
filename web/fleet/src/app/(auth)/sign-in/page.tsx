@@ -1,7 +1,12 @@
-﻿"use client";
+﻿// src/app/(auth)/sign-in/page.tsx
+
+"use client";
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Mail, Check, ArrowRight, ShieldCheck } from "lucide-react";
+import { authService } from "@/lib/services/authService";
+import { useAuthStore } from "@/lib/stores/authStore";
 
 type SubmitState =
   | { status: "idle" }
@@ -14,10 +19,22 @@ function isValidIdentifier(value: string) {
   return email.test(value) || phone.test(value.replace(/[\s()-]/g, ""));
 }
 
+function maskIdentifier(value: string) {
+  if (value.includes("@")) {
+    const [local, domain] = value.split("@");
+    const visible = local.slice(0, 1);
+    return `${visible}${"*".repeat(Math.max(local.length - 1, 1))}@${domain}`;
+  }
+  return value.replace(/.(?=.{2})/g, "*");
+}
+
 export default function SignInPage() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [state, setState] = useState<SubmitState>({ status: "idle" });
+  const { setLoading, setError } = useAuthStore();
+
+  const isValid = isValidIdentifier(identifier);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -28,12 +45,42 @@ export default function SignInPage() {
     }
 
     setState({ status: "submitting" });
+    setLoading(true);
+    setError(null);
 
-    // MOCK: simulates the sign-in challenge call until fleet-partner-service
-    // auth endpoints are wired in.
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    try {
+      let email = "";
+      let phone = "";
 
-    router.push(`/verify?destination=${encodeURIComponent(maskIdentifier(identifier))}`);
+      if (identifier.includes("@")) {
+        email = identifier;
+        phone = "+2348012345678";
+      } else {
+        const cleaned = identifier.replace(/[\s()-]/g, "");
+        phone = cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
+        email = "test@example.com";
+      }
+
+      const response = await authService.startOTP({ email, phone });
+
+      if (!response.data?.challengeId) {
+        throw new Error("No challengeId received");
+      }
+
+      const masked = maskIdentifier(identifier);
+      router.push(`/verify?challengeId=${response.data.challengeId}&destination=${encodeURIComponent(masked)}`);
+    } catch (err: any) {
+      const message = err?.response?.data?.error?.message || err?.message || "Something went wrong. Please try again.";
+      if (message.toLowerCase().includes("rate") || message.toLowerCase().includes("too many")) {
+        setState({ status: "error", kind: "rate_limited" });
+      } else {
+        setState({ status: "error", kind: "unavailable" });
+      }
+      setError(message);
+    } finally {
+      setState({ status: "idle" });
+      setLoading(false);
+    }
   }
 
   const submitting = state.status === "submitting";
@@ -54,19 +101,26 @@ export default function SignInPage() {
         >
           Email or phone number
         </label>
-        <input
-          id="identifier"
-          type="text"
-          autoComplete="username"
-          value={identifier}
-          onChange={(e) => {
-            setIdentifier(e.target.value);
-            if (state.status === "error") setState({ status: "idle" });
-          }}
-          placeholder="you@company.com"
-          disabled={submitting}
-          className="w-full border-b border-line bg-transparent py-3 text-[18px] text-ink-950 outline-none transition placeholder:text-ink-500/60 focus:border-primary disabled:opacity-50"
-        />
+
+        <div className="relative flex items-center">
+          <Mail className="pointer-events-none absolute left-3.5 h-[18px] w-[18px] text-ink-400" />
+          <input
+            id="identifier"
+            type="text"
+            autoComplete="username"
+            value={identifier}
+            onChange={(e) => {
+              setIdentifier(e.target.value);
+              if (state.status === "error") setState({ status: "idle" });
+            }}
+            placeholder="you@company.com"
+            disabled={submitting}
+            className="w-full rounded-lg border border-line bg-surface-2 py-3 pl-11 pr-11 text-[16px] text-ink-950 outline-none transition placeholder:text-ink-500/60 focus:border-primary focus:bg-white disabled:opacity-50"
+          />
+          {isValid && (
+            <Check className="absolute right-3.5 h-[18px] w-[18px] text-green" />
+          )}
+        </div>
 
         {state.status === "error" && (
           <p role="alert" className="mt-2.5 text-[14px] text-red">
@@ -82,9 +136,10 @@ export default function SignInPage() {
         <button
           type="submit"
           disabled={submitting || identifier.length === 0}
-          className="mt-7 w-full rounded-md bg-primary px-4 py-3.5 text-[15px] font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-7 flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3.5 text-[15px] font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           {submitting ? "Sending code…" : "Continue"}
+          {!submitting && <ArrowRight className="h-4 w-4" />}
         </button>
       </form>
 
@@ -92,15 +147,13 @@ export default function SignInPage() {
         We&apos;ll send a one-time code to confirm it&apos;s you. Your contact
         details are never shared with other organizations.
       </p>
+
+      <div className="mt-6 flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-4 py-3">
+        <ShieldCheck className="h-[18px] w-[18px] shrink-0 text-primary" />
+        <span className="text-[13px] text-ink-600">
+          Trusted by fleet operators worldwide
+        </span>
+      </div>
     </div>
   );
-}
-
-function maskIdentifier(value: string) {
-  if (value.includes("@")) {
-    const [local, domain] = value.split("@");
-    const visible = local.slice(0, 1);
-    return `${visible}${"*".repeat(Math.max(local.length - 1, 1))}@${domain}`;
-  }
-  return value.replace(/.(?=.{2})/g, "*");
 }

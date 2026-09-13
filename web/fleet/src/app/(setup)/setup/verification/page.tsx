@@ -1,8 +1,15 @@
 ﻿// src/app/(setup)/setup/verification/page.tsx
+// Screen: ORG06 - Business Verification
+// Rebuilt as a real two-column layout, same pass as Wallet Provisioning:
+// the items ARE the primary content here (unlike Wallet, which is one
+// pipeline), so they take the main column as full cards. The overall
+// status becomes a focal sidebar summary with a radial progress ring —
+// echoing the ring already used on the onboarding home page, so it reads
+// as one product's device rather than a new one invented for this screen.
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
@@ -10,17 +17,22 @@ import {
   CheckCircle2,
   X,
   ShieldCheck,
-  ListChecks,
   FileCheck,
-  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  FileWarning,
+  Circle,
+  Info,
 } from "lucide-react";
 
 // ==================== TYPES ====================
 
+type ItemStatus = "Pending" | "InProgress" | "Verified" | "Rejected" | "NotStarted";
+
 type VerificationItem = {
   id: string;
   name: string;
-  status: "Pending" | "InProgress" | "Verified" | "Rejected" | "NotStarted";
+  status: ItemStatus;
   description: string;
   required: boolean;
   updatedAt: string;
@@ -28,7 +40,7 @@ type VerificationItem = {
 };
 
 type VerificationState = {
-  status: "Pending" | "InProgress" | "Verified" | "Rejected" | "NotStarted";
+  status: ItemStatus;
   submittedAt: string | null;
   reviewedAt: string | null;
   reviewer: string | null;
@@ -93,40 +105,121 @@ const MOCK_VERIFICATION: VerificationState = {
   ],
 };
 
-type StatusStyle = {
-  bg: string;
-  text: string;
-  icon: React.ReactNode;
-};
-
-const STATUS_STYLES: Record<string, StatusStyle> = {
+const STATUS_STYLES: Record<ItemStatus, { bg: string; text: string; icon: React.ReactNode }> = {
   Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-4 w-4" /> },
   InProgress: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCw className="h-4 w-4" /> },
   Verified: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
   Rejected: { bg: "bg-red-bg", text: "text-red", icon: <X className="h-4 w-4" /> },
-  NotStarted: { bg: "bg-surface-2", text: "text-ink-500", icon: <div className="h-4 w-4" /> },
+  NotStarted: { bg: "bg-surface-2", text: "text-ink-400", icon: <Circle className="h-4 w-4" /> },
 };
 
-type OverallStatusStyle = {
-  bg: string;
-  text: string;
+// ==================== SHARED PRIMITIVE ====================
+
+function IconTile({
+  icon,
+  theme = "brand",
+}: {
   icon: React.ReactNode;
-};
+  theme?: "brand" | "accent" | "amber" | "red" | "green";
+}) {
+  const gradient =
+    theme === "brand"
+      ? "from-primary to-accent"
+      : theme === "accent"
+      ? "from-accent to-accent-hover"
+      : theme === "amber"
+      ? "from-amber to-amber"
+      : theme === "red"
+      ? "from-red to-red"
+      : "from-green to-green";
 
-const OVERALL_STATUS_STYLES: Record<string, OverallStatusStyle> = {
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-5 w-5" /> },
-  InProgress: { bg: "bg-blue-bg", text: "text-blue", icon: <RefreshCw className="h-5 w-5" /> },
-  Verified: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-5 w-5" /> },
-  Rejected: { bg: "bg-red-bg", text: "text-red", icon: <X className="h-5 w-5" /> },
-  NotStarted: { bg: "bg-surface-2", text: "text-ink-500", icon: <div className="h-5 w-5" /> },
-};
+  return (
+    <div
+      className={`relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-white ring-1 ring-white/20 ${gradient}`}
+      style={{
+        boxShadow:
+          "inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -9px 14px rgba(0,0,0,0.3), 0 10px 18px -6px rgba(0,0,0,0.4)",
+      }}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: "radial-gradient(130% 110% at 25% 12%, rgba(255,255,255,0.55), transparent 55%)",
+          mixBlendMode: "overlay",
+        }}
+      />
+      <span
+        className="relative [&>svg]:h-5 [&>svg]:w-5"
+        style={{ filter: "drop-shadow(0 1.5px 1.5px rgba(0,0,0,0.35)) drop-shadow(0 -1px 0 rgba(255,255,255,0.25))" }}
+      >
+        {icon}
+      </span>
+    </div>
+  );
+}
+
+function formatRelative(date: string | null): string {
+  if (!date) return "N/A";
+  const diffMs = Date.now() - new Date(date).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+  const diffDay = Math.floor(diffMs / 86400000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${diffDay}d ago`;
+}
+
+// ==================== VERIFICATION ITEM CARD ====================
+
+function VerificationItemCard({ item }: { item: VerificationItem }) {
+  const style = STATUS_STYLES[item.status];
+  const tileTheme =
+    item.status === "Verified" ? "green" : item.status === "Rejected" ? "red" : item.status === "Pending" ? "amber" : "brand";
+
+  return (
+    <div
+      className={`rounded-lg border p-5 transition-colors ${
+        item.status === "Rejected" ? "border-red/30 bg-red-bg/10" : "border-line bg-white"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <IconTile icon={style.icon} theme={tileTheme} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-ink-950">{item.name}</span>
+            <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${style.bg} ${style.text}`}>
+              {item.status === "InProgress" ? "In Progress" : item.status === "NotStarted" ? "Not Started" : item.status}
+            </span>
+            {item.required && <span className="text-[10px] font-medium text-red">Required</span>}
+          </div>
+          <p className="mt-0.5 text-xs text-ink-500 sm:text-sm">{item.description}</p>
+
+          {item.notes && item.status === "Rejected" ? (
+            <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-bg/40 px-3 py-2 text-xs text-red">
+              <FileWarning className="h-3.5 w-3.5 flex-shrink-0 mt-[1px]" />
+              <span>{item.notes}</span>
+            </div>
+          ) : item.notes ? (
+            <p className="mt-2 text-xs text-ink-400">{item.notes}</p>
+          ) : null}
+
+          <p className="mt-2 text-[11px] text-ink-400">Updated {formatRelative(item.updatedAt)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== MAIN PAGE ====================
 
 export default function VerificationPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<VerificationState | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState<number>(0);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -150,19 +243,24 @@ export default function VerificationPage() {
     router.push("/setup/verification");
   };
 
-  const handleBack = () => {
-    router.push("/setup");
-  };
-
-  const handleNext = () => {
-    router.push("/setup/wallet-provisioning");
-  };
+  const handleBack = () => router.push("/setup");
+  const handleNext = () => router.push("/setup/wallet-provisioning");
 
   if (loading) {
     return (
-      <div className="py-12 text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        <p className="mt-3 text-sm text-ink-600">Loading verification status...</p>
+      <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
+        <div className="space-y-2">
+          <div className="h-7 w-56 animate-pulse rounded bg-surface-2" />
+          <div className="h-4 w-full max-w-md animate-pulse rounded bg-surface-2" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-24 animate-pulse rounded-lg bg-surface-2" />
+            ))}
+          </div>
+          <div className="h-64 animate-pulse rounded-2xl bg-surface-2" />
+        </div>
       </div>
     );
   }
@@ -185,147 +283,118 @@ export default function VerificationPage() {
     );
   }
 
-  const overallStatusStyle = OVERALL_STATUS_STYLES[data.status] || OVERALL_STATUS_STYLES.NotStarted;
-
-  const formatDate = (date: string | null): string => {
-    if (!date) return "N/A";
-    const d = new Date(date);
-    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  };
-
-  const formatTime = (date: string): string => {
-    const d = new Date(date);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const diffHr = Math.floor(diffMs / 3600000);
-    const diffDay = Math.floor(diffMs / 86400000);
-
-    if (diffMin < 1) return "Just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHr < 24) return `${diffHr}h ago`;
-    return `${diffDay}d ago`;
-  };
-
   const isComplete = data.status === "Verified";
   const isRejected = data.status === "Rejected";
+  const verifiedCount = data.items.filter((i) => i.status === "Verified").length;
+  const totalCount = data.items.length;
+  const progressPct = Math.round((verifiedCount / totalCount) * 100);
+
+  const ringColor = isComplete ? "#139a5d" : isRejected ? "#df2f3f" : "#d97706";
+  const ringColorLight = isComplete ? "#4ade80" : isRejected ? "#f87171" : "#fbbf24";
+  const statusLabel = isComplete ? "Verified" : isRejected ? "Action Needed" : data.status === "InProgress" ? "In Review" : "Pending Review";
+  const statusLabelColor = isComplete ? "text-green" : isRejected ? "text-red" : "text-amber";
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
       {/* ===== HEADER ===== */}
       <div>
-        <div className="flex items-center gap-2 text-sm text-ink-500">
-          <button onClick={handleBack} className="hover:text-primary transition-colors">
-            Onboarding
-          </button>
-          <span>/</span>
-          <span className="text-ink-700 font-medium">Business Verification</span>
-        </div>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">
-          Business Verification
-        </h1>
-        <p className="mt-1.5 text-sm text-ink-600">
-          Track the verification status of your company and documents.
+        <p className="text-xs font-medium text-ink-500">
+          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
+          <span className="text-ink-700">Business Verification</span>
         </p>
+        <h1 className="mt-1 text-ink-950">Business Verification</h1>
+        <p className="mt-1.5 text-ink-600">Track the verification status of your company and documents.</p>
       </div>
 
-      {/* ===== OVERALL STATUS ===== */}
-      <div className={`rounded-2xl border p-5 shadow-sm ${
-        isComplete ? "border-green/20 bg-green-bg/30" :
-        isRejected ? "border-red/20 bg-red-bg/30" :
-        "border-amber/20 bg-amber-bg/30"
-      }`}>
-        <div className="flex items-start gap-4">
-          <div className={`rounded-full p-3 flex-shrink-0 ${
-            isComplete ? "bg-green-bg" :
-            isRejected ? "bg-red-bg" :
-            "bg-amber-bg"
-          }`}>
-            {overallStatusStyle.icon}
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <span className={`text-lg font-semibold ${
-                isComplete ? "text-green" :
-                isRejected ? "text-red" :
-                "text-amber"
-              }`}>
-                {data.status}
-              </span>
-              {data.submittedAt && (
-                <span className="text-xs text-ink-500">
-                  Submitted {formatTime(data.submittedAt)}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* ===== MAIN: VERIFICATION ITEMS AS CARDS ===== */}
+        <div className="space-y-4 lg:col-span-2">
+          {data.items.map((item) => (
+            <VerificationItemCard key={item.id} item={item} />
+          ))}
+        </div>
+
+        {/* ===== SIDEBAR: FOCAL STATUS SUMMARY WITH RADIAL RING ===== */}
+        <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          <div className="rounded-lg border border-line bg-white p-6 text-center">
+            <div className="relative mx-auto h-28 w-28">
+              <svg className="h-28 w-28 -rotate-90 transform" viewBox="0 0 80 80">
+                <defs>
+                  <linearGradient id="verification-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor={ringColorLight} />
+                    <stop offset="100%" stopColor={ringColor} />
+                  </linearGradient>
+                </defs>
+                <circle cx="40" cy="40" r="32" fill="none" stroke="#E5E7EB" strokeWidth="6" />
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="32"
+                  fill="none"
+                  stroke="url(#verification-ring-gradient)"
+                  strokeWidth="6"
+                  strokeDasharray={`${progressPct * 2.01} 201.06`}
+                  strokeLinecap="round"
+                  className="transition-[stroke-dasharray] duration-700 ease-out"
+                />
+              </svg>
+              <span className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-xl font-bold text-ink-950">
+                  {verifiedCount}/{totalCount}
                 </span>
+                <span className="text-[10px] text-ink-500">verified</span>
+              </span>
+            </div>
+
+            <h2 className={`mt-4 text-lg font-bold ${statusLabelColor}`}>{statusLabel}</h2>
+            {data.overallNotes && <p className="mt-1.5 text-xs text-ink-600">{data.overallNotes}</p>}
+
+            <div className="mt-4 space-y-1.5 border-t border-line pt-4 text-left text-xs text-ink-500">
+              {data.submittedAt && (
+                <div className="flex items-center justify-between">
+                  <span>Submitted</span>
+                  <span className="font-medium text-ink-700">{formatRelative(data.submittedAt)}</span>
+                </div>
+              )}
+              {data.reviewedAt && (
+                <div className="flex items-center justify-between">
+                  <span>Reviewed</span>
+                  <span className="font-medium text-ink-700">
+                    {formatRelative(data.reviewedAt)}
+                    {data.reviewer ? ` · ${data.reviewer}` : ""}
+                  </span>
+                </div>
               )}
             </div>
-            {data.overallNotes && (
-              <p className="mt-1 text-sm text-ink-600">{data.overallNotes}</p>
-            )}
-            {data.reviewedAt && data.reviewer && (
-              <p className="mt-1 text-xs text-ink-500">
-                Reviewed {formatTime(data.reviewedAt)} by {data.reviewer}
+          </div>
+
+          {!isComplete && !isRejected && (
+            <div className="flex items-start gap-2 rounded-lg border border-line bg-surface-2/40 p-3.5">
+              <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-ink-400" />
+              <p className="text-xs text-ink-500">
+                Our team is reviewing your submission. This page updates automatically as items are verified.
               </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ===== VERIFICATION ITEMS ===== */}
-      <div className="rounded-2xl border border-line bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-line bg-surface-2/50">
-          <div className="flex items-center gap-2">
-            <ListChecks className="h-4 w-4 text-ink-400" />
-            <span className="text-sm font-semibold text-ink-950">Verification Items</span>
-            <span className="text-xs text-ink-400">
-              {data.items.filter((i) => i.status === "Verified").length}/{data.items.length} complete
-            </span>
-          </div>
-        </div>
-        <div className="divide-y divide-line">
-          {data.items.map((item) => {
-            const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.NotStarted;
+      {/* ===== NAVIGATION ===== */}
+      <div className="flex flex-col-reverse items-center gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          onClick={handleBack}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back
+        </button>
 
-            return (
-              <div key={item.id} className="flex items-center gap-4 p-4">
-                <div className="flex-shrink-0">
-                  <div className={`rounded-full p-2 ${statusStyle.bg} ${statusStyle.text}`}>
-                    {statusStyle.icon}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-ink-950">{item.name}</span>
-                    <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
-                      {item.status}
-                    </span>
-                    {item.required && (
-                      <span className="text-[9px] text-red font-medium">Required</span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 text-xs text-ink-500">{item.description}</div>
-                  {item.notes && (
-                    <div className="mt-0.5 text-xs text-ink-400">{item.notes}</div>
-                  )}
-                  <div className="mt-0.5 text-[10px] text-ink-400">
-                    Updated {formatTime(item.updatedAt)}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ===== ACTIONS ===== */}
-      <div className="flex flex-wrap gap-3">
         {isRejected && (
           <button
             onClick={handleResubmit}
             disabled={isSubmitting}
-            className={`flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition ${
-              isSubmitting
-                ? "bg-ink-400 cursor-not-allowed"
-                : "bg-primary shadow-primary/20 hover:bg-primary/90"
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2 text-sm font-medium text-white transition ${
+              isSubmitting ? "cursor-not-allowed bg-ink-400" : "bg-primary hover:bg-primary-hover"
             }`}
           >
             {isSubmitting ? (
@@ -341,20 +410,23 @@ export default function VerificationPage() {
             )}
           </button>
         )}
+
         {isComplete && (
           <button
             onClick={handleNext}
-            className="flex items-center gap-2 rounded-xl bg-green px-6 py-2.5 text-sm font-semibold text-white shadow-sm shadow-green/20 transition hover:bg-green/90"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-green px-6 py-2 text-sm font-medium text-white transition hover:bg-green/90"
           >
-            Next Step <ArrowRight className="h-4 w-4" />
+            Continue
+            <ChevronRight className="h-4 w-4" />
           </button>
         )}
-        <button
-          onClick={handleBack}
-          className="rounded-xl border border-line px-6 py-2.5 text-sm font-medium text-ink-700 hover:bg-white transition-colors"
-        >
-          Back
-        </button>
+
+        {!isRejected && !isComplete && (
+          <span className="inline-flex items-center gap-1.5 text-xs text-ink-500">
+            <Clock className="h-3.5 w-3.5" />
+            Waiting on document review
+          </span>
+        )}
       </div>
 
       {/* ===== FOOTER ===== */}

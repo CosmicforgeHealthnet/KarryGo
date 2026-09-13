@@ -1,5 +1,3 @@
-// src/app/(onboarding)/layout.tsx
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -7,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  ArrowLeft,
   CheckCircle2,
   Circle,
   Home,
@@ -22,6 +19,7 @@ import {
   X,
   Menu,
 } from "lucide-react";
+import { useAuthStore } from "@/lib/stores/authStore";
 
 // ===== ONBOARDING STEPS =====
 const ONBOARDING_STEPS = [
@@ -33,6 +31,8 @@ const ONBOARDING_STEPS = [
   { id: "wallet-provisioning", label: "Wallet", path: "/setup/wallet-provisioning", icon: <Wallet className="h-4 w-4" /> },
   { id: "submit", label: "Submit", path: "/setup/submit", icon: <FileCheck className="h-4 w-4" /> },
 ];
+
+const HEADER_HEIGHT_PX = 70;
 
 function getCurrentStepIndex(pathname: string) {
   return ONBOARDING_STEPS.findIndex((step) => pathname.startsWith(step.path));
@@ -53,21 +53,45 @@ export default function OnboardingLayout({
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const currentIndex = getCurrentStepIndex(pathname);
-  const isOnboardingHome = pathname === "/onboarding";
-  const isSubmitted = pathname === "/onboarding/submit" || pathname === "/onboarding/verification";
+  const { _hasHydrated, accessToken } = useAuthStore();
+
+  // ✅ ALL useEffect hooks at the top, before any conditional returns
+  // Auth gate - redirect to sign-in if not authenticated
+  useEffect(() => {
+    if (_hasHydrated && !accessToken) {
+      router.replace("/sign-in");
+    }
+  }, [_hasHydrated, accessToken, router]);
 
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
+  // ✅ Now safe to have conditional returns
+  if (!_hasHydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface-2">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!accessToken) {
+    return null;
+  }
+
+  const currentIndex = getCurrentStepIndex(pathname);
+  const isOnboardingHome = pathname === "/onboarding";
+
   // If on the home page, show full-width without steps sidebar
   if (isOnboardingHome) {
     return (
       <div className="min-h-screen bg-surface-2">
-        {/* Minimal header for home page */}
-        <header className="sticky top-0 z-20 flex h-[70px] items-center justify-between px-4 sm:px-6 bg-white/80 backdrop-blur-xl border-b border-line">
+        <header
+          className="sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 bg-white/80 backdrop-blur-xl border-b border-line"
+          style={{ height: HEADER_HEIGHT_PX }}
+        >
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2">
               <Image
@@ -82,15 +106,7 @@ export default function OnboardingLayout({
               </span>
             </Link>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => router.push("/")}
-              className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white"
-            >
-              <Home className="h-3.5 w-3.5" />
-              Dashboard
-            </button>
-          </div>
+          <div className="flex items-center gap-2" />
         </header>
         <main className="max-w-5xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
           {children}
@@ -101,8 +117,11 @@ export default function OnboardingLayout({
 
   return (
     <div className="min-h-screen bg-surface-2">
-      {/* ===== HEADER ===== */}
-      <header className="sticky top-0 z-20 flex h-[70px] items-center justify-between px-4 sm:px-6 bg-white/80 backdrop-blur-xl border-b border-line">
+      {/* HEADER */}
+      <header
+        className="sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 bg-white/80 backdrop-blur-xl border-b border-line"
+        style={{ height: HEADER_HEIGHT_PX }}
+      >
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2">
             <Image
@@ -138,7 +157,7 @@ export default function OnboardingLayout({
         </div>
       </header>
 
-      {/* ===== MOBILE MENU OVERLAY ===== */}
+      {/* MOBILE MENU OVERLAY */}
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
@@ -146,13 +165,16 @@ export default function OnboardingLayout({
         />
       )}
 
-      {/* ===== MOBILE MENU ===== */}
+      {/* MOBILE MENU */}
       <div
         className={`fixed top-0 right-0 z-40 h-full w-72 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex h-[70px] items-center justify-between px-4 border-b border-line">
+        <div
+          className="flex items-center justify-between px-4 border-b border-line"
+          style={{ height: HEADER_HEIGHT_PX }}
+        >
           <span className="font-semibold text-ink-950">Onboarding Steps</span>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
@@ -192,10 +214,15 @@ export default function OnboardingLayout({
         </div>
       </div>
 
-      {/* ===== MAIN CONTENT ===== */}
+      {/* MAIN CONTENT */}
       <div className="flex">
-        {/* ===== SIDEBAR ===== */}
-        <aside className="hidden lg:block w-72 flex-shrink-0 border-r border-line bg-white/50 min-h-[calc(100vh-70px)] p-5">
+        <aside
+          className="hidden lg:block w-72 flex-shrink-0 border-r border-line bg-white/50 sticky overflow-y-auto p-5"
+          style={{
+            top: HEADER_HEIGHT_PX,
+            height: `calc(100vh - ${HEADER_HEIGHT_PX}px)`,
+          }}
+        >
           <div className="mb-4">
             <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">
               Onboarding Progress
@@ -249,7 +276,6 @@ export default function OnboardingLayout({
                     )}
                   </span>
                   <span className="flex-1">{step.label}</span>
-                  {isActive && <div className="h-2 w-2 rounded-full bg-primary" />}
                 </Link>
               );
             })}
@@ -266,7 +292,6 @@ export default function OnboardingLayout({
           </div>
         </aside>
 
-        {/* ===== CONTENT ===== */}
         <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>

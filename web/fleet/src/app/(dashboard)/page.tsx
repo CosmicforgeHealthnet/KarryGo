@@ -1,6 +1,4 @@
-﻿// src/app/(dashboard)/page.tsx
-
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -11,9 +9,6 @@ import {
   AlertTriangle,
   SlidersHorizontal,
   ChevronRight,
-  TrendingUp,
-  TrendingDown,
-  Plus,
   Send,
   MapPin,
   UserPlus,
@@ -23,13 +18,13 @@ import {
   ArrowRight,
   Calendar,
   Activity,
-  Rocket,
+  Check,
   X,
 } from "lucide-react";
 import {
   BarChart as RBarChart,
   Bar,
-  LineChart as RLineChart,
+  LineChart as RLineChart,  // ✅ Fixed: correctly import LineChart
   Line,
   XAxis,
   YAxis,
@@ -38,45 +33,125 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-// ===== SIMPLE VISUAL MAP =====
-function MapComponent() {
+// ===== GLOWING MAP NODE =====
+function GlowNode({ tone = "indigo" }: { tone?: "indigo" | "green" }) {
+  const glow =
+    tone === "green"
+      ? "shadow-[0_0_16px_5px_rgba(34,197,94,0.55)] bg-green-500"  // ✅ Fixed: bg-green-500
+      : "shadow-[0_0_16px_5px_rgba(129,140,248,0.6)] bg-indigo-300";
+  const ring = tone === "green" ? "ring-green-500/20" : "ring-indigo-400/20";  // ✅ Fixed
+  const pingColor = tone === "green" ? "bg-green-500" : "bg-indigo-400";  // ✅ Fixed
   return (
-    <div className="w-full h-[280px] sm:h-[320px] lg:h-[380px] rounded-lg overflow-hidden relative bg-[#eef0f4]">
-      <div className="absolute inset-0" style={{
-        backgroundImage: `
-          linear-gradient(rgba(200,200,210,0.3) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(200,200,210,0.3) 1px, transparent 1px)
-        `,
-        backgroundSize: '40px 40px'
-      }} />
-      <div className="absolute left-[20%] top-[30%] w-[55%] h-[2px] bg-ink-300/40 rounded-full" />
-      <div className="absolute left-[10%] top-[50%] w-[75%] h-[2px] bg-ink-300/40 rounded-full" />
-      <div className="absolute left-[40%] top-[15%] w-[2px] h-[65%] bg-ink-300/40 rounded-full" />
-      <div className="absolute left-[25%] top-[65%] w-[35%] h-[2px] bg-ink-300/40 rounded-full" />
-      <div className="absolute left-[60%] top-[20%] w-[2px] h-[55%] bg-ink-300/40 rounded-full" />
-      <div className="absolute left-[22%] top-[32%] w-[45%] h-[3px] bg-primary/60 rounded-full" />
-      <div className="absolute left-[22%] top-[25%]">
-        <div className="h-4 w-4 rounded-full bg-primary border-2 border-white" />
-        <div className="text-[10px] font-semibold text-ink-700 mt-1 ml-[-12px] whitespace-nowrap">Ikeja</div>
+    <span className="relative flex h-3 w-3">
+      <span className={`absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping ${pingColor}`} />
+      <span className={`relative flex h-3 w-3 rounded-full ring-[7px] ${ring} ${glow}`} />
+    </span>
+  );
+}
+
+// ===== DARK LIVE OPERATIONS MAP =====
+function DarkMapComponent() {
+  return (
+    <div className="w-full h-[260px] sm:h-[300px] rounded-lg overflow-hidden relative bg-gradient-to-br from-[#0A0C24] to-[#111536]">
+      {/* local keyframes for the flowing route lines */}
+      <style>{`
+        @keyframes dashFlow { to { stroke-dashoffset: -24; } }
+      `}</style>
+
+      {/* depth vignette */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgba(129,140,248,0.14),transparent_55%)]" />
+
+      {/* dot-grid texture */}
+      <svg className="absolute inset-0 h-full w-full opacity-[0.12]" viewBox="0 0 400 260">
+        <defs>
+          <pattern id="dotGrid" width="16" height="16" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="1" fill="white" />
+          </pattern>
+        </defs>
+        <rect width="400" height="260" fill="url(#dotGrid)" />
+      </svg>
+
+      {/* faint terrain lines */}
+      <svg className="absolute inset-0 h-full w-full opacity-[0.15]" viewBox="0 0 400 260" preserveAspectRatio="none">
+        <path d="M0,40 C60,60 90,10 150,30 C210,50 240,10 400,35" stroke="white" strokeWidth="1" fill="none" />
+        <path d="M0,120 C80,100 140,150 220,110 C280,85 340,130 400,100" stroke="white" strokeWidth="1" fill="none" />
+        <path d="M20,260 C60,200 40,150 90,120" stroke="white" strokeWidth="1" fill="none" />
+        <path d="M300,260 C310,210 280,180 320,140" stroke="white" strokeWidth="1" fill="none" />
+      </svg>
+
+      {/* route connections — glow trail + animated flowing line on top */}
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 260" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="routeGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#818CF8" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#818CF8" stopOpacity="0.7" />
+          </linearGradient>
+        </defs>
+
+        <polyline points="40,150 95,175 150,95 205,110 260,70 300,85 345,60" fill="none" stroke="#818CF8" strokeOpacity="0.25" strokeWidth="6" style={{ filter: "blur(3px)" }} />
+        <polyline points="150,95 175,190 230,215" fill="none" stroke="#2DD4BF" strokeOpacity="0.2" strokeWidth="6" style={{ filter: "blur(3px)" }} />
+
+        <polyline
+          points="40,150 95,175 150,95 205,110 260,70 300,85 345,60"
+          fill="none"
+          stroke="url(#routeGrad)"
+          strokeWidth="2"
+          strokeDasharray="8 6"
+          style={{ animation: "dashFlow 1.6s linear infinite" }}
+        />
+        <polyline
+          points="150,95 175,190 230,215"
+          fill="none"
+          stroke="#2DD4BF"
+          strokeOpacity="0.45"
+          strokeWidth="2"
+          strokeDasharray="8 6"
+          style={{ animation: "dashFlow 1.6s linear infinite" }}
+        />
+      </svg>
+
+      {/* junction dots */}
+      <span className="absolute h-1.5 w-1.5 rounded-full bg-teal-300/80" style={{ left: "44%", top: "37%" }} />
+      <span className="absolute h-1.5 w-1.5 rounded-full bg-teal-300/80" style={{ left: "65%", top: "27%" }} />
+
+      {/* markers */}
+      <div className="absolute" style={{ left: "8%", top: "56%" }}><GlowNode tone="indigo" /></div>
+      <div className="absolute" style={{ left: "35%", top: "35%" }}><GlowNode tone="indigo" /></div>
+      <div className="absolute" style={{ left: "63%", top: "25%" }}><GlowNode tone="indigo" /></div>
+      <div className="absolute" style={{ left: "85%", top: "21%" }}><GlowNode tone="indigo" /></div>
+      <div className="absolute" style={{ left: "42%", top: "72%" }}><GlowNode tone="green" /></div>
+      <div className="absolute" style={{ left: "88%", top: "58%" }}><GlowNode tone="green" /></div>
+
+      {/* floating stat card */}
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 w-[128px] rounded-lg bg-[#080A1E]/90 backdrop-blur-sm border border-white/10 shadow-lg shadow-black/40 px-3.5 py-3 text-white overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+        <div className="flex items-center justify-between text-[11px] font-semibold text-white/85">
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+            Ikeja Hub
+          </span>
+          <ChevronRight className="h-3 w-3 text-white/50" />
+        </div>
+        <div className="mt-2.5 space-y-1.5 text-[11px] text-white/50">
+          <div className="flex items-center justify-between">
+            <span>Active Work</span>
+            <span className="text-white font-bold text-sm">12</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>On Route</span>
+            <span className="text-white font-semibold">8</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Idle</span>
+            <span className="text-white font-semibold">4</span>
+          </div>
+        </div>
       </div>
-      <div className="absolute left-[55%] top-[35%]">
-        <div className="h-4 w-4 rounded-full bg-green border-2 border-white" />
-        <div className="text-[10px] font-semibold text-ink-700 mt-1 ml-[-12px] whitespace-nowrap">Lekki</div>
-      </div>
-      <div className="absolute left-[38%] top-[58%]">
-        <div className="h-4 w-4 rounded-full bg-amber border-2 border-white" />
-        <div className="text-[10px] font-semibold text-ink-700 mt-1 ml-[-12px] whitespace-nowrap">Yaba</div>
-      </div>
-      <div className="absolute left-[12%] top-[65%]">
-        <div className="h-4 w-4 rounded-full bg-red border-2 border-white" />
-        <div className="text-[10px] font-semibold text-ink-700 mt-1 ml-[-12px] whitespace-nowrap">Apapa</div>
-      </div>
-      <div className="absolute left-[68%] top-[55%]">
-        <div className="h-4 w-4 rounded-full bg-blue-500 border-2 border-white" />
-        <div className="text-[10px] font-semibold text-ink-700 mt-1 ml-[-12px] whitespace-nowrap">VI</div>
-      </div>
-      <div className="absolute left-[45%] top-[40%]">
-        <div className="h-3 w-3 rounded-full bg-primary" />
+
+      {/* legend */}
+      <div className="absolute bottom-3 right-3 flex items-center gap-3 rounded-full bg-[#080A1E]/80 backdrop-blur-sm border border-white/10 px-3 py-1.5 text-[10px] text-white/70">
+        <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-indigo-300" /> En route</span>
+        <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-green-500" /> Delivered</span>
       </div>
     </div>
   );
@@ -88,56 +163,26 @@ type Branch = "All Branches" | "Ikeja" | "Lekki" | "Yaba" | "Apapa";
 
 const TONE_ICON_BG: Record<Tone, string> = {
   blue: "bg-primary-bg text-primary",
-  green: "bg-green-bg text-green",
-  amber: "bg-amber-bg text-amber",
-  red: "bg-red-bg text-red",
+  green: "bg-green-bg text-green-500",
+  amber: "bg-amber-bg text-amber-500",
+  red: "bg-red-bg text-red-500",
   neutral: "bg-surface-2 text-ink-600",
 };
 
 const DATE_OPTIONS: DateRange[] = ["Today", "Yesterday", "This Week", "This Month"];
 const BRANCH_OPTIONS: Branch[] = ["All Branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
 
-const BASE_METRICS = [
-  {
-    label: "Active work",
-    value: "128",
-    note: "Across 4 branches",
-    tone: "blue" as Tone,
-    trend: "+10%",
-    trendUp: true,
-    icon: <Route className="h-[18px] w-[18px]" />,
-    href: "/operations/control-tower",
-  },
-  {
-    label: "Available providers",
-    value: "84",
-    note: "12 currently busy",
-    tone: "green" as Tone,
-    trend: "+6%",
-    trendUp: true,
-    icon: <Users className="h-[18px] w-[18px]" />,
-    href: "/providers",
-  },
-  {
-    label: "Fleet ready",
-    value: "96",
-    note: "7 safety / maintenance blocks",
-    tone: "amber" as Tone,
-    trend: "+3%",
-    trendUp: true,
-    icon: <Truck className="h-[18px] w-[18px]" />,
-    href: "/fleet/assets",
-  },
-  {
-    label: "Open exceptions",
-    value: "14",
-    note: "Needs attention",
-    tone: "red" as Tone,
-    trend: "-27%",
-    trendUp: false,
-    icon: <AlertTriangle className="h-[18px] w-[18px]" />,
-    href: "/operations/control-tower/exceptions",
-  },
+const HERO_STATS = [
+  { label: "Active Work", value: "128" },
+  { label: "Fleet Ready", value: "96" },
+  { label: "Open Exceptions", value: "14" },
+];
+
+const PERFORMANCE_STRIP = [
+  { label: "Total Trips", value: "320", trend: "+8%", trendUp: true },
+  { label: "On-time Performance", value: "91.2%", trend: "+4.3%", trendUp: true },
+  { label: "Completed Trips", value: "286", trend: "+12%", trendUp: true },
+  { label: "Incidents Reported", value: "7", trend: "-22%", trendUp: false },
 ];
 
 const WEEKLY_VOLUME = [
@@ -196,8 +241,8 @@ const EXCEPTIONS = [
 ];
 
 const EXCEPTION_STYLE: Record<string, string> = {
-  critical: "bg-red-bg text-red",
-  high: "bg-amber-bg text-amber",
+  critical: "bg-red-bg text-red-500",
+  high: "bg-amber-bg text-amber-500",
   medium: "bg-primary-bg text-primary",
   low: "bg-surface-2 text-ink-600",
 };
@@ -213,8 +258,8 @@ const ACTIVE_WORK = [
 const WORK_STATUS_STYLE: Record<string, string> = {
   "In transit": "bg-primary-bg text-primary",
   Assigned: "bg-surface-2 text-ink-600",
-  Delayed: "bg-amber-bg text-amber",
-  Completed: "bg-green-bg text-green",
+  Delayed: "bg-amber-bg text-amber-500",
+  Completed: "bg-green-bg text-green-500",
 };
 
 const QUICK_ACTIONS = [
@@ -390,33 +435,43 @@ export default function DashboardHomePage() {
         </div>
       )}
 
-      {/* ── Metrics ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {BASE_METRICS.map((m) => (
-          <Link
-            key={m.label}
-            href={m.href || "#"}
-            className="rounded-lg border border-line bg-white p-4 sm:p-5 hover:border-ink-300 transition-colors"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-md ${TONE_ICON_BG[m.tone]}`}>
-                {m.icon}
+      {/* ── Hero Status Banner ── */}
+      <section className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#2D2A8C] via-[#3B2FA0] to-[#4C3CC4] px-6 sm:px-8 py-7 text-white">
+        {/* decorative glow blobs + waves */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -right-8 -top-16 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute right-16 -bottom-16 h-44 w-72 rounded-full bg-indigo-300/10 blur-3xl" />
+          <svg className="absolute inset-0 h-full w-full opacity-70" preserveAspectRatio="none" viewBox="0 0 800 200">
+            <path d="M0,140 C120,180 260,60 400,110 C540,160 660,70 800,120 L800,200 L0,200 Z" fill="white" fillOpacity="0.08" />
+            <path d="M0,165 C160,105 320,195 480,135 C600,95 700,155 800,135 L800,200 L0,200 Z" fill="white" fillOpacity="0.12" />
+          </svg>
+        </div>
+
+        <div className="relative flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+          <div>
+            <div className="text-lg sm:text-xl font-bold tracking-[-0.01em]">All Systems Running</div>
+            <div className="mt-1 text-xs text-white/60">Your fleet operations are on track for today.</div>
+            <span className="mt-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 ring-4 ring-green-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_2px_6px_rgba(0,0,0,0.25)]">
+              <Check className="h-[18px] w-[18px] text-green-500" strokeWidth={3} />
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-8 sm:gap-12">
+            {HERO_STATS.map((s) => (
+              <div key={s.label}>
+                <div className="text-[11px] font-medium text-white/60">{s.label}</div>
+                <div className="mt-1.5 text-2xl sm:text-[28px] font-bold tracking-[-0.02em]">{s.value}</div>
               </div>
-              <span className="text-xs font-semibold text-ink-600">{m.label}</span>
-            </div>
-            <div className="mt-3.5 font-display text-[28px] sm:text-[30px] font-bold tracking-[-0.02em] text-ink-950">
-              {m.value}
-            </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className={`flex items-center gap-0.5 text-[11.5px] font-semibold ${m.trendUp ? 'text-green' : 'text-red'}`}>
-                {m.trendUp ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                {m.trend}
-              </span>
-              <span className="text-xs text-ink-500">· {m.note}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative mt-5 flex justify-end">
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/70">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Live · {liveTime}
+          </span>
+        </div>
+      </section>
 
       {/* ── Map + Exceptions ── */}
       <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-5">
@@ -426,35 +481,13 @@ export default function DashboardHomePage() {
               <h3 className="text-sm font-semibold text-ink-950">Live Operations</h3>
               <div className="mt-0.5 text-xs text-ink-500">Real-time view of active work and assets</div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 rounded-full bg-green-bg px-3 py-1.5 text-xs font-semibold text-green">
-                <span className="h-1.5 w-1.5 rounded-full bg-green" /> Live · {liveTime}
-              </span>
-              <Link href="/operations/control-tower" className="text-xs font-semibold text-primary hover:text-primary-hover transition-colors">
-                View Full Map →
-              </Link>
-            </div>
+            <Link href="/operations/control-tower" className="text-xs font-semibold text-primary hover:text-primary-hover transition-colors">
+              View Full Map →
+            </Link>
           </div>
 
-          <MapComponent />
-
-          <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-2.5 border-t border-line bg-surface-2/50">
-            <span className="text-[10px] font-semibold text-ink-600">Legend:</span>
-            <span className="flex items-center gap-1.5 text-[10px] text-ink-600">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Active Work (126)
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-ink-600">
-              <span className="h-2.5 w-2.5 rounded-full bg-green" /> Trip/Job (1)
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-ink-600">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber" /> Provider (7429)
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-ink-600">
-              <span className="h-2.5 w-2.5 rounded-full bg-red" /> En Route
-            </span>
-            <span className="text-[10px] text-ink-500 ml-auto">
-              <span className="font-semibold">ETA:</span> 11:13 AM
-            </span>
+          <div className="p-4 sm:p-5">
+            <DarkMapComponent />
           </div>
         </section>
 
@@ -483,6 +516,20 @@ export default function DashboardHomePage() {
           </div>
         </section>
       </div>
+
+      {/* ── Today's Performance ── */}
+      <section>
+        <h3 className="text-sm font-semibold text-ink-950 mb-3">Today's Performance</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {PERFORMANCE_STRIP.map((p) => (
+            <div key={p.label} className="rounded-lg border border-line bg-white px-4 sm:px-5 py-4">
+              <div className="text-xs font-medium text-ink-500">{p.label}</div>
+              <div className="mt-1.5 text-xl sm:text-2xl font-bold tracking-[-0.02em] text-ink-950">{p.value}</div>
+              <div className={`mt-1 text-[11px] font-semibold ${p.trendUp ? "text-green-500" : "text-red-500"}`}>{p.trend}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── Charts ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

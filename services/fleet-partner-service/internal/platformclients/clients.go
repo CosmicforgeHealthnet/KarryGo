@@ -90,7 +90,7 @@ type Set struct {
 	Hauling      HaulingServiceClient
 	Payment      PaymentWalletServiceClient
 	Notification NotificationServiceClient
-	Media        MediaFileServiceClient
+	Media        MediaAuthority 
 	Verification VerificationServiceClient
 	Support      SupportServiceClient
 	Analytics    AnalyticsServiceClient
@@ -128,6 +128,7 @@ func OptionsFromConfig(cfg config.Config, metrics *observability.Metrics) Option
 // ErrNotConfigured.
 func NewSet(cfg config.Config, metrics *observability.Metrics) Set {
 	base := OptionsFromConfig(cfg, metrics)
+	
 	build := func(serviceName string) *Client {
 		clientCfg := cfg.Clients[serviceName]
 		opts := base
@@ -136,6 +137,15 @@ func NewSet(cfg config.Config, metrics *observability.Metrics) Set {
 		opts.Secret = clientCfg.Secret
 		return New(opts)
 	}
+	
+	// Build media client separately (MediaAuthority interface)
+	mediaCfg := cfg.Clients[sourceref.ServiceMedia]
+	mediaOpts := base
+	mediaOpts.ServiceName = sourceref.ServiceMedia
+	mediaOpts.BaseURL = mediaCfg.BaseURL
+	mediaOpts.Secret = mediaCfg.Secret
+	mediaClient := NewMediaFileClient(mediaOpts)
+
 	return Set{
 		Customer:     build(sourceref.ServiceCustomer),
 		Dispatch:     build(sourceref.ServiceDispatch),
@@ -143,7 +153,7 @@ func NewSet(cfg config.Config, metrics *observability.Metrics) Set {
 		Hauling:      build(sourceref.ServiceHauling),
 		Payment:      build(sourceref.ServicePayment),
 		Notification: build(sourceref.ServiceNotification),
-		Media:        build(sourceref.ServiceMedia),
+		Media:        mediaClient,
 		Verification: build(sourceref.ServiceVerification),
 		Support:      build(sourceref.ServiceSupport),
 		Analytics:    build(sourceref.ServiceAnalytics),

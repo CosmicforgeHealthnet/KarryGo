@@ -77,6 +77,7 @@ type Options struct {
 	Projections *repositories.ProjectionRepository
 	Offers      *repositories.OfferRepository
 	Assignments *repositories.AssignmentRepository
+	OperatingModes OperatingModeReader
 	// ExecutionStarts holds durable execution-start work created atomically
 	// with a provider's acceptance.
 	ExecutionStarts *repositories.ExecutionStartRepository

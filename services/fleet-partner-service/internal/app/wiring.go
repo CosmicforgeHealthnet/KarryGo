@@ -32,6 +32,8 @@ import (
 	compliancefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
 	crmhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/http"
 	crmusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/usecases"
+	dashboardhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/http"
+	dashboardusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/usecases"
 	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
 	documentrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/repositories"
@@ -49,6 +51,7 @@ import (
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
 	manifestshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/http"
 	manifestsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/usecases"
+	marketplacehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 	ordershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/http"
 	ordersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/usecases"
@@ -718,6 +721,33 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		retentionexec.NewAdministrator(c.Pool, retentionRunner, jobs.NewQueue(c.Pool),
 			stepUpVerifier, securitySettingsService, nil),
 		c.Authorizer)
+
+	// ============================================================
+	// DASHBOARD ROUTES - ADDED FOR PRODUCTION DASHBOARD
+	// ============================================================
+	dashboardService := dashboardusecases.NewService(c.Pool, c.DispatchControl)
+	dashboardHandler := dashboardhttp.NewHandler(dashboardService, c.Authorizer)
+
+	// ============================================================
+	// MARKETPLACE CORPORATE ROUTES - FLEET MANAGER SURFACE
+	//
+	// The marketplace usecases and repositories have existed since the
+	// feature was first written, but only the internal (HMAC service-to-
+	// service) HTTP layer was ever mounted. This constructs the corporate
+	// (Bearer + tenant-scoped) handler so the Fleet manager's web app can
+	// list offers, accept or decline them for the organization, and
+	// manage the resulting assignment.
+	//
+	// Feature flags: the write paths (accept, assign, cancel, reassign)
+	// consult the marketplace Flags (OrganizationAcceptEnabled,
+	// AssignmentEnabled, ReassignmentEnabled) on the Service. Those flags
+	// are wired by BuildMarketplaceService; when they are off the write
+	// endpoints return an "unavailable" error. The read endpoints do not
+	// consult any flag and work as soon as the marketplace.read permission
+	// is seeded.
+	// ============================================================
+	marketplaceHandler := marketplacehttp.NewHandler(c.Marketplace, c.Authorizer, c.Idempotency)
+
 	tenantScoped = func(group *gin.RouterGroup) {
 		corporateHandler.RegisterTenantRoutes(group)
 		safetyHandler.RegisterTenantRoutes(group)
@@ -755,6 +785,14 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		retentionPolicyHandler.RegisterTenantRoutes(group)
 		retentionExecutionHandler.RegisterTenantRoutes(group)
 		integrationHandler.RegisterTenantRoutes(group)
+		// ============================================================
+		// DASHBOARD ROUTES - REGISTERED HERE
+		// ============================================================
+		dashboardHandler.RegisterTenantRoutes(group)
+		// ============================================================
+		// MARKETPLACE CORPORATE ROUTES - REGISTERED HERE
+		// ============================================================
+		marketplaceHandler.RegisterTenantRoutes(group)
 		// Rate limiting for every route registered above, including these
 		// four, is no longer applied per-feature here: middleware.
 		// GlobalRateLimit (internal/app/app.go, mounted once per route

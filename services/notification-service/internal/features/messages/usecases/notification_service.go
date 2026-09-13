@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -286,16 +287,20 @@ func (s *NotificationService) resolveRequest(ctx context.Context, request notifi
 	}
 	if request.TemplateKey != "" {
 		resolved.templateKey = &request.TemplateKey
+		log.Printf("🔍 Looking for template: key=%s, locale=%s", request.TemplateKey, resolved.locale)
 		template, ok, err := s.repository.GetTemplate(ctx, request.TemplateKey, resolved.locale)
 		if err != nil {
+			log.Printf("❌ Template lookup error: %v", err)
 			return resolvedRequest{}, err
 		}
+		log.Printf("✅ Template found: ok=%v, title=%s, body=%s", ok, template.Title, template.Body)
 		if ok {
 			if resolved.title == "" {
 				resolved.title = renderTemplate(template.Title, request.TemplateData)
 			}
 			if resolved.body == "" {
 				resolved.body = renderTemplate(template.Body, request.TemplateData)
+				log.Printf("📝 Rendered body: %s", resolved.body)
 			}
 			if len(resolved.channels) == 0 {
 				resolved.channels = append([]string{}, template.DefaultChannels...)
@@ -346,6 +351,7 @@ func (s *NotificationService) deliverEmail(ctx context.Context, delivery message
 		errMessage := "recipient email is missing"
 		return s.finishDelivery(ctx, delivery, "smtp", nil, messagemodels.StatusSkipped, &errMessage)
 	}
+	log.Printf("📧 Delivering email: to=%s, subject=%s, body=%s", *message.RecipientEmail, message.Title, message.Body)
 	result, err := s.email.SendEmail(ctx, messageclients.EmailMessage{
 		To:      *message.RecipientEmail,
 		Subject: message.Title,

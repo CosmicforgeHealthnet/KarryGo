@@ -326,8 +326,37 @@ func (r *OnboardingRepository) AttachDocument(ctx context.Context, q database.Qu
 }
 
 // ListDocuments returns attached documents.
+// ListDocuments returns attached documents.
 func (r *OnboardingRepository) ListDocuments(ctx context.Context, organizationID string) ([]models.Document, error) {
 	rows, err := r.db.Query(ctx, `
+		SELECT id, organization_id, document_type, file_id, verification_reference, status,
+			issued_at, expires_at, source_service, source_version, last_event_id, synced_at,
+			created_at, updated_at
+		FROM fleet_partner_organization_documents
+		WHERE organization_id = $1 AND status <> 'REMOVED'
+		ORDER BY created_at, id`, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("organizations: list documents: %w", err)
+	}
+	defer rows.Close()
+
+	var documents []models.Document
+	for rows.Next() {
+		var document models.Document
+		if err := rows.Scan(&document.ID, &document.OrganizationID, &document.DocumentType,
+			&document.FileID, &document.VerificationReference, &document.Status,
+			&document.IssuedAt, &document.ExpiresAt, &document.SourceService,
+			&document.SourceVersion, &document.LastEventID, &document.SyncedAt,
+			&document.CreatedAt, &document.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("organizations: scan document: %w", err)
+		}
+		documents = append(documents, document)
+	}
+	return documents, rows.Err()
+}
+
+func (r *OnboardingRepository) ListDocumentsTx(ctx context.Context, q database.Querier, organizationID string) ([]models.Document, error) {
+	rows, err := q.Query(ctx, `
 		SELECT id, organization_id, document_type, file_id, verification_reference, status,
 			issued_at, expires_at, source_service, source_version, last_event_id, synced_at,
 			created_at, updated_at
