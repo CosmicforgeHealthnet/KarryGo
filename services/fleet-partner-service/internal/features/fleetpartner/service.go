@@ -49,7 +49,16 @@ type Service struct {
 
 type Flags struct {
 	OperatingModeEnforcement bool
-	CompensationResolver     bool
+
+	// CompensationResolver is the legacy boolean. ResolverMode supersedes it;
+	// when the mode is unset the boolean still decides, so an existing
+	// deployment keeps behaving exactly as it did (CMP-019).
+	CompensationResolver bool
+
+	// ResolverMode is OFF, SHADOW or ON. Shadow resolves and records without
+	// anything acting on the figures, so they can be checked before money
+	// depends on them.
+	ResolverMode             string
 	CompletedWorkProjection  bool
 	SettlementInstruction    bool
 	TypedFinancialVisibility bool
@@ -244,7 +253,7 @@ func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in Com
 		// dark until their own flags are enabled, so a Sections 8/9
 		// deployment records canonical completed work without producing any
 		// compensation or settlement side effect.
-		if !s.flags.CompensationResolver {
+		if !ResolvesCompensation(s.resolverMode()) {
 			if s.events != nil {
 				return s.events.Publish(ctx, tx, "fleet.completed_work.recorded.v1", "completed_work", record.ID, record.Version, record.OrganizationID, record.CorrelationID, map[string]any{"completedWorkId": record.ID, "sourceService": record.SourceService, "sourceJobId": record.SourceJobID})
 			}
@@ -254,7 +263,10 @@ func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in Com
 		if err != nil {
 			return err
 		}
-		if !s.flags.SettlementInstruction {
+		// Shadow stops here on purpose: the resolution exists and is durable,
+		// and nothing downstream may act on it. That is what makes the figures
+		// checkable before any money depends on them.
+		if !ActsOnResolution(s.resolverMode()) || !s.flags.SettlementInstruction {
 			if s.events != nil {
 				if err := s.events.Publish(ctx, tx, "fleet.completed_work.recorded.v1", "completed_work", record.ID, record.Version, record.OrganizationID, record.CorrelationID, map[string]any{"completedWorkId": record.ID, "sourceService": record.SourceService, "sourceJobId": record.SourceJobID}); err != nil {
 					return err
@@ -430,3 +442,19 @@ func asAppError(err error) error {
 		return err
 	}
 }
+
+// resolverMode is the effective compensation resolver mode.
+//
+// An unrecognised configured mode resolves to OFF rather than being guessed at:
+// the safe direction for a money-deciding stage is to do nothing.
+func (s *Service) resolverMode() string {
+	mode, err := NormalizeResolverMode(s.flags.ResolverMode, s.flags.CompensationResolver)
+	if err != nil {
+		return ResolverOff
+	}
+	return mode
+}
+
+// ResolverMode reports the effective mode, for operators and for readiness
+// reporting during a staged rollout.
+func (s *Service) ResolverMode() string { return s.resolverMode() }

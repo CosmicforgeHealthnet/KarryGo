@@ -465,6 +465,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 			fleetpartnerfeature.Flags{
 				OperatingModeEnforcement: cfg.FleetOperatingModeEnforcementEnabled,
 				CompensationResolver:     cfg.FleetCompensationResolverEnabled,
+				ResolverMode:             cfg.FleetCompensationResolverMode,
 				CompletedWorkProjection:  cfg.FleetCompletedWorkProjectionEnabled,
 				SettlementInstruction:    cfg.FleetSettlementInstructionEnabled,
 				TypedFinancialVisibility: cfg.FleetTypedFinancialVisibilityEnabled,

@@ -401,6 +401,11 @@ type Config struct {
 	// behavior-changing projections/resolution/instruction flows.
 	FleetOperatingModeEnforcementEnabled bool
 	FleetCompensationResolverEnabled     bool
+
+	// FleetCompensationResolverMode is OFF, SHADOW or ON (CMP-001/019).
+	// Unset falls back to the boolean above, so an existing deployment keeps
+	// behaving exactly as it did until it opts in.
+	FleetCompensationResolverMode        string
 	FleetCompletedWorkProjectionEnabled  bool
 	FleetSettlementInstructionEnabled    bool
 	FleetTypedFinancialVisibilityEnabled bool
@@ -795,6 +800,7 @@ func Load() (Config, error) {
 		Section23WorkersEnabled:              getEnvBool("SECTION23_WORKERS_ENABLED", false),
 		FleetOperatingModeEnforcementEnabled: getEnvBool("FLEET_OPERATING_MODE_ENFORCEMENT_ENABLED", true),
 		FleetCompensationResolverEnabled:     getEnvBool("FLEET_COMPENSATION_RESOLVER_ENABLED", false),
+		FleetCompensationResolverMode:        getEnv("FLEET_COMPENSATION_RESOLVER_MODE", ""),
 		FleetCompletedWorkProjectionEnabled:  getEnvBool("FLEET_COMPLETED_WORK_PROJECTION_ENABLED", false),
 		FleetSettlementInstructionEnabled:    getEnvBool("FLEET_SETTLEMENT_INSTRUCTION_ENABLED", false),
 		FleetTypedFinancialVisibilityEnabled: getEnvBool("FLEET_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
