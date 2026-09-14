@@ -38,6 +38,16 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	internal.POST("/payment-intents", handler.CreatePaymentIntent)
 	internal.POST("/payment-intents/:id/pay-from-wallet", handler.PayFromWallet)
 	internal.POST("/jobs/:source_service/:source_reference/complete", handler.CompleteJob)
+
+	// Section 12. Managed settlement is posted only by Fleet and read back by
+	// Fleet and the execution services; the usecase layer narrows the caller
+	// further than this HMAC group does.
+	internal.POST("/finance/v1/managed-settlements", handler.PostManagedSettlement)
+	internal.GET("/finance/v1/managed-settlements/:instructionId/:instructionVersion", handler.GetManagedSettlement)
+	internal.GET("/finance/v1/managed-settlements/by-key/:idempotencyKey", handler.GetManagedSettlementByKey)
+	internal.GET("/finance/v1/managed-settlements/by-job/:sourceService/:sourceJobId", handler.ListManagedSettlementsForJob)
+	internal.PUT("/finance/v1/managed-jobs/:sourceService/:sourceJobId", handler.MarkJobManaged)
+	internal.POST("/finance/v1/managed-settlements/:instructionId/:instructionVersion/reverse", handler.ReverseManagedSettlement)
 	internal.POST("/refunds", handler.RequestRefund)
 	internal.GET("/payments/:reference", handler.GetInternalPayment)
 	internal.PUT("/payments/:reference/provider", handler.AssignPaymentProvider)

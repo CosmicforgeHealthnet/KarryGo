@@ -34,6 +34,28 @@ func (a walletPostingAdapter) Submit(ctx context.Context, meta platformclients.C
 	fields["idempotencyKey"] = request.IdempotencyKey
 	fields["expectedVersion"] = request.ExpectedVersion
 
+	// Section 12. A managed work settlement is not a provider allocation: it
+	// releases one job's escrow across platform, organization and provider in
+	// a single balanced journal, so it has its own contract and its own
+	// read-back. It carries Fleet's resolved figures verbatim -- Wallet
+	// verifies them against the held payment and posts, or refuses.
+	if request.OperationType == financeops.OperationManagedWorkSettlement {
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				ID                 string `json:"id"`
+				InstructionVersion int64  `json:"instruction_version"`
+				Status             string `json:"status"`
+			} `json:"data"`
+		}
+		err := a.client.Do(ctx, meta, http.MethodPost,
+			"/api/v1/payment-wallet/internal/finance/v1/managed-settlements", fields, &response)
+		return financeops.PostingOutcome{
+			Reference: response.Data.ID, Status: response.Data.Status,
+			SourceVersion: response.Data.InstructionVersion,
+		}, err
+	}
+
 	path := ""
 	switch request.OperationType {
 	case "PROVIDER_ALLOCATION", "PAYROLL_REVERSAL":
@@ -151,6 +173,26 @@ func (a financialPostingAdapter) ReadByKey(ctx context.Context, meta platformcli
 func (a walletPostingAdapter) ReadByKey(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
 	if !a.Configured() {
 		return financeops.PostingOutcome{}, platformclients.ErrNotConfigured
+	}
+	// A managed settlement is read back by the key it was posted under. This
+	// is what turns an ambiguous timeout into a definite answer instead of a
+	// guess (WAL-017, Invariant 8).
+	if request.OperationType == financeops.OperationManagedWorkSettlement {
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				ID                 string `json:"id"`
+				InstructionVersion int64  `json:"instruction_version"`
+				Status             string `json:"status"`
+			} `json:"data"`
+		}
+		err := a.client.Do(ctx, meta, http.MethodGet,
+			"/api/v1/payment-wallet/internal/finance/v1/managed-settlements/by-key/"+
+				url.PathEscape(request.IdempotencyKey), nil, &response)
+		return financeops.PostingOutcome{
+			Reference: response.Data.ID, Status: response.Data.Status,
+			SourceVersion: response.Data.InstructionVersion,
+		}, err
 	}
 	operationType := request.OperationType
 	if operationType == "PAYROLL_REVERSAL" {

@@ -343,31 +343,29 @@ func (s *Service) resolveRecordedWork(ctx context.Context, tx pgx.Tx, record Com
 		return CompensationResolution{}, err
 	}
 	_ = mode
-	var matched []MatchedRule
-	var providerShare int64
-	for _, rule := range rules {
-		if !RuleApplies(rule, record.SourceService, role, record.CompletedAt) {
-			continue
-		}
-		m, err := CalculateRuleShare(rule, record.EligibleBasisMinor, record.Currency)
-		if err != nil {
-			return CompensationResolution{}, err
-		}
-		if m.RuleID != "" {
-			matched = append(matched, m)
-			providerShare += m.AmountMinor
-		}
-	}
-	orgShare := record.EligibleBasisMinor - providerShare
-	if orgShare < 0 {
-		orgShare = 0
+	// Section 13. Work-level components (per-job, commission) are settled with
+	// this job's money; payroll-level components (salary, per-shift,
+	// allowances, overtime, bonuses, deductions) are recorded but contribute
+	// nothing here -- they belong to a payroll period. Paying them per job is
+	// what would pay a salaried provider twice.
+	resolved, err := ResolveWorkCompensation(
+		rules, record.EligibleBasisMinor, record.Currency, record.SourceService, role, record.CompletedAt)
+	if err != nil {
+		return CompensationResolution{}, err
 	}
 	policy := s.visibilityPolicy(policyMap)
 	res := CompensationResolution{
 		OrganizationID: record.OrganizationID, CompletedWorkID: record.ID, MembershipID: record.MembershipID,
 		CompensationPlanID: assignment.CompensationPlanID, CompensationPlanVersion: assignment.CompensationPlanVersion,
-		MatchedRules: matched, ProviderShareMinor: providerShare, OrganizationShareMinor: orgShare,
-		Currency: record.Currency, CalculationBasis: map[string]any{"eligibleBasisMinor": record.EligibleBasisMinor, "sourceService": record.SourceService},
+		MatchedRules:       resolved.Matched,
+		ProviderShareMinor: resolved.ProviderShareMinor, OrganizationShareMinor: resolved.OrganizationShareMinor,
+		Currency: record.Currency,
+		CalculationBasis: map[string]any{
+			"eligibleBasisMinor": record.EligibleBasisMinor,
+			"sourceService":      record.SourceService,
+			"role":               role,
+			"completedAt":        record.CompletedAt.UTC().Format(time.RFC3339),
+		},
 		VisibilityPolicySnapshot: policy,
 	}
 	return s.repo.InsertResolution(ctx, tx, res)

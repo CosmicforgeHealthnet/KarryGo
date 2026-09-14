@@ -93,6 +93,15 @@ type PostingOutcome struct {
 	SourceVersion     int64
 }
 
+// OperationManagedWorkSettlement is the Section 12 posting operation: one
+// Fleet ManagedWorkSettlementInstruction handed to the money authority.
+//
+// It is named here, beside the posting request it travels in, because the
+// retry, read-back and reconciliation machinery that carries every other
+// posting carries this one unchanged -- including the rule that an ambiguous
+// outcome is read back rather than assumed failed.
+const OperationManagedWorkSettlement = "MANAGED_WORK_SETTLEMENT"
+
 type PostingRequest struct {
 	OrganizationID, RecordType, RecordID, OperationType, IdempotencyKey string
 	AmountMinor, ExpectedVersion                                        int64

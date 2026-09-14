@@ -176,6 +176,17 @@ type MatchedRule struct {
 	AmountMinor int64  `json:"amountMinor"`
 	BasisMinor  int64  `json:"basisMinor,omitempty"`
 	RateBps     int    `json:"rateBps,omitempty"`
+
+	// Settlement says whether this component was settled with the job's money
+	// or accrued to a payroll period (CMP-016). Without it a resolution cannot
+	// be read back to explain why a salaried provider's job share was zero.
+	Settlement string `json:"settlement,omitempty"`
+
+	// BasisType and Rounding record HOW a commission was calculated, not just
+	// what it produced, so the figure stays reproducible when the plan is
+	// re-read years later.
+	BasisType string `json:"basisType,omitempty"`
+	Rounding  string `json:"rounding,omitempty"`
 }
 
 type ManagedWorkSettlementInstruction struct {
@@ -262,6 +273,12 @@ func ValidateRule(rule CompensationRule) error {
 		case CommissionBasisEligibleJobGross, CommissionBasisOrganizationJobShare, CommissionBasisProviderEligibleBase:
 		default:
 			return fmt.Errorf("%w: commission basis is required", ErrValidation)
+		}
+		// An unrecognised rounding policy is refused rather than defaulted:
+		// the policy is part of how the figure is reproduced, so a typo must
+		// not quietly become half-up.
+		if !ValidRoundingPolicy(rule.Config.Rounding) {
+			return fmt.Errorf("%w: commission rounding policy %q is not supported", ErrValidation, rule.Config.Rounding)
 		}
 	case RulePerJob, RulePerShift:
 		return ValidateMoney(rule.Config.AmountMinor, rule.Config.Currency)
