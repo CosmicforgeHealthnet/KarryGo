@@ -8,12 +8,14 @@ or pricing algorithm was modified in any service.
 
 | Section | Status | Reason |
 | --- | --- | --- |
-| 12 — Managed settlement | **OPEN** | The money path is complete and certified end to end, including Commerce. What remains is Commerce refund/dispute reversal for a managed delivery (WAL-029/030), which has no implementation and no test. |
-| 13 — Compensation | **OPEN** | The release blocker (CMP-027, double-pay prevention) is closed and enforced in production code. The salary-proration, allowance-basis, overtime, bonus and deduction rules (CMP-006/011/012/013/014) are not implemented, so the resolver flag stays off (CMP-001/019). |
-| 14 — Visibility | **OPEN** | The policy itself is certified and cannot be bypassed. VIS-007/013/014/015/017/018 — the per-job provider view, provider-scoped payroll view, typed explanation, and the notification and logging redaction audits — were not done. |
+| 12 — Managed settlement | **CLOSED** | The money path is complete and certified end to end, including Commerce refund and dispute reversal (WAL-029/030). |
+| 13 — Compensation | **CLOSED** | Every required CMP item is implemented and certified. The resolver can be enabled safely and stays OFF by default, with a shadow stage between off and on. |
+| 14 — Visibility | **CLOSED** | The policy, the provider views, the Wallet surface audit, notification enforcement and log redaction are all implemented and certified. |
 
-Closing any of the three would mean calling work certified that has not been
-written. The parts that are finished are finished; the list below says which.
+Closed here means: implemented, certified by named tests, and — where a live
+round trip adds something a database-backed test cannot — certified against a
+running service. The evidence is in `KARRYAM_PART_G_FIN_MATRIX.md` and
+`KARRYAM_PART_E_LIVE_WIRING_EVIDENCE.txt`.
 
 ## Section 12 — what is closed
 
@@ -66,15 +68,27 @@ corporate rider took the job. `UNKNOWN` is refused rather than treated as
 independent: a refused release can be retried once the executor is known, a
 payment to the wrong party cannot be taken back.
 
-## Section 12 — what is open
+## Section 12 — WAL-029/030, now closed
 
-**WAL-029/030, refund and dispute reversal for a managed Commerce delivery.**
-The existing refund path reduces `provider_delivery_payable_minor` and recovers
-from the provider. A managed delivery's money is now split between the provider
-and the organization, so a refund has to recover proportionally from both, and
-that arithmetic does not exist. Nothing has been written and nothing is
-claimed. The managed release path is safe to enable; a refund against a
-managed delivery is not.
+Recovery is computed from the durable per-mission record of what was actually
+paid, not from the customer-facing delivery payable and not from today's
+compensation policy — a plan that changed since the delivery would otherwise
+decide how much a provider gives back from a job they were paid under the old
+one. A salaried rider who received nothing gives back nothing, and a refund that
+tries to take the organization's share from the rider is refused.
+
+The split is integer-only: floored shares with the leftover units handed out by
+largest fractional remainder and a fixed tie-break, so the two parts always sum
+to exactly the amount refunded and a replay recovers the same amounts. A dispute
+reversal is its own operation drawing on the same pool, so in either order a
+refund and a dispute can never between them take back more than was paid.
+
+Three real defects surfaced while building it: a per-mission release was refused
+unless it settled the whole outstanding amount, so a second mission was
+impossible and WAL-026 could not actually happen; the managed release journal
+was keyed on the order, so a second mission's journal collided with the first;
+and the refund journal was keyed on the order alone, so a second partial refund
+could never post.
 
 ## Section 13 — what is closed
 
@@ -100,15 +114,24 @@ Certified with a control assignment, so a payroll pass that had simply stopped
 producing per-job items — a regression, not a fix — would not pass. Removing
 the guard fails both tests.
 
-## Section 13 — what is open
+## Section 13 — the remaining CMP items, now closed
 
-CMP-006/006A/006B (salary proration for mid-period start and end, in integer
-minor units), CMP-011 (allowance bases), CMP-012 (overtime from approved
-records only), CMP-013 (bonus provenance), CMP-014 (deduction audit), CMP-021
-(organization-share semantics) and CMP-033 (multi-service provider) are not
-implemented. Because they are not, the compensation resolver flag stays off
-(CMP-001, CMP-019): turning it on would resolve compensation with rules that do
-not yet handle a provider who starts mid-month.
+Salary proration (CMP-006/006A/006B) is deterministic and integer-only against a
+canonical basis of whole UTC calendar days, and carries enough provenance to be
+checked by hand. Allowance bases are declared rather than inferred (CMP-011),
+overtime comes only from an approval record that cannot be reused in another
+period (CMP-012), and bonuses and deductions carry source, reason, authoriser
+and period (CMP-013/014). An unauthorised line is refused rather than entered at
+zero, because a silent zero and a silent full payment are the same class of bug
+and only one is visible.
+
+Organization share (CMP-021) is a residual, which is what makes economic
+conservation checkable, and the check refuses a rule settled at both levels. A
+multi-service provider (CMP-033) is paid one salary, not one per service.
+
+The resolver flag (CMP-001/019) gained a shadow stage: it records exactly what
+it would pay while nothing acts on the figures. It remains OFF by default, and a
+misconfigured mode resolves to OFF rather than being guessed at.
 
 ## Section 14 — what is closed
 
@@ -118,20 +141,42 @@ unreachable under any policy rather than merely off by default, the
 conservative default shows a managed provider nothing but their own payroll,
 and an unclassified money field is withheld rather than guessed at.
 
-## Section 14 — what is open
+## Section 14 — the remaining VIS items, now closed
 
-VIS-007 (per-job provider view), VIS-013 (Wallet provider reads cannot bypass
-policy), VIS-014 (provider-scoped payroll view), VIS-015 (typed compensation
-explanation), VIS-017 (notification audit) and VIS-018 (logging and redaction
-audit) were not done.
+The per-job and payroll views (VIS-007/014) are constructed shapes with no
+passthrough: the organization's and the platform's figures are inputs to the
+builder precisely so its refusal to emit them is testable. The payroll view
+refuses a requester who is not the provider and does not even disclose whose
+payroll it was. The compensation explanation (VIS-015) is typed rather than an
+internal calculation blob.
 
-## Also not done
+The Wallet provider surface (VIS-013) is audited against the real router, so a
+route added later is covered the day it is added. Notification payloads
+(VIS-017) are enforced rather than audited: a provider-addressed notification
+carrying an organization or platform field is refused. Log redaction (VIS-018)
+removes credentials and conceals organization and platform economics while
+leaving what an operator actually needs.
 
-Parts E, F and G of the specification — live wiring certification against
-running services, the nine-stage flag rollout order, and the FIN-01…FIN-35
-certification matrix as a single document. The individual financial invariants
-those parts enumerate are covered by tests where the corresponding feature
-exists; the matrix itself was not produced.
+## Parts E, F and G
+
+**Part E** drove 31 real HMAC-signed checks against a running
+payment-wallet-service, including a full Fleet-instructs, Wallet-posts,
+execution-service-reads-back journey with retry, conflict, legacy-path refusal
+and reversal. Evidence: `KARRYAM_PART_E_LIVE_WIRING_EVIDENCE.txt`; the probe
+itself is in `docs/liveprobe`.
+
+It found a production bug no unit test could have. Wallet stored `source_service`
+as the instruction carried it — "taxi" — while the shared read client normalises
+to "TAXI" so the synchronous and reconciliation paths agree. The by-job lookup
+matched case-sensitively, so an execution service could never find its own
+settlement: the read returned nothing, which reads as "not settled", which is
+exactly how a job gets paid twice.
+
+**Part F** is `KARRYAM_PART_F_ROLLOUT.md`: nine stages, each with flags,
+behaviour, metrics, abort condition, rollback, invariant and operator check.
+
+**Part G** is `KARRYAM_PART_G_FIN_MATRIX.md`: FIN-01 through FIN-35, every row
+naming the implementation, the test and the live check. 35 PASS, 0 FAIL.
 
 ## The Vendor deadlock (Part H) — closed
 
@@ -187,9 +232,20 @@ All seven Go modules, against real PostgreSQL 16 and Redis, zero failures:
 `driver-hauling-service` (build, vet, `go test -p 1 ./...` each), and
 `vendor-service` through its own isolated runner (68/68 packages).
 
-Migrations `000078` (Fleet), `000014` and `000015` (Wallet) each verified
-apply → rollback → reapply. Fleet `000077`, Taxi `012`, Hauling `018` and
-Wallet `000013` were not modified.
+Migrations `000078` (Fleet) and `000014`, `000015`, `000016` (Wallet) each
+verified apply → rollback → reapply. Fleet `000077`, Taxi `012`, Hauling `018`
+and Wallet `000013` were not modified.
+
+Migration `000016`'s rollback is data-aware, and deliberately so. Narrowing the
+operation-type constraint or recreating the old one-release-per-allocation index
+would fail on exactly the databases that used the feature, so the constraint
+keeps the new value and the index is restored only where the recorded data still
+satisfies it. A rollback that cannot run on a database that used the feature is
+not a rollback, and deleting records of money that moved is not an option.
+
+The Vendor deadlock regression was re-run under the exact default pool
+configuration that previously hung (`MaxConns` 4 on a 4-core machine): all ten
+`TestSection17FCheaper*` tests complete in 1.39s, the concurrent one in 0.24s.
 
 No test was deleted, skipped or weakened.
 
