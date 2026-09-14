@@ -19,7 +19,7 @@ import (
 // TestMigrationReplay_EmptySchemaAppliesCleanly is WP8(A): apply
 // 000001->tip against a genuinely empty database and verify the resulting
 // schema, constraints, and indexes -- representative objects spanning the
-// earliest (000001-000002) and the latest (000076) migrations.
+// earliest (000001-000002) and the latest (000077) migrations.
 func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_empty")
 	ctx := context.Background()
@@ -32,8 +32,8 @@ func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 	if len(applied) < 76 {
 		t.Fatalf("recorded %d applied migrations, want at least 76", len(applied))
 	}
-	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000076") {
-		t.Fatalf("last applied migration = %s, want prefix 000076", got)
+	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000077") {
+		t.Fatalf("last applied migration = %s, want prefix 000077", got)
 	}
 
 	for _, table := range []string{
@@ -72,10 +72,10 @@ func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 }
 
 // TestMigrationReplay_LatestMigrationRollbackAndReapply is WP8(B): apply
-// everything, roll back the safely-reversible latest migration (000076),
+// everything, roll back the safely-reversible latest migration (000077),
 // verify its additions are actually gone, then reapply and verify the
 // state is fully restored. Earlier migrations (including 000074 and 000075)
-// must survive rolling back 000076.
+// must survive rolling back 000077.
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_rollback")
 	ctx := context.Background()
@@ -83,8 +83,8 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
-	if !tableExists(t, pool, "fleet_partner_organization_api_clients") {
-		t.Fatal("precondition failed: organization API clients should exist right after full apply")
+	if !tableExists(t, pool, "fleet_partner_completed_work_records") {
+		t.Fatal("precondition failed: completed-work records should exist right after full apply")
 	}
 
 	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
@@ -93,36 +93,39 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 
 	applied := appliedMigrationVersions(t, pool)
 	for _, v := range applied {
-		if strings.HasPrefix(v, "000076") {
-			t.Fatal("000076 is still recorded as applied after RollbackLastMigration")
+		if strings.HasPrefix(v, "000077") {
+			t.Fatal("000077 is still recorded as applied after RollbackLastMigration")
 		}
 	}
-	// Earlier migrations must survive rolling back 000076.
+	// Earlier migrations must survive rolling back 000077.
 	if !tableExists(t, pool, "fleet_partner_export_jobs") {
-		t.Error("fleet_partner_export_jobs table was removed by rolling back 000076 -- rollback affected the wrong migration")
+		t.Error("fleet_partner_export_jobs table was removed by rolling back 000077 -- rollback affected the wrong migration")
+	}
+	if !tableExists(t, pool, "fleet_partner_organization_api_clients") {
+		t.Error("000076 organization API clients table was removed by rolling back 000077")
 	}
 	if !columnExists(t, pool, "fleet_partner_export_jobs", "media_deletion_status") {
-		t.Error("000073 media_deletion_status column was removed by rolling back 000076")
+		t.Error("000073 media_deletion_status column was removed by rolling back 000077")
 	}
 
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("reapply after rollback: %v", err)
 	}
 	applied = appliedMigrationVersions(t, pool)
-	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000076") {
-		t.Fatalf("last applied migration after reapply = %s, want prefix 000076", got)
+	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000077") {
+		t.Fatalf("last applied migration after reapply = %s, want prefix 000077", got)
 	}
-	if !tableExists(t, pool, "fleet_partner_organization_api_clients") {
-		t.Error("organization API clients table not restored after reapply")
+	if !tableExists(t, pool, "fleet_partner_completed_work_records") {
+		t.Error("completed-work records table not restored after reapply")
 	}
-	if !tableExists(t, pool, "fleet_partner_webhook_deliveries") {
-		t.Error("webhook deliveries table not restored after reapply")
+	if !tableExists(t, pool, "fleet_partner_managed_work_settlement_instructions") {
+		t.Error("settlement instructions table not restored after reapply")
 	}
 }
 
 // TestMigrationReplay_MultiStepRangeAcrossSections is WP8(C): replay a
 // range spanning Section 25's introduction of fleet_partner_export_jobs
-// (000055) through the release tip (000076) in two separate apply calls,
+// (000055) through the release tip (000077) in two separate apply calls,
 // proving the schema is valid and correctly incremental at the pause point,
 // not just at the final tip.
 func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
@@ -142,7 +145,7 @@ func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
 		t.Fatalf("last applied migration after staged apply = %s, want prefix 000054", got)
 	}
 
-	// Stage 2: resume to the tip (000076). The table must now exist WITH
+	// Stage 2: resume to the tip (000077). The table must now exist WITH
 	// both its founding (000055) and later-added (000073) columns.
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("resume migrations to tip: %v", err)
@@ -157,8 +160,8 @@ func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
 		t.Error("fleet_partner_export_jobs.media_deletion_status (000073) missing after resumed replay")
 	}
 	applied = appliedMigrationVersions(t, pool)
-	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000076") {
-		t.Fatalf("last applied migration after resumed replay = %s, want prefix 000076", got)
+	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000077") {
+		t.Fatalf("last applied migration after resumed replay = %s, want prefix 000077", got)
 	}
 }
 
