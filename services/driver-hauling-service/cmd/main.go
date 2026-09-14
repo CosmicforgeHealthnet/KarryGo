@@ -41,6 +41,7 @@ import (
 	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
 
 	"cosmicforge/logistics/services/hauling-service/internal/apiresponse"
+	haulingsettlement "cosmicforge/logistics/services/hauling-service/internal/features/booking/settlement"
 	"cosmicforge/logistics/services/hauling-service/internal/features/completedwork"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/commercemission"
@@ -48,6 +49,7 @@ import (
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/fleetproviderwork"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/providercompat"
@@ -201,6 +203,21 @@ func main() {
 		commerceSettlement = walletPayments
 	}
 
+	// Section 12 (WAL-013). Hauling never settles corporate work -- Fleet
+	// resolves the compensation and instructs Wallet. The handoff's only job
+	// is to find out whether that money moved, so an ambiguous completion is
+	// visible rather than assumed. Without wallet credentials there is nothing
+	// to ask, so no handoff is wired and the completion is left to Fleet.
+	var managedHandoff bookingusecases.ManagedSettlementHandoff
+	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
+		managedHandoff = haulingsettlement.New(managedsettlement.Client{
+			BaseURL:     cfg.PaymentURL,
+			ServiceName: "driver-hauling-service",
+			Secret:      cfg.PaymentSecret,
+			HTTPClient:  &http.Client{Timeout: 10 * time.Second},
+		})
+	}
+
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
 		Bookings:           bookingRepo,
 		Availability:       availabilityStore,
@@ -210,6 +227,7 @@ func main() {
 		// Section 10 corporate completion. Both default off; see each flag's
 		// own doc comment in internal/config for what turning it on changes.
 		ManagedSettlement:    bookingusecases.ManagedSettlementConfig{Enabled: cfg.HaulingManagedSettlementEnabled},
+		ManagedHandoff:       managedHandoff,
 		CompletedWorkEnabled: cfg.HaulingFleetCompletedWorkEnabled,
 		Notifier:             bookingNotifier,
 		MatchTimeoutSeconds:  cfg.BookingMatchTimeout,

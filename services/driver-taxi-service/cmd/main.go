@@ -49,9 +49,11 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/pricing"
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 
+	taxisettlement "cosmicforge/logistics/services/taxi-service/internal/features/booking/settlement"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/providercompat"
@@ -232,6 +234,27 @@ func main() {
 		logging.Notice("taxi-payments", "wallet integration disabled (no TAXI_PAYMENT_URL/_SECRET) -- rides will not be charged")
 	}
 
+	// Section 12 (WAL-011). Taxi does not settle corporate work -- Fleet
+	// resolves the compensation and instructs Wallet. What Taxi needs is a
+	// definite answer about whether a completed job's money moved, so an
+	// ambiguous completion is retried instead of assumed either way. Without
+	// wallet credentials there is no way to ask, so no handoff is wired and
+	// the completion is simply left for Fleet; that is the honest behaviour,
+	// and it still never falls through to paying the driver directly.
+	var managedHandoff bookingusecases.ManagedSettlementHandoff
+	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
+		managedHandoff = taxisettlement.New(managedsettlement.Client{
+			BaseURL:     cfg.PaymentURL,
+			ServiceName: bookingusecases.PaymentServiceName,
+			Secret:      cfg.PaymentSecret,
+			HTTPClient:  &http.Client{Timeout: 10 * time.Second},
+		})
+		logging.Notice("taxi-settlement", "managed settlement confirmation enabled url=%s", cfg.PaymentURL)
+	} else if cfg.TaxiManagedSettlementEnabled {
+		logging.Notice("taxi-settlement",
+			"managed settlement isolation is on but wallet credentials are missing -- corporate completions will be left entirely to Fleet")
+	}
+
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
 		Bookings: bookingRepo, Markets: marketRepo, Pricing: pricingProvider, OperationalState: operationalStateRepo,
 		Availability: availabilityStore, Providers: providerRepo, Vehicles: vehicleRepo, Routes: routingClient,
@@ -256,6 +279,7 @@ func main() {
 		// each flag's own doc comment in internal/config for what turning it
 		// on actually changes.
 		ManagedSettlement:    bookingusecases.ManagedSettlementConfig{Enabled: cfg.TaxiManagedSettlementEnabled},
+		ManagedHandoff:       managedHandoff,
 		CompletedWorkEnabled: cfg.TaxiFleetCompletedWorkEnabled,
 		// Positions is the same Redis store used for matching candidates --
 		// its repository-level Heartbeat(ctx, ProviderStatus) already

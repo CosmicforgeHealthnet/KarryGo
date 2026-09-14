@@ -136,10 +136,21 @@ func (s *WalletService) MarkJobManaged(ctx context.Context, caller, sourceServic
 //
 // An execution service legitimately needs to know whether its own completed
 // job settled; what it must never be able to do is instruct one.
+//
+// Each service is listed under the identity it actually signs with, which is
+// not uniform across the platform and is not the directory name: Taxi signs as
+// "taxi-service" and Dispatch as "dispatch-delivery-service", because those
+// are the names PAYMENT_WALLET_SERVICE_SECRETS was provisioned with long
+// before this route existed. The directory-style spellings are kept alongside
+// them so a caller configured either way is accepted; listing only one form
+// would leave the other passing HMAC and then being refused here, which is a
+// failure that looks like a credential problem and is not one.
 func requireFinanceReader(caller string) error {
 	switch strings.TrimSpace(caller) {
 	case FleetServiceCaller,
-		"driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service":
+		"taxi-service", "driver-taxi-service",
+		"dispatch-delivery-service", "driver-dispatch-delivery-service",
+		"hauling-service", "driver-hauling-service":
 		return nil
 	default:
 		return apperrors.Forbidden("Caller may not read managed settlements.", nil)

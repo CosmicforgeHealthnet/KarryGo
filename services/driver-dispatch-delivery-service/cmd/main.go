@@ -27,8 +27,10 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
+	tripsettlement "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/tripsettlement"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
+	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/routing"
@@ -169,16 +171,34 @@ func main() {
 			marketplace.NewCompletedWorkEnqueuer(marketplace.NewRepository(db)))
 		log.Printf("marketplace: Fleet completed-work enqueue enabled for managed mission completion")
 	}
+	// Section 12 (WAL-012). Both of Dispatch's settlement paths -- the
+	// synchronous completion and the reconciliation worker -- go through this
+	// one handoff, so they address a mission's money under the same identity.
+	// Without wallet credentials there is nothing to ask, so no handoff is
+	// wired and corporate completions are left entirely to Fleet.
+	var managedHandoff tripfeature.ManagedSettlementHandoff
+	if cfg.WalletServiceURL != "" && len(cfg.WalletServiceSecret) > 0 {
+		managedHandoff = tripsettlement.New(managedsettlement.Client{
+			BaseURL:     cfg.WalletServiceURL,
+			ServiceName: cfg.WalletServiceSource,
+			Secret:      cfg.WalletServiceSecret,
+			HTTPClient:  &http.Client{Timeout: cfg.ExternalServiceTimeout},
+		})
+	}
+
 	tripService := tripfeature.NewService(tripRepository, proofStorage).
 		WithEventPublisher(tripfeature.NewRedisEventPublisher(redisClient)).
 		WithWalletClient(walletClient).
 		WithNotifier(bookingNotifier).
 		WithHandoverSecret(cfg.HandoverSecret).
-		// Section 9 DSP-014: the Section 12 boundary. With isolation on and
-		// no handoff implemented yet, a corporate mission is deliberately NOT
-		// paid directly to the rider -- Fleet settles it.
+		// Section 9 DSP-014 / Section 12 WAL-012: the corporate settlement
+		// boundary. A corporate mission is never paid directly to the rider;
+		// Fleet resolves the compensation and instructs Wallet, and the
+		// handoff's job is only to find out whether that money actually moved
+		// so an ambiguous completion is retried rather than assumed.
 		WithManagedSettlement(
-			tripfeature.ManagedSettlementConfig{Enabled: cfg.DispatchManagedSettlementEnabled}, nil)
+			tripfeature.ManagedSettlementConfig{Enabled: cfg.DispatchManagedSettlementEnabled},
+			managedHandoff)
 	tripfeature.StartSubscribers(ctx, redisClient, tripService)
 
 	// Rider request push: real notification-service sender when configured,

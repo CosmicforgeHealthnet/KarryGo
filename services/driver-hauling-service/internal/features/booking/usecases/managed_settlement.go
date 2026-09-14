@@ -3,6 +3,8 @@ package bookingusecases
 import (
 	"context"
 
+	"cosmicforge/logistics/shared/go/logging"
+
 	"cosmicforge/logistics/services/hauling-service/internal/features/completedwork"
 )
 
@@ -101,7 +103,17 @@ func (s *BookingService) routeCompletedSettlement(ctx context.Context, bookingID
 		// everything it needs to settle this correctly later.
 		return false
 	}
-	_ = s.managedHandoff.HandleManagedCompletion(ctx, bookingID)
+	if err := s.managedHandoff.HandleManagedCompletion(ctx, bookingID); err != nil {
+		// The handoff only ever reports that Wallet could not be ASKED. That
+		// is ambiguity, not failure, and it is deliberately visible: a
+		// completion whose settlement state is unknown is the one case an
+		// operator needs to look at, and silently discarding it here is how
+		// such a job goes unnoticed until the provider asks where their money
+		// is. It changes nothing about the routing -- corporate work is still
+		// never paid directly to the provider.
+		logging.Notice("hauling-settlement",
+			"managed booking=%s settlement state unresolved: %v", bookingID, err)
+	}
 	return false
 }
 
