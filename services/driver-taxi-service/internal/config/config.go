@@ -115,6 +115,22 @@ type Config struct {
 	TaxiFleetProviderWorkEnabled        bool
 	TaxiFleetCompletedWorkEnabled       bool
 	TaxiTypedFinancialVisibilityEnabled bool
+	// TaxiFleetManagedExecutionEnabled mounts the Fleet-facing private
+	// execution surface (reservation, provider confirmation, execution start,
+	// reconciliation reads). Default false: Section 8 TAX-028 gates the whole
+	// corporate Taxi chain behind certification.
+	TaxiFleetManagedExecutionEnabled bool
+	// TaxiManagedSettlementEnabled isolates corporate settlement from the
+	// legacy direct-to-provider wallet path (Section 8 TAX-020A). Default
+	// false until Section 12 exists; turning it on stops corporate work
+	// being paid directly to the provider.
+	TaxiManagedSettlementEnabled bool
+	// TaxiFleetExecutionCallers lists the service callers allowed to drive
+	// taxi execution over the internal marketplace surface.
+	TaxiFleetExecutionCallers []string
+	// TaxiFleetReservationTTLSeconds bounds how long a Fleet reservation
+	// holds a booking before it can be reclaimed.
+	TaxiFleetReservationTTL time.Duration
 
 	// Matching config
 	BookingMatchTimeout int     // seconds a matched driver has to accept
@@ -230,6 +246,10 @@ func Load() Config {
 		TaxiFleetProviderWorkEnabled:        getEnvBool("TAXI_FLEET_PROVIDER_WORK_ENABLED", false),
 		TaxiFleetCompletedWorkEnabled:       getEnvBool("TAXI_FLEET_COMPLETED_WORK_ENABLED", false),
 		TaxiTypedFinancialVisibilityEnabled: getEnvBool("TAXI_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
+		TaxiFleetManagedExecutionEnabled:    getEnvBool("TAXI_FLEET_MANAGED_EXECUTION_ENABLED", false),
+		TaxiManagedSettlementEnabled:        getEnvBool("TAXI_MANAGED_SETTLEMENT_ENABLED", false),
+		TaxiFleetExecutionCallers:           splitCSV(getEnv("TAXI_FLEET_EXECUTION_CALLERS", "fleet-partner-service")),
+		TaxiFleetReservationTTL:             time.Duration(getEnvInt("TAXI_FLEET_RESERVATION_TTL_SECONDS", 300)) * time.Second,
 
 		BookingMatchTimeout: getEnvInt("TAXI_BOOKING_MATCH_TIMEOUT", 30),
 		BookingSearchWindow: getEnvInt("TAXI_BOOKING_SEARCH_WINDOW", 60),
@@ -359,6 +379,17 @@ func (c Config) Validate() error {
 		return errors.New("configuration invalid: " + strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// splitCSV parses a comma-separated allowlist, dropping empty entries.
+func splitCSV(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if name := strings.TrimSpace(part); name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 func serviceSecretsFor(raw string) map[string]string {

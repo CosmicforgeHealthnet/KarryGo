@@ -112,6 +112,17 @@ type BookingService struct {
 	scheduling SchedulingConfig
 
 	adminAudit adminaudit.Repository
+
+	// managedSettlement and managedHandoff are the Section 12 boundary. See
+	// managed_settlement.go: they decide whether a completed corporate ride
+	// takes the legacy direct-to-provider wallet path or the Fleet managed
+	// path, and that decision is never made by a live Fleet lookup at
+	// completion time.
+	managedSettlement ManagedSettlementConfig
+	managedHandoff    ManagedSettlementHandoff
+	// completedWorkEnabled gates writing the canonical Fleet completed-work
+	// outbox row. Off by default (TAXI_FLEET_COMPLETED_WORK_ENABLED).
+	completedWorkEnabled bool
 }
 
 type Options struct {
@@ -182,6 +193,14 @@ type Options struct {
 	// apperrors.Unavailable rather than silently skipping the audit trail
 	// an operator action must always leave.
 	AdminAudit adminaudit.Repository
+
+	// ManagedSettlement/ManagedHandoff/CompletedWorkEnabled configure the
+	// Section 8 corporate completion path. All three are nil/zero-safe: a
+	// service built without them behaves exactly as before, which is what
+	// keeps every independent ride unchanged.
+	ManagedSettlement    ManagedSettlementConfig
+	ManagedHandoff       ManagedSettlementHandoff
+	CompletedWorkEnabled bool
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -193,8 +212,10 @@ func NewBookingService(opts Options) *BookingService {
 		payments:  opts.Payments,
 		telemetry: opts.Telemetry, positions: opts.Positions, telemetryConfig: opts.TelemetryConfig,
 		reviews: opts.Reviews, reviewRevealWindow: opts.ReviewRevealWindow, operationalHistory: opts.OperationalHistory,
-		scheduling: opts.Scheduling,
-		adminAudit: opts.AdminAudit,
+		scheduling:        opts.Scheduling,
+		adminAudit:        opts.AdminAudit,
+		managedSettlement: opts.ManagedSettlement, managedHandoff: opts.ManagedHandoff,
+		completedWorkEnabled: opts.CompletedWorkEnabled,
 	}
 }
 

@@ -29,6 +29,13 @@ type Record struct {
 	Payload     json.RawMessage
 	OccurredAt  time.Time
 	Attempts    int
+	// Target names the consumer that owns this row. Existing rows default to
+	// the Vendor lifecycle ingress, so adding Fleet completed-work delivery
+	// changes nothing about Taxi Goods.
+	Target string
+	// IdempotencyKey is the stable delivery identity. An ambiguous outcome is
+	// always REDELIVERED under this same key, never re-minted (TAX-016A).
+	IdempotencyKey string
 }
 
 type Store struct{ db *pgxpool.Pool }
@@ -61,7 +68,8 @@ func (s *Store) Claim(ctx context.Context, owner string, limit int, lease time.D
 		UPDATE taxi_outbox o
 		   SET lease_owner=$2,lease_until=now()+$3::interval,attempts=attempts+1,last_error=''
 		  FROM due WHERE o.id=due.id
-		RETURNING o.id::text,o.aggregate_id::text,o.event_type,o.payload,o.occurred_at,o.attempts`,
+		RETURNING o.id::text,o.aggregate_id::text,o.event_type,o.payload,o.occurred_at,o.attempts,
+		          o.target,o.idempotency_key`,
 		limit, owner, fmt.Sprintf("%f seconds", lease.Seconds()))
 	if err != nil {
 		return nil, err
@@ -70,7 +78,8 @@ func (s *Store) Claim(ctx context.Context, owner string, limit int, lease time.D
 	records := make([]Record, 0, limit)
 	for rows.Next() {
 		var record Record
-		if err = rows.Scan(&record.ID, &record.AggregateID, &record.EventType, &record.Payload, &record.OccurredAt, &record.Attempts); err != nil {
+		if err = rows.Scan(&record.ID, &record.AggregateID, &record.EventType, &record.Payload,
+			&record.OccurredAt, &record.Attempts, &record.Target, &record.IdempotencyKey); err != nil {
 			return nil, err
 		}
 		records = append(records, record)
@@ -85,7 +94,9 @@ func (s *Store) Claim(ctx context.Context, owner string, limit int, lease time.D
 }
 
 func (s *Store) Ack(ctx context.Context, id, owner string) error {
-	tag, err := s.db.Exec(ctx, `UPDATE taxi_outbox SET delivered_at=now(),lease_owner=NULL,lease_until=NULL,last_error='' WHERE id=$1 AND lease_owner=$2 AND delivered_at IS NULL`, id, owner)
+	tag, err := s.db.Exec(ctx, `UPDATE taxi_outbox SET delivered_at=now(),lease_owner=NULL,lease_until=NULL,
+		last_error='',last_error_code='',reconciliation_state=$3,next_retry_at=NULL
+		WHERE id=$1 AND lease_owner=$2 AND delivered_at IS NULL`, id, owner, ReconDelivered)
 	if err != nil {
 		return err
 	}
@@ -95,6 +106,21 @@ func (s *Store) Ack(ctx context.Context, id, owner string) error {
 	return nil
 }
 
+// Fail records one failed delivery attempt and decides what happens next
+// (Section 8 TAX-016B, TAX-017, TAX-017A).
+//
+// Three outcomes, deliberately distinct:
+//
+//   - TERMINAL: Fleet authoritatively rejected the row (wrong source service,
+//     wrong provider, invalid membership, invalid payload). No retry can fix
+//     it, so it is dead-lettered immediately as FAILED_TERMINAL instead of
+//     burning the whole attempt budget first.
+//   - AMBIGUOUS with the budget spent: we never learned whether Fleet
+//     committed. It becomes RECONCILIATION_REQUIRED, NOT a terminal failure --
+//     the record may well exist at Fleet, and claiming otherwise would be a
+//     guess an operator could act on.
+//   - everything else: bounded exponential backoff, RETRY_SCHEDULED, and the
+//     row is redelivered under the SAME idempotency key.
 func (s *Store) Fail(ctx context.Context, record Record, owner string, cause error, maxAttempts int) error {
 	if maxAttempts < 1 {
 		maxAttempts = defaultMaxAttempts
@@ -106,10 +132,34 @@ func (s *Store) Fail(ctx context.Context, record Record, owner string, cause err
 	if len(message) > 1000 {
 		message = message[:1000]
 	}
-	if record.Attempts >= maxAttempts {
-		_, err := s.db.Exec(ctx, `UPDATE taxi_outbox SET dead_lettered_at=now(),lease_owner=NULL,lease_until=NULL,last_error=$3 WHERE id=$1 AND lease_owner=$2`, record.ID, owner, message)
+
+	var terminal *TerminalDeliveryError
+	var ambiguous *AmbiguousDeliveryError
+	code := ""
+	switch {
+	case errors.As(cause, &terminal):
+		code = terminal.Code
+	case errors.As(cause, &ambiguous):
+		code = ambiguous.Code
+	}
+
+	exhausted := record.Attempts >= maxAttempts
+	if errors.As(cause, &terminal) || (exhausted && !errors.As(cause, &ambiguous)) {
+		state := ReconFailedTerminal
+		_, err := s.db.Exec(ctx, `UPDATE taxi_outbox SET dead_lettered_at=now(),lease_owner=NULL,lease_until=NULL,
+			last_error=$3,last_error_code=$4,reconciliation_state=$5,next_retry_at=NULL
+			WHERE id=$1 AND lease_owner=$2`, record.ID, owner, message, code, state)
 		return err
 	}
+	if exhausted {
+		// Ambiguous and out of attempts: Fleet may hold the record. Park it
+		// for reconciliation rather than asserting a failure that may be false.
+		_, err := s.db.Exec(ctx, `UPDATE taxi_outbox SET dead_lettered_at=now(),lease_owner=NULL,lease_until=NULL,
+			last_error=$3,last_error_code=$4,reconciliation_state=$5,next_retry_at=NULL
+			WHERE id=$1 AND lease_owner=$2`, record.ID, owner, message, code, ReconReconciliationRequired)
+		return err
+	}
+
 	shift := record.Attempts - 1
 	if shift < 0 {
 		shift = 0
@@ -121,8 +171,76 @@ func (s *Store) Fail(ctx context.Context, record Record, owner string, cause err
 	if backoff > 5*time.Minute {
 		backoff = 5 * time.Minute
 	}
-	_, err := s.db.Exec(ctx, `UPDATE taxi_outbox SET available_at=now()+$3::interval,lease_owner=NULL,lease_until=NULL,last_error=$4 WHERE id=$1 AND lease_owner=$2`, record.ID, owner, fmt.Sprintf("%f seconds", backoff.Seconds()), message)
+	_, err := s.db.Exec(ctx, `UPDATE taxi_outbox SET available_at=now()+$3::interval,lease_owner=NULL,lease_until=NULL,
+		last_error=$4,last_error_code=$5,reconciliation_state=$6,next_retry_at=now()+$3::interval
+		WHERE id=$1 AND lease_owner=$2`,
+		record.ID, owner, fmt.Sprintf("%f seconds", backoff.Seconds()), message, code, ReconRetryScheduled)
 	return err
+}
+
+// ListReconciliation returns completed-work rows in a given reconciliation
+// state, newest first. This is the operator read surface TAX-017 requires:
+// repairing a stuck completion must never mean editing the database by hand.
+func (s *Store) ListReconciliation(ctx context.Context, target, state string, limit int) ([]ReconciliationRow, error) {
+	if limit < 1 || limit > 500 {
+		limit = 100
+	}
+	rows, err := s.db.Query(ctx, `
+		SELECT id::text, payload, reconciliation_state, attempts,
+		       last_error_code, last_error, next_retry_at, occurred_at, delivered_at, idempotency_key
+		  FROM taxi_outbox
+		 WHERE target = $1 AND ($2 = '' OR reconciliation_state = $2)
+		 ORDER BY occurred_at DESC
+		 LIMIT $3`, target, state, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]ReconciliationRow, 0, limit)
+	for rows.Next() {
+		var row ReconciliationRow
+		var payload []byte
+		if err := rows.Scan(&row.ID, &payload, &row.ReconciliationState, &row.Attempts,
+			&row.LastErrorCode, &row.LastError, &row.NextRetryAt, &row.OccurredAt,
+			&row.DeliveredAt, &row.IdempotencyKey); err != nil {
+			return nil, err
+		}
+		// Only the operational identifiers are surfaced. The payload's
+		// monetary basis is organization-internal and has no business on an
+		// operator delivery view.
+		var decoded CompletedWorkPayload
+		if json.Unmarshal(payload, &decoded) == nil {
+			row.SourceJobID = decoded.SourceJobID
+			row.SourceAssignmentID = decoded.SourceAssignmentID
+			row.OrganizationID = decoded.OrganizationID
+			row.ProviderID = decoded.ProviderID
+			row.CorrelationID = decoded.CorrelationID
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+// Requeue returns a dead-lettered row to the delivery queue (TAX-017).
+//
+// The row's payload and idempotency key are untouched, so this is a
+// REDELIVERY of the original completion, never a new completion event. That
+// is what makes operator repair safe for a RECONCILIATION_REQUIRED row whose
+// record may already exist at Fleet: Fleet returns the existing result.
+func (s *Store) Requeue(ctx context.Context, id string) error {
+	tag, err := s.db.Exec(ctx, `
+		UPDATE taxi_outbox
+		   SET dead_lettered_at=NULL, available_at=now(), attempts=0,
+		       lease_owner=NULL, lease_until=NULL, reconciliation_state=$2,
+		       next_retry_at=NULL
+		 WHERE id=$1::uuid AND delivered_at IS NULL`, id, ReconPending)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return errors.New("outbox row is not requeueable")
+	}
+	return nil
 }
 
 type Destination interface {

@@ -214,6 +214,28 @@ type Booking struct {
 	// searching begins.
 	MatchingStartedAt *time.Time
 
+	// Corporate execution binding (Section 8). An independent ride leaves
+	// every field here at its zero value and behaves exactly as before;
+	// nothing in the taxi lifecycle branches on these, which is deliberate --
+	// corporate work runs on the SAME trip engine, with corporate identity
+	// attached as metadata rather than a parallel lifecycle.
+	IsCorporateManaged     bool
+	OrganizationID         *string
+	MembershipID           *string
+	FleetAssignmentID      *string
+	FleetAssignmentVersion int64
+	// SourceContext records how this execution was acquired: INDEPENDENT,
+	// FLEET_ASSIGNMENT, FLEET_OFFER or FLEET_PRIVATE_EXECUTION.
+	SourceContext string
+	// SettlementMode is the Section 12 routing decision, decided once at
+	// execution start rather than re-derived at completion time (which would
+	// let a Fleet outage silently pick the independent path).
+	SettlementMode string
+	// SourceVersion is this booking's monotonic version as seen by Fleet. It
+	// is the completed-work contract's sourceVersion.
+	SourceVersion      int64
+	FleetCorrelationID *string
+
 	CancelReason *string
 	CancelledBy  *string
 
@@ -395,4 +417,50 @@ type BookingEvent struct {
 	ActorID   string
 	Metadata  []byte
 	CreatedAt time.Time
+}
+
+// Settlement modes (Section 8 TAX-020 / Section 9 DSP-014). The boundary
+// between the legacy independent provider payment path and the Fleet managed
+// settlement path is decided by this value on the booking, never by whether
+// Fleet happened to be reachable at completion time.
+const (
+	SettlementIndependent         = "INDEPENDENT"
+	SettlementOrganizationManaged = "ORGANIZATION_MANAGED"
+)
+
+// Source contexts recording how an execution was acquired.
+const (
+	SourceContextIndependent      = "INDEPENDENT"
+	SourceContextFleetAssignment  = "FLEET_ASSIGNMENT"
+	SourceContextFleetOffer       = "FLEET_OFFER"
+	SourceContextPrivateExecution = "FLEET_PRIVATE_EXECUTION"
+)
+
+// IsManagedSettlement reports whether this booking settles through the Fleet
+// managed path rather than the legacy direct-to-provider wallet path.
+//
+// It requires the persisted settlement mode AND a complete corporate binding:
+// a booking that merely claims to be managed but names no organization or
+// membership cannot be settled by anyone, so it must not be routed away from
+// the independent path on that claim alone.
+func (b Booking) IsManagedSettlement() bool {
+	return b.SettlementMode == SettlementOrganizationManaged &&
+		b.IsCorporateManaged &&
+		b.OrganizationID != nil && *b.OrganizationID != "" &&
+		b.MembershipID != nil && *b.MembershipID != ""
+}
+
+// CorporateBinding returns the organization, membership and Fleet assignment
+// identifiers, with empty strings when the booking is independent.
+func (b Booking) CorporateBinding() (organizationID, membershipID, fleetAssignmentID string) {
+	if b.OrganizationID != nil {
+		organizationID = *b.OrganizationID
+	}
+	if b.MembershipID != nil {
+		membershipID = *b.MembershipID
+	}
+	if b.FleetAssignmentID != nil {
+		fleetAssignmentID = *b.FleetAssignmentID
+	}
+	return organizationID, membershipID, fleetAssignmentID
 }

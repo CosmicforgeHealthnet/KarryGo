@@ -191,14 +191,17 @@ type CompletedWorkInput struct {
 }
 
 func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in CompletedWorkInput) (CompletedWorkRecord, CompensationResolution, ManagedWorkSettlementInstruction, error) {
+	// Only INGESTION is gated here. Compensation resolution and settlement
+	// instruction generation are separate, later stages (Sections 12/13) and
+	// are gated individually below.
+	//
+	// These three were previously one combined gate, which made canonical
+	// ingestion impossible in exactly the configuration Sections 8/9 ship in
+	// (projection on, resolver and settlement off): every Taxi and Dispatch
+	// completed-work submission would have been rejected 503, and each
+	// service's outbox would have accumulated undeliverable rows forever.
 	if !s.flags.CompletedWorkProjection {
 		return CompletedWorkRecord{}, CompensationResolution{}, ManagedWorkSettlementInstruction{}, apperrors.Unavailable("Completed-work projection is not enabled.", nil)
-	}
-	if !s.flags.CompensationResolver {
-		return CompletedWorkRecord{}, CompensationResolution{}, ManagedWorkSettlementInstruction{}, apperrors.Unavailable("Compensation resolver is not enabled.", nil)
-	}
-	if !s.flags.SettlementInstruction {
-		return CompletedWorkRecord{}, CompensationResolution{}, ManagedWorkSettlementInstruction{}, apperrors.Unavailable("Settlement-instruction generation is not enabled.", nil)
 	}
 	if !callerOwnsSource(caller, in.SourceService) {
 		return CompletedWorkRecord{}, CompensationResolution{}, ManagedWorkSettlementInstruction{}, apperrors.Forbidden("Caller does not own the source service.", nil)
@@ -236,9 +239,29 @@ func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in Com
 		if err != nil || replay {
 			return err
 		}
+		// Ingestion is complete and durable at this point. Resolution and
+		// settlement-instruction generation are downstream stages that stay
+		// dark until their own flags are enabled, so a Sections 8/9
+		// deployment records canonical completed work without producing any
+		// compensation or settlement side effect.
+		if !s.flags.CompensationResolver {
+			if s.events != nil {
+				return s.events.Publish(ctx, tx, "fleet.completed_work.recorded.v1", "completed_work", record.ID, record.Version, record.OrganizationID, record.CorrelationID, map[string]any{"completedWorkId": record.ID, "sourceService": record.SourceService, "sourceJobId": record.SourceJobID})
+			}
+			return nil
+		}
 		resolved, err = s.resolveRecordedWork(ctx, tx, record, role)
 		if err != nil {
 			return err
+		}
+		if !s.flags.SettlementInstruction {
+			if s.events != nil {
+				if err := s.events.Publish(ctx, tx, "fleet.completed_work.recorded.v1", "completed_work", record.ID, record.Version, record.OrganizationID, record.CorrelationID, map[string]any{"completedWorkId": record.ID, "sourceService": record.SourceService, "sourceJobId": record.SourceJobID}); err != nil {
+					return err
+				}
+				return s.events.Publish(ctx, tx, "fleet.compensation.resolved.v1", "compensation_resolution", resolved.ID, resolved.ResolutionVersion, record.OrganizationID, record.CorrelationID, map[string]any{"resolutionId": resolved.ID, "completedWorkId": record.ID})
+			}
+			return nil
 		}
 		instruction, _, err = s.repo.InsertSettlementInstruction(ctx, tx, ManagedWorkSettlementInstruction{
 			OrganizationID: record.OrganizationID, MembershipID: record.MembershipID, ProviderID: record.ProviderID,

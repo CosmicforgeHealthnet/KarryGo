@@ -35,7 +35,13 @@ type ClientConfig struct {
 }
 
 // ExecutionCapabilities is the single validated source gate used by HTTP
-// use cases and workers. Taxi intentionally has no configurable true state.
+// use cases and workers.
+//
+// Taxi is true only when the deployment has BOTH enabled the Taxi integration
+// flag and supplied Taxi's URL and secret. Section 8 TAX-028 requires the Taxi
+// source to stay dark until the whole corporate chain is certified, so the
+// default remains false and configuring Taxi's client alone does not turn it
+// on.
 type ExecutionCapabilities struct{ Dispatch, Taxi, Hauling bool }
 
 func (c Config) ExecutionCapabilities() ExecutionCapabilities {
@@ -44,14 +50,15 @@ func (c Config) ExecutionCapabilities() ExecutionCapabilities {
 	}
 	dispatchConfigured := c.DispatchServiceURL != "" && len(c.DispatchServiceSecret) > 0
 	hauling := c.Clients["driver-hauling-service"]
+	taxi := c.Clients["driver-taxi-service"]
 	return ExecutionCapabilities{
 		Dispatch: c.DispatchExecutionStartEnabled && dispatchConfigured,
-		Taxi:     false,
+		Taxi:     c.TaxiIntegrationEnabled && taxi.Configured(),
 		Hauling:  c.HaulingIntegrationEnabled && hauling.Configured(),
 	}
 }
 
-func (c ExecutionCapabilities) Any() bool { return c.Dispatch || c.Hauling }
+func (c ExecutionCapabilities) Any() bool { return c.Dispatch || c.Hauling || c.Taxi }
 
 // Configured reports whether the client can make live calls.
 func (c ClientConfig) Configured() bool {
@@ -118,7 +125,12 @@ type Config struct {
 	// every category flag and is intended for incident response.
 	IntegrationsKillSwitch    bool
 	HaulingIntegrationEnabled bool
-	TaxiIntegrationEnabled    bool
+	// TaxiIntegrationEnabled switches the TAXI execution source on. Default
+	// false: Section 8 TAX-028 gates activation behind full certification of
+	// corporate context, assignments, offers, reservation, private execution,
+	// execution start, the completed-work outbox, Fleet ingestion,
+	// reconciliation and the financial projection.
+	TaxiIntegrationEnabled bool
 
 	// Marketplace event ingestion and projection reconciliation.
 	MarketplaceEventIngestionEnabled bool

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,8 +21,6 @@ const (
 
 	SourceServiceTaxi = "TAXI"
 )
-
-var ErrFleetUnavailable = errors.New("fleet provider work is unavailable")
 
 type Client struct {
 	baseURL     string
@@ -161,25 +158,31 @@ func (c *Client) DeclineAssignment(ctx context.Context, meta Meta, providerID, s
 	return c.decision(ctx, meta, "/internal/fleet-partner/v1/assignments/"+url.PathEscape(assignmentID)+"/provider-decline", providerID, sessionID, decision)
 }
 
+// get performs a signed read and classifies every failure. A transport or
+// 5xx failure is a retryable dependency error; an authoritative 4xx is a
+// definite rejection. Neither is ever reported as "provider is independent".
 func (c *Client) get(ctx context.Context, meta Meta, path string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
-		return ErrFleetUnavailable
+		return dependencyError(err)
 	}
 	if err := c.decorate(req, meta, nil); err != nil {
-		return ErrFleetUnavailable
+		return dependencyError(err)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return ErrFleetUnavailable
+		return dependencyError(err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ErrFleetUnavailable
+	if err != nil {
+		return dependencyError(err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return classifyResponse(resp.StatusCode, body)
 	}
 	if err := json.Unmarshal(body, out); err != nil {
-		return ErrFleetUnavailable
+		return dependencyError(err)
 	}
 	return nil
 }
@@ -196,19 +199,22 @@ func (c *Client) decision(ctx context.Context, meta Meta, path, providerID, sess
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(body))
 	if err != nil {
-		return nil, ErrFleetUnavailable
+		return nil, dependencyError(err)
 	}
 	if err := c.decorate(req, meta, body); err != nil {
-		return nil, ErrFleetUnavailable
+		return nil, dependencyError(err)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, ErrFleetUnavailable
+		return nil, dependencyError(err)
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, ErrFleetUnavailable
+	if err != nil {
+		return nil, dependencyError(err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, classifyResponse(resp.StatusCode, raw)
 	}
 	return raw, nil
 }

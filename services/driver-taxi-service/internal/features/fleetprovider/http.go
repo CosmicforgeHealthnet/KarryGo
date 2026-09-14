@@ -11,15 +11,50 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/providercompat"
 )
 
+// ServiceTaxi is Taxi's Fleet service category. Every managed-operation check
+// in this package asserts eligibility for exactly this category: Fleet
+// membership alone is never sufficient authority for taxi execution.
+const ServiceTaxi = "TAXI"
+
 type Handler struct {
-	client  *Client
-	enabled bool
+	client    *Client
+	corporate providercompat.CorporateContextReader
+	enabled   bool
 }
 
-func NewHandler(client *Client, enabled bool) *Handler {
-	return &Handler{client: client, enabled: enabled}
+// NewHandler builds the provider-facing Fleet facade.
+//
+// corporate may be nil only in deployments with no Fleet integration at all;
+// when it is nil every managed route below fails closed rather than serving
+// corporate work with no authority behind it.
+func NewHandler(client *Client, corporate providercompat.CorporateContextReader, enabled bool) *Handler {
+	return &Handler{client: client, corporate: corporate, enabled: enabled}
+}
+
+// authorizeManaged is the fail-closed gate in front of every corporate route.
+//
+// Section 8 TAX-003/TAX-004: Fleet must authoritatively confirm a live
+// membership that covers TAXI before any corporate-sensitive operation runs.
+// A Fleet outage yields a retryable 503; an inactive membership, an ineligible
+// service, a provider mismatch or an organization mismatch each yield a
+// definite rejection. There is deliberately no branch that proceeds as an
+// independent provider.
+func (h *Handler) authorizeManaged(c *gin.Context) (providercompat.CorporateContext, bool) {
+	claims := mustClaims(c)
+	corporate, err := providercompat.AuthorizeManagedOperation(c.Request.Context(), h.corporate,
+		providercompat.ManagedRequest{
+			Service:        ServiceTaxi,
+			ProviderID:     claims.Subject,
+			RequireManaged: true,
+		})
+	if err != nil {
+		httpx.Abort(c, AsAPIError(err))
+		return providercompat.CorporateContext{}, false
+	}
+	return corporate, true
 }
 
 func RegisterRoutes(group *gin.RouterGroup, signer *sharedauth.TokenSigner, handler *Handler) {
@@ -44,10 +79,13 @@ func (h *Handler) ListOffers(c *gin.Context) {
 	if !h.ready(c) {
 		return
 	}
+	if _, ok := h.authorizeManaged(c); !ok {
+		return
+	}
 	claims := mustClaims(c)
 	offers, err := h.client.ListOffers(c.Request.Context(), metaFrom(c), claims.Subject)
 	if err != nil {
-		abortFleet(c)
+		httpx.Abort(c, AsAPIError(err))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"offers": offers}})
@@ -57,10 +95,13 @@ func (h *Handler) GetOffer(c *gin.Context) {
 	if !h.ready(c) {
 		return
 	}
+	if _, ok := h.authorizeManaged(c); !ok {
+		return
+	}
 	claims := mustClaims(c)
 	offer, err := h.client.GetOffer(c.Request.Context(), metaFrom(c), claims.Subject, c.Param("offerId"))
 	if err != nil {
-		abortFleet(c)
+		httpx.Abort(c, AsAPIError(err))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": offer})
@@ -70,10 +111,13 @@ func (h *Handler) ListAssignments(c *gin.Context) {
 	if !h.ready(c) {
 		return
 	}
+	if _, ok := h.authorizeManaged(c); !ok {
+		return
+	}
 	claims := mustClaims(c)
 	assignments, err := h.client.ListAssignments(c.Request.Context(), metaFrom(c), claims.Subject)
 	if err != nil {
-		abortFleet(c)
+		httpx.Abort(c, AsAPIError(err))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"assignments": assignments}})
@@ -83,10 +127,13 @@ func (h *Handler) GetAssignment(c *gin.Context) {
 	if !h.ready(c) {
 		return
 	}
+	if _, ok := h.authorizeManaged(c); !ok {
+		return
+	}
 	claims := mustClaims(c)
 	assignment, err := h.client.GetAssignment(c.Request.Context(), metaFrom(c), claims.Subject, c.Param("assignmentId"))
 	if err != nil {
-		abortFleet(c)
+		httpx.Abort(c, AsAPIError(err))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": assignment})
@@ -123,14 +170,24 @@ func (h *Handler) submit(c *gin.Context, param string, fn decisionFunc) {
 		httpx.Abort(c, apperrors.BadRequest("clientResponseId is required.", nil))
 		return
 	}
+	// Authorize BEFORE relaying the decision. An accept or decline is a
+	// corporate-sensitive write: it must never reach Fleet on behalf of a
+	// provider whose membership Taxi could not authoritatively verify.
+	if _, ok := h.authorizeManaged(c); !ok {
+		return
+	}
 	meta := metaFrom(c)
+	// clientResponseId is the provider's own idempotency identity for this
+	// decision. Reusing it as the Fleet idempotency key is what makes a
+	// retried accept resolve to the same Fleet response instead of a second
+	// decision.
 	if meta.IdempotencyKey == "" {
 		meta.IdempotencyKey = body.ClientResponseID
 	}
 	claims := mustClaims(c)
 	raw, err := fn(c.Request.Context(), meta, claims.Subject, claims.SessionID, c.Param(param), body)
 	if err != nil {
-		abortFleet(c)
+		httpx.Abort(c, AsAPIError(err))
 		return
 	}
 	var payload any
@@ -160,8 +217,4 @@ func metaFrom(c *gin.Context) Meta {
 func mustClaims(c *gin.Context) sharedauth.Claims {
 	claims, _ := sharedauth.ClaimsFromContext(c)
 	return claims
-}
-
-func abortFleet(c *gin.Context) {
-	httpx.Abort(c, apperrors.Unavailable("Fleet provider work is temporarily unavailable.", nil))
 }

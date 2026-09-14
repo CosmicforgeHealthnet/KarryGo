@@ -34,21 +34,37 @@ func BuildMarketplaceService(cfg config.Config, pool *pgxpool.Pool, metrics *obs
 	}
 	executions := platformclients.BuildExecutionSet(dispatchOpts)
 
-	// Hauling is optional: when the integration is enabled and the client
-	// is configured, it joins the execution set. When it is not, execution
-	// calls for hauling requests fail closed with "source unavailable"
-	// rather than silently being routed to dispatch.
-	if cfg.HaulingIntegrationEnabled && !cfg.IntegrationsKillSwitch {
-		hauling := cfg.Clients["driver-hauling-service"]
-		if hauling.Configured() {
-			executions = platformclients.BuildExecutionSet(dispatchOpts, platformclients.Options{
+	// Hauling and Taxi are optional: each joins the execution set only when
+	// its integration flag is on AND its client is configured. When either
+	// condition is missing, execution calls for that source fail closed with
+	// "source unavailable" rather than silently being routed to dispatch.
+	//
+	// Taxi is additionally gated by Section 8 TAX-028: the source stays dark
+	// until the corporate chain is certified, which is why
+	// FLEET_TAXI_INTEGRATION_ENABLED defaults to false.
+	setOpts := platformclients.ExecutionSetOptions{Dispatch: dispatchOpts}
+	if !cfg.IntegrationsKillSwitch {
+		if hauling := cfg.Clients["driver-hauling-service"]; cfg.HaulingIntegrationEnabled && hauling.Configured() {
+			setOpts.Hauling = &platformclients.Options{
 				ServiceName: config.ServiceName,
 				BaseURL:     hauling.BaseURL,
 				Secret:      hauling.Secret,
 				Timeout:     cfg.HTTPClientTimeout,
 				Metrics:     metrics,
-			})
+			}
 		}
+		if taxi := cfg.Clients["driver-taxi-service"]; cfg.TaxiIntegrationEnabled && taxi.Configured() {
+			setOpts.Taxi = &platformclients.Options{
+				ServiceName: config.ServiceName,
+				BaseURL:     taxi.BaseURL,
+				Secret:      taxi.Secret,
+				Timeout:     cfg.HTTPClientTimeout,
+				Metrics:     metrics,
+			}
+		}
+	}
+	if setOpts.Hauling != nil || setOpts.Taxi != nil {
+		executions = platformclients.BuildExecutionSetWith(setOpts)
 	}
 
 	capabilities := cfg.ExecutionCapabilities()
@@ -102,8 +118,12 @@ func BuildMarketplaceService(cfg config.Config, pool *pgxpool.Pool, metrics *obs
 		ExecutionStartEnabled: capabilities.Any(),
 		EnabledSourceServices: map[string]bool{
 			mktmodels.SourceDispatch: capabilities.Dispatch,
-			mktmodels.SourceTaxi:     false,
-			mktmodels.SourceHauling:  capabilities.Hauling,
+			// Section 8 TAX-028: enabled only once the deployment sets
+			// FLEET_TAXI_INTEGRATION_ENABLED and Taxi's client is configured,
+			// which is the controlled-rollout switch for the whole certified
+			// corporate Taxi chain.
+			mktmodels.SourceTaxi:    capabilities.Taxi,
+			mktmodels.SourceHauling: capabilities.Hauling,
 		},
 
 		// Operational policy. Config-driven, never hardcoded: an operator

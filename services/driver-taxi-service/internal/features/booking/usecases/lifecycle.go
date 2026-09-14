@@ -153,6 +153,24 @@ func (s *BookingService) withTransition(
 		return bookingmodels.Booking{}, err
 	}
 
+	// Section 8 TAX-015/TAX-016: a managed ride's canonical Fleet
+	// completed-work record is persisted in the SAME transaction as the
+	// booking's own final completion.
+	//
+	// This is what makes taxi completion independent of Fleet being online:
+	// the row is durable the instant the ride is complete, and the worker
+	// delivers it later. completedWorkPayloadFor is the TAX-015A guard -- it
+	// returns false for every transition that is not the authoritative
+	// completion, so an accept, an arrival or a cancellation can never report
+	// completed work.
+	if s.completedWorkEnabled {
+		if completedWork, ok := completedWorkPayloadFor(booking); ok {
+			if err := outbox.WriteCompletedWork(ctx, tx, completedWork); err != nil {
+				return bookingmodels.Booking{}, err
+			}
+		}
+	}
+
 	actorType, actorID := actorForTransition(eventType, reason, providerID, booking.CustomerID)
 	if err := s.bookings.RecordEvent(ctx, tx, bookingmodels.BookingEvent{
 		BookingID: booking.ID, EventType: eventType, ActorType: actorType, ActorID: actorID,
@@ -276,9 +294,15 @@ func (s *BookingService) MarkCompleted(ctx context.Context, input CompleteBookin
 	// doc comment for why a failure must not undo the ride's own completion,
 	// which is already true for the passenger and driver regardless of
 	// whether the money has moved yet.
-	if err := s.settlePayment(ctx, completed); err != nil {
-		logging.Error("taxi-payments", "settle booking=%s: %v", bookingID, err)
-	} else if s.payments != nil {
+	//
+	// Which settlement path runs is decided by settleCompletedBooking, not by
+	// this call site: an independent ride settles exactly as before, while a
+	// corporate ride is routed to the Fleet managed path and is deliberately
+	// NOT paid directly to the provider (Section 8 TAX-020).
+	route, err := s.settleCompletedBooking(ctx, completed)
+	if err != nil {
+		logging.Error("taxi-payments", "settle booking=%s route=%s: %v", bookingID, route, err)
+	} else if s.payments != nil && route == RouteIndependent {
 		if serr := s.bookings.SetPaymentStatus(ctx, nil, bookingID, bookingmodels.PaymentPaid); serr != nil {
 			logging.Error("taxi-payments", "set payment paid booking=%s: %v", bookingID, serr)
 		} else {

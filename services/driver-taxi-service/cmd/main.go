@@ -38,10 +38,12 @@ import (
 	bookingverification "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification"
 	fleetprovider "cosmicforge/logistics/services/taxi-service/internal/features/fleetprovider"
 	goods "cosmicforge/logistics/services/taxi-service/internal/features/goods"
+	"cosmicforge/logistics/services/taxi-service/internal/features/managedexec"
 
 	identityhttp "cosmicforge/logistics/services/taxi-service/internal/features/identity/http"
 	operationshttp "cosmicforge/logistics/services/taxi-service/internal/features/operations/http"
 
+	"cosmicforge/logistics/services/taxi-service/internal/apiresponse"
 	"cosmicforge/logistics/services/taxi-service/internal/idempotency"
 	taxioutbox "cosmicforge/logistics/services/taxi-service/internal/outbox"
 	"cosmicforge/logistics/services/taxi-service/internal/pricing"
@@ -139,8 +141,13 @@ func main() {
 	// ─── Services ─────────────────────────────────────────────────────────────
 	var fleetProviderContext providercompat.CorporateContextReader
 	var fleetProviderClient *fleetprovider.Client
+	// fleetProviderCompat is the concrete client, kept alongside the
+	// interface because completed-work submission needs the full client, not
+	// just the corporate-context read.
+	var fleetProviderCompat *providercompat.Client
 	if strings.TrimSpace(cfg.FleetServiceURL) != "" && len(cfg.FleetServiceSecret) > 0 {
-		fleetProviderContext = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+		fleetProviderCompat = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+		fleetProviderContext = fleetProviderCompat
 		fleetProviderClient, _ = fleetprovider.NewClient(fleetprovider.Config{BaseURL: cfg.FleetServiceURL, ServiceName: cfg.FleetServiceCaller, Secret: cfg.FleetServiceSecret, Timeout: cfg.FleetServiceTimeout})
 		logging.Notice("taxi-fleet", "corporate context client enabled url=%s", cfg.FleetServiceURL)
 	}
@@ -245,6 +252,11 @@ func main() {
 			MaxAttempts:    cfg.PickupVerifyMaxAttempts,
 		},
 		Payments: paymentClient,
+		// Section 8 corporate completion. All three are off by default; see
+		// each flag's own doc comment in internal/config for what turning it
+		// on actually changes.
+		ManagedSettlement:    bookingusecases.ManagedSettlementConfig{Enabled: cfg.TaxiManagedSettlementEnabled},
+		CompletedWorkEnabled: cfg.TaxiFleetCompletedWorkEnabled,
 		// Positions is the same Redis store used for matching candidates --
 		// its repository-level Heartbeat(ctx, ProviderStatus) already
 		// satisfies bookingusecases.PositionUpdater with no adapter, per
@@ -294,6 +306,20 @@ func main() {
 		})
 		goodsMedia = goods.NewMediaAdapter(taxiMediaClient)
 	}
+	// Fleet's private-execution authority (Section 8 TAX-012/013/014). The
+	// engine and binder are the SAME booking service and repository every
+	// independent ride uses, which is what keeps corporate work on the normal
+	// taxi trip engine rather than a parallel one.
+	managedExecService := managedexec.NewService(managedexec.Options{
+		Repo:             managedexec.NewRepository(db),
+		Engine:           bookingService,
+		Binder:           bookingRepo,
+		OperationalState: operationalStateRepo,
+		Vehicles:         vehicleRepo,
+		Corporate:        fleetProviderContext,
+		ReservationTTL:   cfg.TaxiFleetReservationTTL,
+	})
+
 	goodsNotifier := goods.NewRedisNotificationAdapter(notifications.RedisPublisher{Client: notificationRedis})
 	goodsService := goods.NewService(goods.Options{
 		Repository: goodsRepo, Markets: marketRepo, Candidates: availabilityStore,
@@ -302,11 +328,27 @@ func main() {
 		HandoverSecret: cfg.TaxiGoodsHandoverSecret, QuoteTTL: cfg.TaxiGoodsQuoteTTL,
 		MatchRadiusKM: cfg.MatchMaxRadiusKm,
 	})
-	goodsOutboxPublisher := taxioutbox.NewPublisher(
-		taxioutbox.NewStore(db),
-		taxioutbox.VendorClient{BaseURL: cfg.VendorURL, Secret: cfg.VendorSecret, HTTPClient: &http.Client{Timeout: 10 * time.Second}},
-		"taxi-goods-"+uuid.NewString(),
-	)
+	// ONE durable outbox, one worker, two destinations (Section 8 TAX-016).
+	// Vendor lifecycle rows and Fleet completed-work rows share the same
+	// leasing, backoff, dead-lettering and reconciliation machinery; the
+	// router only decides where a claimed row is delivered. Building a second
+	// outbox framework for Fleet would have duplicated all of that.
+	taxiOutboxStore := taxioutbox.NewStore(db)
+	var fleetCompletedWorkClient taxioutbox.CompletedWorkSubmitter
+	if fleetCompletedWork := fleetProviderCompat; fleetCompletedWork != nil {
+		fleetCompletedWorkClient = fleetCompletedWork
+	}
+	outboxRouter := taxioutbox.NewRouter(map[string]taxioutbox.Destination{
+		taxioutbox.TargetVendor: taxioutbox.VendorClient{
+			BaseURL: cfg.VendorURL, Secret: cfg.VendorSecret,
+			HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		},
+		taxioutbox.TargetFleet: taxioutbox.FleetCompletedWorkDestination{
+			Client:  fleetCompletedWorkClient,
+			Enabled: cfg.TaxiFleetCompletedWorkEnabled && fleetCompletedWorkClient != nil,
+		},
+	})
+	goodsOutboxPublisher := taxioutbox.NewPublisher(taxiOutboxStore, outboxRouter, "taxi-outbox-"+uuid.NewString())
 	if err := goodsService.AssertDependencies(); err != nil {
 		logging.Fatal("configuration", "%v", err)
 	}
@@ -340,10 +382,20 @@ func main() {
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
 			availabilityhttp.RegisterAvailabilityRoutes(group, availabilityService,
 				authService.AccessSigner(), customerSigner, cfg.MatchMaxRadiusKm)
-			bookinghttp.RegisterBookingRoutes(group, bookingService, authService.AccessSigner(), customerSigner, idempotencyStore)
-			fleetprovider.RegisterRoutes(group, authService.AccessSigner(), fleetprovider.NewHandler(fleetProviderClient, cfg.TaxiFleetProviderWorkEnabled))
+			bookinghttp.RegisterBookingRoutes(group, bookingService, authService.AccessSigner(), customerSigner, idempotencyStore,
+				apiresponse.ProviderFinancialPrivacy(fleetProviderContext, cfg.TaxiTypedFinancialVisibilityEnabled))
+			fleetprovider.RegisterRoutes(group, authService.AccessSigner(), fleetprovider.NewHandler(fleetProviderClient, fleetProviderContext, cfg.TaxiFleetProviderWorkEnabled))
 			operationshttp.RegisterOperationsRoutes(group, bookingService, opsVerifier)
-			goods.RegisterRoutes(group, goodsService, opsVerifier, authService.AccessSigner())
+			goods.RegisterRoutes(group, goodsService, opsVerifier, authService.AccessSigner(), cfg.TaxiFleetProviderWorkEnabled)
+			// Fleet's private-execution authority calls INTO taxi here. Both
+			// surfaces stay unmounted unless an internal caller is trusted
+			// and the integration is switched on (Section 8 TAX-028).
+			managedexec.RegisterRoutes(group,
+				managedexec.NewHandler(managedExecService, cfg.TaxiFleetManagedExecutionEnabled, cfg.TaxiFleetExecutionCallers),
+				opsVerifier)
+			managedexec.RegisterReconciliationRoutes(group,
+				managedexec.NewReconciliationHandler(taxiOutboxStore, cfg.TaxiFleetExecutionCallers),
+				opsVerifier)
 			// Closes baseline spec finding 3.3 (phase B11): the last piece
 			// needed before support-dispute-service can resolve a taxi
 			// driver's identity for a complaint/dispute, the same way it
@@ -387,7 +439,12 @@ func main() {
 				return nil
 			},
 			func(ctx context.Context) error {
-				if cfg.TaxiGoodsDeliveryEnabled {
+				// The single outbox worker now drains BOTH destinations, so
+				// it must run whenever either is live -- gating it on Taxi
+				// Goods alone would have left Fleet completed-work rows
+				// undelivered in a deployment that runs corporate taxi work
+				// without Commerce.
+				if cfg.TaxiGoodsDeliveryEnabled || cfg.TaxiFleetCompletedWorkEnabled {
 					goodsOutboxPublisher.Run(ctx, time.Second)
 				}
 				return nil

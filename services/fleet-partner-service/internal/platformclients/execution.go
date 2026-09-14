@@ -249,13 +249,40 @@ func (s ExecutionSet) AnyConfigured() bool {
 // options. The variadic form preserves existing composition roots while they
 // roll forward. Taxi has no production contract and remains hard-disabled.
 func BuildExecutionSet(dispatchOpts Options, haulingOpts ...Options) ExecutionSet {
-	hauling := ExecutionContract(UnimplementedExecution{Category: CategoryHauling, Service: "driver-hauling-service"})
+	opts := ExecutionSetOptions{Dispatch: dispatchOpts}
 	if len(haulingOpts) > 0 {
-		hauling = NewHaulingExecution(New(haulingOpts[0]))
+		opts.Hauling = &haulingOpts[0]
+	}
+	return BuildExecutionSetWith(opts)
+}
+
+// ExecutionSetOptions is the explicit form of BuildExecutionSet.
+//
+// A nil per-category pointer means "no live contract": that category keeps the
+// fail-closed UnimplementedExecution adapter. This is what keeps Section 8
+// TAX-028 honest -- enabling the Taxi source is a deliberate act of supplying
+// Taxi's options, never a side effect of Taxi merely being configured
+// elsewhere in the deployment.
+type ExecutionSetOptions struct {
+	Dispatch Options
+	Hauling  *Options
+	Taxi     *Options
+}
+
+// BuildExecutionSetWith assembles the execution contracts from explicit
+// per-category options.
+func BuildExecutionSetWith(opts ExecutionSetOptions) ExecutionSet {
+	hauling := ExecutionContract(UnimplementedExecution{Category: CategoryHauling, Service: "driver-hauling-service"})
+	if opts.Hauling != nil {
+		hauling = NewHaulingExecution(New(*opts.Hauling))
+	}
+	taxi := ExecutionContract(UnimplementedExecution{Category: CategoryTaxi, Service: "driver-taxi-service"})
+	if opts.Taxi != nil {
+		taxi = NewTaxiExecution(New(*opts.Taxi))
 	}
 	return ExecutionSet{
-		CategoryDispatch: NewDispatchExecution(New(dispatchOpts)),
-		CategoryTaxi:     UnimplementedExecution{Category: CategoryTaxi, Service: "driver-taxi-service"},
+		CategoryDispatch: NewDispatchExecution(New(opts.Dispatch)),
+		CategoryTaxi:     taxi,
 		CategoryHauling:  hauling,
 	}
 }

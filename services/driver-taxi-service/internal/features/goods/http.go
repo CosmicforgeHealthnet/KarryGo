@@ -22,16 +22,23 @@ import (
 const maxBodyBytes = 64 << 10
 const operationsServiceCaller = "operations-service"
 
-type Handler struct{ service *Service }
+type Handler struct {
+	service *Service
+	// corporateProviderSupported reports whether organization-managed
+	// providers may execute Taxi Goods work in this deployment. It is
+	// reported truthfully rather than assumed -- see capabilities.go.
+	corporateProviderSupported bool
+}
 
-func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *serviceauth.Verifier, providerSigner *sharedauth.TokenSigner) {
+func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *serviceauth.Verifier, providerSigner *sharedauth.TokenSigner, corporateProviderSupported bool) {
 	if group == nil || service == nil {
 		return
 	}
-	handler := &Handler{service: service}
+	handler := &Handler{service: service, corporateProviderSupported: corporateProviderSupported}
 	if verifier != nil {
 		internal := group.Group("/internal/commerce")
 		internal.Use(serviceauth.Middleware(verifier), handler.vendorOnlyAndNonce())
+		internal.GET("/capabilities", handler.capabilities)
 		internal.POST("/quotes", handler.quote)
 		internal.POST("/missions", handler.createMission)
 		internal.GET("/missions/operations/:operationRef", handler.readOperation)
