@@ -18,6 +18,17 @@ func ProviderPrivacy(reader providercompat.Reader) gin.HandlerFunc {
 			if reader == nil {
 				return nil
 			} // organization rollout disabled
+			if corporate, ok := reader.(providercompat.CorporateContextReader); ok {
+				context, err := corporate.ReadCorporateContext(c.Request.Context(), "DISPATCH", c.GetString("dispatch_rider_id"))
+				if err != nil {
+					return apperrors.Unavailable("Provider visibility authority is unavailable.", nil)
+				}
+				if context.IsManagedProvider {
+					c.Set("dispatch_financial_visibility_policy", context.FinancialVisibilityPolicy)
+					c.Set("dispatch_conceal_finance", true)
+				}
+				return nil
+			}
 			summary, err := reader.ReadMembershipSummary(c.Request.Context(), "driver-dispatch-delivery-service", c.GetString("dispatch_rider_id"))
 			if err != nil {
 				return apperrors.Unavailable("Provider visibility authority is unavailable.", nil)
@@ -36,6 +47,10 @@ func ProviderPrivacy(reader providercompat.Reader) gin.HandlerFunc {
 }
 
 func providerView(data any, conceal bool) any {
+	return providerViewWithPolicy(data, conceal, nil)
+}
+
+func providerViewWithPolicy(data any, conceal bool, policy *providercompat.FinancialVisibilityPolicy) any {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return nil
@@ -46,15 +61,15 @@ func providerView(data any, conceal bool) any {
 	if d.Decode(&view) != nil {
 		return nil
 	}
-	minimizeProviderView(view, conceal, false)
+	minimizeProviderView(view, conceal, false, policy)
 	return view
 }
 
-func minimizeProviderView(value any, conceal, terminal bool) {
+func minimizeProviderView(value any, conceal, terminal bool, policy *providercompat.FinancialVisibilityPolicy) {
 	switch v := value.(type) {
 	case []any:
 		for _, item := range v {
-			minimizeProviderView(item, conceal, terminal)
+			minimizeProviderView(item, conceal, terminal, policy)
 		}
 	case map[string]any:
 		// Standalone proof responses are evidence, not a contact directory.
@@ -80,7 +95,7 @@ func minimizeProviderView(value any, conceal, terminal bool) {
 		}
 		for key, item := range v {
 			k := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(key))
-			if conceal && (strings.Contains(k, "fare") || strings.Contains(k, "price") || strings.Contains(k, "commission") || strings.Contains(k, "payable") || strings.Contains(k, "margin") || strings.Contains(k, "settlement") || strings.Contains(k, "earning") || strings.Contains(k, "allocation") || k == "additionalfeekobo") {
+			if conceal && !financialFieldAllowed(k, policy) && (strings.Contains(k, "fare") || strings.Contains(k, "price") || strings.Contains(k, "commission") || strings.Contains(k, "payable") || strings.Contains(k, "margin") || strings.Contains(k, "settlement") || strings.Contains(k, "earning") || strings.Contains(k, "allocation") || k == "additionalfeekobo") {
 				v[key] = nil // not zero money, and never changes persisted amounts
 				continue
 			}
@@ -88,7 +103,31 @@ func minimizeProviderView(value any, conceal, terminal bool) {
 				v[key] = ""
 				continue
 			}
-			minimizeProviderView(item, conceal, terminal)
+			minimizeProviderView(item, conceal, terminal, policy)
 		}
+	}
+}
+
+func financialFieldAllowed(key string, policy *providercompat.FinancialVisibilityPolicy) bool {
+	if policy == nil {
+		return false
+	}
+	switch {
+	case strings.Contains(key, "customerfare"), strings.Contains(key, "fareamount"), strings.Contains(key, "price"):
+		return policy.ShowCustomerFare
+	case strings.Contains(key, "commission"):
+		return policy.ShowCommissionRate
+	case strings.Contains(key, "providershare"), strings.Contains(key, "payable"):
+		return policy.ShowProviderShare
+	case strings.Contains(key, "earning"):
+		return policy.ShowOwnEarning
+	case strings.Contains(key, "allowance"), key == "additionalfeekobo":
+		return policy.ShowAllowances
+	case strings.Contains(key, "bonus"):
+		return policy.ShowBonuses
+	case strings.Contains(key, "margin"), strings.Contains(key, "settlement"), strings.Contains(key, "allocation"):
+		return false
+	default:
+		return false
 	}
 }

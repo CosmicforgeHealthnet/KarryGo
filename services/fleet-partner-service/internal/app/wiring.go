@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -46,6 +47,7 @@ import (
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
 	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	fleetpartnerfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
 	integrationsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
@@ -90,6 +92,7 @@ import (
 	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cache"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/circuitbreaker"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
@@ -169,6 +172,7 @@ type Components struct {
 	FinanceOperations *financeops.Service
 	Engagement        *engagement.Service
 	Marketplace       *mktusecases.Service
+	FleetPartner      *fleetpartnerfeature.Service
 	// Search is the Section 25 (partial slice) full-text search projection.
 	// Always constructed; with the enablement flag off its route answers
 	// not-found. It is a read-side projection only — nothing else in this
@@ -453,28 +457,63 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		FinanceOperations: financeOperations,
 		Engagement:        engagementService,
 		Marketplace:       BuildMarketplaceService(cfg, pool, metrics),
-		Search:            searchService,
-		Exports:           exportsService,
-		Synchronization:   synchronizationService,
-		Idempotency:       idempotency.NewStore(pool, 0),
-		Limiter:           limiter,
-		Documents:         BuildDocumentService(cfg, pool, metrics, publisher),
-		Auth:              authService,
-		Staff:             staffService,
-		Organizations:     organizations,
-		Providers:         providers,
-		Resolver:          staffusecases.NewMembershipResolver(members, organizations),
-		Authorizer:        authorizer,
-		Sessions:          sessions,
-		Challenges:        challenges,
-		Invitations:       invitations,
-		ProviderRepo:      providerRepo,
-		Contracts:         contracts,
-		Safety:            safetyService,
-		Finance:           financeService,
-		Eligibility:       eligibilityService,
-		Approvals:         approvalService,
+		FleetPartner: fleetpartnerfeature.NewService(pool,
+			fleetpartnerfeature.NewRepository(pool),
+			fleetPartnerMembershipReader{repo: providerrepos.NewRepository(pool)},
+			audit.NewRecorder(),
+			events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+			fleetpartnerfeature.Flags{
+				OperatingModeEnforcement: cfg.FleetOperatingModeEnforcementEnabled,
+				CompensationResolver:     cfg.FleetCompensationResolverEnabled,
+				CompletedWorkProjection:  cfg.FleetCompletedWorkProjectionEnabled,
+				SettlementInstruction:    cfg.FleetSettlementInstructionEnabled,
+				TypedFinancialVisibility: cfg.FleetTypedFinancialVisibilityEnabled,
+			}),
+		Search:          searchService,
+		Exports:         exportsService,
+		Synchronization: synchronizationService,
+		Idempotency:     idempotency.NewStore(pool, 0),
+		Limiter:         limiter,
+		Documents:       BuildDocumentService(cfg, pool, metrics, publisher),
+		Auth:            authService,
+		Staff:           staffService,
+		Organizations:   organizations,
+		Providers:       providers,
+		Resolver:        staffusecases.NewMembershipResolver(members, organizations),
+		Authorizer:      authorizer,
+		Sessions:        sessions,
+		Challenges:      challenges,
+		Invitations:     invitations,
+		ProviderRepo:    providerRepo,
+		Contracts:       contracts,
+		Safety:          safetyService,
+		Finance:         financeService,
+		Eligibility:     eligibilityService,
+		Approvals:       approvalService,
 	}
+}
+
+type fleetPartnerMembershipReader struct {
+	repo *providerrepos.Repository
+}
+
+func (r fleetPartnerMembershipReader) FindLiveByProvider(ctx context.Context, providerService, providerID string) (fleetpartnerfeature.ProviderMembership, error) {
+	membership, err := r.repo.FindLiveByProvider(ctx, nil, providerService, providerID)
+	if err != nil {
+		if errors.Is(err, providerrepos.ErrNotFound) {
+			return fleetpartnerfeature.ProviderMembership{}, fleetpartnerfeature.ErrNotFound
+		}
+		return fleetpartnerfeature.ProviderMembership{}, err
+	}
+	return fleetpartnerfeature.ProviderMembership{
+		ID:               membership.ID,
+		OrganizationID:   membership.OrganizationID,
+		ProviderService:  membership.ProviderService,
+		ServiceCategory:  membership.ServiceCategory,
+		RelationshipType: membership.RelationshipType,
+		Status:           membership.Status,
+		Version:          membership.Version,
+	}, nil
 }
 
 type complianceRestrictionGate struct{ service *compliancefeature.Service }
@@ -747,6 +786,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	// is seeded.
 	// ============================================================
 	marketplaceHandler := marketplacehttp.NewHandler(c.Marketplace, c.Authorizer, c.Idempotency)
+	fleetPartnerHandler := fleetpartnerfeature.NewHandler(c.FleetPartner, c.Authorizer, allowedFleetPartnerCallers(cfg))
 
 	tenantScoped = func(group *gin.RouterGroup) {
 		corporateHandler.RegisterTenantRoutes(group)
@@ -793,6 +833,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		// MARKETPLACE CORPORATE ROUTES - REGISTERED HERE
 		// ============================================================
 		marketplaceHandler.RegisterTenantRoutes(group)
+		fleetPartnerHandler.RegisterTenantRoutes(group)
 		// Rate limiting for every route registered above, including these
 		// four, is no longer applied per-feature here: middleware.
 		// GlobalRateLimit (internal/app/app.go, mounted once per route
@@ -805,6 +846,28 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		// router.Use) is required for identity-dimension keying to work.
 	}
 	return public, identity, tenantScoped
+}
+
+func allowedFleetPartnerCallers(cfg config.Config) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(value string) {
+		for _, part := range strings.Split(value, ",") {
+			name := strings.TrimSpace(part)
+			if name != "" && !seen[name] {
+				seen[name] = true
+				out = append(out, name)
+			}
+		}
+	}
+	add(cfg.ProviderMembershipAllowedCallers)
+	add(cfg.MarketplaceAllowedCallers)
+	for _, name := range []string{"driver-dispatch-delivery-service", "driver-taxi-service", "driver-hauling-service"} {
+		if !seen[name] {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // OrganizationAPIRoutes is the separately authenticated organization-client
@@ -869,6 +932,13 @@ func (c *Components) InternalSection22To23Routes() RouteRegistrar {
 	return func(group *gin.RouterGroup) {
 		financeHandler.RegisterInternalRoutes(group)
 		engagementHandler.RegisterInternalRoutes(group)
+	}
+}
+
+func (c *Components) InternalFleetPartnerRoutes(cfg config.Config) RouteRegistrar {
+	handler := fleetpartnerfeature.NewHandler(c.FleetPartner, c.Authorizer, allowedFleetPartnerCallers(cfg))
+	return func(group *gin.RouterGroup) {
+		handler.RegisterInternalRoutes(group)
 	}
 }
 

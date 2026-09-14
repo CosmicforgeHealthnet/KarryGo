@@ -384,6 +384,15 @@ type Config struct {
 	QualityCasesEnabled, SLAMeasurementsEnabled, EscalationsEnabled            bool
 	Section22WorkersEnabled, Section23WorkersEnabled                           bool
 
+	// Sections 6-7 Fleet partner foundations. Security and membership
+	// verification do not have rollout bypasses; these flags only gate new
+	// behavior-changing projections/resolution/instruction flows.
+	FleetOperatingModeEnforcementEnabled bool
+	FleetCompensationResolverEnabled     bool
+	FleetCompletedWorkProjectionEnabled  bool
+	FleetSettlementInstructionEnabled    bool
+	FleetTypedFinancialVisibilityEnabled bool
+
 	// Section 25 (partial slice): search projection. Read-only surface;
 	// indexing is a Go-level API other features call directly, not yet a
 	// caller-facing write route, so there is no separate writes flag here.
@@ -755,41 +764,46 @@ func Load() (Config, error) {
 		Section21WorkersEnabled:   getEnvBool("SECTION21_WORKERS_ENABLED", false),
 		ProofHMACSecret:           secret("FLEET_PROOF_HMAC_SECRET"),
 
-		InvoicesEnabled:                    getEnvBool("INVOICES_ENABLED", false),
-		ReceivablesEnabled:                 getEnvBool("RECEIVABLES_ENABLED", false),
-		ExpensesEnabled:                    getEnvBool("EXPENSES_ENABLED", false),
-		BudgetsEnabled:                     getEnvBool("BUDGETS_ENABLED", false),
-		CompensationEnabled:                getEnvBool("COMPENSATION_ENABLED", false),
-		PayrollEnabled:                     getEnvBool("PAYROLL_ENABLED", false),
-		SubcontractorSettlementsEnabled:    getEnvBool("SUBCONTRACTOR_SETTLEMENTS_ENABLED", false),
-		ClaimsEnabled:                      getEnvBool("CLAIMS_ENABLED", false),
-		FinancePostingEnabled:              getEnvBool("FINANCE_POSTING_ENABLED", false),
-		CommunicationsEnabled:              getEnvBool("COMMUNICATIONS_ENABLED", false),
-		NotificationRulesEnabled:           getEnvBool("NOTIFICATION_RULES_ENABLED", false),
-		SupportProjectionsEnabled:          getEnvBool("SUPPORT_PROJECTIONS_ENABLED", false),
-		QualityCasesEnabled:                getEnvBool("QUALITY_CASES_ENABLED", false),
-		SLAMeasurementsEnabled:             getEnvBool("SLA_MEASUREMENTS_ENABLED", false),
-		EscalationsEnabled:                 getEnvBool("ESCALATIONS_ENABLED", false),
-		Section22WorkersEnabled:            getEnvBool("SECTION22_WORKERS_ENABLED", false),
-		Section23WorkersEnabled:            getEnvBool("SECTION23_WORKERS_ENABLED", false),
-		SearchEnabled:                      getEnvBool("SEARCH_ENABLED", false),
-		SynchronizationEnabled:             getEnvBool("FLEET_SYNCHRONIZATION_ENABLED", false),
-		SynchronizationWorkerEnabled:       getEnvBool("FLEET_SYNCHRONIZATION_WORKER_ENABLED", false),
-		SynchronizationKillSwitch:          getEnvBool("FLEET_SYNCHRONIZATION_KILL_SWITCH", false),
-		OrganizationAPIClientsEnabled:      getEnvBool("FLEET_PARTNER_ORGANIZATION_API_CLIENTS_ENABLED", false),
-		WebhooksEnabled:                    getEnvBool("FLEET_PARTNER_WEBHOOKS_ENABLED", false),
-		WebhookDeliveryWorkerEnabled:       getEnvBool("FLEET_PARTNER_WEBHOOK_DELIVERY_WORKER_ENABLED", false),
-		APIClientHashKey:                   secret("FLEET_PARTNER_API_CLIENT_HASH_KEY"),
-		WebhookSecretEncryptionKey:         secret("FLEET_PARTNER_WEBHOOK_SECRET_ENCRYPTION_KEY"),
-		WebhookAllowHTTP:                   getEnvBool("FLEET_PARTNER_WEBHOOK_ALLOW_HTTP", false),
-		WebhookPrivateDestinationAllowlist: getEnvList("FLEET_PARTNER_WEBHOOK_PRIVATE_DESTINATION_ALLOWLIST"),
-		WebhookDeliveryTimeout:             getEnvDuration("FLEET_PARTNER_WEBHOOK_DELIVERY_TIMEOUT", 15*time.Second),
-		WebhookReplayWindow:                getEnvDuration("FLEET_PARTNER_WEBHOOK_REPLAY_WINDOW", 5*time.Minute),
-		WebhookRotationOverlapMax:          getEnvDuration("FLEET_PARTNER_WEBHOOK_ROTATION_OVERLAP_MAX", time.Hour),
-		WebhookDisableAfterFailures:        getEnvInt("FLEET_PARTNER_WEBHOOK_DISABLE_AFTER_FAILURES", 5),
-		WebhookDeliveryMaxAttempts:         getEnvInt("FLEET_PARTNER_WEBHOOK_DELIVERY_MAX_ATTEMPTS", 12),
-		WebhookFanoutInterval:              getEnvDuration("FLEET_PARTNER_WEBHOOK_FANOUT_INTERVAL", 2*time.Second),
-		WebhookFanoutBatchSize:             getEnvInt("FLEET_PARTNER_WEBHOOK_FANOUT_BATCH_SIZE", 50),
+		InvoicesEnabled:                      getEnvBool("INVOICES_ENABLED", false),
+		ReceivablesEnabled:                   getEnvBool("RECEIVABLES_ENABLED", false),
+		ExpensesEnabled:                      getEnvBool("EXPENSES_ENABLED", false),
+		BudgetsEnabled:                       getEnvBool("BUDGETS_ENABLED", false),
+		CompensationEnabled:                  getEnvBool("COMPENSATION_ENABLED", false),
+		PayrollEnabled:                       getEnvBool("PAYROLL_ENABLED", false),
+		SubcontractorSettlementsEnabled:      getEnvBool("SUBCONTRACTOR_SETTLEMENTS_ENABLED", false),
+		ClaimsEnabled:                        getEnvBool("CLAIMS_ENABLED", false),
+		FinancePostingEnabled:                getEnvBool("FINANCE_POSTING_ENABLED", false),
+		CommunicationsEnabled:                getEnvBool("COMMUNICATIONS_ENABLED", false),
+		NotificationRulesEnabled:             getEnvBool("NOTIFICATION_RULES_ENABLED", false),
+		SupportProjectionsEnabled:            getEnvBool("SUPPORT_PROJECTIONS_ENABLED", false),
+		QualityCasesEnabled:                  getEnvBool("QUALITY_CASES_ENABLED", false),
+		SLAMeasurementsEnabled:               getEnvBool("SLA_MEASUREMENTS_ENABLED", false),
+		EscalationsEnabled:                   getEnvBool("ESCALATIONS_ENABLED", false),
+		Section22WorkersEnabled:              getEnvBool("SECTION22_WORKERS_ENABLED", false),
+		Section23WorkersEnabled:              getEnvBool("SECTION23_WORKERS_ENABLED", false),
+		FleetOperatingModeEnforcementEnabled: getEnvBool("FLEET_OPERATING_MODE_ENFORCEMENT_ENABLED", true),
+		FleetCompensationResolverEnabled:     getEnvBool("FLEET_COMPENSATION_RESOLVER_ENABLED", false),
+		FleetCompletedWorkProjectionEnabled:  getEnvBool("FLEET_COMPLETED_WORK_PROJECTION_ENABLED", false),
+		FleetSettlementInstructionEnabled:    getEnvBool("FLEET_SETTLEMENT_INSTRUCTION_ENABLED", false),
+		FleetTypedFinancialVisibilityEnabled: getEnvBool("FLEET_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
+		SearchEnabled:                        getEnvBool("SEARCH_ENABLED", false),
+		SynchronizationEnabled:               getEnvBool("FLEET_SYNCHRONIZATION_ENABLED", false),
+		SynchronizationWorkerEnabled:         getEnvBool("FLEET_SYNCHRONIZATION_WORKER_ENABLED", false),
+		SynchronizationKillSwitch:            getEnvBool("FLEET_SYNCHRONIZATION_KILL_SWITCH", false),
+		OrganizationAPIClientsEnabled:        getEnvBool("FLEET_PARTNER_ORGANIZATION_API_CLIENTS_ENABLED", false),
+		WebhooksEnabled:                      getEnvBool("FLEET_PARTNER_WEBHOOKS_ENABLED", false),
+		WebhookDeliveryWorkerEnabled:         getEnvBool("FLEET_PARTNER_WEBHOOK_DELIVERY_WORKER_ENABLED", false),
+		APIClientHashKey:                     secret("FLEET_PARTNER_API_CLIENT_HASH_KEY"),
+		WebhookSecretEncryptionKey:           secret("FLEET_PARTNER_WEBHOOK_SECRET_ENCRYPTION_KEY"),
+		WebhookAllowHTTP:                     getEnvBool("FLEET_PARTNER_WEBHOOK_ALLOW_HTTP", false),
+		WebhookPrivateDestinationAllowlist:   getEnvList("FLEET_PARTNER_WEBHOOK_PRIVATE_DESTINATION_ALLOWLIST"),
+		WebhookDeliveryTimeout:               getEnvDuration("FLEET_PARTNER_WEBHOOK_DELIVERY_TIMEOUT", 15*time.Second),
+		WebhookReplayWindow:                  getEnvDuration("FLEET_PARTNER_WEBHOOK_REPLAY_WINDOW", 5*time.Minute),
+		WebhookRotationOverlapMax:            getEnvDuration("FLEET_PARTNER_WEBHOOK_ROTATION_OVERLAP_MAX", time.Hour),
+		WebhookDisableAfterFailures:          getEnvInt("FLEET_PARTNER_WEBHOOK_DISABLE_AFTER_FAILURES", 5),
+		WebhookDeliveryMaxAttempts:           getEnvInt("FLEET_PARTNER_WEBHOOK_DELIVERY_MAX_ATTEMPTS", 12),
+		WebhookFanoutInterval:                getEnvDuration("FLEET_PARTNER_WEBHOOK_FANOUT_INTERVAL", 2*time.Second),
+		WebhookFanoutBatchSize:               getEnvInt("FLEET_PARTNER_WEBHOOK_FANOUT_BATCH_SIZE", 50),
 
 		MetricsEnabled:   getEnvBool("FLEET_PARTNER_METRICS_ENABLED", true),
 		MetricsAuthToken: getEnv("FLEET_PARTNER_METRICS_AUTH_TOKEN", ""),

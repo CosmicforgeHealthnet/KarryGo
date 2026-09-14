@@ -36,6 +36,7 @@ import (
 	bookingtelemetry "cosmicforge/logistics/services/taxi-service/internal/features/booking/telemetry"
 	bookingusecases "cosmicforge/logistics/services/taxi-service/internal/features/booking/usecases"
 	bookingverification "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification"
+	fleetprovider "cosmicforge/logistics/services/taxi-service/internal/features/fleetprovider"
 	goods "cosmicforge/logistics/services/taxi-service/internal/features/goods"
 
 	identityhttp "cosmicforge/logistics/services/taxi-service/internal/features/identity/http"
@@ -51,6 +52,7 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/providercompat"
 	sharedrouting "cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -135,6 +137,14 @@ func main() {
 	vehicleRepo := providerprofilerepositories.NewPostgresVehicleRepository(db)
 
 	// ─── Services ─────────────────────────────────────────────────────────────
+	var fleetProviderContext providercompat.CorporateContextReader
+	var fleetProviderClient *fleetprovider.Client
+	if strings.TrimSpace(cfg.FleetServiceURL) != "" && len(cfg.FleetServiceSecret) > 0 {
+		fleetProviderContext = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+		fleetProviderClient, _ = fleetprovider.NewClient(fleetprovider.Config{BaseURL: cfg.FleetServiceURL, ServiceName: cfg.FleetServiceCaller, Secret: cfg.FleetServiceSecret, Timeout: cfg.FleetServiceTimeout})
+		logging.Notice("taxi-fleet", "corporate context client enabled url=%s", cfg.FleetServiceURL)
+	}
+
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
 		Sessions:           sessionRepo,
@@ -149,6 +159,7 @@ func main() {
 		OTPMaxRequests:     cfg.OTPMaxRequests,
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
+		CorporateContext:   fleetProviderContext,
 	})
 
 	profileService := providerprofileusecases.NewProfileService(profileRepo, vehicleRepo)
@@ -330,6 +341,7 @@ func main() {
 			availabilityhttp.RegisterAvailabilityRoutes(group, availabilityService,
 				authService.AccessSigner(), customerSigner, cfg.MatchMaxRadiusKm)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService.AccessSigner(), customerSigner, idempotencyStore)
+			fleetprovider.RegisterRoutes(group, authService.AccessSigner(), fleetprovider.NewHandler(fleetProviderClient, cfg.TaxiFleetProviderWorkEnabled))
 			operationshttp.RegisterOperationsRoutes(group, bookingService, opsVerifier)
 			goods.RegisterRoutes(group, goodsService, opsVerifier, authService.AccessSigner())
 			// Closes baseline spec finding 3.3 (phase B11): the last piece

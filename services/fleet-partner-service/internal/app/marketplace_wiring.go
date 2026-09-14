@@ -9,6 +9,7 @@ import (
 	mktmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	mktrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
+	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
 	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -117,6 +118,7 @@ func BuildMarketplaceService(cfg config.Config, pool *pgxpool.Pool, metrics *obs
 		Projections:     mktrepos.NewProjectionRepository(pool),
 		Offers:          mktrepos.NewOfferRepository(pool),
 		Assignments:     mktrepos.NewAssignmentRepository(pool),
+		OperatingModes:  orgrepos.NewSettingsRepository(pool),
 		ExecutionStarts: mktrepos.NewExecutionStartRepository(pool),
 		Trips:           mktrepos.NewTripRepository(pool),
 		Commands:        mktrepos.NewCommandRepository(pool),

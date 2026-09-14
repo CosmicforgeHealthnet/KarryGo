@@ -22,6 +22,7 @@ type errorResponse struct {
 type errorBody struct {
 	Code      apperrors.Code             `json:"code"`
 	Message   string                     `json:"message"`
+	Retryable bool                       `json:"retryable"`
 	RequestID string                     `json:"request_id,omitempty"`
 	Fields    []apperrors.FieldViolation `json:"fields,omitempty"`
 	Details   map[string]interface{}     `json:"details,omitempty"`
@@ -50,6 +51,7 @@ func RespondError(c *gin.Context, err error) {
 		Error: errorBody{
 			Code:      appErr.Code,
 			Message:   appErr.Message,
+			Retryable: appErr.Retryable,
 			RequestID: requestID,
 			Fields:    appErr.Fields,
 			Details:   appErr.Details,

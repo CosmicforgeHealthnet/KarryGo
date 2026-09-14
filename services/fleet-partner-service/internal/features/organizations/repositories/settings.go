@@ -58,23 +58,31 @@ func (r *SettingsRepository) Create(ctx context.Context, q database.Querier, org
 	if settings.ProviderVisibility == "" {
 		settings.ProviderVisibility = "ORGANIZATION"
 	}
+	if settings.OperatingMode == "" {
+		settings.OperatingMode = models.OperatingModeCentralized
+	}
+	if !models.ValidOperatingMode(settings.OperatingMode) {
+		return fmt.Errorf("organizations: operating mode %q is invalid", settings.OperatingMode)
+	}
 	if err := validateSettings(settings); err != nil {
 		return err
 	}
 	settings.OrganizationID = organizationID
 	settings.Version = 1
 
-	thresholds, retention, flags, err := marshalSettings(settings)
+	thresholds, visibilityPolicy, retention, flags, err := marshalSettings(settings)
 	if err != nil {
 		return err
 	}
 	_, err = q.Exec(ctx, `
 		INSERT INTO fleet_partner_organization_settings
 			(organization_id, assignment_timeout_seconds, approval_thresholds,
-			 provider_visibility, retention_settings, feature_flags, version, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())`,
+			 provider_visibility, financial_visibility_policy, retention_settings, feature_flags,
+			 operating_mode, version, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())`,
 		organizationID, settings.AssignmentTimeoutSeconds, thresholds,
-		settings.ProviderVisibility, retention, flags, settings.Version,
+		settings.ProviderVisibility, visibilityPolicy, retention, flags, settings.OperatingMode,
+		settings.Version,
 	)
 	if err != nil {
 		return fmt.Errorf("organizations: create settings: %w", err)
@@ -85,16 +93,18 @@ func (r *SettingsRepository) Create(ctx context.Context, q database.Querier, org
 // Get loads the current settings of an organization.
 func (r *SettingsRepository) Get(ctx context.Context, organizationID string) (*models.Settings, error) {
 	var settings models.Settings
-	var thresholds, retention, flags []byte
+	var thresholds, visibilityPolicy, retention, flags []byte
 	err := r.db.QueryRow(ctx, `
 		SELECT organization_id, assignment_timeout_seconds, approval_thresholds,
-			provider_visibility, retention_settings, feature_flags, version, created_at, updated_at
+			provider_visibility, financial_visibility_policy, retention_settings, feature_flags,
+			operating_mode, version, created_at, updated_at
 		FROM fleet_partner_organization_settings
 		WHERE organization_id = $1`,
 		organizationID,
 	).Scan(
 		&settings.OrganizationID, &settings.AssignmentTimeoutSeconds, &thresholds,
-		&settings.ProviderVisibility, &retention, &flags, &settings.Version,
+		&settings.ProviderVisibility, &visibilityPolicy, &retention, &flags,
+		&settings.OperatingMode, &settings.Version,
 		&settings.CreatedAt, &settings.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -104,6 +114,7 @@ func (r *SettingsRepository) Get(ctx context.Context, organizationID string) (*m
 		return nil, fmt.Errorf("organizations: get settings: %w", err)
 	}
 	_ = json.Unmarshal(thresholds, &settings.ApprovalThresholds)
+	_ = json.Unmarshal(visibilityPolicy, &settings.FinancialVisibilityPolicy)
 	_ = json.Unmarshal(retention, &settings.RetentionSettings)
 	_ = json.Unmarshal(flags, &settings.FeatureFlags)
 	return &settings, nil
@@ -111,21 +122,28 @@ func (r *SettingsRepository) Get(ctx context.Context, organizationID string) (*m
 
 // Update performs a compare-and-swap settings update.
 func (r *SettingsRepository) Update(ctx context.Context, q database.Querier, organizationID string, expectedVersion int64, settings *models.Settings) error {
+	if settings.OperatingMode == "" {
+		settings.OperatingMode = models.OperatingModeCentralized
+	}
+	if !models.ValidOperatingMode(settings.OperatingMode) {
+		return fmt.Errorf("organizations: operating mode %q is invalid", settings.OperatingMode)
+	}
 	if err := validateSettings(settings); err != nil {
 		return err
 	}
-	thresholds, retention, flags, err := marshalSettings(settings)
+	thresholds, visibilityPolicy, retention, flags, err := marshalSettings(settings)
 	if err != nil {
 		return err
 	}
 	tag, err := q.Exec(ctx, `
 		UPDATE fleet_partner_organization_settings SET
 			assignment_timeout_seconds = $1, approval_thresholds = $2,
-			provider_visibility = $3, retention_settings = $4, feature_flags = $5,
+			provider_visibility = $3, financial_visibility_policy = $4,
+			retention_settings = $5, feature_flags = $6, operating_mode = $7,
 			version = version + 1, updated_at = now()
-		WHERE organization_id = $6 AND version = $7`,
+		WHERE organization_id = $8 AND version = $9`,
 		settings.AssignmentTimeoutSeconds, thresholds, settings.ProviderVisibility,
-		retention, flags, organizationID, expectedVersion,
+		visibilityPolicy, retention, flags, settings.OperatingMode, organizationID, expectedVersion,
 	)
 	if err != nil {
 		return fmt.Errorf("organizations: update settings: %w", err)
@@ -136,19 +154,40 @@ func (r *SettingsRepository) Update(ctx context.Context, q database.Querier, org
 	return nil
 }
 
-func marshalSettings(settings *models.Settings) (thresholds []byte, retention []byte, flags []byte, err error) {
+func (r *SettingsRepository) OperatingMode(ctx context.Context, organizationID string) (string, error) {
+	settings, err := r.Get(ctx, organizationID)
+	if err != nil {
+		return "", err
+	}
+	if settings.OperatingMode == "" {
+		return models.OperatingModeCentralized, nil
+	}
+	return settings.OperatingMode, nil
+}
+
+func marshalSettings(settings *models.Settings) (thresholds []byte, visibilityPolicy []byte, retention []byte, flags []byte, err error) {
 	if thresholds, err = json.Marshal(orEmptyMap(settings.ApprovalThresholds)); err != nil {
-		return nil, nil, nil, fmt.Errorf("organizations: marshal thresholds: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("organizations: marshal thresholds: %w", err)
+	}
+	if visibilityPolicy, err = json.Marshal(orEmptyBoolMap(settings.FinancialVisibilityPolicy)); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("organizations: marshal financial visibility policy: %w", err)
 	}
 	if retention, err = json.Marshal(orEmptyMap(settings.RetentionSettings)); err != nil {
-		return nil, nil, nil, fmt.Errorf("organizations: marshal retention: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("organizations: marshal retention: %w", err)
 	}
 	flagMap := settings.FeatureFlags
 	if flagMap == nil {
 		flagMap = map[string]bool{}
 	}
 	if flags, err = json.Marshal(flagMap); err != nil {
-		return nil, nil, nil, fmt.Errorf("organizations: marshal flags: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("organizations: marshal flags: %w", err)
 	}
-	return thresholds, retention, flags, nil
+	return thresholds, visibilityPolicy, retention, flags, nil
+}
+
+func orEmptyBoolMap(value map[string]bool) map[string]bool {
+	if value == nil {
+		return map[string]bool{}
+	}
+	return value
 }

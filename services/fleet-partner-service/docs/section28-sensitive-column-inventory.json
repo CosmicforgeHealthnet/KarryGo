@@ -153,6 +153,15 @@
     "justification": "a business/company registration number (e.g. Nigerian CAC number) -- routinely disclosed on invoices, letterheads and public company registries; not a secret, and not an individual's personal government ID (NIN/BVN/passport, none of which this schema currently stores)."
   },
   {
+    "table": "fleet_partner_compensation_adjustments",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000077_fleet_partner_foundation.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
     "table": "fleet_partner_corporate_identities",
     "column": "email_display",
     "category": "CONTACT_PII",

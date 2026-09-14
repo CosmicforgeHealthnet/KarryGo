@@ -105,6 +105,17 @@ type Config struct {
 	// support-dispute-service resolving a driver identity).
 	ServiceSecrets string
 
+	// Fleet Partner integration is optional while rolled out, but once
+	// configured all corporate provider checks use HMAC v2 and Fleet's
+	// canonical provider context.
+	FleetServiceURL                     string
+	FleetServiceCaller                  string
+	FleetServiceSecret                  []byte
+	FleetServiceTimeout                 time.Duration
+	TaxiFleetProviderWorkEnabled        bool
+	TaxiFleetCompletedWorkEnabled       bool
+	TaxiTypedFinancialVisibilityEnabled bool
+
 	// Matching config
 	BookingMatchTimeout int     // seconds a matched driver has to accept
 	BookingSearchWindow int     // seconds to keep searching (rescanning) before unmatched
@@ -211,6 +222,14 @@ func Load() Config {
 		PricingRateVersion: getEnv("TAXI_PRICING_RATE_VERSION", "provisional-dev-v1"),
 
 		ServiceSecrets: os.Getenv("TAXI_SERVICE_SECRETS"),
+
+		FleetServiceURL:                     os.Getenv("FLEET_PARTNER_SERVICE_URL"),
+		FleetServiceCaller:                  getEnv("TAXI_FLEET_SERVICE_CALLER", "driver-taxi-service"),
+		FleetServiceSecret:                  []byte(os.Getenv("FLEET_PARTNER_SERVICE_SECRET")),
+		FleetServiceTimeout:                 time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		TaxiFleetProviderWorkEnabled:        getEnvBool("TAXI_FLEET_PROVIDER_WORK_ENABLED", false),
+		TaxiFleetCompletedWorkEnabled:       getEnvBool("TAXI_FLEET_COMPLETED_WORK_ENABLED", false),
+		TaxiTypedFinancialVisibilityEnabled: getEnvBool("TAXI_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
 
 		BookingMatchTimeout: getEnvInt("TAXI_BOOKING_MATCH_TIMEOUT", 30),
 		BookingSearchWindow: getEnvInt("TAXI_BOOKING_SEARCH_WINDOW", 60),
@@ -326,6 +345,14 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(c.VendorURL) == "" || len(c.VendorSecret) == 0 {
 			problems = append(problems, "TAXI_VENDOR_URL and TAXI_VENDOR_SECRET are required when Taxi Goods is enabled")
 		}
+	}
+	if (c.TaxiFleetProviderWorkEnabled || c.TaxiFleetCompletedWorkEnabled || c.TaxiTypedFinancialVisibilityEnabled) &&
+		(strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" || len(c.FleetServiceSecret) == 0) &&
+		strings.EqualFold(strings.TrimSpace(c.AppEnv), "production") {
+		problems = append(problems, "FLEET_PARTNER_SERVICE_URL, TAXI_FLEET_SERVICE_CALLER and FLEET_PARTNER_SERVICE_SECRET are required for Taxi Fleet integration in production")
+	}
+	if path := urlPath(c.FleetServiceURL); path != "" {
+		problems = append(problems, "FLEET_PARTNER_SERVICE_URL must be a bare origin, got path "+path)
 	}
 
 	if len(problems) > 0 {

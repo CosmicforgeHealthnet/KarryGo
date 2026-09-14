@@ -436,6 +436,7 @@ func main() {
 			components.InternalPrivateOperationsRoutes()(group)
 			components.InternalSection16Routes()(group)
 			components.InternalSection22To23Routes()(group)
+			components.InternalFleetPartnerRoutes(cfg)(group)
 			if routes := buildWorkerOperationsInternalRoutes(cfg, pool); routes != nil {
 				routes(group)
 			}

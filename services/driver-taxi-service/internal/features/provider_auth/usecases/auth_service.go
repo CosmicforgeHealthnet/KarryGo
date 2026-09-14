@@ -15,6 +15,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/phonenumber"
+	"cosmicforge/logistics/shared/go/providercompat"
 )
 
 // ProviderRole and ProviderService are the bearer-middleware contract for every
@@ -42,6 +43,7 @@ type AuthService struct {
 	otpMaxAttempts  int
 	otpDebug        bool
 	now             func() time.Time
+	corporate       providercompat.CorporateContextReader
 }
 
 type Options struct {
@@ -58,6 +60,7 @@ type Options struct {
 	OTPMaxRequests     int
 	OTPMaxAttempts     int
 	OTPDebug           bool
+	CorporateContext   providercompat.CorporateContextReader
 }
 
 func NewAuthService(opts Options) *AuthService {
@@ -76,6 +79,7 @@ func NewAuthService(opts Options) *AuthService {
 		otpMaxAttempts:  opts.OTPMaxAttempts,
 		otpDebug:        opts.OTPDebug,
 		now:             time.Now,
+		corporate:       opts.CorporateContext,
 	}
 }
 
@@ -152,10 +156,13 @@ type VerifyAuthInput struct {
 }
 
 type TokenResult struct {
-	AccessToken  string                            `json:"access_token"`
-	RefreshToken string                            `json:"refresh_token"`
-	ExpiresIn    int64                             `json:"expires_in"`
-	Provider     providerauthmodels.PublicProvider `json:"provider"`
+	AccessToken               string                                    `json:"access_token"`
+	RefreshToken              string                                    `json:"refresh_token"`
+	ExpiresIn                 int64                                     `json:"expires_in"`
+	Provider                  providerauthmodels.PublicProvider         `json:"provider"`
+	ProviderMode              string                                    `json:"providerMode,omitempty"`
+	CorporateContext          *providercompat.CorporateContext          `json:"corporateContext,omitempty"`
+	FinancialVisibilityPolicy *providercompat.FinancialVisibilityPolicy `json:"financialVisibilityPolicy,omitempty"`
 }
 
 // VerifyAuth exchanges a correct OTP for a token pair, creating the driver on
@@ -395,12 +402,26 @@ func (s *AuthService) createSessionTokens(ctx context.Context, provider provider
 		return TokenResult{}, apperrors.Internal("Access token could not be generated.", err)
 	}
 
-	return TokenResult{
+	result := TokenResult{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(s.accessTokenTTL.Seconds()),
 		Provider:     provider.Public(),
-	}, nil
+	}
+	if s.corporate != nil {
+		context, err := s.corporate.ReadCorporateContext(ctx, "TAXI", provider.ID)
+		if err != nil {
+			return TokenResult{}, apperrors.Unavailable("Fleet corporate context could not be verified. Please try again.", err)
+		}
+		if context.IsManagedProvider {
+			result.ProviderMode = providercompat.ModeOrganizationManaged
+			result.CorporateContext = &context
+			result.FinancialVisibilityPolicy = &context.FinancialVisibilityPolicy
+		} else {
+			result.ProviderMode = providercompat.ModeIndependent
+		}
+	}
+	return result, nil
 }
 
 func parseRefreshSessionID(refreshToken string) (string, error) {
