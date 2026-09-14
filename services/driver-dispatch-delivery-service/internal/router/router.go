@@ -867,7 +867,24 @@ func startOutboxWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool)
 		return func() {}
 	}
 
-	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), deliverer,
+	// Section 9 DSP-008/DSP-009: canonical completed-work rows ride THIS
+	// worker. Only the destination endpoint differs, so the router wraps the
+	// generic deliverer rather than standing up a second outbox -- every row
+	// keeps the same leasing, bounded backoff, delivery-attempt records,
+	// dead-lettering and ambiguous-response handling.
+	//
+	// A nil Fleet client leaves completed-work rows queued (retryable) rather
+	// than dead-lettering an authoritative completion, which is why it is
+	// safe for the flag to default off.
+	var completedWorkClient marketplace.CompletedWorkSubmitter
+	if cfg.DispatchFleetCompletedWorkEnabled {
+		completedWorkClient = providercompat.NewClient(cfg.FleetServiceURL,
+			cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+		log.Printf("marketplace: canonical Fleet completed-work delivery enabled")
+	}
+	routed := marketplace.CompletedWorkDeliverer{Events: deliverer, Fleet: completedWorkClient}
+
+	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), routed,
 		marketplace.OutboxWorkerConfig{
 			Owner:         cfg.ServiceName,
 			SourceService: cfg.ServiceName,

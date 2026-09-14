@@ -154,10 +154,20 @@ type Config struct {
 
 	// Organization marketplace feature flags. All default false: a write path
 	// that is not explicitly enabled must not run.
-	MarketplaceInternalAPIEnabled         bool
-	MarketplaceReservationEnabled         bool
-	MarketplaceExecutionEnabled           bool
-	MarketplaceOutboxEnabled              bool
+	MarketplaceInternalAPIEnabled bool
+	MarketplaceReservationEnabled bool
+	MarketplaceExecutionEnabled   bool
+	MarketplaceOutboxEnabled      bool
+	// DispatchFleetCompletedWorkEnabled turns on canonical Fleet
+	// completed-work delivery for organization-managed missions (Section 9
+	// DSP-008). Default false: it is enabled only once Fleet's ingestion has
+	// been certified against both Dispatch and Taxi.
+	DispatchFleetCompletedWorkEnabled bool
+	// DispatchManagedSettlementEnabled isolates corporate settlement from the
+	// legacy direct-to-rider wallet path (Section 9 DSP-014). Default false
+	// until Section 12 exists; turning it on stops corporate missions being
+	// paid directly to the rider.
+	DispatchManagedSettlementEnabled      bool
 	MarketplaceProviderEligibilityEnabled bool
 	MarketplaceVehicleEligibilityEnabled  bool
 	PrivateExecutionEnabled               bool
@@ -333,6 +343,8 @@ func Load() (Config, error) {
 		MarketplaceReservationEnabled:         getEnvBool("DISPATCH_ORGANIZATION_RESERVATION_ENABLED", false),
 		MarketplaceExecutionEnabled:           getEnvBool("DISPATCH_ORGANIZATION_EXECUTION_ENABLED", false),
 		MarketplaceOutboxEnabled:              getEnvBool("DISPATCH_MARKETPLACE_OUTBOX_ENABLED", false),
+		DispatchFleetCompletedWorkEnabled:     getEnvBool("DISPATCH_FLEET_COMPLETED_WORK_ENABLED", false),
+		DispatchManagedSettlementEnabled:      getEnvBool("DISPATCH_MANAGED_SETTLEMENT_ENABLED", false),
 		MarketplaceProviderEligibilityEnabled: getEnvBool("DISPATCH_PROVIDER_ELIGIBILITY_ENABLED", false),
 		MarketplaceVehicleEligibilityEnabled:  getEnvBool("DISPATCH_VEHICLE_ELIGIBILITY_ENABLED", false),
 		PrivateExecutionEnabled:               getEnvBool("DISPATCH_PRIVATE_EXECUTION_ENABLED", false),

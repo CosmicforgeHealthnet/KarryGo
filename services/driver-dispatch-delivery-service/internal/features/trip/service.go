@@ -107,6 +107,14 @@ type Service struct {
 	secureHandover   SecureHandoverGate
 	now              func() time.Time
 	handoverSecret   []byte
+
+	// managedSettlement and managedHandoff are the Section 12 boundary --
+	// see managed_settlement.go. They decide whether a completed corporate
+	// mission takes the legacy direct-to-rider wallet path or the Fleet
+	// managed path, and that decision is never made by a live Fleet lookup
+	// at completion time.
+	managedSettlement ManagedSettlementConfig
+	managedHandoff    ManagedSettlementHandoff
 }
 
 func NewService(repository Repository, storage ProofStorage) *Service {
@@ -767,17 +775,11 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 	if updatedTrip.CompletedAt != nil {
 		completedAt = *updatedTrip.CompletedAt
 	}
-	if s.settlement != nil {
-		if err := s.settlement.HandleTripCompleted(ctx, trip.BookingID, completedAt); err != nil {
-			log.Printf("trip settlement confirmation pending trip_id=%s", trip.ID)
-		}
-	} else if s.wallet != nil {
-		if _, err := s.wallet.CompleteJob(ctx, "dispatch-delivery-service", trip.BookingID); err != nil {
-			log.Printf("wallet settlement failed trip_id=%s booking_id=%s provider_id=%s",
-				trip.ID, trip.BookingID, trip.ProviderID)
-			// Trip is already completed in the DB. Do not roll back.
-		}
-	}
+	// Which settlement path runs is decided by settleCompletedTrip, not by
+	// this call site: an independent mission settles exactly as before, while
+	// a corporate mission is routed to the Fleet managed path and is
+	// deliberately NOT paid directly to the rider (Section 9 DSP-014).
+	s.settleCompletedTrip(ctx, trip.ID, trip.BookingID, completedAt)
 	if s.events != nil {
 		_ = s.events.PublishTripCompleted(ctx, TripCompletedEvent{
 			Event: TopicTripCompleted, TripID: trip.ID, BookingID: trip.BookingID,

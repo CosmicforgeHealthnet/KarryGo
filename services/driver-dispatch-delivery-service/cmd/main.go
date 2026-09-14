@@ -158,12 +158,27 @@ func main() {
 		log.Printf("marketplace: canonical event emission disabled by DISPATCH_MARKETPLACE_OUTBOX_ENABLED")
 	}
 
+	// Section 9 DSP-008/DSP-009: the canonical Fleet completed-work delivery
+	// is enqueued on the EXISTING marketplace outbox, in the same transaction
+	// as the mission's authoritative completion. Attached only when the flag
+	// is on, so a deployment that has not certified Fleet ingestion behaves
+	// exactly as before.
 	tripRepository := tripfeature.NewPostgresRepository(db).WithEventEmitter(marketplaceEmitter)
+	if cfg.DispatchFleetCompletedWorkEnabled {
+		tripRepository = tripRepository.WithCompletedWorkEnqueuer(
+			marketplace.NewCompletedWorkEnqueuer(marketplace.NewRepository(db)))
+		log.Printf("marketplace: Fleet completed-work enqueue enabled for managed mission completion")
+	}
 	tripService := tripfeature.NewService(tripRepository, proofStorage).
 		WithEventPublisher(tripfeature.NewRedisEventPublisher(redisClient)).
 		WithWalletClient(walletClient).
 		WithNotifier(bookingNotifier).
-		WithHandoverSecret(cfg.HandoverSecret)
+		WithHandoverSecret(cfg.HandoverSecret).
+		// Section 9 DSP-014: the Section 12 boundary. With isolation on and
+		// no handoff implemented yet, a corporate mission is deliberately NOT
+		// paid directly to the rider -- Fleet settles it.
+		WithManagedSettlement(
+			tripfeature.ManagedSettlementConfig{Enabled: cfg.DispatchManagedSettlementEnabled}, nil)
 	tripfeature.StartSubscribers(ctx, redisClient, tripService)
 
 	// Rider request push: real notification-service sender when configured,
