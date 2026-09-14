@@ -112,6 +112,17 @@ type BookingService struct {
 	handoverSecret     []byte
 	secureHandover     bookingrepo.SecureHandoverRepository
 	routes             routing.Fetcher
+
+	// managedSettlement and managedHandoff are the Section 12 boundary -- see
+	// managed_settlement.go. They decide whether a completed corporate job
+	// takes the legacy direct-to-provider wallet path or the Fleet managed
+	// path, and that decision is never made by a live Fleet lookup at
+	// completion time.
+	managedSettlement ManagedSettlementConfig
+	managedHandoff    ManagedSettlementHandoff
+	// completedWorkEnabled gates writing the canonical Fleet completed-work
+	// record. Off by default (HAULING_FLEET_COMPLETED_WORK_ENABLED).
+	completedWorkEnabled bool
 }
 
 // matchHandle wraps a context.CancelFunc so it can be stored in sync.Map and
@@ -141,6 +152,14 @@ type Options struct {
 	// SecureHandover is optional for isolated tests. Production automatically
 	// uses the Postgres booking repository's existing handover authority.
 	SecureHandover bookingrepo.SecureHandoverRepository
+
+	// ManagedSettlement/ManagedHandoff/CompletedWorkEnabled configure the
+	// Section 10 corporate completion path. All three are nil/zero-safe: a
+	// service built without them behaves exactly as before, which is what
+	// keeps every independent job unchanged.
+	ManagedSettlement    ManagedSettlementConfig
+	ManagedHandoff       ManagedSettlementHandoff
+	CompletedWorkEnabled bool
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -163,20 +182,23 @@ func NewBookingService(opts Options) *BookingService {
 		secureHandover, _ = opts.Bookings.(bookingrepo.SecureHandoverRepository)
 	}
 	return &BookingService{
-		bookings:           opts.Bookings,
-		availability:       opts.Availability,
-		trucks:             opts.Trucks,
-		payments:           opts.Payments,
-		commerceSettlement: opts.CommerceSettlement,
-		notifier:           opts.Notifier,
-		matchTimeout:       matchTimeout,
-		searchWindow:       searchWindow,
-		maxRadiusKm:        radius,
-		allowCashPayments:  opts.AllowCashPayments,
-		restrictions:       opts.Restrictions,
-		handoverSecret:     opts.HandoverSecret,
-		secureHandover:     secureHandover,
-		routes:             opts.Routes,
+		bookings:             opts.Bookings,
+		availability:         opts.Availability,
+		trucks:               opts.Trucks,
+		payments:             opts.Payments,
+		commerceSettlement:   opts.CommerceSettlement,
+		notifier:             opts.Notifier,
+		matchTimeout:         matchTimeout,
+		searchWindow:         searchWindow,
+		maxRadiusKm:          radius,
+		allowCashPayments:    opts.AllowCashPayments,
+		restrictions:         opts.Restrictions,
+		handoverSecret:       opts.HandoverSecret,
+		secureHandover:       secureHandover,
+		routes:               opts.Routes,
+		managedSettlement:    opts.ManagedSettlement,
+		managedHandoff:       opts.ManagedHandoff,
+		completedWorkEnabled: opts.CompletedWorkEnabled,
 	}
 }
 
@@ -770,6 +792,10 @@ func (s *BookingService) autoCompleteDelivered(ctx context.Context) {
 	for _, b := range bookings {
 		if _, err := s.bookings.MarkCompleted(ctx, b.ID); err == nil {
 			_ = s.addEvent(ctx, b.ID, "booking_completed", bookingmodels.ActorSystem, "system")
+			// HLG-017: the canonical Fleet completed-work record is persisted
+			// at the authoritative completion, before settlement is routed,
+			// so Fleet holds the record even if settlement is withheld.
+			s.recordCompletedWork(ctx, b.ID)
 			s.settleOnComplete(ctx, b.ID)
 			s.notifier.NotifyCustomerCompleted(ctx, b.CustomerID, b.ID, map[string]interface{}{"booking_id": b.ID})
 		}
@@ -917,6 +943,7 @@ func (s *BookingService) SubmitReview(ctx context.Context, input SubmitReviewInp
 	if b.Status == bookingmodels.StatusDelivered {
 		if _, err := s.bookings.MarkCompleted(ctx, input.BookingID); err == nil {
 			_ = s.addEvent(ctx, input.BookingID, "booking_completed", bookingmodels.ActorCustomer, input.CustomerID)
+			s.recordCompletedWork(ctx, input.BookingID)
 			s.settleOnComplete(ctx, input.BookingID)
 			s.notifier.NotifyCustomerCompleted(ctx, input.CustomerID, input.BookingID, map[string]interface{}{"booking_id": input.BookingID})
 		}
@@ -1375,6 +1402,15 @@ func (s *BookingService) ensurePaymentSecured(ctx context.Context, b bookingmode
 func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string) {
 	b, err := s.bookings.GetByID(ctx, bookingID)
 	if err != nil {
+		return
+	}
+	// HLG-025: an organization-managed job is NEVER paid directly to the
+	// provider once isolation is on. The route is read from the booking's own
+	// persisted settlement mode, so a Fleet outage cannot reroute corporate
+	// work onto the legacy path. This gate covers BOTH the plain wallet
+	// settlement below and the Commerce delivery release, because both move
+	// money to the executing provider.
+	if !s.routeCompletedSettlement(ctx, bookingID) {
 		return
 	}
 	if scopes, ok := s.bookings.(commerceMissionScopeReader); ok {

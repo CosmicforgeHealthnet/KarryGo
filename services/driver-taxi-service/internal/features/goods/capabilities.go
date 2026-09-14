@@ -2,8 +2,11 @@ package goods
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"cosmicforge/logistics/shared/go/logisticscapability"
 )
 
 // Capabilities is Taxi Goods' truthful statement of what it can actually do
@@ -50,4 +53,58 @@ func (h *Handler) capabilities(c *gin.Context) {
 		"success": true,
 		"data":    DeclaredCapabilities(h.corporateProviderSupported),
 	})
+}
+
+// capabilityVersion increments when the declaration below changes.
+const capabilityVersion = 1
+
+// DeclaredLogisticsCapability restates Taxi Goods' capability in the shared
+// cross-authority vocabulary (VND-007).
+//
+// It is derived from the SAME facts as Capabilities above rather than a
+// second hand-maintained copy: single pickup because a mission carries one
+// Pickup point, secure handover and custody because both are implemented.
+// Reporting multi-pickup here would let Vendor route a consolidated order to
+// an authority that physically cannot collect from two places.
+func DeclaredLogisticsCapability(enabled, corporateProviderSupported bool, now func() time.Time) logisticscapability.Capability {
+	if now == nil {
+		now = func() time.Time { return time.Now().UTC() }
+	}
+	declared := DeclaredCapabilities(corporateProviderSupported)
+	capability := logisticscapability.Capability{
+		Authority: logisticscapability.AuthorityTaxi,
+		Version:   capabilityVersion,
+		Available: enabled,
+
+		MultiPickupSupported: declared.MultiPickupSupported,
+		MaxPickups:           int64(declared.MaxPickups),
+		MultiStopSupported:   false,
+		MaxDropoffs:          1,
+
+		SecurePickupSupported:      declared.SecureHandoverSupported,
+		SecureDeliverySupported:    declared.SecureHandoverSupported,
+		CustodyEvidenceSupported:   declared.CustodyEvidenceSupported,
+		CorporateProviderSupported: declared.CorporateProviderSupported,
+
+		VehicleClasses:    []string{"CAR"},
+		HandlingSupported: []string{"FRAGILE", "UPRIGHT", "HIGH_VALUE"},
+		ObservedAt:        now().UTC(),
+	}
+	if !enabled {
+		capability.UnavailableReason = "TAXI_GOODS_DELIVERY_DISABLED"
+	}
+	return capability
+}
+
+// LogisticsCapabilityProvider adapts the declaration to the shared server
+// helper.
+type LogisticsCapabilityProvider struct {
+	Enabled                    bool
+	CorporateProviderSupported bool
+	Now                        func() time.Time
+}
+
+// DeclaredCapability satisfies logisticscapability.Provider.
+func (p LogisticsCapabilityProvider) DeclaredCapability() logisticscapability.Capability {
+	return DeclaredLogisticsCapability(p.Enabled, p.CorporateProviderSupported, p.Now)
 }

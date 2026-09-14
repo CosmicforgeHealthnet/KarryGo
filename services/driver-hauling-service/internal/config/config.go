@@ -60,16 +60,30 @@ type Config struct {
 
 	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
 	// support-dispute-service resolving a provider identity).
-	ServiceSecrets                  string
-	FleetIntegrationEnabled         bool
-	FleetIntegrationKillSwitch      bool
-	CommerceIntegrationEnabled      bool
-	CommerceIntegrationKillSwitch   bool
-	FleetAllowedCallers             string
-	OutboxWorkerEnabled             bool
-	FleetEventURL                   string
-	FleetEventSecret                []byte
-	PrivateExecutionEnabled         bool
+	ServiceSecrets                string
+	FleetIntegrationEnabled       bool
+	FleetIntegrationKillSwitch    bool
+	CommerceIntegrationEnabled    bool
+	CommerceIntegrationKillSwitch bool
+	FleetAllowedCallers           string
+	OutboxWorkerEnabled           bool
+	FleetEventURL                 string
+	FleetEventSecret              []byte
+	PrivateExecutionEnabled       bool
+	// HaulingFleetProviderWorkEnabled mounts the provider-facing corporate
+	// surface (company assignments + organization offers). Default false:
+	// Section 10 gates activation behind certification, exactly as Taxi does.
+	HaulingFleetProviderWorkEnabled bool
+	// HaulingFleetCompletedWorkEnabled turns on canonical Fleet
+	// completed-work delivery for organization-managed jobs.
+	HaulingFleetCompletedWorkEnabled bool
+	// HaulingTypedFinancialVisibilityEnabled enforces Fleet's typed financial
+	// visibility policy on provider-facing responses, server-side.
+	HaulingTypedFinancialVisibilityEnabled bool
+	// HaulingManagedSettlementEnabled isolates corporate settlement from the
+	// legacy direct-to-provider payout. Default false until Section 12 exists.
+	HaulingManagedSettlementEnabled bool
+
 	FleetServiceURL                 string
 	FleetServiceCaller              string
 	FleetServiceSecret              []byte
@@ -138,16 +152,21 @@ func Load() Config {
 		CashPaymentsEnabled: getEnvBool("HAULING_CASH_PAYMENTS_ENABLED", false),
 		RoutesAPIKey:        os.Getenv("HAULING_ROUTES_API_KEY"),
 
-		ServiceSecrets:                  os.Getenv("HAULING_SERVICE_SECRETS"),
-		FleetIntegrationEnabled:         getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),
-		FleetIntegrationKillSwitch:      getEnvBool("HAULING_FLEET_INTEGRATION_KILL_SWITCH", false),
-		CommerceIntegrationEnabled:      getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", false),
-		CommerceIntegrationKillSwitch:   getEnvBool("HAULING_COMMERCE_INTEGRATION_KILL_SWITCH", false),
-		FleetAllowedCallers:             getEnv("HAULING_FLEET_ALLOWED_CALLERS", "fleet-partner-service"),
-		OutboxWorkerEnabled:             getEnvBool("HAULING_OUTBOX_WORKER_ENABLED", false),
-		FleetEventURL:                   os.Getenv("HAULING_FLEET_EVENT_URL"),
-		FleetEventSecret:                []byte(os.Getenv("HAULING_FLEET_EVENT_SECRET")),
-		PrivateExecutionEnabled:         getEnvBool("HAULING_PRIVATE_EXECUTION_ENABLED", false),
+		ServiceSecrets:                         os.Getenv("HAULING_SERVICE_SECRETS"),
+		FleetIntegrationEnabled:                getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),
+		FleetIntegrationKillSwitch:             getEnvBool("HAULING_FLEET_INTEGRATION_KILL_SWITCH", false),
+		CommerceIntegrationEnabled:             getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", false),
+		CommerceIntegrationKillSwitch:          getEnvBool("HAULING_COMMERCE_INTEGRATION_KILL_SWITCH", false),
+		FleetAllowedCallers:                    getEnv("HAULING_FLEET_ALLOWED_CALLERS", "fleet-partner-service"),
+		OutboxWorkerEnabled:                    getEnvBool("HAULING_OUTBOX_WORKER_ENABLED", false),
+		FleetEventURL:                          os.Getenv("HAULING_FLEET_EVENT_URL"),
+		FleetEventSecret:                       []byte(os.Getenv("HAULING_FLEET_EVENT_SECRET")),
+		PrivateExecutionEnabled:                getEnvBool("HAULING_PRIVATE_EXECUTION_ENABLED", false),
+		HaulingFleetProviderWorkEnabled:        getEnvBool("HAULING_FLEET_PROVIDER_WORK_ENABLED", false),
+		HaulingFleetCompletedWorkEnabled:       getEnvBool("HAULING_FLEET_COMPLETED_WORK_ENABLED", false),
+		HaulingTypedFinancialVisibilityEnabled: getEnvBool("HAULING_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
+		HaulingManagedSettlementEnabled:        getEnvBool("HAULING_MANAGED_SETTLEMENT_ENABLED", false),
+
 		FleetServiceURL:                 os.Getenv("FLEET_PARTNER_SERVICE_URL"),
 		FleetServiceCaller:              getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-hauling-service"),
 		FleetServiceSecret:              []byte(os.Getenv("FLEET_PARTNER_SERVICE_SECRET")),

@@ -40,10 +40,13 @@ import (
 	providerprofilerepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"
 	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
 
+	"cosmicforge/logistics/services/hauling-service/internal/apiresponse"
+	"cosmicforge/logistics/services/hauling-service/internal/features/completedwork"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/custodyops"
+	"cosmicforge/logistics/shared/go/fleetproviderwork"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
@@ -118,9 +121,28 @@ func main() {
 
 	// ─── Auth service ──────────────────────────────────────────────────────────
 	var membershipReader providercompat.Reader
-	if cfg.ProviderOrganizationModeEnabled {
-		membershipReader = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller,
+	// fleetCompat is the concrete Fleet client. It backs three distinct
+	// consumers: the legacy membership-summary read, the CANONICAL Section 7
+	// corporate-context read, and canonical completed-work submission. One
+	// client, because all three speak to the same service with the same
+	// credentials.
+	var fleetCompat *providercompat.Client
+	var fleetCorporateContext providercompat.CorporateContextReader
+	var fleetProviderWorkClient *fleetproviderwork.Client
+	if strings.TrimSpace(cfg.FleetServiceURL) != "" && len(cfg.FleetServiceSecret) > 0 {
+		fleetCompat = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller,
 			cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+		fleetCorporateContext = fleetCompat
+		fleetProviderWorkClient, _ = fleetproviderwork.NewClient(fleetproviderwork.Config{
+			BaseURL:         cfg.FleetServiceURL,
+			ServiceName:     cfg.FleetServiceCaller,
+			Secret:          cfg.FleetServiceSecret,
+			ProviderService: providerauthusecases.ServiceCategory,
+			Timeout:         cfg.FleetServiceTimeout,
+		})
+	}
+	if cfg.ProviderOrganizationModeEnabled && fleetCompat != nil {
+		membershipReader = fleetCompat
 	}
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
@@ -137,6 +159,7 @@ func main() {
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
 		MembershipReader:   membershipReader,
+		CorporateContext:   fleetCorporateContext,
 		ProviderService:    cfg.FleetServiceCaller,
 	})
 
@@ -179,18 +202,22 @@ func main() {
 	}
 
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
-		Bookings:            bookingRepo,
-		Availability:        availabilityStore,
-		Trucks:              truckLookup{trucks: truckRepo},
-		Payments:            paymentClient,
-		CommerceSettlement:  commerceSettlement,
-		Notifier:            bookingNotifier,
-		MatchTimeoutSeconds: cfg.BookingMatchTimeout,
-		SearchWindowSeconds: cfg.BookingSearchWindow,
-		MaxRadiusKm:         cfg.MatchMaxRadiusKm,
-		HandoverSecret:      cfg.HandoverSecret,
-		AllowCashPayments:   cfg.CashPaymentsEnabled,
-		Restrictions:        restrictionService,
+		Bookings:           bookingRepo,
+		Availability:       availabilityStore,
+		Trucks:             truckLookup{trucks: truckRepo},
+		Payments:           paymentClient,
+		CommerceSettlement: commerceSettlement,
+		// Section 10 corporate completion. Both default off; see each flag's
+		// own doc comment in internal/config for what turning it on changes.
+		ManagedSettlement:    bookingusecases.ManagedSettlementConfig{Enabled: cfg.HaulingManagedSettlementEnabled},
+		CompletedWorkEnabled: cfg.HaulingFleetCompletedWorkEnabled,
+		Notifier:             bookingNotifier,
+		MatchTimeoutSeconds:  cfg.BookingMatchTimeout,
+		SearchWindowSeconds:  cfg.BookingSearchWindow,
+		MaxRadiusKm:          cfg.MatchMaxRadiusKm,
+		HandoverSecret:       cfg.HandoverSecret,
+		AllowCashPayments:    cfg.CashPaymentsEnabled,
+		Restrictions:         restrictionService,
 		// nil when HAULING_ROUTES_API_KEY is unset: routes are then never
 		// fetched and the apps fall back to straight-line geometry.
 		Routes: routesClient,
@@ -210,6 +237,15 @@ func main() {
 		cfg.PrivateExecutionEnabled, cfg.FleetIntegrationKillSwitch).WithRestrictionGate(restrictionService)
 	providerAssignmentClient := providerassignments.NewClient(cfg.FleetServiceURL,
 		cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+	// HLG-018: canonical completed-work delivery rides the SAME outbox table
+	// as the Fleet domain events above, with its own target and its own
+	// outcome classification. It is gated separately because a deployment can
+	// legitimately emit domain events without yet being certified to report
+	// completed work.
+	if cfg.HaulingFleetCompletedWorkEnabled && fleetCompat != nil && !cfg.FleetIntegrationKillSwitch {
+		go (&completedwork.Worker{DB: db, Client: fleetCompat, Enabled: true}).Run(ctx, 5*time.Second)
+		logging.Notice("hauling-fleet", "canonical completed-work delivery enabled")
+	}
 	if cfg.OutboxWorkerEnabled && cfg.FleetIntegrationEnabled && !cfg.FleetIntegrationKillSwitch {
 		go (&fleetauthority.OutboxWorker{DB: db, URL: cfg.FleetEventURL, Secret: cfg.FleetEventSecret}).Run(ctx)
 	}
@@ -257,6 +293,14 @@ func main() {
 			},
 		},
 		Register: func(group *gin.RouterGroup) {
+			// HLG-021: the server-side typed financial projection. Mounted on
+			// the ROOT group so every provider-facing response is covered,
+			// including any route added later; it no-ops for customer and
+			// internal requests, and for an independent driver it never
+			// touches the body at all.
+			group.Use(apiresponse.ProviderFinancialPrivacy(
+				fleetCorporateContext, cfg.HaulingTypedFinancialVisibilityEnabled,
+				providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
 			group.Use(func(c *gin.Context) {
 				if cfg.FleetIntegrationKillSwitch && c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead && c.Request.Method != http.MethodOptions {
 					c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"success": false, "error": gin.H{"code": "integration_kill_switch", "message": "Hauling writes are temporarily disabled."}})
@@ -330,12 +374,37 @@ func main() {
 					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
 					[]string{commercemission.SignatureCaller},
 				)
+				// The shared cross-authority capability contract Vendor reads
+				// to decide whether Hauling may be selected at all. Mounted
+				// beside the mission routes and behind the same boundary.
+				haulingcommercemission.RegisterCapability(
+					group,
+					haulingcommercemission.CapabilityProvider{Options: haulingcommercemission.CapabilityOptions{
+						Enabled:                    true,
+						CorporateProviderSupported: cfg.HaulingFleetProviderWorkEnabled,
+					}},
+					db,
+					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+					[]string{commercemission.SignatureCaller},
+				)
 			}
 			fleetauthority.Register(group, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			restrictions.Register(group, restrictionService, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			privateexecution.Register(group, privateexecution.NewHandler(privateExecutionService),
 				authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			providerassignments.Register(group, authService, providerAssignmentClient)
+			// Section 10: the canonical provider-facing corporate surface
+			// (company-assignment LIST/detail/accept/decline and organization
+			// offer LIST/detail/accept/decline), shared with Taxi. The LIST
+			// reads are what make reconnect recovery work: a restarted
+			// provider app reads its corporate work back rather than hoping a
+			// notification arrived.
+			providerassignments.RegisterFleetWork(group, authService,
+				fleetProviderWorkClient, fleetCorporateContext,
+				cfg.HaulingFleetProviderWorkEnabled)
+			completedwork.RegisterRoutes(group,
+				completedwork.NewHandler(&completedwork.Store{DB: db}, splitCSV(cfg.FleetAllowedCallers)),
+				inboundVerifier)
 		},
 	})
 }

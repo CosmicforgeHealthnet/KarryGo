@@ -21,6 +21,11 @@ import (
 const (
 	ProviderRole    = "truck_provider"
 	ProviderService = "hauling"
+
+	// ServiceCategory is Hauling's Fleet service category. It is the value
+	// Fleet keys serviceEligibility and completed-work on, and is distinct
+	// from ProviderService above (the bearer-token service claim).
+	ServiceCategory = "HAULING"
 )
 
 type AuthService struct {
@@ -32,6 +37,7 @@ type AuthService struct {
 	otpSecret       []byte
 	refreshSecret   []byte
 	membership      providercompat.Reader
+	corporate       providercompat.CorporateContextReader
 	providerService string
 
 	accessTokenTTL  time.Duration
@@ -59,7 +65,15 @@ type Options struct {
 	OTPMaxAttempts     int
 	OTPDebug           bool
 	MembershipReader   providercompat.Reader
-	ProviderService    string
+	// CorporateContext reads Fleet's CANONICAL Section 7 corporate context.
+	//
+	// It is separate from MembershipReader on purpose: the legacy
+	// membership-summary read stays for the unchanged login contract, while
+	// every corporate decision uses the canonical typed context. Maintaining
+	// two interpretations of "organization-managed" is exactly what HLG-002
+	// forbids, so the canonical one is authoritative wherever both exist.
+	CorporateContext providercompat.CorporateContextReader
+	ProviderService  string
 }
 
 func NewAuthService(opts Options) *AuthService {
@@ -71,6 +85,7 @@ func NewAuthService(opts Options) *AuthService {
 		otpSecret:       opts.OTPSecret,
 		refreshSecret:   opts.RefreshTokenSecret,
 		membership:      opts.MembershipReader,
+		corporate:       opts.CorporateContext,
 		providerService: opts.ProviderService,
 		accessTokenTTL:  opts.AccessTokenTTL,
 		refreshTokenTTL: opts.RefreshTokenTTL,
@@ -177,6 +192,13 @@ type TokenResult struct {
 	Membership            *providercompat.Membership        `json:"membership,omitempty"`
 	AssignmentPolicy      *providercompat.AssignmentPolicy  `json:"assignmentPolicy,omitempty"`
 	FieldVisibilityPolicy string                            `json:"fieldVisibilityPolicy,omitempty"`
+
+	// CorporateContext and FinancialVisibilityPolicy are Fleet's canonical
+	// Section 7 answer, enriched onto the session so the provider app renders
+	// the right surface without inferring it. They are additive: an
+	// independent provider's login contract is byte-for-byte unchanged.
+	CorporateContext          *providercompat.CorporateContext          `json:"corporateContext,omitempty"`
+	FinancialVisibilityPolicy *providercompat.FinancialVisibilityPolicy `json:"financialVisibilityPolicy,omitempty"`
 }
 
 func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (TokenResult, error) {
@@ -396,6 +418,21 @@ func (s *AuthService) createSessionTokens(ctx context.Context, provider provider
 		}
 	}
 
+	// HLG-002: Fleet's canonical corporate context, read alongside the legacy
+	// summary. A read failure fails the login rather than silently issuing a
+	// session with no corporate answer -- a managed driver whose context could
+	// not be established must not be handed an independent-looking session.
+	var canonical *providercompat.CorporateContext
+	if s.corporate != nil {
+		context, err := s.corporate.ReadCorporateContext(ctx, ServiceCategory, provider.ID)
+		if err != nil {
+			return TokenResult{}, apperrors.Unavailable("Fleet corporate context could not be verified. Please try again.", err)
+		}
+		if context.IsManagedProvider {
+			canonical = &context
+		}
+	}
+
 	sessionID := uuid.NewString()
 	secret, err := sharedauth.GenerateOpaqueToken(32)
 	if err != nil {
@@ -442,6 +479,14 @@ func (s *AuthService) createSessionTokens(ctx context.Context, provider provider
 		result.Membership = compatibility.Membership
 		result.AssignmentPolicy = compatibility.AssignmentPolicy
 		result.FieldVisibilityPolicy = compatibility.FieldVisibilityPolicy
+	}
+	if canonical != nil {
+		// The canonical context is authoritative where both are present, so a
+		// deployment running only the canonical read still reports the right
+		// provider mode.
+		result.ProviderMode = providercompat.ModeOrganizationManaged
+		result.CorporateContext = canonical
+		result.FinancialVisibilityPolicy = &canonical.FinancialVisibilityPolicy
 	}
 	return result, nil
 }
