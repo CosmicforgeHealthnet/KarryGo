@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/services/vendor-service/internal/integrations/logistics"
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -93,11 +94,16 @@ func (h *logisticsEventIngress) post(c *gin.Context) {
 	} else if name == HaulingServiceCaller {
 		source = LogisticsHauling
 	}
+	// The authority's own status is normalized at the boundary, once, so
+	// every downstream decision reasons about one vocabulary while the
+	// reported value is still what gets stored (VND-020).
 	updated, parent, err := h.service.ApplyLogisticsEvent(c, LogisticsOrderEvent{
 		EventID: request.EventID, MissionRef: request.MissionRef,
 		VendorOrderID: request.VendorOrderID, ParentOrderID: request.ParentOrderID,
-		Source: source, EventType: request.EventType, SourceVersion: request.SourceVersion,
-		OccurredAt: request.OccurredAt, Payload: request.Payload,
+		Source: source, EventType: request.EventType,
+		CommerceStatus: logistics.NormalizeStatusFor(string(source), request.EventType),
+		SourceVersion:  request.SourceVersion,
+		OccurredAt:     request.OccurredAt, Payload: request.Payload,
 	})
 	if err != nil {
 		httpx.RespondError(c, err)

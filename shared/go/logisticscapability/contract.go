@@ -21,7 +21,12 @@ import (
 // Path is appended to an authority's own internal commerce base, alongside
 // the existing quote and mission paths.
 const (
-	Path = "/internal/commerce/capabilities"
+	// Path deliberately does not reuse "/internal/commerce/capabilities":
+	// Taxi Goods already serves its own, differently-shaped capability
+	// document there. Two contracts on one path would either collide at
+	// registration or silently answer the wrong shape, so the shared
+	// cross-authority contract gets its own name.
+	Path = "/internal/commerce/logistics-capability"
 
 	// ServiceabilityPath answers whether one concrete request is executable
 	// by this authority right now.

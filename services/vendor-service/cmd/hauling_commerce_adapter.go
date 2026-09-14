@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
+	"cosmicforge/logistics/services/vendor-service/internal/integrations/logistics"
 	"cosmicforge/logistics/shared/go/commercemission"
 )
 
@@ -108,9 +109,14 @@ func haulingMissionRequest(request orders.MissionRequest) (commercemission.Reque
 		ParentOrderRef:  request.ParentOrderID,
 		VendorOrderRefs: request.VendorOrderIDs,
 		CustomerRef:     request.CustomerID,
-		Service:         commercemission.Service(request.Service),
-		VehicleClass:    commercemission.VehicleClass(request.VehicleClass),
-		QuoteReference:  request.MissionRef + "-route-v1",
+		// The canonical spelling goes on the wire. A plan row carrying the
+		// product name TAXI_GOODS names the same authority as one carrying
+		// TAXI, and the shared contract only accepts the latter -- normalizing
+		// here is what stops an accepted internal spelling becoming an invalid
+		// outbound request.
+		Service:        commercemission.Service(logistics.Normalize(string(request.Service))),
+		VehicleClass:   commercemission.VehicleClass(request.VehicleClass),
+		QuoteReference: request.MissionRef + "-route-v1",
 		Dropoff: commercemission.Point{
 			Ref:       request.DeliveryAddress.SourceAddressRef,
 			Address:   request.DeliveryAddress.Address,

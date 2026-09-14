@@ -1355,6 +1355,19 @@ func main() {
 			shop.RegisterInternalInventoryRoutes(router, shop.NewInventoryInternalHandler(shopService, strings.Split(cfg.ShopInternalCallers, ",")), inboundVerifier, shopFlags)
 			inventory.RegisterInternalRoutes(router, inventory.NewInternalInventoryHandler(inventoryStockService, strings.Split(cfg.InventoryInternalCallers, ",")), inboundVerifier, inventoryFlags)
 			orders.RegisterInternalLogisticsRoutes(router, orderService, inboundVerifier)
+			// Operator-facing readiness for the logistics integrations
+			// (VND-031). Root-mounted and HMAC-protected for the same reason
+			// the logistics ingress is: which authorities a deployment can
+			// reach is operational detail, not a customer surface.
+			registerLogisticsReadinessRoutes(
+				router,
+				newLogisticsRegistry(cfg, cfg.Fulfilment.QuoteTimeout),
+				inboundVerifier,
+				map[string]bool{
+					"admin-backoffice-service": true,
+					"analytics-service":        true,
+				},
+			)
 			orders.RegisterDispatchCommerceEventRoutes(router, orderService, inboundVerifier)
 			orders.RegisterSupportResolutionRoutes(router, orderService, inboundVerifier)
 			// Section 13 mounts two more internal-authority surfaces here: platform

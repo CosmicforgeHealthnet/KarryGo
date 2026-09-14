@@ -13,6 +13,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/logisticscapability"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -50,6 +51,28 @@ func Register(
 	quotes := group.Group("/commerce")
 	quotes.Use(authority.ServiceBoundary(verifier, nonces, allowedCallers)...)
 	quotes.POST("/quotes", handler.quote)
+}
+
+// RegisterLogisticsCapability mounts the shared cross-authority capability
+// contract Vendor reads before it may select Dispatch (VND-006).
+//
+// It reuses the same service boundary the quote route uses -- HMAC v2, caller
+// allowlist and durable nonce replay protection -- rather than installing a
+// second, weaker one for a read. Capability is an internal contract: what
+// Dispatch can physically carry is not public information.
+func RegisterLogisticsCapability(
+	group *gin.RouterGroup,
+	provider logisticscapability.Provider,
+	verifier *serviceauth.Verifier,
+	nonces authority.NonceClaimer,
+	allowedCallers []string,
+) {
+	if group == nil || provider == nil || verifier == nil {
+		return
+	}
+	capability := group.Group("")
+	capability.Use(authority.ServiceBoundary(verifier, nonces, allowedCallers)...)
+	logisticscapability.RegisterRoutes(capability, provider)
 }
 
 func (h *Handler) quote(c *gin.Context) {

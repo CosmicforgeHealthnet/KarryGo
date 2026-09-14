@@ -134,3 +134,75 @@ func TestCloudKitchenHasOneCanonicalDirectory(t *testing.T) {
 		}
 	}
 }
+
+// TestVendorIsNotASecondCompletedWorkProducer enforces VND-026.
+//
+// Physical completion belongs to the service that executed the work. When a
+// commerce order finishes, Dispatch, Taxi Goods or Hauling reports the
+// completed work to Fleet if the provider is managed, and Vendor receives the
+// mission completion. If Vendor also reported it, one execution would produce
+// two completed-work records and a managed provider could be compensated
+// twice for one job — a defect no amount of downstream deduplication should
+// have to catch.
+//
+// The rule is enforced structurally: Vendor must not import the shared
+// provider-compatibility package that carries the completed-work contract, and
+// must not address Fleet's completed-work route.
+func TestVendorIsNotASecondCompletedWorkProducer(t *testing.T) {
+	root := serviceRoot(t)
+
+	forbiddenImports := []string{
+		"cosmicforge/logistics/shared/go/providercompat",
+		"cosmicforge/logistics/shared/go/fleetproviderwork",
+	}
+	forbiddenRoutes := []string{"/internal/fleet-partner/v1/completed-work"}
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if info.Name() == ".git" || info.Name() == "docs" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		// This test names the forbidden strings itself; excluding it keeps the
+		// check from finding its own evidence.
+		if strings.HasSuffix(path, "architecture_test.go") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		body := string(content)
+		for _, forbidden := range forbiddenImports {
+			if strings.Contains(body, `"`+forbidden+`"`) {
+				t.Errorf("%s imports %s: Vendor must not produce Fleet completed work — the executing service owns physical completion (VND-026)", path, forbidden)
+			}
+		}
+		for _, route := range forbiddenRoutes {
+			if strings.Contains(body, route) {
+				t.Errorf("%s addresses %s: only the executing logistics service reports completed work (VND-026)", path, route)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk service: %v", err)
+	}
+}
+
+func serviceRoot(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	// Tests in this package run from internal/; the service root is its parent.
+	return filepath.Dir(wd)
+}

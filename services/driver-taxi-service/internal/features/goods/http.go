@@ -16,6 +16,7 @@ import (
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/logisticscapability"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -39,6 +40,18 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *servicea
 		internal := group.Group("/internal/commerce")
 		internal.Use(serviceauth.Middleware(verifier), handler.vendorOnlyAndNonce())
 		internal.GET("/capabilities", handler.capabilities)
+
+		// The shared cross-authority capability contract Vendor reads to
+		// decide whether Taxi Goods may be selected at all (VND-007). It is
+		// a different document from the Taxi-shaped one above -- one
+		// vocabulary Vendor can compare across three services -- so it gets
+		// its own path, behind the identical vendor-only boundary.
+		capability := group.Group("")
+		capability.Use(serviceauth.Middleware(verifier), handler.vendorOnlyAndNonce())
+		logisticscapability.RegisterRoutes(capability, LogisticsCapabilityProvider{
+			Enabled:                    true,
+			CorporateProviderSupported: corporateProviderSupported,
+		})
 		internal.POST("/quotes", handler.quote)
 		internal.POST("/missions", handler.createMission)
 		internal.GET("/missions/operations/:operationRef", handler.readOperation)

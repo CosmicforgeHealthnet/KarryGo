@@ -223,6 +223,21 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			serviceauth.NewVerifier(serviceauth.Secrets{dispatchcommerce.SignatureCaller: cfg.VendorServiceSecret}, 5*time.Minute),
 			authority.NewPostgresNonceClaimer(db), []string{dispatchcommerce.SignatureCaller},
 		)
+		// The shared cross-authority capability contract Vendor reads before
+		// selecting Dispatch (VND-006). It is mounted from the api base
+		// because the shared path already carries its own /internal/commerce
+		// prefix, and behind the same one-caller verifier as the quotes above.
+		dispatchcommercequote.RegisterLogisticsCapability(
+			engine.Group("/api/v1"),
+			dispatchcommercequote.LogisticsCapabilityProvider{
+				Options: dispatchcommercequote.LogisticsCapabilityOptions{Enabled: true},
+			},
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller},
+		)
 	}
 
 	// The internal commerce mission contract (Vendor Service Section 17F).

@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"cosmicforge/logistics/services/vendor-service/internal/integrations/logistics"
 )
 
 type LineAvailability string
@@ -62,10 +64,20 @@ type LogisticsOrderEvent struct {
 	EventID, MissionRef, VendorOrderID, ParentOrderID string
 	Source                                            LogisticsService
 	EventType                                         string
-	SourceVersion                                     int64
-	OccurredAt                                        time.Time
-	Payload                                           json.RawMessage
-	ParcelRefs                                        []string
+
+	// CommerceStatus is the normalized fulfilment state this event means
+	// (VND-020). It is derived from Source and EventType when a caller leaves
+	// it unset, so an existing caller keeps working and a boundary that has
+	// already normalized does not have to do it twice.
+	//
+	// EventType keeps the authority's own richer value: the normalization
+	// decides what happens, it does not replace what was reported.
+	CommerceStatus logistics.ExecutionStatus
+
+	SourceVersion int64
+	OccurredAt    time.Time
+	Payload       json.RawMessage
+	ParcelRefs    []string
 }
 
 // ValidateVariableWeightAmount is the single arithmetic guard for a picked
@@ -923,6 +935,19 @@ func (s *Store) ApplyLogisticsEvent(ctx context.Context, event LogisticsOrderEve
 	timingEvent := isLogisticsTimingEvent(event.EventType)
 	failureEvent := strings.EqualFold(strings.TrimSpace(event.EventType), "DELIVERY_FAILED")
 	signalEvent := isLogisticsSignalEvent(event.EventType)
+
+	// The authority's own status is normalized before it is acted on
+	// (VND-020). The raw event type is still what gets stored, so nothing
+	// richer is lost; what the normalization buys is that a service sending
+	// its real state — Taxi's AT_DROPOFF, Hauling's en_route_delivery — is
+	// understood instead of being silently filed as stale.
+	commerceStatus := event.CommerceStatus
+	if commerceStatus == logistics.StatusUnknown {
+		commerceStatus = logistics.NormalizeStatusFor(string(event.Source), event.EventType)
+	}
+	pickedUp := commerceStatus == logistics.StatusPickupVerified
+	delivering := commerceStatus == logistics.StatusInTransit
+	delivered := commerceStatus == logistics.StatusDeliveryVerified
 	rank := func(v VendorStatus) int {
 		switch v {
 		case VendorStatusReadyForPickup, VendorStatusReady:
@@ -937,20 +962,20 @@ func (s *Store) ApplyLogisticsEvent(ctx context.Context, event LogisticsOrderEve
 		return 0
 	}
 	target := VendorStatus(event.EventType)
-	if event.EventType == "PICKED_UP" {
+	switch {
+	case pickedUp:
 		target = VendorStatusPickedUp
-	}
-	if event.EventType == "DELIVERING" {
+	case delivering:
 		target = VendorStatusDelivering
-	}
-	if event.EventType == "DELIVERED" {
+	case delivered:
 		target = VendorStatusDelivered
 	}
 	ignored := !timingEvent && !failureEvent && !signalEvent && rank(current.Status) >= rank(target)
 	if !ignored {
-		valid := signalEvent || failureEvent || (event.EventType == "PICKED_UP" && (current.Status == VendorStatusReadyForPickup || current.Status == VendorStatusReady)) ||
-			(event.EventType == "DELIVERING" && (current.Status == VendorStatusPickedUp || current.Status == VendorStatusHandedOver)) ||
-			(event.EventType == "DELIVERED" && (current.Status == VendorStatusDelivering || current.Status == VendorStatusPickedUp || current.Status == VendorStatusHandedOver))
+		valid := signalEvent || failureEvent ||
+			(pickedUp && (current.Status == VendorStatusReadyForPickup || current.Status == VendorStatusReady)) ||
+			(delivering && (current.Status == VendorStatusPickedUp || current.Status == VendorStatusHandedOver)) ||
+			(delivered && (current.Status == VendorStatusDelivering || current.Status == VendorStatusPickedUp || current.Status == VendorStatusHandedOver))
 		if !valid {
 			return VendorOrder{}, ParentOrder{}, ErrOrderConflict
 		}

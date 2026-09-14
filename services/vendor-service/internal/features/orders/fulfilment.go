@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/services/vendor-service/internal/integrations/logistics"
 )
 
 // InventoryState is where one allocation's stock stands.
@@ -150,7 +152,87 @@ type MissionRequest struct {
 	WeightGrams      int64
 	PackageCount     int64
 	Execution        *MissionExecution
+
+	// SecurePickupRequired and SecureDeliveryRequired state the protected
+	// handovers commerce needs (VND-015, VND-016). Commerce states the
+	// requirement; the executing authority owns the credential and its
+	// verification. A requirement an authority cannot meet is refused before
+	// the mission is created, never quietly downgraded to an unverified
+	// completion.
+	SecurePickupRequired   bool
+	SecureDeliveryRequired bool
+
+	// CorrelationID threads this mission back to its parent order across
+	// Vendor, the execution service and Fleet (VND-025).
+	CorrelationID string
+
+	// AuthoritySelectedBy records whether the authority came from the frozen
+	// checkout plan or an explicit replan, so a later change of authority is
+	// always a deliberate operation rather than a runtime heuristic (VND-004).
+	AuthoritySelectedBy string
+
+	// SourceVersion is the plan version this mission was cut from. With the
+	// mission ref and the authority it forms the deterministic execution
+	// identity a retry reuses and a replan does not (VND-012).
+	SourceVersion int64
 }
+
+// Intent projects the request onto the canonical conceptual mission model, so
+// the capability gate and the execution identity are derived from one place
+// rather than recomputed per adapter.
+func (r MissionRequest) Intent() logistics.MissionIntent {
+	authority, err := logistics.Parse(string(r.Service))
+	if err != nil {
+		authority = logistics.Authority(r.Service)
+	}
+	selectedBy := logistics.SelectionSource(r.AuthoritySelectedBy)
+	if !selectedBy.Valid() {
+		// An unrecorded selection is treated as the checkout decision, which
+		// is what every mission created before this field existed was.
+		selectedBy = logistics.SelectedAtCheckout
+	}
+	intent := logistics.MissionIntent{
+		CommerceOrderRef: r.ParentOrderID, MissionRef: r.MissionRef,
+		Authority: authority, SelectedBy: selectedBy, SourceVersion: r.SourceVersion,
+		Delivery: logistics.Location{
+			Ref: r.DeliveryAddress.SourceAddressRef, Address: r.DeliveryAddress.Address,
+			Latitude: r.DeliveryAddress.Latitude, Longitude: r.DeliveryAddress.Longitude,
+		},
+		Cargo: logistics.CargoMetadata{
+			WeightGrams: r.WeightGrams, PackageCount: r.PackageCount,
+			VehicleClass: r.VehicleClass,
+		},
+		SecurePickupRequired:   r.SecurePickupRequired,
+		SecureDeliveryRequired: r.SecureDeliveryRequired,
+		CorrelationID:          r.correlation(),
+	}
+	if r.Execution != nil && len(r.Execution.Stops) > 0 {
+		for _, stop := range r.Execution.Stops {
+			intent.Pickups = append(intent.Pickups, logistics.Location{
+				Ref: stop.StopRef, Address: stop.Address,
+				Latitude: stop.Latitude, Longitude: stop.Longitude,
+			})
+		}
+		return intent
+	}
+	// Without a committed multi-stop plan the mission collects from the one
+	// branch that owns the allocation.
+	intent.Pickups = []logistics.Location{{Ref: r.PickupBranch}}
+	return intent
+}
+
+// correlation falls back to the parent order, which is the identity every
+// mission for this order already shares.
+func (r MissionRequest) correlation() string {
+	if trimmed := strings.TrimSpace(r.CorrelationID); trimmed != "" {
+		return trimmed
+	}
+	return strings.TrimSpace(r.ParentOrderID)
+}
+
+// IdempotencyKey is the deterministic execution identity for this request
+// (VND-012).
+func (r MissionRequest) IdempotencyKey() string { return r.Intent().IdempotencyKey() }
 
 // MissionExecution is the immutable operational plan handed to a logistics
 // authority. It is populated by the fulfilment aggregate after the active plan

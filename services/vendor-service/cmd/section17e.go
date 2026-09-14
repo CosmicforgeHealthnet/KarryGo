@@ -75,7 +75,10 @@ func buildSection17EOrderService(
 			cfg.Flags.HaulingCommerceIntegrationEnabled,
 			cfg.HaulingURL, cfg.HaulingSecret,
 			cfg.Fulfilment.QuoteTimeout,
-		),
+			// Missions are gated against each authority's own declared
+			// capability rather than against Vendor's assumptions about it
+			// (VND-005 … VND-008, VND-030).
+		).withCapabilities(newLogisticsRegistry(cfg, cfg.Fulfilment.QuoteTimeout)),
 	)
 	service.SetRestrictedGoodsAuthority(newRestrictedGoodsFulfilmentAuthority(db))
 	handoverAuthorities := handoverintegration.Router{}
