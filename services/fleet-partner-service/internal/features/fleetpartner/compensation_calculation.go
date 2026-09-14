@@ -196,9 +196,20 @@ func ResolveWorkCompensation(
 		if err := ValidateRule(rule); err != nil {
 			return WorkResolution{}, err
 		}
+		if err := ValidateSettlementStrategy(rule); err != nil {
+			return WorkResolution{}, err
+		}
 		matched := MatchedRule{
 			RuleID: rule.ID, RuleType: rule.RuleType,
 			Settlement: SettlementLevelFor(rule.RuleType),
+			Strategy:   SettlementStrategyFor(rule),
+		}
+		// A component the plan chose to accrue is settled through payroll even
+		// though its type could have been settled with the job. It is recorded
+		// at payroll level and contributes nothing here -- not posted as zero,
+		// not posted at all (CMP-027A, CMP-027C).
+		if !SettlesWithTheJob(rule) {
+			matched.Settlement = SettlementPayroll
 		}
 		if matched.Settlement == SettlementPayroll {
 			// Recorded, deliberately worth nothing here. The provider is paid

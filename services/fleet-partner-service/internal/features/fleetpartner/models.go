@@ -124,6 +124,12 @@ type RuleConfig struct {
 	Basis       string `json:"basis,omitempty"`
 	Rounding    string `json:"rounding,omitempty"`
 	BasisMode   string `json:"basisMode,omitempty"`
+
+	// SettlementStrategy says where this component is paid: with the job, or
+	// through payroll (CMP-027A). It lives in the rule's versioned
+	// configuration so the answer is reproducible from the plan version a
+	// historical job was resolved against, rather than from today's code.
+	SettlementStrategy string `json:"settlementStrategy,omitempty"`
 }
 
 type CompensationRule struct {
@@ -187,6 +193,12 @@ type MatchedRule struct {
 	// re-read years later.
 	BasisType string `json:"basisType,omitempty"`
 	Rounding  string `json:"rounding,omitempty"`
+
+	// Strategy is the plan's declared settlement strategy for this component
+	// (CMP-027A). Stored on the resolution so payroll can tell an accrued
+	// commission from one that was already paid with the job, without having
+	// to re-read and re-interpret the plan.
+	Strategy string `json:"strategy,omitempty"`
 }
 
 type ManagedWorkSettlementInstruction struct {
@@ -281,7 +293,9 @@ func ValidateRule(rule CompensationRule) error {
 			return fmt.Errorf("%w: commission rounding policy %q is not supported", ErrValidation, rule.Config.Rounding)
 		}
 	case RulePerJob, RulePerShift:
-		return ValidateMoney(rule.Config.AmountMinor, rule.Config.Currency)
+		if err := ValidateMoney(rule.Config.AmountMinor, rule.Config.Currency); err != nil {
+			return err
+		}
 	case RuleAllowance, RuleOvertime, RuleBonus, RuleDeduction:
 		if rule.Config.Basis == "" && rule.Config.BasisMode == "" {
 			return fmt.Errorf("%w: explicit calculation basis is required", ErrValidation)
@@ -289,7 +303,10 @@ func ValidateRule(rule CompensationRule) error {
 	default:
 		return fmt.Errorf("%w: rule type is invalid", ErrValidation)
 	}
-	return nil
+	// Where the component is paid is part of what makes a rule valid: a plan
+	// that asks for a salary to be settled per job is not a plan this service
+	// can honour (CMP-027A).
+	return ValidateSettlementStrategy(rule)
 }
 
 func RuleApplies(rule CompensationRule, service, role string, at time.Time) bool {

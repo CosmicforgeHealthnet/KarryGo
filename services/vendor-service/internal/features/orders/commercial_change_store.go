@@ -337,22 +337,77 @@ func (s *Store) EnsureAdjustment(ctx context.Context, order ParentOrder, leg Pay
 // adjustment across goroutines and service instances. A session advisory lock
 // is held only around the Wallet call and its local acknowledgement; PostgreSQL
 // releases it automatically if the process or connection dies.
+// adjustmentLockTimeout bounds how long one caller will wait for another to
+// finish applying the same adjustment. The guarded section is short -- a
+// re-read, a state transition and one Wallet call -- so a wait beyond this is
+// evidence of a stuck peer rather than ordinary contention.
+const adjustmentLockTimeout = 30 * time.Second
+
+// adjustmentLockRetryInterval is how long a losing caller waits before trying
+// again. It is deliberately short: contenders here are usually a retry and a
+// recovery pass racing over the same order, and both want to finish quickly.
+const adjustmentLockRetryInterval = 25 * time.Millisecond
+
+// lockAdjustment serializes the callers that may refund one adjustment.
+//
+// It waits with pg_try_advisory_lock and RELEASES the pooled connection
+// between attempts. The blocking pg_advisory_lock form it replaces pinned a
+// pooled connection for the entire wait, while the critical section it guards
+// goes on to need several more connections of its own -- a re-read, a state
+// transition, a refund-policy write and the Wallet call.
+//
+// With as many concurrent callers as the pool has connections, every
+// connection ended up pinned by a lock waiter, the one holder could not
+// obtain a connection to finish its work, and so never released the lock.
+// Nothing timed out, because both an advisory-lock wait and a pool wait are
+// unbounded. The result was a permanent deadlock of the order path, not slow
+// contention: reproduced deterministically with six callers against a
+// four-connection pool.
+//
+// Releasing the connection while waiting removes the resource cycle -- a
+// waiter never holds anything the holder needs.
 func (s *Store) lockAdjustment(ctx context.Context, adjustmentID string) (func(), error) {
 	if s == nil || s.db == nil {
 		return nil, ErrDependencyMissing
 	}
-	connection, err := s.db.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if _, err = connection.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended($1,0))`, adjustmentID); err != nil {
+	deadline := time.Now().Add(adjustmentLockTimeout)
+	for {
+		connection, err := s.db.Acquire(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var acquired bool
+		if err = connection.QueryRow(ctx,
+			`SELECT pg_try_advisory_lock(hashtextextended($1,0))`, adjustmentID,
+		).Scan(&acquired); err != nil {
+			connection.Release()
+			return nil, err
+		}
+		if acquired {
+			return func() {
+				// Unlock on the same connection that took the lock: a session
+				// advisory lock belongs to its session, and releasing the
+				// connection without unlocking would leak the lock into the
+				// pool for the next borrower to inherit.
+				_, _ = connection.Exec(context.Background(),
+					`SELECT pg_advisory_unlock(hashtextextended($1,0))`, adjustmentID)
+				connection.Release()
+			}, nil
+		}
 		connection.Release()
-		return nil, err
+
+		if time.Now().After(deadline) {
+			// A caller that cannot get in has done nothing, so this is safe to
+			// retry from above. It is reported as a conflict rather than a
+			// failure: the adjustment is being applied, just not by us.
+			return nil, ErrOrderConflict
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(adjustmentLockRetryInterval):
+		}
 	}
-	return func() {
-		_, _ = connection.Exec(context.Background(), `SELECT pg_advisory_unlock(hashtextextended($1,0))`, adjustmentID)
-		connection.Release()
-	}, nil
 }
 
 func (s *Store) EnsureCancellationAdjustment(ctx context.Context, order ParentOrder, vendor VendorOrder, leg PaymentLegRecord, policy, key string, now time.Time) (AdjustmentEvidence, error) {

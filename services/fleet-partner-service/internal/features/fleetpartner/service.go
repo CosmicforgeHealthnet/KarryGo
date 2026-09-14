@@ -275,6 +275,18 @@ func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in Com
 		if err != nil {
 			return err
 		}
+		// CMP-027. The components this job settled with its own money are
+		// recorded here, in the same transaction that created the instruction
+		// authorising the payment. Payroll reads these and skips them.
+		//
+		// Recording them only once an instruction exists is deliberate: with
+		// the settlement-instruction stage dark, no money moves at work level,
+		// so payroll must still pay these components and an exclusion row
+		// would wrongly suppress them.
+		if err := s.repo.RecordWorkSettledComponents(ctx, tx,
+			WorkSettledComponentsFor(record, resolved, instruction.InstructionID, "")); err != nil {
+			return err
+		}
 		if s.events != nil {
 			if err := s.events.Publish(ctx, tx, "fleet.completed_work.recorded.v1", "completed_work", record.ID, record.Version, record.OrganizationID, record.CorrelationID, map[string]any{"completedWorkId": record.ID, "sourceService": record.SourceService, "sourceJobId": record.SourceJobID}); err != nil {
 				return err

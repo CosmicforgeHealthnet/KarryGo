@@ -862,5 +862,14 @@
     "auditRedacted": true,
     "disposition": "REMOVE_AND_MIGRATE",
     "justification": "a CREDENTIAL-category column that is not already a hash -- raw credentials must never be stored; remove and reissue through the owning auth flow instead of storing a value here at all."
+  },
+  {
+    "table": "fleet_partner_work_settled_components",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000078_work_settled_components.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
   }
 ]

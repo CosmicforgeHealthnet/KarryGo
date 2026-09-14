@@ -328,3 +328,117 @@ func scanCompletedWork(row pgx.Row) (CompletedWorkRecord, error) {
 	}
 	return r, err
 }
+
+// RecordWorkSettledComponents persists the components a completed job paid
+// with its own money (CMP-027).
+//
+// Written in the same transaction as the resolution that produced them, so
+// there is no window in which a component has been settled but payroll cannot
+// see that it was. The unique index makes a replayed resolution a no-op rather
+// than a second payment record.
+func (r *Repository) RecordWorkSettledComponents(
+	ctx context.Context, q database.Querier, components []WorkSettledComponent,
+) error {
+	for _, component := range components {
+		if _, err := r.q(q).Exec(ctx, `
+			INSERT INTO fleet_partner_work_settled_components
+			(id,organization_id,membership_id,source_service,source_job_id,source_assignment_id,
+			 completed_work_id,compensation_resolution_id,settlement_instruction_id,wallet_posting_operation_id,
+			 rule_id,component,settlement_level,settlement_strategy,amount_minor,currency,settled_at)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+			ON CONFLICT (organization_id,source_service,source_job_id,rule_id) DO NOTHING`,
+			ids.New("wsc"), component.OrganizationID, component.MembershipID,
+			component.SourceService, component.SourceJobID, component.SourceAssignmentID,
+			component.CompletedWorkID, component.CompensationResolutionID,
+			component.SettlementInstructionID, component.WalletPostingOperationID,
+			component.RuleID, component.Component, component.SettlementLevel,
+			component.Strategy, component.AmountMinor, component.Currency,
+			time.Now().UTC(),
+		); err != nil {
+			return fmt.Errorf("fleetpartner: record work settled component: %w", err)
+		}
+	}
+	return nil
+}
+
+// WorkSettledComponentsInPeriod reads everything a membership was already paid
+// with job money inside a payroll window.
+//
+// Payroll calls this before it calculates, and skips every component it names.
+func (r *Repository) WorkSettledComponentsInPeriod(
+	ctx context.Context, q database.Querier, organizationID, membershipID string, from, to time.Time,
+) ([]WorkSettledComponent, error) {
+	rows, err := r.q(q).Query(ctx, `
+		SELECT organization_id,membership_id,source_service,source_job_id,source_assignment_id,
+		       completed_work_id,compensation_resolution_id,settlement_instruction_id,wallet_posting_operation_id,
+		       rule_id,component,settlement_level,settlement_strategy,amount_minor,currency
+		FROM fleet_partner_work_settled_components
+		WHERE organization_id=$1 AND ($2='' OR membership_id=$2)
+		  AND settled_at >= $3 AND settled_at < $4
+		ORDER BY settled_at`,
+		organizationID, membershipID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("fleetpartner: read work settled components: %w", err)
+	}
+	defer rows.Close()
+	var out []WorkSettledComponent
+	for rows.Next() {
+		var component WorkSettledComponent
+		if err := rows.Scan(
+			&component.OrganizationID, &component.MembershipID,
+			&component.SourceService, &component.SourceJobID, &component.SourceAssignmentID,
+			&component.CompletedWorkID, &component.CompensationResolutionID,
+			&component.SettlementInstructionID, &component.WalletPostingOperationID,
+			&component.RuleID, &component.Component, &component.SettlementLevel,
+			&component.Strategy, &component.AmountMinor, &component.Currency,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, component)
+	}
+	return out, rows.Err()
+}
+
+// WorkSettledExclusionsForAssignments reads the components already paid with
+// job money for a specific set of Fleet assignments.
+//
+// Payroll uses this rather than a time window: a job completed inside the
+// period may be settled moments after the period's end, and a window read
+// would miss it and pay it a second time.
+func (r *Repository) WorkSettledExclusionsForAssignments(
+	ctx context.Context, q database.Querier, organizationID string, assignmentIDs []string,
+) (map[string]WorkSettledComponent, error) {
+	if organizationID == "" || len(assignmentIDs) == 0 {
+		return map[string]WorkSettledComponent{}, nil
+	}
+	rows, err := r.q(q).Query(ctx, `
+		SELECT organization_id,membership_id,source_service,source_job_id,source_assignment_id,
+		       completed_work_id,compensation_resolution_id,settlement_instruction_id,wallet_posting_operation_id,
+		       rule_id,component,settlement_level,settlement_strategy,amount_minor,currency
+		FROM fleet_partner_work_settled_components
+		WHERE organization_id=$1 AND source_assignment_id = ANY($2)`,
+		organizationID, assignmentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("fleetpartner: read work settled exclusions: %w", err)
+	}
+	defer rows.Close()
+	var settled []WorkSettledComponent
+	for rows.Next() {
+		var component WorkSettledComponent
+		if err := rows.Scan(
+			&component.OrganizationID, &component.MembershipID,
+			&component.SourceService, &component.SourceJobID, &component.SourceAssignmentID,
+			&component.CompletedWorkID, &component.CompensationResolutionID,
+			&component.SettlementInstructionID, &component.WalletPostingOperationID,
+			&component.RuleID, &component.Component, &component.SettlementLevel,
+			&component.Strategy, &component.AmountMinor, &component.Currency,
+		); err != nil {
+			return nil, err
+		}
+		settled = append(settled, component)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return PayrollExclusions(settled), nil
+}
