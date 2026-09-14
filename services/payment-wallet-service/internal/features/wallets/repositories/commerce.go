@@ -252,6 +252,8 @@ const commerceAllocationColumns = `id,payment_intent_id::text,allocation_referen
 	refund_vendor_recovery_minor,refund_provider_recovery_minor,refund_platform_recovery_minor,refund_platform_loss_funding_minor,
 	refund_vendor_merchandise_reduction_minor,refund_vendor_delivery_reduction_minor,refund_provider_delivery_reduction_minor,
 	refund_platform_revenue_reduction_minor,refund_authorization_release_minor,
+	delivery_executor_mode,managed_organization_id,managed_membership_id,
+	provider_delivery_released_minor,organization_delivery_released_minor,
 	status,snapshot,snapshot_fingerprint,version,created_at,updated_at`
 
 func scanCommerceAllocation(row commerceScanner) (walletmodels.CommerceAllocation, error) {
@@ -266,6 +268,8 @@ func scanCommerceAllocation(row commerceScanner) (walletmodels.CommerceAllocatio
 		&value.RefundVendorRecoveryMinor, &value.RefundProviderRecoveryMinor, &value.RefundPlatformRecoveryMinor, &value.RefundPlatformLossFundingMinor,
 		&value.RefundVendorMerchandiseReductionMinor, &value.RefundVendorDeliveryReductionMinor, &value.RefundProviderDeliveryReductionMinor,
 		&value.RefundPlatformRevenueReductionMinor, &value.RefundAuthorizationReleaseMinor,
+		&value.DeliveryExecutorMode, &value.ManagedOrganizationID, &value.ManagedMembershipID,
+		&value.ProviderDeliveryReleasedMinor, &value.OrganizationDeliveryReleasedMinor,
 		&value.Status, &value.Snapshot, &value.SnapshotFingerprint,
 		&value.Version, &value.CreatedAt, &value.UpdatedAt)
 	return value, err
@@ -490,6 +494,24 @@ func (r *PostgresWalletRepository) releaseCommerceComponent(ctx context.Context,
 				if strings.TrimSpace(providerType) == "" || strings.TrimSpace(providerID) == "" || allocation.VendorDeliveryPayableMinor != 0 {
 					return apperrors.Validation("Authoritative provider identity is required for platform delivery settlement.", nil)
 				}
+				// WAL-022. A rider employed by an organization did not earn
+				// the customer's delivery fee: what they are entitled to is
+				// their compensation plan's answer, which Fleet resolves and
+				// which is frequently zero. Crediting it here would pay a
+				// salaried rider per delivery and never pay the organization
+				// what it is owed, and neither is recoverable once posted.
+				//
+				// UNKNOWN is refused for the same reason rather than treated
+				// as independent: a refused release can be retried once the
+				// executor is known, a wrong payment cannot be taken back.
+				if allocation.DeliveryExecutorMode == walletmodels.ExecutorManaged {
+					return apperrors.Conflict(
+						"Organization-managed delivery is settled through Fleet, not paid directly to the provider.", nil)
+				}
+				if allocation.DeliveryExecutorMode == walletmodels.ExecutorUnknown {
+					return apperrors.Conflict(
+						"Delivery executor is not yet known; the direct payout path is closed until it is.", nil)
+				}
 				provider, e := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(providerType, providerID), walletmodels.AccountProviderPayable, allocation.Currency, walletmodels.NormalCredit)
 				if e != nil {
 					return e
@@ -517,7 +539,11 @@ func (r *PostgresWalletRepository) releaseCommerceComponent(ctx context.Context,
 		if operationType == "VENDOR_RELEASE" {
 			_, loadErr = tx.Exec(ctx, `UPDATE commerce_payment_allocations SET vendor_released_minor=vendor_released_minor+$2,status=CASE WHEN delivery_released_minor=vendor_delivery_payable_minor-refund_vendor_delivery_reduction_minor+provider_delivery_payable_minor-refund_provider_delivery_reduction_minor THEN 'RELEASED' ELSE 'PARTIALLY_RELEASED' END,version=version+1,updated_at=now() WHERE id=$1`, allocation.ID, amount)
 		} else {
-			_, loadErr = tx.Exec(ctx, `UPDATE commerce_payment_allocations SET delivery_released_minor=delivery_released_minor+$2,assigned_provider_type=$3,assigned_provider_id=$4,status=CASE WHEN vendor_released_minor=vendor_merchandise_payable_minor-refund_vendor_merchandise_reduction_minor+platform_revenue_minor-refund_platform_revenue_reduction_minor THEN 'RELEASED' ELSE 'PARTIALLY_RELEASED' END,version=version+1,updated_at=now() WHERE id=$1`, allocation.ID, amount, providerType, providerID)
+			// An independent provider earned the whole frozen amount, so the
+			// provider column carries all of it and the organization column
+			// none. Recording the split even here keeps "what did each party
+			// get?" answerable without knowing which path settled it.
+			_, loadErr = tx.Exec(ctx, `UPDATE commerce_payment_allocations SET delivery_released_minor=delivery_released_minor+$2,provider_delivery_released_minor=provider_delivery_released_minor+$5,assigned_provider_type=$3,assigned_provider_id=$4,status=CASE WHEN vendor_released_minor=vendor_merchandise_payable_minor-refund_vendor_merchandise_reduction_minor+platform_revenue_minor-refund_platform_revenue_reduction_minor THEN 'RELEASED' ELSE 'PARTIALLY_RELEASED' END,version=version+1,updated_at=now() WHERE id=$1`, allocation.ID, amount, providerType, providerID, independentProviderShare(allocation, amount))
 		}
 		if loadErr != nil {
 			return loadErr
@@ -911,4 +937,17 @@ func (r *PostgresWalletRepository) GetVendorWithdrawal(ctx context.Context, vend
 		return value, mapNotFound(err, "Vendor withdrawal could not be found.")
 	}
 	return value, nil
+}
+
+// independentProviderShare is what an independent provider is credited by a
+// direct release.
+//
+// A vendor-owned delivery credits the vendor, not a provider, so the provider
+// column must stay at zero there -- otherwise the split columns would claim a
+// provider was paid when none was involved.
+func independentProviderShare(allocation walletmodels.CommerceAllocation, amount int64) int64 {
+	if allocation.DeliveryResponsibility != walletmodels.DeliveryResponsibilityPlatform {
+		return 0
+	}
+	return amount
 }
