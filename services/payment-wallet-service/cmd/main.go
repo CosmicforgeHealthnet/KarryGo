@@ -102,6 +102,24 @@ func main() {
 			return financeService.RunMaintenanceWorkers(workerCtx, workerConfig)
 		})
 	}
+	// Section 12 WAL-017. A corporate job whose settlement Fleet never
+	// instructs keeps the customer's money in escrow with no error anywhere --
+	// correct, and invisible. This sweep is what makes it visible. It moves no
+	// money and holds no authority to; entitlement stays Fleet's.
+	if cfg.ManagedReconciliationEnabled && !cfg.FinanceExecutionKillSwitch {
+		reconciliationWorker := &walletusecases.ManagedReconciliationWorker{
+			Store: repository,
+			Config: walletusecases.ManagedReconciliationConfig{
+				Grace:     cfg.ManagedReconciliationGrace,
+				Interval:  cfg.ManagedReconciliationInterval,
+				BatchSize: cfg.ManagedReconciliationBatch,
+			},
+		}
+		workers = append(workers, func(workerCtx context.Context) error {
+			reconciliationWorker.Run(workerCtx)
+			return nil
+		})
+	}
 	if cfg.FinanceOutboxEnabled {
 		publisher, publisherErr := events.NewHTTPPublisher(cfg.FinanceOutboxTargetURL, cfg.FinanceOutboxPath, "payment-wallet-service", cfg.FinanceOutboxSecret, cfg.HTTPRequestTimeout)
 		if publisherErr != nil {

@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -189,7 +190,10 @@ func (r *PostgresWalletRepository) PostManagedSettlement(
 				return ErrManagedSettlementConflict
 			}
 			// A retry of a settlement that already posted returns the original
-			// outcome. This is the whole reason a lost response is safe.
+			// outcome. This is the whole reason a lost response is safe. No
+			// event is appended: the journal was posted once, so it is
+			// announced once, and a consumer counting postings must not see
+			// the caller's retries.
 			settlement = existing
 			return nil
 		} else if !errors.Is(findErr, pgx.ErrNoRows) {
@@ -317,9 +321,33 @@ func (r *PostgresWalletRepository) PostManagedSettlement(
 			IdempotencyKey:                in.IdempotencyKey, RequestFingerprint: fingerprint,
 			CorrelationID: in.CorrelationID,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		// WAL-019. Written inside the posting transaction, so the event and
+		// the money it announces commit together. An event appended afterwards
+		// can be lost while the journal stands, and a consumer reconciling
+		// from events would then be permanently wrong about a settlement that
+		// really happened.
+		return appendManagedSettlementEvent(ctx, tx, EventManagedSettlementPosted, settlement, "")
 	})
 	if err != nil {
+		// WAL-019. A terminal refusal is a durable fact Fleet has to learn
+		// even if this response never arrives: the instruction is wrong and
+		// someone must correct it. Recording it in a second transaction is
+		// deliberate -- the first one rolled back, which is exactly why the
+		// refusal needs writing separately.
+		//
+		// A transient or ambiguous error is NOT recorded. Resent unchanged it
+		// may well post, and calling it failed would tell Fleet a job is
+		// unsettleable when it is merely unsettled.
+		if failureCode, terminal := terminalRefusal(err); terminal {
+			if recordErr := r.recordManagedSettlementRefusal(ctx, in, failureCode); recordErr != nil {
+				// The refusal itself is still returned. Failing to record it
+				// must not turn a clear refusal into an ambiguous error.
+				log.Printf("managed settlement refusal not recorded instruction_id=%s: %v", in.InstructionID, recordErr)
+			}
+		}
 		return walletmodels.ManagedSettlement{}, err
 	}
 	return settlement, nil
@@ -384,7 +412,8 @@ func (r *PostgresWalletRepository) ReverseManagedSettlement(
 		}
 		if existing.Status == walletmodels.ManagedSettlementReversed {
 			// Already reversed. Reversing again would move the money a second
-			// time, so the original outcome is returned instead.
+			// time, so the original outcome is returned instead -- and no
+			// second event is emitted, because nothing happened.
 			settlement = existing
 			return nil
 		}
@@ -470,7 +499,13 @@ func (r *PostgresWalletRepository) ReverseManagedSettlement(
 			RETURNING `+managedSettlementColumns,
 			existing.ID, walletmodels.ManagedSettlementReversed, reversalID, reasonCode)
 		settlement, err = scanManagedSettlement(row)
-		return err
+		if err != nil {
+			return err
+		}
+		// WAL-019. The posted event is not retracted -- it remains true, the
+		// money did move -- so the reversal is announced as its own fact,
+		// carrying the reason it happened.
+		return appendManagedSettlementEvent(ctx, tx, EventManagedSettlementReversed, settlement, reasonCode)
 	})
 	if err != nil {
 		return walletmodels.ManagedSettlement{}, err

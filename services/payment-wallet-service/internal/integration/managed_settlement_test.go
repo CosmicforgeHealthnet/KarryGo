@@ -49,7 +49,7 @@ func walletLedgerPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("apply migrations: %v", migrateErr)
 	}
 	if _, err := pool.Exec(context.Background(),
-		`TRUNCATE managed_settlements, ledger_entries, ledger_transactions, wallet_accounts, payment_intents CASCADE`,
+		`TRUNCATE managed_settlements, ledger_entries, ledger_transactions, wallet_accounts, payment_intents, finance_outbox CASCADE`,
 	); err != nil {
 		t.Fatalf("clean wallet ledger: %v", err)
 	}
