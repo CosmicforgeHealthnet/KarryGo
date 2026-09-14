@@ -80,3 +80,23 @@ func TestDispatchRefusesLoadsBeyondItsDeclaredEnvelope(t *testing.T) {
 		t.Fatalf("a consolidated order inside every declared limit must be serviceable: %+v", withinEnvelope)
 	}
 }
+
+// Dispatch protects every pickup it routes, because its handover challenges
+// are keyed per mission AND stop (dispatch_handover_challenges has a partial
+// unique index on mission_ref, stop_ref, stage). This is the capability that
+// makes a consolidated protected run possible at all, so it is asserted
+// rather than left implied.
+func TestDispatchProtectsEveryPickupItRoutes(t *testing.T) {
+	capability := DeclaredLogisticsCapability(LogisticsCapabilityOptions{Enabled: true})
+
+	if capability.MaxSecurePickups != capability.MaxPickups {
+		t.Fatalf("MaxSecurePickups=%d MaxPickups=%d; Dispatch issues a credential per stop",
+			capability.MaxSecurePickups, capability.MaxPickups)
+	}
+	if ok, reason := logisticscapability.Match(capability, logisticscapability.Requirement{
+		PickupCount: capability.MaxPickups, DropoffCount: 1,
+		VehicleClass: "MOTORCYCLE", SecurePickup: true, SecureDelivery: true,
+	}); !ok {
+		t.Fatalf("a fully protected consolidated run was refused: %s", reason)
+	}
+}

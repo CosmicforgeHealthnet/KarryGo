@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/shared/go/custodychain"
 )
 
 const (
@@ -292,6 +294,24 @@ type PickupCredential struct {
 	Code              string    `json:"code"`
 	ExpiresAt         time.Time `json:"expires_at"`
 	AttemptsRemaining int       `json:"attempts_remaining"`
+
+	// Direction says who holds this credential and who may verify it, so the
+	// answer does not depend on which route the caller happened to use.
+	// Commerce pickup is provider-held and vendor-verified.
+	Direction custodychain.Direction `json:"direction"`
+}
+
+// WithDirection stamps the canonical Commerce-pickup direction onto the
+// credential. Kept as a method so every site that builds one gets the same
+// description rather than filling the struct in by hand.
+func (c PickupCredential) WithDirection() PickupCredential {
+	direction, ok := custodychain.DirectionFor(
+		custodychain.PurposeCommercePickup, "DISPATCH",
+		c.MissionRef, &c.ExpiresAt)
+	if ok {
+		c.Direction = direction
+	}
+	return c
 }
 
 type StopActionRequest struct {

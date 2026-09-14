@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
+
+	"cosmicforge/logistics/shared/go/custodychain"
 )
 
 var (
@@ -41,6 +43,14 @@ type Observation struct {
 	Stage         string `json:"stage"`
 	Status        string `json:"status"`
 	SourceVersion int64  `json:"source_version"`
+
+	// Direction states who holds this credential and who may verify it.
+	//
+	// Vendor derives it from the frozen binding's authority and the stage it
+	// asked about, never from anything the authority sent back: an authority
+	// that described a Commerce pickup as customer-verified would otherwise
+	// be telling Vendor it is not the verifier of its own merchant's goods.
+	Direction custodychain.Direction `json:"direction"`
 }
 
 func (b Binding) Valid() bool {
@@ -126,8 +136,31 @@ func validateObservation(o Observation, b Binding, stage string) (Observation, e
 	}
 	switch o.Status {
 	case "ACTIVE", "CONSUMED", "INVALIDATED", "EXPIRED", "LOCKED":
+		o.Direction = directionFor(b.Authority, stage, b.MissionRef)
 		return o, nil
 	default:
 		return Observation{}, ErrInvalid
 	}
+}
+
+// directionFor describes the handover Vendor just observed.
+//
+// Vendor-owned delivery has no platform credential at all: the vendor's own
+// staff carry the goods, so there is no provider to present anything and no
+// direction to state. Every platform authority runs the same two directions:
+// the provider holds the pickup credential and Vendor verifies it; the
+// receiver holds the delivery credential and the provider verifies it.
+func directionFor(authority, stage, missionRef string) custodychain.Direction {
+	if authority == "VENDOR_OWN_DELIVERY" {
+		return custodychain.Direction{}
+	}
+	purpose := custodychain.PurposeCommercePickup
+	if stage == "DELIVERY" {
+		purpose = custodychain.PurposeDelivery
+	}
+	direction, ok := custodychain.DirectionFor(purpose, authority, missionRef, nil)
+	if !ok {
+		return custodychain.Direction{}
+	}
+	return direction
 }

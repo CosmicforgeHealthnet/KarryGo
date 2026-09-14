@@ -81,6 +81,11 @@ func DeclaredLogisticsCapability(enabled, corporateProviderSupported bool, now f
 		MultiStopSupported:   false,
 		MaxDropoffs:          1,
 
+		// Taxi Goods carries one pickup, so at most one of them can be
+		// protected. Stated rather than left to the MaxPickups fallback so
+		// the bound survives a future change to the routing bound.
+		MaxSecurePickups: 1,
+
 		SecurePickupSupported:      declared.SecureHandoverSupported,
 		SecureDeliverySupported:    declared.SecureHandoverSupported,
 		CustodyEvidenceSupported:   declared.CustodyEvidenceSupported,

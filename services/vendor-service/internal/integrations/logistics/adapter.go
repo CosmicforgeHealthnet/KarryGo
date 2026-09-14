@@ -329,7 +329,12 @@ func categoryForReason(reason string) FailureCategory {
 	switch strings.ToUpper(strings.TrimSpace(reason)) {
 	case "", logisticscapability.ReasonAuthorityUnavailable, ReasonDisabled, ReasonNotConfigured, ReasonUnreachable:
 		return FailureDependencyUnavailable
-	case logisticscapability.ReasonSecurePickupMissing, logisticscapability.ReasonSecureDeliveryMissing:
+	case logisticscapability.ReasonSecurePickupMissing, logisticscapability.ReasonSecureDeliveryMissing,
+		logisticscapability.ReasonSecurePickupLimit:
+		// A protected handover this authority cannot issue is a credential
+		// problem, not a capacity one: the goods would fit, but the pickup
+		// could not be verified, and a protected handover never downgrades to
+		// an unverified one.
 		return FailureCredential
 	case logisticscapability.ReasonMultiPickupNotAllowed, logisticscapability.ReasonTooManyPickups,
 		logisticscapability.ReasonMultiStopNotAllowed, logisticscapability.ReasonTooManyDropoffs,

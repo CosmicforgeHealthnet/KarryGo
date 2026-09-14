@@ -77,11 +77,49 @@ func TestHaulingRefusesMorePickupsThanItDeclares(t *testing.T) {
 	if beyond.Serviceable || beyond.ReasonCode != logisticscapability.ReasonTooManyPickups {
 		t.Fatalf("more pickups than declared must be refused: %+v", beyond)
 	}
+	// A mission at the declared routing limit is serviceable. Protected
+	// PICKUP is deliberately not requested here: Hauling issues one pickup
+	// credential per mission, and the bound for that is asserted separately
+	// by TestHaulingDeclaresOneProtectedPickup. Asking for both together
+	// used to pass only because the protected bound was inferred from the
+	// routing bound, which over-promised it.
 	within := logisticscapability.Evaluate(capability, logisticscapability.Requirement{
 		PickupCount: MaxPickupStops, DropoffCount: 1,
-		SecurePickup: true, SecureDelivery: true,
+		SecureDelivery: true,
 	})
 	if !within.Serviceable {
 		t.Fatalf("a mission at the declared limit must be serviceable: %+v", within)
+	}
+}
+
+// The protected-pickup bound is a different fact from the routing bound, and
+// Hauling's is one: hauling_handover_challenges is keyed (booking_id, stage)
+// with a partial unique index allowing a single ACTIVE row per stage, so a
+// mission can hold exactly one live pickup credential however many places it
+// collects from. Declaring the routing bound here would let Vendor send a
+// protected three-pickup mission whose second handover could never be issued.
+func TestHaulingDeclaresOneProtectedPickup(t *testing.T) {
+	capability := CapabilityProvider{Options: CapabilityOptions{Enabled: true}}.DeclaredCapability()
+
+	if capability.MaxSecurePickups != 1 {
+		t.Fatalf("MaxSecurePickups=%d; Hauling can issue one pickup credential per mission",
+			capability.MaxSecurePickups)
+	}
+	if capability.SecurePickupLimit() != 1 {
+		t.Fatalf("SecurePickupLimit()=%d; want 1", capability.SecurePickupLimit())
+	}
+
+	// The routing bound is untouched: an unprotected consolidated haul is
+	// still serviceable up to the declared maximum.
+	if ok, reason := logisticscapability.Match(capability, logisticscapability.Requirement{
+		PickupCount: MaxPickupStops, DropoffCount: 1,
+		VehicleClass: "TRUCK",
+	}); !ok {
+		t.Fatalf("an unprotected consolidated haul was refused: %s", reason)
+	}
+	if ok, reason := logisticscapability.Match(capability, logisticscapability.Requirement{
+		PickupCount: 2, DropoffCount: 1, VehicleClass: "TRUCK", SecurePickup: true,
+	}); ok || reason != logisticscapability.ReasonSecurePickupLimit {
+		t.Fatalf("a protected two-pickup haul was accepted: ok=%v reason=%s", ok, reason)
 	}
 }

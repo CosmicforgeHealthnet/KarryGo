@@ -23,6 +23,9 @@ import (
 // The pre-existing private-assignment relay routes registered by Register are
 // deliberately left in place. They serve Fleet's separate private-operations
 // assignment family and are a working contract; this surface is additive.
+// They live under /provider/private-assignments, NOT under this family's
+// /provider/company-assignments: two handlers on one path is a boot panic,
+// not a merge.
 func RegisterFleetWork(
 	group *gin.RouterGroup,
 	authService *providerauthusecases.AuthService,

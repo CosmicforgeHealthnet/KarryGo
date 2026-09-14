@@ -45,7 +45,12 @@ func DeclaredLogisticsCapability(options LogisticsCapabilityOptions) logisticsca
 		MultiStopSupported: false,
 		MaxDropoffs:        1,
 
-		SecurePickupSupported:      true,
+		SecurePickupSupported: true,
+
+		// Dispatch's handover challenges are keyed per mission AND stop, so
+		// every pickup it routes can carry its own credential.
+		MaxSecurePickups: dispatchcommerce.MaxPickupStops,
+
 		SecureDeliverySupported:    true,
 		CustodyEvidenceSupported:   true,
 		CorporateProviderSupported: options.CorporateProviderSupported,

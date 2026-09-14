@@ -208,3 +208,81 @@ func TestSet_AvailableExcludesUnconfigured(t *testing.T) {
 		t.Fatal("a configured authority must resolve")
 	}
 }
+
+// A protected multi-pickup mission is refused by an authority that can only
+// issue one credential per mission, even though it routes across many
+// pickups. Routing and protecting are different capabilities, and conflating
+// them is how a mission gets accepted that can never complete its second
+// handover.
+func TestProtectedPickupsAreBoundedSeparatelyFromRouting(t *testing.T) {
+	routesManyProtectsOne := Capability{
+		Authority: AuthorityHauling, Available: true,
+		MultiPickupSupported: true, MaxPickups: 10,
+		SecurePickupSupported: true, MaxSecurePickups: 1,
+	}
+
+	if ok, reason := Match(routesManyProtectsOne, Requirement{
+		PickupCount: 3, SecurePickup: true,
+	}); ok || reason != ReasonSecurePickupLimit {
+		t.Fatalf("a three-pickup protected mission was accepted: ok=%v reason=%s", ok, reason)
+	}
+
+	// The same three pickups without protection are fine: the routing bound
+	// is genuinely ten and must not be narrowed by the credential bound.
+	if ok, reason := Match(routesManyProtectsOne, Requirement{
+		PickupCount: 3,
+	}); !ok {
+		t.Fatalf("an unprotected three-pickup mission was refused: %s", reason)
+	}
+
+	// One protected pickup is within the bound.
+	if ok, reason := Match(routesManyProtectsOne, Requirement{
+		PickupCount: 1, SecurePickup: true,
+	}); !ok {
+		t.Fatalf("a single protected pickup was refused: %s", reason)
+	}
+}
+
+// An authority that routes many pickups and protects every one of them is
+// unaffected.
+func TestStopScopedAuthorityProtectsEveryPickup(t *testing.T) {
+	stopScoped := Capability{
+		Authority: AuthorityDispatch, Available: true,
+		MultiPickupSupported: true, MaxPickups: 12,
+		SecurePickupSupported: true, MaxSecurePickups: 12,
+	}
+	if ok, reason := Match(stopScoped, Requirement{
+		PickupCount: 12, SecurePickup: true,
+	}); !ok {
+		t.Fatalf("a fully protected consolidated run was refused: %s", reason)
+	}
+	if ok, reason := Match(stopScoped, Requirement{
+		PickupCount: 13, SecurePickup: true,
+	}); ok || reason != ReasonTooManyPickups {
+		t.Fatalf("the routing bound stopped applying: ok=%v reason=%s", ok, reason)
+	}
+}
+
+// An authority that has not declared the bound is taken at its word on
+// multi-pickup rather than being silently narrowed to one.
+func TestUndeclaredSecureBoundFallsBackToTheRoutingBound(t *testing.T) {
+	undeclared := Capability{
+		Authority: AuthorityDispatch, Available: true,
+		MultiPickupSupported: true, MaxPickups: 5,
+		SecurePickupSupported: true,
+	}
+	if got := undeclared.SecurePickupLimit(); got != 5 {
+		t.Fatalf("SecurePickupLimit() = %d; want the routing bound 5", got)
+	}
+	if ok, reason := Match(undeclared, Requirement{
+		PickupCount: 4, SecurePickup: true,
+	}); !ok {
+		t.Fatalf("an undeclared bound narrowed the authority: %s", reason)
+	}
+
+	// With neither bound declared the answer is one, not unlimited.
+	none := Capability{Authority: AuthorityTaxi, Available: true, SecurePickupSupported: true}
+	if got := none.SecurePickupLimit(); got != 1 {
+		t.Fatalf("SecurePickupLimit() = %d; want 1 when nothing is declared", got)
+	}
+}

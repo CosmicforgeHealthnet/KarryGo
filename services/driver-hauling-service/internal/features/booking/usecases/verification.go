@@ -12,6 +12,7 @@ import (
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/custodychain"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -33,6 +34,11 @@ type PickupCredentialView struct {
 	Status       string     `json:"status,omitempty"`
 	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
 	Verified     bool       `json:"verified"`
+
+	// Direction names the credential's purpose, holder and verifier. The
+	// driver always holds a Hauling pickup credential; who verifies it
+	// depends on whether this is a Commerce mission or a direct booking.
+	Direction custodychain.Direction `json:"direction,omitempty"`
 }
 
 // VerificationCodeView is the customer-facing view of the delivery
@@ -46,6 +52,11 @@ type VerificationCodeView struct {
 	Code              string     `json:"code,omitempty"`
 	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
 	AttemptsRemaining int        `json:"attempts_remaining"`
+
+	// Direction names the credential's purpose, holder and verifier. A
+	// delivery credential has one direction on every flow: the receiver holds
+	// it and the driver verifies it.
+	Direction custodychain.Direction `json:"direction,omitempty"`
 }
 
 // CommerceHandoverObservation is intentionally credential-free. The version
@@ -283,7 +294,7 @@ func (s *BookingService) GetPickupCredential(ctx context.Context, providerID, id
 		if challengeErr == nil {
 			view := securePickupCredentialView(rec, status)
 			view.Code, view.QRToken = "", ""
-			return view, nil
+			return s.withPickupDirection(ctx, id, view), nil
 		}
 	}
 	if b.PickupCodeHash == "" {
@@ -291,7 +302,7 @@ func (s *BookingService) GetPickupCredential(ctx context.Context, providerID, id
 	}
 	view := pickupCredentialViewFrom(b)
 	view.Code = ""
-	return view, nil
+	return s.withPickupDirection(ctx, id, view), nil
 }
 
 // ResendPickupCredential regenerates the driver's pickup credential (e.g.
@@ -331,7 +342,7 @@ func (s *BookingService) ResendPickupCredential(ctx context.Context, providerID,
 		if issueErr = s.bookings.ResendPickupCode(ctx, id, rec); issueErr != nil {
 			return PickupCredentialView{}, issueErr
 		}
-		return securePickupCredentialView(rec, "ACTIVE"), nil
+		return s.withPickupDirection(ctx, id, securePickupCredentialView(rec, "ACTIVE")), nil
 	}
 	if ok, wait := b.PickupCodeRecord().CanResend(now); !ok {
 		return PickupCredentialView{}, resendWaitError(wait)
@@ -345,7 +356,8 @@ func (s *BookingService) ResendPickupCredential(ctx context.Context, providerID,
 		return PickupCredentialView{}, err
 	}
 	expires := rec.ExpiresAt
-	return PickupCredentialView{Code: rec.Code, ExpiresAt: &expires, Verified: false}, nil
+	return s.withPickupDirection(ctx, id,
+		PickupCredentialView{Code: rec.Code, ExpiresAt: &expires, Verified: false}), nil
 }
 
 // GetVerificationCode returns delivery challenge status only. It cannot
@@ -370,7 +382,7 @@ func (s *BookingService) GetVerificationCode(ctx context.Context, customerID, id
 		if challengeErr == nil {
 			view := secureVerificationCodeView(rec, status)
 			view.Code, view.QRToken = "", ""
-			return view, nil
+			return withDeliveryDirection(id, view), nil
 		}
 	}
 	rec := b.DeliveryCodeRecord()
@@ -379,7 +391,7 @@ func (s *BookingService) GetVerificationCode(ctx context.Context, customerID, id
 	}
 	view := verificationCodeViewFrom(rec)
 	view.Code, view.QRToken = "", ""
-	return view, nil
+	return withDeliveryDirection(id, view), nil
 }
 
 // ResendVerificationCode regenerates the customer's delivery credential.
@@ -427,7 +439,7 @@ func (s *BookingService) ResendVerificationCode(ctx context.Context, customerID,
 			return VerificationCodeView{}, issueErr
 		}
 		s.notifier.NotifyCustomerDeliveryCodeReady(ctx, customerID, id, map[string]interface{}{"booking_id": id, "code": rec.Code, "qr_token": rec.QRToken, "challenge_ref": rec.ChallengeRef, "version": rec.Version})
-		return secureVerificationCodeView(rec, "ACTIVE"), nil
+		return withDeliveryDirection(id, secureVerificationCodeView(rec, "ACTIVE")), nil
 	}
 	if ok, wait := b.DeliveryCodeRecord().CanResend(now); !ok {
 		return VerificationCodeView{}, resendWaitError(wait)
@@ -440,5 +452,5 @@ func (s *BookingService) ResendVerificationCode(ctx context.Context, customerID,
 	if err := s.bookings.ResendDeliveryCode(ctx, id, rec); err != nil {
 		return VerificationCodeView{}, err
 	}
-	return verificationCodeViewFrom(rec), nil
+	return withDeliveryDirection(id, verificationCodeViewFrom(rec)), nil
 }

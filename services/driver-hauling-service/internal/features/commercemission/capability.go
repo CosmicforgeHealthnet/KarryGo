@@ -20,7 +20,11 @@ const MaxPickupStops = 10
 
 // capabilityVersion increments when the declared capability below changes, so
 // a consumer can tell a genuinely changed capability from a re-read.
-const capabilityVersion = 1
+//
+// v2 declares MaxSecurePickups. Multi-pickup routing was and remains real;
+// what changed is that the protected-pickup bound is now stated instead of
+// being inferred from MaxPickups, which over-promised it.
+const capabilityVersion = 2
 
 // CapabilityOptions carry the deployment facts that decide what Hauling can
 // actually do right now.
@@ -59,7 +63,16 @@ func DeclaredCapability(options CapabilityOptions) logisticscapability.Capabilit
 		MultiStopSupported: false,
 		MaxDropoffs:        1,
 
-		SecurePickupSupported:      true,
+		SecurePickupSupported: true,
+
+		// Hauling routes across up to MaxPickupStops, but its handover
+		// challenge is keyed (booking_id, stage) with one ACTIVE row per
+		// stage, so exactly one pickup of a mission can carry a credential.
+		// Declaring the routing bound alone would let Vendor send a
+		// protected multi-pickup mission whose second handover could never
+		// be issued, let alone verified.
+		MaxSecurePickups: 1,
+
 		SecureDeliverySupported:    true,
 		CustodyEvidenceSupported:   true,
 		CorporateProviderSupported: options.CorporateProviderSupported,

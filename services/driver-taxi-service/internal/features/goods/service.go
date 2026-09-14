@@ -449,7 +449,8 @@ func (s *Service) newChallenge(mission Mission, stage, providerID, owner string,
 		return Credential{}, HandoverRecord{}, err
 	}
 	stored := HandoverRecord{ChallengeRef: ref, MissionID: mission.ID, Stage: stage, ProviderID: providerID, ReceiverRef: owner, OTPHash: record.Hash, QRHash: record.QRHash, Version: version, ResendCount: resend, ExpiresAt: record.ExpiresAt, ResendAvailableAt: now.Add(handover.ResendCooldown)}
-	return Credential{ChallengeRef: ref, Stage: stage, OTP: record.Code, QRToken: record.QRToken, Version: version, ExpiresAt: record.ExpiresAt}, stored, nil
+	credential := Credential{ChallengeRef: ref, Stage: stage, OTP: record.Code, QRToken: record.QRToken, Version: version, ExpiresAt: record.ExpiresAt}
+	return credential.WithDirection(mission.MissionRef), stored, nil
 }
 
 func (s *Service) Resend(ctx context.Context, providerID, missionRef, stage string) (Credential, error) {

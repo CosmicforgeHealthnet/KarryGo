@@ -43,7 +43,7 @@ func (s *MultiStopMissionService) ArrivePickup(ctx context.Context, providerID, 
 			return dispatchcommerce.PickupCredential{}, err
 		}
 		credential.Code, err = securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), credential.Code)
-		return credential, err
+		return credential.WithDirection(), err
 	}
 	now := s.now().UTC()
 	record, err := securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), now)
@@ -55,7 +55,7 @@ func (s *MultiStopMissionService) ArrivePickup(ctx context.Context, providerID, 
 		return dispatchcommerce.PickupCredential{}, err
 	}
 	credential.Code, err = securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), credential.Code)
-	return credential, err
+	return credential.WithDirection(), err
 }
 
 func (s *MultiStopMissionService) VerifyPickup(ctx context.Context, caller, missionRef, stopRef string, request dispatchcommerce.PickupVerificationRequest) (dispatchcommerce.Mission, error) {

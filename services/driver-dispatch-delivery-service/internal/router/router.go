@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -611,6 +612,30 @@ func registerMarketplaceRoutes(engine *gin.Engine, cfg config.Config, db *pgxpoo
 	service.WithRestrictionGate(restrictionService)
 	marketplace.RegisterInternalRoutes(engine.Group("/api/v1/internal/marketplace"),
 		marketplace.NewHandler(service, flags), internalVerifier, []string{"fleet-partner-service"})
+
+	// The operator repair surface over the Fleet delivery outbox (EVT-010,
+	// EVT-011). Taxi and Hauling have had one since Sections 8 and 10; until
+	// now, repairing a dead-lettered Dispatch event meant editing the table
+	// by hand.
+	//
+	// Fleet is trusted here because it is already the destination of every
+	// row this surface lists, and an operator console is trusted when one is
+	// configured. The verifier is built from whichever of those secrets
+	// exists, so a deployment with neither mounts nothing rather than an
+	// unauthenticated repair endpoint.
+	outboxSecrets := serviceauth.Secrets{"fleet-partner-service": cfg.FleetServiceSecret}
+	if secret, ok := serviceauth.ParseSecrets(cfg.ServiceSecrets)["admin-backoffice-service"]; ok {
+		outboxSecrets["admin-backoffice-service"] = secret
+	}
+	outboxCallers := make([]string, 0, len(outboxSecrets))
+	for caller := range outboxSecrets {
+		outboxCallers = append(outboxCallers, caller)
+	}
+	sort.Strings(outboxCallers)
+	marketplace.RegisterOperatorOutboxRoutes(engine.Group("/api/v1"),
+		marketplace.NewOperatorOutboxHandler(
+			&marketplace.OperatorOutboxStore{DB: db}, outboxCallers),
+		serviceauth.NewVerifier(outboxSecrets, 5*time.Minute))
 
 	// The private vehicle authority contract. Mounted unconditionally under the
 	// same verified identity as the marketplace surface: this service owns

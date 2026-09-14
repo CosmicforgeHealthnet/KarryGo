@@ -150,6 +150,23 @@ type Capability struct {
 	// credential the sender verifies.
 	SecurePickupSupported bool `json:"securePickupSupported"`
 
+	// MaxSecurePickups bounds how many pickups of ONE mission can each be
+	// protected by their own credential.
+	//
+	// It is separate from MaxPickups because routing across several pickups
+	// and issuing a credential per pickup are different capabilities, and an
+	// authority can genuinely have the first without the second. Hauling is
+	// exactly that case: it routes across up to ten pickups, but its handover
+	// challenge is keyed per booking and stage, so only one pickup of a
+	// mission can carry a credential. Declaring MaxPickups alone would let
+	// Vendor send a three-pickup protected mission that could never complete
+	// its second handover.
+	//
+	// Zero means "not declared", and is read as MaxPickups: an authority that
+	// has not thought about this bound is taken at its word on multi-pickup
+	// rather than being silently narrowed.
+	MaxSecurePickups int64 `json:"maxSecurePickups,omitempty"`
+
 	// SecureDeliverySupported means the receiver's delivery credential is
 	// verified by the provider before completion.
 	SecureDeliverySupported bool `json:"secureDeliverySupported"`
@@ -180,6 +197,21 @@ type Capability struct {
 
 	// ObservedAt is when the authority computed this answer.
 	ObservedAt time.Time `json:"observedAt"`
+}
+
+// SecurePickupLimit is how many protected pickups one mission may have.
+//
+// An undeclared MaxSecurePickups falls back to MaxPickups, and an undeclared
+// MaxPickups to one, so the answer is always a real number rather than an
+// unbounded zero that would wave every mission through.
+func (c Capability) SecurePickupLimit() int64 {
+	if c.MaxSecurePickups > 0 {
+		return c.MaxSecurePickups
+	}
+	if c.MaxPickups > 0 {
+		return c.MaxPickups
+	}
+	return 1
 }
 
 // SupportsHandling reports whether the authority declared this handling code.
@@ -241,6 +273,7 @@ const (
 	ReasonVehicleUnsupported    = "VEHICLE_CLASS_UNSUPPORTED"
 	ReasonHandlingUnsupported   = "HANDLING_UNSUPPORTED"
 	ReasonSecurePickupMissing   = "SECURE_PICKUP_UNSUPPORTED"
+	ReasonSecurePickupLimit     = "SECURE_PICKUP_LIMIT_EXCEEDED"
 	ReasonSecureDeliveryMissing = "SECURE_DELIVERY_UNSUPPORTED"
 )
 
@@ -309,6 +342,9 @@ func Match(capability Capability, requirement Requirement) (bool, string) {
 	// completion: an authority that cannot verify it is simply not selected.
 	if requirement.SecurePickup && !capability.SecurePickupSupported {
 		return false, ReasonSecurePickupMissing
+	}
+	if requirement.SecurePickup && pickups > capability.SecurePickupLimit() {
+		return false, ReasonSecurePickupLimit
 	}
 	if requirement.SecureDelivery && !capability.SecureDeliverySupported {
 		return false, ReasonSecureDeliveryMissing

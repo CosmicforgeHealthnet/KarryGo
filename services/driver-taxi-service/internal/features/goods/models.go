@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/shared/go/commercequote"
+	"cosmicforge/logistics/shared/go/custodychain"
 )
 
 const (
@@ -164,6 +165,46 @@ type Credential struct {
 	QRToken      string    `json:"qr_token,omitempty"`
 	Version      int64     `json:"version"`
 	ExpiresAt    time.Time `json:"expires_at"`
+
+	// Direction states who holds this credential and who may verify it.
+	// Taxi Goods runs both directions on one type — the pickup credential is
+	// provider-held and vendor-verified, the delivery credential is
+	// receiver-held and provider-verified — so a consumer reading only Stage
+	// would have to know that mapping itself.
+	Direction custodychain.Direction `json:"direction"`
+}
+
+// PurposeForStage maps a Taxi Goods handover stage onto its credential
+// purpose.
+//
+// Taxi Goods missions are Commerce work by definition: they are created by
+// Vendor Service through the internal commerce-mission contract, and the
+// sender is always a merchant. Direct Taxi pickup, where the passenger holds
+// the credential instead, is a different feature on a different surface and
+// deliberately does not resolve here.
+func PurposeForStage(stage string) (custodychain.CredentialPurpose, bool) {
+	switch strings.ToUpper(strings.TrimSpace(stage)) {
+	case StagePickup:
+		return custodychain.PurposeCommercePickup, true
+	case StageDelivery:
+		return custodychain.PurposeDelivery, true
+	default:
+		return "", false
+	}
+}
+
+// WithDirection stamps the canonical direction for the credential's stage.
+func (c Credential) WithDirection(missionRef string) Credential {
+	purpose, ok := PurposeForStage(c.Stage)
+	if !ok {
+		return c
+	}
+	expires := c.ExpiresAt
+	if direction, built := custodychain.DirectionFor(
+		purpose, "TAXI", missionRef, &expires); built {
+		c.Direction = direction
+	}
+	return c
 }
 
 type VerifyCredential struct {

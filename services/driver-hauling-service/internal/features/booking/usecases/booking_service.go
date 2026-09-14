@@ -1215,12 +1215,12 @@ func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, id, providerID
 	s.notifier.NotifyCustomerPickupVerificationRequired(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	return ArrivedAtPickupResult{
 		Booking: updated.Public(),
-		PickupCredential: func() PickupCredentialView {
+		PickupCredential: s.withPickupDirection(ctx, id, func() PickupCredentialView {
 			if rec.Version > 0 {
 				return securePickupCredentialView(rec, "ACTIVE")
 			}
 			return pickupCredentialViewFrom(updated)
-		}(),
+		}()),
 	}, nil
 }
 

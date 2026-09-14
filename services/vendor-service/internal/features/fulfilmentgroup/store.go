@@ -2118,6 +2118,21 @@ func recordCustodyTx(
 		from = parcel.CustodianType
 	}
 
+	// Custody legality is checked only for an event that would actually move
+	// the parcel forward. A stale or duplicate report is already handled
+	// below by being recorded as evidence without advancing the projection,
+	// and turning that into an error would make an at-least-once pipeline
+	// look broken. An event that WOULD advance the parcel has to describe a
+	// move that could physically have happened: goods cannot reach the
+	// customer without passing through whoever was carrying them, and a
+	// provider holding goods is never swapped for another outside an explicit
+	// transfer.
+	if AdvanceParcelStatus(parcel.Status, ParcelStatusFor(event.EventType)) {
+		if err := checkCustodyTransition(event, from); err != nil {
+			return err
+		}
+	}
+
 	id := "cpce_" + uuid.NewString()
 	tag, err := tx.Exec(ctx, `
 		INSERT INTO commerce_parcel_custody_events (

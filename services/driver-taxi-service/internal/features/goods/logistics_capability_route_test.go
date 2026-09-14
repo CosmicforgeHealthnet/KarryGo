@@ -122,3 +122,14 @@ func TestTheSharedCapabilityPathDoesNotCollideWithTaxisOwn(t *testing.T) {
 		t.Fatalf("both capability documents must be mounted: shared=%v taxi=%v", sharedPath, taxiPath)
 	}
 }
+
+// Taxi Goods carries one pickup, so at most one can be protected. Declared
+// rather than left to the MaxPickups fallback, so the protected bound cannot
+// silently widen if the routing bound ever changes.
+func TestTaxiGoodsDeclaresOneProtectedPickup(t *testing.T) {
+	capability := DeclaredLogisticsCapability(true, true, nil)
+	if capability.MaxSecurePickups != 1 || capability.SecurePickupLimit() != 1 {
+		t.Fatalf("MaxSecurePickups=%d limit=%d; Taxi Goods carries one pickup",
+			capability.MaxSecurePickups, capability.SecurePickupLimit())
+	}
+}
