@@ -14,6 +14,7 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -125,6 +126,17 @@ func IdempotencyKey(sourceService, eventType, entityID string) string {
 
 var DefaultChannels = []string{ChannelPush, ChannelWebSocket, ChannelInApp}
 
+// isProviderRecipient reports whether a notification is addressed to a
+// provider, whose financial visibility is policy-bound.
+func isProviderRecipient(recipientType string) bool {
+	switch strings.ToLower(strings.TrimSpace(recipientType)) {
+	case RecipientProvider, "truck_provider", "taxi_provider", "dispatch_provider", "rider", "driver":
+		return true
+	default:
+		return false
+	}
+}
+
 type Recipient struct {
 	Type  string `json:"type"`
 	ID    string `json:"id"`
@@ -191,6 +203,25 @@ func (r Request) Validate() error {
 	}
 	if r.Priority != "" && r.Priority != PriorityLow && r.Priority != PriorityNormal && r.Priority != PriorityHigh {
 		fields = append(fields, apperrors.FieldViolation{Field: "priority", Message: "Priority must be low, normal, or high."})
+	}
+	// Section 14 VIS-017. A notification's data bag takes anything, which is
+	// what makes it a way around the provider API's own care: a field the
+	// provider surface withholds can reach a provider's phone through a push
+	// payload that nobody classified.
+	//
+	// Refused rather than quietly stripped. A caller that put the
+	// organization's share in a provider notification has a bug, and silently
+	// sending the rest would leave it in place for the next field.
+	for _, bag := range []struct {
+		field   string
+		payload map[string]interface{}
+	}{{"data", r.Data}, {"template_data", r.TemplateData}} {
+		if leaked := providercompat.ConcealedFinancialFields(bag.payload); len(leaked) > 0 && isProviderRecipient(r.Recipient.Type) {
+			fields = append(fields, apperrors.FieldViolation{
+				Field:   bag.field,
+				Message: "Provider notifications cannot carry organization or platform financial fields: " + strings.Join(leaked, ", "),
+			})
+		}
 	}
 	if len(fields) > 0 {
 		return apperrors.Validation("Check your notification request.", fields)
