@@ -1,0 +1,59 @@
+=== Sections 15-18 live certification against running services ===
+
+--- driver-hauling-service ---
+PASS hauling boots with Commerce and Fleet integration enabled      GET /health -> 200
+PASS the provider corporate surfaces no longer collide              route registration completed
+PASS Vendor can read the Hauling capability                         authority=HAULING version=2
+PASS Hauling still advertises its real multi-pickup routing         maxPickups=10
+PASS Hauling declares one protected pickup per mission              maxSecurePickups=1
+PASS a protected three-pickup haul is refused by the live declaration SECURE_PICKUP_LIMIT_EXCEEDED
+PASS an unsigned caller cannot read the capability                  -> 401 
+PASS Fleet cannot read Vendor's commerce capability                 -> 403 
+PASS Vendor reaches the Commerce pickup handover surface            -> 404 (past the HMAC boundary)
+PASS no other service can verify a Commerce pickup                  -> 403
+PASS a provider token cannot reach an internal route                -> 401 
+PASS the corporate company-assignment LIST is mounted               -> 401 (mounted, and closed to anonymous callers)
+PASS the private-assignment relay is mounted                        -> 401 (mounted, and closed to anonymous callers)
+PASS the live build carries the Commerce credential direction       holder=PROVIDER verifier=VENDOR_SENDER
+
+--- driver-dispatch-delivery-service ---
+PASS dispatch boots with Commerce integration enabled               GET /health -> 200
+PASS Dispatch protects every pickup it routes                       maxPickups=12 maxSecurePickups=12
+PASS an operator can inspect event delivery                         -> 200
+PASS an unsigned caller cannot inspect event delivery               -> 401 
+PASS Vendor cannot inspect Dispatch event delivery                  -> 403
+PASS an operator can request a requeue                              -> 409 (reached the handler)
+PASS an invented delivery status is refused                         -> 400 
+
+passed=21 failed=0 skipped=0
+
+--- how this was produced ---
+Source: docs/liveprobe_s15 (main.go, hauling.go, dispatch.go).
+
+It builds and boots the REAL driver-hauling-service and
+driver-dispatch-delivery-service binaries against a certification PostgreSQL
+and Redis, then drives their HTTP surfaces the way Vendor Service, Fleet and
+an operator console do: HMAC-v2 signed internal calls, a provider bearer
+token, and unsigned calls that must be refused. Every PASS above executed
+against a process listening on a socket.
+
+To reproduce (the probe has no go.mod of its own; copy it into the workspace
+to build it):
+
+  cp -r docs/liveprobe_s15 shared/go/cmd/liveprobe_s15tmp
+  (cd shared/go && go build -o /tmp/liveprobe_s15 ./cmd/liveprobe_s15tmp)
+  rm -rf shared/go/cmd/liveprobe_s15tmp
+
+  HAULING_LIVE_DATABASE_URL='postgres://.../hauling_live?sslmode=disable' \
+  DISPATCH_LIVE_DATABASE_URL='postgres://.../dispatch_live?sslmode=disable' \
+  LIVE_REDIS_ADDR='127.0.0.1:6399' \
+  /tmp/liveprobe_s15
+
+Hauling migrates its own database on boot (HAULING_MIGRATION=true), so its
+database must be empty. Dispatch does not, so its database must already have
+the migration chain applied.
+
+Downstream dependencies (Fleet events, Wallet, Notification, Media) are
+deliberately pointed at a closed port: this probe certifies routing and
+authorization, and a dependency that answered would make the result depend on
+services this run does not own.

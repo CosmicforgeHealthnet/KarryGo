@@ -189,9 +189,13 @@ func VerifyManagedContext(corporate CorporateContext, req ManagedRequest) error 
 		}
 		return nil
 	}
-	if !strings.EqualFold(strings.TrimSpace(corporate.MembershipStatus), MembershipStatusActive) {
+	if status := ParseMembershipStatus(corporate.MembershipStatus); !status.AllowsNewManagedWork() {
+		// The refusal names the CLASS, not just "not active": suspended,
+		// expired and terminated are three different answers to the provider
+		// asking why, and Section 16 handles them separately.
 		return NewContextError(FailureMembershipInvalid, service,
-			fmt.Sprintf("membership status is %q", corporate.MembershipStatus), nil)
+			fmt.Sprintf("%s (status %q, class %s)",
+				membershipFailureDetail(status), corporate.MembershipStatus, status.Class()), nil)
 	}
 	if strings.TrimSpace(corporate.MembershipID) == "" || strings.TrimSpace(corporate.OrganizationID) == "" {
 		// A managed context missing its own identifiers is not usable as an

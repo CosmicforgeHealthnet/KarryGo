@@ -210,6 +210,18 @@ func TestOperatorOutboxRefusesUnauthorizedCallers(t *testing.T) {
 		t.Fatalf("un-allowlisted read = %d; want 403", refused.Code)
 	}
 
+	// IAM-007 / IAM-018: a provider's bearer token is not a service identity.
+	// Internal routes verify an HMAC signature, and a provider cannot produce
+	// one, so presenting a token on an internal route must be refused rather
+	// than treated as an unauthenticated-but-harmless read.
+	withProviderToken := httptest.NewRequest(http.MethodGet, path, nil)
+	withProviderToken.Header.Set("Authorization", "Bearer "+providerBearerToken)
+	tokenAttempt := httptest.NewRecorder()
+	engine.ServeHTTP(tokenAttempt, withProviderToken)
+	if tokenAttempt.Code != http.StatusUnauthorized {
+		t.Fatalf("provider token on an internal route = %d; want 401", tokenAttempt.Code)
+	}
+
 	signedByAdmin := httptest.NewRequest(http.MethodGet, path, nil)
 	if err := serviceauth.SignRequest(signedByAdmin, "admin-backoffice-service",
 		[]byte("admin-secret"), nil, time.Now()); err != nil {
@@ -233,3 +245,9 @@ func TestUnknownDeliveryStatusIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// providerBearerToken is a syntactically well-formed JWT. Its contents do not
+// matter: the point is that an internal route never looks at one.
+const providerBearerToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." +
+	"eyJzdWIiOiJwcm92aWRlci0xIiwicm9sZSI6ImRpc3BhdGNoX3Byb3ZpZGVyIn0." +
+	"c2lnbmF0dXJlLXRoYXQtbm8taW50ZXJuYWwtcm91dGUtd2lsbC1ldmVyLWNoZWNr"
