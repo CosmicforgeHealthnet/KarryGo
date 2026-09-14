@@ -555,6 +555,18 @@ func TestSettlementCanBeReadBackByEveryRoute(t *testing.T) {
 	if err != nil || len(bySource) != 1 || !bySource[0].Settled() {
 		t.Fatalf("read back by job: %v %+v", err, bySource)
 	}
+
+	// And under the spelling the shared read client actually uses. Fleet
+	// instructs with the source service as the instruction carried it while
+	// the client normalises the case, so a case-sensitive match here meant an
+	// execution service could never find its own settlement -- and an empty
+	// answer reads as "not settled", which is how a job gets paid twice.
+	for _, spelling := range []string{"TAXI", "Taxi", "taxi"} {
+		found, err := repo.ListManagedSettlementsForSource(context.Background(), spelling, jobID)
+		if err != nil || len(found) != 1 || !found[0].Settled() {
+			t.Fatalf("read back by job as %q: %v %+v", spelling, err, found)
+		}
+	}
 }
 
 // -----------------------------------------------------------------------------

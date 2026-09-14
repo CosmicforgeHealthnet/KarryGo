@@ -125,9 +125,17 @@ func (r *PostgresWalletRepository) GetManagedSettlementByIdempotencyKey(ctx cont
 //
 // An execution service reconciling a completion asks this: it is the answer to
 // "did my money actually move?", which a timeout cannot tell it.
+//
+// The service name is matched case-insensitively, which is not a nicety. Fleet
+// instructs with the source service spelled as the instruction carried it --
+// "taxi" in practice -- while the shared read client normalises to "TAXI" so
+// that two code paths asking about one job agree. A case-sensitive match here
+// meant an execution service could never find its own settlement: the read
+// returned nothing, which reads as "not settled", which is the one answer that
+// leads to paying a job twice.
 func (r *PostgresWalletRepository) ListManagedSettlementsForSource(ctx context.Context, sourceService, sourceJobID string) ([]walletmodels.ManagedSettlement, error) {
 	rows, err := r.db.Query(ctx, selectManagedSettlementSQL()+
-		` WHERE source_service = $1 AND source_job_id = $2 ORDER BY created_at DESC`, sourceService, sourceJobID)
+		` WHERE lower(source_service) = lower($1) AND source_job_id = $2 ORDER BY created_at DESC`, sourceService, sourceJobID)
 	if err != nil {
 		return nil, err
 	}
