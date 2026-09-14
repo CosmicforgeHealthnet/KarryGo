@@ -64,6 +64,12 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	internal.POST("/commerce/allocations/:vendorOrderId/delivery-responsibility", handler.TransitionDeliveryResponsibility)
 	internal.GET("/commerce/delivery-responsibility-transitions/:operationRef", handler.GetDeliveryResponsibilityTransition)
 	internal.POST("/commerce/allocations/:vendorOrderId/refunds", handler.RefundCommerceAllocation)
+	// Section 12 WAL-029/030. A dispute reversal is its own operation drawing
+	// on the same recovery pool as a refund, and the recovery plan lets a
+	// caller learn the provider/organization split without having to know how
+	// Fleet decided it.
+	internal.POST("/commerce/allocations/:vendorOrderId/dispute-reversals", handler.ReverseCommerceAllocationForDispute)
+	internal.POST("/commerce/allocations/:vendorOrderId/delivery-recovery-plan", handler.PlanCommerceDeliveryRecovery)
 	internal.GET("/commerce/operations/:operationType/:idempotencyKey", handler.GetCommerceOperation)
 	internal.GET("/vendor-finance/:businessId/summary", handler.VendorPayableSummary)
 	internal.GET("/vendor-finance/:businessId/transactions", handler.VendorFinanceTransactions)

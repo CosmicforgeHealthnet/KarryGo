@@ -177,10 +177,21 @@ func (r *PostgresWalletRepository) ReleaseManagedCommerceDelivery(
 		if outstanding < 0 {
 			return apperrors.Internal("Delivery release state is inconsistent.", nil)
 		}
-		if input.ProviderShareMinor+input.OrganizationShareMinor != outstanding {
+		// WAL-026. One vendor order can be delivered by more than one mission,
+		// so a mission settles its own portion rather than the whole frozen
+		// amount. Requiring the whole amount here is what previously made a
+		// second mission impossible: its release was refused outright.
+		//
+		// The customer's total is still protected, because the portions can
+		// never between them exceed what is outstanding.
+		missionAmount := input.ProviderShareMinor + input.OrganizationShareMinor
+		if missionAmount > outstanding {
 			return apperrors.Conflict(fmt.Sprintf(
-				"Allocation splits %d minor units but %d is outstanding on this delivery.",
-				input.ProviderShareMinor+input.OrganizationShareMinor, outstanding), nil)
+				"This mission settles %d minor units but only %d is outstanding on this delivery.",
+				missionAmount, outstanding), nil)
+		}
+		if missionAmount <= 0 {
+			return apperrors.Validation("A delivery settlement must move some money.", nil)
 		}
 
 		escrow, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeJob,
@@ -194,17 +205,17 @@ func (r *PostgresWalletRepository) ReleaseManagedCommerceDelivery(
 		}
 
 		ledgerReference := ""
-		if outstanding > 0 {
+		if missionAmount > 0 {
 			balance, balanceErr := r.accountBalanceTx(ctx, tx, escrow.ID)
 			if balanceErr != nil {
 				return balanceErr
 			}
-			if balance < outstanding {
+			if balance < missionAmount {
 				return apperrors.Conflict("Commerce escrow cannot cover this release.", nil)
 			}
 			entries := []walletmodels.LedgerEntry{{
 				AccountID: escrow.ID, Side: walletmodels.SideDebit,
-				AmountKobo: outstanding, Currency: allocation.Currency,
+				AmountKobo: missionAmount, Currency: allocation.Currency,
 				Memo: "Release managed commerce delivery",
 			}}
 			if input.ProviderShareMinor > 0 {
@@ -242,7 +253,12 @@ func (r *PostgresWalletRepository) ReleaseManagedCommerceDelivery(
 			if err = r.postLedgerTransaction(ctx, tx, walletmodels.LedgerTransaction{
 				ID: uuid.NewString(), Reference: ledgerReference,
 				TransactionType: "managed_delivery_release", Status: postedStatus,
-				SourceService: "fleet-partner-service", SourceReference: input.VendorOrderID,
+				// The ledger holds one journal per source operation. For a
+				// multi-mission delivery the operation is the mission, so the
+				// reference carries it -- keyed on the order alone, a second
+				// mission's journal would collide with the first and the
+				// release would fail outright.
+				SourceService: "fleet-partner-service", SourceReference: managedDeliverySourceReference(input),
 				IdempotencyKey: input.IdempotencyKey,
 				Metadata: map[string]any{
 					"completion_reference": input.CompletionReference,
@@ -255,7 +271,7 @@ func (r *PostgresWalletRepository) ReleaseManagedCommerceDelivery(
 			}
 		}
 
-		if err = r.insertDeliveryExecution(ctx, tx, allocation, input, outstanding, ledgerReference); err != nil {
+		if err = r.insertDeliveryExecution(ctx, tx, allocation, input, missionAmount, ledgerReference); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, `
@@ -270,7 +286,7 @@ func (r *PostgresWalletRepository) ReleaseManagedCommerceDelivery(
 			                  THEN 'RELEASED' ELSE 'PARTIALLY_RELEASED' END,
 			    version = version + 1, updated_at = now()
 			WHERE id = $1`,
-			allocation.ID, outstanding, input.ProviderShareMinor, input.OrganizationShareMinor,
+			allocation.ID, missionAmount, input.ProviderShareMinor, input.OrganizationShareMinor,
 			input.ProviderType, input.ProviderID); err != nil {
 			return err
 		}
@@ -278,8 +294,11 @@ func (r *PostgresWalletRepository) ReleaseManagedCommerceDelivery(
 			return err
 		}
 		if err = r.insertCommerceOperation(ctx, tx, allocation.PaymentIntentID, allocation.ID,
-			"DELIVERY_RELEASE", input.CompletionReference, "", input.IdempotencyKey,
-			managedDeliveryFingerprint(input), "APPLIED", outstanding, ledgerReference); err != nil {
+			// The mission is the item reference, so a second mission on the
+			// same order records its own authoritative release rather than
+			// colliding with the first.
+			"DELIVERY_RELEASE", input.VendorOrderID, input.CompletionReference, input.IdempotencyKey,
+			managedDeliveryFingerprint(input), "APPLIED", missionAmount, ledgerReference); err != nil {
 			return err
 		}
 		if err = recordFinancialEvidence(ctx, tx,
@@ -291,7 +310,7 @@ func (r *PostgresWalletRepository) ReleaseManagedCommerceDelivery(
 				"organization_id":          input.OrganizationID,
 				"provider_share_minor":     input.ProviderShareMinor,
 				"organization_share_minor": input.OrganizationShareMinor,
-				"frozen_delivery_minor":    outstanding,
+				"frozen_delivery_minor":    missionAmount,
 				"currency":                 allocation.Currency,
 			}); err != nil {
 			return err
@@ -355,6 +374,11 @@ type DeliveryExecution struct {
 	InstructionVersion     int64
 	IdempotencyKey         string
 	LedgerReference        string
+
+	// What has already been given back, per party. A refund reads these so two
+	// refunds cannot between them recover more than the mission paid out.
+	RefundedProviderMinor     int64
+	RefundedOrganizationMinor int64
 }
 
 const deliveryExecutionColumns = `id,allocation_id,vendor_order_id,completion_reference,executor_mode,
@@ -409,19 +433,35 @@ func (r *PostgresWalletRepository) ListDeliveryExecutions(
 	ctx context.Context, vendorOrderID string,
 ) ([]DeliveryExecution, error) {
 	rows, err := r.db.Query(ctx,
-		`SELECT `+deliveryExecutionColumns+` FROM commerce_delivery_executions
-		 WHERE vendor_order_id=$1 ORDER BY created_at`, vendorOrderID)
+		`SELECT `+deliveryExecutionColumns+`, refunded_provider_minor, refunded_organization_minor
+		 FROM commerce_delivery_executions
+		 WHERE vendor_order_id=$1 ORDER BY created_at, id`, vendorOrderID)
 	if err != nil {
 		return nil, fmt.Errorf("wallet: list delivery executions: %w", err)
 	}
 	defer rows.Close()
 	var executions []DeliveryExecution
 	for rows.Next() {
-		execution, scanErr := scanDeliveryExecution(rows)
-		if scanErr != nil {
+		var execution DeliveryExecution
+		if scanErr := rows.Scan(
+			&execution.ID, &execution.AllocationID, &execution.VendorOrderID, &execution.CompletionReference,
+			&execution.ExecutorMode, &execution.ProviderType, &execution.ProviderID, &execution.OrganizationID,
+			&execution.MembershipID, &execution.Currency, &execution.FrozenDeliveryMinor,
+			&execution.ProviderShareMinor, &execution.OrganizationShareMinor,
+			&execution.InstructionID, &execution.InstructionVersion, &execution.IdempotencyKey,
+			&execution.LedgerReference, &execution.RefundedProviderMinor, &execution.RefundedOrganizationMinor,
+		); scanErr != nil {
 			return nil, scanErr
 		}
 		executions = append(executions, execution)
 	}
 	return executions, rows.Err()
+}
+
+// managedDeliverySourceReference identifies one mission's journal.
+//
+// The vendor order is kept as a prefix so the order's journals are still
+// findable together; the mission makes it unique.
+func managedDeliverySourceReference(input ReleaseManagedCommerceDeliveryInput) string {
+	return input.VendorOrderID + ":" + input.CompletionReference
 }

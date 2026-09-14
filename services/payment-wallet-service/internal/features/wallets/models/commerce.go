@@ -110,6 +110,11 @@ type CommerceAllocation struct {
 	RefundPlatformRevenueReductionMinor   int64  `json:"refund_platform_revenue_reduction_minor"`
 	RefundAuthorizationReleaseMinor       int64  `json:"refund_authorization_release_minor"`
 
+	// RefundOrganizationRecoveryMinor is what the organization has given back
+	// on a corporate delivery. A separate counter from the provider's, because
+	// they are separate parties holding separate money.
+	RefundOrganizationRecoveryMinor int64 `json:"refund_organization_recovery_minor"`
+
 	// DeliveryExecutorMode is how this allocation's delivery is executed.
 	//
 	// UNKNOWN is the honest state for an allocation whose executor has not
@@ -222,6 +227,7 @@ func CommerceAllocationFingerprint(allocations []CommerceAllocation) (string, er
 		copyOf[i].RefundProviderDeliveryReductionMinor = 0
 		copyOf[i].RefundPlatformRevenueReductionMinor = 0
 		copyOf[i].RefundAuthorizationReleaseMinor = 0
+		copyOf[i].RefundOrganizationRecoveryMinor = 0
 		copyOf[i].Status = ""
 		copyOf[i].Version = 0
 		copyOf[i].CreatedAt = time.Time{}

@@ -295,8 +295,13 @@ func TestTheCustomersFrozenDeliveryAmountIsUnchangedByTheExecutor(t *testing.T) 
 	}
 }
 
-// A split that does not add up to the frozen amount invents or drops money.
-func TestASplitThatDoesNotSumToTheFrozenAmountIsRefused(t *testing.T) {
+// A release can never hand out more than the customer's frozen amount.
+//
+// Handing out LESS is legitimate now that one order can be delivered by more
+// than one mission -- each mission settles its own portion. What must never
+// happen is the portions between them exceeding what the customer paid, which
+// would credit somebody with money that was never collected.
+func TestASplitCannotExceedTheFrozenAmount(t *testing.T) {
 	pool, repo := commerceRepo(t)
 	ctx := context.Background()
 
@@ -304,8 +309,8 @@ func TestASplitThatDoesNotSumToTheFrozenAmountIsRefused(t *testing.T) {
 		name                             string
 		providerShare, organizationShare int64
 	}{
-		{"drops a residual", 1000, 3000},
-		{"invents money", 3000, 3000},
+		{"invents money outright", 3000, 3000},
+		{"one unit too many", 2500, 2501},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			vendorOrderID, _ := platformDeliveryAllocation(t, pool, 5000)
@@ -324,7 +329,7 @@ func TestASplitThatDoesNotSumToTheFrozenAmountIsRefused(t *testing.T) {
 				IdempotencyKey: "bad-" + vendorOrderID,
 			})
 			if err == nil {
-				t.Fatal("a split that did not reconcile with the frozen amount was accepted")
+				t.Fatal("a release handed out more than the customer's frozen amount")
 			}
 		})
 	}
@@ -531,5 +536,64 @@ func TestExecutorModeRequiresTheRightIdentity(t *testing.T) {
 		VendorOrderID: vendorOrderID, ExecutorMode: "SOMETHING_ELSE",
 	}); err == nil {
 		t.Fatal("an unrecognised executor mode was accepted")
+	}
+}
+
+// WAL-026 end to end: two missions each settle their own portion, the customer's
+// frozen amount leaves escrow exactly once in total, and a third mission has
+// nothing left to take.
+func TestTwoMissionsTogetherSettleExactlyTheFrozenAmount(t *testing.T) {
+	pool, repo := commerceRepo(t)
+	ctx := context.Background()
+	vendorOrderID, parentReference := platformDeliveryAllocation(t, pool, 5000)
+	orgID := uniqueID("org_two_missions")
+	riderOne, riderTwo := uniqueID("rider_one"), uniqueID("rider_two")
+
+	if err := repo.SetCommerceDeliveryExecutor(ctx, walletrepositories.SetCommerceDeliveryExecutorInput{
+		VendorOrderID: vendorOrderID, ExecutorMode: walletmodels.ExecutorManaged,
+		OrganizationID: orgID, MembershipID: "mem_1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	release := func(mission, riderID string, provider, organization int64) error {
+		_, err := repo.ReleaseManagedCommerceDelivery(ctx, walletrepositories.ReleaseManagedCommerceDeliveryInput{
+			VendorOrderID: vendorOrderID, CompletionReference: mission,
+			ProviderType: "dispatch", ProviderID: riderID,
+			OrganizationID: orgID, MembershipID: "mem_1",
+			ProviderShareMinor: provider, OrganizationShareMinor: organization,
+			InstructionID: "msi_" + mission, InstructionVersion: 1,
+			IdempotencyKey: mission + "-" + vendorOrderID,
+		})
+		return err
+	}
+	if err := release("mission_1", riderOne, 600, 1400); err != nil {
+		t.Fatalf("first mission: %v", err)
+	}
+	if err := release("mission_2", riderTwo, 900, 2100); err != nil {
+		t.Fatalf("second mission: %v", err)
+	}
+	if err := release("mission_3", uniqueID("rider_three"), 1, 0); err == nil {
+		t.Fatal("a third mission settled money the customer never paid")
+	}
+
+	if balance := accountBalance(t, pool, "job", "commerce:"+parentReference, "commerce_escrow"); balance != 0 {
+		t.Fatalf("escrow holds %d after both missions settled, want 0", balance)
+	}
+	if balance := accountBalance(t, pool, "provider", "dispatch:"+riderOne, "provider_payable"); balance != 600 {
+		t.Fatalf("first rider holds %d, want 600", balance)
+	}
+	if balance := accountBalance(t, pool, "provider", "dispatch:"+riderTwo, "provider_payable"); balance != 900 {
+		t.Fatalf("second rider holds %d, want 900", balance)
+	}
+	if balance := accountBalance(t, pool, "organization", orgID, "organization_payable"); balance != 3500 {
+		t.Fatalf("organization holds %d, want 1400+2100=3500", balance)
+	}
+
+	executions, err := repo.ListDeliveryExecutions(ctx, vendorOrderID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(executions) != 2 {
+		t.Fatalf("%d executions recorded for two missions", len(executions))
 	}
 }
