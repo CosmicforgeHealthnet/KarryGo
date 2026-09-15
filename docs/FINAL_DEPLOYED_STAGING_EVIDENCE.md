@@ -79,6 +79,23 @@ identify or provide access to the VPS reverse proxy, PostgreSQL provider,
 monitoring system, DNS provider, or TLS control plane." That statement is still
 accurate.
 
+## 3b. Confirmed again at this baseline
+
+Re-observed on `4d7aebdf86c59af3d78d58de4d4af2cc1c2eebe5` after this phase's
+changes, so the blocker is known to be unchanged rather than assumed to be:
+
+| Workflow | Result at `4d7aebd` |
+|---|---|
+| Section 31 mandatory acceptance | **success** (it failed at `9ebad225`; that regression is fixed) |
+| Deploy api-gateway | success — now stamping the commit into the binary |
+| Deploy media-file-service | success — now stamping the commit into the binary |
+| Vendor Sections 46-48 gates | success |
+| Deploy vendor-service | **failure — `ERROR: /opt/karrygo/vendor-service/vendor.env is missing`** |
+
+The Vendor image still builds and pushes with the new build args and still
+reaches the SSH rollout before stopping, so the added stamping did not break
+the build; the blocker is exactly where it was.
+
 ## 4. Why api-gateway and media-file-service "succeeding" is not evidence
 
 Both green deploy jobs end with:
