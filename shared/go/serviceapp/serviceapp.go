@@ -16,6 +16,7 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/redisx"
 )
 
@@ -43,6 +44,18 @@ func Run(opts Options) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// Resolved once: every surface below must report the same build, and a
+	// per-request lookup would invite them to drift.
+	build := CurrentBuildInfo(opts.Name)
+	logging.Structured("info", "service_build", map[string]any{
+		"service":     build.Service,
+		"version":     build.Version,
+		"commit_sha":  build.CommitSHA,
+		"build_time":  build.BuildTime,
+		"environment": build.Environment,
+		"stamped":     build.Stamped(),
+	})
+
 	addr := getEnv("HTTP_ADDR", opts.DefaultAddr)
 	if addr == "" {
 		addr = ":8080"
@@ -63,10 +76,16 @@ func Run(opts Options) {
 		router.Use(httpx.ErrorHandler())
 
 		router.GET("/health", func(c *gin.Context) {
+			// The commit is on /health as well as /meta because a health
+			// probe is the one endpoint a deployment check is certain to
+			// reach, and "is it up" and "is it the build I shipped" are asked
+			// at the same moment. It is not a secret: it is a public commit
+			// on a public branch.
 			c.JSON(http.StatusOK, gin.H{
-				"success": true,
-				"service": opts.Name,
-				"status":  "ok",
+				"success":    true,
+				"service":    opts.Name,
+				"status":     "ok",
+				"commit_sha": build.CommitSHA,
 			})
 		})
 
@@ -117,6 +136,10 @@ func Run(opts Options) {
 				"service":      opts.Name,
 				"api_base":     base,
 				"capabilities": opts.Capabilities,
+				"version":      build.Version,
+				"commit_sha":   build.CommitSHA,
+				"build_time":   build.BuildTime,
+				"environment":  build.Environment,
 			})
 		})
 		if opts.Register != nil {

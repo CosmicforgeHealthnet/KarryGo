@@ -1,7 +1,19 @@
 # ART-003 — Security and authorization
 
-Phase baseline `3007d6d42b60bf256578cf2688fe9e330a4a2798`.
+Phase baseline `9ebad225ea9ec25397778a4dc8d3ff842f2938a3`.
 No secret value appears in this document or in any certification output.
+
+**Phase update — one deliberate authorization change.**
+`support-dispute-service` was added to Fleet's
+`PROVIDER_MEMBERSHIP_ALLOWED_CALLERS` so a provider-raised safety case can
+record which organization it happened under. It is a **read** of the same
+corporate-context contract the three execution services already call, over the
+same HMAC v2 signing, with no write access and no Fleet database access — the
+existing SEC-018 statement that Support touches no execution-service table is
+unchanged. It is recorded here rather than left in a diff because widening an
+allowlist is a security decision, not a wiring detail. Support still holds
+exactly one Fleet capability, and the resolver is inert until a deployment
+supplies the URL and secret.
 
 ## 1. SEC-001 … SEC-019
 

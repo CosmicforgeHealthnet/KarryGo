@@ -59,9 +59,16 @@ func main() {
 		DispatchSecret: []byte(cfg.DispatchServiceSecret),
 	})
 
+	// Nil when Fleet is unconfigured, which is a working configuration: the
+	// organization snapshot is a reporting dimension, not a prerequisite for
+	// opening a case.
+	corporate := supportclients.NewFleetOrganizationResolver(
+		cfg.FleetPartnerServiceURL, []byte(cfg.FleetPartnerServiceSecret), 3*time.Second)
+
 	service := supportusecases.NewSupportService(repo, supportusecases.Options{
 		Notifier:            notifier,
 		Identity:            identity,
+		Corporate:           corporate,
 		ResolutionPublisher: supportclients.NewCommerceResolutionClient(cfg.VendorServiceURL, cfg.VendorServiceSecret),
 	})
 

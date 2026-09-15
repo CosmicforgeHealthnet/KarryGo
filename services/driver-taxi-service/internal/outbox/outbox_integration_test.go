@@ -4,13 +4,28 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"cosmicforge/logistics/services/taxi-service/internal/database"
 )
 
+var (
+	migrateOnce sync.Once
+	migrateErr  error
+)
+
+// testDB connects to the disposable test database and applies migrations once
+// per process.
+//
+// Applying them here, rather than leaving the schema to whoever ran psql last,
+// is what lets this suite run on a fresh database. Relying on a sibling test
+// to have migrated first would make correctness depend on file naming order,
+// which is the accidental coupling this harness exists to avoid.
 func testDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	dsn := os.Getenv("TAXI_TEST_DATABASE_URL")
@@ -22,6 +37,25 @@ func testDB(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("connect: %v", err)
 	}
 	t.Cleanup(pool.Close)
+
+	migrateOnce.Do(func() {
+		// ApplyMigrations reads a relative "migrations" directory, so it only
+		// resolves from the service root.
+		root, err := os.Getwd()
+		if err != nil {
+			migrateErr = err
+			return
+		}
+		if err := os.Chdir("../.."); err != nil {
+			migrateErr = err
+			return
+		}
+		defer func() { _ = os.Chdir(root) }()
+		migrateErr = database.ApplyMigrations(context.Background(), pool)
+	})
+	if migrateErr != nil {
+		t.Fatalf("apply migrations: %v", migrateErr)
+	}
 	return pool
 }
 

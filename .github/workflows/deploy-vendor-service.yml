@@ -35,7 +35,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build immutable Vendor image
-        run: docker build -f services/vendor-service/Dockerfile -t "$VENDOR_IMAGE" .
+        # The commit is stamped into the binary as well as the tag: the tag
+        # identifies the image, the stamp lets a running container answer
+        # "which commit are you?" without anyone trusting the tag (OPS-002).
+        run: |
+          docker build -f services/vendor-service/Dockerfile \
+            --build-arg BUILD_COMMIT_SHA="${{ github.sha }}" \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg BUILD_VERSION="${{ github.ref_name }}-${{ github.run_number }}" \
+            -t "$VENDOR_IMAGE" .
 
       - name: Push immutable Vendor image
         run: docker push "$VENDOR_IMAGE"

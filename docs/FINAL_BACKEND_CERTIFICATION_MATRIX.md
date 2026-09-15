@@ -1,6 +1,15 @@
 # ART-006 — Backend certification matrix
 
-Phase baseline `3007d6d42b60bf256578cf2688fe9e330a4a2798`.
+Phase baseline `9ebad225ea9ec25397778a4dc8d3ff842f2938a3`.
+
+**Phase update.** Re-run at this baseline. The CERT rows are unchanged in
+substance — no scenario gained deployed evidence, because there is still no
+deployed environment (`FINAL_DEPLOYED_STAGING_EVIDENCE.md`). Two rows changed:
+CERT-031 is now a full PASS (CMP-027 is implemented and certified DB-backed;
+the previous report's claim to the contrary was wrong and is withdrawn in
+`FINAL_BACKEND_RELEASE_BLOCKERS.md`), and CERT-040's corporate-context half is
+now implemented. §8 records the E2E-001 … E2E-030 journeys, all of which
+require deployment.
 No secret value is printed here or in any certification output.
 No production customer data and no real money movement were used. Every
 financial assertion ran against throwaway PostgreSQL databases created and
@@ -93,7 +102,7 @@ carried into ART-008 as the single largest outstanding item.
 | CERT-028 cross-service spoof | `PASS — DB-BACKED` + `PASS — LIVE LOCAL` | `TestCrossServiceCompletedWorkSpoofingIsRefused` — twelve wrong caller/source pairings refused with **zero rows written**, including Vendor and Wallet impersonating an execution service and Fleet claiming its own job. Live: Fleet refused 403 on Vendor's commerce capability, Vendor refused 403 on Dispatch's outbox, unsigned 401, provider token on an internal route 401. |
 | CERT-029 Wallet read privacy | `PASS — DB-BACKED` + `PASS — UNIT` | `TestManagedSettlementIsNotOnTheProviderSurface` (the route does not exist on the provider surface at all), `TestUnrelatedCallersCannotReadManagedSettlements`, `TestEveryExecutionServiceMayReadItsOwnSettlementBack`. **New this phase:** logs were the remaining leak — `organizationShareMinor` is an ordinary name holding an ordinary integer, so neither the secret-word list nor the type check caught it. `providercompat` now registers the financial registry as a `logging` redactor; `TestOrganizationAndPlatformEconomicsAreConcealedInLogs`, `TestConcealmentReachesNestedFields`, `TestSpellingDoesNotDefeatConcealment`, and `TestOperationalFieldsAndProviderOwnFiguresStillLog` proves the rule is narrow enough not to blind operations. |
 | CERT-030 compensation effective date | `PASS — DB-BACKED` | `TestWorkBeforeAndAfterAnEffectiveDateUsesDifferentRules`, `TestEffectiveDays_HonorsExtendedOverride`, `TestEffectiveDays_NeverBelowPlatformMinimum`. |
-| CERT-031 payroll double-pay | `PASS — DB-BACKED` for the work/payroll split; `NOT RUN` as an enforced guard | `TestImmediateCommissionIsPaidWithTheJobAndExcludedFromPayroll`, `TestMixedPlanSplitsComponentsBetweenBothPlaces`, `TestABonusWithoutProvenanceDoesNotEnterPayroll`, `TestMultiServicePayrollIsOrderIndependent`. The work-level / payroll-level distinction that makes double-pay structurally impossible for a correctly-classified component is real and tested. **What is not enforced** is a cross-check inside payroll calculation against already-posted work-level settlements — this is carried forward as CMP-027 and appears in ART-008 as P1. |
+| CERT-031 payroll double-pay | `PASS — DB-BACKED` | **Corrected this phase.** The previous entry claimed the cross-check was not enforced. It is: `financeops.CalculatePayroll` reads `fleet_partner_work_settled_components` inside its own transaction and skips exactly those components at the accumulation point for `PER_JOB`, `COMMISSION` and `BONUS`; the write side records them when the settlement instruction is produced; the match is on the assignment rather than a time window, deliberately, because a job completed inside a period can settle moments after it ends. Certified by `TestCMP027_PayrollDoesNotRepayWorkSettledComponent` and `TestCMP027_RecalculationDoesNotAccumulateDuplicates`, re-run against real PostgreSQL this phase, plus the classification suite (`TestImmediateCommissionIsPaidWithTheJobAndExcludedFromPayroll`, `TestMixedPlanSplitsComponentsBetweenBothPlaces`, `TestABonusWithoutProvenanceDoesNotEnterPayroll`). |
 | CERT-032 Commerce managed salary | `PASS — DB-BACKED` | `TestSalariedCommerceRiderReceivesNothingPerDelivery`, `TestManagedCommerceDeliveryCannotBePaidDirectlyToTheProvider`. `TestDeliveryWithAnUnknownExecutorIsRefusedRatherThanAssumedIndependent` closes the dangerous default. |
 | CERT-033 Commerce managed commission | `PASS — DB-BACKED` | `TestCommissionCommerceRiderGetsOnlyTheAuthorisedShare`, `TestASplitCannotExceedTheFrozenAmount`, `TestTheCustomersFrozenDeliveryAmountIsUnchangedByTheExecutor`. |
 | CERT-034 Commerce refund | `PASS — DB-BACKED` | `TestReversalCompensatesWithoutErasingHistory` — a reversal is a compensating journal, never a deletion or an update of the original. `TestIndependentDeliveryRefundStillRecoversFromTheProvider`, `TestDeliveryResponsibilityTransitionConcurrentRetryIsExactlyOnce`. |
@@ -102,7 +111,7 @@ carried into ART-008 as the single largest outstanding item.
 | CERT-037 notification loss | `PASS — DB-BACKED` | `TestNotificationDegradedMode_CoreMutationPersistsRetriesDeadLettersAndReplays` — the core mutation persists even when notification delivery is failing, so the state the provider must recover is already durable. Every offer, assignment and case is retrievable by API independently of any push; the apps already poll as the documented fallback. |
 | CERT-038 media security | `PASS — DB-BACKED` | `TestUploadAuthorizationIsSingleUse`, `TestUploadAuthorizationIssuesSingleUseGrant`, `TestExpiredUploadAuthorizationIsRefused`, `TestUploadAuthorizationIdempotencyConflict`, `TestBulkMediaAdapterEnforcesOwnershipPurposeSafetyAndReadiness`, `TestRetentionWindowBlocksDeletionUntilItLapses`. Retrieval needs a signed, expiring, object-scoped authorization and `owner_service` must match the authenticated caller. |
 | CERT-039 verification failure | `PASS — DB-BACKED` for Dispatch and Taxi; `NOT RUN` for Hauling | Dispatch's typed readiness model gates going online on approved required steps, and corporate membership is evaluated separately from readiness — membership never substitutes for a safety check. **Hauling has no equivalent document-verification/expiry model.** That is GAP-A, unchanged, and it is in ART-008. No documents were invented for it. |
-| CERT-040 safety during custody | `PASS — DB-BACKED` (partial) | `TestCreateSOS_EmergencyPriority`, `TestSafetyRouteRequiresIdempotencyKey`, `TestSafetyRoutesDenyWithoutPermission`, `TestSafetyReadPermissionDoesNotGrantWrite`, `TestAcknowledgementLeavesSafetyDeclineIntact`. Goods are not orphaned by construction: custody state is durable and a `FAILED_ATTEMPT` leaves custody exactly where it is (`TestFailedAttemptLeavesCustodyWhereItIs`), and the return path ends back with the sender (`TestReturnEndsBackWithTheSender`). **What is missing** is organization context on a support incident for a corporate provider — GAP-B, unchanged, in ART-008. |
+| CERT-040 safety during custody | `PASS — DB-BACKED` (partial) | `TestCreateSOS_EmergencyPriority`, `TestSafetyRouteRequiresIdempotencyKey`, `TestSafetyRoutesDenyWithoutPermission`, `TestSafetyReadPermissionDoesNotGrantWrite`, `TestAcknowledgementLeavesSafetyDeclineIntact`. Goods are not orphaned by construction: custody state is durable and a `FAILED_ATTEMPT` leaves custody exactly where it is (`TestFailedAttemptLeavesCustodyWhereItIs`), and the return path ends back with the sender (`TestReturnEndsBackWithTheSender`). **Corporate context is now recorded**: a provider-raised case snapshots the organization from Fleet over HMAC v2, fail-soft, so an operator can see which organization to contact. An unreachable Fleet never blocks the case. Six tests including the SOS-during-outage path. Still `NOT RUN` as a deployed journey (E2E-029). |
 
 ### Summary of CERT outcomes
 
@@ -226,3 +235,74 @@ Stated plainly so nobody reads a green table as more than it is:
 5. CERT-031's payroll-side guard, CERT-039's Hauling half and CERT-040's
    corporate-context half are open, and are in ART-008 rather than quietly
    absorbed into a PASS.
+
+## 8. E2E-001 … E2E-030 — full-system black-box journeys
+
+Every journey in this section is, by definition, a cross-service run against
+deployed staging URLs. There is no deployed staging
+(`FINAL_DEPLOYED_STAGING_EVIDENCE.md`), and the decisive detail is that **none
+of Fleet, Wallet, Taxi, Dispatch or Hauling has a deploy workflow at all** — so
+these are not merely unrun, they are currently unrunnable by any mechanism this
+repository defines.
+
+Running them against locally booted binaries and reporting the result here
+would be exactly the mislabelling the section forbids, so that was not done.
+Where the underlying behaviour is certified at a lower level, the row says so
+and names the level; that is a statement about the behaviour, not about the
+journey.
+
+| ID | Journey | Deployed status | Underlying behaviour |
+|---|---|---|---|
+| E2E-001 | Independent Taxi end to end | `NOT RUN` — no environment | `PASS — DB-BACKED` (independent settlement byte-identical) |
+| E2E-002 | Corporate Taxi centralized | `NOT RUN` — no environment | `PASS — DB-BACKED` per stage; the seams are contract-tested, not physically run |
+| E2E-003 | Corporate Taxi delegated | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-004 | Corporate Dispatch centralized | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-005 | Corporate Dispatch delegated | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-006 | Corporate Hauling | `NOT RUN` — no environment | `PASS — DB-BACKED`; capability declaration additionally `PASS — LIVE LOCAL` |
+| E2E-007 | Vendor + Dispatch commerce | `NOT RUN` — no environment | `PASS — DB-BACKED`; credential direction `PASS — LIVE LOCAL` |
+| E2E-008 | Vendor + Taxi Goods, `maxPickups=1` | `NOT RUN` — no environment | `PASS — UNIT` (refusal before any partial execution) |
+| E2E-009 | Vendor + Hauling, secure bound | `NOT RUN` — no environment | `PASS — LIVE LOCAL` (`maxPickups=10`, `maxSecurePickups=1`, protected 3-pickup refused with `SECURE_PICKUP_LIMIT_EXCEEDED`) |
+| E2E-010 | Salaried corporate provider | `NOT RUN` — no environment | `PASS — DB-BACKED` (zero share writes no provider line at all) |
+| E2E-011 | Commission provider | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-012 | Per-job provider | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-013 | Mid-period plan change | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-014 | Membership expiry before accept | `NOT RUN` — no environment | `PASS — UNIT` (fails closed; no managed→independent fallback) |
+| E2E-015 | Suspension before start | `NOT RUN` — no environment | `PASS — UNIT` + documented policy |
+| E2E-016 | Suspension mid-trip | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-017 | Duplicate accept | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-018 | Duplicate completion, five links | `NOT RUN` — no environment | `PASS — DB-BACKED` (6 concurrent sends → 1 journal) |
+| E2E-019 | Fleet response lost | `NOT RUN` — no environment | `PASS — DB-BACKED` (UNKNOWN retried under the same key) |
+| E2E-020 | Wallet response lost | `NOT RUN` — no environment | `PASS — DB-BACKED` (read-back, never repost) |
+| E2E-021 | Restart with pending outbox | `NOT RUN` — no environment | `PASS — DB-BACKED` (lease expiry recovery) |
+| E2E-022 | Dead-letter repair | `NOT RUN` — no environment | `PASS — DB-BACKED` + `PASS — LIVE LOCAL` (operator surface: 200/401/403/409/400) |
+| E2E-023 | Commerce credential replay | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-024 | Wrong provider's credential | `NOT RUN` — no environment | `PASS — DB-BACKED` (hash binds ProviderID) |
+| E2E-025 | Financial privacy across four surfaces | `NOT RUN` — no environment | `PASS — UNIT`/`COMPONENT`; logs closed in the previous phase |
+| E2E-026 | Notification loss recovery | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-027 | Media access control | `NOT RUN` — no environment | `PASS — DB-BACKED` |
+| E2E-028 | Verification dependency failure | `NOT RUN` — no environment | `PASS — DB-BACKED` for Dispatch/Taxi; Hauling has no readiness model (GAP-A) |
+| E2E-029 | SOS during custody | `NOT RUN` — no environment | `PASS — DB-BACKED`; the organization snapshot added this phase is included |
+| E2E-030 | Commerce refund / reversal | `NOT RUN` — no environment | `PASS — DB-BACKED` (compensating journal; original immutable) |
+
+**Zero of thirty journeys carry deployed evidence.** That is the honest count,
+and it is why Section 23 stays OPEN.
+
+## 9. LOAD-001 … LOAD-008 — deployed load
+
+Unchanged from §5 except for LOAD-008, which this phase's section adds.
+
+| ID | Status |
+|---|---|
+| LOAD-001 Fleet corporate-context | `NOT RUN` — needs deployed Fleet |
+| LOAD-002 offer / assignment list | `NOT RUN` — needs a deployed execution service |
+| LOAD-003 accept contention | `NOT RUN` as load; correctness `PASS — DB-BACKED` |
+| LOAD-004 completed-work ingest | `NOT RUN` — needs deployed Fleet |
+| LOAD-005 managed settlement | `PASS — DB-BACKED` (measured, §5); `NOT RUN` against staging |
+| LOAD-006 commerce mission create | `NOT RUN` — needs deployed Vendor + authority |
+| LOAD-007 credential verify | `NOT RUN` as load; the bound is `PASS — DB-BACKED` (25 guesses per booking ceiling) |
+| LOAD-008 outbox recovery drain | `NOT RUN` — needs two deployed services and a controlled outage between them |
+
+No pass threshold is invented. `LOAD-005`'s measured figures are a baseline,
+and the guardrail derived from them — hold settlement concurrency at or below
+the pool size — is recorded in the readiness checklist as a proposal, not as a
+met SLO.

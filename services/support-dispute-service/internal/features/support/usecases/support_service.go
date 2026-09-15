@@ -16,6 +16,7 @@ type SupportService struct {
 	repo                supportrepositories.SupportRepository
 	notifier            *supportclients.SupportNotifier
 	identity            supportclients.IdentityResolver
+	corporate           supportclients.OrganizationResolver
 	resolutionPublisher supportclients.CommerceResolutionPublisher
 }
 
@@ -24,8 +25,12 @@ type SupportService struct {
 // (local dev). Money authority is deliberately absent: Support adjudicates;
 // the owning commerce workflow and Wallet execute financial action.
 type Options struct {
-	Notifier            *supportclients.SupportNotifier
-	Identity            supportclients.IdentityResolver
+	Notifier *supportclients.SupportNotifier
+	Identity supportclients.IdentityResolver
+	// Corporate resolves the organization behind a provider-raised case. Nil
+	// means the platform runs exactly as it did before this dimension
+	// existed: cases are created, simply without the label.
+	Corporate           supportclients.OrganizationResolver
 	ResolutionPublisher supportclients.CommerceResolutionPublisher
 }
 
@@ -36,7 +41,13 @@ func NewSupportService(repo supportrepositories.SupportRepository, opts Options)
 	if opts.Identity == nil {
 		opts.Identity = supportclients.NoopIdentityResolver{}
 	}
-	return &SupportService{repo: repo, notifier: opts.Notifier, identity: opts.Identity, resolutionPublisher: opts.ResolutionPublisher}
+	if opts.Corporate == nil {
+		opts.Corporate = supportclients.NoopOrganizationResolver{}
+	}
+	return &SupportService{
+		repo: repo, notifier: opts.Notifier, identity: opts.Identity,
+		corporate: opts.Corporate, resolutionPublisher: opts.ResolutionPublisher,
+	}
 }
 
 // ─── Inputs ────────────────────────────────────────────────────────────────────
@@ -104,17 +115,19 @@ func (s *SupportService) CreateComplaint(ctx context.Context, in CreateComplaint
 	}
 
 	name, phone := s.resolveSnapshot(ctx, in.ComplainantType, in.ComplainantID)
+	organization := s.resolveOrganization(ctx, in.ComplainantType, in.ComplainantID)
 	complaint, err := s.repo.CreateComplaint(ctx, supportrepositories.CreateComplaintInput{
-		ComplainantType:  in.ComplainantType,
-		ComplainantID:    in.ComplainantID,
-		ComplainantName:  name,
-		ComplainantPhone: phone,
-		ServiceType:      in.ServiceType,
-		BookingReference: trimToPtr(in.BookingReference),
-		Category:         trimToPtr(in.Category),
-		Priority:         supportmodels.PriorityNormal,
-		Subject:          strings.TrimSpace(in.Subject),
-		Description:      strings.TrimSpace(in.Description),
+		ComplainantType:       in.ComplainantType,
+		ComplainantID:         in.ComplainantID,
+		ComplainantName:       name,
+		ComplainantPhone:      phone,
+		ServiceType:           in.ServiceType,
+		BookingReference:      trimToPtr(in.BookingReference),
+		Category:              trimToPtr(in.Category),
+		Priority:              supportmodels.PriorityNormal,
+		Subject:               strings.TrimSpace(in.Subject),
+		Description:           strings.TrimSpace(in.Description),
+		OrganizationReference: organization,
 	})
 	if err != nil {
 		return supportmodels.Complaint{}, err
@@ -187,18 +200,20 @@ func (s *SupportService) CreateSOS(ctx context.Context, in SOSInput) (supportmod
 	category := "emergency"
 
 	name, phone := s.resolveSnapshot(ctx, in.ComplainantType, in.ComplainantID)
+	organization := s.resolveOrganization(ctx, in.ComplainantType, in.ComplainantID)
 	complaint, err := s.repo.CreateComplaint(ctx, supportrepositories.CreateComplaintInput{
-		ComplainantType:  in.ComplainantType,
-		ComplainantID:    in.ComplainantID,
-		ComplainantName:  name,
-		ComplainantPhone: phone,
-		ServiceType:      serviceType,
-		Category:         &category,
-		Priority:         supportmodels.PriorityEmergency,
-		IncidentLat:      in.Lat,
-		IncidentLng:      in.Lng,
-		Subject:          "Emergency SOS",
-		Description:      desc,
+		ComplainantType:       in.ComplainantType,
+		ComplainantID:         in.ComplainantID,
+		ComplainantName:       name,
+		ComplainantPhone:      phone,
+		ServiceType:           serviceType,
+		Category:              &category,
+		Priority:              supportmodels.PriorityEmergency,
+		IncidentLat:           in.Lat,
+		IncidentLng:           in.Lng,
+		Subject:               "Emergency SOS",
+		Description:           desc,
+		OrganizationReference: organization,
 	})
 	if err != nil {
 		return supportmodels.Complaint{}, err
@@ -501,6 +516,26 @@ func (s *SupportService) resolveSnapshot(ctx context.Context, ctype supportmodel
 		return nil, nil
 	}
 	return trimToPtr(identity.Name), trimToPtr(identity.Phone)
+}
+
+// resolveOrganization snapshots the corporate organization behind a
+// provider-raised case.
+//
+// It is best-effort by design. Fleet being unreachable must never stop a case
+// being opened, and an SOS least of all: the incident is the urgent thing, the
+// organization label is a reporting dimension. An unresolved case is created
+// with no organization rather than failing, and stays that way -- rewriting it
+// on a later read would silently restate history the first time a provider
+// moves organization.
+func (s *SupportService) resolveOrganization(ctx context.Context, ctype supportmodels.ComplainantType, id string) *string {
+	if s.corporate == nil {
+		return nil
+	}
+	snapshot := s.corporate.ResolveOrganization(ctx, ctype, id)
+	if !snapshot.Resolved {
+		return nil
+	}
+	return trimToPtr(snapshot.OrganizationReference)
 }
 
 func (s *SupportService) recordEvent(ctx context.Context, complaintID, actorType, actorID, eventType string, payload map[string]any) {

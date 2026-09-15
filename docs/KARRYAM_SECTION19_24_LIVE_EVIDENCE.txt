@@ -62,3 +62,20 @@ ok  	cosmicforge/logistics/services/payment-wallet-service/internal/integration	
 PASS
 ok  	cosmicforge/logistics/services/payment-wallet-service/internal/integration	2.501s
 
+
+============================================================
+FIX-001 / OPS-002 — build metadata, verified on a running binary
+============================================================
+Recorded 2026-09-15T05:30:05Z. driver-hauling-service built from
+9ebad225ea9ec25397778a4dc8d3ff842f2938a3 with the same -ldflags the Dockerfiles now pass,
+booted on :8198 against a throwaway database. No secret value appears below.
+
+Startup structured log (proves the commit survives log redaction):
+    {"build_time":"2026-09-15T05:29:41Z","commit_sha":"9ebad225ea9ec25397778a4dc8d3ff842f2938a3","environment":"staging","event":"service_build","level":"info","service":"hauling-service","stamped":true,"timestamp":"2026-09-15T05:29:50.122851489Z","version":"staging-verify"}
+
+GET /health:
+    {"commit_sha":"9ebad225ea9ec25397778a4dc8d3ff842f2938a3","service":"hauling-service","status":"ok","success":true}
+GET /api/v1/hauling/meta:
+    {"api_base":"/api/v1/hauling","build_time":"2026-09-15T05:29:41Z","capabilities":["truck provider auth (OTP phone)","truck provider profiles and truck records","provider availability management (online/offline via Redis)","customer availability check","haulage bookings with async provider matching","booking lifecycle: accept -\u003e pickup -\u003e deliver -\u003e complete","fare estimation"],"commit_sha":"9ebad225ea9ec25397778a4dc8d3ff842f2938a3","environment":"staging","service":"hauling-service","success":true,"version":"staging-verify"}
+Expected commit: 9ebad225ea9ec25397778a4dc8d3ff842f2938a3
+A deployment check can now compare the two and fail on a stale service.

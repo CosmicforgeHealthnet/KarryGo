@@ -195,7 +195,7 @@ jobs:
       - name: Create service databases
         shell: bash
         run: |
-          for db in dispatch_test dispatch_verification_event_test hauling_test wallet_test media_test support_test verification_test; do
+          for db in dispatch_test dispatch_verification_event_test hauling_test taxi_test wallet_test media_test support_test verification_test; do
             PGPASSWORD=karrygo_test createdb -h 127.0.0.1 -U karrygo_test "$db"
           done
       - name: Apply Dispatch integration migrations
@@ -203,6 +203,12 @@ jobs:
         working-directory: services/driver-dispatch-delivery-service
         run: go run ./cmd/test-migrate
       - working-directory: ${{ matrix.module }}
+        # TAXI_TEST_DATABASE_URL is set on this job only, not repo-wide: a URL
+        # naming a database that another job never creates turns a skip into a
+        # failure. The Taxi outbox suite applies its own migrations, so a
+        # freshly created empty database is all it needs.
+        env:
+          TAXI_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/taxi_test?sslmode=disable
         run: go test ./... -count=1 -p 1 -timeout=600s
       - working-directory: ${{ matrix.module }}
         run: go vet ./...

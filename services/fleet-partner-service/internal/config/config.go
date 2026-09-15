@@ -614,8 +614,13 @@ func Load() (Config, error) {
 			"driver-dispatch-delivery-service,driver-taxi-service,driver-hauling-service"),
 		DocumentsCustomerAllowedCallers: getEnv("FLEET_DOCUMENTS_CUSTOMER_ALLOWED_CALLERS", ""),
 
+		// support-dispute-service reads corporate context to label a
+		// provider-raised safety case with the organization it happened
+		// under. It is a read of the same contract the execution services
+		// already use -- no new shape, no write access, and Support holds no
+		// Fleet credentials beyond this one allowlist entry.
 		ProviderMembershipAllowedCallers: getEnv("PROVIDER_MEMBERSHIP_ALLOWED_CALLERS",
-			"driver-dispatch-delivery-service,driver-taxi-service,driver-hauling-service"),
+			"driver-dispatch-delivery-service,driver-taxi-service,driver-hauling-service,support-dispute-service"),
 
 		DocumentReconcileEnabled:     getEnvBool("FLEET_DOCUMENTS_RECONCILIATION_ENABLED", false),
 		DocumentReconcileInterval:    time.Duration(getEnvInt("FLEET_DOCUMENTS_RECONCILE_INTERVAL_SECONDS", 30)) * time.Second,

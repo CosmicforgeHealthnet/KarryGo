@@ -1,7 +1,31 @@
 # ART-005 — Deployment readiness checklist and runbook
 
-Phase baseline `3007d6d42b60bf256578cf2688fe9e330a4a2798`.
-This is the OPS-014 runbook. No secret value appears here.
+Phase baseline `9ebad225ea9ec25397778a4dc8d3ff842f2938a3`.
+This is the OPS-014 runbook. No secret value, hostname or key appears here.
+
+**Read this first.** Commands below are marked **[VERIFIED]** when they were
+actually executed during certification and **[NOT RUN]** when they were not.
+Nothing hypothetical is presented as tested. The deployment system itself is
+described in `FINAL_DEPLOYED_STAGING_EVIDENCE.md`; the short version is that
+only three of twelve services have a deploy path today and none of them is on
+the corporate money path, so most of this runbook could not be exercised.
+
+## 0. The actual deployment pipeline
+
+```
+GitHub Actions  →  docker build (commit stamped via BUILD_COMMIT_SHA)
+                →  ghcr.io/cosmicforgehealthnet/<service>
+                →  SSH to the VPS (secrets VPS_HOST / VPS_USER / VPS_SSH_KEY)
+                →  docker compose under /opt/karrygo/<service>
+```
+
+Services with a deploy workflow: **api-gateway, media-file-service,
+vendor-service**. Every other service must be deployed by a workflow that does
+not exist yet.
+
+Per-service environment files (`/opt/karrygo/<service>/<service>.env`, mode
+600) are operator-provisioned and are **not** in the repository. Vendor's
+deploy currently fails because its file has never been created.
 
 ## 1. Startup order
 
@@ -52,7 +76,30 @@ Run migrations before starting the service that owns them. Never run two
 migration runners against one database concurrently — `CREATE TABLE IF NOT
 EXISTS` is not safe against concurrent execution from two processes.
 
-## 3. Health verification
+## 3. Health and version verification
+
+**[VERIFIED]** — executed against a locally booted, linker-stamped binary this
+phase; see `FINAL_DEPLOYED_STAGING_EVIDENCE.md` §5.
+
+```
+curl -fsS https://<service>/health     # process alive, and reports commit_sha
+curl -fsS https://<service>/ready      # database and Redis reachable
+curl -fsS https://<service>/api/v1/<name>/meta   # version, commit_sha, build_time, environment
+```
+
+Version check (this is OPS-002):
+
+```
+EXPECTED_SHA=$(git rev-parse origin/staging)
+RUNNING_SHA=$(curl -fsS https://<service>/health | jq -r .commit_sha)
+test "$RUNNING_SHA" = "$EXPECTED_SHA" || echo "STALE: $RUNNING_SHA"
+```
+
+A service reporting `unknown` was built outside the pipeline — that is a
+different problem from running the wrong commit, and is deliberately
+distinguishable rather than both looking like an empty field.
+
+### Legacy health block (kept for reference)
 
 ```
 curl -fsS https://<service>/health     # process alive

@@ -86,6 +86,41 @@ func TestPublishUsesLowCardinalityLabels(t *testing.T) {
 	Publish(nil, config, Snapshot{Pending: 1})
 }
 
+// OBS-H001. Every label this package emits must be a bounded breakdown. An
+// identifier here would create one series per entity and grow the registry
+// without bound for as long as the service runs; the first symptom is usually
+// the monitoring system falling over rather than anything pointing back here.
+func TestEmittedLabelKeysAreLowCardinality(t *testing.T) {
+	config := Config{Service: "hauling-service", Target: "fleet-completed-work",
+		Table: "hauling_domain_outbox", TargetColumn: "target",
+		CreatedColumn: "occurred_at", DeliveredColumn: "delivered_at",
+		AttemptsColumn: "attempts", ReconciliationColumn: "reconciliation_state"}
+
+	// Rendered rather than introspected: the assertion is about what actually
+	// reaches the registry, not about a helper that might not be the one
+	// Publish uses.
+	metrics := observability.NewMetrics()
+	Publish(metrics, config, Snapshot{
+		Pending: 1, OldestPendingAge: time.Minute,
+		ReconciliationByState:   map[string]int64{"RECONCILIATION_REQUIRED": 1},
+		ReconciliationOldestAge: time.Minute,
+	})
+
+	for _, line := range strings.Split(metrics.Render(), "\n") {
+		open := strings.IndexByte(line, '{')
+		close := strings.LastIndexByte(line, '}')
+		if open < 0 || close < open {
+			continue
+		}
+		for _, pair := range strings.Split(line[open+1:close], ",") {
+			key := strings.TrimSpace(strings.SplitN(pair, "=", 2)[0])
+			if !observability.LabelKeyIsLowCardinality(key) {
+				t.Fatalf("high-cardinality label key %q emitted in: %s", key, line)
+			}
+		}
+	}
+}
+
 // A reconciliation state that empties must stop being reported. A gauge that
 // keeps its last value forever turns a resolved backlog into a permanent
 // alert, and an operator who has seen that once stops believing the next one.
@@ -112,12 +147,20 @@ func TestEmptiedReconciliationStateDisappears(t *testing.T) {
 	}
 }
 
-// collectPool connects to whichever service database the caller names.
-func collectPool(t *testing.T, env string) *pgxpool.Pool {
+// collectPool connects to a database this package may create tables in.
+//
+// It deliberately does NOT reach for a service DSN. shared/go owns no schema,
+// so borrowing another service's database made these tests pass locally
+// against a populated one and fail in CI against an empty one. The
+// "does the compiled configuration match the real table" assertion now lives
+// in each owning service, where the migrated schema genuinely exists; what is
+// left here is the query builder, which can prove itself against a table it
+// creates.
+func collectPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dsn := os.Getenv(env)
+	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
-		t.Skipf("%s not set; outbox metric collection is infrastructure-gated", env)
+		t.Skip("TEST_DATABASE_URL not set; outbox metric collection is infrastructure-gated")
 	}
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
@@ -130,27 +173,88 @@ func collectPool(t *testing.T, env string) *pgxpool.Pool {
 	return pool
 }
 
-// The aggregate must run against the real Hauling outbox: a query that only
-// compiles in a unit test proves nothing about the column names a live
-// service actually has.
-func TestCollectReadsARealOutbox(t *testing.T) {
-	pool := collectPool(t, "HAULING_TEST_DATABASE_URL")
+// fixtureOutbox creates a table shaped like the outboxes this package reads,
+// scoped to one test and dropped afterwards.
+func fixtureOutbox(t *testing.T, pool *pgxpool.Pool, table string) {
+	t.Helper()
 	ctx := context.Background()
+	_, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS `+table+` (
+		id                   BIGSERIAL PRIMARY KEY,
+		target               TEXT        NOT NULL,
+		occurred_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+		delivered_at         TIMESTAMPTZ,
+		dead_lettered_at     TIMESTAMPTZ,
+		attempts             INTEGER     NOT NULL DEFAULT 0,
+		reconciliation_state TEXT        NOT NULL DEFAULT 'PENDING'
+	)`)
+	if err != nil {
+		t.Fatalf("create fixture outbox: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DROP TABLE IF EXISTS `+table) })
+}
+
+// The aggregate must run against a real PostgreSQL table, not a hand-rolled
+// row struct: the FILTER clauses, the EXTRACT and the NULL handling are where
+// this query can be wrong, and none of that is exercised by compiling it.
+func TestCollectReadsARealTable(t *testing.T) {
+	pool := collectPool(t)
+	ctx := context.Background()
+	const table = "outboxmetrics_fixture_outbox"
+	fixtureOutbox(t, pool, table)
 
 	config := Config{
-		Service: "driver-hauling-service", Table: "hauling_domain_outbox",
-		Target: "fleet-partner-service", TargetColumn: "target",
+		Service: "fixture", Table: table,
+		Target: "fleet-completed-work", TargetColumn: "target",
 		CreatedColumn: "occurred_at", DeliveredColumn: "delivered_at",
 		DeadLetterColumn: "dead_lettered_at", AttemptsColumn: "attempts",
 		ReconciliationColumn: "reconciliation_state",
 	}
 
+	// An empty table must read as drained, not as an error and not as a
+	// non-zero age: a service that has never enqueued anything is healthy.
 	snapshot, err := Collect(ctx, pool, config)
+	if err != nil {
+		t.Fatalf("collect on an empty table: %v", err)
+	}
+	if snapshot.Pending != 0 || snapshot.DeadLettered != 0 || snapshot.OldestPendingAge != 0 {
+		t.Fatalf("an empty outbox did not read as drained: %+v", snapshot)
+	}
+
+	_, err = pool.Exec(ctx, `INSERT INTO `+table+`
+		(target, occurred_at, delivered_at, dead_lettered_at, attempts, reconciliation_state) VALUES
+		($1, now() - interval '10 minutes', NULL, NULL, 0, 'PENDING'),
+		($1, now() - interval '5 minutes',  NULL, NULL, 3, 'RETRY_SCHEDULED'),
+		($1, now() - interval '1 minute',   NULL, now(), 7, 'FAILED_TERMINAL'),
+		($1, now() - interval '2 hours',    now(), NULL, 1, 'DELIVERED'),
+		($2, now() - interval '9 hours',    NULL, NULL, 0, 'PENDING')`,
+		config.Target, "some-other-target")
+	if err != nil {
+		t.Fatalf("seed fixture rows: %v", err)
+	}
+
+	snapshot, err = Collect(ctx, pool, config)
 	if err != nil {
 		t.Fatalf("collect: %v", err)
 	}
-	if snapshot.Pending < 0 || snapshot.DeadLettered < 0 {
-		t.Fatalf("negative counts: %+v", snapshot)
+	// Two pending, and the row for another target must not be counted: a
+	// Fleet backlog and a Vendor backlog are different incidents.
+	if snapshot.Pending != 2 {
+		t.Fatalf("pending = %d, want 2 (the other target must not be counted)", snapshot.Pending)
+	}
+	// A dead-lettered row is not pending. It needs an operator, not patience.
+	if snapshot.DeadLettered != 1 {
+		t.Fatalf("dead lettered = %d, want 1", snapshot.DeadLettered)
+	}
+	if snapshot.Retrying != 1 {
+		t.Fatalf("retrying = %d, want 1", snapshot.Retrying)
+	}
+	if snapshot.PendingAttempts != 3 {
+		t.Fatalf("pending attempts = %d, want 3", snapshot.PendingAttempts)
+	}
+	// The oldest PENDING row is 10 minutes old. The 9-hour row belongs to
+	// another target and the 2-hour row is delivered; neither may set the age.
+	if snapshot.OldestPendingAge < 9*time.Minute || snapshot.OldestPendingAge > 30*time.Minute {
+		t.Fatalf("oldest pending age = %s, want about 10 minutes", snapshot.OldestPendingAge)
 	}
 
 	counts, oldest, err := CollectStates(ctx, pool, config,
@@ -158,12 +262,18 @@ func TestCollectReadsARealOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("collect states: %v", err)
 	}
-	if oldest < 0 {
-		t.Fatalf("negative oldest age: %s", oldest)
-	}
 	for state := range counts {
 		if strings.TrimSpace(state) == "" {
 			t.Fatal("a blank reconciliation state was reported as a label")
 		}
+	}
+	if counts["DELIVERED"] != 1 {
+		t.Fatalf("a resolved state must still be counted and labelled: %v", counts)
+	}
+	// DELIVERED is two hours old but is not declared unresolved, so it must
+	// not set the oldest-case age -- otherwise the metric is permanently red
+	// and therefore permanently ignored.
+	if oldest < 9*time.Minute || oldest > 30*time.Minute {
+		t.Fatalf("oldest unresolved age = %s; a resolved state set the age", oldest)
 	}
 }

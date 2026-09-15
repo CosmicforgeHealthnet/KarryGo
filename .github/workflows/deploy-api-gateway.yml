@@ -28,8 +28,14 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build the image
+        # The commit is stamped into the binary so a deployed service can be
+        # asked which commit it is running (OPS-002). The image tag alone
+        # cannot answer that: :latest is reused by every build.
         run: |
           docker build -f services/Dockerfile --build-arg SERVICE_DIR=api-gateway \
+            --build-arg BUILD_COMMIT_SHA="${{ github.sha }}" \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg BUILD_VERSION="${{ github.ref_name }}-${{ github.run_number }}" \
             -t ghcr.io/cosmicforgehealthnet/api-gateway:latest .
 
       - name: Push the image

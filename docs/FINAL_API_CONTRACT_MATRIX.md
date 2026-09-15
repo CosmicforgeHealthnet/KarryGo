@@ -1,6 +1,12 @@
 # ART-002 — API and DTO conformance
 
-Phase baseline `3007d6d42b60bf256578cf2688fe9e330a4a2798`.
+Phase baseline `9ebad225ea9ec25397778a4dc8d3ff842f2938a3`.
+
+**Phase update.** Two contract additions, both on existing surfaces rather than
+new ones: `<api-base>/meta` and `/health` now carry build metadata (API-001's
+neighbour, and the mechanism OPS-002 needs), and Support reads Fleet's existing
+corporate-context route as a new caller. No new internal contract shape was
+introduced.
 
 Section 20 is an audit. The provider surfaces were built in Sections 8–10 and
 the credential and capability contracts in Sections 15–18; nothing here was
@@ -31,7 +37,7 @@ marked LIVE answered on a booted binary.
 
 | Contract | Server | Caller | Auth | Route | Request | Response | Idempotency | Version | Retry |
 |---|---|---|---|---|---|---|---|---|---|
-| Corporate context | Fleet | Taxi, Dispatch, Hauling | HMAC v2 + allowlist | `GET /internal/fleet-partner/v1/corporate-context` | service + providerId | `providercompat.CorporateContext` | read-only | context `Version` | retryable only on `FLEET_DEPENDENCY_UNAVAILABLE` |
+| Corporate context | Fleet | Taxi, Dispatch, Hauling, **Support** | HMAC v2 + allowlist | `GET /internal/fleet-partner/v1/corporate-context` | service + providerId | `providercompat.CorporateContext` | read-only | context `Version` | retryable only on `FLEET_DEPENDENCY_UNAVAILABLE` |
 | Offers / assignments relay | Fleet | Taxi, Dispatch, Hauling | HMAC v2 + allowlist | `/internal/fleet-partner/v1/company-assignments/…`, `…/organization-offers/…` | typed decision | typed assignment/offer | `clientResponseId` | `expectedVersion` | bounded, conflict is terminal |
 | Private assignments relay | Fleet | Hauling | HMAC v2 + allowlist | `/internal/fleet-partner/v1/private-assignments/:id/{accept,decline}` | typed decision | typed assignment | `Idempotency-Key` | `expectedVersion` | bounded |
 | Private execution | Taxi, Dispatch, Hauling | Fleet | HMAC v2 + allowlist | `/internal/private-executions` | typed execution | typed outcome | operation ref | source version | bounded |

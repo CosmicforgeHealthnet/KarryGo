@@ -1,6 +1,13 @@
 # ART-001 — Migration and backfill certification
 
-Phase baseline `3007d6d42b60bf256578cf2688fe9e330a4a2798`.
+Phase baseline `9ebad225ea9ec25397778a4dc8d3ff842f2938a3`.
+
+**Phase update.** **Zero migrations were added in this phase either.** The
+Support organization snapshot looked like it would need one and does not:
+`complaints.organization_reference` has existed since migration 006, with its
+partial unique index and its organization index. It was verified present before
+anything was written, which is the same discipline this document records for
+Section 19.
 
 The finding that shapes this whole document: **Section 19 needed almost no new
 schema.** The durable models it asks for already exist, built by Sections 6–18.

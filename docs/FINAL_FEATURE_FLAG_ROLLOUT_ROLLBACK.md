@@ -1,7 +1,11 @@
 # ART-007 — Feature flags, rollout and rollback
 
-Phase baseline `3007d6d42b60bf256578cf2688fe9e330a4a2798`.
+Phase baseline `9ebad225ea9ec25397778a4dc8d3ff842f2938a3`.
 No secret value appears in this document.
+
+**Phase update.** Two changes from the previous version: the `PAYROLL_ENABLED`
+caveat is withdrawn (§5), and §15 records that FLAG-001 … FLAG-008 could not be
+exercised against a deployed environment, with the reason.
 
 Every flag below is read from the environment at boot. Defaults are the
 compiled-in values verified against each service's `internal/config/config.go`
@@ -77,7 +81,7 @@ is the correct default and it is also the rollback target.
 | `FLEET_HAULING_INTEGRATION_ENABLED` | `false` | service | Hauling secret | — |
 | `FLEET_DISPATCH_EXECUTION_START_ENABLED` | `false` | service | Dispatch secret | — |
 | `FLEET_FINANCE_INTEGRATION_ENABLED` | `false` | service | Wallet secret | — |
-| `PAYROLL_ENABLED` | `false` | service | `COMPENSATION_ENABLED` | **CMP-027 open — see ROL-004 caveat** |
+| `PAYROLL_ENABLED` | `false` | service | `COMPENSATION_ENABLED`; compensation plans assigned | CMP-027 double-pay prevention certified DB-backed; run §13 as for any flag |
 | **`FLEET_OPERATING_MODE_ENFORCEMENT_ENABLED`** | **`true`** | service, but gates a **per-organization** value | corporate context carries `operating_mode` | already on; see ROL-002 |
 | **`FLEET_FINANCE_EXECUTION_KILL_SWITCH`** | `false` | service | — | see ROL-006 |
 | **`FLEET_PRIVATE_OPERATIONS_KILL_SWITCH`** | `false` | service | — | see ROL-006 |
@@ -199,11 +203,19 @@ When all five hold, `*_MANAGED_SETTLEMENT_ENABLED` and
 follow-up change; the managed marker check in `CompleteJob` stays forever,
 because it is a safety invariant rather than a migration aid.
 
-**Caveat carried forward:** `PAYROLL_ENABLED` should not go ON in production
-until CMP-027 is closed (payroll calculation does not yet cross-check
-already-posted work-level settlements). The classification makes double-pay
-structurally impossible for a correctly-classified component, but a
-misclassified one is not currently caught. ART-008, P1.
+**Correction to the previous version of this document:** it carried a caveat
+holding `PAYROLL_ENABLED` OFF until CMP-027 was closed. **That caveat was based
+on an incorrect reading and has been withdrawn.** CMP-027 is implemented and
+wired: `CalculatePayroll` reads `fleet_partner_work_settled_components` inside
+its own transaction, keyed on assignment and rule, and skips exactly those
+components at the accumulation point for `PER_JOB`, `COMMISSION` and `BONUS`.
+The write side records them when the settlement instruction is produced. It is
+certified DB-backed by `TestCMP027_PayrollDoesNotRepayWorkSettledComponent` and
+`TestCMP027_RecalculationDoesNotAccumulateDuplicates`, both re-run against real
+PostgreSQL this phase.
+
+`PAYROLL_ENABLED` is therefore gated only by its own rollout checklist, like
+any other flag. There is no unresolved double-pay risk.
 
 ## 6. ROL-005 — Compensation resolver OFF → SHADOW → ON → rollback
 
@@ -390,3 +402,25 @@ Run this before **each** flag, not once per rollout.
 **Two managed corporate payout algorithms must not be maintained forever.** The
 criteria above are the commitment. The follow-up change is a code deletion, not
 a config change, and it should be scheduled rather than left to drift.
+
+## 15. FLAG-001 … FLAG-008 — deployed flag certification
+
+Every gate in this section requires a deployed environment in which a flag can
+be flipped and its effect observed. There is none —
+`FINAL_DEPLOYED_STAGING_EVIDENCE.md` names the specific missing pieces, chief
+among them that **none of the services carrying these flags has a deploy
+workflow at all**.
+
+| ID | Status | What exists instead |
+|---|---|---|
+| FLAG-001 inventory of deployed values | **NOT RUN — NO ENVIRONMENT** | §1 is the inventory of compiled defaults, read from each `config.go`. Deployed values live in per-service env files on the VPS that have not been created. |
+| FLAG-002 resolver OFF | PASS — UNIT | `NormalizeResolverMode` returns `OFF` when unset; `ResolvesCompensation` is false, so nothing is computed. |
+| FLAG-003 resolver SHADOW | PASS — UNIT | `ActsOnResolution` is false for `SHADOW`, and the settlement stage is gated on it *and* `FLEET_SETTLEMENT_INSTRUCTION_ENABLED`. Shadow computes and records; it posts nothing. |
+| FLAG-004 resolver ON | PASS — DB-BACKED (behaviour), **NOT RUN** (deployed) | The financial flow under `ON` is certified by the managed-settlement suite. Enabling it for one real organization in staging is not possible. |
+| FLAG-005 rollback | PASS — UNIT | `TestRollingBackStopsTheResolverImmediately`. Already-posted journals are untouched by a flag change by construction: rollback is a compensating journal, never a delete (ROL-008). |
+| FLAG-006 marketplace kill | PASS — COMPONENT | Kill switches gate acquisition only; none sits on a completion, credential-verification or settlement-readback path, so active work completes. |
+| FLAG-007 managed settlement kill | PASS — DB-BACKED | The important half is certified in code and is stronger than a flag: `CompleteJob` **refuses** organization-managed work on the intent's managed marker or an existing settlement row, so disabling the managed path produces a refusal to reconcile, never an unsafe fallback into legacy provider payout. `TestLegacyCompleteJobRefusesManagedWork`. |
+| FLAG-008 secure handover | PASS — DB-BACKED | An unavailable credential dependency returns `OTP_DEPENDENCY_UNAVAILABLE` (503). There is no branch that completes a protected handover without verification, and none may be added (ROL-009). |
+
+The labels are the ones the certification matrix defines. None of these rows
+claims deployed evidence, because there is none.

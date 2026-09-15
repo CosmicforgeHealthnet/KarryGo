@@ -379,36 +379,16 @@ func main() {
 	}
 
 	// Outbox and reconciliation health, in the same metric names every other
-	// service reports (OBS-006, OBS-007). One taxi_outbox serves two
-	// destinations, so each is reported separately: a Vendor backlog and a
-	// Fleet backlog are different incidents with different responders, and a
-	// combined number would hide whichever is healthy.
+	// service reports (OBS-006, OBS-007).
 	//
-	// It is mounted at /outbox-metrics rather than /metrics because Taxi
-	// already publishes booking and availability gauges at /metrics, and
-	// merging two registries would mean one of them silently wins.
-	taxiOutboxMetrics := outboxmetrics.NewReporter(db, 30*time.Second,
-		outboxmetrics.Source{
-			Config: outboxmetrics.Config{
-				Service: "driver-taxi-service", Table: "taxi_outbox",
-				Target: taxioutbox.TargetFleet, TargetColumn: "target",
-				CreatedColumn: "occurred_at", DeliveredColumn: "delivered_at",
-				DeadLetterColumn: "dead_lettered_at", AttemptsColumn: "attempts",
-				ReconciliationColumn: "reconciliation_state",
-			},
-			Unresolved: []string{"PENDING", "RETRY_SCHEDULED", "RECONCILIATION_REQUIRED"},
-		},
-		outboxmetrics.Source{
-			Config: outboxmetrics.Config{
-				Service: "driver-taxi-service", Table: "taxi_outbox",
-				Target: taxioutbox.TargetVendor, TargetColumn: "target",
-				CreatedColumn: "occurred_at", DeliveredColumn: "delivered_at",
-				DeadLetterColumn: "dead_lettered_at", AttemptsColumn: "attempts",
-				ReconciliationColumn: "reconciliation_state",
-			},
-			Unresolved: []string{"PENDING", "RETRY_SCHEDULED", "RECONCILIATION_REQUIRED"},
-		},
-	).WithAuthToken(cfg.MetricsAuthToken)
+	// Mounted at /outbox-metrics rather than /metrics because Taxi already
+	// publishes booking and availability gauges at /metrics, and merging two
+	// registries would mean one of them silently wins.
+	//
+	// The source descriptions live with the table's writer, where a test can
+	// run them against the real migrated schema.
+	taxiOutboxMetrics := outboxmetrics.NewReporter(db, taxioutbox.MetricsInterval,
+		taxioutbox.MetricsSources()...).WithAuthToken(cfg.MetricsAuthToken)
 
 	serviceapp.Run(serviceapp.Options{
 		Name:        "taxi-service",

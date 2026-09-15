@@ -21,205 +21,208 @@ release consequence appears below.
 
 ### P0-1 — No deployed-environment certification
 
-**Evidence.** ART-006 §6 and ART-004 §1. This run has no deployed staging
-environment. Consequences, each recorded rather than papered over:
+**Evidence:** `FINAL_DEPLOYED_STAGING_EVIDENCE.md`, which names the specific
+blockers rather than restating the absence.
 
-- Section 22 (Observability and Operational Readiness) stays **OPEN**:
-  OPS-001 … OPS-014 are all `NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED`.
-- No CERT scenario carries `PASS — DEPLOYED STAGING`.
-- No persona walked the full offer → accept → execute → complete →
-  compensate → settle chain over HTTP in one continuous run (ART-006 §2, last
-  row). Each stage is certified; the seams between them are certified by
-  contract tests, not by a physical run.
-- CERT-023/024/025 ask explicitly for a *fresh staging* capability read. The
-  strongest available evidence is a fresh **local** read from a compiled
-  service.
-- Six of seven load tests (`LOAD-001`, `-002`, `-004`, `-006`, `-007`, plus
-  `LOAD-003` as load) were not run, because HTTP-level load against a laptop
-  process measures the laptop.
+The previous report said this was environmental. This phase established
+*precisely* what is missing, which is a materially different and more useful
+statement:
 
-**Why this is P0 and not P1.** Every dependency on this path is a signed HTTP
-call between separately-deployed services. Signing, allowlisting, routing,
-timeouts and TLS are exactly the class of thing that is correct in a test
-harness and wrong in a deployment, and they are also the class of thing whose
-failure mode on the money path is an ambiguous outcome rather than a clean
-error.
+1. **Only three of twelve services have any deployment path at all**
+   (api-gateway, media-file-service, vendor-service). Fleet, Wallet, Taxi,
+   Dispatch, Hauling, Notification, Verification, Support and Customer have no
+   deploy workflow. **Not one deployable service is on the corporate money
+   path.** Section 23's cross-service journeys therefore cannot be certified by
+   any mechanism this repository currently defines — this is not a scheduling
+   problem, there is no workflow to run.
+2. **Vendor's deploy fails on a missing operator-provisioned file.** Every
+   recent run ends `ERROR: /opt/karrygo/vendor-service/vendor.env is missing`.
+   The image builds, the push succeeds, the SSH succeeds; the environment file
+   has never been placed on the host. It holds staging secrets and must be
+   created by an operator, mode 600. It cannot be created from here and must
+   not be invented.
+3. **`infra/docker-compose.yml` defines nothing** — 382 lines, 0 active. It
+   cannot be used to stand a stack up locally either.
+4. **A green api-gateway or media-file-service deploy is not evidence.** Both
+   end at `docker-compose up -d` with no health gate and no version check; a
+   green run means the SSH command returned 0. Only Vendor's workflow waits for
+   health, and it is the one that cannot run.
+5. **No hostname, TLS configuration, backup provider, monitoring backend or
+   alerting destination is identified anywhere in the repository**, and the
+   VPS credentials are GitHub Actions secrets unavailable to a certification
+   session by design.
 
-**Closure.** Deploy the baseline plus this phase to staging, then run
-ART-006's CERT list and the seven load tests against it, and re-run the
-Section 22 OPS gates. Nothing in the code needs to change first.
+**Nothing in the code needs to change to close this.** The remaining work is
+operator and infrastructure work, enumerated step by step in
+`FINAL_DEPLOYED_STAGING_EVIDENCE.md` §7.
 
 **This is the sole reason the verdict is not `BACKEND RELEASE READY`.**
 
----
+### P1-1 — build commit metadata — **CLOSED this phase**
 
-## P1 — release not blocked; flag stays OFF or work is scheduled
+`serviceapp` now resolves `service`, `version`, `commit_sha`, `build_time` and
+`environment`, stamped by the linker from the deployment pipeline, and surfaces
+them on `/health`, on `<api-base>/meta` and in the structured startup log. Both
+Dockerfiles take `BUILD_COMMIT_SHA` / `BUILD_TIME` / `BUILD_VERSION` as build
+args; all three deploy workflows pass `${{ github.sha }}`.
 
-### P1-1 — `<api-base>/meta` reports no build commit
+No second metadata system was created — the existing `/meta` surface was
+extended, as the section requires.
 
-**Evidence.** ART-004 OBS-016; ART-007 ROL-013 step 2.
+Verified on a running binary built with those flags; transcript in
+`FINAL_DEPLOYED_STAGING_EVIDENCE.md` §5. An unstamped build reports `unknown`
+rather than an empty string, so a deployment check can tell "running the wrong
+commit" apart from "cannot tell me which commit it is".
 
-`serviceapp.Run` exposes `/health`, `/ready` and `<api-base>/meta`, and `meta`
-reports the service name and capabilities but **no commit SHA**. A black-box
-certification run therefore cannot record which commit it tested, and a
-rollout checklist cannot verify the deployed version without trusting the
-deployment pipeline's own claim.
+**OPS-002 is closed in code. It still requires a deployment to exercise**,
+which is P0-1.
 
-**Why it is P1, not P2.** It is a prerequisite for P0-1's closure being
-*meaningful*: certifying staging without being able to say what staging was
-running produces a result nobody can rely on later.
+### P1-2 — CMP-027 — **WITHDRAWN. This entry was wrong.**
 
-**Closure.** Add a build-stamped commit field to the `meta` payload
-(ldflags-injected). Small, one place, `shared/go/serviceapp`. It was not done
-in this phase because it is a build-pipeline change as much as a code change,
-and inventing a stamping mechanism the pipeline does not use would be worse
-than naming the gap.
+**The previous version of this document claimed payroll does not cross-check
+already-posted work-level settlements. That claim was incorrect**, and it
+contradicted the Section 13 closure, which was right. Audited again from the
+code rather than from documentation:
 
-### P1-2 — CMP-027: payroll does not cross-check posted work-level settlements
+- `financeops.CalculatePayroll` reads `fleet_partner_work_settled_components`
+  inside the same transaction as the calculation, keyed on
+  `source_assignment_id + rule_id`, and skips exactly those components:
+  `if workSettled[source+":"+ruleID] { continue }`, at the accumulation point
+  for `PER_JOB`, `COMMISSION` and `BONUS`.
+- The write side is wired: `fleetpartner/service.go` records
+  `WorkSettledComponentsFor(...)` when the settlement instruction is produced.
+- The match is on the assignment, not a time window — deliberately, because a
+  job completed inside a period can settle moments after the period ends, and
+  a windowed read would miss it and pay it again.
+- `SettlesWithTheJob` and `AccruesToPayroll` are exact complements, so no
+  configuration makes a component eligible for both.
+- DB-backed certification exists and passes:
+  `TestCMP027_PayrollDoesNotRepayWorkSettledComponent` and
+  `TestCMP027_RecalculationDoesNotAccumulateDuplicates`, run against real
+  PostgreSQL in this phase.
 
-**Evidence.** ART-006 CERT-031; ART-007 §5 caveat.
+**There is no unresolved financial double-pay risk, and `PAYROLL_ENABLED` is
+not gated by this.** The gate recorded in `FINAL_FEATURE_FLAG_ROLLOUT_ROLLBACK.md`
+has been removed for the same reason.
 
-Fleet's compensation model separates **work-level** components (per-job,
-commission — settled with the job's money) from **payroll-level** components
-(salary, per-shift, allowance, overtime, bonus, deduction — accrued, never
-charged to the job). That distinction is real and tested
-(`TestImmediateCommissionIsPaidWithTheJobAndExcludedFromPayroll`,
-`TestMixedPlanSplitsComponentsBetweenBothPlaces`,
-`TestPayrollAccrualIsReportedButNotChargedToTheJob`,
-`TestABonusWithoutProvenanceDoesNotEnterPayroll`). For a correctly-classified
-component, double payment is structurally impossible.
+The entry is left here rather than deleted because a reader of the previous
+report needs to know it was withdrawn, and why. The failure was reading the
+domain helpers and assuming nothing called them, instead of grepping the
+caller — `WorkSettledExclusionsForAssignments` in the repository genuinely has
+no caller, which is what misled the audit, but payroll does the same query
+inline and in-transaction, which is stronger.
 
-**What is missing** is a guard for a component that is *mis*classified:
-payroll calculation does not query already-posted work-level settlements
-before including a component. The classification is the only defence.
+### P1-3 — GAP-A: Hauling document verification — **PRODUCT / COMPLIANCE REQUIREMENT NOT DEFINED**
 
-**Gate.** `PAYROLL_ENABLED` must stay `false` in production until this is
-closed. It is `false` by default, so no action is required to hold the gate —
-but it must not be turned on as part of the corporate rollout.
+Audited again this phase, specifically for an authoritative requirement list,
+because the instruction is explicit: do not invent required documents and do
+not fabricate compliance requirements.
 
-**Closure.** In payroll calculation, exclude any component already carried by
-a posted `managed_settlements` row for the same provider and period, and add a
-test that a deliberately misclassified component is excluded rather than paid
-twice.
+**Search result: there is still no authoritative list of required Hauling or
+truck documents anywhere in this repository.** No roadworthiness certificate,
+vehicle licence, proof of ownership, hackney permit, insurance certificate or
+tonnage permit is stated as a platform rule in any doc, config, migration or
+code path. The only hits are prose examples: Fleet's `document-domain.md` uses
+"insurance certificate" to illustrate a capability, and `document_type` in
+`fleet_partner_documents` is free text with no enumerated set.
 
-### P1-3 — GAP-A: Hauling has no document-verification or expiry model
+So path 3 of the instruction applies. It is retained as a product/compliance
+gap, not implemented.
 
-**Status: audited this phase, unchanged, and deliberately not invented.**
+**The implementation path is nonetheless known, which is worth recording so
+the next attempt does not re-derive it:**
 
-**Audit result.** Hauling's provider and truck models carry `license_type` and
-some free-text licence fields, but there is no typed verification-step model,
-no approval state, no expiry, and no readiness gate equivalent to Dispatch's
-six-step model. A search of the repository's business and domain
-documentation found **no authoritative list of required Nigerian truck or
-haulage documents** — no roadworthiness, vehicle-licence, proof-of-ownership
-or hackney-permit requirement is stated anywhere as a platform rule.
-
-The section's own instruction is "do not invent required documents" and "do
-not fabricate compliance requirements", so path 3 applies: **retained as a
-documented product/compliance gap.**
+- For **corporate** providers, Fleet's document domain already has the whole
+  shape — owner, category, type, issue and expiry dates, verification decision,
+  replacement, revocation, retention, legal hold — and already refuses to store
+  bytes or URLs. A Hauling requirement set would be types within it, not a new
+  domain.
+- For **independent** providers, Dispatch's six-step model
+  (`identity`, `licence` optional, `vehicle`, `face`, `guarantor`, `emergency`)
+  is the proven pattern, with `calculateOverallStatus` gating readiness.
 
 **Launch impact.** A haulage provider can reach an online, dispatchable state
-without any document having been verified or any expiry having been checked.
-For an independent provider this is a pre-existing platform-wide posture. For
-a **corporate** provider it matters more, because CERT-039 requires that
-corporate membership never substitutes for a safety/readiness check — and on
-Hauling there is no readiness check for it to fail to substitute for. The
-invariant is not violated (membership is evaluated separately from readiness
-everywhere it exists); there is simply nothing on the Hauling side.
+with no document verified and no expiry checked. This is a pre-existing
+platform-wide posture for independent providers, not something introduced here.
+For a **corporate** provider it matters more, because CERT-039 requires that
+membership never substitutes for a readiness check — and on Hauling there is no
+readiness check for it to substitute for. The invariant is not violated
+(membership is evaluated separately wherever readiness exists); there is simply
+nothing on the Hauling side to evaluate.
 
-**Severity: P1, product/compliance, not engineering.** It blocks no flag in
-this rollout and introduces no incorrect behaviour. It requires a product
-decision on the authoritative document list before any implementation, and
-that decision is not this phase's to make.
+**Severity: P1, and it is a product decision, not an engineering one.** It
+blocks no flag in this rollout and introduces no incorrect behaviour. It needs
+the authoritative document list from the compliance owner first.
 
-**Closure.** Obtain the authoritative document list from the compliance owner,
-then implement typed verification steps and expiry on Hauling mirroring
-Dispatch's model (which is already proven and would be the pattern, not a new
-design).
+### P1-4 — GAP-B: safety incident organization dimension — **CLOSED this phase**
 
-### P1-4 — GAP-B: a safety incident carries no corporate organization dimension
+Audited again and implemented. As the previous audit found, the schema half was
+already present (`complaints.organization_reference`, migration 006), so **no
+migration was added.** What was missing was resolution at provider-complaint
+creation, and that is now in place:
 
-**Status: audited this phase. Partially closed already; the remaining half is
-real.**
+- `supportclients.FleetOrganizationResolver` reads Fleet's corporate context
+  over the same HMAC v2 contract the execution services use, reusing
+  `providercompat.Client` rather than adding a second corporate-context client
+  — two readers of one contract drift, and the one that drifts is always the
+  one nobody is looking at.
+- `CreateComplaint` and `CreateSOS` snapshot the organization onto the case.
+- **It is a snapshot, written once.** Re-reading Fleet on every view would
+  silently rewrite history the first time a provider changes organization, and
+  would make an old case unreadable whenever Fleet is down.
+- **Fail-soft, without exception.** An unreachable Fleet, an unknown provider
+  and a genuinely independent provider all produce "no organization" — same
+  correct outcome, and the case is created either way. `TestSOSSucceedsWhenFleetIsUnavailable`
+  pins it: trading an emergency for a reporting dimension would be wrong every
+  time.
+- An independent provider is never given an organization. That would be a
+  fabrication, not a default.
+- Support holds no Fleet database access, and this adds none; it is a
+  read-only call on an existing route.
 
-**Audit result.** The schema half is **already present** — migration
-`006_organization_case_contract` added `complaints.organization_reference`
-with a partial unique index and an organization index, and there is a working
-organization-case contract that Fleet and Admin can drive. So **no migration
-is needed to close this.**
+Six tests, including the typed-nil resolver path that an unconfigured
+deployment actually takes.
 
-What is missing is the *provider-raised* path. `SupportService.CreateSOS`
-resolves the complainant's name and phone from the owning service over
-HMAC (`resolveSnapshot`) but does **not** resolve or persist the provider's
-organization. A corporate provider raising an SOS mid-custody therefore
-produces an emergency case that does not say which organization's provider it
-is.
-
-**Is `Support → Fleet corporate-context` now justified?** Yes, and the
-existing machinery makes it cheap and safe: `resolveSnapshot` is already an
-HMAC-authenticated, timeout-bounded, fail-soft cross-service read that writes
-a **historical snapshot** onto the complaint rather than joining live, and
-support-dispute-service has no statement touching any Fleet table (certified
-in ART-003 SEC-018). Extending that same call to also snapshot organization
-reference and membership id satisfies every condition the gap register lists —
-HMAC-authenticated, timeout, fail-safe, historical snapshot, no direct Fleet
-DB access — with no new dependency shape.
-
-**Operational impact and launch severity: P1.** Goods are not orphaned — that
-half of CERT-040 is certified (custody state is durable, a failed attempt
-leaves custody where it is, the return path ends with the sender). The impact
-is on *response*: an operator handling a corporate provider's emergency cannot
-see, from the case, which organization to contact, and organization-level
-safety reporting is incomplete. It degrades incident response; it does not
-lose custody or money.
-
-**Closure.** Extend `resolveSnapshot` to snapshot organization reference for
-provider complainant types, fail-soft exactly as it does today, and set
-`organization_reference` on SOS and provider complaints.
-
----
+**Remaining deployment action** (in `FINAL_DEPLOYED_STAGING_EVIDENCE.md` §7):
+Fleet's `PROVIDER_MEMBERSHIP_ALLOWED_CALLERS` code default now lists
+`support-dispute-service`, but a deployment that overrides that variable must
+include it, and Support needs a Fleet HMAC secret. Until then the resolver is
+inert and cases are created without the label — which is the pre-existing
+behaviour, not a regression.
 
 ## P2 — technical debt with a retirement trigger
 
 ### P2-1 — GAP-C: Dispatch legacy pickup-credential compatibility encoding
 
-**Status: audited this phase. Retained deliberately; retirement trigger
-written down.**
+Audited again this phase, and **not removed blindly** as instructed.
 
-**Audit result.** The compatibility layer is
-`securehandover.NewCompatibilityCodeRecord` / `CompatibilityCode`, consumed by
-`trip.compatibilityPickupView`, `trip.ResendPickupCredential` and
-`trip.DecodeDeliveryCode`. Its actual shape matters and is easy to misread:
+**Consumer audit.** Three consumers, all inside `trip`, all behind an existing
+customer/provider ownership check: `compatibilityPickupView`,
+`ResendPickupCredential`, `DecodeDeliveryCode`. No other service and no client
+depends on the encoding.
 
-- It is **not** a weaker credential. It reuses the secure-handover PRF and the
-  established verification hash — the comment "this is not a second challenge"
-  is accurate, and the stored value is an opaque `handover_`-prefixed
-  reference, not a redisplayable OTP.
-- It is **only** reachable on the unprotected legacy trip path.
-  `secureHandoverRequired` short-circuits the legacy routes with
-  `409 SECURE_HANDOVER_ROUTE_REQUIRED` for any trip that requires protection,
-  so a protected handover cannot be served by this path at all.
-- `CompatibilityCode` returns the stored value verbatim when it lacks the
-  `handover_` prefix. **That branch is the actual debt**: it is the read path
-  for historical rows whose pickup/delivery code is still stored as plaintext.
+**Producer audit — the new finding.** All four write paths
+(`StartTrip`, the delivery generation, and both resend paths) now call
+`NewCompatibilityCodeRecord`, which stores an opaque `handover_`-prefixed
+reference. **There is no remaining producer of legacy plaintext.** The verbatim
+branch in `CompatibilityCode` can therefore only ever serve rows written before
+that change.
 
-**Consumers.** Three, all inside `trip`, all behind an existing
-customer/provider ownership check. No other service and no client depends on
-the encoding.
+**What it is not.** It is not a weaker credential: it reuses the secure-handover
+PRF and the established verification hash, and it is unreachable on a protected
+handover, where `secureHandoverRequired` short-circuits the legacy routes with
+`409 SECURE_HANDOVER_ROUTE_REQUIRED`.
 
-**Migration path.** Already staged: new records are written as opaque
-references; the plaintext branch exists only to read rows written before that
-change.
+**Retirement trigger, now pinned by a test.**
+`TestEveryGeneratedCredentialCarriesTheOpaquePrefix` asserts every generated
+record carries the prefix, so the plaintext branch cannot quietly reacquire a
+producer. The retirement condition is therefore purely a data question: when no
+row in `trips` has a `pickup_code` or `delivery_code` lacking the `handover_`
+prefix, delete the verbatim branch. That question needs staging or production
+data to answer and could not be answered from here.
 
-**Retirement condition (the trigger this register requires):** when no row in
-`trips` has a `pickup_code` or `delivery_code` lacking the `handover_` prefix —
-i.e. when the guarded migration that removes expired historical plaintext has
-drained every such row. At that point delete the verbatim-return branch, then
-the whole compatibility pair once the legacy unprotected trip path itself is
-retired, with a migration test asserting no plaintext remains.
-
-**Not removed blindly**, per the instruction. Removing it now would break
-in-flight legacy trips whose credential is still stored in the old form.
+**Not a release blocker**, because protected handover remains correct and is
+not served by this path.
 
 ### P2-2 — Observability items marked NEEDS HARDENING
 
@@ -285,10 +288,25 @@ first reading, which is why it is written down.
 | Class | Count | Blocks release |
 |---|---|---|
 | P0 | 1 | yes — environmental, not code |
-| P1 | 4 | no; two hold a flag OFF, two are scheduled work |
+| P1 | 1 open (GAP-A) | no — product/compliance decision, holds no flag |
 | P2 | 3 | no |
 
+Resolved this phase: **P1-1 FIXED**, **P1-2 NOT ACTUALLY A DEFECT** (withdrawn),
+**P1-4 FIXED**. **P1-3 (GAP-A) REQUIRES A PRODUCT/COMPLIANCE DECISION** and is
+the only P1 still open.
+
+**There is no unresolved financial double-pay risk.** CMP-027 is implemented,
+wired and certified DB-backed.
+
 No P0 item requires a code change. The single P0 is the absence of a deployed
-environment to certify against, which is why the verdict is
+environment to certify against — now described precisely, not generically —
+which is why the verdict is
 **`BACKEND CODE COMPLETE — DEPLOYMENT CERTIFICATION REMAINS`** rather than
 `BACKEND RELEASE READY`, and why it is not `BACKEND NOT RELEASE READY`.
+
+One defect was introduced by the previous phase and found by CI in this one:
+`shared/go/outboxmetrics/sources_test.go` queried other services' tables from a
+module that owns no schema, so it passed locally against a populated database
+and failed in CI against an empty one. It is fixed — the schema assertion now
+lives in each owning service, where the migrated schema genuinely exists, which
+is strictly stronger than what it replaced.

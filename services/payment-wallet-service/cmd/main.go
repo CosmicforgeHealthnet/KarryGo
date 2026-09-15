@@ -131,29 +131,12 @@ func main() {
 	}
 
 	// Outbox and reconciliation health, in the same metric names every other
-	// service reports (OBS-006, OBS-007). Two sources, because they answer
-	// different questions: finance_outbox is a delivery queue, while
-	// managed_settlements is the money itself — a settlement sitting in
-	// RECONCILIATION_REQUIRED is a provider who has not been paid, and it has
-	// no delivery queue to show up in.
-	walletMetrics := outboxmetrics.NewReporter(db, 30*time.Second,
-		outboxmetrics.Source{
-			Config: outboxmetrics.Config{
-				Service: "payment-wallet-service", Table: "finance_outbox",
-				CreatedColumn: "created_at", DeliveredColumn: "published_at",
-				StatusColumn: "status", DeadLetterStatus: "FAILED",
-				AttemptsColumn: "attempts", ReconciliationColumn: "status",
-			},
-			Unresolved: []string{"PENDING", "FAILED"},
-		},
-		outboxmetrics.Source{
-			Config: outboxmetrics.Config{
-				Service: "payment-wallet-service", Table: "managed_settlements",
-				CreatedColumn: "created_at", ReconciliationColumn: "status",
-			},
-			Unresolved: []string{"PENDING", "FAILED_RETRYABLE", "RECONCILIATION_REQUIRED"},
-		},
-	).WithAuthToken(cfg.MetricsAuthToken)
+	// service reports (OBS-006, OBS-007).
+	//
+	// The source descriptions live with the tables' writer, where a test can
+	// run them against the real migrated schema.
+	walletMetrics := outboxmetrics.NewReporter(db, events.MetricsInterval,
+		events.MetricsSources()...).WithAuthToken(cfg.MetricsAuthToken)
 	workers = append(workers, walletMetrics.Run)
 
 	serviceapp.Run(serviceapp.Options{

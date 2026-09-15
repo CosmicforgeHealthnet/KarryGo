@@ -295,16 +295,11 @@ func main() {
 	// service reports (OBS-006, OBS-007). Hauling's completed-work outbox
 	// carries the corporate money path to Fleet; before this, a row stuck in
 	// RECONCILIATION_REQUIRED was only visible to someone running psql.
-	haulingMetrics := outboxmetrics.NewReporter(db, 30*time.Second, outboxmetrics.Source{
-		Config: outboxmetrics.Config{
-			Service: "driver-hauling-service", Table: "hauling_domain_outbox",
-			Target: completedwork.Target, TargetColumn: "target",
-			CreatedColumn: "occurred_at", DeliveredColumn: "delivered_at",
-			DeadLetterColumn: "dead_lettered_at", AttemptsColumn: "attempts",
-			ReconciliationColumn: "reconciliation_state",
-		},
-		Unresolved: []string{"PENDING", "RETRY_SCHEDULED", "RECONCILIATION_REQUIRED"},
-	}).WithAuthToken(cfg.MetricsAuthToken)
+	//
+	// The source description lives with the table's writer, where a test can
+	// run it against the real migrated schema.
+	haulingMetrics := outboxmetrics.NewReporter(db, completedwork.MetricsInterval,
+		completedwork.MetricsSource()).WithAuthToken(cfg.MetricsAuthToken)
 
 	// ─── HTTP ──────────────────────────────────────────────────────────────────
 	serviceapp.Run(serviceapp.Options{

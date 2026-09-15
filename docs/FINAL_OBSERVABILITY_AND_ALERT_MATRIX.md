@@ -2,6 +2,12 @@
 
 Phase baseline `3007d6d42b60bf256578cf2688fe9e330a4a2798`.
 
+**Phase update.** Re-certified at baseline `9ebad225ea9ec25397778a4dc8d3ff842f2938a3`.
+OBS-016 and the OBS-H hardening items are resolved this phase; the OPS half is
+unchanged and is now documented precisely in
+`FINAL_DEPLOYED_STAGING_EVIDENCE.md`, which names the specific missing
+deployment artifacts rather than restating that an environment is absent.
+
 **Read this first.** Section 22 splits cleanly in two. The instrumentation
 half (OBS-001 … OBS-016) is source-resident and is certified here. The launch
 operations half (OPS-001 … OPS-014) requires a deployed staging environment
@@ -29,7 +35,17 @@ appearing on a dashboard, and this document does not pretend otherwise.
 | OBS-013 payroll metrics | NEEDS HARDENING | Payroll runs, approval and posting states are durable and queryable; posting failures surface through Fleet's finance operations. No payroll-specific metric series is emitted. |
 | OBS-014 alerts | NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED | Alert-worthy series now exist for every item the section lists (see §3). Whether an alert rule exists and fires can only be established in the deployed monitoring system. |
 | OBS-015 health endpoints | ALREADY SATISFIED | Every service exposes `/health`, `/ready` and `<api-base>/meta` through `serviceapp.Run`. `/ready` runs the service's declared dependency checks (database, Redis); optional integrations do not fail liveness — Hauling boots and serves health with Redis unreachable, certified live in the previous phase. |
-| OBS-016 deployed version | NEEDS HARDENING | `<api-base>/meta` reports name and capabilities. It does **not** report a build commit SHA, so a black-box run cannot record which commit it tested. This is a genuine prerequisite for OPS-002 and is listed as a release blocker. |
+| OBS-016 deployed version | **DONE this phase — certified on a running binary** | `serviceapp` resolves `service`, `version`, `commit_sha`, `build_time` and `environment`, stamped by the linker from the build pipeline, and reports them on `/health`, on `<api-base>/meta` and in the structured startup log. Both Dockerfiles take the values as build args; all three deploy workflows pass `${{ github.sha }}`. An unstamped build reports `unknown`, never an empty string, so a script can tell "wrong commit" from "cannot say which commit". Transcript in `FINAL_DEPLOYED_STAGING_EVIDENCE.md` §5. |
+
+## 1b. Observability hardening (OBS-H001 … OBS-H005)
+
+| ID | Outcome | Evidence |
+|---|---|---|
+| OBS-H001 high-cardinality safety | **DONE this phase** | Audited every metric call site across the platform: the label keys actually emitted are `service`, `target`, `state`, `status`, `outcome`, `route`, `method`, `worker`, `reason`, `failure_class`, `operation`, `provider_mode`, `resource`, `action`, `span`, `dependency`, `purpose`, `result`, `table`, `category` — all bounded. **No order id, provider id, membership id, request id or correlation id appears as a label value anywhere.** Those travel in logs and traces, which is where they are searchable and where nothing multiplies. `observability.LabelKeyIsLowCardinality` now encodes the rule, and `TestEmittedLabelKeysAreLowCardinality` asserts it against the **rendered** exposition rather than a helper, so it checks what actually reaches the registry. The rule targets identifier-ness, not domain words: `provider_mode` is three values and is accepted; `provider_id` is not. Both `provider_id` and `providerId` spellings are rejected, because both appear in this repository. |
+| OBS-H002 gauge draining | ALREADY SATISFIED | `ReplaceGauges` publishes a family atomically and removes absent series, so a drained backlog stops being reported rather than holding its last value. `TestEmptiedReconciliationStateDisappears`. A gauge that keeps its last value turns a resolved backlog into a permanent alert, and an operator who has seen that once stops believing the next one. |
+| OBS-H003 metric consistency | ALREADY SATISFIED | Taxi, Dispatch, Hauling, Fleet and Wallet emit the same seven names with the service as a label, not as a prefix. `TestMetricNamesAreServiceNeutral` fails if a service name leaks into a metric name. One alert rule and one dashboard panel cover the platform. |
+| OBS-H004 alert thresholds | **NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED** | §3 proposes starting values with the reasoning for each, but the section asks for thresholds *tuned from actual staging observations*. There are no staging observations. Publishing tuned-looking numbers derived from a laptop would be worse than publishing none: they would be trusted. The proposed values are explicitly labelled as starting points to be re-tuned on the first week of real traffic. |
+| OBS-H005 commit SHA in operations | **DONE this phase** | See OBS-016. The commit is on `/health`, on `/meta` and on every service's startup log line, and a test pins that the platform logger does not redact it — a field name that tripped one of the redaction keywords would have turned exactly this evidence into `[REDACTED]`. |
 
 ## 2. Metric inventory
 
@@ -97,9 +113,9 @@ system (see OPS-007).
 
 | ID | Status | Note |
 |---|---|---|
-| OPS-001 ingress / TLS | NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED | No deployed staging reachable from this certification environment. |
-| OPS-002 deployed version | NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED | Additionally blocked in source: `/meta` carries no commit SHA (OBS-016). |
-| OPS-003 managed backups | NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED | |
+| OPS-001 ingress / TLS | NOT RUN — NO ENVIRONMENT | No hostname is known to this session (it is a repository secret), and Vendor's compose binds `127.0.0.1` only, so there is no public listener to test even with the host. The reverse proxy is not in the repository. |
+| OPS-002 deployed version | **CODE COMPLETE — NOT RUN** | The source-side blocker is gone: the commit is stamped by the linker and readable from `/health` and `/meta` (OBS-016), verified on a running binary. What remains is deploying and querying it. |
+| OPS-003 managed backups | NOT RUN — NO ENVIRONMENT | The PostgreSQL provider is not identified anywhere in the repository, and there is no IaC to inspect either. |
 | OPS-004 restore drill | NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED | A backup never restored is not certification; this must be performed, not inferred. |
 | OPS-005 log visibility | NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED | Structured logs exist; whether on-call can search them across a multi-service flow is an environment fact. |
 | OPS-006 metric visibility | NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED | Instrumentation certified in source and by test; appearance in the staging monitoring system is not. |
@@ -110,4 +126,4 @@ system (see OPS-007).
 | OPS-011 black-box deployed test | NOT VERIFIED — ENVIRONMENT ACCESS REQUIRED | The equivalent was run against **locally booted real binaries** (21/21, previous phase) — that is `PASS — LIVE LOCAL`, explicitly not `PASS — DEPLOYED STAGING`. |
 | OPS-012 failure injection | PARTIAL — DB-BACKED / LIVE LOCAL | See ART-006 §failure injection. Fleet timeout, Wallet ambiguity, restart-with-pending-outbox and dead-letter repair are all certified; injection against deployed infrastructure is not. |
 | OPS-013 bounded load / SLO | PASS — DB-BACKED | Measured; see ART-006 §load. Against the certification database, not deployed staging. |
-| OPS-014 runbook | **DONE** | `FINAL_DEPLOYMENT_READINESS_CHECKLIST.md`. |
+| OPS-014 runbook | **UPDATED — partially unverified** | `FINAL_DEPLOYMENT_READINESS_CHECKLIST.md` now records the real pipeline (Actions → GHCR → SSH → compose), the real per-service migration runners and the real blocker. Commands that were not executed are marked as such rather than presented as tested. |
