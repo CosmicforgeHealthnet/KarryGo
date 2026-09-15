@@ -118,6 +118,12 @@ func IsSecretField(name string) bool {
 
 // RedactLogFields prepares a map for structured logging.
 //
+// Most callers do not need it: shared/go/logging already consults this
+// package's financial classification through the redactor registered in
+// log_redaction.go, so an ordinary logging.Structured call is already
+// protected. This function remains for a caller that builds a payload for
+// somewhere other than the platform logger and wants the same treatment.
+//
 // It removes credentials and conceals organization and platform economics,
 // while leaving everything an operator actually needs -- ids, statuses, the
 // provider's own figures. A redactor that blanked the whole payload would be

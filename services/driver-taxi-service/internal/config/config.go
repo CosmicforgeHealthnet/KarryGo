@@ -105,6 +105,11 @@ type Config struct {
 	// support-dispute-service resolving a driver identity).
 	ServiceSecrets string
 
+	// MetricsAuthToken gates GET <api-base>/outbox-metrics. Empty means the
+	// route refuses every request: backlog and dead-letter counts describe
+	// where the system is weak, and the safe default for that is closed.
+	MetricsAuthToken string
+
 	// Fleet Partner integration is optional while rolled out, but once
 	// configured all corporate provider checks use HMAC v2 and Fleet's
 	// canonical provider context.
@@ -237,7 +242,8 @@ func Load() Config {
 		PricingRatesJSON:   getEnv("TAXI_PROVISIONAL_RATES", defaultProvisionalRatesJSON),
 		PricingRateVersion: getEnv("TAXI_PRICING_RATE_VERSION", "provisional-dev-v1"),
 
-		ServiceSecrets: os.Getenv("TAXI_SERVICE_SECRETS"),
+		ServiceSecrets:   os.Getenv("TAXI_SERVICE_SECRETS"),
+		MetricsAuthToken: os.Getenv("TAXI_METRICS_AUTH_TOKEN"),
 
 		FleetServiceURL:                     os.Getenv("FLEET_PARTNER_SERVICE_URL"),
 		FleetServiceCaller:                  getEnv("TAXI_FLEET_SERVICE_CALLER", "driver-taxi-service"),

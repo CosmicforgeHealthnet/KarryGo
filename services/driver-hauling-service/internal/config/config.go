@@ -67,9 +67,14 @@ type Config struct {
 	CommerceIntegrationKillSwitch bool
 	FleetAllowedCallers           string
 	OutboxWorkerEnabled           bool
-	FleetEventURL                 string
-	FleetEventSecret              []byte
-	PrivateExecutionEnabled       bool
+
+	// MetricsAuthToken gates GET <api-base>/metrics. Empty means the route
+	// refuses every request: outbox backlog and dead-letter counts describe
+	// where the system is weak, and the safe default for that is closed.
+	MetricsAuthToken        string
+	FleetEventURL           string
+	FleetEventSecret        []byte
+	PrivateExecutionEnabled bool
 	// HaulingFleetProviderWorkEnabled mounts the provider-facing corporate
 	// surface (company assignments + organization offers). Default false:
 	// Section 10 gates activation behind certification, exactly as Taxi does.
@@ -159,6 +164,7 @@ func Load() Config {
 		CommerceIntegrationKillSwitch:          getEnvBool("HAULING_COMMERCE_INTEGRATION_KILL_SWITCH", false),
 		FleetAllowedCallers:                    getEnv("HAULING_FLEET_ALLOWED_CALLERS", "fleet-partner-service"),
 		OutboxWorkerEnabled:                    getEnvBool("HAULING_OUTBOX_WORKER_ENABLED", false),
+		MetricsAuthToken:                       getEnv("HAULING_METRICS_AUTH_TOKEN", ""),
 		FleetEventURL:                          os.Getenv("HAULING_FLEET_EVENT_URL"),
 		FleetEventSecret:                       []byte(os.Getenv("HAULING_FLEET_EVENT_SECRET")),
 		PrivateExecutionEnabled:                getEnvBool("HAULING_PRIVATE_EXECUTION_ENABLED", false),

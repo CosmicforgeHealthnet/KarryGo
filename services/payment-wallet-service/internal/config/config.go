@@ -20,6 +20,12 @@ type Config struct {
 	ProviderAccessTokenSecrets map[string][]byte
 	ServiceSecrets             serviceauth.Secrets
 
+	// MetricsAuthToken gates GET <api-base>/metrics. Empty means the route
+	// refuses every request: settlement backlog and reconciliation counts
+	// describe where the money path is weak, and the safe default for that
+	// is closed.
+	MetricsAuthToken string
+
 	// Notification-service client (this service is a sender). When URL/secret are
 	// empty the wallet notifier is a no-op.
 	NotificationURL    string
@@ -93,7 +99,8 @@ func Load() Config {
 		// support-dispute-service signs with SUPPORT_DISPUTE_PAYMENT_SECRET (used
 		// for the admin-driven dispute refund hook).
 		// vendor-service signs with VENDOR_WALLET_SECRET (vendor bank onboarding).
-		ServiceSecrets: serviceauth.ParseSecrets(getEnv("PAYMENT_WALLET_SERVICE_SECRETS", "taxi-service=development-payment-wallet-service-secret,dispatch-delivery-service=development-payment-wallet-service-secret,driver-hauling-service=development-hauling-payment-secret,admin-backoffice-service=development-payment-wallet-service-secret,support-dispute-service=development-support-dispute-payment-secret,vendor-service=development-vendor-wallet-secret")),
+		ServiceSecrets:   serviceauth.ParseSecrets(getEnv("PAYMENT_WALLET_SERVICE_SECRETS", "taxi-service=development-payment-wallet-service-secret,dispatch-delivery-service=development-payment-wallet-service-secret,driver-hauling-service=development-hauling-payment-secret,admin-backoffice-service=development-payment-wallet-service-secret,support-dispute-service=development-support-dispute-payment-secret,vendor-service=development-vendor-wallet-secret")),
+		MetricsAuthToken: getEnv("PAYMENT_WALLET_METRICS_AUTH_TOKEN", ""),
 
 		NotificationURL:    os.Getenv("PAYMENT_WALLET_NOTIFICATION_URL"),
 		NotificationSecret: []byte(os.Getenv("PAYMENT_WALLET_NOTIFICATION_SECRET")),

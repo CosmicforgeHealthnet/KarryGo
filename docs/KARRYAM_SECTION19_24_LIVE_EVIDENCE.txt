@@ -1,0 +1,64 @@
+KARRYAM SECTIONS 19-24 — LIVE LOCAL EVIDENCE
+Recorded 2026-09-15T03:40:37Z. driver-hauling-service compiled from this tree,
+booted on :8199 against a throwaway PostgreSQL 16 database and Redis.
+No secret value is reproduced below. The scrape token used was a local
+certification-only string, not a deployment credential.
+
+OBS-006 / OBS-007 — outbox and reconciliation metrics
+PASS  service boots with the metrics reporter registered      GET /health -> 200
+PASS  no route collision on the new /metrics registration     boot completed, routes registered
+PASS  an unauthenticated scrape is refused                    -> 401
+PASS  a wrong bearer token is refused                         -> 401
+PASS  an authorized scrape renders real gauges                -> 200
+
+Rendered exposition (values are residue from this session's throwaway
+test database, which is what makes them evidence that the collector reads
+the real hauling_domain_outbox rather than a fixture):
+
+    outbox_dead_letter_events{service="driver-hauling-service",target="fleet-completed-work"} 1
+    outbox_oldest_pending_age_seconds{service="driver-hauling-service",target="fleet-completed-work"} 369.518115
+    outbox_pending_attempts{service="driver-hauling-service",target="fleet-completed-work"} 2
+    outbox_pending_events{service="driver-hauling-service",target="fleet-completed-work"} 3
+    outbox_retrying_events{service="driver-hauling-service",target="fleet-completed-work"} 2
+    reconciliation_backlog_operations{service="driver-hauling-service",state="DELIVERED",target="fleet-completed-work"} 2
+    reconciliation_backlog_operations{service="driver-hauling-service",state="FAILED_TERMINAL",target="fleet-completed-work"} 1
+    reconciliation_backlog_operations{service="driver-hauling-service",state="PENDING",target="fleet-completed-work"} 1
+    reconciliation_backlog_operations{service="driver-hauling-service",state="RETRY_SCHEDULED",target="fleet-completed-work"} 2
+    reconciliation_oldest_age_seconds{service="driver-hauling-service",target="fleet-completed-work"} 369.523089
+
+Reading it: three events pending, oldest 369s, two retrying, one
+dead-lettered, and the reconciliation backlog broken out per state.
+DELIVERED appears in the per-state breakdown but is NOT declared
+unresolved, so it is counted and labelled without setting the oldest-case
+age -- a delivered row from last month must not leave the age metric
+permanently red.
+
+============================================================
+LOAD-005 — managed settlement posting (raw transcript)
+============================================================
+Throwaway PostgreSQL 16 database wallet_test_load_s19, dropped after the
+run. Production pool settings (MaxConns=10). 4 CPUs. Gated behind
+WALLET_LOAD_TEST so an ordinary build never pays for it. No production
+data and no real money.
+
+### concurrency=4 requests=400
+    managed_settlement_load_test.go:86: LOAD-005 managed settlement posting: concurrency=4 requests=400 duration=1.025s throughput=390.4/s p50=5.655ms p95=28.215ms p99=41.446ms max=54.114ms errors=0 (0.00%)
+    managed_settlement_load_test.go:95: LOAD-005 pool: max=10 acquired=0 idle=4 constructing=0 empty_acquire_waits=3 canceled_acquires=0
+    managed_settlement_load_test.go:169: LOAD-005b duplicate settlement storm: concurrency=4 requests=400 duration=243ms p50=2.247ms p95=2.699ms p99=5.495ms errors=0
+PASS
+ok  	cosmicforge/logistics/services/payment-wallet-service/internal/integration	2.388s
+
+### concurrency=8 requests=400
+    managed_settlement_load_test.go:86: LOAD-005 managed settlement posting: concurrency=8 requests=400 duration=1.172s throughput=341.4/s p50=5.788ms p95=103.158ms p99=203.744ms max=227.367ms errors=0 (0.00%)
+    managed_settlement_load_test.go:95: LOAD-005 pool: max=10 acquired=0 idle=8 constructing=0 empty_acquire_waits=7 canceled_acquires=0
+    managed_settlement_load_test.go:169: LOAD-005b duplicate settlement storm: concurrency=8 requests=400 duration=320ms p50=5.918ms p95=8.241ms p99=18.485ms errors=0
+PASS
+ok  	cosmicforge/logistics/services/payment-wallet-service/internal/integration	2.336s
+
+### concurrency=16 requests=400
+    managed_settlement_load_test.go:86: LOAD-005 managed settlement posting: concurrency=16 requests=400 duration=1.22s throughput=327.9/s p50=24.193ms p95=170.465ms p99=230.784ms max=325.803ms errors=0 (0.00%)
+    managed_settlement_load_test.go:95: LOAD-005 pool: max=10 acquired=0 idle=10 constructing=0 empty_acquire_waits=399 canceled_acquires=0
+    managed_settlement_load_test.go:169: LOAD-005b duplicate settlement storm: concurrency=16 requests=400 duration=313ms p50=11.532ms p95=16.754ms p99=31.828ms errors=0
+PASS
+ok  	cosmicforge/logistics/services/payment-wallet-service/internal/integration	2.501s
+

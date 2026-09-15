@@ -52,6 +52,7 @@ import (
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
@@ -290,6 +291,21 @@ func main() {
 		go bookingService.RunMatchRecoveryWorker(ctx)
 	}
 
+	// Outbox and reconciliation health, in the same metric names every other
+	// service reports (OBS-006, OBS-007). Hauling's completed-work outbox
+	// carries the corporate money path to Fleet; before this, a row stuck in
+	// RECONCILIATION_REQUIRED was only visible to someone running psql.
+	haulingMetrics := outboxmetrics.NewReporter(db, 30*time.Second, outboxmetrics.Source{
+		Config: outboxmetrics.Config{
+			Service: "driver-hauling-service", Table: "hauling_domain_outbox",
+			Target: completedwork.Target, TargetColumn: "target",
+			CreatedColumn: "occurred_at", DeliveredColumn: "delivered_at",
+			DeadLetterColumn: "dead_lettered_at", AttemptsColumn: "attempts",
+			ReconciliationColumn: "reconciliation_state",
+		},
+		Unresolved: []string{"PENDING", "RETRY_SCHEDULED", "RECONCILIATION_REQUIRED"},
+	}).WithAuthToken(cfg.MetricsAuthToken)
+
 	// ─── HTTP ──────────────────────────────────────────────────────────────────
 	serviceapp.Run(serviceapp.Options{
 		Name:        "hauling-service",
@@ -310,7 +326,9 @@ func main() {
 				return redisClient.Ping(ctx).Err()
 			},
 		},
+		Workers: []func(context.Context) error{haulingMetrics.Run},
 		Register: func(group *gin.RouterGroup) {
+			haulingMetrics.RegisterRoutes(group)
 			// HLG-021: the server-side typed financial projection. Mounted on
 			// the ROOT group so every provider-facing response is covered,
 			// including any route added later; it no-ops for customer and

@@ -56,6 +56,7 @@ import (
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/providercompat"
 	sharedrouting "cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
@@ -377,6 +378,38 @@ func main() {
 		logging.Fatal("configuration", "%v", err)
 	}
 
+	// Outbox and reconciliation health, in the same metric names every other
+	// service reports (OBS-006, OBS-007). One taxi_outbox serves two
+	// destinations, so each is reported separately: a Vendor backlog and a
+	// Fleet backlog are different incidents with different responders, and a
+	// combined number would hide whichever is healthy.
+	//
+	// It is mounted at /outbox-metrics rather than /metrics because Taxi
+	// already publishes booking and availability gauges at /metrics, and
+	// merging two registries would mean one of them silently wins.
+	taxiOutboxMetrics := outboxmetrics.NewReporter(db, 30*time.Second,
+		outboxmetrics.Source{
+			Config: outboxmetrics.Config{
+				Service: "driver-taxi-service", Table: "taxi_outbox",
+				Target: taxioutbox.TargetFleet, TargetColumn: "target",
+				CreatedColumn: "occurred_at", DeliveredColumn: "delivered_at",
+				DeadLetterColumn: "dead_lettered_at", AttemptsColumn: "attempts",
+				ReconciliationColumn: "reconciliation_state",
+			},
+			Unresolved: []string{"PENDING", "RETRY_SCHEDULED", "RECONCILIATION_REQUIRED"},
+		},
+		outboxmetrics.Source{
+			Config: outboxmetrics.Config{
+				Service: "driver-taxi-service", Table: "taxi_outbox",
+				Target: taxioutbox.TargetVendor, TargetColumn: "target",
+				CreatedColumn: "occurred_at", DeliveredColumn: "delivered_at",
+				DeadLetterColumn: "dead_lettered_at", AttemptsColumn: "attempts",
+				ReconciliationColumn: "reconciliation_state",
+			},
+			Unresolved: []string{"PENDING", "RETRY_SCHEDULED", "RECONCILIATION_REQUIRED"},
+		},
+	).WithAuthToken(cfg.MetricsAuthToken)
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "taxi-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -396,6 +429,7 @@ func main() {
 			func(ctx context.Context) error { return redisClient.Ping(ctx).Err() },
 		},
 		Register: func(group *gin.RouterGroup) {
+			taxiOutboxMetrics.RegisterRoutes(group)
 			if opsVerifier != nil {
 				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "TAXI_GOODS"), opsVerifier,
 					custodyops.MediaFileAuthorizer{Client: taxiMediaClient, AllowedOwners: map[string]struct{}{"driver-taxi-service": {}, "vendor-service": {}}},
@@ -433,6 +467,7 @@ func main() {
 		// "sweep-on-start, then tick" shape already established across this
 		// platform (see project memory's Go goroutine patterns note).
 		Workers: []func(context.Context) error{
+			taxiOutboxMetrics.Run,
 			func(ctx context.Context) error {
 				bookingService.RunScheduledDispatchWorker(ctx, 30*time.Second)
 				return nil

@@ -22,6 +22,7 @@ import (
 	walletusecases "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/usecases"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/audit"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/financeauth"
+	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"time"
@@ -129,6 +130,32 @@ func main() {
 		workers = append(workers, outboxWorker.Run)
 	}
 
+	// Outbox and reconciliation health, in the same metric names every other
+	// service reports (OBS-006, OBS-007). Two sources, because they answer
+	// different questions: finance_outbox is a delivery queue, while
+	// managed_settlements is the money itself — a settlement sitting in
+	// RECONCILIATION_REQUIRED is a provider who has not been paid, and it has
+	// no delivery queue to show up in.
+	walletMetrics := outboxmetrics.NewReporter(db, 30*time.Second,
+		outboxmetrics.Source{
+			Config: outboxmetrics.Config{
+				Service: "payment-wallet-service", Table: "finance_outbox",
+				CreatedColumn: "created_at", DeliveredColumn: "published_at",
+				StatusColumn: "status", DeadLetterStatus: "FAILED",
+				AttemptsColumn: "attempts", ReconciliationColumn: "status",
+			},
+			Unresolved: []string{"PENDING", "FAILED"},
+		},
+		outboxmetrics.Source{
+			Config: outboxmetrics.Config{
+				Service: "payment-wallet-service", Table: "managed_settlements",
+				CreatedColumn: "created_at", ReconciliationColumn: "status",
+			},
+			Unresolved: []string{"PENDING", "FAILED_RETRYABLE", "RECONCILIATION_REQUIRED"},
+		},
+	).WithAuthToken(cfg.MetricsAuthToken)
+	workers = append(workers, walletMetrics.Run)
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "payment-wallet-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -147,6 +174,7 @@ func main() {
 			},
 		},
 		Register: func(group *gin.RouterGroup) {
+			walletMetrics.RegisterRoutes(group)
 			wallethttp.RegisterRoutes(group, walletService, cfg.CustomerAccessTokenSecret, cfg.ProviderAccessTokenSecrets, cfg.ServiceSecrets)
 			if cfg.FinancePrivateAPIEnabled {
 				financehttp.RegisterPrivateRoutes(group.Group("/internal/finance"), financeService,
