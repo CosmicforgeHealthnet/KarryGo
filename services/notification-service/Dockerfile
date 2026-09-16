@@ -1,4 +1,3 @@
-@'
 ARG GO_VERSION=1.26-alpine
 FROM golang:${GO_VERSION} AS build
 
@@ -33,4 +32,3 @@ COPY --from=build /workspace/services/notification-service/seeds ./seeds
 USER cosmicforge
 EXPOSE 8106
 ENTRYPOINT ["/bin/notification-service"]
-'@ | Out-File -Encoding ascii services\notification-service\Dockerfile
