@@ -2,6 +2,7 @@ package movementusecases
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,6 +19,8 @@ import (
 
 type Repository interface {
 	Project(ctx context.Context, envelope events.Envelope, incoming movementmodels.Movement) (string, error)
+	ApplyGrouping(ctx context.Context, envelope events.Envelope, grouping events.MovementGrouping) (string, int, error)
+	ProjectedVersions(ctx context.Context, authority string, sourceRefs []string) (map[string]int64, error)
 	Reject(ctx context.Context, envelope events.Envelope, reason string) error
 	List(ctx context.Context, customerID string, filter movementrepositories.Filter) ([]movementmodels.Movement, int, error)
 	Get(ctx context.Context, customerID, authority, sourceRef string) (movementmodels.Movement, error)
@@ -50,6 +53,10 @@ type Options struct {
 	Callers         CallerAuthorities
 	ConsumerEnabled bool
 	ReadEnabled     bool
+	// GroupingCallers are the services allowed to publish commerce grouping.
+	// Grouping is commercial context only; a grouping caller can never
+	// publish movement state.
+	GroupingCallers []string
 }
 
 type Service struct {
@@ -57,10 +64,61 @@ type Service struct {
 	callers         CallerAuthorities
 	consumerEnabled bool
 	readEnabled     bool
+	groupingCallers map[string]bool
 }
 
 func NewService(options Options) *Service {
-	return &Service{repo: options.Repository, callers: options.Callers, consumerEnabled: options.ConsumerEnabled, readEnabled: options.ReadEnabled}
+	grouping := map[string]bool{}
+	for _, caller := range options.GroupingCallers {
+		if caller = strings.TrimSpace(caller); caller != "" {
+			grouping[caller] = true
+		}
+	}
+	return &Service{repo: options.Repository, callers: options.Callers, consumerEnabled: options.ConsumerEnabled,
+		readEnabled: options.ReadEnabled, groupingCallers: grouping}
+}
+
+// IngestGrouping records the commercial grouping of one purchase.
+//
+// A grouping caller is deliberately NOT a movement authority: it may say
+// which movements belong together, and can never create a movement, change
+// its state, or name who executes it.
+func (s *Service) IngestGrouping(ctx context.Context, caller string, envelope events.Envelope) (IngestResult, error) {
+	if !s.consumerEnabled {
+		return IngestResult{}, apperrors.Unavailable("Movement event consumption is disabled.", nil)
+	}
+	caller = strings.TrimSpace(caller)
+	if !s.groupingCallers[caller] {
+		return IngestResult{}, apperrors.Forbidden("This service may not publish commerce grouping.", nil)
+	}
+	if err := envelope.Validate(); err != nil {
+		return IngestResult{}, apperrors.BadRequest("Grouping event envelope is invalid.", err)
+	}
+	if envelope.SourceService != caller {
+		_ = s.repo.Reject(ctx, envelope, "SOURCE_SERVICE_MISMATCH")
+		return IngestResult{}, apperrors.Forbidden("Event source_service does not match the authenticated caller.", nil)
+	}
+	if envelope.EventName != events.CommerceGroupingEventName {
+		_ = s.repo.Reject(ctx, envelope, "EVENT_NAME_NOT_ACCEPTED")
+		return IngestResult{}, apperrors.BadRequest("This ingress accepts commerce grouping events only.", nil)
+	}
+	var grouping events.MovementGrouping
+	if err := json.Unmarshal(envelope.Payload, &grouping); err != nil {
+		return IngestResult{}, apperrors.BadRequest("Grouping payload is invalid.", err)
+	}
+	if err := grouping.Validate(); err != nil {
+		_ = s.repo.Reject(ctx, envelope, "GROUPING_INCOMPLETE")
+		return IngestResult{}, apperrors.BadRequest("Grouping payload is incomplete.", err)
+	}
+	if _, err := uuid.Parse(grouping.CustomerID); err != nil {
+		_ = s.repo.Reject(ctx, envelope, "CUSTOMER_ID_INVALID")
+		return IngestResult{}, apperrors.BadRequest("Grouping customer_id is invalid.", err)
+	}
+	outcome, _, err := s.repo.ApplyGrouping(ctx, envelope, grouping)
+	if err != nil {
+		return IngestResult{}, err
+	}
+	return IngestResult{EventID: envelope.EventID, Outcome: outcome}, nil
 }
 
 type IngestResult struct {
@@ -107,6 +165,31 @@ func (s *Service) Ingest(ctx context.Context, caller string, envelope events.Env
 		return IngestResult{}, err
 	}
 	return IngestResult{EventID: envelope.EventID, Outcome: outcome}, nil
+}
+
+// ProjectedVersions answers a reconciling authority with what this
+// projection currently holds for its OWN movements. An authority can never
+// read another authority's movements through it, and the answer carries no
+// customer data: only refs the caller already named and the versions it
+// published.
+func (s *Service) ProjectedVersions(ctx context.Context, caller string, sourceRefs []string) (map[string]int64, error) {
+	if !s.consumerEnabled {
+		return nil, apperrors.Unavailable("Movement event consumption is disabled.", nil)
+	}
+	authority, allowed := s.callers[strings.TrimSpace(caller)]
+	if !allowed {
+		return nil, apperrors.Forbidden("This service may not reconcile customer movements.", nil)
+	}
+	cleaned := make([]string, 0, len(sourceRefs))
+	for _, ref := range sourceRefs {
+		if ref = strings.TrimSpace(ref); ref != "" {
+			cleaned = append(cleaned, ref)
+		}
+	}
+	if len(cleaned) == 0 || len(cleaned) > 500 {
+		return nil, apperrors.BadRequest("Send between 1 and 500 source references.", nil)
+	}
+	return s.repo.ProjectedVersions(ctx, authority, cleaned)
 }
 
 type ListQuery struct {

@@ -56,6 +56,9 @@ type Config struct {
 	// each publishing service to the one authority it owns.
 	MovementEventsConsumerEnabled bool
 	MovementEventCallers          string
+	// MovementGroupingCallers lists services allowed to publish commerce
+	// grouping. They are never movement authorities.
+	MovementGroupingCallers string
 }
 
 func Load() Config {
@@ -99,6 +102,7 @@ func Load() Config {
 
 		MovementEventsConsumerEnabled: getEnvBool("CUSTOMER_MOVEMENT_EVENTS_CONSUMER_ENABLED", false),
 		MovementEventCallers:          getEnv("CUSTOMER_MOVEMENT_EVENT_CALLERS", "driver-taxi-service=TAXI;driver-dispatch-delivery-service=DISPATCH;driver-hauling-service=HAULING"),
+		MovementGroupingCallers:       getEnv("CUSTOMER_MOVEMENT_GROUPING_CALLERS", "vendor-service"),
 
 		ContextCallerScopes: getEnv("CUSTOMER_CONTEXT_CALLER_SCOPES", "driver-taxi-service=mobility_preferences|saved_location;vendor-service=saved_location"),
 	}

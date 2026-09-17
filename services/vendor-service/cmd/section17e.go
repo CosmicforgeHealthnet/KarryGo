@@ -80,6 +80,12 @@ func buildSection17EOrderService(
 			// (VND-005 … VND-008, VND-030).
 		).withCapabilities(newLogisticsRegistry(cfg, cfg.Fulfilment.QuoteTimeout)),
 	)
+	// Section 6 commerce grouping: which movements belong to one purchase.
+	// Vendor supplies grouping only; the executing authorities keep sole
+	// authority over movement state.
+	if cfg.Flags.CustomerMovementGroupingEnabled {
+		service.SetCustomerGroupingPublisher(&customerGroupingPublisher{db: db, outbox: vendorevents.NewOutboxRepository(db)})
+	}
 	service.SetRestrictedGoodsAuthority(newRestrictedGoodsFulfilmentAuthority(db))
 	handoverAuthorities := handoverintegration.Router{}
 	if config.Section32DispatchHandoverEnabled() && cfg.Flags.DispatchCommerceIntegrationEnabled {

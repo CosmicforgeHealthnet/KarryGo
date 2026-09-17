@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/taxonomy"
+	"cosmicforge/logistics/shared/go/events"
 )
 
 // Options configures the order service.
@@ -86,10 +87,14 @@ type Service struct {
 	// nil means an order activates exactly as it did before the aggregate
 	// existed, rather than failing because traceability is unavailable.
 	fulfilmentProjection FulfilmentProjection
-	restrictedGoods      RestrictedGoodsAuthority
-	abuseLimiter         AbuseLimiter
-	supportLimitMax      int
-	supportLimitWindow   time.Duration
+	// customerGrouping publishes the commercial grouping of a purchase to the
+	// customer context owner. Optional: nil publishes nothing and changes no
+	// fulfilment behaviour.
+	customerGrouping   CustomerGroupingPublisher
+	restrictedGoods    RestrictedGoodsAuthority
+	abuseLimiter       AbuseLimiter
+	supportLimitMax    int
+	supportLimitWindow time.Duration
 }
 
 type AbuseLimiter interface {
@@ -98,6 +103,18 @@ type AbuseLimiter interface {
 
 func (s *Service) SetSupportCaseRateLimiter(limiter AbuseLimiter, max int, window time.Duration) {
 	s.abuseLimiter, s.supportLimitMax, s.supportLimitWindow = limiter, max, window
+}
+
+// CustomerGroupingPublisher hands commerce grouping to the customer context
+// owner. It carries grouping only - never execution state, a provider or a
+// vehicle - and a publish failure never fails fulfilment.
+type CustomerGroupingPublisher interface {
+	PublishGrouping(ctx context.Context, parentOrderID string, grouping events.MovementGrouping) error
+}
+
+// SetCustomerGroupingPublisher wires the commerce grouping publisher.
+func (s *Service) SetCustomerGroupingPublisher(publisher CustomerGroupingPublisher) {
+	s.customerGrouping = publisher
 }
 
 func (s *Service) SetProductionActivator(activator ProductionActivator) { s.production = activator }

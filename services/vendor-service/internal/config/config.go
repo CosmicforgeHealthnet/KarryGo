@@ -317,7 +317,10 @@ type FeatureFlags struct {
 
 	DispatchCommerceIntegrationEnabled bool
 	TaxiGoodsDeliveryEnabled           bool
-	HaulingCommerceIntegrationEnabled  bool
+	// CustomerMovementGroupingEnabled publishes the commercial grouping of a
+	// purchase to customer-service. Grouping only: never execution state.
+	CustomerMovementGroupingEnabled   bool
+	HaulingCommerceIntegrationEnabled bool
 
 	PaymentWalletCommerceEnabled         bool
 	VendorVerificationIntegrationEnabled bool
@@ -454,6 +457,7 @@ func Load() Config {
 
 			DispatchCommerceIntegrationEnabled: getEnvBool("DISPATCH_COMMERCE_INTEGRATION_ENABLED", false),
 			TaxiGoodsDeliveryEnabled:           getEnvBool("TAXI_GOODS_DELIVERY_ENABLED", false),
+			CustomerMovementGroupingEnabled:    getEnvBool("VENDOR_CUSTOMER_MOVEMENT_GROUPING_ENABLED", false),
 			HaulingCommerceIntegrationEnabled:  getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", false),
 
 			PaymentWalletCommerceEnabled:         getEnvBool("PAYMENT_WALLET_COMMERCE_ENABLED", false),
@@ -596,6 +600,7 @@ func (c Config) Validate() error {
 	requireCreds(c.Flags.VendorVerificationIntegrationEnabled, "VENDOR_VERIFICATION_INTEGRATION_ENABLED", c.VerificationURL, c.VerificationSecret, "VENDOR_VERIFICATION_URL", "VENDOR_VERIFICATION_SECRET")
 	requireCreds(c.Flags.DispatchCommerceIntegrationEnabled, "DISPATCH_COMMERCE_INTEGRATION_ENABLED", c.DispatchURL, c.DispatchSecret, "VENDOR_DISPATCH_URL", "VENDOR_DISPATCH_SECRET")
 	requireCreds(c.Flags.TaxiGoodsDeliveryEnabled, "TAXI_GOODS_DELIVERY_ENABLED", c.TaxiURL, c.TaxiSecret, "VENDOR_TAXI_URL", "VENDOR_TAXI_SECRET")
+	requireCreds(c.Flags.CustomerMovementGroupingEnabled, "VENDOR_CUSTOMER_MOVEMENT_GROUPING_ENABLED", c.CustomerURL, c.CustomerSecret, "VENDOR_CUSTOMER_URL", "VENDOR_CUSTOMER_SECRET")
 	requireCreds(c.Flags.HaulingCommerceIntegrationEnabled, "HAULING_COMMERCE_INTEGRATION_ENABLED", c.HaulingURL, c.HaulingSecret, "VENDOR_HAULING_URL", "VENDOR_HAULING_SECRET")
 	if c.Flags.HaulingCommerceIntegrationEnabled &&
 		c.Fulfilment.HaulingSecureHandoverRequired &&

@@ -21,7 +21,39 @@ type memoryRepo struct {
 	rows      map[string]movementmodels.Movement
 	inbox     map[string]string
 	rejected  map[string]string
+	groupings map[string]events.MovementGrouping
 	failWrite bool
+}
+
+func (r *memoryRepo) ProjectedVersions(_ context.Context, authority string, sourceRefs []string) (map[string]int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	versions := map[string]int64{}
+	for _, ref := range sourceRefs {
+		if row, ok := r.rows[authority+"|"+ref]; ok {
+			versions[ref] = row.SourceVersion
+		}
+	}
+	return versions, nil
+}
+
+func (r *memoryRepo) ApplyGrouping(_ context.Context, envelope events.Envelope, grouping events.MovementGrouping) (string, int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.failWrite {
+		return "", 0, context.DeadlineExceeded
+	}
+	if _, ok := r.inbox[envelope.EventID]; ok {
+		return "DUPLICATE", 0, nil
+	}
+	r.inbox[envelope.EventID] = "APPLIED"
+	if r.groupings == nil {
+		r.groupings = map[string]events.MovementGrouping{}
+	}
+	for _, mission := range grouping.Missions {
+		r.groupings[mission.FulfilmentGroupRef] = grouping
+	}
+	return "APPLIED", len(grouping.Missions), nil
 }
 
 func newMemoryRepo() *memoryRepo {

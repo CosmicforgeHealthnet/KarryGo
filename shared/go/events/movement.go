@@ -25,6 +25,19 @@ const (
 
 	// CustomerMovementIngressPath is customer-service's HMAC ingress.
 	CustomerMovementIngressPath = "/internal/customer/v1/movement-events"
+
+	// CustomerMovementGroupingPath is customer-service's HMAC ingress for
+	// commerce grouping. Grouping says which movements belong to one
+	// purchase; it never carries execution state or provider identity.
+	CustomerMovementGroupingPath = "/internal/customer/v1/movement-groupings"
+
+	// CommerceGroupingEventName is the only event that path accepts.
+	CommerceGroupingEventName = "commerce.fulfilment.customer_grouping"
+
+	// CustomerMovementStatePath lets a publishing authority ask what the
+	// customer projection already holds for its own movements, so a backfill
+	// republishes only what is missing or behind.
+	CustomerMovementStatePath = "/internal/customer/v1/movement-state"
 )
 
 // Taxi canonical movement event names.
@@ -135,5 +148,62 @@ func NewMovementEnvelope(eventID, eventName, sourceService, entityType string, s
 	envelope := Envelope{EventID: eventID, EventName: eventName, SchemaVersion: MovementSchemaVersion, SourceService: sourceService,
 		SourceEntityType: entityType, SourceEntityID: summary.SourceRef, SourceVersion: sourceVersion, OccurredAt: occurredAt.UTC(),
 		CorrelationID: correlationID, CausationID: causationID, Payload: payload}
+	return envelope, envelope.Validate()
+}
+
+// MovementGrouping is the commercial grouping of one customer purchase.
+//
+// It is deliberately thin: the parent order, the plan it was cut from, and
+// which planned mission each fulfilment group is. It carries no state, no
+// provider, no vehicle and no price, because Vendor owns none of those.
+type MovementGrouping struct {
+	CustomerID        string            `json:"customer_id"`
+	ParentContextType string            `json:"parent_context_type"`
+	ParentContextRef  string            `json:"parent_context_ref"`
+	FulfilmentPlanRef string            `json:"fulfilment_plan_ref,omitempty"`
+	Missions          []GroupingMission `json:"missions"`
+}
+
+// GroupingMission is one planned mission's place in the purchase.
+type GroupingMission struct {
+	FulfilmentGroupRef string `json:"fulfilment_group_ref"`
+	MissionSequence    int    `json:"mission_sequence"`
+	MissionCount       int    `json:"mission_count"`
+}
+
+func (g MovementGrouping) Validate() error {
+	switch {
+	case strings.TrimSpace(g.CustomerID) == "":
+		return fmt.Errorf("%w: customer_id", ErrInvalidEnvelope)
+	case strings.TrimSpace(g.ParentContextRef) == "":
+		return fmt.Errorf("%w: parent_context_ref", ErrInvalidEnvelope)
+	case len(g.Missions) == 0:
+		return fmt.Errorf("%w: missions", ErrInvalidEnvelope)
+	}
+	for _, mission := range g.Missions {
+		if strings.TrimSpace(mission.FulfilmentGroupRef) == "" || mission.MissionSequence < 1 || mission.MissionCount < 1 {
+			return fmt.Errorf("%w: mission grouping is incomplete", ErrInvalidEnvelope)
+		}
+		if mission.MissionSequence > mission.MissionCount {
+			return fmt.Errorf("%w: mission_sequence exceeds mission_count", ErrInvalidEnvelope)
+		}
+	}
+	return nil
+}
+
+// NewGroupingEnvelope builds the grouping event Vendor publishes.
+func NewGroupingEnvelope(eventID, sourceService, sourceRef string, sourceVersion int64, occurredAt time.Time, correlationID string, grouping MovementGrouping) (Envelope, error) {
+	if err := grouping.Validate(); err != nil {
+		return Envelope{}, err
+	}
+	payload, err := json.Marshal(grouping)
+	if err != nil {
+		return Envelope{}, err
+	}
+	envelope := Envelope{
+		EventID: eventID, EventName: CommerceGroupingEventName, SchemaVersion: MovementSchemaVersion,
+		SourceService: sourceService, SourceEntityType: "fulfilment_plan", SourceEntityID: sourceRef,
+		SourceVersion: sourceVersion, OccurredAt: occurredAt.UTC(), CorrelationID: correlationID, Payload: payload,
+	}
 	return envelope, envelope.Validate()
 }

@@ -544,6 +544,21 @@ func main() {
 				return nil
 			},
 			func(ctx context.Context) error {
+				// Backfill and reconciliation. It republishes only movements
+				// customer-service is missing or behind on, so a first run
+				// backfills history and later runs are a safety net that
+				// cannot flood the consumer.
+				if cfg.CustomerMovementEventsEnabled {
+					(&movement.Reconciler{
+						Pool: db, Writer: movementWriter,
+						Reader: &movement.CustomerProjectionClient{
+							BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+						},
+					}).Run(ctx, 5*time.Minute)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
 				if cfg.ScheduledRiskMonitorEnabled {
 					bookingService.RunScheduledRiskMonitor(ctx, time.Minute, 2*time.Hour)
 				}

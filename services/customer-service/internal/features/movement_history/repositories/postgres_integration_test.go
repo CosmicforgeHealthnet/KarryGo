@@ -97,3 +97,83 @@ func TestPostgresProjectionDedupeStaleAndTerminal(t *testing.T) {
 		t.Fatalf("inbox rows = %d %v (duplicate must not add a row)", inbox, err)
 	}
 }
+
+// Commerce grouping decorates movements in BOTH arrival orders, because
+// nothing coordinates Vendor's publish with the executing authorities'. It
+// adds commercial context and never touches state, timestamps or provider
+// history.
+func TestPostgresCommerceGroupingDecoratesMovementsInEitherOrder(t *testing.T) {
+	db := pool(t)
+	repo := movementrepositories.NewPostgresRepository(db)
+	ctx := context.Background()
+	customer := uuid.NewString()
+	parent := "order-" + uuid.NewString()
+	early, late := "grp-"+uuid.NewString(), "grp-"+uuid.NewString()
+
+	grouping := events.MovementGrouping{CustomerID: customer, ParentContextType: "COMMERCE_ORDER", ParentContextRef: parent,
+		FulfilmentPlanRef: "plan-1", Missions: []events.GroupingMission{
+			{FulfilmentGroupRef: early, MissionSequence: 1, MissionCount: 2},
+			{FulfilmentGroupRef: late, MissionSequence: 2, MissionCount: 2},
+		}}
+
+	// One movement is already projected when the grouping arrives.
+	first := events.MovementSummary{CustomerID: customer, Authority: events.MovementAuthorityTaxi, SourceRef: "ride-" + early,
+		MovementType: events.MovementTypeGoods, State: events.MovementStateInProgress, FulfilmentGroupRef: early}
+	if outcome := project(t, repo, uuid.NewString(), 1, first); outcome != movementmodels.OutcomeApplied {
+		t.Fatalf("first movement = %s", outcome)
+	}
+	envelope, err := events.NewGroupingEnvelope(uuid.NewString(), "vendor-service", parent, 7, time.Now(), parent, grouping)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outcome, applied, err := repo.ApplyGrouping(ctx, envelope, grouping)
+	if err != nil || outcome != "APPLIED" || applied != 1 {
+		t.Fatalf("grouping = %s/%d (%v)", outcome, applied, err)
+	}
+
+	// The second movement arrives after the grouping and picks it up.
+	second := events.MovementSummary{CustomerID: customer, Authority: events.MovementAuthorityHauling, SourceRef: "haul-" + late,
+		MovementType: events.MovementTypeHaulage, State: events.MovementStateAssigned, FulfilmentGroupRef: late}
+	if outcome := project(t, repo, uuid.NewString(), 1, second); outcome != movementmodels.OutcomeApplied {
+		t.Fatalf("second movement = %s", outcome)
+	}
+
+	for _, want := range []struct {
+		authority, sourceRef string
+		sequence             int
+	}{{events.MovementAuthorityTaxi, "ride-" + early, 1}, {events.MovementAuthorityHauling, "haul-" + late, 2}} {
+		movement, err := repo.Get(ctx, customer, want.authority, want.sourceRef)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if movement.ParentContextRef == nil || *movement.ParentContextRef != parent {
+			t.Fatalf("%s parent = %v, want %s", want.sourceRef, movement.ParentContextRef, parent)
+		}
+		if movement.MissionSequence == nil || *movement.MissionSequence != want.sequence || movement.MissionCount == nil || *movement.MissionCount != 2 {
+			t.Fatalf("%s grouping = %v/%v", want.sourceRef, movement.MissionSequence, movement.MissionCount)
+		}
+	}
+
+	// A replayed grouping is acknowledged without reapplying, and a stale one
+	// never rewrites a newer grouping.
+	if outcome, _, err := repo.ApplyGrouping(ctx, envelope, grouping); err != nil || outcome != "DUPLICATE" {
+		t.Fatalf("grouping replay = %s (%v)", outcome, err)
+	}
+	stale := grouping
+	stale.ParentContextRef = "order-stale"
+	staleEnvelope, err := events.NewGroupingEnvelope(uuid.NewString(), "vendor-service", parent, 2, time.Now(), parent, stale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome, applied, err := repo.ApplyGrouping(ctx, staleEnvelope, stale); err != nil || outcome != "STALE" || applied != 0 {
+		t.Fatalf("stale grouping = %s/%d (%v)", outcome, applied, err)
+	}
+	movement, err := repo.Get(ctx, customer, events.MovementAuthorityTaxi, "ride-"+early)
+	if err != nil || movement.ParentContextRef == nil || *movement.ParentContextRef != parent {
+		t.Fatalf("stale grouping rewrote the projection: %v (%v)", movement.ParentContextRef, err)
+	}
+	// Grouping decorates, it never becomes state.
+	if movement.State != events.MovementStateInProgress {
+		t.Fatalf("state = %s, want the authority's own state", movement.State)
+	}
+}

@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/vendor-service/internal/integrations/logistics"
+	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/logging"
 )
 
 // InventoryState is where one allocation's stock stands.
@@ -472,6 +474,7 @@ func (s *Service) ActivateFulfilment(
 		}
 	}
 
+	var accepted []string
 	for _, plan := range plans {
 		mission, created, ensureErr := s.store.EnsureMission(ctx, order, plan, s.now().UTC())
 		if ensureErr != nil {
@@ -536,12 +539,40 @@ func (s *Service) ActivateFulfilment(
 		switch result.Status {
 		case MissionAccepted:
 			outcome.MissionsCreated++
+			accepted = append(accepted, mission.MissionRef)
 		case MissionRefused:
 			outcome.MissionsRefused++
 		}
 	}
 
+	// Commerce grouping: which movements belong to this one purchase, and in
+	// what order they were planned. It is published AFTER the authorities
+	// answered, carries no execution state, and a failure to publish never
+	// fails fulfilment - the customer's own history simply shows the
+	// movements ungrouped until the next publish.
+	s.publishCustomerGrouping(ctx, order, accepted)
+
 	return outcome, nil
+}
+
+// publishCustomerGrouping hands the commercial grouping to the customer
+// context owner. Vendor supplies grouping only: never a state, a provider or
+// a vehicle.
+func (s *Service) publishCustomerGrouping(ctx context.Context, order ParentOrder, missionRefs []string) {
+	if s.customerGrouping == nil || len(missionRefs) == 0 || strings.TrimSpace(order.CustomerID) == "" {
+		return
+	}
+	grouping := events.MovementGrouping{
+		CustomerID: order.CustomerID, ParentContextType: "COMMERCE_ORDER", ParentContextRef: order.ID,
+	}
+	for index, ref := range missionRefs {
+		grouping.Missions = append(grouping.Missions, events.GroupingMission{
+			FulfilmentGroupRef: ref, MissionSequence: index + 1, MissionCount: len(missionRefs),
+		})
+	}
+	if err := s.customerGrouping.PublishGrouping(ctx, order.ID, grouping); err != nil {
+		logging.Error("commerce-grouping", "order=%s: %v", order.ID, err)
+	}
 }
 
 // MissionPlan is one mission to be created.

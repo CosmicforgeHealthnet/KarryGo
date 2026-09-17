@@ -65,7 +65,7 @@ func RegisterIngress(engine *gin.Engine, service *movementusecases.Service, veri
 	if engine == nil || service == nil || verifier == nil {
 		return
 	}
-	engine.POST(events.CustomerMovementIngressPath, serviceauth.Middleware(verifier), func(c *gin.Context) {
+	ingest := func(c *gin.Context, handler func(string, events.Envelope) (movementusecases.IngestResult, error)) {
 		raw, err := io.ReadAll(nethttp.MaxBytesReader(c.Writer, c.Request.Body, 64<<10))
 		if err != nil {
 			httpx.RespondError(c, apperrors.BadRequest("Event body is too large or unreadable.", err))
@@ -78,11 +78,34 @@ func RegisterIngress(engine *gin.Engine, service *movementusecases.Service, veri
 			httpx.RespondError(c, apperrors.BadRequest("Event body is invalid.", err))
 			return
 		}
-		result, err := service.Ingest(c.Request.Context(), strings.TrimSpace(c.GetString("service_name")), envelope)
+		result, err := handler(strings.TrimSpace(c.GetString("service_name")), envelope)
 		if err != nil {
 			httpx.RespondError(c, apperrors.From(err))
 			return
 		}
 		c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": result})
+	}
+	engine.POST(events.CustomerMovementIngressPath, serviceauth.Middleware(verifier), func(c *gin.Context) {
+		ingest(c, func(caller string, envelope events.Envelope) (movementusecases.IngestResult, error) {
+			return service.Ingest(c.Request.Context(), caller, envelope)
+		})
+	})
+	// Reconciliation: an authority asks what this projection already holds
+	// for its own movements, so it republishes only what is missing.
+	engine.GET(events.CustomerMovementStatePath, serviceauth.Middleware(verifier), func(c *gin.Context) {
+		versions, err := service.ProjectedVersions(c.Request.Context(), strings.TrimSpace(c.GetString("service_name")),
+			strings.Split(c.Query("source_refs"), ","))
+		if err != nil {
+			httpx.RespondError(c, apperrors.From(err))
+			return
+		}
+		c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": gin.H{"versions": versions}})
+	})
+	// Commerce grouping has its own ingress and its own caller allowlist, so
+	// a grouping publisher can never reach the movement-state path.
+	engine.POST(events.CustomerMovementGroupingPath, serviceauth.Middleware(verifier), func(c *gin.Context) {
+		ingest(c, func(caller string, envelope events.Envelope) (movementusecases.IngestResult, error) {
+			return service.IngestGrouping(c.Request.Context(), caller, envelope)
+		})
 	})
 }

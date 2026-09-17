@@ -99,6 +99,25 @@ func (r *PostgresRepository) Project(ctx context.Context, envelope events.Envelo
 		if err != nil {
 			return "", err
 		}
+		// A grouping Vendor published earlier decorates this movement now.
+		// Grouping is commercial context only, so it is applied after the
+		// authority's own state, never instead of it.
+		if deref(next.FulfilmentGroupRef) != "" && deref(next.ParentContextRef) == "" {
+			if _, _, _, _, found, groupErr := r.GroupingFor(ctx, tx, next.CustomerID, deref(next.FulfilmentGroupRef)); groupErr != nil {
+				return "", groupErr
+			} else if found {
+				if _, err = tx.Exec(ctx, `
+					UPDATE customer_movement_history_projection p
+					   SET parent_context_type=g.parent_context_type, parent_context_ref=g.parent_context_ref,
+					       fulfilment_plan_ref=NULLIF(g.fulfilment_plan_ref,''), mission_sequence=g.mission_sequence,
+					       mission_count=g.mission_count, updated_at=NOW()
+					  FROM customer_movement_groupings g
+					 WHERE g.fulfilment_group_ref=p.fulfilment_group_ref AND p.authority=$1 AND p.source_ref=$2`,
+					next.Authority, next.SourceRef); err != nil {
+					return "", err
+				}
+			}
+		}
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO customer_movement_event_inbox (event_id, source_service, event_name, authority, source_ref, source_version, outcome) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
 		envelope.EventID, envelope.SourceService, envelope.EventName, incoming.Authority, incoming.SourceRef, envelope.SourceVersion, outcome); err != nil {
@@ -190,4 +209,12 @@ func nullable(raw json.RawMessage) any {
 		return nil
 	}
 	return []byte(raw)
+}
+
+// deref reads an optional projection column as a plain value.
+func deref(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

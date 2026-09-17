@@ -18,6 +18,7 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/ratelimit"
 	"cosmicforge/logistics/services/vendor-service/internal/privacy"
+	sharedevents "cosmicforge/logistics/shared/go/events"
 
 	vendorauthclients "cosmicforge/logistics/services/vendor-service/internal/features/auth/clients"
 	vendorauthhttp "cosmicforge/logistics/services/vendor-service/internal/features/auth/http"
@@ -504,6 +505,19 @@ func main() {
 			eventType := eventType
 			worker := events.NewWorker(outboxRepo, publisher, events.WorkerConfig{
 				Owner: "vendor-commerce-notifications-" + strings.ReplaceAll(eventType, ".", "-"), EventType: eventType,
+			})
+			workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+		}
+	}
+	// Commerce grouping delivery to the customer context owner. Its own
+	// worker, so an unreachable customer-service never holds up unrelated
+	// Vendor events.
+	if cfg.Flags.CustomerMovementGroupingEnabled {
+		publisher, err := events.NewHTTPPublisher(cfg.CustomerURL, sharedevents.CustomerMovementGroupingPath,
+			"vendor-service", []byte(cfg.CustomerSecret), 10*time.Second)
+		if err == nil {
+			worker := events.NewWorker(outboxRepo, publisher, events.WorkerConfig{
+				Owner: "vendor-customer-movement-grouping", EventType: sharedevents.CommerceGroupingEventName,
 			})
 			workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
 		}

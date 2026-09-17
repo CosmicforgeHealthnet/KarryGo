@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -120,6 +121,7 @@ func main() {
 		Callers:         movementCallers,
 		ConsumerEnabled: cfg.MovementEventsConsumerEnabled,
 		ReadEnabled:     cfg.UnifiedMovementHistoryEnabled,
+		GroupingCallers: strings.Split(cfg.MovementGroupingCallers, ","),
 	})
 	serviceVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	customerContextService := contextusecases.NewService(callerScopes, mobilityRepo, savedLocationService)
