@@ -2,6 +2,8 @@ package goods
 
 import (
 	"context"
+
+	"cosmicforge/logistics/services/taxi-service/internal/capability"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,6 +18,7 @@ import (
 	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/observability"
 )
 
 type MarketResolver interface {
@@ -54,6 +57,13 @@ type Options struct {
 	QuoteTTL       time.Duration
 	MatchRadiusKM  float64
 	Now            func() time.Time
+	// Section 7 multi-pickup, capability and recovery. Zero values keep
+	// the legacy single-pickup behaviour.
+	Capabilities ExecutionFlags
+	Policies     PolicySource
+	Metrics      *observability.Metrics
+	// GoodsCandidates loads hard-gate facts; defaults to the repository.
+	GoodsCandidates func(context.Context, []string) ([]capability.Candidate, error)
 }
 
 type Service struct {
@@ -70,6 +80,11 @@ type Service struct {
 	quoteTTL   time.Duration
 	radiusKM   float64
 	now        func() time.Time
+	caps       ExecutionFlags
+	policies   PolicySource
+	metrics    goodsMetrics
+
+	goodsCandidates func(context.Context, []string) ([]capability.Candidate, error)
 }
 
 func NewService(options Options) *Service {
@@ -82,9 +97,14 @@ func NewService(options Options) *Service {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
+	if options.GoodsCandidates == nil && options.Repository != nil {
+		options.GoodsCandidates = options.Repository.GoodsCapabilityCandidates
+	}
 	return &Service{repo: options.Repository, markets: options.Markets, candidates: options.Candidates, routes: options.Routing,
 		settlement: options.Settlement, media: options.Media, notifier: options.Notifier, pricing: options.Pricing, enabled: options.Enabled,
-		secret: options.HandoverSecret, quoteTTL: options.QuoteTTL, radiusKM: options.MatchRadiusKM, now: options.Now}
+		secret: options.HandoverSecret, quoteTTL: options.QuoteTTL, radiusKM: options.MatchRadiusKM, now: options.Now,
+		caps: options.Capabilities, policies: options.Policies, metrics: goodsMetrics{m: options.Metrics},
+		goodsCandidates: options.GoodsCandidates}
 }
 
 func (s *Service) Enabled() bool { return s != nil && s.enabled }
@@ -174,6 +194,13 @@ func (s *Service) CreateMission(ctx context.Context, caller string, request comm
 	if !s.Enabled() {
 		return Mission{}, ErrDisabled
 	}
+	if len(request.PickupStops) > 1 {
+		if message, ok := request.Validate(); !ok || request.Service != commercemission.ServiceTaxi {
+			_ = message
+			return Mission{}, ErrInvalid
+		}
+		return s.createMultiStopMission(ctx, caller, request)
+	}
 	if message, ok := request.Validate(); !ok || request.Service != commercemission.ServiceTaxi || request.VehicleClass != commercemission.VehicleCar || len(request.PickupStops) > 1 || len(request.Parcels) == 0 || !validMissionParcels(request) {
 		_ = message
 		return Mission{}, ErrInvalid
@@ -246,6 +273,10 @@ func (s *Service) ReconcileMatching(ctx context.Context, limit int) error {
 		return err
 	}
 	for _, mission := range missions {
+		if s.isMultiStop(ctx, mission.MissionRef) {
+			_ = s.matchMultiStop(ctx, mission)
+			continue
+		}
 		point := geo.Point{Lat: mission.Pickup.Latitude, Lng: mission.Pickup.Longitude}
 		zone, resolveErr := s.markets.ResolveZone(ctx, point)
 		if resolveErr != nil {
@@ -314,14 +345,16 @@ func (s *Service) ReassignProvider(ctx context.Context, operator, missionRef str
 	if mission.Status == StatusPickupHandoverRequired {
 		version := int64(1)
 		resend := 0
+		stopRef := ""
 		if latest, latestErr := s.repo.LatestChallenge(ctx, mission.ID, StagePickup, false); latestErr == nil {
-			version, resend = latest.Version+1, latest.ResendCount
+			version, resend, stopRef = latest.Version+1, latest.ResendCount, latest.StopRef
 		}
 		var record HandoverRecord
 		credential, record, err = s.newChallenge(mission, StagePickup, command.NewProviderID, mission.ReceiverRef, version, resend)
 		if err != nil {
 			return Mission{}, err
 		}
+		record.StopRef = stopRef
 		fresh = &record
 	}
 	updated, applied, err := s.repo.ReassignProvider(ctx, missionRef, operator, command, Fingerprint(command), fresh)
@@ -380,9 +413,15 @@ func (s *Service) Accept(ctx context.Context, providerID, missionRef string) (Mi
 	return s.repo.TransitionProvider(ctx, missionRef, providerID, StatusOffered, StatusAssigned, "", "taxi.goods.assigned.v1")
 }
 func (s *Service) EnRoutePickup(ctx context.Context, providerID, missionRef string) (Mission, error) {
+	if s.isMultiStop(ctx, missionRef) {
+		return Mission{}, ErrConflict
+	}
 	return s.repo.TransitionProvider(ctx, missionRef, providerID, StatusAssigned, StatusEnRoutePickup, "EN_ROUTE_PICKUP", "taxi.goods.en_route_pickup.v1")
 }
 func (s *Service) ArrivePickup(ctx context.Context, providerID, missionRef string) (Mission, error) {
+	if s.isMultiStop(ctx, missionRef) {
+		return Mission{}, ErrConflict
+	}
 	return s.repo.TransitionProvider(ctx, missionRef, providerID, StatusEnRoutePickup, StatusAtPickup, "AT_PICKUP", "taxi.goods.at_pickup.v1")
 }
 func (s *Service) InTransit(ctx context.Context, providerID, missionRef string) (Mission, error) {
@@ -399,6 +438,9 @@ func (s *Service) IssuePickupCredential(ctx context.Context, providerID, mission
 	mission, err := s.repo.ReadMissionForProvider(ctx, providerID, missionRef)
 	if err != nil {
 		return Credential{}, err
+	}
+	if s.isMultiStop(ctx, missionRef) {
+		return Credential{}, ErrConflict
 	}
 	if mission.Status == StatusAtPickup {
 		mission, err = s.repo.TransitionProvider(ctx, missionRef, providerID, StatusAtPickup, StatusPickupHandoverRequired, "AT_PICKUP", "taxi.goods.pickup_handover_required.v1")
@@ -479,7 +521,7 @@ func (s *Service) Resend(ctx context.Context, providerID, missionRef, stage stri
 	if err != nil {
 		return Credential{}, err
 	}
-	next := HandoverRecord{ChallengeRef: ref, MissionID: mission.ID, Stage: stage, ProviderID: providerID, ReceiverRef: owner, OTPHash: record.Hash, QRHash: record.QRHash, Version: latest.Version + 1, ResendCount: latest.ResendCount + 1, ExpiresAt: record.ExpiresAt, ResendAvailableAt: now.Add(handover.ResendCooldown)}
+	next := HandoverRecord{ChallengeRef: ref, MissionID: mission.ID, Stage: stage, ProviderID: providerID, ReceiverRef: owner, OTPHash: record.Hash, QRHash: record.QRHash, Version: latest.Version + 1, ResendCount: latest.ResendCount + 1, ExpiresAt: record.ExpiresAt, ResendAvailableAt: now.Add(handover.ResendCooldown), StopRef: latest.StopRef}
 	if latest.Status == "ACTIVE" {
 		err = s.repo.ReplaceChallenge(ctx, latest, next)
 	} else {
@@ -521,7 +563,7 @@ func (s *Service) VerifyPickup(ctx context.Context, caller, missionRef string, c
 	if err != nil {
 		return Mission{}, err
 	}
-	if mission.Status != StatusPickupHandoverRequired && mission.Status != StatusPickedUp {
+	if mission.Status != StatusPickupHandoverRequired && mission.Status != StatusPickedUp && !(mission.Status == StatusEnRoutePickup && s.isMultiStop(ctx, missionRef)) {
 		return Mission{}, ErrConflict
 	}
 	candidate, err := s.credentialCandidate(ctx, mission, StagePickup, command)
@@ -531,6 +573,11 @@ func (s *Service) VerifyPickup(ctx context.Context, caller, missionRef string, c
 	updated, err := s.repo.VerifyAndTransition(ctx, caller, mission.ProviderID, missionRef, StagePickup, command, candidate, s.now().UTC())
 	if err != nil {
 		return Mission{}, err
+	}
+	if updated.Status != StatusPickedUp {
+		// A multi-pickup mission still has pickups pending: the receiver's
+		// delivery credential is only issued after the final pickup.
+		return updated, nil
 	}
 	credential, issueErr := s.issue(ctx, updated, StageDelivery, 0)
 	if issueErr == nil {

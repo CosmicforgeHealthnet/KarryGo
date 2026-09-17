@@ -152,6 +152,9 @@ func (s *BookingService) withTransition(
 	if err := outbox.Write(ctx, tx, "booking", booking.ID, eventType, payload); err != nil {
 		return bookingmodels.Booking{}, err
 	}
+	if err := s.movement.WriteBooking(ctx, tx, booking, booking.ID); err != nil {
+		return bookingmodels.Booking{}, err
+	}
 
 	// Section 8 TAX-015/TAX-016: a managed ride's canonical Fleet
 	// completed-work record is persisted in the SAME transaction as the

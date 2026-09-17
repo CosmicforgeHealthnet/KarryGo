@@ -113,11 +113,26 @@ type Config struct {
 	// Fleet Partner integration is optional while rolled out, but once
 	// configured all corporate provider checks use HMAC v2 and Fleet's
 	// canonical provider context.
-	FleetServiceURL                     string
-	FleetServiceCaller                  string
-	FleetServiceSecret                  []byte
-	FleetServiceTimeout                 time.Duration
-	TaxiFleetProviderWorkEnabled        bool
+	FleetServiceURL              string
+	FleetServiceCaller           string
+	FleetServiceSecret           []byte
+	FleetServiceTimeout          time.Duration
+	TaxiFleetProviderWorkEnabled bool
+
+	// Section 7 flags. All default false; multi-pickup is only advertised
+	// when execution, secure handover and cumulative fit are all enabled.
+	ServiceProductsEnabled              bool
+	CapabilityMatchingEnabled           bool
+	GoodsCapabilityEnabled              bool
+	GoodsMultiPickupEnabled             bool
+	GoodsSecureHandoverEnabled          bool
+	GoodsCumulativeFitEnabled           bool
+	RecoveryEnabled                     bool
+	ScheduledRiskMonitorEnabled         bool
+	CustomerMovementEventsEnabled       bool
+	CustomerServiceURL                  string
+	CustomerServiceSecret               []byte
+	CapabilityInternalCallers           string
 	TaxiFleetCompletedWorkEnabled       bool
 	TaxiTypedFinancialVisibilityEnabled bool
 	// TaxiFleetManagedExecutionEnabled mounts the Fleet-facing private
@@ -245,11 +260,24 @@ func Load() Config {
 		ServiceSecrets:   os.Getenv("TAXI_SERVICE_SECRETS"),
 		MetricsAuthToken: os.Getenv("TAXI_METRICS_AUTH_TOKEN"),
 
-		FleetServiceURL:                     os.Getenv("FLEET_PARTNER_SERVICE_URL"),
-		FleetServiceCaller:                  getEnv("TAXI_FLEET_SERVICE_CALLER", "driver-taxi-service"),
-		FleetServiceSecret:                  []byte(os.Getenv("FLEET_PARTNER_SERVICE_SECRET")),
-		FleetServiceTimeout:                 time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
-		TaxiFleetProviderWorkEnabled:        getEnvBool("TAXI_FLEET_PROVIDER_WORK_ENABLED", false),
+		FleetServiceURL:              os.Getenv("FLEET_PARTNER_SERVICE_URL"),
+		FleetServiceCaller:           getEnv("TAXI_FLEET_SERVICE_CALLER", "driver-taxi-service"),
+		FleetServiceSecret:           []byte(os.Getenv("FLEET_PARTNER_SERVICE_SECRET")),
+		FleetServiceTimeout:          time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		TaxiFleetProviderWorkEnabled: getEnvBool("TAXI_FLEET_PROVIDER_WORK_ENABLED", false),
+
+		ServiceProductsEnabled:              getEnvBool("TAXI_SERVICE_PRODUCTS_ENABLED", false),
+		CapabilityMatchingEnabled:           getEnvBool("TAXI_CAPABILITY_MATCHING_ENABLED", false),
+		GoodsCapabilityEnabled:              getEnvBool("TAXI_GOODS_CAPABILITY_ENABLED", false),
+		GoodsMultiPickupEnabled:             getEnvBool("TAXI_GOODS_MULTI_PICKUP_ENABLED", false),
+		GoodsSecureHandoverEnabled:          getEnvBool("TAXI_GOODS_SECURE_HANDOVER_ENABLED", false),
+		GoodsCumulativeFitEnabled:           getEnvBool("TAXI_GOODS_CUMULATIVE_FIT_ENABLED", false),
+		RecoveryEnabled:                     getEnvBool("TAXI_RECOVERY_ENABLED", false),
+		ScheduledRiskMonitorEnabled:         getEnvBool("TAXI_SCHEDULED_RISK_MONITOR_ENABLED", false),
+		CustomerMovementEventsEnabled:       getEnvBool("TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerServiceURL:                  os.Getenv("TAXI_CUSTOMER_SERVICE_URL"),
+		CustomerServiceSecret:               []byte(os.Getenv("TAXI_CUSTOMER_SERVICE_SECRET")),
+		CapabilityInternalCallers:           getEnv("TAXI_CAPABILITY_INTERNAL_CALLERS", "vendor-service,operations-service,verification-compliance-service"),
 		TaxiFleetCompletedWorkEnabled:       getEnvBool("TAXI_FLEET_COMPLETED_WORK_ENABLED", false),
 		TaxiTypedFinancialVisibilityEnabled: getEnvBool("TAXI_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
 		TaxiFleetManagedExecutionEnabled:    getEnvBool("TAXI_FLEET_MANAGED_EXECUTION_ENABLED", false),
@@ -348,6 +376,19 @@ func (c Config) Validate() error {
 	}
 	if c.TelemetryStaleSeconds <= 0 {
 		problems = append(problems, "TAXI_TELEMETRY_STALE_SECONDS must be greater than zero")
+	}
+	if c.CapabilityMatchingEnabled && !c.ServiceProductsEnabled {
+		problems = append(problems, "TAXI_CAPABILITY_MATCHING_ENABLED requires TAXI_SERVICE_PRODUCTS_ENABLED (run shadow evaluation first)")
+	}
+	if c.GoodsMultiPickupEnabled && (!c.TaxiGoodsDeliveryEnabled || !c.GoodsCapabilityEnabled || !c.GoodsSecureHandoverEnabled || !c.GoodsCumulativeFitEnabled) {
+		problems = append(problems, "TAXI_GOODS_MULTI_PICKUP_ENABLED requires TAXI_GOODS_DELIVERY_ENABLED, TAXI_GOODS_CAPABILITY_ENABLED, TAXI_GOODS_SECURE_HANDOVER_ENABLED and TAXI_GOODS_CUMULATIVE_FIT_ENABLED")
+	}
+	if c.CustomerMovementEventsEnabled {
+		if strings.TrimSpace(c.CustomerServiceURL) == "" || len(c.CustomerServiceSecret) == 0 {
+			problems = append(problems, "TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED requires TAXI_CUSTOMER_SERVICE_URL and TAXI_CUSTOMER_SERVICE_SECRET")
+		} else if path := urlPath(c.CustomerServiceURL); path != "" {
+			problems = append(problems, "TAXI_CUSTOMER_SERVICE_URL must be a bare origin, got path "+path)
+		}
 	}
 	if c.TaxiGoodsDeliveryEnabled {
 		if strings.TrimSpace(c.TaxiGoodsPricingJSON) == "" {

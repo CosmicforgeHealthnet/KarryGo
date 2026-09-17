@@ -256,4 +256,7 @@ type HandoverRecord struct {
 	ResendCount       int
 	ExpiresAt         time.Time
 	ResendAvailableAt time.Time
+	// StopRef scopes a pickup challenge to one stop of a multi-pickup
+	// mission. Empty for single-pickup missions and delivery challenges.
+	StopRef string
 }

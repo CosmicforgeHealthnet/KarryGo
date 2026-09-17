@@ -5,6 +5,7 @@ package bookingusecases
 
 import (
 	"context"
+	"cosmicforge/logistics/services/taxi-service/internal/movement"
 	"fmt"
 	"strings"
 	"time"
@@ -123,6 +124,16 @@ type BookingService struct {
 	// completedWorkEnabled gates writing the canonical Fleet completed-work
 	// outbox row. Off by default (TAXI_FLEET_COMPLETED_WORK_ENABLED).
 	completedWorkEnabled bool
+	movement   *movement.Writer
+	capability CapabilityGate
+	riskStore  ScheduledRiskStore
+}
+
+// CapabilityGate runs Section 7 hard eligibility gates before scoring. It
+// returns the provider ids allowed into ranking. In shadow mode it returns
+// the input unchanged after recording evidence.
+type CapabilityGate interface {
+	FilterPassengerCandidates(ctx context.Context, booking bookingmodels.Booking, productCode string, snapshot []byte, providerIDs []string, instance string) ([]string, error)
 }
 
 type Options struct {
@@ -201,6 +212,14 @@ type Options struct {
 	ManagedSettlement    ManagedSettlementConfig
 	ManagedHandoff       ManagedSettlementHandoff
 	CompletedWorkEnabled bool
+	// Movement publishes customer movement summaries through the outbox.
+	// nil or disabled is a safe no-op.
+	Movement *movement.Writer
+	// CapabilityGate is nil when Section 7 passenger capability matching is
+	// not wired; matching then behaves exactly as before.
+	CapabilityGate CapabilityGate
+	// RiskStore backs the scheduled-ride risk monitor. nil disables it.
+	RiskStore ScheduledRiskStore
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -216,6 +235,9 @@ func NewBookingService(opts Options) *BookingService {
 		adminAudit:        opts.AdminAudit,
 		managedSettlement: opts.ManagedSettlement, managedHandoff: opts.ManagedHandoff,
 		completedWorkEnabled: opts.CompletedWorkEnabled,
+		movement:   opts.Movement,
+		capability: opts.CapabilityGate,
+		riskStore:  opts.RiskStore,
 	}
 }
 

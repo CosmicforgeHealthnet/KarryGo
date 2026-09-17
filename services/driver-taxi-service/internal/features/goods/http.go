@@ -39,7 +39,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *servicea
 	if verifier != nil {
 		internal := group.Group("/internal/commerce")
 		internal.Use(serviceauth.Middleware(verifier), handler.vendorOnlyAndNonce())
-		internal.GET("/capabilities", handler.capabilities)
+		internal.GET("/capabilities", handler.commerceCapabilities)
 
 		// The shared cross-authority capability contract Vendor reads to
 		// decide whether Taxi Goods may be selected at all (VND-007). It is
@@ -60,12 +60,19 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *servicea
 		internal.POST("/missions/:missionRef/cancel", handler.cancelMission)
 		internal.POST("/missions/:missionRef/pickup/verify", handler.verifyPickup)
 		internal.POST("/missions/:missionRef/receiver", handler.changeReceiver)
+		internal.GET("/capabilities", handler.commerceCapabilities)
+		internal.POST("/serviceability", handler.serviceability)
+		internal.POST("/missions/:missionRef/pickups/delay", handler.pickupDelay)
+		internal.POST("/missions/:missionRef/route/replan", handler.replanRoute)
 
 		operations := group.Group("/internal/operations/goods")
 		operations.Use(serviceauth.Middleware(verifier), handler.operationsOnlyAndNonce())
 		operations.PUT("/providers/:providerId/capability", handler.setProviderCapability)
 		operations.PUT("/providers/:providerId/vehicles/:vehicleId/verification", handler.verifyCargoProfile)
 		operations.POST("/missions/:missionRef/reassign", handler.reassignProvider)
+		operations.POST("/missions/:missionRef/recovery", handler.startRecovery)
+		operations.POST("/missions/:missionRef/recovery/replacement", handler.selectReplacement)
+		operations.POST("/missions/:missionRef/recovery/transfer", handler.completeRecoveryTransfer)
 	}
 	if providerSigner != nil {
 		provider := group.Group("/provider/goods")
@@ -87,6 +94,9 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *servicea
 		provider.POST("/missions/:missionRef/delivery/verify", handler.verifyDelivery)
 		provider.POST("/missions/:missionRef/evidence", handler.addEvidence)
 		provider.POST("/missions/:missionRef/complete", handler.complete)
+		provider.POST("/missions/:missionRef/stops/:stopRef/en-route", handler.stopEnRoute)
+		provider.POST("/missions/:missionRef/stops/:stopRef/arrived", handler.stopArrived)
+		provider.POST("/missions/:missionRef/stops/:stopRef/handover", handler.stopHandover)
 	}
 }
 
@@ -439,6 +449,8 @@ func hError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrDisabled), errors.Is(err, ErrUnavailable):
 		httpx.RespondError(c, apperrors.Unavailable("Taxi Goods is unavailable.", err))
+	case errors.Is(err, ErrStalePlan):
+		httpx.RespondError(c, apperrors.Conflict("The fulfilment plan version is stale.", err))
 	case errors.Is(err, ErrInvalid):
 		httpx.RespondError(c, apperrors.BadRequest("Taxi Goods request is invalid.", err))
 	case errors.Is(err, ErrNotFound):
@@ -459,4 +471,102 @@ func jsonDecoder(reader io.Reader) strictDecoder {
 	decoder := newJSONDecoder(reader)
 	decoder.DisallowUnknownFields()
 	return decoder
+}
+
+// commerceCapabilities answers the Taxi Goods execution envelope (contract
+// v2) that Vendor reads for multi-pickup planning. It is a different document
+// from the cross-authority declaration in capabilities.go, and has its own
+// route.
+func (h *Handler) commerceCapabilities(c *gin.Context) {
+	out, err := h.service.Capability(c)
+	respond(c, out, err)
+}
+
+// serviceability is the zero-side-effect pre-checkout preview. The strict
+// decoder rejects provider_id, vehicle_id and any other identity field.
+func (h *Handler) serviceability(c *gin.Context) {
+	var request ServiceabilityRequest
+	if !bind(c, &request) {
+		return
+	}
+	out, err := h.service.PreviewServiceability(c, request)
+	if err == nil {
+		h.service.metrics.preview(out.Serviceable)
+	}
+	respond(c, out, err)
+}
+
+func (h *Handler) pickupDelay(c *gin.Context) {
+	var request PickupDelayCommand
+	if !bind(c, &request) {
+		return
+	}
+	mission, err := h.service.ReportPickupDelay(c, caller(c), c.Param("missionRef"), request.StopRef, request.ReadyAt)
+	if err != nil {
+		hError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": contractMission(mission)})
+}
+
+func (h *Handler) replanRoute(c *gin.Context) {
+	var request RouteReplanCommand
+	if !bind(c, &request) {
+		return
+	}
+	version, err := h.service.ReplanRoute(c, caller(c), c.Param("missionRef"), request)
+	respond(c, gin.H{"route_version": version}, err)
+}
+
+func (h *Handler) startRecovery(c *gin.Context) {
+	var request StartRecoveryCommand
+	if !bind(c, &request) {
+		return
+	}
+	out, err := h.service.StartRecovery(c, caller(c), c.Param("missionRef"), request)
+	respond(c, out, err)
+}
+
+func (h *Handler) selectReplacement(c *gin.Context) {
+	var request struct {
+		OperationRef string `json:"operation_ref"`
+	}
+	if !bind(c, &request) {
+		return
+	}
+	out, err := h.service.SelectReplacement(c, caller(c), c.Param("missionRef"), request.OperationRef)
+	respond(c, out, err)
+}
+
+func (h *Handler) completeRecoveryTransfer(c *gin.Context) {
+	var request CompleteTransferCommand
+	if !bind(c, &request) {
+		return
+	}
+	mission, err := h.service.CompleteRecoveryTransfer(c, caller(c), c.Param("missionRef"), request)
+	if err != nil {
+		hError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": contractMission(mission)})
+}
+
+func (h *Handler) stopTransition(c *gin.Context, fn func(context.Context, string, string, string) (Mission, error)) {
+	id, ok := provider(c)
+	if !ok {
+		return
+	}
+	out, err := fn(c, id, c.Param("missionRef"), c.Param("stopRef"))
+	respondProviderMission(c, out, err)
+}
+
+func (h *Handler) stopEnRoute(c *gin.Context) { h.stopTransition(c, h.service.StopEnRoute) }
+func (h *Handler) stopArrived(c *gin.Context) { h.stopTransition(c, h.service.StopArrived) }
+func (h *Handler) stopHandover(c *gin.Context) {
+	id, ok := provider(c)
+	if !ok {
+		return
+	}
+	out, err := h.service.StopHandover(c, id, c.Param("missionRef"), c.Param("stopRef"))
+	respond(c, out, err)
 }

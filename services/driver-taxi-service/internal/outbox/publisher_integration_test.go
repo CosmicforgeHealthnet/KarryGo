@@ -54,7 +54,7 @@ func (d *countingDestination) Deliver(_ context.Context, record Record) error {
 func seedPublisherRecord(t *testing.T, db *pgxpool.Pool) string {
 	t.Helper()
 	id, aggregate := uuid.NewString(), uuid.NewString()
-	_, err := db.Exec(context.Background(), `INSERT INTO taxi_outbox(id,aggregate_type,aggregate_id,event_type,payload,available_at) VALUES($1,'taxi_goods_mission',$2,'taxi.goods.completed.v1','{}','1900-01-01')`, id, aggregate)
+	_, err := db.Exec(context.Background(), `INSERT INTO taxi_outbox(id,aggregate_type,aggregate_id,event_type,payload,available_at,target) VALUES($1,'taxi_goods_mission',$2,'taxi.goods.completed.v1','{}','1900-01-01','vendor-service')`, id, aggregate)
 	if err != nil {
 		t.Fatal(err)
 	}

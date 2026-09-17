@@ -343,7 +343,35 @@ func (s *BookingService) findEligibleCandidates(ctx context.Context, booking boo
 		}
 		eligible = append(eligible, candidate)
 	}
-	return eligible
+	return s.applyCapabilityGate(ctx, booking, eligible)
+}
+
+// applyCapabilityGate filters candidates through the Section 7 hard gates
+// before any scoring. A gate error while enforcing fails closed.
+func (s *BookingService) applyCapabilityGate(ctx context.Context, booking bookingmodels.Booking, eligible []availabilityrepositories.ProviderStatus) []availabilityrepositories.ProviderStatus {
+	if s.capability == nil || len(eligible) == 0 {
+		return eligible
+	}
+	ids := make([]string, 0, len(eligible))
+	for _, candidate := range eligible {
+		ids = append(ids, candidate.ProviderID)
+	}
+	kept, err := s.capability.FilterPassengerCandidates(ctx, booking, "", nil, ids, s.matching.InstanceID)
+	if err != nil {
+		logging.Error("taxi-matcher", "capability gate booking=%s: %v", booking.ID, err)
+		return nil
+	}
+	allowed := make(map[string]bool, len(kept))
+	for _, id := range kept {
+		allowed[id] = true
+	}
+	filtered := eligible[:0]
+	for _, candidate := range eligible {
+		if allowed[candidate.ProviderID] {
+			filtered = append(filtered, candidate)
+		}
+	}
+	return filtered
 }
 
 // scoreCandidates implements addendum §6.2. Pickup ETA is scored across the

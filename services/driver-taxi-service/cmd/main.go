@@ -36,9 +36,11 @@ import (
 	bookingtelemetry "cosmicforge/logistics/services/taxi-service/internal/features/booking/telemetry"
 	bookingusecases "cosmicforge/logistics/services/taxi-service/internal/features/booking/usecases"
 	bookingverification "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification"
+	capabilities "cosmicforge/logistics/services/taxi-service/internal/features/capabilities"
 	fleetprovider "cosmicforge/logistics/services/taxi-service/internal/features/fleetprovider"
 	goods "cosmicforge/logistics/services/taxi-service/internal/features/goods"
 	"cosmicforge/logistics/services/taxi-service/internal/features/managedexec"
+	"cosmicforge/logistics/services/taxi-service/internal/movement"
 
 	identityhttp "cosmicforge/logistics/services/taxi-service/internal/features/identity/http"
 	operationshttp "cosmicforge/logistics/services/taxi-service/internal/features/operations/http"
@@ -52,10 +54,12 @@ import (
 	taxisettlement "cosmicforge/logistics/services/taxi-service/internal/features/booking/settlement"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/custodyops"
+	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/observability"
 	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/providercompat"
 	sharedrouting "cosmicforge/logistics/shared/go/routing"
@@ -203,7 +207,19 @@ func main() {
 	// working day.
 	idempotencyStore := idempotency.NewStore(db, 24*time.Hour)
 
-	bookingRepo := bookingrepositories.NewPostgresBookingRepository(db)
+	// Section 7: movement summaries for customer-service are written through
+	// the outbox in the same transaction as each change (dark by default).
+	metrics := observability.NewMetrics()
+	movementWriter := &movement.Writer{Enabled: cfg.CustomerMovementEventsEnabled}
+	capabilityService := capabilities.NewService(capabilities.NewRepository(db), capabilities.Flags{
+		ServiceProductsEnabled:    cfg.ServiceProductsEnabled,
+		CapabilityMatchingEnabled: cfg.CapabilityMatchingEnabled,
+	}, metrics)
+	bookingRepo := bookingrepositories.NewPostgresBookingRepository(db).WithMovementEvents(movementWriter)
+	var riskStore bookingusecases.ScheduledRiskStore
+	if cfg.ScheduledRiskMonitorEnabled {
+		riskStore = bookingRepo
+	}
 	matcherLease := bookingmatching.NewMatcherLease(redisClient)
 	pickupVerificationRepo := bookingverification.NewPostgresRepository(db)
 	pickupVerifyRateLimiter := bookingverification.NewRateLimiter(redisClient)
@@ -302,7 +318,10 @@ func main() {
 		Scheduling: bookingusecases.SchedulingConfig{
 			LeadTime: time.Duration(cfg.ScheduleLeadMinutes) * time.Minute,
 		},
-		AdminAudit: adminAuditRepo,
+		AdminAudit:     adminAuditRepo,
+		Movement:       movementWriter,
+		CapabilityGate: capabilityService,
+		RiskStore:      riskStore,
 	})
 
 	// Internal ops caller verification (phase B10) is nil when no
@@ -317,7 +336,7 @@ func main() {
 		opsVerifier = serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	}
 
-	goodsRepo := goods.NewRepository(db)
+	goodsRepo := goods.NewRepository(db).WithMovementEvents(movementWriter)
 	var goodsSettlement goods.SettlementAuthority
 	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
 		goodsSettlement = goods.NewWalletAdapter(walletAuthority)
@@ -352,6 +371,15 @@ func main() {
 		Notifier: goodsNotifier, Pricing: goodsPricing, Enabled: cfg.TaxiGoodsDeliveryEnabled,
 		HandoverSecret: cfg.TaxiGoodsHandoverSecret, QuoteTTL: cfg.TaxiGoodsQuoteTTL,
 		MatchRadiusKM: cfg.MatchMaxRadiusKm,
+		Capabilities: goods.ExecutionFlags{
+			CapabilityEnabled:     cfg.GoodsCapabilityEnabled,
+			MultiPickupEnabled:    cfg.GoodsMultiPickupEnabled,
+			SecureHandoverEnabled: cfg.GoodsSecureHandoverEnabled,
+			CumulativeFitEnabled:  cfg.GoodsCumulativeFitEnabled,
+			RecoveryEnabled:       cfg.RecoveryEnabled,
+		},
+		Policies: capabilityService,
+		Metrics:  metrics,
 	})
 	// ONE durable outbox, one worker, two destinations (Section 8 TAX-016).
 	// Vendor lifecycle rows and Fleet completed-work rows share the same
@@ -372,6 +400,14 @@ func main() {
 			Client:  fleetCompletedWorkClient,
 			Enabled: cfg.TaxiFleetCompletedWorkEnabled && fleetCompletedWorkClient != nil,
 		},
+		// Customer movement rows share the same durable outbox, worker,
+		// leasing and backoff as the Vendor lifecycle and Fleet completed
+		// work; the target is what keeps the three from ever being delivered
+		// to each other.
+		taxioutbox.TargetCustomer: movement.Destination{Deliverer: events.HTTPDeliverer{
+			BaseURL: cfg.CustomerServiceURL, Path: events.CustomerMovementIngressPath, ServiceName: movement.SourceService,
+			Secret: cfg.CustomerServiceSecret, HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		}},
 	})
 	goodsOutboxPublisher := taxioutbox.NewPublisher(taxiOutboxStore, outboxRouter, "taxi-outbox-"+uuid.NewString())
 	if err := goodsService.AssertDependencies(); err != nil {
@@ -439,6 +475,12 @@ func main() {
 			// driver's identity for a complaint/dispute, the same way it
 			// already does for hauling/dispatch.
 			identityhttp.RegisterIdentityRoutes(group, authService, opsVerifier)
+			capabilities.RegisterRoutes(group, capabilityService, authService.AccessSigner(), customerSigner, opsVerifier, strings.Split(cfg.CapabilityInternalCallers, ","))
+			if opsVerifier != nil {
+				group.GET("/internal/metrics", serviceauth.Middleware(opsVerifier), func(c *gin.Context) {
+					c.String(http.StatusOK, metrics.Render())
+				})
+			}
 		},
 		// Every worker below runs against serviceapp.Run's own
 		// signal-derived context and is waited on before shutdown completes
@@ -485,6 +527,12 @@ func main() {
 				// without Commerce.
 				if cfg.TaxiGoodsDeliveryEnabled || cfg.TaxiFleetCompletedWorkEnabled {
 					goodsOutboxPublisher.Run(ctx, time.Second)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				if cfg.ScheduledRiskMonitorEnabled {
+					bookingService.RunScheduledRiskMonitor(ctx, time.Minute, 2*time.Hour)
 				}
 				return nil
 			},

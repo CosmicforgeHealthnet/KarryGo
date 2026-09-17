@@ -2,6 +2,7 @@ package bookingrepositories
 
 import (
 	"context"
+	"cosmicforge/logistics/services/taxi-service/internal/movement"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -197,7 +198,15 @@ type BookingRepository interface {
 }
 
 type PostgresBookingRepository struct {
-	db *pgxpool.Pool
+	db       *pgxpool.Pool
+	movement *movement.Writer
+}
+
+// WithMovementEvents makes Create also publish the initial customer movement
+// summary inside the same transaction. A nil or disabled writer is a no-op.
+func (r *PostgresBookingRepository) WithMovementEvents(writer *movement.Writer) *PostgresBookingRepository {
+	r.movement = writer
+	return r
 }
 
 func NewPostgresBookingRepository(db *pgxpool.Pool) *PostgresBookingRepository {
@@ -277,6 +286,9 @@ func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking b
 		return bookingmodels.Booking{}, err
 	}
 	if err := outbox.Write(ctx, tx, "booking", created.ID, outbox.EventBookingCreated, payload); err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	if err := r.movement.WriteBooking(ctx, tx, created, created.ID); err != nil {
 		return bookingmodels.Booking{}, err
 	}
 

@@ -17,6 +17,9 @@ const (
 	// default for every pre-existing row, so this extension changes nothing
 	// about Taxi Goods delivery.
 	TargetVendor = "vendor-service"
+	// TargetCustomer is customer-service's movement ingress: the read-model
+	// owner of a customer's unified movement history.
+	TargetCustomer = "customer-service"
 	// TargetFleet is the canonical Fleet completed-work ingestion endpoint.
 	TargetFleet = "fleet-partner-service"
 )

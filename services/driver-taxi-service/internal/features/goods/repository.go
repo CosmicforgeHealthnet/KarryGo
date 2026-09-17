@@ -17,14 +17,32 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"cosmicforge/logistics/services/taxi-service/internal/movement"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
+	"cosmicforge/logistics/shared/go/custodyops"
+	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
-type Repository struct{ db *pgxpool.Pool }
+type Repository struct {
+	db       *pgxpool.Pool
+	custody  *custodyops.Repository
+	movement *movement.Writer
+}
 
-func NewRepository(db *pgxpool.Pool) *Repository { return &Repository{db: db} }
+// NewRepository shares the database with the service's TAXI_GOODS custody
+// ledger so stop handovers and custody commit in one transaction.
+func NewRepository(db *pgxpool.Pool) *Repository {
+	return &Repository{db: db, custody: custodyops.NewRepository(db, "TAXI_GOODS")}
+}
+
+// WithMovementEvents publishes customer movement summaries for commerce
+// goods missions in the same transaction as each lifecycle event.
+func (r *Repository) WithMovementEvents(writer *movement.Writer) *Repository {
+	r.movement = writer
+	return r
+}
 
 func Fingerprint(value any) string {
 	raw, _ := json.Marshal(value)
@@ -563,11 +581,19 @@ func (r *Repository) ReassignProvider(ctx context.Context, missionRef, operator 
 		return Mission{}, false, ErrConflict
 	}
 	var eligible bool
+	// Legacy single-pickup missions require a verified cargo profile. Plan-bound
+	// multi-pickup missions were matched by the capability engine, so the
+	// replacement vehicle must instead hold an unexpired ELIGIBLE grant for the
+	// mission's product.
 	err = tx.QueryRow(ctx, `SELECT EXISTS(
 		SELECT 1 FROM taxi_goods_provider_settings s
 		JOIN vehicles v ON v.provider_id=s.provider_id AND v.id=$2 AND v.status='active'
-		JOIN taxi_vehicle_cargo_profiles c ON c.vehicle_id=v.id AND c.verified
-		WHERE s.provider_id=$1 AND s.capability_status='APPROVED' AND s.goods_available)`, command.NewProviderID, command.NewVehicleID).Scan(&eligible)
+		WHERE s.provider_id=$1 AND s.capability_status='APPROVED' AND s.goods_available
+		  AND (EXISTS(SELECT 1 FROM taxi_vehicle_cargo_profiles c WHERE c.vehicle_id=v.id AND c.verified)
+		    OR EXISTS(SELECT 1 FROM taxi_goods_missions m JOIN taxi_vehicle_product_eligibility e
+		              ON e.vehicle_id=v.id AND e.product_code=m.service_product_code AND e.status='ELIGIBLE'
+		             AND (e.effective_at IS NULL OR e.effective_at<=now()) AND (e.expires_at IS NULL OR e.expires_at>now())
+		             WHERE m.id=$3 AND m.custody_mode='MULTI_MANIFEST')))`, command.NewProviderID, command.NewVehicleID, missionID).Scan(&eligible)
 	if err != nil || !eligible {
 		if err != nil {
 			return Mission{}, false, err
@@ -607,7 +633,7 @@ func (r *Repository) ReassignProvider(ctx context.Context, missionRef, operator 
 		return Mission{}, false, err
 	}
 	if fresh != nil {
-		if _, err = tx.Exec(ctx, `INSERT INTO taxi_goods_handover_challenges(challenge_ref,mission_id,stage,provider_id,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',0,$9,$10,$11)`, fresh.ChallengeRef, missionID, fresh.Stage, command.NewProviderID, fresh.ReceiverRef, []byte(fresh.OTPHash), []byte(fresh.QRHash), fresh.Version, fresh.ResendCount, fresh.ExpiresAt, fresh.ResendAvailableAt); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO taxi_goods_handover_challenges(challenge_ref,mission_id,stage,provider_id,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at,stop_ref) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',0,$9,$10,$11,$12)`, fresh.ChallengeRef, missionID, fresh.Stage, command.NewProviderID, fresh.ReceiverRef, []byte(fresh.OTPHash), []byte(fresh.QRHash), fresh.Version, fresh.ResendCount, fresh.ExpiresAt, fresh.ResendAvailableAt, fresh.StopRef); err != nil {
 			return Mission{}, false, err
 		}
 	}
@@ -714,7 +740,7 @@ func receiverChangeableStatus(status string) bool {
 }
 
 func (r *Repository) InsertChallenge(ctx context.Context, record HandoverRecord) error {
-	_, err := r.db.Exec(ctx, `INSERT INTO taxi_goods_handover_challenges(challenge_ref,mission_id,stage,provider_id,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',0,$9,$10,$11)`, record.ChallengeRef, record.MissionID, record.Stage, record.ProviderID, record.ReceiverRef, []byte(record.OTPHash), []byte(record.QRHash), record.Version, record.ResendCount, record.ExpiresAt, record.ResendAvailableAt)
+	_, err := r.db.Exec(ctx, `INSERT INTO taxi_goods_handover_challenges(challenge_ref,mission_id,stage,provider_id,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at,stop_ref) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',0,$9,$10,$11,$12)`, record.ChallengeRef, record.MissionID, record.Stage, record.ProviderID, record.ReceiverRef, []byte(record.OTPHash), []byte(record.QRHash), record.Version, record.ResendCount, record.ExpiresAt, record.ResendAvailableAt, record.StopRef)
 	return err
 }
 
@@ -730,13 +756,13 @@ func (r *Repository) InvalidateChallenge(ctx context.Context, challengeRef, reas
 }
 
 func (r *Repository) LatestChallenge(ctx context.Context, missionID, stage string, lock bool) (HandoverRecord, error) {
-	query := `SELECT challenge_ref,mission_id::text,stage,provider_id::text,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at FROM taxi_goods_handover_challenges WHERE mission_id=$1 AND stage=$2 ORDER BY version DESC LIMIT 1`
+	query := `SELECT challenge_ref,mission_id::text,stage,provider_id::text,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at,stop_ref FROM taxi_goods_handover_challenges WHERE mission_id=$1 AND stage=$2 ORDER BY version DESC LIMIT 1`
 	if lock {
 		query += ` FOR UPDATE`
 	}
 	var out HandoverRecord
 	var otp, qr []byte
-	err := r.db.QueryRow(ctx, query, missionID, stage).Scan(&out.ChallengeRef, &out.MissionID, &out.Stage, &out.ProviderID, &out.ReceiverRef, &otp, &qr, &out.Version, &out.Status, &out.Attempts, &out.ResendCount, &out.ExpiresAt, &out.ResendAvailableAt)
+	err := r.db.QueryRow(ctx, query, missionID, stage).Scan(&out.ChallengeRef, &out.MissionID, &out.Stage, &out.ProviderID, &out.ReceiverRef, &otp, &qr, &out.Version, &out.Status, &out.Attempts, &out.ResendCount, &out.ExpiresAt, &out.ResendAvailableAt, &out.StopRef)
 	out.OTPHash = string(otp)
 	out.QRHash = string(qr)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -758,7 +784,7 @@ func (r *Repository) ReplaceChallenge(ctx context.Context, previous HandoverReco
 	if tag.RowsAffected() != 1 {
 		return ErrConflict
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO taxi_goods_handover_challenges(challenge_ref,mission_id,stage,provider_id,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',0,$9,$10,$11)`, next.ChallengeRef, next.MissionID, next.Stage, next.ProviderID, next.ReceiverRef, []byte(next.OTPHash), []byte(next.QRHash), next.Version, next.ResendCount, next.ExpiresAt, next.ResendAvailableAt)
+	_, err = tx.Exec(ctx, `INSERT INTO taxi_goods_handover_challenges(challenge_ref,mission_id,stage,provider_id,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at,stop_ref) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',0,$9,$10,$11,$12)`, next.ChallengeRef, next.MissionID, next.Stage, next.ProviderID, next.ReceiverRef, []byte(next.OTPHash), []byte(next.QRHash), next.Version, next.ResendCount, next.ExpiresAt, next.ResendAvailableAt, next.StopRef)
 	if err != nil {
 		return err
 	}
@@ -832,9 +858,11 @@ func (r *Repository) VerifyAndTransition(ctx context.Context, caller, providerID
 		return Mission{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	var missionID, source, currentProvider, receiver, status string
-	err = tx.QueryRow(ctx, `SELECT id::text,source_service,COALESCE(provider_id::text,''),receiver_ref,status FROM taxi_goods_missions WHERE mission_ref=$1 FOR UPDATE`, missionRef).
-		Scan(&missionID, &source, &currentProvider, &receiver, &status)
+	var missionID, source, currentProvider, receiver, status, custodyMode, tenantRef string
+	var missionVersion int64
+	err = tx.QueryRow(ctx, `SELECT id::text,source_service,COALESCE(provider_id::text,''),receiver_ref,status,custody_mode,parent_order_ref,version FROM taxi_goods_missions WHERE mission_ref=$1 FOR UPDATE`, missionRef).
+		Scan(&missionID, &source, &currentProvider, &receiver, &status, &custodyMode, &tenantRef, &missionVersion)
+	multi := custodyMode == custodyops.ModeMultiManifest
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Mission{}, ErrNotFound
 	}
@@ -845,7 +873,22 @@ func (r *Repository) VerifyAndTransition(ctx context.Context, caller, providerID
 	if stage == StageDelivery {
 		from, to, event = StatusDeliveryHandoverRequired, StatusDelivered, "taxi.goods.delivery.verified.v1"
 	}
-	if status == to {
+	if multi {
+		// Stop-scoped pickups revisit the same mission status, so replay is
+		// recognised by the consumed operation, not by the resulting status.
+		var replay bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM taxi_goods_handover_challenges WHERE mission_id=$1 AND stage=$2 AND consumed_operation_ref=$3)`, missionID, stage, command.OperationRef).Scan(&replay); err != nil {
+			return Mission{}, err
+		}
+		if replay {
+			var mission Mission
+			if err = r.scanMission(tx.QueryRow(ctx, missionSelect+` WHERE m.id=$1`, missionID), &mission); err != nil {
+				return Mission{}, err
+			}
+			return mission, tx.Commit(ctx)
+		}
+	}
+	if status == to && !multi {
 		var replay bool
 		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM taxi_goods_handover_challenges WHERE mission_id=$1 AND stage=$2 AND consumed_operation_ref=$3)`, missionID, stage, command.OperationRef).Scan(&replay); err != nil {
 			return Mission{}, err
@@ -867,8 +910,8 @@ func (r *Repository) VerifyAndTransition(ctx context.Context, caller, providerID
 	}
 	var record HandoverRecord
 	var otp, qr []byte
-	err = tx.QueryRow(ctx, `SELECT challenge_ref,mission_id::text,stage,provider_id::text,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at FROM taxi_goods_handover_challenges WHERE challenge_ref=$1 AND mission_id=$2 FOR UPDATE`, command.ChallengeRef, missionID).
-		Scan(&record.ChallengeRef, &record.MissionID, &record.Stage, &record.ProviderID, &record.ReceiverRef, &otp, &qr, &record.Version, &record.Status, &record.Attempts, &record.ResendCount, &record.ExpiresAt, &record.ResendAvailableAt)
+	err = tx.QueryRow(ctx, `SELECT challenge_ref,mission_id::text,stage,provider_id::text,receiver_ref,otp_hash,qr_hash,version,status,attempts,resend_count,expires_at,resend_available_at,stop_ref FROM taxi_goods_handover_challenges WHERE challenge_ref=$1 AND mission_id=$2 FOR UPDATE`, command.ChallengeRef, missionID).
+		Scan(&record.ChallengeRef, &record.MissionID, &record.Stage, &record.ProviderID, &record.ReceiverRef, &otp, &qr, &record.Version, &record.Status, &record.Attempts, &record.ResendCount, &record.ExpiresAt, &record.ResendAvailableAt, &record.StopRef)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Mission{}, ErrCredentialInvalid
 	}
@@ -911,21 +954,42 @@ func (r *Repository) VerifyAndTransition(ctx context.Context, caller, providerID
 	if _, err = tx.Exec(ctx, `UPDATE taxi_goods_handover_challenges SET status='CONSUMED',consumed_at=$2,consumed_operation_ref=$3,updated_at=$2 WHERE challenge_ref=$1`, record.ChallengeRef, now, command.OperationRef); err != nil {
 		return Mission{}, err
 	}
+	opState := "ON_TRIP"
+	if multi {
+		next, nextState, custodyErr := r.applyStopCustodyTx(ctx, tx, stopCustody{
+			missionID: missionID, missionRef: missionRef, tenantRef: tenantRef, provider: currentProvider, stage: stage,
+			stopRef: record.StopRef, challengeRef: record.ChallengeRef, operationRef: command.OperationRef,
+			verifiedBy: caller, sourceVersion: missionVersion + 1, now: now,
+		})
+		if custodyErr != nil {
+			return Mission{}, custodyErr
+		}
+		if next != "" {
+			to, opState = next, nextState
+		}
+	}
 	var version int64
 	if err = tx.QueryRow(ctx, `UPDATE taxi_goods_missions SET status=$2,version=version+1,updated_at=$3,picked_up_at=CASE WHEN $2='PICKED_UP' THEN $3 ELSE picked_up_at END,delivered_at=CASE WHEN $2='DELIVERED' THEN $3 ELSE delivered_at END,manifest_frozen_at=CASE WHEN $2='PICKED_UP' THEN COALESCE(manifest_frozen_at,$3) ELSE manifest_frozen_at END WHERE id=$1 RETURNING version`, missionID, to, now).Scan(&version); err != nil {
 		return Mission{}, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE provider_operational_state SET state='ON_TRIP',reason=$3,booking_id=NULL,goods_mission_id=$2,effective_at=$4,version=version+1 WHERE provider_id=$1 AND goods_mission_id=$2`, currentProvider, missionID, "taxi_goods_"+strings.ToLower(to), now); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE provider_operational_state SET state=$5,reason=$3,booking_id=NULL,goods_mission_id=$2,effective_at=$4,version=version+1 WHERE provider_id=$1 AND goods_mission_id=$2`, currentProvider, missionID, "taxi_goods_"+strings.ToLower(to), now, opState); err != nil {
 		return Mission{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO provider_operational_state_history(provider_id,from_state,to_state,reason,booking_id,goods_mission_id) VALUES($1,$2,'ON_TRIP',$3,NULL,$4)`, currentProvider, operationalStateForMissionStatus(from), "taxi_goods_"+strings.ToLower(to), missionID); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO provider_operational_state_history(provider_id,from_state,to_state,reason,booking_id,goods_mission_id) VALUES($1,$2,$5,$3,NULL,$4)`, currentProvider, operationalStateForMissionStatus(from), "taxi_goods_"+strings.ToLower(to), missionID, opState); err != nil {
 		return Mission{}, err
 	}
 	custody := "PICKED_UP"
 	if stage == StageDelivery {
 		custody = "DELIVERED"
 	}
-	if _, err = tx.Exec(ctx, `UPDATE taxi_goods_parcels SET custody_status=$2,updated_at=$3 WHERE mission_id=$1`, missionID, custody, now); err != nil {
+	parcelScope := `UPDATE taxi_goods_parcels SET custody_status=$2,updated_at=$3 WHERE mission_id=$1`
+	parcelArgs := []any{missionID, custody, now}
+	if multi && stage == StagePickup {
+		// Only the parcels handed over at THIS stop enter custody.
+		parcelScope += ` AND pickup_stop_ref=$4`
+		parcelArgs = append(parcelArgs, record.StopRef)
+	}
+	if _, err = tx.Exec(ctx, parcelScope, parcelArgs...); err != nil {
 		return Mission{}, err
 	}
 	if err = r.writeEvent(ctx, tx, missionID, event, version, map[string]any{"mission_ref": missionRef, "status": to}); err != nil {
@@ -1014,8 +1078,38 @@ func (r *Repository) writeEvent(ctx context.Context, tx pgx.Tx, id, event string
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload) VALUES('taxi_goods_mission',$1,$2,$3)`, id, event, body)
-	return err
+	if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,destination) VALUES('taxi_goods_mission',$1,$2,$3,'VENDOR_COMMERCE')`, id, event, body); err != nil {
+		return err
+	}
+	return r.writeGoodsMovement(ctx, tx, id, event, fields)
+}
+
+func (r *Repository) writeGoodsMovement(ctx context.Context, tx pgx.Tx, id, event string, fields map[string]any) error {
+	if r.movement == nil || !r.movement.Enabled {
+		return nil
+	}
+	status, _ := fields["status"].(string)
+	if status == "" {
+		return nil
+	}
+	refs := movement.GoodsMissionRefs{MissionID: id, Status: status}
+	var product *string
+	var pickup, dropoff []byte
+	if err := tx.QueryRow(ctx, `SELECT mission_ref,customer_ref,parent_order_ref,COALESCE(plan_ref,''),fulfilment_group_ref,service_product_code,pickup,dropoff FROM taxi_goods_missions WHERE id=$1`, id).
+		Scan(&refs.MissionRef, &refs.CustomerRef, &refs.ParentOrderRef, &refs.FulfilmentPlanRef, &refs.FulfilmentGroupRef, &product, &pickup, &dropoff); err != nil {
+		return err
+	}
+	if product != nil {
+		refs.ProductCode = *product
+	}
+	var p, d commercemission.Point
+	if json.Unmarshal(pickup, &p) == nil {
+		refs.Pickup = &events.PlaceSummary{Latitude: p.Latitude, Longitude: p.Longitude}
+	}
+	if json.Unmarshal(dropoff, &d) == nil {
+		refs.Dropoff = &events.PlaceSummary{Latitude: d.Latitude, Longitude: d.Longitude}
+	}
+	return r.movement.WriteGoodsMission(ctx, tx, refs, strings.TrimSuffix(event, ".v1"), refs.MissionRef)
 }
 
 func vendorLifecycleEvent(status string) string {
