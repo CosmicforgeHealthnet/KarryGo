@@ -69,6 +69,9 @@ func TestPostgresUnifiedMovementHistoryAcrossAuthorities(t *testing.T) {
 
 	customer := uuid.NewString()
 	parent := "order-" + uuid.NewString()
+	// Group references are unique per run: a fulfilment group is a real
+	// identity, and reusing one would collide with an earlier purchase.
+	group := func(authority string) string { return "group-" + authority + "-" + parent }
 	rides := map[string]string{
 		events.MovementAuthorityTaxi:     "taxi-" + uuid.NewString(),
 		events.MovementAuthorityDispatch: "dispatch-" + uuid.NewString(),
@@ -93,7 +96,7 @@ func TestPostgresUnifiedMovementHistoryAcrossAuthorities(t *testing.T) {
 	publish := func(authority, state string, version int64, occurredAt time.Time) (events.Envelope, error) {
 		summary := events.MovementSummary{
 			CustomerID: customer, Authority: authority, SourceRef: rides[authority],
-			MovementType: movementType[authority], State: state, FulfilmentGroupRef: "group-" + authority,
+			MovementType: movementType[authority], State: state, FulfilmentGroupRef: group(authority),
 		}
 		envelope, err := events.NewMovementEnvelope(uuid.NewString(), eventName[authority], publisher[authority],
 			"movement", version, occurredAt, parent, "", summary)
@@ -133,7 +136,7 @@ func TestPostgresUnifiedMovementHistoryAcrossAuthorities(t *testing.T) {
 		FulfilmentPlanRef: "plan-" + parent}
 	for index, authority := range []string{events.MovementAuthorityTaxi, events.MovementAuthorityDispatch, events.MovementAuthorityHauling} {
 		grouping.Missions = append(grouping.Missions, events.GroupingMission{
-			FulfilmentGroupRef: "group-" + authority, MissionSequence: index + 1, MissionCount: 3,
+			FulfilmentGroupRef: group(authority), MissionSequence: index + 1, MissionCount: 3,
 		})
 	}
 	groupingEnvelope, err := events.NewGroupingEnvelope(uuid.NewString(), "vendor-service", parent, 4, time.Now(), parent, grouping)
