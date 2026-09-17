@@ -122,7 +122,9 @@ func main() {
 	challengeStore := providerauthrepositories.NewRedisOTPChallengeRepository(redisClient)
 	profileRepo := providerprofilerepositories.NewPostgresProfileRepository(db)
 	truckRepo := providerprofilerepositories.NewPostgresTruckRepository(db)
-	bookingRepo := bookingrepo.NewPostgresBookingRepository(db)
+	// Shared multi-manifest custody: a commerce haulage's vendor manifests are
+	// collected and delivered through the same ledger Dispatch and Taxi use.
+	bookingRepo := bookingrepo.NewPostgresBookingRepository(db).WithCustody(custodyops.NewRepository(db, "HAULING"))
 
 	// ─── Auth service ──────────────────────────────────────────────────────────
 	var membershipReader providercompat.Reader
@@ -414,7 +416,7 @@ func main() {
 					group,
 					haulingcommercemission.NewHandler(haulingcommercemission.New(
 						haulingcommercemission.Options{
-							Store:   haulingcommercemission.NewRepository(db),
+							Store:   haulingcommercemission.NewRepository(db).WithCustody(custodyops.NewRepository(db, "HAULING")),
 							Matcher: bookingService,
 						},
 					)),

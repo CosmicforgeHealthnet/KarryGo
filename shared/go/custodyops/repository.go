@@ -298,53 +298,62 @@ func evidenceScope(ctx context.Context, tx pgx.Tx, command EvidenceCommand) (str
 }
 
 func (r *Repository) ApplyOperation(ctx context.Context, kind string, command any, operationRef, missionRef, tenantRef, providerRef string, validate func(pgx.Tx) error) (Result, error) {
+	var result Result
+	err := r.transact(ctx, func(tx pgx.Tx) error {
+		var err error
+		result, err = r.ApplyOperationTx(ctx, tx, kind, command, operationRef, missionRef, tenantRef, providerRef, validate)
+		return err
+	})
+	return result, normalizeDBError(err)
+}
+
+// ApplyOperationTx runs inside a caller-owned transaction so an execution
+// service can commit its own lifecycle change and the custody ledger
+// atomically.
+func (r *Repository) ApplyOperationTx(ctx context.Context, tx pgx.Tx, kind string, command any, operationRef, missionRef, tenantRef, providerRef string, validate func(pgx.Tx) error) (Result, error) {
 	operationRef, missionRef, tenantRef, providerRef = trim(operationRef), trim(missionRef), trim(tenantRef), trim(providerRef)
 	if operationRef == "" || missionRef == "" || tenantRef == "" {
 		return Result{}, ErrInvalid
 	}
 	fp, now := digest(command), r.now().UTC()
-	result := Result{}
-	err := r.transact(ctx, func(tx pgx.Tx) error {
-		if err := lockMission(ctx, tx, missionRef); err != nil {
-			return err
+	var result Result
+	if err := lockMission(ctx, tx, missionRef); err != nil {
+		return Result{}, err
+	}
+	if replay, ok, err := r.replayTx(ctx, tx, operationRef, fp); err != nil {
+		return Result{}, err
+	} else if ok {
+		return replay, nil
+	}
+	var tenant, current, status string
+	var version int64
+	if err := tx.QueryRow(ctx, `SELECT tenant_ref,current_provider_ref,status,version FROM custody_mission_state WHERE mission_ref=$1 FOR UPDATE`, missionRef).Scan(&tenant, &current, &status, &version); err != nil {
+		return Result{}, err
+	}
+	if tenant != tenantRef {
+		return Result{}, ErrUnauthorized
+	}
+	if providerRef != "" && current != "" && providerRef != current {
+		return Result{}, ErrUnauthorized
+	}
+	if status == "COMPLETED" || status == "CANCELLED" {
+		return Result{}, ErrConflict
+	}
+	if validate != nil {
+		if err := validate(tx); err != nil {
+			return Result{}, err
 		}
-		if replay, ok, err := r.replayTx(ctx, tx, operationRef, fp); err != nil {
-			return err
-		} else if ok {
-			result = replay
-			return nil
-		}
-		var tenant, current, status string
-		var version int64
-		if err := tx.QueryRow(ctx, `SELECT tenant_ref,current_provider_ref,status,version FROM custody_mission_state WHERE mission_ref=$1 FOR UPDATE`, missionRef).Scan(&tenant, &current, &status, &version); err != nil {
-			return err
-		}
-		if tenant != tenantRef {
-			return ErrUnauthorized
-		}
-		if providerRef != "" && current != "" && providerRef != current {
-			return ErrUnauthorized
-		}
-		if status == "COMPLETED" || status == "CANCELLED" {
-			return ErrConflict
-		}
-		if validate != nil {
-			if err := validate(tx); err != nil {
-				return err
-			}
-		}
-		newState := operationState(kind)
-		if strings.HasPrefix(kind, "EARNING_ALLOCATION_") {
-			newState = status
-		}
-		_, err := tx.Exec(ctx, `UPDATE custody_mission_state SET status=$2,version=version+1,updated_at=now() WHERE mission_ref=$1`, missionRef, newState)
-		if err != nil {
-			return err
-		}
-		result = Result{OperationRef: operationRef, MissionRef: missionRef, State: newState, Version: version + 1, CreatedAt: now}
-		return r.recordTx(ctx, tx, operationRef, missionRef, kind, fp, command)
-	})
-	return result, normalizeDBError(err)
+	}
+	newState := operationState(kind)
+	if strings.HasPrefix(kind, "EARNING_ALLOCATION_") {
+		newState = status
+	}
+	_, err := tx.Exec(ctx, `UPDATE custody_mission_state SET status=$2,version=version+1,updated_at=now() WHERE mission_ref=$1`, missionRef, newState)
+	if err != nil {
+		return Result{}, err
+	}
+	result = Result{OperationRef: operationRef, MissionRef: missionRef, State: newState, Version: version + 1, CreatedAt: now}
+	return result, r.recordTx(ctx, tx, operationRef, missionRef, kind, fp, command)
 }
 
 func (r *Repository) ReportException(ctx context.Context, command ExceptionCommand, policy Policy) (Result, error) {
@@ -454,6 +463,16 @@ func (r *Repository) ReportIncident(ctx context.Context, command IncidentCommand
 		return Result{}, ErrInvalid
 	}
 	return r.ApplyOperation(ctx, "REPLACEMENT_REQUIRED", command, command.OperationRef, command.MissionRef, command.TenantRef, command.ProviderRef, nil)
+}
+
+// ReportIncidentTx runs the same decision inside a caller-owned transaction,
+// so an execution service can record its own provider failure and the custody
+// ledger's replacement requirement atomically.
+func (r *Repository) ReportIncidentTx(ctx context.Context, tx pgx.Tx, command IncidentCommand) (Result, error) {
+	if command.Reason != IncidentBreakdown && command.Reason != IncidentIllness && command.Reason != IncidentSafetyIncident {
+		return Result{}, ErrInvalid
+	}
+	return r.ApplyOperationTx(ctx, tx, "REPLACEMENT_REQUIRED", command, command.OperationRef, command.MissionRef, command.TenantRef, command.ProviderRef, nil)
 }
 
 func (r *Repository) AssignReplacement(ctx context.Context, command AssignReplacementCommand) (Result, error) {

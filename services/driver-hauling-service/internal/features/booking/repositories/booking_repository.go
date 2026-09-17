@@ -12,6 +12,7 @@ import (
 
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -53,6 +54,9 @@ type BookingEvent = bookingmodels.BookingEvent
 
 type PostgresBookingRepository struct {
 	db *pgxpool.Pool
+	// custody is the shared multi-manifest ledger. nil keeps the
+	// pre-custody behaviour for every booking.
+	custody *custodyops.Repository
 }
 
 func NewPostgresBookingRepository(db *pgxpool.Pool) *PostgresBookingRepository {
@@ -295,12 +299,34 @@ func (r *PostgresBookingRepository) MarkArrivedAtPickup(ctx context.Context, id 
 }
 
 func (r *PostgresBookingRepository) MarkPickedUp(ctx context.Context, id string) (bookingmodels.Booking, error) {
-	row := r.db.QueryRow(ctx, `
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	row := tx.QueryRow(ctx, `
 		UPDATE haulage_bookings SET status=$2, picked_up_at=now(), updated_at=now()
 		WHERE id=$1 AND status IN ($3,$4,$5) RETURNING `+bookingSelectCols,
 		id, bookingmodels.StatusPickedUp, bookingmodels.StatusAccepted,
 		bookingmodels.StatusEnRoutePickup, bookingmodels.StatusArrivedAtPickup)
-	return scanBookingNotFound(row)
+	booking, err := scanBookingNotFound(row)
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	// Custody of any vendor manifests moves with the cargo, in this same
+	// transaction.
+	if err = r.collectCustodyTx(ctx, tx, booking.ID, providerRef(booking), time.Now().UTC()); err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	return booking, tx.Commit(ctx)
+}
+
+// providerRef is the provider currently carrying the booking, or empty.
+func providerRef(booking bookingmodels.Booking) string {
+	if booking.ProviderID == nil {
+		return ""
+	}
+	return *booking.ProviderID
 }
 
 // MarkEnRouteDelivery moves the booking to en_route_delivery and stores a
@@ -448,13 +474,27 @@ func (r *PostgresBookingRepository) SavePickupRoute(ctx context.Context, id, pol
 // photo and receiver-signature URLs captured by the provider (either may be
 // empty when the provider skipped them or the upload failed).
 func (r *PostgresBookingRepository) MarkDelivered(ctx context.Context, id, proofPhotoURL, signatureURL string) (bookingmodels.Booking, error) {
-	row := r.db.QueryRow(ctx, `
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	row := tx.QueryRow(ctx, `
 		UPDATE haulage_bookings
 		SET status=$2, delivered_at=now(), proof_photo_url=$5, signature_url=$6, updated_at=now()
 		WHERE id=$1 AND status IN ($3,$4) RETURNING `+bookingSelectCols,
 		id, bookingmodels.StatusDelivered, bookingmodels.StatusPickedUp, bookingmodels.StatusEnRouteDelivery,
 		proofPhotoURL, signatureURL)
-	return scanBookingNotFound(row)
+	booking, err := scanBookingNotFound(row)
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	// Every required manifest must be accounted for before a commerce
+	// haulage may be recorded as delivered.
+	if err = r.deliverCustodyTx(ctx, tx, booking.ID, providerRef(booking), time.Now().UTC()); err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	return booking, tx.Commit(ctx)
 }
 
 func (r *PostgresBookingRepository) MarkCompleted(ctx context.Context, id string) (bookingmodels.Booking, error) {

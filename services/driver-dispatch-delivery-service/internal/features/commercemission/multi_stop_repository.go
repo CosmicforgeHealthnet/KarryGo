@@ -194,6 +194,17 @@ func (r *Repository) CreateMultiStop(ctx context.Context, input createMultiStopI
 		return dispatchcommerce.Mission{}, err
 	}
 
+	// Shared custody registers the same topology in the same transaction: a
+	// committed mission always has a custody record, and a custody record
+	// never exists without its mission.
+	if r.custody != nil {
+		if _, err = r.custody.RegisterMissionTx(ctx, tx, custodyRegistration(
+			canonicalRef, req.ParentOrderRef, req.OperationRef, req.CorrelationID, ordered, req.Parcels,
+		)); err != nil {
+			return dispatchcommerce.Mission{}, err
+		}
+	}
+
 	now := time.Now().UTC()
 	view := dispatchcommerce.Mission{MissionRef: canonicalRef, OperationRef: req.OperationRef,
 		BookingRef: bookingID, State: "SEARCHING", QueueState: "SEARCHING", Version: 1,

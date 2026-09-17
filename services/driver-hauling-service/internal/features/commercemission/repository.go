@@ -12,6 +12,7 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/commercemission"
+	"cosmicforge/logistics/shared/go/custodyops"
 )
 
 type Record struct {
@@ -72,7 +73,12 @@ type CancelInput struct {
 	CancelledAt  time.Time
 }
 
-type Repository struct{ db *pgxpool.Pool }
+type Repository struct {
+	db *pgxpool.Pool
+	// custody is the shared multi-manifest ledger. nil keeps the
+	// pre-custody behaviour.
+	custody *custodyops.Repository
+}
 
 func NewRepository(db *pgxpool.Pool) *Repository { return &Repository{db: db} }
 
@@ -142,6 +148,9 @@ func (r *Repository) CreateMissionWithBooking(ctx context.Context, input CreateI
 
 	record, err := insertMission(ctx, tx, request, input.RequestFingerprint, bookingID, "accepted", "", input.CreatedAt)
 	if err != nil {
+		return Record{}, err
+	}
+	if err = r.registerCustodyTx(ctx, tx, request); err != nil {
 		return Record{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

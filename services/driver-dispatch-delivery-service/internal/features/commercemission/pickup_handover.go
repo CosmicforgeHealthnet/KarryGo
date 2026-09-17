@@ -350,6 +350,9 @@ func (r *Repository) CompletePickup(ctx context.Context, providerID, missionRef,
 	if _, err = tx.Exec(ctx, `UPDATE commerce_mission_parcels p SET manifest_frozen_at=COALESCE(manifest_frozen_at,$3) FROM commerce_mission_stops s WHERE p.stop_id=s.id AND s.commerce_mission_id=$1::uuid AND s.stop_ref=$2`, missionID, stopRef, now); err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
+	if err = r.collectCustodyTx(ctx, tx, missionID, stopRef, providerID, operation, recorded.ID, providerID, nextVersion); err != nil {
+		return dispatchcommerce.Mission{}, err
+	}
 	var remaining int
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM commerce_mission_stops WHERE commerce_mission_id=$1::uuid AND status NOT IN ('PICKED_UP','SKIPPED','RETURNED')`, missionID).Scan(&remaining); err != nil {
 		return dispatchcommerce.Mission{}, err

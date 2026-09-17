@@ -228,7 +228,21 @@ func (r *Repository) AssignManifestReplacement(ctx context.Context, command Assi
 		trim(command.VehicleClass) == "" || command.CapacityCount < 1 || trim(command.ComplianceRef) == "" || trim(command.AvailabilityRef) == "" {
 		return Result{}, ErrInvalid
 	}
-	return r.ApplyOperation(ctx, "REPLACEMENT_ASSIGNED", command, command.OperationRef, command.MissionRef, command.TenantRef, command.OldProviderRef, func(tx pgx.Tx) error {
+	return r.ApplyOperation(ctx, "REPLACEMENT_ASSIGNED", command, command.OperationRef, command.MissionRef, command.TenantRef, command.OldProviderRef, r.assignManifestReplacementValidator(ctx, command))
+}
+
+// AssignManifestReplacementTx runs the same decision inside a caller-owned
+// transaction.
+func (r *Repository) AssignManifestReplacementTx(ctx context.Context, tx pgx.Tx, command AssignReplacementCommand) (Result, error) {
+	if trim(command.OldProviderRef) == "" || trim(command.NewProviderRef) == "" || trim(command.OldProviderRef) == trim(command.NewProviderRef) ||
+		trim(command.VehicleClass) == "" || command.CapacityCount < 1 || trim(command.ComplianceRef) == "" || trim(command.AvailabilityRef) == "" {
+		return Result{}, ErrInvalid
+	}
+	return r.ApplyOperationTx(ctx, tx, "REPLACEMENT_ASSIGNED", command, command.OperationRef, command.MissionRef, command.TenantRef, command.OldProviderRef, r.assignManifestReplacementValidator(ctx, command))
+}
+
+func (r *Repository) assignManifestReplacementValidator(ctx context.Context, command AssignReplacementCommand) func(pgx.Tx) error {
+	return func(tx pgx.Tx) error {
 		snapshot, err := loadSnapshot(ctx, tx, trim(command.MissionRef))
 		if err != nil {
 			return err
@@ -252,12 +266,26 @@ func (r *Repository) AssignManifestReplacement(ctx context.Context, command Assi
 		payload := map[string]any{"old_provider_ref": trim(command.OldProviderRef), "new_provider_ref": trim(command.NewProviderRef), "manifests": held, "pending_packages": required}
 		_, err = tx.Exec(ctx, `INSERT INTO custody_operation_outbox(id,aggregate_ref,event_type,payload) VALUES($1,$2,'custody.transfer_started.v1',$3)`, uuid.NewString(), trim(command.MissionRef), mustJSON(payload))
 		return err
-	})
+	}
 }
 
 // TransferManifests atomically moves every manifest the old provider holds
 // to the replacement and records the exact inventory that changed hands.
 func (r *Repository) TransferManifests(ctx context.Context, command TransferManifestsCommand) (Result, error) {
+	var result Result
+	err := r.transact(ctx, func(tx pgx.Tx) error {
+		var err error
+		result, err = r.TransferManifestsTx(ctx, tx, command)
+		return err
+	})
+	return result, normalizeDBError(err)
+}
+
+// TransferManifestsTx runs inside a caller-owned transaction so an execution
+// service can commit its own provider replacement and the custody ledger
+// atomically: there is no window in which one says the new provider holds the
+// consignment while the other still says the old one does.
+func (r *Repository) TransferManifestsTx(ctx context.Context, tx pgx.Tx, command TransferManifestsCommand) (Result, error) {
 	command.MissionRef, command.OperationRef = trim(command.MissionRef), trim(command.OperationRef)
 	keys, err := canonicalKeys(command.Manifests)
 	if err != nil || command.MissionRef == "" || command.OperationRef == "" {
@@ -265,70 +293,66 @@ func (r *Repository) TransferManifests(ctx context.Context, command TransferMani
 	}
 	command.Manifests = keys
 	fp, now := digest(command), r.now().UTC()
-	result := Result{}
-	err = r.transact(ctx, func(tx pgx.Tx) error {
-		if err := lockMission(ctx, tx, command.MissionRef); err != nil {
-			return err
-		}
-		if replay, ok, err := r.replayTx(ctx, tx, command.OperationRef, fp); err != nil {
-			return err
-		} else if ok {
-			result = replay
-			return nil
-		}
-		snapshot, err := loadSnapshot(ctx, tx, command.MissionRef)
+	var result Result
+	if err := lockMission(ctx, tx, command.MissionRef); err != nil {
+		return Result{}, err
+	}
+	if replay, ok, err := r.replayTx(ctx, tx, command.OperationRef, fp); err != nil {
+		return Result{}, err
+	} else if ok {
+		return replay, nil
+	}
+	snapshot, err := loadSnapshot(ctx, tx, command.MissionRef)
+	if err != nil {
+		return Result{}, err
+	}
+	items, err := DecideTransfer(snapshot, command)
+	if err != nil {
+		return Result{}, err
+	}
+	var evidenceType EvidenceType
+	if err := tx.QueryRow(ctx, `SELECT evidence_type FROM custody_evidence WHERE id=$1 AND mission_ref=$2`, trim(command.EvidenceRef), command.MissionRef).Scan(&evidenceType); err != nil {
+		return Result{}, err
+	}
+	if evidenceType != EvidenceProviderTransfer {
+		return Result{}, ErrConflict
+	}
+	for _, item := range items {
+		tag, err := tx.Exec(ctx, `UPDATE custody_manifest_holdings SET released_at=now(),released_operation_ref=$4,release_reason='TRANSFERRED' WHERE mission_ref=$1 AND manifest_ref=$2 AND manifest_version=$3 AND custodian_ref=$5 AND released_at IS NULL`, command.MissionRef, item.ManifestRef, item.ManifestVersion, command.OperationRef, item.From)
 		if err != nil {
-			return err
-		}
-		items, err := DecideTransfer(snapshot, command)
-		if err != nil {
-			return err
-		}
-		var evidenceType EvidenceType
-		if err := tx.QueryRow(ctx, `SELECT evidence_type FROM custody_evidence WHERE id=$1 AND mission_ref=$2`, trim(command.EvidenceRef), command.MissionRef).Scan(&evidenceType); err != nil {
-			return err
-		}
-		if evidenceType != EvidenceProviderTransfer {
-			return ErrConflict
-		}
-		for _, item := range items {
-			tag, err := tx.Exec(ctx, `UPDATE custody_manifest_holdings SET released_at=now(),released_operation_ref=$4,release_reason='TRANSFERRED' WHERE mission_ref=$1 AND manifest_ref=$2 AND manifest_version=$3 AND custodian_ref=$5 AND released_at IS NULL`, command.MissionRef, item.ManifestRef, item.ManifestVersion, command.OperationRef, item.From)
-			if err != nil {
-				return err
-			}
-			if tag.RowsAffected() != 1 {
-				return ErrConflict
-			}
-			if _, err := tx.Exec(ctx, `INSERT INTO custody_manifest_holdings(id,mission_ref,manifest_ref,manifest_version,custodian_ref,acquired_operation_ref,acquired_via) VALUES($1,$2,$3,$4,$5,$6,'PROVIDER_TRANSFER')`, uuid.NewString(), command.MissionRef, item.ManifestRef, item.ManifestVersion, item.To, command.OperationRef); err != nil {
-				return err
-			}
-			if _, err := tx.Exec(ctx, `UPDATE custody_stop_manifests SET current_custodian_ref=$4,version=version+1,updated_at=now() WHERE mission_ref=$1 AND manifest_ref=$2 AND manifest_version=$3 AND current_custodian_ref=$5`, command.MissionRef, item.ManifestRef, item.ManifestVersion, item.To, item.From); err != nil {
-				return err
-			}
-			if _, err := tx.Exec(ctx, `INSERT INTO custody_transfer_items(transfer_operation_ref,mission_ref,manifest_ref,manifest_version,from_custodian_ref,to_custodian_ref,package_count) VALUES($1,$2,$3,$4,$5,$6,$7)`, command.OperationRef, command.MissionRef, item.ManifestRef, item.ManifestVersion, item.From, item.To, item.PackageCount); err != nil {
-				return err
-			}
-			if err := r.writeManifestEvent(ctx, tx, "custody.manifest.transferred.v1", command.MissionRef, snapshot.Manifests[item.ManifestKey].PickupStopRef, item.ManifestKey, command.SourceVersion, command.CorrelationID, map[string]any{"from_custodian_ref": item.From, "to_custodian_ref": item.To, "transfer_ref": trim(command.TransferRef)}); err != nil {
-				return err
-			}
-		}
-		tag, err := tx.Exec(ctx, `UPDATE custody_mission_state SET current_provider_ref=$2,replacement_provider_ref='',receiver_challenge_ref=$3,status='IN_TRANSIT',version=version+1,updated_at=now() WHERE mission_ref=$1 AND status='TRANSFER_REQUIRED' AND replacement_provider_ref=$2`, command.MissionRef, trim(command.NewProviderRef), trim(command.NewReceiverChallengeRef))
-		if err != nil {
-			return err
+			return Result{}, err
 		}
 		if tag.RowsAffected() != 1 {
-			return ErrConflict
+			return Result{}, ErrConflict
 		}
-		if err := advanceSourceVersion(ctx, tx, command.MissionRef, command.SourceVersion); err != nil {
-			return err
+		if _, err := tx.Exec(ctx, `INSERT INTO custody_manifest_holdings(id,mission_ref,manifest_ref,manifest_version,custodian_ref,acquired_operation_ref,acquired_via) VALUES($1,$2,$3,$4,$5,$6,'PROVIDER_TRANSFER')`, uuid.NewString(), command.MissionRef, item.ManifestRef, item.ManifestVersion, item.To, command.OperationRef); err != nil {
+			return Result{}, err
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO custody_operation_outbox(id,aggregate_ref,event_type,payload) VALUES($1,$2,'custody.transfer_completed.v1',$3)`, uuid.NewString(), command.MissionRef, mustJSON(map[string]any{"transfer_ref": trim(command.TransferRef), "items": items, "source_version": command.SourceVersion, "correlation_id": command.CorrelationID})); err != nil {
-			return err
+		if _, err := tx.Exec(ctx, `UPDATE custody_stop_manifests SET current_custodian_ref=$4,version=version+1,updated_at=now() WHERE mission_ref=$1 AND manifest_ref=$2 AND manifest_version=$3 AND current_custodian_ref=$5`, command.MissionRef, item.ManifestRef, item.ManifestVersion, item.To, item.From); err != nil {
+			return Result{}, err
 		}
-		result = Result{OperationRef: command.OperationRef, MissionRef: command.MissionRef, State: "IN_TRANSIT", Version: command.SourceVersion, CreatedAt: now}
-		return r.recordTx(ctx, tx, command.OperationRef, command.MissionRef, "MANIFESTS_TRANSFERRED", fp, map[string]any{"transfer_ref": trim(command.TransferRef), "items": items})
-	})
-	return result, normalizeDBError(err)
+		if _, err := tx.Exec(ctx, `INSERT INTO custody_transfer_items(transfer_operation_ref,mission_ref,manifest_ref,manifest_version,from_custodian_ref,to_custodian_ref,package_count) VALUES($1,$2,$3,$4,$5,$6,$7)`, command.OperationRef, command.MissionRef, item.ManifestRef, item.ManifestVersion, item.From, item.To, item.PackageCount); err != nil {
+			return Result{}, err
+		}
+		if err := r.writeManifestEvent(ctx, tx, "custody.manifest.transferred.v1", command.MissionRef, snapshot.Manifests[item.ManifestKey].PickupStopRef, item.ManifestKey, command.SourceVersion, command.CorrelationID, map[string]any{"from_custodian_ref": item.From, "to_custodian_ref": item.To, "transfer_ref": trim(command.TransferRef)}); err != nil {
+			return Result{}, err
+		}
+	}
+	tag, err := tx.Exec(ctx, `UPDATE custody_mission_state SET current_provider_ref=$2,replacement_provider_ref='',receiver_challenge_ref=$3,status='IN_TRANSIT',version=version+1,updated_at=now() WHERE mission_ref=$1 AND status='TRANSFER_REQUIRED' AND replacement_provider_ref=$2`, command.MissionRef, trim(command.NewProviderRef), trim(command.NewReceiverChallengeRef))
+	if err != nil {
+		return Result{}, err
+	}
+	if tag.RowsAffected() != 1 {
+		return Result{}, ErrConflict
+	}
+	if err := advanceSourceVersion(ctx, tx, command.MissionRef, command.SourceVersion); err != nil {
+		return Result{}, err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO custody_operation_outbox(id,aggregate_ref,event_type,payload) VALUES($1,$2,'custody.transfer_completed.v1',$3)`, uuid.NewString(), command.MissionRef, mustJSON(map[string]any{"transfer_ref": trim(command.TransferRef), "items": items, "source_version": command.SourceVersion, "correlation_id": command.CorrelationID})); err != nil {
+		return Result{}, err
+	}
+	result = Result{OperationRef: command.OperationRef, MissionRef: command.MissionRef, State: "IN_TRANSIT", Version: command.SourceVersion, CreatedAt: now}
+	return result, r.recordTx(ctx, tx, command.OperationRef, command.MissionRef, "MANIFESTS_TRANSFERRED", fp, map[string]any{"transfer_ref": trim(command.TransferRef), "items": items})
 }
 
 // DeliverManifests releases delivered manifests from the provider's custody.

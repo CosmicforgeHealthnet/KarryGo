@@ -237,3 +237,86 @@ func TestPostgresLegacySingleManifestMissionStillExecutes(t *testing.T) {
 		t.Fatal("multi-manifest operations must not run on legacy missions")
 	}
 }
+
+// An execution service commits its own lifecycle change and the custody
+// ledger in ONE transaction. The atomicity is the point: a rolled-back
+// service transaction must leave no custody trace, and a committed one must
+// leave the ledger exactly as the non-transactional path would.
+func TestPostgresCallerOwnedTransactionKeepsCustodyAtomic(t *testing.T) {
+	repo := multiManifestRepository(t)
+	ctx := context.Background()
+	f := registerABC(t, repo)
+
+	// A rolled-back caller transaction collects nothing.
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.CollectManifestsTx(ctx, tx, f.collect("pa", "A", "p1", 2, "MA")); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if held := activeHoldings(t, repo, f.mission); len(held) != 0 {
+		t.Fatalf("a rolled-back caller transaction left custody behind: %v", held)
+	}
+
+	// The same call inside a committed transaction takes custody.
+	tx, err = repo.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.CollectManifestsTx(ctx, tx, f.collect("pa", "A", "p1", 2, "MA")); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if held := activeHoldings(t, repo, f.mission); held[f.key("MA").ManifestRef] != "p1" {
+		t.Fatalf("holdings after commit = %v", held)
+	}
+
+	// Replacement and transfer are available on the same transactional path,
+	// so a service can move custody in step with its own provider change.
+	if _, err = repo.ReportIncident(ctx, IncidentCommand{OperationRef: "tx-incident-" + f.mission, MissionRef: f.mission, TenantRef: f.tenant, ProviderRef: "p1", Reason: IncidentBreakdown, OccurredAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	tx, err = repo.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.AssignManifestReplacementTx(ctx, tx, AssignReplacementCommand{OperationRef: "tx-assign-" + f.mission, MissionRef: f.mission,
+		TenantRef: f.tenant, OldProviderRef: "p1", NewProviderRef: "p2", VehicleClass: "CAR", CapacityCount: 9, ComplianceRef: "c", AvailabilityRef: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := repo.RecordEvidence(ctx, EvidenceCommand{OperationRef: "tx-ev-" + f.mission, MissionRef: f.mission, TenantRef: f.tenant,
+		ManifestRef: f.key("MA").ManifestRef, ManifestVersion: 1, EvidenceType: EvidenceProviderTransfer, MediaRef: "media-tx-" + f.mission,
+		ProviderRef: "p1", ActorRef: "ops", CapturedAt: time.Now(), AccessPolicy: "OPS"}, integrationMedia{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err = repo.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.TransferManifestsTx(ctx, tx, TransferManifestsCommand{OperationRef: "tx-transfer-" + f.mission, MissionRef: f.mission,
+		TenantRef: f.tenant, TransferRef: "tx-tr-" + f.mission, OldProviderRef: "p1", NewProviderRef: "p2", EvidenceRef: evidence.ID,
+		OldProviderConfirm: true, NewProviderConfirm: true, NewReceiverChallengeRef: "rcv-tx", SourceVersion: 5,
+		Manifests: []ManifestKey{f.key("MA")}}); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if held := activeHoldings(t, repo, f.mission); held[f.key("MA").ManifestRef] != "p2" {
+		t.Fatalf("custody after transactional transfer = %v", held)
+	}
+	var moved int
+	if err = repo.pool.QueryRow(ctx, `SELECT count(*) FROM custody_transfer_items WHERE mission_ref=$1 AND from_custodian_ref='p1' AND to_custodian_ref='p2'`, f.mission).Scan(&moved); err != nil || moved != 1 {
+		t.Fatalf("transfer recorded %d items, want exactly what moved", moved)
+	}
+}

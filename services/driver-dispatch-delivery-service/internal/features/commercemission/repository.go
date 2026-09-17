@@ -10,6 +10,7 @@ import (
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
 	"cosmicforge/logistics/shared/go/commercemission"
+	"cosmicforge/logistics/shared/go/custodyops"
 )
 
 // Record is one persisted mission.
@@ -68,6 +69,10 @@ type Repository struct {
 	db            *pgxpool.Pool
 	events        TargetEventEmitter
 	rolloutPolicy rollout.Policy
+	// custody is the shared multi-manifest custody model. nil keeps the
+	// pre-custody behaviour.
+	custody      *custodyops.Repository
+	custodyMedia custodyops.MediaAuthorizer
 }
 
 // NewRepository builds the store.

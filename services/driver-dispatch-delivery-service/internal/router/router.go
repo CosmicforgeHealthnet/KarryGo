@@ -250,7 +250,12 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		commerceEvents := marketplace.NewLegacyEventEmitter(marketplace.NewRepository(db), true)
 		missionRepository := dispatchcommercemission.NewRepository(db).
 			WithTargetEventEmitter(commerceEvents).
-			WithRolloutPolicy(rolloutPolicy)
+			WithRolloutPolicy(rolloutPolicy).
+			// Shared multi-manifest custody: the same model Taxi and Hauling
+			// use, so "who holds this vendor's consignment" has one answer
+			// platform-wide.
+			WithCustody(custodyops.NewRepository(db, "DISPATCH"),
+				custodyops.MediaFileAuthorizer{Client: mediaClient, AllowedOwners: map[string]struct{}{"driver-dispatch-delivery-service": {}, "vendor-service": {}}})
 		requestService.WithProviderAcceptanceGate(missionRepository).WithCommerceJobCards(missionRepository)
 		dispatchcommercemission.Register(
 			engine.Group("/api/v1/internal"),
