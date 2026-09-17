@@ -25,6 +25,12 @@ type Config struct {
 	WalletServiceSecret        []byte
 	WalletServiceSource        string
 	CustomerTokenSecret        []byte
+
+	// Customer movement events. Disabled by default; enabling it requires the
+	// customer-service origin and the shared HMAC secret.
+	CustomerMovementEventsEnabled bool
+	CustomerServiceURL            string
+	CustomerServiceSecret         []byte
 	// HandoverSecret signs/verifies pickup & delivery handover codes (QR/OTP).
 	// Service-local — no other service needs to match this value.
 	HandoverSecret       []byte
@@ -257,6 +263,9 @@ func Load() (Config, error) {
 		WalletServiceSecret:            []byte(walletServiceSecret),
 		WalletServiceSource:            getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
 		CustomerTokenSecret:            []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
+		CustomerMovementEventsEnabled:  getEnvBool("DISPATCH_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerServiceURL:             os.Getenv("DISPATCH_CUSTOMER_SERVICE_URL"),
+		CustomerServiceSecret:          []byte(os.Getenv("DISPATCH_CUSTOMER_SERVICE_SECRET")),
 		HandoverSecret:                 []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
 		AvailabilityRadiusKM:           getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
 		RoutesAPIKey:                   os.Getenv("DISPATCH_ROUTES_API_KEY"),

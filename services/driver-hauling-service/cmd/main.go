@@ -22,6 +22,7 @@ import (
 	bookingpayments "cosmicforge/logistics/services/hauling-service/internal/features/booking/payments"
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
+	"cosmicforge/logistics/services/hauling-service/internal/features/movement"
 
 	haulingcommercemission "cosmicforge/logistics/services/hauling-service/internal/features/commercemission"
 	haulingcommercequote "cosmicforge/logistics/services/hauling-service/internal/features/commercequote"
@@ -47,6 +48,7 @@ import (
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/custodyops"
+	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/fleetproviderwork"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/managedsettlement"
@@ -302,6 +304,21 @@ func main() {
 		completedwork.MetricsSource()).WithAuthToken(cfg.MetricsAuthToken)
 
 	// ─── HTTP ──────────────────────────────────────────────────────────────────
+	// Customer movement events. The sweeper reads committed booking state and
+	// queues what changed; the publisher delivers it to the customer context
+	// owner. Both are additive: neither can fail a haulage.
+	if cfg.CustomerMovementEventsEnabled {
+		go movement.NewPublisher(db).Run(ctx, 10*time.Second)
+		go (&events.MovementPublisher{
+			Pool:  db,
+			Owner: movement.SourceService,
+			Deliverer: &events.HTTPDeliverer{
+				BaseURL: cfg.CustomerServiceURL, Path: events.CustomerMovementIngressPath,
+				ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+			},
+		}).Run(ctx, 5*time.Second)
+	}
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "hauling-service",
 		DefaultAddr: cfg.HTTPAddr,

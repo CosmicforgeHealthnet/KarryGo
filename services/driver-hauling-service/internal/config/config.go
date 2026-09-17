@@ -44,13 +44,19 @@ type Config struct {
 	OTPDebug        bool
 
 	// Internal service clients
-	NotificationURL     string
-	NotificationSecret  []byte
-	PaymentURL          string
-	PaymentSecret       []byte
-	MediaURL            string
-	MediaToken          string
-	CashPaymentsEnabled bool
+	NotificationURL    string
+	NotificationSecret []byte
+
+	// Customer movement events. Disabled by default; enabling it requires the
+	// customer-service origin and the shared HMAC secret.
+	CustomerMovementEventsEnabled bool
+	CustomerServiceURL            string
+	CustomerServiceSecret         []byte
+	PaymentURL                    string
+	PaymentSecret                 []byte
+	MediaURL                      string
+	MediaToken                    string
+	CashPaymentsEnabled           bool
 
 	// RoutesAPIKey enables road-route lookups for the live trip map and the
 	// progress bar. It is a Google Cloud key with the Routes API enabled, and
@@ -148,14 +154,18 @@ func Load() Config {
 		OTPMaxAttempts:  getEnvInt("HAULING_OTP_MAX_ATTEMPTS", 5),
 		OTPDebug:        getEnvBool("HAULING_OTP_DEBUG", false),
 
-		NotificationURL:     os.Getenv("HAULING_NOTIFICATION_URL"),
-		NotificationSecret:  []byte(os.Getenv("HAULING_NOTIFICATION_SECRET")),
-		PaymentURL:          os.Getenv("HAULING_PAYMENT_URL"),
-		PaymentSecret:       []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
-		MediaURL:            os.Getenv("HAULING_MEDIA_URL"),
-		MediaToken:          os.Getenv("HAULING_MEDIA_TOKEN"),
-		CashPaymentsEnabled: getEnvBool("HAULING_CASH_PAYMENTS_ENABLED", false),
-		RoutesAPIKey:        os.Getenv("HAULING_ROUTES_API_KEY"),
+		NotificationURL:    os.Getenv("HAULING_NOTIFICATION_URL"),
+		NotificationSecret: []byte(os.Getenv("HAULING_NOTIFICATION_SECRET")),
+
+		CustomerMovementEventsEnabled: getEnvBool("HAULING_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerServiceURL:            os.Getenv("HAULING_CUSTOMER_SERVICE_URL"),
+		CustomerServiceSecret:         []byte(os.Getenv("HAULING_CUSTOMER_SERVICE_SECRET")),
+		PaymentURL:                    os.Getenv("HAULING_PAYMENT_URL"),
+		PaymentSecret:                 []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
+		MediaURL:                      os.Getenv("HAULING_MEDIA_URL"),
+		MediaToken:                    os.Getenv("HAULING_MEDIA_TOKEN"),
+		CashPaymentsEnabled:           getEnvBool("HAULING_CASH_PAYMENTS_ENABLED", false),
+		RoutesAPIKey:                  os.Getenv("HAULING_ROUTES_API_KEY"),
 
 		ServiceSecrets:                         os.Getenv("HAULING_SERVICE_SECRETS"),
 		FleetIntegrationEnabled:                getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),

@@ -25,11 +25,13 @@ import (
 	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
 	dispatchcommercequote "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercequote"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	tripsettlement "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/tripsettlement"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
+	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/providercompat"
@@ -287,6 +289,22 @@ func main() {
 	// called complete (killed, crashed, lost network). Without this the
 	// customer's escrowed fare stays held and the rider is never paid.
 	go tripService.RunAutoCompleteWorker(ctx)
+
+	// Customer movement events. The sweeper reads committed delivery state and
+	// queues what changed; the publisher delivers it to the customer context
+	// owner. Both are additive: neither can fail a delivery.
+	if cfg.CustomerMovementEventsEnabled {
+		movementPublisher := movement.NewPublisher(db)
+		go movementPublisher.Run(ctx, 10*time.Second)
+		go (&events.MovementPublisher{
+			Pool:  db,
+			Owner: movement.SourceService,
+			Deliverer: &events.HTTPDeliverer{
+				BaseURL: cfg.CustomerServiceURL, Path: events.CustomerMovementIngressPath,
+				ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+			},
+		}).Run(ctx, 5*time.Second)
+	}
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
