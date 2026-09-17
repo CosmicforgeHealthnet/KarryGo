@@ -3,6 +3,7 @@
 export interface StartOTPRequest {
   email: string;
   phone: string;
+  invitationToken?: string;
 }
 
 export interface StartOTPResponse {
@@ -87,5 +88,5 @@ export interface AuthState {
   selectedOrganization: Organization | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: null;
+  error: string | null;
 }

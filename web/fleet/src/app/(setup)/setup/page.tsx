@@ -1,4 +1,4 @@
-﻿// src/app/(setup)/setup/submit/page.tsx
+﻿// src/app/(setup)/setup/page.tsx
 
 "use client";
 
@@ -18,8 +18,6 @@ import {
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { useOnboardingStore } from "@/lib/stores/onboardingStore";
 import { organizationService } from "@/lib/services/organizationService";
-
-// ==================== TYPES ====================
 
 type ChecklistItem = {
   id: string;
@@ -56,7 +54,6 @@ const STATUS_STYLES: Record<string, StatusStyle> = {
   Blocked: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-4 w-4" /> },
 };
 
-// Map backend stages to checklist items
 const STAGE_TO_CHECKLIST: Record<string, { id: string; label: string; required: boolean }> = {
   OWNER_CONTACT: { id: "C-001", label: "Company created", required: true },
   BUSINESS_PROFILE: { id: "C-002", label: "Company profile filled", required: true },
@@ -66,7 +63,6 @@ const STAGE_TO_CHECKLIST: Record<string, { id: string; label: string; required: 
   BUSINESS_DOCUMENTS: { id: "C-006", label: "Business documents uploaded", required: true },
 };
 
-// Stages required for submission (matching backend)
 const REQUIRED_STAGES = [
   "OWNER_CONTACT",
   "BUSINESS_PROFILE",
@@ -107,7 +103,6 @@ export default function SubmitForReviewPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isReconciling, setIsReconciling] = useState(false);
 
-  // Fetch real onboarding status
   useEffect(() => {
     async function fetchOnboardingStatus() {
       if (!organization?.organizationId) {
@@ -118,7 +113,6 @@ export default function SubmitForReviewPage() {
       try {
         const response = await organizationService.getOnboardingStatus(organization.organizationId);
 
-        // Build checklist from stages
         const checklist: ChecklistItem[] = REQUIRED_STAGES.map((stageName) => {
           const stage = response.stages.find((s) => s.stage === stageName);
           const meta = STAGE_TO_CHECKLIST[stageName];
@@ -154,7 +148,6 @@ export default function SubmitForReviewPage() {
           };
         });
 
-        // Check verification status
         const verificationStatus = response.verification?.status || "NOT_SUBMITTED";
         const verificationMap = VERIFICATION_STATUS_MAP[verificationStatus] || {
           label: "Not Submitted",
@@ -163,38 +156,23 @@ export default function SubmitForReviewPage() {
           isRejected: false,
         };
 
-        // Check if all required stages are complete
-        const allRequiredComplete = REQUIRED_STAGES.every((stageName) => {
-          const stage = response.stages.find((s) => s.stage === stageName);
-          return stage?.status === "COMPLETE";
-        });
-
-        // Check allowedNextActions
         const canSubmit = response.allowedNextActions?.includes("SUBMIT_FOR_VERIFICATION") ?? false;
 
-        // Determine if already submitted
         const isSubmitted = verificationMap.isSubmitted || response.organizationStatus === "BUSINESS_SUBMITTED";
         const isApproved = verificationMap.isApproved || response.organizationStatus === "APPROVED" || response.organizationStatus === "ACTIVE";
         const isRejected = verificationMap.isRejected || response.organizationStatus === "REJECTED";
 
-        // ============================================================
-        // RECONCILIATION CHECK: If submitted but ACTIVATION is NOT_STARTED
-        // ============================================================
         const activationStage = response.stages.find((s) => s.stage === "ACTIVATION");
         const isActivationComplete = activationStage?.status === "COMPLETE";
 
         if (isSubmitted && !isActivationComplete && !isReconciling) {
-          console.log("🔄 Reconciliation: ACTIVATION is NOT_STARTED but organization is SUBMITTED. Marking as COMPLETE...");
           setIsReconciling(true);
 
           try {
             await organizationService.markStageComplete(organization.organizationId, "ACTIVATION");
-            console.log("✅ Reconciliation: ACTIVATION marked as COMPLETE");
 
-            // Refresh the data after reconciliation
             const refreshedResponse = await organizationService.getOnboardingStatus(organization.organizationId);
-            
-            // Rebuild checklist with updated data
+
             const updatedChecklist: ChecklistItem[] = REQUIRED_STAGES.map((stageName) => {
               const stage = refreshedResponse.stages.find((s) => s.stage === stageName);
               const meta = STAGE_TO_CHECKLIST[stageName];
@@ -230,25 +208,25 @@ export default function SubmitForReviewPage() {
               };
             });
 
-            // Update state with reconciled data
+            const refreshedIssueCount = refreshedResponse.verification?.issues?.length ?? 0;
+
             setState({
               canSubmit: false,
               isSubmitted: true,
               isApproved: isApproved,
               isRejected: isRejected,
               checklist: updatedChecklist,
-              submissionDate: refreshedResponse.verification?.submissionVersion 
-                ? new Date().toISOString() 
+              submissionDate: refreshedResponse.verification?.submissionVersion
+                ? new Date().toISOString()
                 : null,
               reviewDate: null,
-              reviewerNotes: refreshedResponse.verification?.issues?.length > 0 
-                ? `${refreshedResponse.verification.issues.length} issue(s) need attention` 
+              reviewerNotes: refreshedIssueCount > 0
+                ? `${refreshedIssueCount} issue(s) need attention`
                 : null,
               loading: false,
               error: null,
             });
 
-            // Update store
             const statusMap: Record<string, string> = {};
             refreshedResponse.stages.forEach((stage: any) => {
               const stepId = STAGE_TO_CHECKLIST[stage.stage]?.id;
@@ -259,15 +237,12 @@ export default function SubmitForReviewPage() {
             setStageStatuses(statusMap);
 
             setIsReconciling(false);
-            return; // Exit early, we already updated state
+            return;
           } catch (reconcileError) {
-            console.error("❌ Reconciliation failed:", reconcileError);
             setIsReconciling(false);
-            // Continue with normal state update
           }
         }
 
-        // Update store
         const statusMap: Record<string, string> = {};
         response.stages.forEach((stage: any) => {
           const stepId = STAGE_TO_CHECKLIST[stage.stage]?.id;
@@ -277,6 +252,8 @@ export default function SubmitForReviewPage() {
         });
         setStageStatuses(statusMap);
 
+        const issueCount = response.verification?.issues?.length ?? 0;
+
         setState({
           canSubmit: canSubmit && !isSubmitted && !isApproved,
           isSubmitted,
@@ -285,8 +262,8 @@ export default function SubmitForReviewPage() {
           checklist,
           submissionDate: response.verification?.submissionVersion ? new Date().toISOString() : null,
           reviewDate: null,
-          reviewerNotes: response.verification?.issues?.length > 0 
-            ? `${response.verification.issues.length} issue(s) need attention` 
+          reviewerNotes: issueCount > 0
+            ? `${issueCount} issue(s) need attention`
             : null,
           loading: false,
           error: null,
@@ -301,7 +278,6 @@ export default function SubmitForReviewPage() {
     fetchOnboardingStatus();
   }, [organization?.organizationId, setStageStatuses, isReconciling]);
 
-  // Handle actual submission
   const handleSubmit = async () => {
     if (!state.canSubmit || !organization?.organizationId) return;
 
@@ -310,13 +286,9 @@ export default function SubmitForReviewPage() {
     setSubmitSuccess(false);
 
     try {
-      // 1. Submit the organization
-      const response = await organizationService.submitOrganization(organization.organizationId);
-
-      // 2. Mark ACTIVATION as COMPLETE
+      await organizationService.submitOrganization(organization.organizationId);
       await organizationService.markStageComplete(organization.organizationId, 'ACTIVATION');
 
-      // 3. Update state
       setState((prev) => ({
         ...prev,
         isSubmitted: true,
@@ -325,11 +297,8 @@ export default function SubmitForReviewPage() {
       }));
 
       setSubmitSuccess(true);
-
-      // Show success message
       toast("Company submitted for review successfully! 🎉");
 
-      // Redirect to dashboard after 2 seconds
       setTimeout(() => {
         router.push("/");
       }, 2000);
@@ -347,7 +316,6 @@ export default function SubmitForReviewPage() {
     router.push("/setup");
   };
 
-  // Loading state
   if (state.loading || isReconciling) {
     return (
       <div className="py-12 text-center">
@@ -359,7 +327,6 @@ export default function SubmitForReviewPage() {
     );
   }
 
-  // Error state
   if (state.error) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-red/20 bg-red-bg/30 py-14 px-4">
@@ -378,7 +345,6 @@ export default function SubmitForReviewPage() {
     );
   }
 
-  // No organization
   if (!organization) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
@@ -401,7 +367,6 @@ export default function SubmitForReviewPage() {
   const isSubmitted = state.isSubmitted;
   const isRejected = state.isRejected;
 
-  // Get blockers from checklist
   const blockers = state.checklist
     .filter((item) => item.required && !item.complete)
     .map((item) => item.notes || item.label);
@@ -417,7 +382,6 @@ export default function SubmitForReviewPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* ===== HEADER ===== */}
       <div>
         <p className="text-xs font-medium text-ink-500">
           Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
@@ -431,7 +395,6 @@ export default function SubmitForReviewPage() {
         </p>
       </div>
 
-      {/* ===== SUCCESS MESSAGE ===== */}
       {submitSuccess && (
         <div className="rounded-2xl border border-green/30 bg-green-bg/40 p-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-start gap-3">
@@ -453,7 +416,6 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
-      {/* ===== SUBMITTED STATE ===== */}
       {isSubmitted && !isComplete && !isRejected && !submitSuccess && (
         <div className="rounded-2xl border border-amber/20 bg-amber-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
@@ -475,7 +437,6 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
-      {/* ===== REJECTED STATE ===== */}
       {isRejected && (
         <div className="rounded-2xl border border-red/20 bg-red-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
@@ -501,7 +462,6 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
-      {/* ===== APPROVED STATE ===== */}
       {isComplete && (
         <div className="rounded-2xl border border-green/20 bg-green-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
@@ -524,7 +484,6 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
-      {/* ===== CHECKLIST ===== */}
       <div className="rounded-2xl border border-line bg-white shadow-sm overflow-hidden">
         <div className="p-4 border-b border-line bg-surface-2/50">
           <div className="flex items-center gap-2">
@@ -568,7 +527,6 @@ export default function SubmitForReviewPage() {
         </div>
       </div>
 
-      {/* ===== BLOCKERS ===== */}
       {blockers.length > 0 && !isSubmitted && !isComplete && !submitSuccess && (
         <div className="rounded-2xl border border-red/20 bg-red-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
@@ -590,7 +548,6 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
-      {/* ===== SUBMIT ERROR ===== */}
       {submitError && (
         <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -598,7 +555,6 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
-      {/* ===== SUBMIT ACTION ===== */}
       {!isSubmitted && !isComplete && !submitSuccess && (
         <div className="rounded-2xl border border-line bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -635,7 +591,6 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
-      {/* ===== BACK ===== */}
       <button
         onClick={handleBack}
         className="inline-flex items-center gap-2 rounded-xl border border-line px-6 py-2.5 text-sm font-medium text-ink-700 hover:bg-white transition-colors"
@@ -644,7 +599,6 @@ export default function SubmitForReviewPage() {
         Back to Setup
       </button>
 
-      {/* ===== FOOTER ===== */}
       <div className="flex items-center gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <FileCheck className="h-4 w-4" />
         {organization?.organizationId ? `Organization: ${organization.organizationId}` : "Submit for Review"}
@@ -653,10 +607,7 @@ export default function SubmitForReviewPage() {
   );
 }
 
-// Simple toast function
 function toast(message: string) {
-  console.log("[Toast]", message);
-  
   if (typeof window !== 'undefined') {
     const toast = document.createElement('div');
     toast.className = 'fixed bottom-4 right-4 z-50 rounded-xl bg-ink-950 px-6 py-3 text-sm text-white shadow-lg animate-in slide-in-from-bottom-4 duration-300 max-w-md';

@@ -194,9 +194,9 @@ export default function SubmitForReviewPage() {
           checklist,
           submissionDate: response.verification?.submissionVersion ? new Date().toISOString() : null,
           reviewDate: null,
-          reviewerNotes: response.verification?.issues?.length > 0 
-            ? `${response.verification.issues.length} issue(s) need attention` 
-            : null,
+        reviewerNotes: (response.verification?.issues?.length ?? 0) > 0
+  ? `${response.verification?.issues?.length ?? 0} issue(s) need attention`
+  : null,
           loading: false,
           error: null,
         });

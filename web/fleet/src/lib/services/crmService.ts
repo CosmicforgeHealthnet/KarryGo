@@ -58,10 +58,12 @@ const newIdempotencyKey = (): string => {
 type QueryValue = string | number | undefined;
 type QueryBag = Record<string, QueryValue>;
 
-const cleanQuery = (input: QueryBag): QueryBag => {
+const cleanQuery = <T extends object>(input: T): QueryBag => {
   const out: QueryBag = {};
   for (const [k, v] of Object.entries(input)) {
-    if (v !== undefined && v !== "") out[k] = v;
+    if (v !== undefined && v !== null && v !== "") {
+      out[k] = v as QueryValue;
+    }
   }
   return out;
 };

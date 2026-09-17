@@ -63,7 +63,7 @@ const NAV_SECTIONS = [
     items: [
       { label: "Providers", href: "/providers", icon: <Users className="h-4 w-4" /> },
       { label: "Fleet", href: "/fleet/assets", icon: <Car className="h-4 w-4" /> },
-      { label: "Workforce", href: "/workforce", icon: <Briefcase className="h-4 w-4" /> },
+      { label: "Workforce", href: "/workforce/shifts", icon: <Briefcase className="h-4 w-4" /> },
       { label: "Warehouse", href: "/warehouse", icon: <Warehouse className="h-4 w-4" /> },
     ]
   },

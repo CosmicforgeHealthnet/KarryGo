@@ -1,17 +1,10 @@
 // lib/services/organizationService.ts
 
 import apiClient from '@/lib/api/client';
+import type { Organization } from '@/lib/stores/organizationStore';
 
-export interface Organization {
-  organizationId: string;
-  legalName: string;
-  tradingName: string;
-  status: string;
-  countryCode: string;
-  timezone: string;
-  defaultCurrency: string;
-  version: number;
-}
+// NOTE: The Organization type is defined in organizationStore.ts and imported
+// here. Do not redeclare it — that caused a status-type mismatch across the app.
 
 export interface CreateOrganizationRequest {
   legalName: string;
@@ -216,42 +209,42 @@ export const organizationService = {
 
   // ---- Capabilities ----
 
-async getCapabilities(organizationId: string): Promise<Record<string, string>> {
-  const response = await apiClient.get<{ data: Record<string, string> }>(
-    `/organizations/${organizationId}/capabilities`
-  );
-  return response.data.data || {};
-},
+  async getCapabilities(organizationId: string): Promise<Record<string, string>> {
+    const response = await apiClient.get<{ data: Record<string, string> }>(
+      `/organizations/${organizationId}/capabilities`
+    );
+    return response.data.data || {};
+  },
 
-async updateCapabilities(organizationId: string, capabilities: string[]): Promise<{ capabilities: string[] }> {
-  const response = await apiClient.put<{ data: { capabilities: string[] } }>(
-    `/organizations/${organizationId}/capabilities`,
-    { capabilities }
-  );
-  return response.data.data;
-},
+  async updateCapabilities(organizationId: string, capabilities: string[]): Promise<{ capabilities: string[] }> {
+    const response = await apiClient.put<{ data: { capabilities: string[] } }>(
+      `/organizations/${organizationId}/capabilities`,
+      { capabilities }
+    );
+    return response.data.data;
+  },
 
-// ---- Profile (Headquarters) ----
+  // ---- Profile (Headquarters) ----
 
-async getProfile(organizationId: string): Promise<any> {
-  const response = await apiClient.get<{ data: any }>(
-    `/organizations/${organizationId}/profile`
-  );
-  return response.data.data || null;
-},
+  async getProfile(organizationId: string): Promise<any> {
+    const response = await apiClient.get<{ data: any }>(
+      `/organizations/${organizationId}/profile`
+    );
+    return response.data.data || null;
+  },
 
-async updateProfile(organizationId: string, data: any): Promise<any> {
-  const response = await apiClient.put<{ data: any }>(
-    `/organizations/${organizationId}/profile`,
-    data
-  );
-  return response.data.data;
-},
+  async updateProfile(organizationId: string, data: any): Promise<any> {
+    const response = await apiClient.put<{ data: any }>(
+      `/organizations/${organizationId}/profile`,
+      data
+    );
+    return response.data.data;
+  },
 
- async listDocuments(organizationId: string): Promise<Document[]> {
+  async listDocuments(organizationId: string): Promise<Document[]> {
     const response = await apiClient.get<{ data: Document[] }>(`/organizations/${organizationId}/documents`);
     return response.data.data;
-},
+  },
 
   async attachDocument(organizationId: string, documentType: string, fileId: string): Promise<{ documentId: string; status: string }> {
     const response = await apiClient.post<{ documentId: string; status: string }>(
@@ -263,77 +256,77 @@ async updateProfile(organizationId: string, data: any): Promise<any> {
 
   // ---- Document Upload (Private Media Contract) ----
 
-async requestUploadAuthorization(
-  organizationId: string,
-  data: {
-    documentType: string;
-    uploadPurpose?: string;
-    allowedMimeTypes?: string[];
-    maxSizeBytes?: number;
-    idempotencyKey: string; // ✅ Now passed from outside
-  }
-): Promise<{
-  authorizationId: string;
-  mediaObjectId: string;
-  uploadToken: string;
-  uploadPath: string;
-  expiresAt: string;
-  maxSizeBytes: number;
-  allowedMimeTypes: string[];
-}> {
-  const response = await apiClient.post<{
+  async requestUploadAuthorization(
+    organizationId: string,
     data: {
-      authorizationId: string;
-      mediaObjectId: string;
-      uploadToken: string;
-      uploadPath: string;
-      expiresAt: string;
-      maxSizeBytes: number;
-      allowedMimeTypes: string[];
-    };
-  }>(
-    `/organizations/${organizationId}/documents/upload-authorization`,
-    {
-      documentType: data.documentType,
-      uploadPurpose: data.uploadPurpose,
-      allowedMimeTypes: data.allowedMimeTypes,
-      maxSizeBytes: data.maxSizeBytes,
-    },
-    {
-      headers: {
-        'Idempotency-Key': data.idempotencyKey,
-      },
+      documentType: string;
+      uploadPurpose?: string;
+      allowedMimeTypes?: string[];
+      maxSizeBytes?: number;
+      idempotencyKey: string;
     }
-  );
-  return response.data.data;
-},
-
-async completeDocumentUpload(
-  organizationId: string,
-  data: {
-    mediaObjectId: string;
+  ): Promise<{
     authorizationId: string;
+    mediaObjectId: string;
     uploadToken: string;
-    declaredMime: string;
-    declaredSize: number;
-    declaredChecksum: string;
-    file: File;
-  }
-) {
-  const formData = new FormData();
-  formData.append('mediaObjectId', data.mediaObjectId);
-  formData.append('authorizationId', data.authorizationId);
-  formData.append('uploadToken', data.uploadToken);
-  formData.append('declaredMime', data.declaredMime);
-  formData.append('declaredSize', String(data.declaredSize));
-  formData.append('declaredChecksum', data.declaredChecksum);
-  formData.append('file', data.file);
+    uploadPath: string;
+    expiresAt: string;
+    maxSizeBytes: number;
+    allowedMimeTypes: string[];
+  }> {
+    const response = await apiClient.post<{
+      data: {
+        authorizationId: string;
+        mediaObjectId: string;
+        uploadToken: string;
+        uploadPath: string;
+        expiresAt: string;
+        maxSizeBytes: number;
+        allowedMimeTypes: string[];
+      };
+    }>(
+      `/organizations/${organizationId}/documents/upload-authorization`,
+      {
+        documentType: data.documentType,
+        uploadPurpose: data.uploadPurpose,
+        allowedMimeTypes: data.allowedMimeTypes,
+        maxSizeBytes: data.maxSizeBytes,
+      },
+      {
+        headers: {
+          'Idempotency-Key': data.idempotencyKey,
+        },
+      }
+    );
+    return response.data.data;
+  },
 
-  const response = await apiClient.post(
-    `/organizations/${organizationId}/documents/upload-content`,
-    formData,
-    { headers: { 'Content-Type': undefined } }
-  );
-  return response.data.data;
-},
+  async completeDocumentUpload(
+    organizationId: string,
+    data: {
+      mediaObjectId: string;
+      authorizationId: string;
+      uploadToken: string;
+      declaredMime: string;
+      declaredSize: number;
+      declaredChecksum: string;
+      file: File;
+    }
+  ) {
+    const formData = new FormData();
+    formData.append('mediaObjectId', data.mediaObjectId);
+    formData.append('authorizationId', data.authorizationId);
+    formData.append('uploadToken', data.uploadToken);
+    formData.append('declaredMime', data.declaredMime);
+    formData.append('declaredSize', String(data.declaredSize));
+    formData.append('declaredChecksum', data.declaredChecksum);
+    formData.append('file', data.file);
+
+    const response = await apiClient.post(
+      `/organizations/${organizationId}/documents/upload-content`,
+      formData,
+      { headers: { 'Content-Type': undefined } }
+    );
+    return response.data.data;
+  },
 };

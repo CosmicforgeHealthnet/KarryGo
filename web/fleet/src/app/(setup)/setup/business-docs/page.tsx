@@ -302,7 +302,6 @@ function DocumentCard({
   );
 }
 
-// Helper to compute SHA-256 checksum
 async function computeChecksum(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
@@ -312,7 +311,7 @@ async function computeChecksum(file: File): Promise<string> {
 
 export default function BusinessDocumentsPage() {
   const router = useRouter();
-  const { _hasHydrated, user } = useAuthStore();
+  const { _hasHydrated } = useAuthStore();
   const { organization } = useOrganizationStore();
   const { setStageComplete } = useOnboardingStore();
 
@@ -352,7 +351,7 @@ export default function BusinessDocumentsPage() {
           fileName: doc.fileId || "document.pdf",
           fileSize: formatFileSize(0),
           uploadedAt: doc.createdAt || new Date().toISOString(),
-          uploadedBy: user?.fullName || user?.email || "You",
+          uploadedBy: "You",
           expiryDate: doc.expiresAt || null,
           notes: doc.verificationReference || null,
         }));
@@ -368,7 +367,7 @@ export default function BusinessDocumentsPage() {
     };
 
     fetchDocuments();
-  }, [_hasHydrated, organization?.organizationId, user]);
+  }, [_hasHydrated, organization?.organizationId]);
 
   const handleUploadClick = (type: DocType) => {
     setSelectedDocumentType(type);
@@ -406,7 +405,6 @@ export default function BusinessDocumentsPage() {
     const idempotencyKey = crypto.randomUUID();
 
     try {
-      // Step 1: Request upload authorization from fleet-partner
       setUploadProgress(10);
       const grant = await organizationService.requestUploadAuthorization(
         organization.organizationId,
@@ -420,11 +418,9 @@ export default function BusinessDocumentsPage() {
       );
       setUploadProgress(30);
 
-      // Step 2: Compute checksum
       const checksum = await computeChecksum(file);
       setUploadProgress(50);
 
-      // Step 3: Upload file to fleet-partner (which proxies to media service)
       const result = await organizationService.completeDocumentUpload(
         organization.organizationId,
         {
@@ -439,7 +435,6 @@ export default function BusinessDocumentsPage() {
       );
       setUploadProgress(80);
 
-      // Step 4: Attach document to organization
       const attachResponse = await organizationService.attachDocument(
         organization.organizationId,
         DOC_TYPE_MAP[docType],
@@ -455,7 +450,7 @@ export default function BusinessDocumentsPage() {
         fileName: file.name,
         fileSize: formatFileSize(file.size),
         uploadedAt: new Date().toISOString(),
-        uploadedBy: user?.fullName || user?.email || "You",
+        uploadedBy: "You",
         expiryDate: null,
         notes: null,
       };
@@ -486,7 +481,6 @@ export default function BusinessDocumentsPage() {
       return;
     }
 
-    // Check if all documents are uploaded
     const allComplete = REQUIRED_SLOTS.every((slot) => {
       const doc = data.find((d) => d.type === slot.type);
       return doc && doc.status !== "Rejected" && doc.status !== "Expired";
@@ -502,7 +496,6 @@ export default function BusinessDocumentsPage() {
     setSaveSuccess(false);
 
     try {
-      // Mark BUSINESS_DOCUMENTS stage as complete
       await organizationService.markStageComplete(
         organization.organizationId,
         'BUSINESS_DOCUMENTS'

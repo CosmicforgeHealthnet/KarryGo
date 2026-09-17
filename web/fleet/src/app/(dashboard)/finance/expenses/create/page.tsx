@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   Wallet,
 } from "lucide-react";
-import { financeService, type ExpenseInput } from "@/lib/services/financeService";
+import { financeService } from "@/lib/services/financeService";
+import type { ExpenseInput } from "@/lib/types/finance";
 import { majorToMinor } from "@/lib/utils/financeLabels";
 
 const CURRENCIES = ["NGN", "USD", "EUR", "GBP", "KES", "GHS", "ZAR"];

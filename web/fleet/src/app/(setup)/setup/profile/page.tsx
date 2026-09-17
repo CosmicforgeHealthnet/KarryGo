@@ -27,7 +27,8 @@ import {
   X,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/authStore";
-import { organizationService, type Organization } from "@/lib/services/organizationService";
+import { organizationService } from "@/lib/services/organizationService";
+import type { Organization } from "@/lib/stores/organizationStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { useOnboardingStore } from "@/lib/stores/onboardingStore";
 

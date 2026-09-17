@@ -39,15 +39,6 @@ interface UseContactAuthFormOptions {
   invitationToken?: string;
 }
 
-/**
- * Shared logic behind both /sign-in and /sign-up. Both call the same
- * /auth/start endpoint with the same required fields (email + phone) —
- * the backend itself decides whether this is a new or returning identity
- * (see StartInput.Start on the server: ResolvePair found vs. not-found).
- * The two pages differ only in copy and whether an invitationToken is
- * threaded through — never in what fields are required or how the request
- * is built.
- */
 export function useContactAuthForm({ invitationToken }: UseContactAuthFormOptions = {}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -96,12 +87,12 @@ export function useContactAuthForm({ invitationToken }: UseContactAuthFormOption
         ...(invitationToken ? { invitationToken } : {}),
       });
 
-      if (!response.data?.challengeId) {
+      if (!response.challengeId) {
         throw new Error("No challengeId received");
       }
 
       router.push(
-        `/verify?challengeId=${response.data.challengeId}&destination=${encodeURIComponent(maskEmail(normalizedEmail))}`
+        `/verify?challengeId=${response.challengeId}&destination=${encodeURIComponent(maskEmail(normalizedEmail))}`
       );
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err?.message || "Something went wrong. Please try again.";

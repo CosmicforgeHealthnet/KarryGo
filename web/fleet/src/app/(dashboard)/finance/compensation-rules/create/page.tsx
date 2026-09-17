@@ -98,7 +98,7 @@ export default function CreateCompensationRulePage() {
     setError(null);
     setSuccess(null);
 
-    const calculationConfiguration: Record<string, unknown> = {
+    const calculationConfiguration: { amountMinor: number; approvedBasis?: string } = {
       amountMinor: amountMinor!,
     };
     if (isDeduction) {
