@@ -67,6 +67,13 @@ func RegisterInternal(group *gin.RouterGroup, repo *Repository, verifier *servic
 	g.POST("/replacements", h.assignReplacement)
 	g.POST("/transfers", h.completeTransfer)
 	g.POST("/earning-allocations", h.finalizeAllocation)
+	g.POST("/missions/register", h.registerMission)
+	g.GET("/missions/:missionRef", h.readMissionCustody)
+	g.POST("/manifests/collect", h.collectManifests)
+	g.POST("/manifests/replacements", h.assignManifestReplacement)
+	g.POST("/manifests/transfers", h.transferManifests)
+	g.POST("/manifests/deliver", h.deliverManifests)
+	g.POST("/manifests/exceptions", h.reportManifestException)
 }
 
 func (h *Handler) authorize() gin.HandlerFunc {
@@ -173,6 +180,58 @@ func (h *Handler) finalizeAllocation(c *gin.Context) {
 	result, err := h.repo.FinalizeAllocation(c, command)
 	respondHTTP(c, http.StatusOK, result, err)
 }
+func (h *Handler) registerMission(c *gin.Context) {
+	var command RegisterMissionCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	result, err := h.repo.RegisterMission(c, command)
+	respondHTTP(c, http.StatusCreated, result, err)
+}
+func (h *Handler) readMissionCustody(c *gin.Context) {
+	result, err := h.repo.ReadMissionCustody(c, c.Param("missionRef"), c.Query("tenant_ref"))
+	respondHTTP(c, http.StatusOK, result, err)
+}
+func (h *Handler) collectManifests(c *gin.Context) {
+	var command CollectManifestsCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	result, err := h.repo.CollectManifests(c, command)
+	respondHTTP(c, http.StatusOK, result, err)
+}
+func (h *Handler) assignManifestReplacement(c *gin.Context) {
+	var command AssignReplacementCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	result, err := h.repo.AssignManifestReplacement(c, command)
+	respondHTTP(c, http.StatusCreated, result, err)
+}
+func (h *Handler) transferManifests(c *gin.Context) {
+	var command TransferManifestsCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	result, err := h.repo.TransferManifests(c, command)
+	respondHTTP(c, http.StatusOK, result, err)
+}
+func (h *Handler) deliverManifests(c *gin.Context) {
+	var command DeliverManifestsCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	result, err := h.repo.DeliverManifests(c, command)
+	respondHTTP(c, http.StatusOK, result, err)
+}
+func (h *Handler) reportManifestException(c *gin.Context) {
+	var command ManifestExceptionCommand
+	if !bindJSON(c, &command) {
+		return
+	}
+	result, err := h.repo.ReportManifestException(c, command)
+	respondHTTP(c, http.StatusOK, result, err)
+}
 func respondHTTP(c *gin.Context, status int, result any, err error) {
 	if err != nil {
 		failHTTP(c, err)
@@ -189,6 +248,10 @@ func failHTTP(c *gin.Context, err error) {
 		status, code = http.StatusNotFound, "CUSTODY_NOT_FOUND"
 	case errors.Is(err, ErrUnauthorized):
 		status, code = http.StatusForbidden, "CUSTODY_SCOPE_FORBIDDEN"
+	case errors.Is(err, ErrStaleSourceVersion):
+		status, code = http.StatusConflict, "CUSTODY_SOURCE_VERSION_STALE"
+	case errors.Is(err, ErrManifestsUnaccounted):
+		status, code = http.StatusConflict, "CUSTODY_MANIFESTS_UNACCOUNTED"
 	case errors.Is(err, ErrPolicy):
 		status, code = http.StatusUnprocessableEntity, "CUSTODY_RECOVERY_NOT_ALLOWED"
 	case errors.Is(err, ErrMediaRejected):

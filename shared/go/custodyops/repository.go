@@ -112,6 +112,10 @@ func (r *Repository) FreezeManifest(ctx context.Context, command FreezeManifestC
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
+		// Every legacy freeze is anchored as a LEGACY_SINGLE custody mission.
+		if _, err = tx.Exec(ctx, `INSERT INTO custody_missions(mission_ref,authority,tenant_ref,custody_mode) VALUES($1,$2,$3,'LEGACY_SINGLE')`, command.MissionRef, r.authority, command.TenantRef); err != nil {
+			return err
+		}
 		_, err = tx.Exec(ctx, `INSERT INTO custody_manifests(authority,mission_ref,tenant_ref,business_ref,branch_ref,manifest_ref,manifest_version,pickup_stop_ref,parcel_refs,parcels,package_count,created_at,frozen_at,status,operation_ref,request_fingerprint) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'FROZEN',$14,$15)`, r.authority, command.MissionRef, command.TenantRef, command.BusinessRef, command.BranchRef, command.ManifestRef, command.ManifestVersion, command.PickupStopRef, parcelRefs, parcelsJSON, packageCount, command.CreatedAt, now, command.OperationRef, fp)
 		if err != nil {
 			return err
@@ -218,13 +222,11 @@ func (r *Repository) RecordEvidence(ctx context.Context, command EvidenceCommand
 		if err := lockMission(ctx, tx, command.MissionRef); err != nil {
 			return err
 		}
-		var tenant, manifest string
-		var version int64
-		var expected []string
-		if err := tx.QueryRow(ctx, `SELECT tenant_ref,manifest_ref,manifest_version,parcel_refs FROM custody_manifests WHERE mission_ref=$1`, command.MissionRef).Scan(&tenant, &manifest, &version, &expected); err != nil {
+		tenant, expected, err := evidenceScope(ctx, tx, command)
+		if err != nil {
 			return err
 		}
-		if tenant != command.TenantRef || manifest != command.ManifestRef || version != command.ManifestVersion {
+		if tenant != command.TenantRef {
 			return ErrConflict
 		}
 		for _, ref := range refs {
@@ -241,7 +243,7 @@ func (r *Repository) RecordEvidence(ctx context.Context, command EvidenceCommand
 		}
 		var existing Evidence
 		var existingFP string
-		err := tx.QueryRow(ctx, `SELECT id,request_fingerprint,created_at FROM custody_evidence WHERE operation_ref=$1`, command.OperationRef).Scan(&existing.ID, &existingFP, &existing.CreatedAt)
+		err = tx.QueryRow(ctx, `SELECT id,request_fingerprint,created_at FROM custody_evidence WHERE operation_ref=$1`, command.OperationRef).Scan(&existing.ID, &existingFP, &existing.CreatedAt)
 		if err == nil {
 			if existingFP != fp {
 				return ErrConflict
@@ -265,6 +267,34 @@ func (r *Repository) RecordEvidence(ctx context.Context, command EvidenceCommand
 		return nil
 	})
 	return result, normalizeDBError(err)
+}
+
+// evidenceScope resolves the tenant and the parcel refs an evidence record
+// may reference. Legacy missions use their single frozen manifest.
+// Multi-manifest missions use the named manifest's package snapshot.
+func evidenceScope(ctx context.Context, tx pgx.Tx, command EvidenceCommand) (string, []string, error) {
+	var mode, tenant string
+	if err := tx.QueryRow(ctx, `SELECT custody_mode,tenant_ref FROM custody_missions WHERE mission_ref=$1`, command.MissionRef).Scan(&mode, &tenant); err != nil {
+		return "", nil, err
+	}
+	if mode == ModeMultiManifest {
+		var refs []string
+		err := tx.QueryRow(ctx, `SELECT COALESCE(array_agg(p.package_ref ORDER BY p.package_ref) FILTER (WHERE p.package_ref IS NOT NULL), '{}') FROM custody_stop_manifests m LEFT JOIN custody_manifest_packages p USING (mission_ref, manifest_ref, manifest_version) WHERE m.mission_ref=$1 AND m.manifest_ref=$2 AND m.manifest_version=$3 GROUP BY m.mission_ref`, command.MissionRef, command.ManifestRef, command.ManifestVersion).Scan(&refs)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil, ErrConflict
+		}
+		return tenant, refs, err
+	}
+	var manifest string
+	var version int64
+	var expected []string
+	if err := tx.QueryRow(ctx, `SELECT manifest_ref,manifest_version,parcel_refs FROM custody_manifests WHERE mission_ref=$1`, command.MissionRef).Scan(&manifest, &version, &expected); err != nil {
+		return "", nil, err
+	}
+	if manifest != command.ManifestRef || version != command.ManifestVersion {
+		return "", nil, ErrConflict
+	}
+	return tenant, expected, nil
 }
 
 func (r *Repository) ApplyOperation(ctx context.Context, kind string, command any, operationRef, missionRef, tenantRef, providerRef string, validate func(pgx.Tx) error) (Result, error) {
