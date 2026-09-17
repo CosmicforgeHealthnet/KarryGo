@@ -136,8 +136,8 @@ export default function AuthLayout({
             <Image
               src="/images/fleet-logo.png"
               alt="KarryGo Fleet OS"
-              width={32}
-              height={32}
+              width={36}
+              height={36}
               className="rounded-lg object-contain"
             />
             <div>
@@ -163,8 +163,8 @@ export default function AuthLayout({
         <Image
           src="/images/fleet-logo.png"
           alt="KarryGo Fleet OS"
-          width={32}
-          height={32}
+          width={36}
+          height={36}
           className="rounded-lg object-contain"
         />
         <div>
