@@ -164,6 +164,12 @@ type Options struct {
 	// a code change in this package.
 	MultiPickup map[Service]bool
 
+	// CapabilityAuthorities read each logistics authority's live execution
+	// envelope. An authority wired here overrides MultiPickup for its own
+	// service, including when it refuses or cannot be reached: an unread
+	// capability is never an assumed capability.
+	CapabilityAuthorities map[Service]CapabilityAuthority
+
 	// ConsolidationRadiusMeters is how close two vendor pickups must be before
 	// one mission may cover both.
 	//
@@ -203,6 +209,8 @@ type Planner struct {
 
 	optimization OptimizationPolicy
 	multiPickup  map[Service]bool
+
+	capabilityAuthorities map[Service]CapabilityAuthority
 
 	now func() time.Time
 }
@@ -252,6 +260,11 @@ func NewPlanner(options Options) (*Planner, error) {
 		multiPickup[service] = supported
 	}
 
+	authorities := make(map[Service]CapabilityAuthority, len(options.CapabilityAuthorities))
+	for service, authority := range options.CapabilityAuthorities {
+		authorities[service] = authority
+	}
+
 	now := options.Now
 	if now == nil {
 		now = time.Now
@@ -270,6 +283,7 @@ func NewPlanner(options Options) (*Planner, error) {
 		planTTL:                   ttl,
 		optimization:              optimization,
 		multiPickup:               multiPickup,
+		capabilityAuthorities:     authorities,
 		now:                       now,
 	}, nil
 }
@@ -903,8 +917,10 @@ func (p *Planner) selectClustering(
 	candidates := []PlanCandidate{splitCandidate}
 	clusterings := []clustering{split}
 
+	capabilities := p.serviceCapabilities(ctx)
+
 	consolidated, mergeEvents, refusals := p.consolidatedClustering(
-		eligible, mode,
+		eligible, mode, capabilities,
 	)
 
 	switch {
@@ -945,7 +961,7 @@ func (p *Planner) selectClustering(
 			Status:              StatusCandidateIneligible,
 			ReasonCode:          refusals[0],
 			PolicyVersion:       p.optimization.Version,
-			ServiceCapabilities: p.multiPickupCapabilities(),
+			ServiceCapabilities: multiPickupEvidence(capabilities),
 		}
 
 		ineligible.Aggregate(baseline)

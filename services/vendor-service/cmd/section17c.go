@@ -18,8 +18,10 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/config"
 	"cosmicforge/logistics/services/vendor-service/internal/features/delivery"
 	"cosmicforge/logistics/services/vendor-service/internal/features/fulfilment"
+	taxiintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/taxi"
 	"cosmicforge/logistics/services/vendor-service/internal/jobs"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
 )
 
@@ -341,19 +343,18 @@ func buildSection17CFulfilmentService(
 			ColocationRadiusMeters: cfg.Fulfilment.ConsolidationRadiusMeters,
 		},
 
-		// The runtime multi-pickup capability, declared as data.
+		// The runtime multi-pickup capability.
 		//
-		// Both are false today and that is the whole reason consolidated
-		// multi-stop candidates are rejected rather than executed. Taxi is
-		// absent for the same reason it has no quote authority above: it has
-		// no production goods-delivery capability at all, so declaring
-		// anything about its multi-stop support would be declaring something
-		// about a service that will never be asked.
+		// Dispatch and hauling still declare theirs as deployment data,
+		// because neither publishes a capability contract yet. Taxi does, so
+		// its entry is read from Taxi itself below: a deployment can no
+		// longer claim, or deny, a capability the authority owns.
 		MultiPickup: map[fulfilment.Service]bool{
 			fulfilment.ServiceDispatch: cfg.Fulfilment.DispatchMultiPickupSupported,
-			fulfilment.ServiceTaxi:     false,
 			fulfilment.ServiceHauling:  cfg.Fulfilment.HaulingMultiPickupSupported,
 		},
+
+		CapabilityAuthorities: taxiCapabilityAuthorities(cfg),
 	})
 	if err != nil {
 		return nil
@@ -423,4 +424,20 @@ func section17CExpiryJob(
 		MaxAttempts: 5,
 		RetryBase:   interval,
 	}, true
+}
+
+// taxiCapabilityAuthorities wires Taxi's live capability contract. An
+// unconfigured or disabled integration contributes no entry, which leaves
+// Taxi with no multi-pickup capability rather than an assumed one.
+func taxiCapabilityAuthorities(cfg config.Config) map[fulfilment.Service]fulfilment.CapabilityAuthority {
+	authority := taxiintegration.NewCapabilityAuthority(
+		cfg.Flags.TaxiGoodsDeliveryEnabled, cfg.TaxiURL, commercemission.SignatureCaller, cfg.TaxiSecret,
+	)
+	if authority == nil {
+		return nil
+	}
+
+	return map[fulfilment.Service]fulfilment.CapabilityAuthority{
+		fulfilment.ServiceTaxi: authority,
+	}
 }

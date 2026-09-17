@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/taxi-service/internal/capability"
+	"cosmicforge/logistics/shared/go/commercecapability"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/custodyops"
@@ -398,29 +399,12 @@ func executionCapabilityVersion(policy capability.Policy, caps ExecutionFlags) s
 	return fmt.Sprintf("%s|multi=%t", policy.Version, caps.MultiPickupOperational())
 }
 
-// CapabilityResponse is Taxi's unified logistics capability contract (v2).
-type CapabilityResponse struct {
-	Authority              string              `json:"authority"`
-	ContractVersion        int                 `json:"contract_version"`
-	CapabilityVersion      string              `json:"capability_version"`
-	PolicyVersion          string              `json:"policy_version"`
-	MultiPickupSupported   bool                `json:"multi_pickup_supported"`
-	MaximumPickups         int                 `json:"maximum_pickups"`
-	MaximumDropoffs        int                 `json:"maximum_dropoffs"`
-	SecurePickupHandover   bool                `json:"secure_pickup_handover"`
-	SecureDeliveryHandover bool                `json:"secure_delivery_handover"`
-	Products               []ProductCapability `json:"products"`
-	CargoPredicates        []string            `json:"cargo_predicates"`
-	ServiceabilityRules    []string            `json:"serviceability_constraints"`
-}
+// CapabilityResponse is Taxi's answer in the shared internal capability
+// contract (v2). The shape is owned by shared/go/commercecapability so the
+// commerce caller and this authority can never drift.
+type CapabilityResponse = commercecapability.Capability
 
-type ProductCapability struct {
-	ProductCode            string `json:"product_code"`
-	ProductVersion         int64  `json:"product_version"`
-	MaximumPickups         int    `json:"maximum_pickups"`
-	SecurePickupHandover   bool   `json:"secure_pickup_handover"`
-	SecureDeliveryHandover bool   `json:"secure_delivery_handover"`
-}
+type ProductCapability = commercecapability.ProductCapability
 
 // Capability reports what Taxi can actually execute right now. Multi-pickup
 // is advertised only when execution, secure handover and cumulative fit are
@@ -434,7 +418,7 @@ func (s *Service) Capability(ctx context.Context) (CapabilityResponse, error) {
 		return CapabilityResponse{}, ErrUnavailable
 	}
 	operational := s.caps.MultiPickupOperational()
-	out := CapabilityResponse{Authority: "TAXI", ContractVersion: 2, CapabilityVersion: executionCapabilityVersion(policy, s.caps), PolicyVersion: policy.Version,
+	out := CapabilityResponse{Authority: "TAXI", ContractVersion: commercecapability.ContractVersion, CapabilityVersion: executionCapabilityVersion(policy, s.caps), PolicyVersion: policy.Version,
 		MaximumDropoffs: 1, MaximumPickups: s.maximumPickups(policy),
 		CargoPredicates:     []string{"WEIGHT", "VOLUME", "DIMENSIONS", "PACKAGE_COUNT", "FRAGILE", "UPRIGHT", "TEMPERATURE", "WEATHER_PROTECTION", "SECURE_CARGO", "CARGO_SEPARATION"},
 		ServiceabilityRules: []string{"SINGLE_MARKET", "ONE_FINAL_DROPOFF", "CUMULATIVE_CARGO_FIT", "NO_PROVIDER_IDENTITY_IN_PREVIEW"}}

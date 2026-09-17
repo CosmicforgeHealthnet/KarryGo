@@ -65,6 +65,7 @@ func (p *Planner) canMerge(
 	existing cluster,
 	candidate planned,
 	mode Mode,
+	capabilities map[Service]ServiceCapability,
 ) mergeCheck {
 	if existing.authority != AuthorityPlatform || len(existing.members) == 0 {
 		return mergeRefused(ReasonCandidateServiceMismatch)
@@ -147,6 +148,29 @@ func (p *Planner) canMerge(
 		trial, p.optimization.For(mode).ReadyGapTolerance,
 	); !ok {
 		return mergeRefused(reason)
+	}
+
+	// --- Runtime stop and handover limits --------------------------------
+	//
+	// An authority that CAN drive a multi-stop collection still states how
+	// many stops it accepts and whether it performs a verified handover. A
+	// cluster already at that limit refuses this member here so the member
+	// starts its own drivable cluster, instead of growing one consolidated
+	// mission the authority would reject.
+	//
+	// An authority that cannot drive a multi-stop collection at all is NOT
+	// refused here: the would-be consolidation is still constructed so the
+	// execution gate records MULTI_STOP_UNSUPPORTED as candidate evidence,
+	// and that gate runs before any quote is requested.
+	if capabilities[existing.service].Supported {
+		if reason, ok := withinRuntimeLimits(
+			existing.service,
+			pickupStopCount(trial, p.optimization.ColocationRadiusMeters),
+			requiresSecureHandover(trial.members),
+			capabilities,
+		); !ok {
+			return mergeRefused(reason)
+		}
 	}
 
 	return mergeOK()
@@ -340,7 +364,7 @@ func pickupStopCount(group cluster, radiusMeters int) int {
 // flips and this gate opens without a single line here changing.
 func executableToday(
 	leg CandidateLeg,
-	capabilities map[Service]bool,
+	capabilities map[Service]ServiceCapability,
 ) (string, bool) {
 	if !leg.MultiStop() {
 		return "", true
@@ -354,11 +378,36 @@ func executableToday(
 		return "", true
 	}
 
-	if capabilities[leg.Service] {
+	return withinRuntimeLimits(leg.Service, leg.PickupStopCount, leg.SecureHandoverRequired, capabilities)
+}
+
+// withinRuntimeLimits is the single statement of what an authority will
+// actually accept for a multi-stop collection.
+func withinRuntimeLimits(
+	service Service,
+	stops int,
+	secureHandover bool,
+	capabilities map[Service]ServiceCapability,
+) (string, bool) {
+	if stops <= 1 {
 		return "", true
 	}
 
-	return ReasonCandidateMultiStopUnsupported, false
+	capability := capabilities[service]
+
+	if !capability.Supported {
+		return ReasonCandidateMultiStopUnsupported, false
+	}
+
+	if capability.MaximumPickups > 0 && stops > capability.MaximumPickups {
+		return ReasonCandidateMultiStopLimitExceeded, false
+	}
+
+	if secureHandover && !capability.SecurePickupHandover {
+		return ReasonCandidateSecureHandoverUnsupported, false
+	}
+
+	return "", true
 }
 
 // etaBreached reports that a candidate's own quoted transit would miss a
