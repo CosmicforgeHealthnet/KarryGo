@@ -101,8 +101,8 @@ func (r *Repository) CreateMultiStopMission(ctx context.Context, caller string, 
 			windowEnd = stop.ReadinessWindowEnd
 		}
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO taxi_goods_missions(id,source_service,mission_ref,operation_ref,request_fingerprint,parent_order_ref,vendor_order_refs,customer_ref,quote_id,plan_ref,plan_version,plan_fingerprint,mission_slot_ref,pickup,dropoff,receiver_ref,receiver_name,receiver_phone,load,handling,manifest_ref,manifest_version,agreed_fee_minor,currency,pickup_evidence_required,delivery_evidence_required,requested_at,service_product_code,service_product_version,eligibility_policy_version,pickup_count,custody_mode,not_before,pickup_window_start,pickup_window_end)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULL,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'',0,$20,$21,FALSE,TRUE,$22,$23,$24,$25,$26,'MULTI_MANIFEST',$27,$28,$29)`,
+	_, err = tx.Exec(ctx, `INSERT INTO taxi_goods_missions(id,source_service,mission_ref,operation_ref,request_fingerprint,parent_order_ref,vendor_order_refs,customer_ref,quote_id,plan_ref,plan_version,plan_fingerprint,mission_slot_ref,pickup,dropoff,receiver_ref,receiver_name,receiver_phone,load,handling,manifest_ref,manifest_version,agreed_fee_minor,currency,pickup_evidence_required,delivery_evidence_required,requested_at,service_product_code,service_product_version,eligibility_policy_version,pickup_count,custody_mode,not_before,pickup_window_start,pickup_window_end,plan_binding_mode)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULL,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'',0,$20,$21,FALSE,TRUE,$22,$23,$24,$25,$26,'MULTI_MANIFEST',$27,$28,$29,'PLAN_BOUND')`,
 		missionID, caller, request.MissionRef, request.OperationReference(), fp, request.ParentOrderRef, request.VendorOrderRefs, request.CustomerRef,
 		planRef, version, planValue(request, "fingerprint"), planValue(request, "slot"), pickupJSON, dropoffJSON, request.CustomerRef,
 		request.Dropoff.Contact, request.Dropoff.Phone, loadJSON, handlingCapabilities(request.Handling), request.AgreedFeeMinor,

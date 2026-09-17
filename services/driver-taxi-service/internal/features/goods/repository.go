@@ -273,6 +273,10 @@ func (r *Repository) CreateMission(ctx context.Context, caller string, request c
 		manifestRef = request.PickupStops[0].ManifestRef
 		manifestVersion = request.PickupStops[0].ManifestVersion
 	}
+	binding, err := ResolvePlanBinding(request)
+	if err != nil {
+		return Mission{}, err
+	}
 	missionID := uuid.NewString()
 	operation := request.OperationReference()
 	tx, err := r.db.Begin(ctx)
@@ -280,10 +284,13 @@ func (r *Repository) CreateMission(ctx context.Context, caller string, request c
 		return Mission{}, err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `INSERT INTO taxi_goods_missions(id,source_service,mission_ref,operation_ref,request_fingerprint,parent_order_ref,vendor_order_refs,customer_ref,quote_id,plan_ref,plan_version,plan_fingerprint,mission_slot_ref,pickup,dropoff,receiver_ref,receiver_name,receiver_phone,load,handling,manifest_ref,manifest_version,agreed_fee_minor,currency,pickup_evidence_required,delivery_evidence_required,requested_at)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,NULLIF($10,''),$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
-		missionID, caller, request.MissionRef, operation, fp, request.ParentOrderRef, request.VendorOrderRefs, request.CustomerRef, quoteID, planValue(request, "ref"), planVersion(request), planValue(request, "fingerprint"), planValue(request, "slot"), pickupJSON, dropoffJSON, request.CustomerRef, request.Dropoff.Contact, request.Dropoff.Phone, loadJSON, handlingCapabilities(request.Handling), manifestRef, manifestVersion, request.AgreedFeeMinor, strings.ToUpper(request.Currency), false, true, request.RequestedAt)
+	_, err = tx.Exec(ctx, `INSERT INTO taxi_goods_missions(id,source_service,mission_ref,operation_ref,request_fingerprint,parent_order_ref,vendor_order_refs,customer_ref,quote_id,plan_ref,plan_version,plan_fingerprint,mission_slot_ref,pickup,dropoff,receiver_ref,receiver_name,receiver_phone,load,handling,manifest_ref,manifest_version,agreed_fee_minor,currency,pickup_evidence_required,delivery_evidence_required,requested_at,plan_binding_mode)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
+		missionID, caller, request.MissionRef, operation, fp, request.ParentOrderRef, request.VendorOrderRefs, request.CustomerRef, quoteID, binding.PlanRef, binding.PlanVersion, binding.PlanFingerprint, binding.MissionSlotRef, pickupJSON, dropoffJSON, request.CustomerRef, request.Dropoff.Contact, request.Dropoff.Phone, loadJSON, handlingCapabilities(request.Handling), manifestRef, manifestVersion, request.AgreedFeeMinor, strings.ToUpper(request.Currency), false, true, request.RequestedAt, binding.Mode)
 	if err != nil {
+		if strings.Contains(err.Error(), "uq_taxi_goods_plan_slot") {
+			return Mission{}, ErrConflict
+		}
 		return Mission{}, err
 	}
 	seen := map[string]bool{}
@@ -1227,6 +1234,37 @@ func planValue(r commercemission.Request, which string) string {
 		return r.Plan.MissionSlotRef
 	}
 }
+// Plan binding modes. A legacy quote-bound mission has no plan identity and is
+// stored with an empty plan_ref, never a generated placeholder that could
+// collide with a real plan slot.
+const (
+	PlanBindingLegacyQuote = "LEGACY_QUOTE"
+	PlanBindingPlanBound   = "PLAN_BOUND"
+)
+
+type PlanBinding struct {
+	Mode            string
+	PlanRef         string
+	PlanVersion     int64
+	PlanFingerprint string
+	MissionSlotRef  string
+}
+
+// ResolvePlanBinding classifies a single-pickup mission request. A request
+// without a plan is LEGACY_QUOTE. A plan binding must be complete (ref and a
+// version >= 1); a partial binding is rejected rather than stored half-bound.
+func ResolvePlanBinding(r commercemission.Request) (PlanBinding, error) {
+	if r.Plan == nil || (strings.TrimSpace(r.Plan.PlanRef) == "" && r.Plan.PlanVersion == 0 && strings.TrimSpace(r.Plan.PlanFingerprint) == "" && strings.TrimSpace(r.Plan.MissionSlotRef) == "") {
+		return PlanBinding{Mode: PlanBindingLegacyQuote}, nil
+	}
+	ref := strings.TrimSpace(r.Plan.PlanRef)
+	if ref == "" || r.Plan.PlanVersion < 1 {
+		return PlanBinding{}, ErrInvalid
+	}
+	return PlanBinding{Mode: PlanBindingPlanBound, PlanRef: ref, PlanVersion: r.Plan.PlanVersion,
+		PlanFingerprint: strings.TrimSpace(r.Plan.PlanFingerprint), MissionSlotRef: strings.TrimSpace(r.Plan.MissionSlotRef)}, nil
+}
+
 func planVersion(r commercemission.Request) int64 {
 	if r.Plan == nil {
 		return 0

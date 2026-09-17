@@ -3,6 +3,7 @@ package bookinghttp
 import (
 	"time"
 
+	"cosmicforge/logistics/services/taxi-service/internal/capability"
 	bookingmodels "cosmicforge/logistics/services/taxi-service/internal/features/booking/models"
 	bookingusecases "cosmicforge/logistics/services/taxi-service/internal/features/booking/usecases"
 )
@@ -34,6 +35,25 @@ type createBookingRequest struct {
 	PackageType   string `json:"package_type"`
 	PackageSize   string `json:"package_size"`
 	IsFragile     bool   `json:"is_fragile"`
+
+	// Section 7. service_product_code is optional (the vehicle class maps to
+	// its legacy product). requirements are hard gates; preferences are
+	// informational and never restrict matching.
+	ServiceProductCode string                 `json:"service_product_code"`
+	Requirements       *requirementsRequest   `json:"requirements,omitempty"`
+	Preferences        *ridePreferenceRequest `json:"preferences,omitempty"`
+}
+
+type requirementsRequest struct {
+	WheelchairRequired *bool `json:"wheelchair_required"`
+	ChildSeatRequired  *bool `json:"child_seat_required"`
+	PetTravel          *bool `json:"pet_travel"`
+}
+
+type ridePreferenceRequest struct {
+	QuietRide        *bool  `json:"quiet_ride"`
+	PreferredChannel string `json:"preferred_channel"`
+	Luggage          string `json:"luggage"`
 }
 
 func (r createBookingRequest) toInput(customerID string) bookingusecases.CreateBookingInput {
@@ -58,7 +78,26 @@ func (r createBookingRequest) toInput(customerID string) bookingusecases.CreateB
 		PackageType:             r.PackageType,
 		PackageSize:             r.PackageSize,
 		IsFragile:               r.IsFragile,
+		ServiceProductCode:      r.ServiceProductCode,
+		HardRequirements:        r.hardRequirements(),
+		Preferences:             r.preferences(),
 	}
+}
+
+func (r createBookingRequest) hardRequirements() capability.HardRequirementInput {
+	if r.Requirements == nil {
+		return capability.HardRequirementInput{}
+	}
+	return capability.HardRequirementInput{WheelchairRequired: r.Requirements.WheelchairRequired,
+		ChildSeatRequired: r.Requirements.ChildSeatRequired, PetTravel: r.Requirements.PetTravel}
+}
+
+func (r createBookingRequest) preferences() capability.RidePreferenceInput {
+	if r.Preferences == nil {
+		return capability.RidePreferenceInput{}
+	}
+	return capability.RidePreferenceInput{QuietRide: r.Preferences.QuietRide,
+		PreferredChannel: r.Preferences.PreferredChannel, Luggage: r.Preferences.Luggage}
 }
 
 type estimateFareRequest struct {

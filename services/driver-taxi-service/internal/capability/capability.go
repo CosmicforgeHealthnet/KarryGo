@@ -93,6 +93,9 @@ type Product struct {
 	SecurePickupHandover   bool     `json:"secure_pickup_handover,omitempty"`
 	SecureDeliveryHandover bool     `json:"secure_delivery_handover,omitempty"`
 	LegacyVehicleClass     string   `json:"legacy_vehicle_class,omitempty"`
+	// GuaranteeProfileVersion names the service guarantee profile a booking
+	// is committed under. Empty means the product declares none.
+	GuaranteeProfileVersion string `json:"guarantee_profile_version,omitempty"`
 }
 
 // Policy is an immutable service-product policy snapshot. Committed bookings

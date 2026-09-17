@@ -5,12 +5,12 @@ package bookingusecases
 
 import (
 	"context"
-	"cosmicforge/logistics/services/taxi-service/internal/movement"
 	"fmt"
 	"strings"
 	"time"
 
 	"cosmicforge/logistics/services/taxi-service/internal/adminaudit"
+	"cosmicforge/logistics/services/taxi-service/internal/capability"
 	bookingmatching "cosmicforge/logistics/services/taxi-service/internal/features/booking/matching"
 	bookingmodels "cosmicforge/logistics/services/taxi-service/internal/features/booking/models"
 	bookingrepositories "cosmicforge/logistics/services/taxi-service/internal/features/booking/repositories"
@@ -18,6 +18,7 @@ import (
 	bookingtelemetry "cosmicforge/logistics/services/taxi-service/internal/features/booking/telemetry"
 	bookingverification "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification"
 	marketmodels "cosmicforge/logistics/services/taxi-service/internal/features/markets/models"
+	"cosmicforge/logistics/services/taxi-service/internal/movement"
 	"cosmicforge/logistics/services/taxi-service/internal/pricing"
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 	"cosmicforge/logistics/services/taxi-service/internal/vehicleclass"
@@ -127,6 +128,9 @@ type BookingService struct {
 	movement   *movement.Writer
 	capability CapabilityGate
 	riskStore  ScheduledRiskStore
+
+	products        ProductPolicySource
+	customerContext CustomerContextSource
 }
 
 // CapabilityGate runs Section 7 hard eligibility gates before scoring. It
@@ -220,6 +224,12 @@ type Options struct {
 	CapabilityGate CapabilityGate
 	// RiskStore backs the scheduled-ride risk monitor. nil disables it.
 	RiskStore ScheduledRiskStore
+	// ProductPolicy freezes a service product and requirement snapshot onto
+	// every new booking. nil keeps legacy class-only bookings.
+	ProductPolicy ProductPolicySource
+	// CustomerContext supplies saved customer mobility needs. nil skips the
+	// handoff; explicit request requirements still apply.
+	CustomerContext CustomerContextSource
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -238,6 +248,9 @@ func NewBookingService(opts Options) *BookingService {
 		movement:   opts.Movement,
 		capability: opts.CapabilityGate,
 		riskStore:  opts.RiskStore,
+
+		products:        opts.ProductPolicy,
+		customerContext: opts.CustomerContext,
 	}
 }
 
@@ -279,6 +292,14 @@ type CreateBookingInput struct {
 	// scheduled ride in the past is a client bug, not a same-as-immediate
 	// booking.
 	ScheduledAt *time.Time
+	// ServiceProductCode selects a Section 7 product. Empty maps the vehicle
+	// class to its legacy product.
+	ServiceProductCode string
+	// HardRequirements gate matching. A nil field is "not stated" and may be
+	// filled from the customer's saved mobility needs.
+	HardRequirements capability.HardRequirementInput
+	// Preferences are informational and never gate matching.
+	Preferences capability.RidePreferenceInput
 }
 
 // CreateBooking validates the request, enforces the addendum §5.2 one-active-
@@ -533,6 +554,10 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	} else {
 		booking.Status = bookingmodels.StatusPendingMatch
 		booking.MatchingStartedAt = &now
+	}
+
+	if err := s.freezePassengerProduct(ctx, input, &booking, now); err != nil {
+		return bookingmodels.Booking{}, err
 	}
 
 	bookingStops := make([]bookingmodels.Stop, len(stops))

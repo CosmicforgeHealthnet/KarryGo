@@ -14,6 +14,9 @@ import (
 // must stay free of monetary computation.
 var section7Files = []string{
 	"capability/capability.go",
+	"capability/passenger_snapshot.go",
+	"features/booking/usecases/passenger_product.go",
+	"features/booking/clients/customer_context.go",
 	"features/capabilities/repository.go",
 	"features/capabilities/service.go",
 	"features/capabilities/http.go",

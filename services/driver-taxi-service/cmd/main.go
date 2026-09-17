@@ -29,6 +29,7 @@ import (
 
 	marketrepositories "cosmicforge/logistics/services/taxi-service/internal/features/markets/repositories"
 
+	bookingclients "cosmicforge/logistics/services/taxi-service/internal/features/booking/clients"
 	bookinghttp "cosmicforge/logistics/services/taxi-service/internal/features/booking/http"
 	bookingmatching "cosmicforge/logistics/services/taxi-service/internal/features/booking/matching"
 	bookingrepositories "cosmicforge/logistics/services/taxi-service/internal/features/booking/repositories"
@@ -272,6 +273,15 @@ func main() {
 			"managed settlement isolation is on but wallet credentials are missing -- corporate completions will be left entirely to Fleet")
 	}
 
+	var productPolicy bookingusecases.ProductPolicySource
+	if cfg.ServiceProductsEnabled {
+		productPolicy = capabilityService
+	}
+	var customerContext bookingusecases.CustomerContextSource
+	if cfg.CustomerContextEnabled {
+		customerContext = &bookingclients.CustomerContextClient{BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret}
+	}
+
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
 		Bookings: bookingRepo, Markets: marketRepo, Pricing: pricingProvider, OperationalState: operationalStateRepo,
 		Availability: availabilityStore, Providers: providerRepo, Vehicles: vehicleRepo, Routes: routingClient,
@@ -322,6 +332,9 @@ func main() {
 		Movement:       movementWriter,
 		CapabilityGate: capabilityService,
 		RiskStore:      riskStore,
+
+		ProductPolicy:   productPolicy,
+		CustomerContext: customerContext,
 	})
 
 	// Internal ops caller verification (phase B10) is nil when no

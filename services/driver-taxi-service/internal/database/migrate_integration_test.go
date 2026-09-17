@@ -44,7 +44,7 @@ func TestApplyMigrationsCleanAndReplay(t *testing.T) {
 	if err = db.QueryRow(context.Background(), `SELECT count(*) FROM taxi_schema_migrations`).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 15 {
-		t.Fatalf("applied migrations=%d, want 15", count)
+	if count != 17 {
+		t.Fatalf("applied migrations=%d, want 17", count)
 	}
 }

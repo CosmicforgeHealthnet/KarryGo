@@ -154,3 +154,22 @@ func TestProductListingHonoursPassengerCountAndHasNoPrice(t *testing.T) {
 		t.Fatalf("disabled listing: %v", err)
 	}
 }
+
+// The frozen booking snapshot is what matching evaluates: a hard wheelchair
+// requirement rejects a vehicle that is not certified accessible, while a
+// soft preference in the same snapshot restricts nothing.
+func TestMatchingUsesFrozenBookingSnapshot(t *testing.T) {
+	store := &fakeStore{candidates: candidates()}
+	svc := NewService(store, Flags{ServiceProductsEnabled: true, CapabilityMatchingEnabled: true}, nil)
+	hard := []byte(`{"product_code":"TAXI_COMFORT","passenger_count":2,"wheelchair_required":true,"preferences":{"quiet_ride":true}}`)
+	if kept, err := svc.FilterPassengerCandidates(context.Background(), comfortBooking, "TAXI_COMFORT", hard, []string{"certified"}, "i1"); err != nil || len(kept) != 0 {
+		t.Fatalf("wheelchair snapshot kept = %v %v", kept, err)
+	}
+	soft := []byte(`{"product_code":"TAXI_COMFORT","passenger_count":2,"preferences":{"quiet_ride":true,"luggage":"LARGE"}}`)
+	if kept, err := svc.FilterPassengerCandidates(context.Background(), comfortBooking, "TAXI_COMFORT", soft, []string{"certified"}, "i1"); err != nil || len(kept) != 1 {
+		t.Fatalf("preference-only snapshot kept = %v %v", kept, err)
+	}
+	if store.evidence[0].Decision.Eligible || store.evidence[0].Decision.Reason == "" {
+		t.Fatalf("rejection evidence missing: %+v", store.evidence[0])
+	}
+}

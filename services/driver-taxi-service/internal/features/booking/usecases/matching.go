@@ -356,7 +356,13 @@ func (s *BookingService) applyCapabilityGate(ctx context.Context, booking bookin
 	for _, candidate := range eligible {
 		ids = append(ids, candidate.ProviderID)
 	}
-	kept, err := s.capability.FilterPassengerCandidates(ctx, booking, "", nil, ids, s.matching.InstanceID)
+	productCode := ""
+	if booking.ServiceProductCode != nil {
+		productCode = *booking.ServiceProductCode
+	}
+	// The frozen booking snapshot is authoritative; an older booking without
+	// one falls back to the gate's own lookup and legacy class mapping.
+	kept, err := s.capability.FilterPassengerCandidates(ctx, booking, productCode, booking.RequirementSnapshot, ids, s.matching.InstanceID)
 	if err != nil {
 		logging.Error("taxi-matcher", "capability gate booking=%s: %v", booking.ID, err)
 		return nil

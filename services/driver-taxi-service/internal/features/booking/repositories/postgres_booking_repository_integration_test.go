@@ -431,3 +431,49 @@ func TestAcceptAtTimeoutBoundary_LateAcceptAfterGenuineTimeoutIsRefused(t *testi
 		t.Errorf("final status = %q, want pending_match (the late accept must not have re-applied)", final.Status)
 	}
 }
+
+func TestCreateBooking_PersistsImmutableRequirementSnapshot(t *testing.T) {
+	db := testDB(t)
+	repo := NewPostgresBookingRepository(db)
+	marketID, zoneID, _ := seedFixture(t, db)
+	ctx := context.Background()
+
+	booking := sampleBooking(marketID, zoneID, bookingmodels.StatusPendingMatch)
+	code, version, policy, guarantee := "TAXI_COMFORT", int64(2), "p2", "NONE"
+	booking.ServiceProductCode, booking.ServiceProductVersion = &code, &version
+	booking.EligibilityPolicyVersion, booking.GuaranteeProfileVersion = &policy, &guarantee
+	booking.RequirementSnapshot = []byte(`{"product_code":"TAXI_COMFORT","passenger_count":1,"wheelchair_required":true,"preferences":{"quiet_ride":true}}`)
+	created, err := repo.CreateBooking(ctx, booking, sampleStops())
+	if err != nil {
+		t.Fatalf("CreateBooking: %v", err)
+	}
+	read, err := repo.GetByID(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.ServiceProductCode == nil || *read.ServiceProductCode != code || *read.ServiceProductVersion != version || *read.EligibilityPolicyVersion != policy {
+		t.Fatalf("product columns = %+v", read)
+	}
+	if public := read.Public(); public.Requirements == nil || !public.Requirements.WheelchairRequired {
+		t.Fatalf("public requirements = %+v", public.Requirements)
+	}
+	if _, err = db.Exec(ctx, `UPDATE taxi_bookings SET requirement_snapshot_json='{"wheelchair_required":false}' WHERE id=$1`, created.ID); err == nil {
+		t.Fatal("requirement snapshot must be immutable after creation")
+	}
+	if _, err = db.Exec(ctx, `UPDATE taxi_bookings SET service_product_code='TAXI_XL' WHERE id=$1`, created.ID); err == nil {
+		t.Fatal("service product must be immutable after creation")
+	}
+	if _, err = db.Exec(ctx, `UPDATE taxi_bookings SET ride_notes='still editable' WHERE id=$1`, created.ID); err != nil {
+		t.Fatalf("unrelated columns must stay writable: %v", err)
+	}
+
+	legacy, err := repo.CreateBooking(ctx, sampleBooking(marketID, zoneID, bookingmodels.StatusPendingMatch), sampleStops())
+	if err != nil || legacy.ServiceProductCode != nil || legacy.RequirementSnapshot != nil {
+		t.Fatalf("legacy booking = %+v / %v", legacy, err)
+	}
+	half := sampleBooking(marketID, zoneID, bookingmodels.StatusPendingMatch)
+	half.ServiceProductCode = &code
+	if _, err = repo.CreateBooking(ctx, half, sampleStops()); err == nil {
+		t.Fatal("a product without its full snapshot must be refused")
+	}
+}

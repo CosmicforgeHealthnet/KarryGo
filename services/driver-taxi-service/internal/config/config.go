@@ -130,6 +130,7 @@ type Config struct {
 	RecoveryEnabled                     bool
 	ScheduledRiskMonitorEnabled         bool
 	CustomerMovementEventsEnabled       bool
+	CustomerContextEnabled              bool
 	CustomerServiceURL                  string
 	CustomerServiceSecret               []byte
 	CapabilityInternalCallers           string
@@ -275,6 +276,7 @@ func Load() Config {
 		RecoveryEnabled:                     getEnvBool("TAXI_RECOVERY_ENABLED", false),
 		ScheduledRiskMonitorEnabled:         getEnvBool("TAXI_SCHEDULED_RISK_MONITOR_ENABLED", false),
 		CustomerMovementEventsEnabled:       getEnvBool("TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerContextEnabled:              getEnvBool("TAXI_CUSTOMER_CONTEXT_ENABLED", false),
 		CustomerServiceURL:                  os.Getenv("TAXI_CUSTOMER_SERVICE_URL"),
 		CustomerServiceSecret:               []byte(os.Getenv("TAXI_CUSTOMER_SERVICE_SECRET")),
 		CapabilityInternalCallers:           getEnv("TAXI_CAPABILITY_INTERNAL_CALLERS", "vendor-service,operations-service,verification-compliance-service"),
@@ -383,9 +385,12 @@ func (c Config) Validate() error {
 	if c.GoodsMultiPickupEnabled && (!c.TaxiGoodsDeliveryEnabled || !c.GoodsCapabilityEnabled || !c.GoodsSecureHandoverEnabled || !c.GoodsCumulativeFitEnabled) {
 		problems = append(problems, "TAXI_GOODS_MULTI_PICKUP_ENABLED requires TAXI_GOODS_DELIVERY_ENABLED, TAXI_GOODS_CAPABILITY_ENABLED, TAXI_GOODS_SECURE_HANDOVER_ENABLED and TAXI_GOODS_CUMULATIVE_FIT_ENABLED")
 	}
-	if c.CustomerMovementEventsEnabled {
+	if c.CustomerContextEnabled && !c.ServiceProductsEnabled {
+		problems = append(problems, "TAXI_CUSTOMER_CONTEXT_ENABLED requires TAXI_SERVICE_PRODUCTS_ENABLED (saved needs are frozen into the product snapshot)")
+	}
+	if c.CustomerMovementEventsEnabled || c.CustomerContextEnabled {
 		if strings.TrimSpace(c.CustomerServiceURL) == "" || len(c.CustomerServiceSecret) == 0 {
-			problems = append(problems, "TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED requires TAXI_CUSTOMER_SERVICE_URL and TAXI_CUSTOMER_SERVICE_SECRET")
+			problems = append(problems, "TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED and TAXI_CUSTOMER_CONTEXT_ENABLED require TAXI_CUSTOMER_SERVICE_URL and TAXI_CUSTOMER_SERVICE_SECRET")
 		} else if path := urlPath(c.CustomerServiceURL); path != "" {
 			problems = append(problems, "TAXI_CUSTOMER_SERVICE_URL must be a bare origin, got path "+path)
 		}

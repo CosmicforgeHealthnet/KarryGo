@@ -269,3 +269,24 @@ func TestReplacementMustFitHeldAndFutureCargo(t *testing.T) {
 		t.Fatalf("replacement candidates = %+v (%s), the nearby 40 kg vehicle must be rejected", eligible, reason)
 	}
 }
+
+func TestResolvePlanBindingIsExplicitAndNeverInventsIdentity(t *testing.T) {
+	legacy, err := ResolvePlanBinding(commercemission.Request{})
+	if err != nil || legacy.Mode != PlanBindingLegacyQuote || legacy.PlanRef != "" || legacy.PlanVersion != 0 {
+		t.Fatalf("no plan -> %+v/%v", legacy, err)
+	}
+	empty, err := ResolvePlanBinding(commercemission.Request{Plan: &commercemission.PlanBinding{}})
+	if err != nil || empty.Mode != PlanBindingLegacyQuote {
+		t.Fatalf("empty plan object -> %+v/%v", empty, err)
+	}
+	bound, err := ResolvePlanBinding(commercemission.Request{Plan: &commercemission.PlanBinding{PlanRef: " p ", PlanVersion: 2, MissionSlotRef: "s"}})
+	if err != nil || bound.Mode != PlanBindingPlanBound || bound.PlanRef != "p" || bound.PlanVersion != 2 {
+		t.Fatalf("plan -> %+v/%v", bound, err)
+	}
+	for _, partial := range []commercemission.PlanBinding{{PlanRef: "p"}, {PlanVersion: 1}, {MissionSlotRef: "s"}} {
+		p := partial
+		if _, err := ResolvePlanBinding(commercemission.Request{Plan: &p}); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("partial %+v -> %v, want invalid", p, err)
+		}
+	}
+}

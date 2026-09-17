@@ -5,7 +5,10 @@
 // the shape every later phase builds on.
 package bookingmodels
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Status is the ride lifecycle. Every transition between these is a guarded
 // compare-and-set in SQL (invariant §4 in the build plan) -- read-then-write
@@ -248,6 +251,14 @@ type Booking struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 
+	// Section 7 product snapshot, frozen at creation. Nil on bookings created
+	// while service products were disabled (legacy class mapping applies).
+	ServiceProductCode       *string
+	ServiceProductVersion    *int64
+	EligibilityPolicyVersion *string
+	GuaranteeProfileVersion  *string
+	RequirementSnapshot      []byte
+
 	// Stops is populated by repository reads that fetch the full route; a
 	// read that only needs the booking row itself may leave this nil.
 	Stops []Stop
@@ -333,7 +344,19 @@ type PublicBooking struct {
 	CancelledAt *time.Time `json:"cancelled_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 
+	ServiceProductCode *string             `json:"service_product_code,omitempty"`
+	Requirements       *PublicRequirements `json:"requirements,omitempty"`
+
 	Stops []PublicStop `json:"stops,omitempty"`
+}
+
+// PublicRequirements is the frozen hard-requirement and preference view of a
+// booking. Hard requirements gate matching; preferences never do.
+type PublicRequirements struct {
+	WheelchairRequired bool            `json:"wheelchair_required"`
+	ChildSeatRequired  bool            `json:"child_seat_required"`
+	PetTravel          bool            `json:"pet_travel"`
+	Preferences        json.RawMessage `json:"preferences,omitempty"`
 }
 
 func (b Booking) Public() PublicBooking {
@@ -371,6 +394,13 @@ func (b Booking) Public() PublicBooking {
 		CompletedAt:                b.CompletedAt,
 		CancelledAt:                b.CancelledAt,
 		CreatedAt:                  b.CreatedAt,
+	}
+	pub.ServiceProductCode = b.ServiceProductCode
+	if len(b.RequirementSnapshot) > 0 {
+		var requirements PublicRequirements
+		if json.Unmarshal(b.RequirementSnapshot, &requirements) == nil {
+			pub.Requirements = &requirements
+		}
 	}
 	if b.Stops != nil {
 		pub.Stops = make([]PublicStop, len(b.Stops))
