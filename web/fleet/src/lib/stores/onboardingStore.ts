@@ -39,6 +39,8 @@ export interface OnboardingState {
   isComplete: boolean;
   isLoading: boolean;
   error: string | null;
+  // ✅ ADD THIS
+  stageStatuses: Record<string, string>;
 }
 
 interface OnboardingStore extends OnboardingState {
@@ -56,6 +58,9 @@ interface OnboardingStore extends OnboardingState {
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
   resetOnboarding: () => void;
+  // ✅ ADD THESE
+  setStageStatuses: (statuses: Record<string, string>) => void;
+  setStageComplete: (stage: string) => void;
 }
 
 const initialState: OnboardingState = {
@@ -70,6 +75,7 @@ const initialState: OnboardingState = {
   isComplete: false,
   isLoading: false,
   error: null,
+  stageStatuses: {}, // ✅ ADD THIS
 };
 
 export const useOnboardingStore = create<OnboardingStore>()(
@@ -120,6 +126,15 @@ export const useOnboardingStore = create<OnboardingStore>()(
       setError: (error: string | null) => set({ error }),
 
       resetOnboarding: () => set(initialState),
+
+      // ✅ ADD THESE
+      setStageStatuses: (statuses: Record<string, string>) =>
+        set({ stageStatuses: statuses }),
+
+      setStageComplete: (stage: string) =>
+        set((state) => ({
+          stageStatuses: { ...state.stageStatuses, [stage]: 'COMPLETE' },
+        })),
     }),
     {
       name: 'onboarding-storage',
@@ -133,6 +148,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
         walletStatus: state.walletStatus,
         isSubmitted: state.isSubmitted,
         isComplete: state.isComplete,
+        stageStatuses: state.stageStatuses, // ✅ ADD THIS
       }),
     }
   )

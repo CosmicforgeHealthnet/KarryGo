@@ -1,10 +1,15 @@
-﻿"use client";
+﻿// src/app/(auth)/verify/page.tsx
+
+"use client";
 
 import { Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ClipboardEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Mail, ShieldCheck, ShieldAlert, Lock, RotateCw, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Mail, ShieldCheck, ShieldAlert, Lock, RotateCw, CheckCircle2, WifiOff } from "lucide-react";
 import { authService } from "@/lib/services/authService";
 import { useAuthStore } from "@/lib/stores/authStore";
+import { useOrganizationStore } from "@/lib/stores/organizationStore";
+import { organizationService } from "@/lib/services/organizationService";
+import { setOrgStatusCookie } from "@/lib/utils/orgStatusCookie";
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 30;
@@ -15,7 +20,7 @@ type SubmitState =
   | { status: "idle" }
   | { status: "submitting" }
   | { status: "success" }
-  | { status: "error"; kind: "invalid" | "expired" | "access_denied" | "locked" };
+  | { status: "error"; kind: "invalid" | "expired" | "access_denied" | "locked" | "network" };
 
 function VerifyContent() {
   const router = useRouter();
@@ -29,10 +34,13 @@ function VerifyContent() {
   const [expiresIn, setExpiresIn] = useState(EXPIRY_SECONDS);
   const [attempts, setAttempts] = useState(0);
   const [justResent, setJustResent] = useState(false);
+  const [resendError, setResendError] = useState(false);
+  const [shake, setShake] = useState(false);
 
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const { setAuth, setLoading, setError } = useAuthStore();
+  const { setOrganization } = useOrganizationStore();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -48,6 +56,16 @@ function VerifyContent() {
   const expired = expiresIn === 0;
   const locked = state.status === "error" && state.kind === "locked";
   const hasError = state.status === "error";
+
+  function triggerShake() {
+    setShake(true);
+    setTimeout(() => setShake(false), 400);
+  }
+
+  function clearAndRefocus() {
+    setDigits(Array(CODE_LENGTH).fill(""));
+    setTimeout(() => inputRefs.current[0]?.focus(), 0);
+  }
 
   async function submitCode(candidate: string) {
     if (expired) {
@@ -74,51 +92,98 @@ function VerifyContent() {
 
       const data = response.data;
 
-      if (data?.nextStep === "CREATE_ORGANIZATION" || data?.nextStep === "ONBOARDING_REQUIRED") {
+      if (data?.nextStep === "ONBOARDING_REQUIRED") {
         if (data?.tokens) {
           setAuth(data.tokens, data.identityId, data.organizations || []);
         }
+        setOrgStatusCookie("DRAFT");
         setState({ status: "success" });
+        setLoading(false);
         setTimeout(() => {
           router.push("/setup");
         }, 800);
         return;
       }
 
-      if (data?.nextStep === "SELECT_ORGANIZATION" && data?.tokens) {
+      if (data?.nextStep === "ORGANIZATION_SELECTION_REQUIRED" && data?.tokens) {
         setAuth(data.tokens, data.identityId, data.organizations || []);
         setState({ status: "success" });
+        setLoading(false);
         setTimeout(() => {
           router.push("/choose-organization");
         }, 800);
         return;
       }
 
+      if (data?.nextStep === "READY" && data?.tokens) {
+        setAuth(data.tokens, data.identityId, data.organizations || []);
+
+        try {
+          const org = await organizationService.getCurrentOrganization();
+          setOrganization(org);
+          setOrgStatusCookie(org.status);
+
+          setState({ status: "success" });
+          setLoading(false);
+          setTimeout(() => {
+            router.push(org.status === "DRAFT" ? "/setup" : "/");
+          }, 800);
+          return;
+        } catch {
+          setOrgStatusCookie("DRAFT");
+          setState({ status: "success" });
+          setLoading(false);
+          setTimeout(() => {
+            router.push("/setup");
+          }, 800);
+          return;
+        }
+      }
+
+      if (data?.nextStep === "STEP_UP_GRANTED") {
+        setState({ status: "success" });
+        setLoading(false);
+        setTimeout(() => {
+          router.back();
+        }, 800);
+        return;
+      }
+
       setState({ status: "error", kind: "access_denied" });
+      setLoading(false);
+      triggerShake();
     } catch (err: any) {
-      const message = err?.response?.data?.error?.message || err?.message || "";
-      
-      if (message.toLowerCase().includes("expired")) {
+      const isNetworkError = !err?.response;
+      const message: string = err?.response?.data?.error?.message || err?.message || "";
+      const lowerMessage = message.toLowerCase();
+
+      if (isNetworkError) {
+        setState({ status: "error", kind: "network" });
+      } else if (lowerMessage.includes("expired")) {
         setState({ status: "error", kind: "expired" });
+      } else if (lowerMessage.includes("too many") || lowerMessage.includes("locked")) {
+        setState({ status: "error", kind: "locked" });
       } else {
         const nextAttempts = attempts + 1;
         setAttempts(nextAttempts);
-        if (nextAttempts >= MAX_ATTEMPTS) {
-          setState({ status: "error", kind: "locked" });
-        } else {
-          setState({ status: "error", kind: "invalid" });
-        }
+        setState({
+          status: "error",
+          kind: nextAttempts >= MAX_ATTEMPTS ? "locked" : "invalid",
+        });
       }
-      setError(message);
-    } finally {
-      setState((prev) => prev.status === "success" ? prev : { ...prev, status: "idle" });
+
+      setError(message || null);
       setLoading(false);
+      triggerShake();
+      if (!isNetworkError) {
+        clearAndRefocus();
+      }
     }
   }
 
   function updateDigit(index: number, value: string) {
     if (success || submitting) return;
-    
+
     const clean = value.replace(/\D/g, "");
     if (!clean) {
       setDigits((prev) => {
@@ -144,7 +209,7 @@ function VerifyContent() {
 
   function handleKeyDown(index: number, e: KeyboardEvent<HTMLInputElement>) {
     if (success || submitting) return;
-    
+
     if (e.key === "Backspace") {
       if (digits[index]) {
         updateDigit(index, "");
@@ -161,7 +226,7 @@ function VerifyContent() {
 
   function handlePaste(e: ClipboardEvent<HTMLInputElement>) {
     if (success || submitting) return;
-    
+
     e.preventDefault();
     const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, CODE_LENGTH);
     if (!pasted) return;
@@ -182,7 +247,8 @@ function VerifyContent() {
 
   async function handleResend() {
     if (resendIn > 0 || submitting || success) return;
-    
+
+    setResendError(false);
     try {
       await authService.resendOTP({ challengeId });
       setResendIn(RESEND_SECONDS);
@@ -194,7 +260,8 @@ function VerifyContent() {
       setJustResent(true);
       setTimeout(() => setJustResent(false), 3000);
     } catch {
-      // Silently fail on resend, user can try again
+      setResendError(true);
+      setTimeout(() => setResendError(false), 4000);
     }
   }
 
@@ -225,7 +292,7 @@ function VerifyContent() {
           Verification code
         </label>
 
-        <div className="flex justify-between gap-2">
+        <div className={`flex justify-between gap-2 ${shake ? "animate-[otp-shake_0.4s_ease-in-out]" : ""}`}>
           {digits.map((digit, i) => (
             <input
               key={i}
@@ -243,22 +310,25 @@ function VerifyContent() {
               onPaste={handlePaste}
               disabled={boxIsLocked}
               aria-label={`Digit ${i + 1} of ${CODE_LENGTH}`}
+              aria-invalid={hasError}
               className={`h-14 w-full max-w-[52px] rounded-xl border text-center text-xl font-semibold text-ink-950 outline-none transition disabled:opacity-60 ${
                 hasError && !locked
                   ? "border-red bg-red-bg focus:border-red"
                   : success
                   ? "border-green bg-green-bg focus:border-green"
-                  : "border-line bg-surface-2 focus:border-primary focus:bg-white"
+                  : "border-line bg-surface-2 focus:border-primary focus:bg-surface"
               }`}
             />
           ))}
         </div>
 
-        <div className="mt-3 min-h-[20px]">
+        <div className="mt-3 min-h-[20px]" role="status" aria-live="polite">
           {state.status === "error" && (
             <p role="alert" className="flex items-center gap-1.5 text-[13px] font-medium text-red">
               {state.kind === "locked" ? (
                 <Lock className="h-3.5 w-3.5 shrink-0" />
+              ) : state.kind === "network" ? (
+                <WifiOff className="h-3.5 w-3.5 shrink-0" />
               ) : (
                 <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
               )}
@@ -270,6 +340,8 @@ function VerifyContent() {
                 "Access denied. Contact your organization administrator."}
               {state.kind === "locked" &&
                 "Too many attempts. Request a new code to try again."}
+              {state.kind === "network" &&
+                "Couldn't reach the server. Check your connection and try again."}
             </p>
           )}
 
@@ -290,6 +362,13 @@ function VerifyContent() {
               ) : (
                 `Code expires in ${formatTime(expiresIn)}`
               )}
+            </p>
+          )}
+
+          {expired && state.status !== "error" && state.status !== "success" && (
+            <p className="flex items-center gap-1.5 text-[13px] font-medium text-red">
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              This code has expired. Request a new one.
             </p>
           )}
         </div>
@@ -322,7 +401,24 @@ function VerifyContent() {
         >
           {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
         </button>
+
+        {resendError && (
+          <p role="alert" className="mt-2 flex items-center justify-center gap-1.5 text-[12px] font-medium text-red">
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+            Couldn't resend the code. Please try again.
+          </p>
+        )}
       </form>
+
+      <style jsx>{`
+        @keyframes otp-shake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+        }
+      `}</style>
     </div>
   );
 }

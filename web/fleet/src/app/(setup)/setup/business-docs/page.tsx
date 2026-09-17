@@ -1,14 +1,8 @@
 ﻿// src/app/(setup)/setup/business-docs/page.tsx
-// Screen: ORG05 - Business Documents
-// Rebuilt from a dense data table into a required-documents checklist,
-// matching the sectioned-card / icon-tile language used across Profile,
-// Capabilities and Create Company. A raw table optimizes for scanning
-// hundreds of rows; this is a 5-item checklist, so a card list that shows
-// what's still missing does more real work than a table ever did here.
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
@@ -24,11 +18,13 @@ import {
   ShieldCheck,
   BadgeCheck,
   FileWarning,
-  Trash2,
   Paperclip,
+  Loader2,
 } from "lucide-react";
-
-// ==================== TYPES ====================
+import { useAuthStore } from "@/lib/stores/authStore";
+import { useOrganizationStore } from "@/lib/stores/organizationStore";
+import { useOnboardingStore } from "@/lib/stores/onboardingStore";
+import { organizationService } from "@/lib/services/organizationService";
 
 type DocType = "Registration" | "Tax" | "Insurance" | "License" | "Compliance" | "Other";
 type DocStatus = "Uploaded" | "Pending" | "Verified" | "Rejected" | "Expired";
@@ -53,11 +49,6 @@ type RequiredSlot = {
   icon: React.ReactNode;
 };
 
-// ==================== CONSTANTS ====================
-
-// Every document type the company must provide, in the order we want
-// them reviewed. A slot with no matching uploaded document renders as
-// "not yet uploaded" so the checklist always shows what's missing.
 const REQUIRED_SLOTS: RequiredSlot[] = [
   {
     type: "Registration",
@@ -85,58 +76,23 @@ const REQUIRED_SLOTS: RequiredSlot[] = [
   },
 ];
 
-// ==================== MOCK DATA ====================
+const DOC_TYPE_MAP: Record<DocType, string> = {
+  Registration: "CERTIFICATE_OF_INCORPORATION",
+  Tax: "TAX_CLEARANCE",
+  Insurance: "INSURANCE_POLICY",
+  License: "OPERATING_LICENSE",
+  Compliance: "COMPLIANCE_DOCUMENT",
+  Other: "OTHER_DOCUMENT",
+};
 
-const MOCK_DOCUMENTS: BusinessDocument[] = [
-  {
-    id: "DOC-001",
-    name: "Business Registration",
-    type: "Registration",
-    status: "Verified",
-    fileName: "business_registration.pdf",
-    fileSize: "2.4 MB",
-    uploadedAt: "2026-08-20T10:00:00Z",
-    uploadedBy: "F. Daniel",
-    expiryDate: null,
-    notes: "Verified against government database.",
-  },
-  {
-    id: "DOC-002",
-    name: "Tax ID Certificate",
-    type: "Tax",
-    status: "Pending",
-    fileName: "tax_id_cert.pdf",
-    fileSize: "1.8 MB",
-    uploadedAt: "2026-08-22T09:00:00Z",
-    uploadedBy: "F. Daniel",
-    expiryDate: null,
-    notes: "Awaiting verification.",
-  },
-  {
-    id: "DOC-003",
-    name: "Insurance Policy",
-    type: "Insurance",
-    status: "Uploaded",
-    fileName: "insurance_policy.pdf",
-    fileSize: "3.2 MB",
-    uploadedAt: "2026-08-21T14:30:00Z",
-    uploadedBy: "F. Daniel",
-    expiryDate: "2026-12-31",
-    notes: null,
-  },
-  {
-    id: "DOC-004",
-    name: "Operating License",
-    type: "License",
-    status: "Rejected",
-    fileName: "operating_license.pdf",
-    fileSize: "1.2 MB",
-    uploadedAt: "2026-08-19T11:00:00Z",
-    uploadedBy: "F. Daniel",
-    expiryDate: null,
-    notes: "License number mismatch. Please re-upload with correct details.",
-  },
-];
+const STATUS_MAP: Record<string, DocStatus> = {
+  ATTACHED: "Uploaded",
+  READY: "Pending",
+  VERIFIED: "Verified",
+  REJECTED: "Rejected",
+  EXPIRED: "Expired",
+  REMOVED: "Expired",
+};
 
 const STATUS_STYLES: Record<DocStatus, { bg: string; text: string; icon: React.ReactNode }> = {
   Uploaded: { bg: "bg-blue-bg", text: "text-blue", icon: <Upload className="h-3.5 w-3.5" /> },
@@ -146,9 +102,14 @@ const STATUS_STYLES: Record<DocStatus, { bg: string; text: string; icon: React.R
   Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
 };
 
-// ==================== SHARED PRIMITIVES ====================
-// (Carried over from Create Company / Profile / Capabilities so all
-// onboarding screens read as one product.)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const ALLOWED_FILE_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
 
 function IconTile({
   icon,
@@ -209,7 +170,25 @@ function formatDate(date: string | null): string {
   return new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-// ==================== DOCUMENT CARD ====================
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function mapDocType(docType: string): DocType {
+  const mapping: Record<string, DocType> = {
+    CERTIFICATE_OF_INCORPORATION: "Registration",
+    TAX_CLEARANCE: "Tax",
+    INSURANCE_POLICY: "Insurance",
+    OPERATING_LICENSE: "License",
+  };
+  return mapping[docType] || "Other";
+}
+
+function mapStatus(status: string): DocStatus {
+  return STATUS_MAP[status] || "Uploaded";
+}
 
 function DocumentCard({
   slot,
@@ -323,45 +302,226 @@ function DocumentCard({
   );
 }
 
-// ==================== MAIN PAGE ====================
+// Helper to compute SHA-256 checksum
+async function computeChecksum(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export default function BusinessDocumentsPage() {
   const router = useRouter();
+  const { _hasHydrated, user } = useAuthStore();
+  const { organization } = useOrganizationStore();
+  const { setStageComplete } = useOnboardingStore();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<BusinessDocument[]>([]);
-  const [secondsAgo, setSecondsAgo] = useState(0);
   const [uploadingType, setUploadingType] = useState<DocType | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [selectedDocumentType, setSelectedDocumentType] = useState<DocType | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isContinuing, setIsContinuing] = useState(false);
 
   useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(MOCK_DOCUMENTS);
-      setLoading(false);
+    if (!_hasHydrated) return;
+
+    const fetchDocuments = async () => {
+      if (!organization?.organizationId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await organizationService.listDocuments(organization.organizationId);
+        const docs = Array.isArray(response) ? response : [];
+
+        const mappedDocs: BusinessDocument[] = docs.map((doc: any) => ({
+          id: doc.id || `doc_${Date.now()}`,
+          name: doc.documentType || "Document",
+          type: mapDocType(doc.documentType || ""),
+          status: mapStatus(doc.status || "ATTACHED"),
+          fileName: doc.fileId || "document.pdf",
+          fileSize: formatFileSize(0),
+          uploadedAt: doc.createdAt || new Date().toISOString(),
+          uploadedBy: user?.fullName || user?.email || "You",
+          expiryDate: doc.expiresAt || null,
+          notes: doc.verificationReference || null,
+        }));
+
+        setData(mappedDocs);
+        setError(null);
+      } catch (err: any) {
+        const message = err?.response?.data?.error?.message || err?.message || "Failed to load documents.";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
     };
-    loadData();
-  }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
+    fetchDocuments();
+  }, [_hasHydrated, organization?.organizationId, user]);
 
-  const handleUpload = async (type: DocType) => {
-    setUploadingType(type);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    setUploadingType(null);
-    toast(`${type} document uploaded (mock)`);
+  const handleUploadClick = (type: DocType) => {
+    setSelectedDocumentType(type);
+    setUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const docType = selectedDocumentType;
+
+    e.target.value = "";
+
+    if (!file || !docType || !organization?.organizationId) {
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`);
+      return;
+    }
+
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      setUploadError("Invalid file type. Please upload PDF, JPG, PNG, or DOC files.");
+      return;
+    }
+
+    setUploadingType(docType);
+    setUploadError(null);
+    setUploadProgress(0);
+
+    const idempotencyKey = crypto.randomUUID();
+
+    try {
+      // Step 1: Request upload authorization from fleet-partner
+      setUploadProgress(10);
+      const grant = await organizationService.requestUploadAuthorization(
+        organization.organizationId,
+        {
+          documentType: DOC_TYPE_MAP[docType],
+          uploadPurpose: "COMPANY_DOCUMENT",
+          allowedMimeTypes: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+          maxSizeBytes: MAX_FILE_SIZE,
+          idempotencyKey,
+        }
+      );
+      setUploadProgress(30);
+
+      // Step 2: Compute checksum
+      const checksum = await computeChecksum(file);
+      setUploadProgress(50);
+
+      // Step 3: Upload file to fleet-partner (which proxies to media service)
+      const result = await organizationService.completeDocumentUpload(
+        organization.organizationId,
+        {
+          mediaObjectId: grant.mediaObjectId,
+          authorizationId: grant.authorizationId,
+          uploadToken: grant.uploadToken,
+          declaredMime: file.type || "application/octet-stream",
+          declaredSize: file.size,
+          declaredChecksum: checksum,
+          file: file,
+        }
+      );
+      setUploadProgress(80);
+
+      // Step 4: Attach document to organization
+      const attachResponse = await organizationService.attachDocument(
+        organization.organizationId,
+        DOC_TYPE_MAP[docType],
+        result.mediaObjectId
+      );
+      setUploadProgress(100);
+
+      const newDoc: BusinessDocument = {
+        id: attachResponse.documentId || `doc_${Date.now()}`,
+        name: docType,
+        type: docType,
+        status: "Uploaded",
+        fileName: file.name,
+        fileSize: formatFileSize(file.size),
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: user?.fullName || user?.email || "You",
+        expiryDate: null,
+        notes: null,
+      };
+
+      setData((prev) => {
+        const filtered = prev.filter((d) => d.type !== docType);
+        return [...filtered, newDoc];
+      });
+
+      setSelectedDocumentType(null);
+    } catch (err: any) {
+      const message = err?.response?.data?.error?.message || err?.message || "Failed to upload document.";
+      setUploadError(message);
+    } finally {
+      setUploadingType(null);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
     setData((prev) => prev.filter((doc) => doc.id !== id));
     setConfirmingDeleteId(null);
-    toast("Document removed (mock)");
   };
 
-  const handleBack = () => router.push("/setup");
-  const handleNext = () => router.push("/setup/verification");
+  const handleContinue = async () => {
+    if (!organization?.organizationId) {
+      setSaveError("Organization not found.");
+      return;
+    }
+
+    // Check if all documents are uploaded
+    const allComplete = REQUIRED_SLOTS.every((slot) => {
+      const doc = data.find((d) => d.type === slot.type);
+      return doc && doc.status !== "Rejected" && doc.status !== "Expired";
+    });
+
+    if (!allComplete) {
+      setSaveError("Please upload all required documents before continuing.");
+      return;
+    }
+
+    setIsContinuing(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      // Mark BUSINESS_DOCUMENTS stage as complete
+      await organizationService.markStageComplete(
+        organization.organizationId,
+        'BUSINESS_DOCUMENTS'
+      );
+      setStageComplete("documents");
+      setSaveSuccess(true);
+
+      setTimeout(() => {
+        router.push("/setup/submit");
+      }, 1000);
+    } catch (err: any) {
+      const message = err?.message || "Failed to save.";
+      setSaveError(message);
+    } finally {
+      setIsContinuing(false);
+    }
+  };
+
+  const handleBack = () => router.push("/setup/headquarters");
 
   const docByType = (type: DocType) => data.find((d) => d.type === type);
   const completedCount = REQUIRED_SLOTS.filter((slot) => {
@@ -377,11 +537,28 @@ export default function BusinessDocumentsPage() {
           <div className="h-7 w-56 animate-pulse rounded bg-surface-2" />
           <div className="h-4 w-full max-w-md animate-pulse rounded bg-surface-2" />
         </div>
-        <div className="h-10 w-full max-w-xs animate-pulse rounded bg-surface-2" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-40 animate-pulse rounded-2xl bg-surface-2" />
-          ))}
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error && data.length === 0) {
+    return (
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-red/20 bg-red-bg/30 px-4 py-16 text-center">
+          <div className="rounded-full bg-red-bg p-4">
+            <AlertCircle className="h-8 w-8 text-red" />
+          </div>
+          <h3 className="mt-4 text-[15px] font-semibold text-ink-950">Unable to load documents</h3>
+          <p className="mt-1.5 text-sm text-ink-500">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-primary/90"
+          >
+            Try again
+          </button>
         </div>
       </div>
     );
@@ -389,7 +566,14 @@ export default function BusinessDocumentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
-      {/* ===== HEADER ===== */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+      />
+
       <div>
         <p className="text-xs font-medium text-ink-500">
           Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
@@ -399,7 +583,6 @@ export default function BusinessDocumentsPage() {
         <p className="mt-1.5 text-ink-600">Upload the documents required to verify your company.</p>
       </div>
 
-      {/* ===== STATUS STRIP (matches Capabilities / Create Company) ===== */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <p className="flex-shrink-0 text-sm font-medium text-ink-700">
           <span className="font-mono tabular-nums text-ink-950">{completedCount}</span>
@@ -413,18 +596,19 @@ export default function BusinessDocumentsPage() {
         </div>
       </div>
 
-      {/* ===== DOCUMENT CHECKLIST ===== */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
         {REQUIRED_SLOTS.map((slot) => {
           const doc = docByType(slot.type);
+          const isUploading = uploadingType === slot.type;
+
           return (
             <DocumentCard
               key={slot.type}
               slot={slot}
               doc={doc}
-              onUpload={handleUpload}
+              onUpload={handleUploadClick}
               onDelete={handleDelete}
-              isUploading={uploadingType === slot.type}
+              isUploading={isUploading}
               confirmingDelete={confirmingDeleteId === doc?.id}
               onRequestDelete={() => doc && setConfirmingDeleteId(doc.id)}
               onCancelDelete={() => setConfirmingDeleteId(null)}
@@ -433,7 +617,28 @@ export default function BusinessDocumentsPage() {
         })}
       </div>
 
-      {/* ===== BLOCKED NOTICE ===== */}
+      {uploadingType && uploadProgress > 0 && uploadProgress < 100 && (
+        <div className="rounded-xl border border-blue/20 bg-blue-bg/40 p-4 sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-4 w-4 animate-spin text-blue" />
+            <span className="text-sm text-ink-600">Uploading... {uploadProgress}%</span>
+          </div>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+            <div
+              className="h-full rounded-full bg-blue transition-all"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          {uploadError}
+        </div>
+      )}
+
       {!allComplete && (
         <div className="rounded-2xl border border-amber/20 bg-amber-bg/40 p-5">
           <div className="flex items-start gap-3">
@@ -441,38 +646,63 @@ export default function BusinessDocumentsPage() {
             <div className="min-w-0">
               <h4 className="text-sm font-semibold text-amber">Some documents still need attention</h4>
               <p className="mt-1 text-sm text-amber/80">
-                Upload or re-upload the missing and rejected documents above before continuing to verification.
+                Upload or re-upload the missing and rejected documents above before continuing to submit.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ===== NAVIGATION (matches Profile/Capabilities/Create Company) ===== */}
+      {saveError && (
+        <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          {saveError}
+        </div>
+      )}
+
+      {saveSuccess && (
+        <div className="flex items-center gap-2 rounded-xl border border-green/20 bg-green-bg/40 px-4 py-3 text-sm text-green">
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+          Documents saved successfully! Redirecting...
+        </div>
+      )}
+
       <div className="flex flex-col-reverse items-center gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
         <button
           onClick={handleBack}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2"
+          disabled={isContinuing || isSaving}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2 disabled:opacity-50"
         >
           <ChevronLeft className="h-4 w-4" />
           Back
         </button>
         <button
-          onClick={handleNext}
-          disabled={!allComplete}
+          onClick={handleContinue}
+          disabled={!allComplete || isContinuing || isSaving}
           className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2 text-sm font-medium text-white transition ${
-            allComplete ? "bg-primary hover:bg-primary-hover" : "cursor-not-allowed bg-ink-400"
+            !allComplete || isContinuing || isSaving
+              ? "cursor-not-allowed bg-ink-400"
+              : "bg-primary hover:bg-primary-hover"
           }`}
         >
-          Continue
-          <ChevronRight className="h-4 w-4" />
+          {isContinuing ? (
+            <>
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : saveSuccess ? (
+            <>
+              <CheckCircle2 className="h-4 w-4" />
+              Saved!
+            </>
+          ) : (
+            <>
+              Continue
+              <ChevronRight className="h-4 w-4" />
+            </>
+          )}
         </button>
       </div>
-
     </div>
   );
-}
-
-function toast(message: string) {
-  console.log(message);
 }

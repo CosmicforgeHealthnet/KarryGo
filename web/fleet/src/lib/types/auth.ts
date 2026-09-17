@@ -36,13 +36,15 @@ export interface Organization {
 }
 
 export interface VerifyOTPResponse {
-  nextStep: "CREATE_ORGANIZATION" | "SELECT_ORGANIZATION";
-  identityId: string;
-  tokens?: Tokens;
-  organizations?: Organization[];
-  stepUp?: {
-    reference: string;
-    expiresAt: string;
+  data: {
+    nextStep: 'ONBOARDING_REQUIRED' | 'ORGANIZATION_SELECTION_REQUIRED' | 'READY' | 'STEP_UP_GRANTED';
+    identityId: string;
+    tokens?: Tokens;
+    organizations?: Organization[];
+    stepUp?: {
+      reference: string;
+      expiresAt: string;
+    };
   };
 }
 
@@ -56,18 +58,6 @@ export interface ResendOTPResponse {
   maskedDestination: string;
   expiresInSeconds: number;
   resendAfterSeconds: number;
-}
-
-export interface RefreshTokenRequest {
-  refreshToken: string;
-}
-
-export interface RefreshTokenResponse {
-  accessToken: string;
-  refreshToken: string;
-  accessExpiresAt: string;
-  refreshExpiresAt: string;
-  sessionId: string;
 }
 
 export interface SelectOrganizationRequest {
@@ -97,5 +87,5 @@ export interface AuthState {
   selectedOrganization: Organization | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: string | null;
+  error: null;
 }

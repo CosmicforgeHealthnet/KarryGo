@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Package,
@@ -15,15 +15,17 @@ import {
   SlidersHorizontal,
   ArrowRight,
   X,
-  MapPin,
-  ChevronUp,
-  ChevronDown,
 } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
+import { marketplaceService } from "@/lib/services/marketplaceService";
+import type {
+  CorporateOfferMetrics,
+  CorporateOfferSummary,
+} from "@/lib/types/marketplace";
 
-const BTN_PRIMARY =
-  "flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover";
-const BTN_SECONDARY =
-  "flex items-center justify-center gap-1.5 rounded-lg border border-line bg-white px-3.5 py-2 text-sm font-semibold text-ink-800 transition-colors hover:bg-surface-2";
+// ---------------------------------------------------------------------------
+// Presentation helpers
+// ---------------------------------------------------------------------------
 
 type Tone = "blue" | "green" | "amber" | "red";
 
@@ -34,39 +36,29 @@ const TONE_BG: Record<Tone, string> = {
   red: "bg-red-bg text-red",
 };
 
-const METRICS = [
-  { label: "Open offers", value: "6", note: "Across 4 branches", tone: "blue" as Tone, trend: "+2", icon: <ListChecks className="h-[18px] w-[18px]" /> },
-  { label: "Expiring soon", value: "2", note: "Under 20 min remaining", tone: "amber" as Tone, trend: "33%", icon: <Clock3 className="h-[18px] w-[18px]" /> },
-  { label: "Accepted today", value: "18", note: "Company assignments", tone: "green" as Tone, trend: "+5", icon: <CheckCircle2 className="h-[18px] w-[18px]" /> },
-  { label: "Declined today", value: "3", note: "2 flagged as safety", tone: "red" as Tone, trend: "17%", icon: <XCircle className="h-[18px] w-[18px]" /> },
-];
-
-type Offer = {
-  id: string;
-  service: "Dispatch" | "Hauling";
-  pickup: string;
-  dropoff: string;
-  deadline: string;
-  deadlineMinutes: number;
-  vehicle: string;
-  distance: string;
-  load: string;
+const ZERO_METRICS: CorporateOfferMetrics = {
+  openOffers: 0,
+  expiringSoon: 0,
+  acceptedToday: 0,
+  declinedToday: 0,
 };
 
-const OFFERS: Offer[] = [
-  { id: "MKT-24081", service: "Dispatch", pickup: "Ikeja", dropoff: "Lekki", deadline: "27 min", deadlineMinutes: 27, vehicle: "Bike", distance: "6.8 km", load: "18 kg" },
-  { id: "MKT-24079", service: "Hauling", pickup: "Apapa", dropoff: "Ikeja", deadline: "41 min", deadlineMinutes: 41, vehicle: "Van", distance: "15.4 km", load: "220 kg" },
-  { id: "MKT-24073", service: "Dispatch", pickup: "Yaba", dropoff: "Victoria Island", deadline: "16 min", deadlineMinutes: 16, vehicle: "Bike", distance: "4.2 km", load: "8 kg" },
-  { id: "MKT-24069", service: "Hauling", pickup: "Lekki", dropoff: "Marina", deadline: "52 min", deadlineMinutes: 52, vehicle: "Truck", distance: "21 km", load: "1.2 t" },
-  { id: "MKT-24062", service: "Dispatch", pickup: "Surulere", dropoff: "Yaba", deadline: "13 min", deadlineMinutes: 13, vehicle: "Bike", distance: "3.4 km", load: "5 kg" },
-  { id: "MKT-24058", service: "Hauling", pickup: "Ikeja", dropoff: "Ikorodu", deadline: "35 min", deadlineMinutes: 35, vehicle: "Van", distance: "17.8 km", load: "180 kg" },
-];
-
-const BRANCHES = ["All", "Ikeja", "Lekki", "Yaba", "Apapa"];
-const SERVICES = ["All", "Dispatch", "Hauling"];
-
-type SortField = "deadline" | "distance" | "load" | "id";
-type SortDirection = "asc" | "desc";
+function formatCountdown(expiresAtIso: string): {
+  text: string;
+  minutes: number;
+} {
+  const expires = new Date(expiresAtIso).getTime();
+  if (!Number.isFinite(expires)) {
+    return { text: "—", minutes: Number.MAX_SAFE_INTEGER };
+  }
+  const minutes = Math.max(0, Math.floor((expires - Date.now()) / 60_000));
+  if (minutes <= 0) return { text: "expired", minutes: 0 };
+  if (minutes < 60) return { text: `${minutes} min`, minutes };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { text: `${hours} h`, minutes };
+  const days = Math.floor(hours / 24);
+  return { text: `${days} d`, minutes };
+}
 
 function fuseTier(mins: number): { color: string; bg: string } {
   if (mins <= 15) return { color: "text-red", bg: "bg-red-bg" };
@@ -74,105 +66,220 @@ function fuseTier(mins: number): { color: string; bg: string } {
   return { color: "text-primary", bg: "bg-primary-bg" };
 }
 
+function serviceLabel(sourceService: string): string {
+  switch (sourceService) {
+    case "DISPATCH":
+      return "Dispatch";
+    case "TAXI":
+      return "Taxi";
+    case "HAULING":
+      return "Hauling";
+    default:
+      return sourceService || "—";
+  }
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "OFFERED":
+      return "Open";
+    case "RESERVATION_PENDING":
+      return "Reserving";
+    case "ORGANIZATION_ACCEPTED":
+      return "Accepted";
+    case "ASSIGNMENT_PENDING":
+      return "Assigning";
+    case "PROVIDER_ACCEPTED":
+      return "Provider accepted";
+    case "EXECUTION_REQUESTED":
+    case "EXECUTION_CREATED":
+      return "Starting";
+    case "IN_PROGRESS":
+      return "In progress";
+    case "COMPLETED":
+      return "Completed";
+    case "ORGANIZATION_DECLINED":
+      return "Declined";
+    case "EXPIRED":
+      return "Expired";
+    case "CANCELLED":
+      return "Cancelled";
+    default:
+      return status || "—";
+  }
+}
+
+// Best-effort human-readable pickup/dropoff line from the projection summary.
+// The backend stores these as opaque maps; when none of the known keys are
+// present, we render a dash rather than inventing a value.
+function summaryLabel(summary: Record<string, unknown> | undefined): string {
+  if (!summary) return "—";
+  const candidateKeys = ["label", "name", "reference", "address"];
+  for (const key of candidateKeys) {
+    const value = summary[key];
+    if (typeof value === "string" && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+  return "—";
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default function MarketplaceOffersPage() {
+  const [offers, setOffers] = useState<CorporateOfferSummary[]>([]);
+  const [metrics, setMetrics] = useState<CorporateOfferMetrics>(ZERO_METRICS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [search, setSearch] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("All");
   const [selectedService, setSelectedService] = useState("All");
   const [showFilters, setShowFilters] = useState(false);
-  const [sortField, setSortField] = useState<SortField>("deadline");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-  const filtered = OFFERS.filter((o) => {
-    const matchesSearch =
-      search.trim() === "" ||
-      o.id.toLowerCase().includes(search.toLowerCase()) ||
-      o.pickup.toLowerCase().includes(search.toLowerCase()) ||
-      o.dropoff.toLowerCase().includes(search.toLowerCase());
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-    const matchesBranch = selectedBranch === "All" || o.pickup === selectedBranch || o.dropoff === selectedBranch;
-    const matchesService = selectedService === "All" || o.service === selectedService;
+    Promise.all([
+      marketplaceService.listOffers({ status: "OFFERED" }),
+      marketplaceService.getMetrics(),
+    ])
+      .then(([offersData, metricsData]) => {
+        if (cancelled) return;
+        setOffers(offersData);
+        setMetrics(metricsData);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const message =
+          err?.response?.data?.error?.message ??
+          err?.message ??
+          "Failed to load marketplace offers.";
+        setError(message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-    return matchesSearch && matchesBranch && matchesService;
-  });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const sorted = [...filtered].sort((a, b) => {
-    let aVal: string | number = a[sortField];
-    let bVal: string | number = b[sortField];
+  const services = useMemo(() => {
+    const set = new Set<string>();
+    offers.forEach((o) => {
+      if (o.sourceService) set.add(o.sourceService);
+    });
+    return ["All", ...Array.from(set)];
+  }, [offers]);
 
-    if (sortField === "deadline") {
-      aVal = a.deadlineMinutes;
-      bVal = b.deadlineMinutes;
-    } else if (sortField === "distance") {
-      aVal = parseFloat(a.distance);
-      bVal = parseFloat(b.distance);
-    } else if (sortField === "load") {
-      aVal = parseFloat(a.load);
-      bVal = parseFloat(b.load);
-    }
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return offers.filter((o) => {
+      if (selectedService !== "All" && o.sourceService !== selectedService) {
+        return false;
+      }
+      if (q === "") return true;
+      const haystack = [
+        o.offerId,
+        o.requestProjectionId,
+        summaryLabel(o.pickupSummary),
+        summaryLabel(o.dropoffSummary),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [offers, search, selectedService]);
 
-    if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-    if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
-    return 0;
-  });
-
-  const hasActiveFilters = selectedBranch !== "All" || selectedService !== "All" || search !== "";
-
+  const hasActiveFilters = selectedService !== "All" || search !== "";
   const clearFilters = () => {
     setSearch("");
-    setSelectedBranch("All");
     setSelectedService("All");
   };
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  };
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ChevronUp className="h-3 w-3 text-ink-300" />;
-    return sortDirection === "asc" ? (
-      <ChevronUp className="h-3 w-3 text-primary" />
-    ) : (
-      <ChevronDown className="h-3 w-3 text-primary" />
-    );
-  };
+ const metricCards: {
+  label: string;
+  value: number;
+  tone: Tone;
+  icon: React.ReactNode;
+}[] = [
+    {
+      label: "Open offers",
+      value: metrics.openOffers,
+      tone: "blue",
+      icon: <ListChecks className="h-[18px] w-[18px]" />,
+    },
+    {
+      label: "Expiring soon",
+      value: metrics.expiringSoon,
+      tone: "amber",
+      icon: <Clock3 className="h-[18px] w-[18px]" />,
+    },
+    {
+      label: "Accepted today",
+      value: metrics.acceptedToday,
+      tone: "green",
+      icon: <CheckCircle2 className="h-[18px] w-[18px]" />,
+    },
+    {
+      label: "Declined today",
+      value: metrics.declinedToday,
+      tone: "red",
+      icon: <XCircle className="h-[18px] w-[18px]" />,
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-5">
       {/* ── Header ── */}
       <div>
         <h1>Marketplace offers</h1>
-        <p className="max-w-2xl">Current eligible KarryGo opportunities. Sort by deadline to see urgent offers first.</p>
+        <p className="max-w-2xl">
+          Current eligible KarryGo opportunities. Sort by deadline to see urgent
+          offers first.
+        </p>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-300/40 bg-red-bg px-4 py-2 text-sm text-red">
+          {error}
+        </div>
+      )}
 
       {/* ── Metric grid ── */}
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
-        {METRICS.map((m) => (
-          <div key={m.label} className="rounded-lg border border-line bg-white p-4 transition-colors hover:border-ink-300">
+        {metricCards.map((m) => (
+          <div
+            key={m.label}
+            className="rounded-lg border border-line bg-surface p-4 transition-colors hover:border-ink-400"
+          >
             <div className="flex items-center gap-2.5">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-md ${TONE_BG[m.tone]}`}>
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-md ${TONE_BG[m.tone]}`}
+              >
                 {m.icon}
               </div>
-              <span className="text-xs font-semibold text-ink-600">{m.label}</span>
-            </div>
-            <div className="mt-3 flex items-end justify-between">
-              <span className="font-display text-3xl font-bold tracking-[-0.02em] text-ink-950">{m.value}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${TONE_BG[m.tone]}`}>
-                {m.trend}
+              <span className="text-xs font-semibold text-ink-600">
+                {m.label}
               </span>
             </div>
-            <p className="mt-1.5 text-xs text-ink-500">{m.note}</p>
+            <div className="mt-3 flex items-end justify-between">
+              <span className="font-display text-3xl font-bold tracking-[-0.02em] text-ink-950">
+                {m.value}
+              </span>
+            </div>
           </div>
         ))}
       </div>
 
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-white px-3 sm:max-w-xs">
+        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:max-w-xs">
           <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-500" />
           <input
             value={search}
@@ -182,18 +289,19 @@ export default function MarketplaceOffersPage() {
           />
         </div>
 
-        <div className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-700 whitespace-nowrap">
-          <MapPin className="h-3.5 w-3.5 text-ink-400" />
-          {selectedBranch}
-          <span className="text-ink-300">·</span>
+        <div className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink-700 whitespace-nowrap">
           <Package className="h-3.5 w-3.5 text-ink-400" />
-          {selectedService}
+          {selectedService === "All"
+            ? "All services"
+            : serviceLabel(selectedService)}
         </div>
 
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors whitespace-nowrap ${
-            showFilters ? "border-primary bg-primary-bg text-primary" : "border-line bg-white text-ink-700 hover:bg-surface-2"
+            showFilters
+              ? "border-primary bg-primary-bg text-primary"
+              : "border-line bg-surface text-ink-700 hover:bg-surface-2"
           }`}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -203,42 +311,28 @@ export default function MarketplaceOffersPage() {
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-500 hover:bg-surface-2 transition-colors whitespace-nowrap"
+            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink-500 hover:bg-surface-2 transition-colors whitespace-nowrap"
           >
             <X className="h-3.5 w-3.5" />
             Clear
           </button>
         )}
 
-        <span className="ml-auto text-sm text-ink-500 whitespace-nowrap">{sorted.length} offers</span>
+        <span className="ml-auto text-sm text-ink-500 whitespace-nowrap">
+          {filtered.length} offers
+        </span>
       </div>
 
       {/* ── Filter drawer ── */}
       {showFilters && (
-        <div className="rounded-lg border border-line bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <div className="flex flex-wrap items-center gap-6">
             <div>
-              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Branch</span>
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">
+                Service
+              </span>
               <div className="flex flex-wrap gap-1.5">
-                {BRANCHES.map((branch) => (
-                  <button
-                    key={branch}
-                    onClick={() => setSelectedBranch(branch)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
-                      selectedBranch === branch
-                        ? "bg-primary text-white"
-                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                    }`}
-                  >
-                    {branch}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Service</span>
-              <div className="flex flex-wrap gap-1.5">
-                {SERVICES.map((service) => (
+                {services.map((service) => (
                   <button
                     key={service}
                     onClick={() => setSelectedService(service)}
@@ -248,7 +342,7 @@ export default function MarketplaceOffersPage() {
                         : "bg-surface-2 text-ink-600 hover:bg-surface-3"
                     }`}
                   >
-                    {service}
+                    {service === "All" ? "All" : serviceLabel(service)}
                   </button>
                 ))}
               </div>
@@ -264,99 +358,137 @@ export default function MarketplaceOffersPage() {
       )}
 
       {/* ── Table ── */}
-      <div className="overflow-x-auto rounded-lg border border-line bg-white">
-        <table className="w-full min-w-[900px] border-collapse text-left">
-          <thead>
-            <tr className="border-b border-line bg-surface-1">
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("id")} className="flex items-center gap-1 hover:text-ink-700">
-                  Offer <SortIcon field="id" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">Route</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">Vehicle</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("distance")} className="flex items-center gap-1 hover:text-ink-700">
-                  Distance <SortIcon field="distance" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("load")} className="flex items-center gap-1 hover:text-ink-700">
-                  Load <SortIcon field="load" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("deadline")} className="flex items-center gap-1 hover:text-ink-700">
-                  Deadline <SortIcon field="deadline" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 text-right whitespace-nowrap">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-ink-500">
-                  <div className="flex flex-col items-center gap-2">
-                    <Package className="h-8 w-8 text-ink-300" />
-                    <p className="font-medium">No offers match your filters</p>
-                    <button onClick={clearFilters} className="text-sm text-primary hover:underline">
-                      Clear filters
-                    </button>
-                  </div>
-                </td>
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+        {loading ? (
+          <div className="px-4 py-16 text-center text-sm text-ink-500">
+            Loading offers…
+          </div>
+        ) : offers.length === 0 ? (
+          <EmptyState
+            image="/images/trips-empty.png"
+            title="No open offers"
+            description="When the platform sends work your way, it will appear here."
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            image="/images/trips-empty.png"
+            title="No offers match your filters"
+            description="Try adjusting your search or clearing the filters."
+            action={
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center justify-center rounded-lg bg-primary-bg px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+              >
+                Clear filters
+              </button>
+            }
+          />
+        ) : (
+          <table className="w-full min-w-[900px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-line bg-surface-2">
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Offer
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Route
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Service
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Deadline
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 text-right whitespace-nowrap">
+                  Action
+                </th>
               </tr>
-            ) : (
-              sorted.map((o) => {
-                const tier = fuseTier(o.deadlineMinutes);
-                const isUrgent = o.deadlineMinutes <= 15;
+            </thead>
+            <tbody>
+              {filtered.map((o) => {
+                const { text: countdown, minutes } = formatCountdown(o.expiresAt);
+                const tier = fuseTier(minutes);
+                const isUrgent = minutes <= 15;
+                const pickup = summaryLabel(o.pickupSummary);
+                const dropoff = summaryLabel(o.dropoffSummary);
+
                 return (
-                  <tr key={o.id} className="border-b border-line transition-colors hover:bg-surface-1/50">
+                  <tr
+                    key={o.offerId}
+                    className="border-b border-line transition-colors hover:bg-surface-2"
+                  >
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-2.5">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-md ${tier.bg} ${tier.color}`}>
-                          {o.service === "Hauling" ? <Truck className="h-[15px] w-[15px]" /> : <Package className="h-[15px] w-[15px]" />}
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-md ${tier.bg} ${tier.color}`}
+                        >
+                          {o.sourceService === "HAULING" ? (
+                            <Truck className="h-[15px] w-[15px]" />
+                          ) : (
+                            <Package className="h-[15px] w-[15px]" />
+                          )}
                         </div>
                         <div>
-                          <span className="font-semibold text-ink-950">{o.service}</span>
-                          <div className="font-mono text-[10px] text-ink-400">{o.id}</div>
+                          <span className="font-semibold text-ink-950">
+                            {serviceLabel(o.sourceService)}
+                          </span>
+                          <div className="font-mono text-[10px] text-ink-400">
+                            {o.offerId}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        <span>{o.pickup}</span>
-                        <ArrowRight className="h-3 w-3 text-ink-300 flex-shrink-0" />
-                        <span>{o.dropoff}</span>
+                        <span>{pickup}</span>
+                        <ArrowRight className="h-3 w-3 text-ink-400 flex-shrink-0" />
+                        <span>{dropoff}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 font-medium text-ink-700 whitespace-nowrap">{o.vehicle}</td>
-                    <td className="px-4 py-3.5 font-mono font-medium text-ink-700 whitespace-nowrap">{o.distance}</td>
-                    <td className="px-4 py-3.5 font-mono font-medium text-ink-700 whitespace-nowrap">{o.load}</td>
+                    <td className="px-4 py-3.5 font-medium text-ink-700 whitespace-nowrap">
+                      {o.serviceType || "—"}
+                    </td>
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-ink-700">
+                        {statusLabel(o.status)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <div className={`h-1.5 w-1.5 rounded-full ${tier.color.replace("text", "bg")} flex-shrink-0`} />
+                        <div
+                          className={`h-1.5 w-1.5 rounded-full ${tier.color.replace("text", "bg")} flex-shrink-0`}
+                        />
                         <span className={`font-mono font-bold ${tier.color}`}>
-                          {isUrgent ? "🔴 " : ""}{o.deadline}
+                          {isUrgent ? "🔴 " : ""}
+                          {countdown}
                         </span>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
-                        <Link href={`/operations/marketplace/${o.id}`} className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface-2 transition-colors whitespace-nowrap">
+                        <Link
+                          href={`/operations/marketplace/${o.offerId}`}
+                          className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface-2 transition-colors whitespace-nowrap"
+                        >
                           Details
                         </Link>
-                        <Link href={`/operations/marketplace/${o.id}/candidates`} className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover transition-colors whitespace-nowrap">
+                        <Link
+                          href={`/operations/marketplace/${o.offerId}/candidates`}
+                          className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover transition-colors whitespace-nowrap"
+                        >
                           Compare
                         </Link>
                       </div>
                     </td>
                   </tr>
                 );
-              })
-            )}
-          </tbody>
-        </table>
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

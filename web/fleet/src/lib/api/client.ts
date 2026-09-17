@@ -4,11 +4,15 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 import { useAuthStore } from '@/lib/stores/authStore';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+const AUTH_COOKIE_SCOPED_BASE = '/fleet-partner/v1/auth';
+const REFRESH_COOKIE_SCOPED_PATH = `${AUTH_COOKIE_SCOPED_BASE}/refresh`;
+const LOGOUT_COOKIE_SCOPED_PATH = `${AUTH_COOKIE_SCOPED_BASE}/logout`;
 
 let refreshPromise: Promise<string> | null = null;
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: `${API_BASE_URL}/api`,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,7 +32,19 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isAuthEndpoint =
+      originalRequest.url === '/auth/start' ||
+      originalRequest.url === '/auth/verify' ||
+      originalRequest.url === '/auth/logout';
+
+    const hasAuthHeader = !!originalRequest.headers?.Authorization;
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isAuthEndpoint &&
+      hasAuthHeader
+    ) {
       originalRequest._retry = true;
 
       try {
@@ -53,21 +69,12 @@ export async function refreshAccessToken(): Promise<string | null> {
     return refreshPromise;
   }
 
-  const refreshToken = useAuthStore.getState().refreshToken;
-  if (!refreshToken) {
-    return null;
-  }
-
-  refreshPromise = apiClient
-    .post<{ accessToken: string; refreshToken: string; accessExpiresAt: string; refreshExpiresAt: string; sessionId: string }>(
-      '/auth/refresh',
-      { refreshToken }
-    )
+  refreshPromise = axios
+    .post(`${API_BASE_URL}${REFRESH_COOKIE_SCOPED_PATH}`, {}, { withCredentials: true })
     .then((response) => {
-      const { accessToken, refreshToken: newRefreshToken, accessExpiresAt, refreshExpiresAt, sessionId } = response.data;
+      const { accessToken, accessExpiresAt, refreshExpiresAt, sessionId } = response.data.data;
       useAuthStore.getState().setTokensOnly({
         accessToken,
-        refreshToken: newRefreshToken,
         accessExpiresAt,
         refreshExpiresAt,
         sessionId,
@@ -85,12 +92,13 @@ export async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+export async function logoutOnServer(): Promise<void> {
+  await axios.post(`${API_BASE_URL}${LOGOUT_COOKIE_SCOPED_PATH}`, {}, { withCredentials: true });
+}
+
 export async function logoutUser(): Promise<void> {
   try {
-    const token = useAuthStore.getState().accessToken;
-    if (token) {
-      await apiClient.post('/auth/logout');
-    }
+    await logoutOnServer();
   } catch {
   } finally {
     useAuthStore.getState().logout();

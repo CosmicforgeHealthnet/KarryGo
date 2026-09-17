@@ -2,236 +2,214 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
+  ArrowLeft,
   Search,
-  MapPin,
-  Truck,
-  Users,
   CheckCircle2,
   XCircle,
   AlertCircle,
   SlidersHorizontal,
   UserCheck,
-  Shield,
-  Star,
+  User,
   X,
-  ChevronUp,
-  ChevronDown,
 } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
+import { marketplaceService } from "@/lib/services/marketplaceService";
+import type {
+  CorporateCandidate,
+  CorporateOfferDetail,
+} from "@/lib/types/marketplace";
 
-type Candidate = {
-  id: string;
-  name: string;
-  type: "Provider" | "Asset";
-  service: "Dispatch" | "Hauling";
-  branch: string;
-  status: "Eligible" | "Warning" | "Blocked";
-  assignedAsset?: string;
-  reason: string;
-  rating: number;
-  completedJobs: number;
-  availability: "Available" | "Busy" | "Offline";
-  distance: string;
-  eta: string;
-};
+// ---------------------------------------------------------------------------
+// Presentation helpers
+// ---------------------------------------------------------------------------
 
-const CANDIDATES: Candidate[] = [
-  {
-    id: "P-044",
-    name: "Peter Okafor",
-    type: "Provider",
-    service: "Dispatch",
-    branch: "Ikeja",
-    status: "Eligible",
-    assignedAsset: "Bike BR-88",
-    reason: "Eligible - all requirements met",
-    rating: 4.8,
-    completedJobs: 342,
-    availability: "Available",
-    distance: "0.8 km",
-    eta: "3 min",
-  },
-  {
-    id: "P-052",
-    name: "Amina Yusuf",
-    type: "Provider",
-    service: "Dispatch",
-    branch: "Ikeja",
-    status: "Warning",
-    assignedAsset: "Bike BR-71",
-    reason: "Training due in 3 days",
-    rating: 4.6,
-    completedJobs: 178,
-    availability: "Available",
-    distance: "1.2 km",
-    eta: "5 min",
-  },
-  {
-    id: "P-038",
-    name: "Musa Bello",
-    type: "Provider",
-    service: "Hauling",
-    branch: "Ikeja",
-    status: "Blocked",
-    assignedAsset: "Van VN-04",
-    reason: "Safety block - inspection required",
-    rating: 4.2,
-    completedJobs: 89,
-    availability: "Busy",
-    distance: "2.5 km",
-    eta: "N/A",
-  },
-  {
-    id: "P-061",
-    name: "Chinedu Uche",
-    type: "Provider",
-    service: "Dispatch",
-    branch: "Lekki",
-    status: "Eligible",
-    assignedAsset: "Bike BR-20",
-    reason: "Eligible - all requirements met",
-    rating: 4.9,
-    completedJobs: 512,
-    availability: "Available",
-    distance: "1.8 km",
-    eta: "4 min",
-  },
-  {
-    id: "P-029",
-    name: "Kabiru Ahmed",
-    type: "Provider",
-    service: "Hauling",
-    branch: "Apapa",
-    status: "Warning",
-    assignedAsset: "Truck TR-12",
-    reason: "Document expiry in 2 days",
-    rating: 4.4,
-    completedJobs: 234,
-    availability: "Offline",
-    distance: "3.4 km",
-    eta: "N/A",
-  },
-  {
-    id: "BR-204",
-    name: "Honda ACE 110",
-    type: "Asset",
-    service: "Dispatch",
-    branch: "Ikeja",
-    status: "Blocked",
-    reason: "Safety block - failed inspection",
-    rating: 0,
-    completedJobs: 0,
-    availability: "Busy",
-    distance: "0.5 km",
-    eta: "N/A",
-  },
-];
+function serviceLabel(sourceService: string): string {
+  switch (sourceService) {
+    case "DISPATCH":
+      return "Dispatch";
+    case "TAXI":
+      return "Taxi";
+    case "HAULING":
+      return "Hauling";
+    default:
+      return sourceService || "—";
+  }
+}
 
-const STATUS_STYLES = {
-  Eligible: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: CheckCircle2 },
-  Warning: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: AlertCircle },
-  Blocked: { bg: "bg-red-bg", text: "text-red", dot: "bg-red", icon: XCircle },
-};
+// Reason codes come from the backend eligibility check. Turn the raw code into
+// a short, human-readable phrase. Unknown codes are shown as-is rather than
+// hidden — an operator can then search the code.
+function reasonLabel(reason: string | undefined): string {
+  if (!reason) return "";
+  switch (reason) {
+    case "eligibility_unavailable":
+      return "Eligibility check unavailable";
+    case "PROVIDER_NOT_ELIGIBLE":
+      return "Provider not eligible";
+    case "PROVIDER_MEMBERSHIP_NOT_ACTIVE":
+      return "Membership not active";
+    case "PROVIDER_ASSOCIATION_PENDING":
+      return "Association pending";
+    case "PROVIDER_PROVISIONING_INCOMPLETE":
+      return "Provisioning incomplete";
+    case "PROVIDER_SHIFT_INVALID":
+      return "No valid shift";
+    case "SOURCE_SERVICE_UNAVAILABLE":
+      return "Source service unavailable";
+    case "VEHICLE_NOT_ELIGIBLE":
+      return "Vehicle not eligible";
+    case "PROVIDER_HAS_CONFLICTING_WORK":
+      return "Already on other work";
+    default:
+      return reason;
+  }
+}
 
-const AVAILABILITY_STYLES = {
-  Available: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
-  Busy: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber" },
-  Offline: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400" },
-};
-
-type SortField = "status" | "distance" | "rating" | "name";
-type SortDirection = "asc" | "desc";
-
-const STATUS_ORDER = { Eligible: 0, Warning: 1, Blocked: 2 };
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function CandidatesPage() {
   const params = useParams();
-  const offerId = params.offerId as string;
+  const offerId = typeof params.offerId === "string" ? params.offerId : "";
+
+  const [offer, setOffer] = useState<CorporateOfferDetail | null>(null);
+  const [candidates, setCandidates] = useState<CorporateCandidate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [selectedEligibility, setSelectedEligibility] = useState<
+    "all" | "eligible" | "ineligible"
+  >("all");
   const [showFilters, setShowFilters] = useState(false);
-  const [sortField, setSortField] = useState<SortField>("status");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!offerId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-  const filtered = CANDIDATES.filter((c) => {
-    const matchesSearch =
-      search.trim() === "" ||
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.id.toLowerCase().includes(search.toLowerCase());
+    marketplaceService
+      .getOffer(offerId)
+      .then((detail) => {
+        if (cancelled) return null;
+        setOffer(detail);
+        return marketplaceService.listCandidates(detail.offer.requestProjectionId);
+      })
+      .then((list) => {
+        if (cancelled || !list) return;
+        setCandidates(list);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const status = err?.response?.status;
+        if (status === 404) {
+          setError("Offer not found.");
+        } else {
+          const message =
+            err?.response?.data?.error?.message ??
+            err?.message ??
+            "Failed to load candidates.";
+          setError(message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-    const matchesStatus = selectedStatus === null || c.status === selectedStatus;
-    const matchesService = selectedService === null || c.service === selectedService;
+    return () => {
+      cancelled = true;
+    };
+  }, [offerId]);
 
-    return matchesSearch && matchesStatus && matchesService;
-  });
+  const eligibleCount = useMemo(
+    () => candidates.filter((c) => c.eligible).length,
+    [candidates],
+  );
+  const ineligibleCount = useMemo(
+    () => candidates.filter((c) => !c.eligible).length,
+    [candidates],
+  );
 
-  const sorted = [...filtered].sort((a, b) => {
-    let aVal: string | number = a[sortField];
-    let bVal: string | number = b[sortField];
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return candidates.filter((c) => {
+      if (selectedEligibility === "eligible" && !c.eligible) return false;
+      if (selectedEligibility === "ineligible" && c.eligible) return false;
+      if (q === "") return true;
+      const haystack = [c.membershipId, c.providerId, c.serviceCategory]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [candidates, search, selectedEligibility]);
 
-    if (sortField === "status") {
-      aVal = STATUS_ORDER[a.status as keyof typeof STATUS_ORDER];
-      bVal = STATUS_ORDER[b.status as keyof typeof STATUS_ORDER];
-    } else if (sortField === "distance") {
-      aVal = parseFloat(a.distance);
-      bVal = parseFloat(b.distance);
-    } else if (sortField === "rating") {
-      aVal = a.rating;
-      bVal = b.rating;
-    }
-
-    if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-    if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
-    return 0;
-  });
-
-  const eligibleCount = CANDIDATES.filter((c) => c.status === "Eligible").length;
-  const warningCount = CANDIDATES.filter((c) => c.status === "Warning").length;
-  const blockedCount = CANDIDATES.filter((c) => c.status === "Blocked").length;
-
-  const hasActiveFilters = selectedStatus !== null || selectedService !== null || search !== "";
-
+  const hasActiveFilters = selectedEligibility !== "all" || search !== "";
   const clearFilters = () => {
     setSearch("");
-    setSelectedStatus(null);
-    setSelectedService(null);
+    setSelectedEligibility("all");
   };
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  };
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ChevronUp className="h-3 w-3 text-ink-300" />;
-    return sortDirection === "asc" ? (
-      <ChevronUp className="h-3 w-3 text-primary" />
-    ) : (
-      <ChevronDown className="h-3 w-3 text-primary" />
-    );
-  };
-
+  // ---- Loading skeleton ----
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1400px] py-12">
-        <div className="flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="ml-3">Loading candidates...</p>
+      <div className="mx-auto max-w-[1400px] space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg border border-line bg-surface" />
+            <div>
+              <div className="h-5 w-52 rounded bg-surface-2" />
+              <div className="mt-1.5 h-3 w-32 rounded bg-surface-2" />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-line bg-surface p-4"
+            >
+              <div className="h-3 w-20 rounded bg-surface-2" />
+              <div className="mt-3 h-8 w-12 rounded bg-surface-2" />
+            </div>
+          ))}
+        </div>
+        <div className="rounded-lg border border-line bg-surface p-16">
+          <div className="mx-auto h-4 w-40 rounded bg-surface-2" />
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Error / not-found ----
+  if (error || !offer) {
+    return (
+      <div className="mx-auto max-w-[1400px] space-y-5">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/operations/marketplace"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-ink-600 transition-colors hover:bg-surface-2 hover:text-ink-900"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div>
+            <h1>Eligible candidates</h1>
+            <p className="font-mono text-sm text-ink-500">{offerId}</p>
+          </div>
+        </div>
+        <div className="rounded-lg border border-line bg-surface">
+          <EmptyState
+            image="/images/trips-empty.png"
+            title={error ?? "Offer not found"}
+            description="This offer may have expired, been cancelled, or been accepted by another organization."
+            actionHref="/operations/marketplace"
+            actionLabel="Back to marketplace"
+          />
         </div>
       </div>
     );
@@ -241,60 +219,59 @@ export default function CandidatesPage() {
     <div className="mx-auto max-w-[1400px] space-y-5">
       {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1>Eligible candidates</h1>
-          <p className="mt-1.5">
-            Eligible providers and assets for offer <span className="font-mono text-ink-800">{offerId}</span>
-          </p>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/operations/marketplace/${offerId}`}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-ink-600 transition-colors hover:bg-surface-2 hover:text-ink-900"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div>
+            <h1>Eligible candidates</h1>
+            <p className="mt-1.5 text-sm text-ink-500">
+              Providers eligible for{" "}
+              <span className="font-mono text-ink-800">{offer.offer.offerId}</span>
+              {" · "}
+              {serviceLabel(offer.offer.sourceService)}
+            </p>
+          </div>
         </div>
-        <Link
-          href={`/operations/marketplace/${offerId}/assign`}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover whitespace-nowrap"
-        >
-          <UserCheck className="h-3.5 w-3.5" />
-          Assign
-        </Link>
       </div>
 
       {/* ── Stats cards ── */}
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
-        <div className="rounded-lg border border-line bg-white p-4 transition-colors hover:border-ink-300">
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+        <div className="rounded-lg border border-line bg-surface p-4 transition-colors hover:border-ink-400">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-bg text-green">
               <CheckCircle2 className="h-[18px] w-[18px]" />
             </div>
-            <span className="text-xs font-semibold text-ink-600">Eligible</span>
+            <span className="text-xs font-semibold text-ink-600">
+              Eligible
+            </span>
           </div>
-          <div className="mt-3 font-display text-3xl font-bold tracking-[-0.02em] text-ink-950">{eligibleCount}</div>
-          <p className="mt-1.5 text-xs text-ink-500">Ready for assignment</p>
+          <div className="mt-3 font-display text-3xl font-bold tracking-[-0.02em] text-ink-950">
+            {eligibleCount}
+          </div>
         </div>
 
-        <div className="rounded-lg border border-line bg-white p-4 transition-colors hover:border-ink-300">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-bg text-amber">
-              <AlertCircle className="h-[18px] w-[18px]" />
-            </div>
-            <span className="text-xs font-semibold text-ink-600">Warnings</span>
-          </div>
-          <div className="mt-3 font-display text-3xl font-bold tracking-[-0.02em] text-ink-950">{warningCount}</div>
-          <p className="mt-1.5 text-xs text-ink-500">Requires review</p>
-        </div>
-
-        <div className="rounded-lg border border-line bg-white p-4 transition-colors hover:border-ink-300">
+        <div className="rounded-lg border border-line bg-surface p-4 transition-colors hover:border-ink-400">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-bg text-red">
               <XCircle className="h-[18px] w-[18px]" />
             </div>
-            <span className="text-xs font-semibold text-ink-600">Blocked</span>
+            <span className="text-xs font-semibold text-ink-600">
+              Ineligible
+            </span>
           </div>
-          <div className="mt-3 font-display text-3xl font-bold tracking-[-0.02em] text-ink-950">{blockedCount}</div>
-          <p className="mt-1.5 text-xs text-ink-500">Cannot be assigned</p>
+          <div className="mt-3 font-display text-3xl font-bold tracking-[-0.02em] text-ink-950">
+            {ineligibleCount}
+          </div>
         </div>
       </div>
 
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-white px-3 sm:max-w-xs">
+        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:max-w-xs">
           <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-500" />
           <input
             value={search}
@@ -304,27 +281,19 @@ export default function CandidatesPage() {
           />
         </div>
 
-        <div className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-700 whitespace-nowrap">
-          <MapPin className="h-3.5 w-3.5 text-ink-400" />
-          {selectedStatus || "All status"}
-          <span className="text-ink-300">·</span>
-          <Truck className="h-3.5 w-3.5 text-ink-400" />
-          {selectedService || "All services"}
-        </div>
-
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors whitespace-nowrap ${
-            showFilters || selectedStatus !== null || selectedService !== null
+            showFilters || selectedEligibility !== "all"
               ? "border-primary bg-primary-bg text-primary"
-              : "border-line bg-white text-ink-700 hover:bg-surface-2"
+              : "border-line bg-surface text-ink-700 hover:bg-surface-2"
           }`}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           Filters
-          {(selectedStatus !== null || selectedService !== null) && (
+          {selectedEligibility !== "all" && (
             <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-white">
-              {(selectedStatus !== null ? 1 : 0) + (selectedService !== null ? 1 : 0)}
+              1
             </span>
           )}
         </button>
@@ -332,55 +301,46 @@ export default function CandidatesPage() {
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-500 hover:bg-surface-2 transition-colors whitespace-nowrap"
+            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink-500 hover:bg-surface-2 transition-colors whitespace-nowrap"
           >
             <X className="h-3.5 w-3.5" />
             Clear
           </button>
         )}
 
-        <span className="ml-auto text-sm text-ink-500 whitespace-nowrap">{sorted.length} candidates</span>
+        <span className="ml-auto text-sm text-ink-500 whitespace-nowrap">
+          {filtered.length} candidates
+        </span>
       </div>
 
       {/* ── Filter drawer ── */}
       {showFilters && (
-        <div className="rounded-lg border border-line bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <div className="flex flex-wrap items-center gap-6">
             <div>
-              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Status</span>
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">
+                Eligibility
+              </span>
               <div className="flex flex-wrap gap-1.5">
-                {["Eligible", "Warning", "Blocked"].map((status) => {
-                  const style = STATUS_STYLES[status as keyof typeof STATUS_STYLES];
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => setSelectedStatus(selectedStatus === status ? null : status)}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
-                        selectedStatus === status
-                          ? `${style.bg} ${style.text}`
-                          : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Service</span>
-              <div className="flex flex-wrap gap-1.5">
-                {["Dispatch", "Hauling"].map((service) => (
+                {[
+                  { value: "all", label: "All" },
+                  { value: "eligible", label: "Eligible" },
+                  { value: "ineligible", label: "Ineligible" },
+                ].map((option) => (
                   <button
-                    key={service}
-                    onClick={() => setSelectedService(selectedService === service ? null : service)}
+                    key={option.value}
+                    onClick={() =>
+                      setSelectedEligibility(
+                        option.value as "all" | "eligible" | "ineligible",
+                      )
+                    }
                     className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
-                      selectedService === service
-                        ? "bg-primary-bg text-primary"
+                      selectedEligibility === option.value
+                        ? "bg-primary text-white"
                         : "bg-surface-2 text-ink-600 hover:bg-surface-3"
                     }`}
                   >
-                    {service}
+                    {option.label}
                   </button>
                 ))}
               </div>
@@ -396,120 +356,125 @@ export default function CandidatesPage() {
       )}
 
       {/* ── Table ── */}
-      <div className="overflow-x-auto rounded-lg border border-line bg-white">
-        <table className="w-full min-w-[900px] border-collapse text-left">
-          <thead>
-            <tr className="border-b border-line bg-surface-1">
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("name")} className="flex items-center gap-1 hover:text-ink-700">
-                  Candidate <SortIcon field="name" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">Type</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("status")} className="flex items-center gap-1 hover:text-ink-700">
-                  Status <SortIcon field="status" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("distance")} className="flex items-center gap-1 hover:text-ink-700">
-                  Distance <SortIcon field="distance" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
-                <button onClick={() => handleSort("rating")} className="flex items-center gap-1 hover:text-ink-700">
-                  Rating <SortIcon field="rating" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">Availability</th>
-              <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 text-right whitespace-nowrap">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-ink-500">
-                  <div className="flex flex-col items-center gap-2">
-                    <Users className="h-8 w-8 text-ink-300" />
-                    <p className="font-medium">No candidates match your filters</p>
-                    <button onClick={clearFilters} className="text-sm text-primary hover:underline">
-                      Clear filters
-                    </button>
-                  </div>
-                </td>
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+        {candidates.length === 0 ? (
+          <EmptyState
+            image="/images/vehicles-empty.png"
+            title="No eligible candidates"
+            description="There are no provider memberships available for this request right now."
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            image="/images/vehicles-empty.png"
+            title="No candidates match your filters"
+            description="Try adjusting your search or clearing the filters."
+            action={
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center justify-center rounded-lg bg-primary-bg px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+              >
+                Clear filters
+              </button>
+            }
+          />
+        ) : (
+          <table className="w-full min-w-[900px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-line bg-surface-2">
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Candidate
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Provider ID
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Service
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Eligibility
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 text-right whitespace-nowrap">
+                  Action
+                </th>
               </tr>
-            ) : (
-              sorted.map((c) => {
-                const statusStyle = STATUS_STYLES[c.status];
-                const StatusIcon = statusStyle.icon;
-                const availabilityStyle = AVAILABILITY_STYLES[c.availability];
-                const isEligible = c.status === "Eligible";
-
-                return (
-                  <tr key={c.id} className="border-b border-line transition-colors hover:bg-surface-1/50">
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`flex h-9 w-9 items-center justify-center rounded-md ${statusStyle.bg} ${statusStyle.text} flex-shrink-0`}>
-                          {c.type === "Provider" ? <Users className="h-[18px] w-[18px]" /> : <Truck className="h-[18px] w-[18px]" />}
-                        </div>
-                        <div>
-                          <span className="font-semibold text-ink-950">{c.name}</span>
-                          <div className="font-mono text-[10px] text-ink-400">{c.id}</div>
+            </thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr
+                  key={c.membershipId}
+                  className="border-b border-line transition-colors hover:bg-surface-2"
+                >
+                  <td className="px-4 py-3.5 whitespace-nowrap">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`flex h-9 w-9 items-center justify-center rounded-md flex-shrink-0 ${
+                          c.eligible
+                            ? "bg-green-bg text-green"
+                            : "bg-red-bg text-red"
+                        }`}
+                      >
+                        <User className="h-[18px] w-[18px]" />
+                      </div>
+                      <div>
+                        <span className="font-mono text-sm font-semibold text-ink-950">
+                          {c.membershipId}
+                        </span>
+                        <div className="text-[10px] text-ink-400">
+                          Membership
                         </div>
                       </div>
-                    </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">{c.type}</td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 font-mono text-sm text-ink-700 whitespace-nowrap">
+                    {c.providerId || "—"}
+                  </td>
+                  <td className="px-4 py-3.5 whitespace-nowrap">
+                    {serviceLabel(c.serviceCategory)}
+                  </td>
+                  <td className="px-4 py-3.5 whitespace-nowrap">
+                    {c.eligible ? (
                       <div className="flex items-center gap-1.5">
-                        <StatusIcon className={`h-3.5 w-3.5 ${statusStyle.text} flex-shrink-0`} />
-                        <span className={`font-semibold ${statusStyle.text}`}>{c.status}</span>
+                        <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-green" />
+                        <span className="font-semibold text-green">
+                          Eligible
+                        </span>
                       </div>
-                      <div className="text-xs text-ink-500">{c.reason}</div>
-                    </td>
-                    <td className="px-4 py-3.5 font-mono font-medium text-ink-700 whitespace-nowrap">{c.distance}</td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      {c.type === "Provider" ? (
-                        <div className="flex items-center gap-1 whitespace-nowrap">
-                          <Star className="h-3.5 w-3.5 fill-amber text-amber flex-shrink-0" />
-                          <span className="font-semibold text-ink-950">{c.rating}</span>
-                          <span className="text-xs text-ink-500">({c.completedJobs} jobs)</span>
-                        </div>
-                      ) : (
-                        <span className="text-ink-500">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        <span className={`h-1.5 w-1.5 rounded-full ${availabilityStyle.dot} flex-shrink-0`} />
-                        <span className={`font-medium ${availabilityStyle.text}`}>{c.availability}</span>
-                        {c.eta !== "N/A" && <span className="text-xs text-ink-500">· {c.eta}</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-2">
-                        <button className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface-2 transition-colors">
-                          <Shield className="h-3.5 w-3.5" />
-                        </button>
-                        {isEligible ? (
-                          <Link
-                            href={`/operations/marketplace/${offerId}/assign?candidate=${c.id}`}
-                            className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover transition-colors whitespace-nowrap"
-                          >
-                            Select
-                          </Link>
-                        ) : (
-                          <span className="rounded-md bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-400 cursor-not-allowed whitespace-nowrap">
-                            Blocked
+                    ) : (
+                      <div className="flex items-start gap-1.5">
+                        <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-red" />
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-red">
+                            Ineligible
                           </span>
-                        )}
+                          {c.reason && (
+                            <span className="text-xs text-ink-500">
+                              {reasonLabel(c.reason)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                    )}
+                  </td>
+                  <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                    {c.eligible ? (
+                      <Link
+                        href={`/operations/marketplace/${offerId}/assign?membershipId=${encodeURIComponent(c.membershipId)}`}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover whitespace-nowrap"
+                      >
+                        <UserCheck className="h-3.5 w-3.5" />
+                        Select
+                      </Link>
+                    ) : (
+                      <span className="rounded-md bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-400 cursor-not-allowed whitespace-nowrap">
+                        Unavailable
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

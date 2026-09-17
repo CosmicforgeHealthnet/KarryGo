@@ -2,14 +2,12 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  MapPin,
   Truck,
   Package,
   Clock,
-  CheckCircle2,
   AlertCircle,
   Navigation,
   Users,
@@ -17,107 +15,283 @@ import {
   SlidersHorizontal,
   X,
   Search,
-  ChevronDown,
-  Map,
-  List,
   Gauge,
   Activity,
-  Radio,
   Wifi,
   WifiOff,
   ArrowRight,
-  Bell,
-  LifeBuoy,
+  AlertTriangle,
 } from "lucide-react";
-import { CONTROL_TOWER_DATA } from "@/lib/mock-control-tower-data";
+import EmptyState from "@/components/EmptyState";
+import { controlTowerService } from "@/lib/services/controlTowerService";
+import type {
+  Board,
+  RoutePlan,
+  TrackingProjection,
+  UnassignedWork,
+  PendingAssignmentRow,
+} from "@/lib/types/controlTower";
 
-type ActiveWork = {
+// ---------------------------------------------------------------------------
+// Row model — one shape across the five arrays
+//
+// The backend returns five different arrays; the page shows one list. Each
+// item keeps its array of origin in `type` so the dispatcher can tell them
+// apart, and each carries only the fields the backend provides for that
+// array.
+// ---------------------------------------------------------------------------
+
+type RowKind = "Trip" | "Route" | "Assignment" | "Unassigned";
+
+type Row = {
   id: string;
-  type: "Trip" | "Assignment" | "Route";
-  provider: string;
-  asset: string;
-  service: "Dispatch" | "Hauling";
-  branch: string;
-  status: "Active" | "Idle" | "Exception" | "Completed";
-  location: string;
-  lastUpdated: string;
-  progress: number;
-  eta: string;
-  isLive: boolean;
-  signal: "strong" | "medium" | "weak";
+  kind: RowKind;
+  /** Free-form sub-label from the source array. */
+  subtitle: string;
+  /** The provider or owner id, when the source has one. */
+  providerId?: string;
+  vehicleOrTruckReference?: string;
+  /** Status enum, rendered as a pill. */
+  status: string;
+  /** Where in the workflow, when the source has a status-like field. */
+  statusLabel?: string;
+  /** When this row was last updated, when the source carries it. */
+  updatedAt?: string;
+  /** Freshness / availability signal, when the source carries it. */
+  signal?: "fresh" | "aging" | "stale" | "unknown";
+  /** Detail link, when the row has a page to go to. */
+  href?: string;
 };
 
-const STATUS_STYLES = {
-  Active: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
-  Idle: { bg: "bg-primary-bg", text: "text-primary", dot: "bg-primary" },
-  Exception: { bg: "bg-red-bg", text: "text-red", dot: "bg-red" },
-  Completed: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400" },
+function freshnessToSignal(freshness: string): Row["signal"] {
+  switch ((freshness || "").toUpperCase()) {
+    case "FRESH":
+      return "fresh";
+    case "AGING":
+      return "aging";
+    case "STALE":
+      return "stale";
+    default:
+      return "unknown";
+  }
+}
+
+function tripToRow(t: TrackingProjection): Row {
+  return {
+    id: t.canonicalTripReference,
+    kind: "Trip",
+    subtitle: t.sourceService,
+    providerId: t.providerId || undefined,
+    vehicleOrTruckReference: t.vehicleOrTruckReference || undefined,
+    status: t.operationalStatus || "UNKNOWN",
+    statusLabel: t.operationalStatus || "Unknown",
+    updatedAt: t.receivedAt,
+    signal: freshnessToSignal(t.freshnessStatus),
+    href: `/operations/trips/${encodeURIComponent(t.canonicalTripReference)}`,
+  };
+}
+
+function routeToRow(r: RoutePlan): Row {
+  return {
+    id: r.routeReference || r.id,
+    kind: "Route",
+    subtitle: r.executionService,
+    providerId: r.providerId || undefined,
+    vehicleOrTruckReference: r.vehicleOrTruckReference || undefined,
+    status: r.status,
+    statusLabel: r.status,
+    updatedAt: r.updatedAt,
+    href: `/operations/routes/${encodeURIComponent(r.id)}`,
+  };
+}
+
+function assignmentToRow(a: PendingAssignmentRow): Row {
+  return {
+    id: a.id,
+    kind: "Assignment",
+    subtitle: a.executionService,
+    providerId: a.providerId || undefined,
+    vehicleOrTruckReference: a.vehicleOrTruckReference || undefined,
+    status: a.status,
+    statusLabel: a.status,
+    updatedAt: a.responseDeadline,
+    href: `/operations/assignments/${encodeURIComponent(a.id)}`,
+  };
+}
+
+function unassignedToRow(u: UnassignedWork): Row {
+  return {
+    id: u.id,
+    kind: "Unassigned",
+    subtitle: u.sourceType,
+    status: u.status,
+    statusLabel: u.status,
+    href: undefined, // no page for the source record yet
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Style mappings
+// ---------------------------------------------------------------------------
+
+type Tone = "blue" | "green" | "amber" | "red" | "gray";
+
+const TONE_BG: Record<Tone, string> = {
+  blue: "bg-primary-bg text-primary",
+  green: "bg-green-bg text-green",
+  amber: "bg-amber-bg text-amber",
+  red: "bg-red-bg text-red",
+  gray: "bg-surface-2 text-ink-500",
 };
 
-const SIGNAL_STYLES = {
-  strong: { icon: Wifi, color: "text-green" },
-  medium: { icon: Wifi, color: "text-amber" },
-  weak: { icon: WifiOff, color: "text-red" },
+function statusTone(status: string): Tone {
+  const s = (status || "").toUpperCase();
+  if (
+    s.includes("COMPLETED") ||
+    s === "ACCEPTED" ||
+    s === "READY_FOR_EXECUTION" ||
+    s === "IN_PROGRESS" ||
+    s === "PUBLISHED" ||
+    s === "FRESH"
+  ) {
+    return "green";
+  }
+  if (s === "PENDING_PROVIDER_RESPONSE" || s === "PENDING" || s === "AGING") {
+    return "amber";
+  }
+  if (
+    s === "DECLINED" ||
+    s === "EXPIRED" ||
+    s === "CANCELLED" ||
+    s === "FAILED" ||
+    s === "STALE" ||
+    s === "BLOCKED"
+  ) {
+    return "red";
+  }
+  if (s === "EN_ROUTE" || s === "ASSIGNED") return "blue";
+  return "gray";
+}
+
+const KIND_BG: Record<RowKind, string> = {
+  Trip: "bg-primary-bg text-primary",
+  Route: "bg-amber-bg text-amber",
+  Assignment: "bg-green-bg text-green",
+  Unassigned: "bg-red-bg text-red",
 };
 
-const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
-const STATUS_FILTERS = ["All", "Active", "Idle", "Exception", "Completed"];
+const SIGNAL_ICON = {
+  fresh: { Icon: Wifi, color: "text-green" },
+  aging: { Icon: Wifi, color: "text-amber" },
+  stale: { Icon: WifiOff, color: "text-red" },
+  unknown: { Icon: Wifi, color: "text-ink-400" },
+} as const;
+
+function timeAgo(iso: string | undefined): string {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "—";
+  const sec = Math.max(1, Math.floor((Date.now() - t) / 1000));
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return `${day}d ago`;
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function ControlTowerPage() {
+  const [board, setBoard] = useState<Board | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"map" | "list">("list");
+  const [error, setError] = useState<string | null>(null);
+
   const [search, setSearch] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [kindFilter, setKindFilter] = useState<"All" | RowKind>("All");
   const [showFilters, setShowFilters] = useState(false);
-  const [data, setData] = useState<ActiveWork[]>([]);
 
   useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(CONTROL_TOWER_DATA);
-      setLoading(false);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    controlTowerService
+      .getBoard({ limit: 200 })
+      .then((data) => {
+        if (!cancelled) setBoard(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const message =
+          err?.response?.data?.error?.message ??
+          err?.message ??
+          "Failed to load control tower.";
+        setError(message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-    loadData();
   }, []);
 
-  const filteredData = data.filter((item) => {
-    const matchesSearch =
-      search.trim() === "" ||
-      item.id.toLowerCase().includes(search.toLowerCase()) ||
-      item.provider.toLowerCase().includes(search.toLowerCase()) ||
-      item.asset.toLowerCase().includes(search.toLowerCase());
+  const rows: Row[] = useMemo(() => {
+    if (!board) return [];
+    return [
+      ...board.activeTrips.map(tripToRow),
+      ...board.activeRoutes.map(routeToRow),
+      ...board.pendingAssignments.map(assignmentToRow),
+      ...board.acceptedAssignments.map(assignmentToRow),
+      ...board.unassigned.map(unassignedToRow),
+    ];
+  }, [board]);
 
-    const matchesBranch =
-      selectedBranch === "All branches" || item.branch === selectedBranch;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (kindFilter !== "All" && r.kind !== kindFilter) return false;
+      if (q === "") return true;
+      const haystack = [
+        r.id,
+        r.subtitle,
+        r.providerId ?? "",
+        r.vehicleOrTruckReference ?? "",
+        r.status,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [rows, search, kindFilter]);
 
-    const matchesStatus = statusFilter === "All" || item.status === statusFilter;
+  // Real counts from real arrays. No invented percentages.
+  const counts = useMemo(() => {
+    if (!board) {
+      return { active: 0, idle: 0, exceptions: 0, unassigned: 0 };
+    }
+    const active = board.activeTrips.length + board.activeRoutes.length;
+    const idle = board.providerAvailability.length;
+    const exceptions = board.alerts.filter(
+      (a) =>
+        a.status === "OPEN" ||
+        a.status === "ACKNOWLEDGED" ||
+        a.status === "IN_PROGRESS",
+    ).length;
+    const unassigned = board.unassigned.length;
+    return { active, idle, exceptions, unassigned };
+  }, [board]);
 
-    return matchesSearch && matchesBranch && matchesStatus;
-  });
-
-  const activeCount = data.filter((d) => d.status === "Active").length;
-  const exceptionCount = data.filter((d) => d.status === "Exception").length;
-  const idleCount = data.filter((d) => d.status === "Idle").length;
-
-  const hasActiveFilters = statusFilter !== "All" || selectedBranch !== "All branches" || search !== "";
-
+  const hasActiveFilters = kindFilter !== "All" || search !== "";
   const clearFilters = () => {
-    setStatusFilter("All");
-    setSelectedBranch("All branches");
     setSearch("");
+    setKindFilter("All");
   };
-
-  if (loading) {
-    return (
-      <div className="py-12">
-        <div className="flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <span className="ml-3 text-sm text-ink-600">Loading control tower...</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-5">
@@ -125,110 +299,83 @@ export default function ControlTowerPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1>Control Tower</h1>
-          <p className="mt-1.5">Live operational view of all active work, provider locations, and exceptions.</p>
-        </div>
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Link
-            href="/operations/alerts"
-            className="flex h-10 items-center gap-1.5 rounded-lg bg-amber px-3.5 text-sm font-semibold text-white transition-colors hover:bg-amber/90"
-          >
-            <Bell className="h-3.5 w-3.5" />
-            Alerts
-          </Link>
-
-          <Link
-            href="/operations/control-tower/exceptions"
-            className="flex h-10 items-center gap-1.5 rounded-lg bg-red px-3.5 text-sm font-semibold text-white transition-colors hover:bg-red/90"
-          >
-            <AlertCircle className="h-3.5 w-3.5" />
-            {exceptionCount} exceptions
-          </Link>
-
-          <div className="flex rounded-lg border border-line bg-white p-0.5">
-            <button
-              onClick={() => setViewMode("list")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                viewMode === "list"
-                  ? "bg-primary text-white"
-                  : "text-ink-600 hover:bg-surface-2"
-              }`}
-            >
-              <List className="h-3.5 w-3.5" />
-              List
-            </button>
-            <button
-              onClick={() => setViewMode("map")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                viewMode === "map"
-                  ? "bg-primary text-white"
-                  : "text-ink-600 hover:bg-surface-2"
-              }`}
-            >
-              <Map className="h-3.5 w-3.5" />
-              Map
-            </button>
-          </div>
+          <p className="mt-1.5">
+            Live operational view of active work, provider availability, and
+            exceptions.
+          </p>
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-red/20 bg-red-bg px-4 py-2 text-sm text-red">
+          {error}
+        </div>
+      )}
+
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
-        <div className="rounded-lg border border-line bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-bg text-green">
               <Activity className="h-[18px] w-[18px]" />
             </div>
             <span className="text-xs font-semibold text-ink-600">Active</span>
           </div>
-          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">{activeCount}</div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">
+            {counts.active}
+          </div>
         </div>
-        <div className="rounded-lg border border-line bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-bg text-primary">
               <Clock className="h-[18px] w-[18px]" />
             </div>
-            <span className="text-xs font-semibold text-ink-600">Idle</span>
+            <span className="text-xs font-semibold text-ink-600">
+              Available providers
+            </span>
           </div>
-          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">{idleCount}</div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">
+            {counts.idle}
+          </div>
         </div>
-        <div className="rounded-lg border border-red/20 bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-bg text-red">
               <AlertCircle className="h-[18px] w-[18px]" />
             </div>
-            <span className="text-xs font-semibold text-ink-600">Exceptions</span>
+            <span className="text-xs font-semibold text-ink-600">
+              Exceptions
+            </span>
           </div>
-          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-red">{exceptionCount}</div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-red">
+            {counts.exceptions}
+          </div>
         </div>
-        <div className="rounded-lg border border-line bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-bg text-primary">
-              <Gauge className="h-[18px] w-[18px]" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-bg text-amber">
+              <AlertTriangle className="h-[18px] w-[18px]" />
             </div>
-            <span className="text-xs font-semibold text-ink-600">Utilization</span>
+            <span className="text-xs font-semibold text-ink-600">
+              Unassigned work
+            </span>
           </div>
-          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-ink-950">84%</div>
+          <div className="mt-3 font-display text-[26px] font-bold tracking-[-0.02em] text-amber">
+            {counts.unassigned}
+          </div>
         </div>
       </div>
 
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-white px-3 sm:max-w-xs">
+        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:max-w-xs">
           <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-500" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by ID, provider, or asset..."
+            placeholder="Search by ID, provider, or vehicle..."
             className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-500"
           />
-        </div>
-
-        <div className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-700 whitespace-nowrap">
-          <MapPin className="h-3.5 w-3.5 text-ink-400" />
-          {selectedBranch}
-          <span className="text-ink-300">·</span>
-          <span className="text-ink-400">Status:</span>
-          {statusFilter}
         </div>
 
         <button
@@ -236,14 +383,14 @@ export default function ControlTowerPage() {
           className={`flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors whitespace-nowrap ${
             showFilters || hasActiveFilters
               ? "border-primary bg-primary-bg text-primary"
-              : "border-line bg-white text-ink-700 hover:bg-surface-2"
+              : "border-line bg-surface text-ink-700 hover:bg-surface-2"
           }`}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           Filters
-          {(statusFilter !== "All" || selectedBranch !== "All branches") && (
+          {kindFilter !== "All" && (
             <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-white">
-              {(statusFilter !== "All" ? 1 : 0) + (selectedBranch !== "All branches" ? 1 : 0)}
+              1
             </span>
           )}
         </button>
@@ -251,7 +398,7 @@ export default function ControlTowerPage() {
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-500 hover:bg-surface-2 transition-colors whitespace-nowrap"
+            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink-500 hover:bg-surface-2 transition-colors whitespace-nowrap"
           >
             <X className="h-3.5 w-3.5" />
             Clear
@@ -259,48 +406,34 @@ export default function ControlTowerPage() {
         )}
 
         <span className="ml-auto text-sm text-ink-500 whitespace-nowrap">
-          {filteredData.length} items
+          {filtered.length} items
         </span>
       </div>
 
       {/* ── Filter drawer ── */}
       {showFilters && (
-        <div className="rounded-lg border border-line bg-white p-4">
+        <div className="rounded-lg border border-line bg-surface p-4">
           <div className="flex flex-wrap items-center gap-6">
             <div>
-              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Status</span>
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">
+                Type
+              </span>
               <div className="flex flex-wrap gap-1.5">
-                {STATUS_FILTERS.map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
-                      statusFilter === status
-                        ? "bg-primary text-white"
-                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Branch</span>
-              <div className="flex flex-wrap gap-1.5">
-                {BRANCHES.map((branch) => (
-                  <button
-                    key={branch}
-                    onClick={() => setSelectedBranch(branch)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
-                      selectedBranch === branch
-                        ? "bg-primary text-white"
-                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                    }`}
-                  >
-                    {branch}
-                  </button>
-                ))}
+                {(["All", "Trip", "Route", "Assignment", "Unassigned"] as const).map(
+                  (k) => (
+                    <button
+                      key={k}
+                      onClick={() => setKindFilter(k)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
+                        kindFilter === k
+                          ? "bg-primary text-white"
+                          : "bg-surface-2 text-ink-600 hover:bg-surface-3"
+                      }`}
+                    >
+                      {k}
+                    </button>
+                  ),
+                )}
               </div>
             </div>
             <button
@@ -313,171 +446,148 @@ export default function ControlTowerPage() {
         </div>
       )}
 
-      {/* ── List View ── */}
-      {viewMode === "list" && (
-        <div className="flex flex-col gap-2.5">
-          {filteredData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line bg-white py-14">
-              <div className="rounded-full bg-surface-2 p-4">
-                <Activity className="h-8 w-8 text-ink-400" />
-              </div>
-              <h3 className="mt-3 text-sm font-semibold text-ink-950">No active work</h3>
-              <p className="mt-1 max-w-sm text-center text-sm text-ink-500">
-                No active work matches your current filters. Try adjusting your search criteria.
-              </p>
-            </div>
-          ) : (
-            filteredData.map((item) => {
-              const statusStyle = STATUS_STYLES[item.status as keyof typeof STATUS_STYLES] || STATUS_STYLES.Idle;
-              const SignalIcon = SIGNAL_STYLES[item.signal]?.icon || Wifi;
-              const signalColor = SIGNAL_STYLES[item.signal]?.color || "text-ink-400";
-              const isException = item.status === "Exception";
-              const isActive = item.status === "Active";
-
-              return (
-                <Link
-                  key={item.id}
-                  href={
-                    item.type === "Trip"
-                      ? `/operations/trips/${item.id}`
-                      : item.type === "Assignment"
-                      ? `/operations/assignments/${item.id}`
-                      : `/operations/routes/${item.id}`
-                  }
-                  className={`flex flex-col gap-2.5 rounded-lg border p-3.5 transition-colors sm:flex-row sm:items-center sm:justify-between ${
-                    isException
-                      ? "border-red/30 bg-red-bg/20 hover:bg-red-bg/30"
-                      : isActive
-                      ? "border-green/20 bg-white hover:bg-surface-2"
-                      : "border-line bg-white hover:bg-surface-2"
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-ink-950">{item.id}</span>
-                      <span className="font-mono text-[10px] text-ink-400">{item.type}</span>
-                      <span
-                        className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusStyle.bg} ${statusStyle.text}`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
-                        {item.status}
-                      </span>
-                      {item.isLive && (
-                        <span className="flex items-center gap-1 rounded-full bg-green-bg px-2 py-0.5 text-[10px] font-semibold text-green">
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-75" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green" />
-                          </span>
-                          Live
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-500">
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5" />
-                        {item.provider}
-                      </span>
-                      <span className="text-ink-300">·</span>
-                      <span className="flex items-center gap-1">
-                        <Truck className="h-3.5 w-3.5" />
-                        {item.asset}
-                      </span>
-                      <span className="text-ink-300">·</span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {item.branch}
-                      </span>
-                      <span className="text-ink-300">·</span>
-                      <span className="flex items-center gap-1">
-                        <SignalIcon className={`h-3.5 w-3.5 ${signalColor}`} />
-                        {item.location}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-20 rounded-full bg-surface-3 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${item.progress === 100 ? "bg-green" : isException ? "bg-red" : "bg-primary"}`}
-                          style={{ width: `${item.progress}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] font-medium text-ink-500">{item.progress}%</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 text-xs text-ink-600">
-                      <Clock className="h-3.5 w-3.5 text-ink-400" />
-                      <span className="font-medium">{item.eta}</span>
-                    </div>
-
-                    <span className="text-xs font-medium text-ink-400 transition-colors hover:text-primary">
-                      View →
-                    </span>
-                  </div>
-                </Link>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* ── Map View ── */}
-      {viewMode === "map" && (
-        <div className="rounded-lg border border-line bg-white p-8">
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="rounded-full bg-surface-2 p-4">
-              <Map className="h-10 w-10 text-ink-400" />
-            </div>
-            <h3 className="mt-4 text-base font-semibold text-ink-950">Map View</h3>
-            <p className="mt-1.5 max-w-md text-sm text-ink-500">
-              Interactive map showing provider locations, active trips, and exceptions.
-              <br />
-              <span className="text-xs text-ink-400">Map integration coming soon.</span>
-            </p>
-            <button
-              onClick={() => setViewMode("list")}
-              className="mt-4 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
-            >
-              Switch to list view
-            </button>
+      {/* ── List ── */}
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+        {loading ? (
+          <div className="px-4 py-16 text-center text-sm text-ink-500">
+            Loading control tower…
           </div>
-        </div>
-      )}
+        ) : !board ? (
+          <EmptyState
+            image="/images/live-operations-empty.png"
+            title="Control tower unavailable"
+            description="The control tower endpoint is not currently responding."
+          />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            image="/images/live-operations-empty.png"
+            title="No active work"
+            description="Live work will appear here as trips, routes, and assignments start."
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            image="/images/live-operations-empty.png"
+            title="No items match your filters"
+            description="Try adjusting your search or clearing the filters."
+            action={
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center justify-center rounded-lg bg-primary-bg px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+              >
+                Clear filters
+              </button>
+            }
+          />
+        ) : (
+          <table className="w-full min-w-[900px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-line bg-surface-2">
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Item
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Type
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Provider
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Vehicle
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap">
+                  Updated
+                </th>
+                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 text-right whitespace-nowrap">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row) => {
+                const tone = statusTone(row.status);
+                const signal = row.signal ? SIGNAL_ICON[row.signal] : null;
+                return (
+                  <tr
+                    key={`${row.kind}-${row.id}`}
+                    className="border-b border-line transition-colors hover:bg-surface-2"
+                  >
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        {signal && (
+                          <signal.Icon
+                            className={`h-3.5 w-3.5 ${signal.color}`}
+                          />
+                        )}
+                        <span className="font-mono text-sm font-semibold text-ink-950">
+                          {row.id}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-ink-400">
+                        {row.subtitle}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${KIND_BG[row.kind]}`}
+                      >
+                        {row.kind}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 font-mono text-xs text-ink-700 whitespace-nowrap">
+                      {row.providerId || "—"}
+                    </td>
+                    <td className="px-4 py-3.5 font-mono text-xs text-ink-700 whitespace-nowrap">
+                      {row.vehicleOrTruckReference || "—"}
+                    </td>
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${TONE_BG[tone]}`}
+                      >
+                        {row.statusLabel || row.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-xs text-ink-500 whitespace-nowrap">
+                      {timeAgo(row.updatedAt)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                      {row.href ? (
+                        <Link
+                          href={row.href}
+                          className="inline-flex items-center gap-1 rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface-2 transition-colors"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-ink-400">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       {/* ── Legend ── */}
-      <div className="rounded-lg border border-line bg-white p-3">
+      <div className="rounded-lg border border-line bg-surface p-3">
         <div className="flex flex-wrap items-center gap-4 text-xs text-ink-600">
-          <span className="font-medium text-ink-700">Status:</span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-green" />
-            Active
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-primary" />
-            Idle
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-red" />
-            Exception
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-ink-400" />
-            Completed
-          </span>
-          <span className="text-ink-300">|</span>
           <span className="font-medium text-ink-700">Signal:</span>
           <span className="flex items-center gap-1.5">
             <Wifi className="h-3.5 w-3.5 text-green" />
-            Strong
+            Fresh
           </span>
           <span className="flex items-center gap-1.5">
             <Wifi className="h-3.5 w-3.5 text-amber" />
-            Medium
+            Aging
           </span>
           <span className="flex items-center gap-1.5">
             <WifiOff className="h-3.5 w-3.5 text-red" />
-            Weak
+            Stale
           </span>
         </div>
       </div>

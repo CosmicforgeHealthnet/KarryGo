@@ -1,6 +1,6 @@
 // lib/services/authService.ts
 
-import apiClient from '@/lib/api/client';
+import apiClient, { logoutOnServer } from '@/lib/api/client';
 import {
   StartOTPRequest,
   StartOTPResponse,
@@ -8,8 +8,6 @@ import {
   VerifyOTPResponse,
   ResendOTPRequest,
   ResendOTPResponse,
-  RefreshTokenRequest,
-  RefreshTokenResponse,
   SelectOrganizationRequest,
   SelectOrganizationResponse,
   LogoutResponse,
@@ -31,18 +29,13 @@ export const authService = {
     return response.data;
   },
 
-  async refreshToken(data: RefreshTokenRequest): Promise<RefreshTokenResponse> {
-    const response = await apiClient.post<RefreshTokenResponse>('/auth/refresh', data);
-    return response.data;
-  },
-
   async selectOrganization(data: SelectOrganizationRequest): Promise<SelectOrganizationResponse> {
     const response = await apiClient.post<SelectOrganizationResponse>('/auth/select-organization', data);
     return response.data;
   },
 
   async logout(): Promise<LogoutResponse> {
-    const response = await apiClient.post<LogoutResponse>('/auth/logout');
-    return response.data;
+    await logoutOnServer();
+    return { loggedOut: true };
   },
 };

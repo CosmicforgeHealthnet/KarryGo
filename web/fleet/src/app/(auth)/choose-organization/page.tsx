@@ -51,7 +51,7 @@ export default function ChooseOrganizationPage() {
 
         <div className="mt-8 rounded-xl border border-line bg-surface-2 px-5 py-6">
           <div className="flex items-start gap-3">
-            <div className="rounded-full bg-white p-2 shadow-sm">
+            <div className="rounded-full bg-surface p-2 shadow-sm">
               <Building2 className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0">

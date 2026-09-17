@@ -40,3 +40,4 @@ services/vendor-service/vendor-test-runner.exe
 .codex-cache/
 /cmd.exe
 /*.out.txt
+*.log

@@ -13,7 +13,11 @@ import {
   FileCheck,
   ListChecks,
   Send,
+  ArrowLeft,
 } from "lucide-react";
+import { useOrganizationStore } from "@/lib/stores/organizationStore";
+import { useOnboardingStore } from "@/lib/stores/onboardingStore";
+import { organizationService } from "@/lib/services/organizationService";
 
 // ==================== TYPES ====================
 
@@ -30,29 +34,13 @@ type SubmitState = {
   canSubmit: boolean;
   isSubmitted: boolean;
   isApproved: boolean;
+  isRejected: boolean;
   checklist: ChecklistItem[];
   submissionDate: string | null;
   reviewDate: string | null;
   reviewerNotes: string | null;
-};
-
-// ==================== MOCK DATA ====================
-
-const MOCK_SUBMIT_STATE: SubmitState = {
-  canSubmit: false,
-  isSubmitted: false,
-  isApproved: false,
-  submissionDate: null,
-  reviewDate: null,
-  reviewerNotes: null,
-  checklist: [
-    { id: "C-001", label: "Company created", complete: true, required: true, status: "Complete", notes: null },
-    { id: "C-002", label: "Company profile filled", complete: false, required: true, status: "Incomplete", notes: "Legal name and operating contact required" },
-    { id: "C-003", label: "Capabilities configured", complete: false, required: false, status: "Pending", notes: "Optional" },
-    { id: "C-004", label: "Business documents uploaded", complete: false, required: true, status: "Blocked", notes: "Re-upload operating license" },
-    { id: "C-005", label: "Verification passed", complete: false, required: true, status: "Pending", notes: "Awaiting verification" },
-    { id: "C-006", label: "Wallet provisioned", complete: false, required: true, status: "Pending", notes: "In progress" },
-  ],
+  loading: boolean;
+  error: string | null;
 };
 
 type StatusStyle = {
@@ -68,37 +56,204 @@ const STATUS_STYLES: Record<string, StatusStyle> = {
   Blocked: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-4 w-4" /> },
 };
 
+// Map backend stages to checklist items
+const STAGE_TO_CHECKLIST: Record<string, { id: string; label: string; required: boolean }> = {
+  OWNER_CONTACT: { id: "C-001", label: "Company created", required: true },
+  BUSINESS_PROFILE: { id: "C-002", label: "Company profile filled", required: true },
+  AUTHORIZED_REPRESENTATIVE: { id: "C-003", label: "Authorized representative added", required: true },
+  OPERATING_CAPABILITIES: { id: "C-004", label: "Operating capabilities configured", required: true },
+  HEADQUARTERS: { id: "C-005", label: "Headquarters address set", required: true },
+  BUSINESS_DOCUMENTS: { id: "C-006", label: "Business documents uploaded", required: true },
+};
+
+// Stages required for submission (matching backend)
+const REQUIRED_STAGES = [
+  "OWNER_CONTACT",
+  "BUSINESS_PROFILE",
+  "AUTHORIZED_REPRESENTATIVE",
+  "OPERATING_CAPABILITIES",
+  "HEADQUARTERS",
+  "BUSINESS_DOCUMENTS",
+];
+
+const VERIFICATION_STATUS_MAP: Record<string, { label: string; isSubmitted: boolean; isApproved: boolean; isRejected: boolean }> = {
+  SUBMITTED: { label: "Awaiting Review", isSubmitted: true, isApproved: false, isRejected: false },
+  UNDER_REVIEW: { label: "Under Review", isSubmitted: true, isApproved: false, isRejected: false },
+  APPROVED: { label: "Approved", isSubmitted: true, isApproved: true, isRejected: false },
+  REJECTED: { label: "Rejected", isSubmitted: true, isApproved: false, isRejected: true },
+  CHANGES_REQUIRED: { label: "Changes Required", isSubmitted: true, isApproved: false, isRejected: true },
+};
+
 export default function SubmitForReviewPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState<boolean>(true);
-  const [data, setData] = useState<SubmitState | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const { organization } = useOrganizationStore();
+  const { setStageStatuses } = useOnboardingStore();
 
+  const [state, setState] = useState<SubmitState>({
+    canSubmit: false,
+    isSubmitted: false,
+    isApproved: false,
+    isRejected: false,
+    checklist: [],
+    submissionDate: null,
+    reviewDate: null,
+    reviewerNotes: null,
+    loading: true,
+    error: null,
+  });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Fetch real onboarding status
   useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(MOCK_SUBMIT_STATE);
-      setLoading(false);
-    };
-    loadData();
-  }, []);
+    async function fetchOnboardingStatus() {
+      if (!organization?.organizationId) {
+        setState((prev) => ({ ...prev, loading: false, error: "No organization found." }));
+        return;
+      }
 
+      try {
+        const response = await organizationService.getOnboardingStatus(organization.organizationId);
+
+        // Build checklist from stages
+        const checklist: ChecklistItem[] = REQUIRED_STAGES.map((stageName) => {
+          const stage = response.stages.find((s) => s.stage === stageName);
+          const meta = STAGE_TO_CHECKLIST[stageName];
+
+          const isComplete = stage?.status === "COMPLETE";
+          const isBlocked = stage?.status === "BLOCKED";
+          const isInProgress = stage?.status === "IN_PROGRESS";
+          const isNotStarted = stage?.status === "NOT_STARTED" || !stage;
+
+          let status: "Complete" | "Incomplete" | "Pending" | "Blocked" = "Pending";
+          let notes: string | null = null;
+
+          if (isComplete) {
+            status = "Complete";
+          } else if (isBlocked) {
+            status = "Blocked";
+            notes = stage?.blockingIssues?.join(", ") || "Blocked";
+          } else if (isInProgress) {
+            status = "Pending";
+            notes = "In progress";
+          } else if (isNotStarted) {
+            status = "Incomplete";
+            notes = "Not started";
+          }
+
+          return {
+            id: meta?.id || `C-${stageName}`,
+            label: meta?.label || stageName.replace(/_/g, " "),
+            complete: isComplete,
+            required: meta?.required ?? true,
+            status,
+            notes,
+          };
+        });
+
+        // Check verification status
+        const verificationStatus = response.verification?.status || "NOT_SUBMITTED";
+        const verificationMap = VERIFICATION_STATUS_MAP[verificationStatus] || {
+          label: "Not Submitted",
+          isSubmitted: false,
+          isApproved: false,
+          isRejected: false,
+        };
+
+        // Check if all required stages are complete
+        const allRequiredComplete = REQUIRED_STAGES.every((stageName) => {
+          const stage = response.stages.find((s) => s.stage === stageName);
+          return stage?.status === "COMPLETE";
+        });
+
+        // Check allowedNextActions
+        const canSubmit = response.allowedNextActions?.includes("SUBMIT_FOR_VERIFICATION") ?? false;
+
+        // Determine if already submitted
+        const isSubmitted = verificationMap.isSubmitted || response.organizationStatus === "BUSINESS_SUBMITTED";
+        const isApproved = verificationMap.isApproved || response.organizationStatus === "APPROVED" || response.organizationStatus === "ACTIVE";
+        const isRejected = verificationMap.isRejected || response.organizationStatus === "REJECTED";
+
+        // Update store
+        const statusMap: Record<string, string> = {};
+        response.stages.forEach((stage: any) => {
+          const stepId = STAGE_TO_CHECKLIST[stage.stage]?.id;
+          if (stepId) {
+            statusMap[stepId] = stage.status;
+          }
+        });
+        setStageStatuses(statusMap);
+
+        setState({
+          canSubmit: canSubmit && !isSubmitted && !isApproved,
+          isSubmitted,
+          isApproved,
+          isRejected,
+          checklist,
+          submissionDate: response.verification?.submissionVersion ? new Date().toISOString() : null,
+          reviewDate: null,
+          reviewerNotes: response.verification?.issues?.length > 0 
+            ? `${response.verification.issues.length} issue(s) need attention` 
+            : null,
+          loading: false,
+          error: null,
+        });
+
+      } catch (err: any) {
+        const message = err?.response?.data?.error?.message || err?.message || "Failed to load submission status.";
+        setState((prev) => ({ ...prev, loading: false, error: message }));
+      }
+    }
+
+    fetchOnboardingStatus();
+  }, [organization?.organizationId, setStageStatuses]);
+
+  // Handle actual submission
   const handleSubmit = async () => {
-    if (!data?.canSubmit) return;
+    if (!state.canSubmit || !organization?.organizationId) return;
 
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsSubmitting(false);
+    setSubmitError(null);
+    setSubmitSuccess(false);
 
-    setData((prev) => prev ? { ...prev, isSubmitted: true, submissionDate: new Date().toISOString() } : null);
-    toast("Company submitted for review successfully! (mock)");
+    try {
+      const response = await organizationService.submitOrganization(organization.organizationId);
+
+      // Update state after successful submission
+      setState((prev) => ({
+        ...prev,
+        isSubmitted: true,
+        canSubmit: false,
+        submissionDate: new Date().toISOString(),
+      }));
+
+      setSubmitSuccess(true);
+
+      // Show success message
+      toast("Company submitted for review successfully! 🎉");
+
+      // Redirect to homepage after 2 seconds
+      setTimeout(() => {
+        router.push("/");
+      }, 2000);
+
+    } catch (err: any) {
+      const message = err?.response?.data?.error?.message || err?.message || "Failed to submit. Please try again.";
+      setSubmitError(message);
+      toast(`Error: ${message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleBack = () => {
     router.push("/setup");
   };
 
-  if (loading) {
+  // Loading state
+  if (state.loading) {
     return (
       <div className="py-12 text-center">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
@@ -107,33 +262,55 @@ export default function SubmitForReviewPage() {
     );
   }
 
-  if (!data) {
+  // Error state
+  if (state.error) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
-        <div className="rounded-full bg-surface-2 p-4">
-          <FileCheck className="h-8 w-8 text-ink-400" />
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-red/20 bg-red-bg/30 py-14 px-4">
+        <div className="rounded-full bg-red-bg p-4">
+          <AlertCircle className="h-8 w-8 text-red" />
         </div>
-        <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No submission data found</h3>
-        <p className="mt-1 text-sm text-ink-500">Unable to load submission status.</p>
+        <h3 className="mt-4 text-[15px] font-semibold text-ink-950">Something went wrong</h3>
+        <p className="mt-1.5 text-sm text-ink-500 text-center max-w-md">{state.error}</p>
         <button
-          onClick={() => router.push("/setup")}
-          className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90"
+          onClick={() => window.location.reload()}
+          className="mt-5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-primary/90"
         >
-          Back to Setup
+          Try again
         </button>
       </div>
     );
   }
 
-  const isComplete = data.isApproved;
-  const isSubmitted = data.isSubmitted;
+  // No organization
+  if (!organization) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
+        <div className="rounded-full bg-surface-2 p-4">
+          <FileCheck className="h-8 w-8 text-ink-400" />
+        </div>
+        <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No organization found</h3>
+        <p className="mt-1 text-sm text-ink-500">Please create a company first.</p>
+        <button
+          onClick={() => router.push("/setup/create-company")}
+          className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90"
+        >
+          Create Company
+        </button>
+      </div>
+    );
+  }
 
-  // Derived from the checklist itself rather than tracked separately, so
-  // the two can't drift: a required, incomplete item is a blocker by
-  // definition, and its own note is the reason.
-  const blockers = data.checklist
+  const isComplete = state.isApproved;
+  const isSubmitted = state.isSubmitted;
+  const isRejected = state.isRejected;
+
+  // Get blockers from checklist
+  const blockers = state.checklist
     .filter((item) => item.required && !item.complete)
     .map((item) => item.notes || item.label);
+
+  const completedCount = state.checklist.filter((i) => i.complete).length;
+  const totalItems = state.checklist.length;
 
   const formatDate = (date: string | null): string => {
     if (!date) return "N/A";
@@ -157,8 +334,30 @@ export default function SubmitForReviewPage() {
         </p>
       </div>
 
-      {/* ===== SUBMITTED/APPROVED STATE ===== */}
-      {isSubmitted && !isComplete && (
+      {/* ===== SUCCESS MESSAGE ===== */}
+      {submitSuccess && (
+        <div className="rounded-2xl border border-green/30 bg-green-bg/40 p-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-green-bg p-2 flex-shrink-0">
+              <CheckCircle2 className="h-5 w-5 text-green" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-green">Submitted Successfully! 🎉</h4>
+              <p className="mt-1 text-sm text-green/80">
+                Your company has been submitted for review. You will be redirected to the dashboard shortly.
+              </p>
+              {state.submissionDate && (
+                <p className="mt-1 text-xs text-green/60">
+                  Submitted on {formatDate(state.submissionDate)}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== SUBMITTED STATE ===== */}
+      {isSubmitted && !isComplete && !isRejected && !submitSuccess && (
         <div className="rounded-2xl border border-amber/20 bg-amber-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-amber-bg p-2 flex-shrink-0">
@@ -169,9 +368,9 @@ export default function SubmitForReviewPage() {
               <p className="mt-1 text-sm text-amber/80">
                 Your company has been submitted for review. The verification team will review your application.
               </p>
-              {data.submissionDate && (
+              {state.submissionDate && (
                 <p className="mt-1 text-xs text-amber/60">
-                  Submitted on {formatDate(data.submissionDate)}
+                  Submitted on {formatDate(state.submissionDate)}
                 </p>
               )}
             </div>
@@ -179,6 +378,33 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
+      {/* ===== REJECTED STATE ===== */}
+      {isRejected && (
+        <div className="rounded-2xl border border-red/20 bg-red-bg/30 p-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-red-bg p-2 flex-shrink-0">
+              <AlertOctagon className="h-5 w-5 text-red" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-red">Changes Required</h4>
+              <p className="mt-1 text-sm text-red/80">
+                Your submission needs attention. Please address the issues below and re-submit.
+              </p>
+              {state.reviewerNotes && (
+                <p className="mt-1 text-xs text-red/60">{state.reviewerNotes}</p>
+              )}
+              <button
+                onClick={() => router.push("/setup")}
+                className="mt-3 rounded-lg bg-red px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-red/90"
+              >
+                Fix Issues
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== APPROVED STATE ===== */}
       {isComplete && (
         <div className="rounded-2xl border border-green/20 bg-green-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
@@ -190,14 +416,12 @@ export default function SubmitForReviewPage() {
               <p className="mt-1 text-sm text-green/80">
                 Your company has been verified and approved. You can now start using the Fleet OS platform.
               </p>
-              {data.reviewDate && (
-                <p className="mt-1 text-xs text-green/60">
-                  Reviewed on {formatDate(data.reviewDate)}
-                </p>
-              )}
-              {data.reviewerNotes && (
-                <p className="mt-1 text-xs text-green/60">{data.reviewerNotes}</p>
-              )}
+              <button
+                onClick={() => router.push("/")}
+                className="mt-3 rounded-lg bg-green px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-green/90"
+              >
+                Go to Dashboard
+              </button>
             </div>
           </div>
         </div>
@@ -210,12 +434,12 @@ export default function SubmitForReviewPage() {
             <ListChecks className="h-4 w-4 text-ink-400" />
             <span className="text-sm font-semibold text-ink-950">Readiness Checklist</span>
             <span className="text-xs text-ink-400">
-              {data.checklist.filter((i) => i.complete).length}/{data.checklist.length} complete
+              {completedCount}/{totalItems} complete
             </span>
           </div>
         </div>
         <div className="divide-y divide-line">
-          {data.checklist.map((item) => {
+          {state.checklist.map((item) => {
             const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Pending;
 
             return (
@@ -227,9 +451,7 @@ export default function SubmitForReviewPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`font-medium ${
-                      item.complete ? "text-ink-950" : "text-ink-700"
-                    }`}>
+                    <span className={`font-medium ${item.complete ? "text-ink-950" : "text-ink-700"}`}>
                       {item.label}
                     </span>
                     <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
@@ -250,7 +472,7 @@ export default function SubmitForReviewPage() {
       </div>
 
       {/* ===== BLOCKERS ===== */}
-      {blockers.length > 0 && !data.isSubmitted && (
+      {blockers.length > 0 && !isSubmitted && !isComplete && !submitSuccess && (
         <div className="rounded-2xl border border-red/20 bg-red-bg/30 p-5 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-red-bg p-2 flex-shrink-0">
@@ -271,23 +493,31 @@ export default function SubmitForReviewPage() {
         </div>
       )}
 
+      {/* ===== SUBMIT ERROR ===== */}
+      {submitError && (
+        <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          {submitError}
+        </div>
+      )}
+
       {/* ===== SUBMIT ACTION ===== */}
-      {!data.isSubmitted && !data.isApproved && (
+      {!isSubmitted && !isComplete && !submitSuccess && (
         <div className="rounded-2xl border border-line bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-[15px] font-semibold text-ink-950">Ready to Submit?</h3>
               <p className="mt-0.5 text-sm text-ink-600">
-                {data.canSubmit
+                {state.canSubmit
                   ? "All required steps are complete. You can now submit your company for review."
                   : "Complete all required steps before submitting for review."}
               </p>
             </div>
             <button
               onClick={handleSubmit}
-              disabled={!data.canSubmit || isSubmitting}
+              disabled={!state.canSubmit || isSubmitting}
               className={`flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold text-white shadow-sm transition ${
-                data.canSubmit && !isSubmitting
+                state.canSubmit && !isSubmitting
                   ? "bg-primary shadow-primary/20 hover:bg-primary/90"
                   : "bg-ink-400 cursor-not-allowed"
               }`}
@@ -311,20 +541,36 @@ export default function SubmitForReviewPage() {
       {/* ===== BACK ===== */}
       <button
         onClick={handleBack}
-        className="rounded-xl border border-line px-6 py-2.5 text-sm font-medium text-ink-700 hover:bg-white transition-colors"
+        className="inline-flex items-center gap-2 rounded-xl border border-line px-6 py-2.5 text-sm font-medium text-ink-700 hover:bg-white transition-colors"
       >
+        <ArrowLeft className="h-4 w-4" />
         Back to Setup
       </button>
 
       {/* ===== FOOTER ===== */}
       <div className="flex items-center gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
         <FileCheck className="h-4 w-4" />
-        ORG-08 · Submit for Review
+        {organization?.organizationId ? `Organization: ${organization.organizationId}` : "Submit for Review"}
       </div>
     </div>
   );
 }
 
+// Simple toast function
 function toast(message: string) {
-  console.log(message);
+  // You can replace this with a proper toast library like sonner or react-hot-toast
+  console.log("[Toast]", message);
+  
+  // Simple browser alert as fallback
+  if (typeof window !== 'undefined') {
+    // Create a temporary toast element
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 right-4 z-50 rounded-xl bg-ink-950 px-6 py-3 text-sm text-white shadow-lg animate-in slide-in-from-bottom-4 duration-300';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('animate-out', 'slide-out-to-bottom-4', 'duration-300');
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  }
 }

@@ -1,8 +1,6 @@
-﻿// src/app/(setup)/setup/profile/page.tsx
+﻿"use client";
 
-"use client";
-
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
@@ -13,7 +11,6 @@ import {
   AlertCircle,
   MapPin,
   Landmark,
-  BadgeCheck,
   FileText,
   Mail,
   Phone,
@@ -26,10 +23,14 @@ import {
   Check,
   Building,
   Loader2,
+  Save,
+  X,
 } from "lucide-react";
-import { useOnboardingStore } from "@/lib/stores/onboardingStore";
 import { useAuthStore } from "@/lib/stores/authStore";
-import { organizationService } from "@/lib/services/organizationService";
+import { organizationService, type Organization } from "@/lib/services/organizationService";
+import { useOrganizationStore } from "@/lib/stores/organizationStore";
+import { useOnboardingStore } from "@/lib/stores/onboardingStore";
+
 
 type EditEligibility = "Editable" | "Locked" | "ReviewRequired";
 
@@ -75,6 +76,36 @@ const FLAG_STRIPES: Record<string, [string, string, string]> = {
 };
 
 const VERTICAL_FLAGS = new Set(["NG"]);
+
+const COUNTRIES = [
+  { value: "NG", label: "Nigeria" },
+  { value: "GH", label: "Ghana" },
+  { value: "KE", label: "Kenya" },
+  { value: "ZA", label: "South Africa" },
+  { value: "EG", label: "Egypt" },
+  { value: "MA", label: "Morocco" },
+  { value: "OTHER", label: "Other" },
+];
+
+const TIMEZONES = [
+  { value: "Africa/Lagos", label: "Africa/Lagos (GMT+1)" },
+  { value: "Africa/Accra", label: "Africa/Accra (GMT+0)" },
+  { value: "Africa/Nairobi", label: "Africa/Nairobi (GMT+3)" },
+  { value: "Africa/Johannesburg", label: "Africa/Johannesburg (GMT+2)" },
+  { value: "Africa/Cairo", label: "Africa/Cairo (GMT+2)" },
+  { value: "Africa/Casablanca", label: "Africa/Casablanca (GMT+1)" },
+];
+
+const CURRENCIES = [
+  { value: "NGN", label: "NGN (₦)" },
+  { value: "GHS", label: "GHS (₵)" },
+  { value: "KES", label: "KES (K)" },
+  { value: "ZAR", label: "ZAR (R)" },
+  { value: "EGP", label: "EGP (E)" },
+  { value: "MAD", label: "MAD (D)" },
+  { value: "USD", label: "USD ($)" },
+  { value: "EUR", label: "EUR (€)" },
+];
 
 function FlagIcon({ countryCode }: { countryCode: string }) {
   const stripes = FLAG_STRIPES[countryCode] ?? ["#cbd5e1", "#e2e8f0", "#94a3b8"];
@@ -211,43 +242,181 @@ function EditBadge({ eligibility }: { eligibility: EditEligibility }) {
   );
 }
 
+const inputClass = (hasError: boolean) =>
+  `w-full rounded-xl border px-4 py-2.5 text-sm text-ink-950 outline-none transition-colors ${
+    hasError
+      ? "border-red focus:border-red focus:ring-2 focus:ring-red/10"
+      : "border-line focus:border-primary focus:ring-2 focus:ring-primary/10"
+  }`;
+
+function EditableField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="text-xs font-medium uppercase tracking-[0.06em] text-ink-500">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={inputClass(false)}
+      />
+    </div>
+  );
+}
+
+function EditableSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <label className="text-xs font-medium uppercase tracking-[0.06em] text-ink-500">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputClass(false)}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function CompanyProfilePage() {
   const router = useRouter();
-  const { organizationId } = useOnboardingStore();
-  const { accessToken, _hasHydrated } = useAuthStore();
+  const { _hasHydrated } = useAuthStore();
+  const { setOrganization } = useOrganizationStore();
+  const { setStageComplete } = useOnboardingStore();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<CompanyProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editData, setEditData] = useState<Partial<CompanyProfile> | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
+
+  const fetchProfile = async () => {
+    if (!_hasHydrated) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await organizationService.getCurrentOrganization();
+      setData(response);
+      setOrganization(response);
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        document.cookie = "karrygo_has_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie = "karrygo_org_status=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        router.replace("/sign-in");
+        return;
+      }
+      const message = err?.response?.data?.error?.message || err?.message || "Failed to load company profile.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchProfile() {
-      if (!_hasHydrated) {
-        return;
-      }
-
-      if (!organizationId) {
-        setError("No organization found. Please create a company first.");
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await organizationService.getCurrentOrganization();
-        setData(response.data);
-      } catch (err: any) {
-        const message = err?.response?.data?.error?.message || err?.message || "Failed to load company profile.";
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchProfile();
-  }, [organizationId, _hasHydrated]);
+  }, [_hasHydrated, router]);
+
+  const handleEdit = () => {
+    if (!data) return;
+    setIsEditing(true);
+    setEditData({ ...data });
+    setSaveError(null);
+    setSaveSuccess(false);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditData(null);
+    setSaveError(null);
+    setSaveSuccess(false);
+  };
+
+  const handleSave = async () => {
+    if (!data || !editData) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      const updated = await organizationService.updateOrganization(data.organizationId, {
+        legalName: editData.legalName || data.legalName,
+        tradingName: editData.tradingName || data.tradingName || "",
+        registrationNumber: "",
+        countryCode: editData.countryCode || data.countryCode,
+        organizationType: "",
+        timezone: editData.timezone || data.timezone,
+        defaultCurrency: editData.defaultCurrency || data.defaultCurrency,
+        ownerName: "",
+      });
+
+      setData(updated);
+      setOrganization(updated);
+      setSaveSuccess(true);
+      setIsEditing(false);
+      setEditData(null);
+
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+    } catch (err: any) {
+      const message = err?.response?.data?.error?.message || err?.message || "Failed to update company.";
+      setSaveError(message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleContinue = async () => {
+    if (!data) return;
+
+    setIsContinuing(true);
+
+    try {
+      // Mark BUSINESS_PROFILE as complete
+      await organizationService.markStageComplete(data.organizationId, 'BUSINESS_PROFILE');
+      setStageComplete('profile');
+    } catch (error) {
+      console.error('Failed to mark stage complete:', error);
+      // Still navigate even if marking fails
+    } finally {
+      setIsContinuing(false);
+      router.push('/setup/capabilities');
+    }
+  };
 
   if (loading) {
     return (
@@ -304,6 +473,7 @@ export default function CompanyProfilePage() {
   const statusStyle = STATUS_STYLES[data.status] || STATUS_STYLES.DRAFT;
   const statusLabel = STATUS_LABEL[data.status] || data.status;
   const editEligibility: EditEligibility = data.status === "DRAFT" ? "Editable" : "Locked";
+  const isEditable = data.status === "DRAFT";
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
@@ -316,9 +486,18 @@ export default function CompanyProfilePage() {
           </p>
           <h1 className="mt-1 text-ink-950">Company Profile</h1>
           <p className="mt-1.5 text-ink-600">
-            Review the company details submitted during onboarding.
+            {isEditing ? "Edit your company details below." : "Review the company details submitted during onboarding."}
           </p>
         </div>
+        {!isEditing && isEditable && (
+          <button
+            onClick={handleEdit}
+            className="flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90"
+          >
+            <Edit3 className="h-4 w-4" />
+            Edit Company
+          </button>
+        )}
       </div>
 
       {/* Hero Card */}
@@ -403,42 +582,131 @@ export default function CompanyProfilePage() {
               <IconTile icon={<FileText />} theme="brand" />
               <div>
                 <h3 className="text-sm font-semibold text-ink-950">Company Information</h3>
-                <p className="text-xs text-ink-500">As submitted during Create Company</p>
+                <p className="text-xs text-ink-500">
+                  {isEditing ? "Edit your company details" : "As submitted during Create Company"}
+                </p>
               </div>
             </div>
-            {editEligibility === "Editable" && (
-              <button className="flex-shrink-0 text-ink-400 hover:text-ink-700">
-                <Edit3 className="h-4 w-4" />
-              </button>
-            )}
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-            <InfoField label="Legal Name" value={data.legalName} />
-            <InfoField label="Trading Name" value={data.tradingName || "—"} />
-            <InfoField
-              label="Registration Reference"
-              value="—"
-              icon={<Hash className="h-3.5 w-3.5 text-ink-400" />}
-              mono
-            />
-            <InfoField
-              label="Country"
-              value={COUNTRY_NAMES[data.countryCode] || data.countryCode}
-              icon={<FlagIcon countryCode={data.countryCode} />}
-            />
-            <InfoField label="Company Type" value="—" />
-            <InfoField label="Timezone" value={data.timezone} icon={<Clock className="h-3.5 w-3.5 text-ink-400" />} />
-            <InfoField
-              label="Default Currency"
-              value={data.defaultCurrency}
-              icon={
-                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-green text-[8px] font-bold leading-none text-white">
-                  {CURRENCY_SYMBOL[data.defaultCurrency] ?? "$"}
-                </span>
-              }
-            />
+            {isEditing ? (
+              <>
+                <div className="sm:col-span-2">
+                  <EditableField
+                    label="Legal Name"
+                    value={editData?.legalName || ""}
+                    onChange={(val) => setEditData({ ...editData!, legalName: val })}
+                    placeholder="e.g. Apex Logistics Limited"
+                  />
+                </div>
+                <div>
+                  <EditableField
+                    label="Trading Name"
+                    value={editData?.tradingName || ""}
+                    onChange={(val) => setEditData({ ...editData!, tradingName: val })}
+                    placeholder="e.g. Apex Logistics"
+                  />
+                </div>
+                <div>
+                  <EditableSelect
+                    label="Country"
+                    value={editData?.countryCode || "NG"}
+                    onChange={(val) => setEditData({ ...editData!, countryCode: val })}
+                    options={COUNTRIES}
+                  />
+                </div>
+                <div>
+                  <EditableSelect
+                    label="Timezone"
+                    value={editData?.timezone || "Africa/Lagos"}
+                    onChange={(val) => setEditData({ ...editData!, timezone: val })}
+                    options={TIMEZONES}
+                  />
+                </div>
+                <div>
+                  <EditableSelect
+                    label="Default Currency"
+                    value={editData?.defaultCurrency || "NGN"}
+                    onChange={(val) => setEditData({ ...editData!, defaultCurrency: val })}
+                    options={CURRENCIES}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <InfoField label="Legal Name" value={data.legalName} />
+                <InfoField label="Trading Name" value={data.tradingName || "—"} />
+                <InfoField
+                  label="Registration Reference"
+                  value="—"
+                  icon={<Hash className="h-3.5 w-3.5 text-ink-400" />}
+                  mono
+                />
+                <InfoField
+                  label="Country"
+                  value={COUNTRY_NAMES[data.countryCode] || data.countryCode}
+                  icon={<FlagIcon countryCode={data.countryCode} />}
+                />
+                <InfoField label="Company Type" value="—" />
+                <InfoField label="Timezone" value={data.timezone} icon={<Clock className="h-3.5 w-3.5 text-ink-400" />} />
+                <InfoField
+                  label="Default Currency"
+                  value={data.defaultCurrency}
+                  icon={
+                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-green text-[8px] font-bold leading-none text-white">
+                      {CURRENCY_SYMBOL[data.defaultCurrency] ?? "$"}
+                    </span>
+                  }
+                />
+              </>
+            )}
           </div>
+
+          {/* Save/Cancel buttons when editing */}
+          {isEditing && (
+            <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-end">
+              {saveError && (
+                <div className="flex items-center gap-2 text-sm text-red">
+                  <AlertCircle className="h-4 w-4" />
+                  {saveError}
+                </div>
+              )}
+              {saveSuccess && (
+                <div className="flex items-center gap-2 text-sm text-green">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Company updated successfully!
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2 disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Status & Version */}
@@ -483,11 +751,21 @@ export default function CompanyProfilePage() {
           Previous Step
         </button>
         <button
-          onClick={() => router.push("/setup/capabilities")}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+          onClick={handleContinue}
+          disabled={isContinuing}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
         >
-          Continue
-          <ChevronRight className="h-4 w-4" />
+          {isContinuing ? (
+            <>
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Continue
+              <ChevronRight className="h-4 w-4" />
+            </>
+          )}
         </button>
       </div>
     </div>
