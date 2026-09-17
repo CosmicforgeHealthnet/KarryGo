@@ -14,7 +14,15 @@ import (
 	customerhttp "cosmicforge/logistics/services/customer-service/internal/features/auth/http"
 	authrepositories "cosmicforge/logistics/services/customer-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
+	contexthttp "cosmicforge/logistics/services/customer-service/internal/features/customer_context/http"
+	contextusecases "cosmicforge/logistics/services/customer-service/internal/features/customer_context/usecases"
 	identityhttp "cosmicforge/logistics/services/customer-service/internal/features/identity/http"
+	mobilityhttp "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http"
+	mobilityrepositories "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/repositories"
+	mobilityusecases "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/usecases"
+	movementhttp "cosmicforge/logistics/services/customer-service/internal/features/movement_history/http"
+	movementrepositories "cosmicforge/logistics/services/customer-service/internal/features/movement_history/repositories"
+	movementusecases "cosmicforge/logistics/services/customer-service/internal/features/movement_history/usecases"
 	notificationhttp "cosmicforge/logistics/services/customer-service/internal/features/notifications/http"
 	preferences "cosmicforge/logistics/services/customer-service/internal/features/preferences"
 	profilehttp "cosmicforge/logistics/services/customer-service/internal/features/profile/http"
@@ -98,6 +106,28 @@ func main() {
 		savedlocationrepositories.NewPostgresSavedLocationRepository(db),
 	)
 	preferenceStore := preferences.NewStore(db)
+	mobilityRepo := mobilityrepositories.NewPostgresRepository(db)
+	callerScopes, err := contextusecases.ParseCallerScopes(cfg.ContextCallerScopes)
+	if err != nil {
+		logging.Fatal("configuration", "%v", err)
+	}
+	movementCallers, err := movementusecases.ParseCallerAuthorities(cfg.MovementEventCallers)
+	if err != nil {
+		logging.Fatal("configuration", "%v", err)
+	}
+	movementService := movementusecases.NewService(movementusecases.Options{
+		Repository:      movementrepositories.NewPostgresRepository(db),
+		Callers:         movementCallers,
+		ConsumerEnabled: cfg.MovementEventsConsumerEnabled,
+		ReadEnabled:     cfg.UnifiedMovementHistoryEnabled,
+	})
+	serviceVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
+	customerContextService := contextusecases.NewService(callerScopes, mobilityRepo, savedLocationService)
+	mobilityService := mobilityusecases.NewService(mobilityRepo, mobilityusecases.Flags{
+		MobilityPreferences: cfg.MobilityPreferencesEnabled,
+		GuestTravellers:     cfg.GuestTravellersEnabled,
+	})
+	trustedContactService := profileusecases.NewTrustedContactService(customerRepo, cfg.TrustedContactsEnabled)
 
 	authService := authusecases.NewAuthService(authusecases.Options{
 		Customers:          customerRepo,
@@ -135,6 +165,10 @@ func main() {
 		Register: func(group *gin.RouterGroup) {
 			customerhttp.RegisterCustomerRoutes(group, authService)
 			profilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
+			profilehttp.RegisterTrustedContactRoutes(group, trustedContactService, authService.AccessSigner())
+			mobilityhttp.RegisterRoutes(group, mobilityService, authService.AccessSigner())
+			contexthttp.RegisterInternalRoutes(group, customerContextService, serviceVerifier)
+			movementhttp.RegisterCustomerRoutes(group, movementService, authService.AccessSigner())
 			savedlocationhttp.RegisterSavedLocationRoutes(group, savedLocationService, authService.AccessSigner())
 			savedlocationhttp.RegisterInternalRoutes(
 				group,
@@ -145,6 +179,9 @@ func main() {
 			identityhttp.RegisterIdentityRoutes(group, profileService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 			preferences.RegisterRoutes(group, preferenceStore, authService.AccessSigner())
 			preferences.RegisterInternalRoutes(group, preferenceStore, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+		},
+		RegisterRoot: func(engine *gin.Engine) {
+			movementhttp.RegisterIngress(engine, movementService, serviceVerifier)
 		},
 	})
 }

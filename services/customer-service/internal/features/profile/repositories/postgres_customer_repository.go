@@ -106,7 +106,7 @@ func (r *PostgresCustomerRepository) GetEmergencyContacts(ctx context.Context, c
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, customer_id::text, name, phone, relationship, created_at
 		FROM emergency_contacts
-		WHERE customer_id = $1
+		WHERE customer_id = $1 AND active
 		ORDER BY created_at ASC
 	`, customerID)
 	if err != nil {

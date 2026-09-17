@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	AppEnv   string
-	HTTPAddr string
+	AppEnv    string
+	HTTPAddr  string
 	Migration bool
 
 	DatabaseURL string
@@ -32,18 +32,36 @@ type Config struct {
 	NotificationBaseURL string
 	NotificationSecret  []byte
 
-	MediaBaseURL     string
+	MediaBaseURL      string
 	MediaServiceToken string
 
 	// ServiceSecrets are the HMAC secrets for internal service-to-service callers
 	// (e.g. support-dispute-service resolving a customer identity).
 	ServiceSecrets string
+
+	// Section 6 capability flags. All default to false so each capability is
+	// enabled deliberately per environment.
+	MobilityPreferencesEnabled    bool
+	GuestTravellersEnabled        bool
+	TrustedContactsEnabled        bool
+	UnifiedMovementHistoryEnabled bool
+
+	// ContextCallerScopes allowlists which HMAC-authenticated service may read
+	// which customer context scopes: "svc=scope|scope;svc2=scope". A caller
+	// must also have an HMAC secret in ServiceSecrets.
+	ContextCallerScopes string
+
+	// MovementEventsConsumerEnabled gates the movement event ingress
+	// independently of the customer read endpoints. MovementEventCallers binds
+	// each publishing service to the one authority it owns.
+	MovementEventsConsumerEnabled bool
+	MovementEventCallers          string
 }
 
 func Load() Config {
 	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8101"),
+		AppEnv:    getEnv("APP_ENV", "development"),
+		HTTPAddr:  getEnv("HTTP_ADDR", ":8101"),
 		Migration: getEnvBool("MIGRATION", false),
 
 		DatabaseURL: getEnv("CUSTOMER_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5433/customer_service?sslmode=disable"),
@@ -73,6 +91,16 @@ func Load() Config {
 		MediaServiceToken: getEnv("CUSTOMER_MEDIA_SERVICE_TOKEN", ""),
 
 		ServiceSecrets: getEnv("CUSTOMER_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
+
+		MobilityPreferencesEnabled:    getEnvBool("CUSTOMER_MOBILITY_PREFERENCES_ENABLED", false),
+		GuestTravellersEnabled:        getEnvBool("CUSTOMER_GUEST_TRAVELLERS_ENABLED", false),
+		TrustedContactsEnabled:        getEnvBool("CUSTOMER_TRUSTED_CONTACTS_ENABLED", false),
+		UnifiedMovementHistoryEnabled: getEnvBool("CUSTOMER_UNIFIED_MOVEMENT_HISTORY_ENABLED", false),
+
+		MovementEventsConsumerEnabled: getEnvBool("CUSTOMER_MOVEMENT_EVENTS_CONSUMER_ENABLED", false),
+		MovementEventCallers:          getEnv("CUSTOMER_MOVEMENT_EVENT_CALLERS", "driver-taxi-service=TAXI;driver-dispatch-delivery-service=DISPATCH;driver-hauling-service=HAULING"),
+
+		ContextCallerScopes: getEnv("CUSTOMER_CONTEXT_CALLER_SCOPES", "driver-taxi-service=mobility_preferences|saved_location;vendor-service=saved_location"),
 	}
 }
 

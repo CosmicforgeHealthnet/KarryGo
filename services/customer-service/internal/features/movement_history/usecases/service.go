@@ -1,0 +1,156 @@
+package movementusecases
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	movementmodels "cosmicforge/logistics/services/customer-service/internal/features/movement_history/models"
+	movementrepositories "cosmicforge/logistics/services/customer-service/internal/features/movement_history/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/pagination"
+)
+
+type Repository interface {
+	Project(ctx context.Context, envelope events.Envelope, incoming movementmodels.Movement) (string, error)
+	Reject(ctx context.Context, envelope events.Envelope, reason string) error
+	List(ctx context.Context, customerID string, filter movementrepositories.Filter) ([]movementmodels.Movement, int, error)
+	Get(ctx context.Context, customerID, authority, sourceRef string) (movementmodels.Movement, error)
+}
+
+// CallerAuthorities binds each HMAC caller to the only movement authority
+// it may publish for. Taxi cannot write Dispatch history, and Customer
+// Service writes none of these authorities' state itself.
+type CallerAuthorities map[string]string
+
+// ParseCallerAuthorities reads "svc=TAXI;svc2=DISPATCH".
+func ParseCallerAuthorities(raw string) (CallerAuthorities, error) {
+	out := CallerAuthorities{}
+	for _, entry := range strings.Split(raw, ";") {
+		if entry = strings.TrimSpace(entry); entry == "" {
+			continue
+		}
+		name, authority, ok := strings.Cut(entry, "=")
+		name, authority = strings.TrimSpace(name), strings.ToUpper(strings.TrimSpace(authority))
+		if !ok || name == "" || (authority != events.MovementAuthorityTaxi && authority != events.MovementAuthorityDispatch && authority != events.MovementAuthorityHauling) {
+			return nil, fmt.Errorf("invalid movement caller entry %q", entry)
+		}
+		out[name] = authority
+	}
+	return out, nil
+}
+
+type Options struct {
+	Repository      Repository
+	Callers         CallerAuthorities
+	ConsumerEnabled bool
+	ReadEnabled     bool
+}
+
+type Service struct {
+	repo            Repository
+	callers         CallerAuthorities
+	consumerEnabled bool
+	readEnabled     bool
+}
+
+func NewService(options Options) *Service {
+	return &Service{repo: options.Repository, callers: options.Callers, consumerEnabled: options.ConsumerEnabled, readEnabled: options.ReadEnabled}
+}
+
+type IngestResult struct {
+	EventID string `json:"event_id"`
+	Outcome string `json:"outcome"`
+}
+
+// Ingest projects one movement event. Duplicate, stale and
+// terminal-protected events succeed so the producer's outbox acknowledges
+// them. Authority violations are recorded and refused.
+func (s *Service) Ingest(ctx context.Context, caller string, envelope events.Envelope) (IngestResult, error) {
+	if !s.consumerEnabled {
+		return IngestResult{}, apperrors.Unavailable("Movement event consumption is disabled.", nil)
+	}
+	authority, allowed := s.callers[strings.TrimSpace(caller)]
+	if !allowed {
+		return IngestResult{}, apperrors.Forbidden("This service may not publish customer movements.", nil)
+	}
+	if err := envelope.Validate(); err != nil {
+		return IngestResult{}, apperrors.BadRequest("Movement event envelope is invalid.", err)
+	}
+	if envelope.SourceService != caller {
+		_ = s.repo.Reject(ctx, envelope, "SOURCE_SERVICE_MISMATCH")
+		return IngestResult{}, apperrors.Forbidden("Event source_service does not match the authenticated caller.", nil)
+	}
+	incoming, err := movementmodels.FromEnvelope(envelope)
+	if err != nil {
+		return IngestResult{}, apperrors.BadRequest("Movement event payload is invalid.", err)
+	}
+	if _, err := uuid.Parse(incoming.CustomerID); err != nil {
+		_ = s.repo.Reject(ctx, envelope, "CUSTOMER_ID_INVALID")
+		return IngestResult{}, apperrors.BadRequest("Movement customer_id is invalid.", err)
+	}
+	if incoming.Authority != authority {
+		_ = s.repo.Reject(ctx, envelope, "AUTHORITY_NOT_OWNED_BY_CALLER")
+		return IngestResult{}, apperrors.Forbidden("This service may not publish movements for "+incoming.Authority+".", nil)
+	}
+	outcome, err := s.repo.Project(ctx, envelope, incoming)
+	if errors.Is(err, movementmodels.ErrCustomerMismatch) {
+		_ = s.repo.Reject(ctx, envelope, "CUSTOMER_MISMATCH")
+		return IngestResult{}, apperrors.Conflict("Movement customer does not match the existing projection.", err)
+	}
+	if err != nil {
+		return IngestResult{}, err
+	}
+	return IngestResult{EventID: envelope.EventID, Outcome: outcome}, nil
+}
+
+type ListQuery struct {
+	Authority, ProductCode, MovementType, State, ParentContextRef, From, To string
+	Page, Limit                                                             int
+}
+
+func (s *Service) List(ctx context.Context, customerID string, query ListQuery) ([]movementmodels.Movement, pagination.Page, error) {
+	if !s.readEnabled {
+		return nil, pagination.Page{}, apperrors.Unavailable("Movement history is not available yet.", nil)
+	}
+	page := pagination.Normalize(query.Page, query.Limit)
+	filter := movementrepositories.Filter{
+		Authority: strings.ToUpper(strings.TrimSpace(query.Authority)), ProductCode: strings.TrimSpace(query.ProductCode),
+		MovementType: strings.ToUpper(strings.TrimSpace(query.MovementType)), State: strings.ToUpper(strings.TrimSpace(query.State)),
+		ParentContextRef: strings.TrimSpace(query.ParentContextRef), Page: page.Number, Limit: page.Limit,
+	}
+	var fields []apperrors.FieldViolation
+	for name, raw := range map[string]string{"from": query.From, "to": query.To} {
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+		if err != nil {
+			fields = append(fields, apperrors.FieldViolation{Field: name, Message: "Use an RFC3339 timestamp."})
+			continue
+		}
+		if name == "from" {
+			filter.From = &parsed
+		} else {
+			filter.To = &parsed
+		}
+	}
+	if len(fields) > 0 {
+		return nil, page, apperrors.Validation("Check the movement filters.", fields)
+	}
+	items, total, err := s.repo.List(ctx, customerID, filter)
+	page.Total = total
+	return items, page, err
+}
+
+func (s *Service) Get(ctx context.Context, customerID, authority, sourceRef string) (movementmodels.Movement, error) {
+	if !s.readEnabled {
+		return movementmodels.Movement{}, apperrors.Unavailable("Movement history is not available yet.", nil)
+	}
+	return s.repo.Get(ctx, customerID, strings.ToUpper(strings.TrimSpace(authority)), strings.TrimSpace(sourceRef))
+}
