@@ -29,7 +29,6 @@ function BrandPanel() {
           <div className="font-display text-[17px] font-semibold tracking-tight text-white">
             KarryAm
           </div>
-        
         </div>
       </div>
 
@@ -131,6 +130,23 @@ export default function AuthLayout({
         <BrandPanel />
         <div className="relative isolate flex w-full flex-col justify-center px-6 sm:px-12 lg:w-[54%] lg:px-20 xl:px-28">
           <FormPanelBackdrop />
+
+          {/* Mobile-only logo — BrandPanel is hidden below lg */}
+          <div className="absolute left-6 top-6 z-10 flex items-center gap-2.5 lg:hidden">
+            <Image
+              src="/images/fleet-logo.png"
+              alt="KarryGo Fleet OS"
+              width={32}
+              height={32}
+              className="rounded-lg object-contain"
+            />
+            <div>
+              <div className="font-display text-[16px] font-semibold tracking-tight text-ink-950">
+                KarryAm
+              </div>
+            </div>
+          </div>
+
           <div className="fade-in-up relative z-10 w-full max-w-[380px]">
             {children}
           </div>
@@ -155,7 +171,6 @@ export default function AuthLayout({
           <div className="font-display text-[16px] font-semibold tracking-tight text-ink-950">
             KarryAm
           </div>
-          
         </div>
       </div>
 
