@@ -81,13 +81,41 @@ type Config struct {
 	// are explicitly enabled by deployment configuration.
 	RouteServiceabilityEnabled bool
 	PackagePolicyEnabled       bool
-	ServiceabilityDegradedMode bool
-	ServiceabilityTTL          time.Duration
-	ServiceabilityMaxRouteKM   float64
-	ServiceZoneCenterLat       float64
-	ServiceZoneCenterLng       float64
-	ServiceZoneRadiusKM        float64
-	ServiceRestrictedZones     string
+
+	// ── Section 8 capability matching ─────────────────────────────────────
+	//
+	// The pair is a two-stage rollout, not two independent switches:
+	//
+	//	MATCHING=false                    legacy bike_type matching only
+	//	MATCHING=true, ENFORCE=false      SHADOW: decide and record, do not enforce
+	//	MATCHING=true, ENFORCE=true       ENFORCED: hard parcel fit selects
+	//
+	// Shadow exists because enabling hard fit on an unsurveyed fleet would
+	// refuse nearly every candidate as CAPABILITY_UNKNOWN and be
+	// indistinguishable from a total outage. Run shadow, watch
+	// dispatch_fleet_capability_completeness_percent, then enforce.
+	CapabilityMatchingEnabled bool
+	// CapabilityMatchingEnforce turns a measured decision into a selecting
+	// one. It has no effect unless CapabilityMatchingEnabled is also true.
+	CapabilityMatchingEnforce bool
+	// SupplyPreviewEnabled mounts the read-only planning surface Vendor's
+	// just-in-time orchestration reads before it commits.
+	SupplyPreviewEnabled bool
+	// CertificationRequiredProducts lists products that may only be served by
+	// a formally certified bike, comma-separated. A legacy bike_type never
+	// substitutes for a certificate for a product named here.
+	CertificationRequiredProducts string
+	// CapabilityMaintenanceInterval and MatchDecisionRetention drive the
+	// eligibility-expiry and evidence-retention sweeper.
+	CapabilityMaintenanceInterval time.Duration
+	MatchDecisionRetention        time.Duration
+	ServiceabilityDegradedMode    bool
+	ServiceabilityTTL             time.Duration
+	ServiceabilityMaxRouteKM      float64
+	ServiceZoneCenterLat          float64
+	ServiceZoneCenterLng          float64
+	ServiceZoneRadiusKM           float64
+	ServiceRestrictedZones        string
 
 	// Additive Sections 7-8 capabilities. Every switch defaults false so the
 	// established broadcast Request -> Trip flow remains the rollout default.
@@ -253,35 +281,42 @@ func Load() (Config, error) {
 			Password: os.Getenv("DISPATCH_DELIVERY_REDIS_PASSWORD"),
 			DB:       getEnvInt("DISPATCH_DELIVERY_REDIS_DB", 0),
 		},
-		InternalServiceKey:             getEnv("DISPATCH_DELIVERY_INTERNAL_SERVICE_KEY", "development-internal-service-key"),
-		AvailabilityServiceURL:         getEnv("AVAILABILITY_SERVICE_URL", "http://localhost:8103"),
-		BroadcastInitialRadiusKM:       getEnvFloat("BROADCAST_INITIAL_RADIUS_KM", 5),
-		BroadcastRadiusIncrementKM:     getEnvFloat("BROADCAST_RADIUS_INCREMENT_KM", 3),
-		BroadcastMaxAttempts:           getEnvInt("BROADCAST_MAX_ATTEMPTS", 3),
-		BroadcastWindow:                time.Duration(getEnvInt("BROADCAST_WINDOW_SECONDS", 30)) * time.Second,
-		WalletServiceURL:               getEnv("WALLET_SERVICE_URL", "http://localhost:8105/api/v1/payment-wallet"),
-		WalletServiceSecret:            []byte(walletServiceSecret),
-		WalletServiceSource:            getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
-		CustomerTokenSecret:            []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
-		CustomerMovementEventsEnabled:  getEnvBool("DISPATCH_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
-		CustomerServiceURL:             os.Getenv("DISPATCH_CUSTOMER_SERVICE_URL"),
-		CustomerServiceSecret:          []byte(os.Getenv("DISPATCH_CUSTOMER_SERVICE_SECRET")),
-		HandoverSecret:                 []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
-		AvailabilityRadiusKM:           getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
-		RoutesAPIKey:                   os.Getenv("DISPATCH_ROUTES_API_KEY"),
-		FleetServiceURL:                getEnv("FLEET_PARTNER_SERVICE_URL", ""),
-		FleetServiceSecret:             []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
-		VendorServiceSecret:            []byte(getEnv("VENDOR_SERVICE_SECRET", "")),
-		VendorServiceURL:               getEnv("VENDOR_SERVICE_URL", ""),
-		RouteServiceURL:                getEnv("DISPATCH_ROUTE_SERVICE_URL", ""),
-		RouteServiceTimeout:            time.Duration(getEnvInt("DISPATCH_ROUTE_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
-		CommerceEventDeliveryEnabled:   getEnvBool("DISPATCH_COMMERCE_EVENT_DELIVERY_ENABLED", false),
-		CommerceEventDeliveryPath:      getEnv("DISPATCH_COMMERCE_EVENT_DELIVERY_PATH", "/api/v1/internal/dispatch/v1/commerce/events"),
-		CommerceQuoteTTL:               time.Duration(getEnvInt("COMMERCE_QUOTE_TTL_SECONDS", 900)) * time.Second,
-		FleetServiceCaller:             getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-dispatch-delivery-service"),
-		FleetServiceTimeout:            time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
-		RouteServiceabilityEnabled:     getEnvBool("DISPATCH_ROUTE_SERVICEABILITY_ENABLED", false),
-		PackagePolicyEnabled:           getEnvBool("DISPATCH_PACKAGE_POLICY_ENABLED", false),
+		InternalServiceKey:            getEnv("DISPATCH_DELIVERY_INTERNAL_SERVICE_KEY", "development-internal-service-key"),
+		AvailabilityServiceURL:        getEnv("AVAILABILITY_SERVICE_URL", "http://localhost:8103"),
+		BroadcastInitialRadiusKM:      getEnvFloat("BROADCAST_INITIAL_RADIUS_KM", 5),
+		BroadcastRadiusIncrementKM:    getEnvFloat("BROADCAST_RADIUS_INCREMENT_KM", 3),
+		BroadcastMaxAttempts:          getEnvInt("BROADCAST_MAX_ATTEMPTS", 3),
+		BroadcastWindow:               time.Duration(getEnvInt("BROADCAST_WINDOW_SECONDS", 30)) * time.Second,
+		WalletServiceURL:              getEnv("WALLET_SERVICE_URL", "http://localhost:8105/api/v1/payment-wallet"),
+		WalletServiceSecret:           []byte(walletServiceSecret),
+		WalletServiceSource:           getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
+		CustomerTokenSecret:           []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
+		CustomerMovementEventsEnabled: getEnvBool("DISPATCH_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerServiceURL:            os.Getenv("DISPATCH_CUSTOMER_SERVICE_URL"),
+		CustomerServiceSecret:         []byte(os.Getenv("DISPATCH_CUSTOMER_SERVICE_SECRET")),
+		HandoverSecret:                []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
+		AvailabilityRadiusKM:          getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
+		RoutesAPIKey:                  os.Getenv("DISPATCH_ROUTES_API_KEY"),
+		FleetServiceURL:               getEnv("FLEET_PARTNER_SERVICE_URL", ""),
+		FleetServiceSecret:            []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
+		VendorServiceSecret:           []byte(getEnv("VENDOR_SERVICE_SECRET", "")),
+		VendorServiceURL:              getEnv("VENDOR_SERVICE_URL", ""),
+		RouteServiceURL:               getEnv("DISPATCH_ROUTE_SERVICE_URL", ""),
+		RouteServiceTimeout:           time.Duration(getEnvInt("DISPATCH_ROUTE_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		CommerceEventDeliveryEnabled:  getEnvBool("DISPATCH_COMMERCE_EVENT_DELIVERY_ENABLED", false),
+		CommerceEventDeliveryPath:     getEnv("DISPATCH_COMMERCE_EVENT_DELIVERY_PATH", "/api/v1/internal/dispatch/v1/commerce/events"),
+		CommerceQuoteTTL:              time.Duration(getEnvInt("COMMERCE_QUOTE_TTL_SECONDS", 900)) * time.Second,
+		FleetServiceCaller:            getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-dispatch-delivery-service"),
+		FleetServiceTimeout:           time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		RouteServiceabilityEnabled:    getEnvBool("DISPATCH_ROUTE_SERVICEABILITY_ENABLED", false),
+		PackagePolicyEnabled:          getEnvBool("DISPATCH_PACKAGE_POLICY_ENABLED", false),
+
+		CapabilityMatchingEnabled:      getEnvBool("DISPATCH_CAPABILITY_MATCHING_ENABLED", false),
+		CapabilityMatchingEnforce:      getEnvBool("DISPATCH_CAPABILITY_MATCHING_ENFORCE", false),
+		SupplyPreviewEnabled:           getEnvBool("DISPATCH_SUPPLY_PREVIEW_ENABLED", false),
+		CertificationRequiredProducts:  os.Getenv("DISPATCH_CERTIFICATION_REQUIRED_PRODUCTS"),
+		CapabilityMaintenanceInterval:  time.Duration(getEnvInt("DISPATCH_CAPABILITY_MAINTENANCE_INTERVAL_SECONDS", 900)) * time.Second,
+		MatchDecisionRetention:         time.Duration(getEnvInt("DISPATCH_MATCH_DECISION_RETENTION_DAYS", 30)) * 24 * time.Hour,
 		ServiceabilityDegradedMode:     getEnvBool("DISPATCH_SERVICEABILITY_DEGRADED_MODE_ENABLED", false),
 		ServiceabilityTTL:              time.Duration(getEnvInt("DISPATCH_SERVICEABILITY_TTL_SECONDS", 900)) * time.Second,
 		ServiceabilityMaxRouteKM:       getEnvFloat("DISPATCH_SERVICEABILITY_MAX_ROUTE_KM", 60),

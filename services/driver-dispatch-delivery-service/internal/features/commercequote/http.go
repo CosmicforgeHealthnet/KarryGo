@@ -15,6 +15,7 @@ import (
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/logisticscapability"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supplypreview"
 )
 
 const maxQuoteBody = 16 << 10
@@ -137,4 +138,49 @@ func (h *Handler) quote(c *gin.Context) {
 		Success: true,
 		Data:    quote,
 	})
+}
+
+// RegisterSupplyPreview mounts the read-only supply preview on the SAME
+// internal boundary the quote and capability routes use.
+//
+// Sharing the boundary rather than building a second one is deliberate: the
+// preview is an internal contract, and a surface that quietly installed its own
+// auth would be the one that ends up weaker than its neighbours. `enabled` is
+// checked here so a disabled deployment has no route at all, rather than a
+// route that always answers UNKNOWN.
+func RegisterSupplyPreview(
+	group *gin.RouterGroup,
+	previewer supplypreview.Previewer,
+	verifier *serviceauth.Verifier,
+	nonces authority.NonceClaimer,
+	allowedCallers []string,
+	enabled bool,
+) {
+	if !enabled || group == nil || previewer == nil || verifier == nil {
+		return
+	}
+	preview := group.Group("")
+	preview.Use(authority.ServiceBoundary(verifier, nonces, allowedCallers)...)
+	supplypreview.RegisterRoutes(preview, previewer)
+}
+
+// RegisterInternalCapability mounts an authority-owned internal capability
+// surface behind the same boundary.
+//
+// It takes a registrar rather than a concrete handler so the capability feature
+// stays out of this package's imports; the boundary lives here because this is
+// where the verifier, nonce store and caller allowlist already are.
+func RegisterInternalCapability(
+	group *gin.RouterGroup,
+	register func(*gin.RouterGroup),
+	verifier *serviceauth.Verifier,
+	nonces authority.NonceClaimer,
+	allowedCallers []string,
+) {
+	if group == nil || register == nil || verifier == nil {
+		return
+	}
+	internal := group.Group("")
+	internal.Use(authority.ServiceBoundary(verifier, nonces, allowedCallers)...)
+	register(internal)
 }

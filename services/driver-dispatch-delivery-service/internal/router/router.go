@@ -21,6 +21,7 @@ import (
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/authority"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/bikecapability"
 	bookingfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking"
 	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
 	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
@@ -50,6 +51,7 @@ import (
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/dispatchcommerce"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/providercompat"
@@ -147,7 +149,31 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		panic(fmt.Errorf("configure vehicle storage: %w", err))
 	}
 	vehicleHandler := vehicle.NewHandler(db, vehicleUploader, vehicle.NewRedisEventPublisher(redisClient))
-	vehicle.RegisterRoutes(engine, authService.TokenUsecase(), vehicleHandler)
+
+	// Section 8 capability matching. Built unconditionally: the rider
+	// capability endpoints are how a fleet gets surveyed, and a deployment
+	// that could not record capability until matching was enabled could never
+	// reach the completeness needed to enable it.
+	capability := bikecapability.Build(db,
+		bikecapability.NearbyAdapter{Live: availability.NewRedisLiveStore(redisClient)},
+		bikecapability.Config{
+			MatchingEnabled:               cfg.CapabilityMatchingEnabled,
+			MatchingEnforce:               cfg.CapabilityMatchingEnforce,
+			SupplyPreviewEnabled:          cfg.SupplyPreviewEnabled,
+			CertificationRequiredProducts: cfg.CertificationRequiredProducts,
+			PreviewRadiusKM:               cfg.AvailabilityRadiusKM,
+		})
+	if cfg.CapabilityMatchingEnforce && !cfg.CapabilityMatchingEnabled {
+		// A flag that silently does nothing is worse than a refusal: an
+		// operator would believe unfit riders were being rejected while they
+		// were still being assigned.
+		logging.Notice("dispatch-capability",
+			"DISPATCH_CAPABILITY_MATCHING_ENFORCE is set but DISPATCH_CAPABILITY_MATCHING_ENABLED is not; hard parcel fit stays off")
+	}
+
+	// Mounted through the vehicle group's extra hook so the capability
+	// endpoints inherit that group's rider-auth and role gate.
+	vehicle.RegisterRoutes(engine, authService.TokenUsecase(), vehicleHandler, capability.RiderRoutes())
 	vehicle.StartSubscribers(context.Background(), redisClient, vehicle.NewPostgresRepository(db))
 
 	availabilityRepository := availability.NewPostgresRepository(db)
@@ -239,6 +265,30 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			authority.NewPostgresNonceClaimer(db),
 			[]string{commercequote.SignatureCaller},
 		)
+		// The read-only planning surface Vendor's just-in-time orchestration
+		// reads before it commits. It creates nothing: no mission, no booking,
+		// no offer, no reservation, and it names no provider or bike.
+		dispatchcommercequote.RegisterSupplyPreview(
+			engine.Group("/api/v1"),
+			capability.Previewer,
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller},
+			cfg.SupplyPreviewEnabled,
+		)
+		// The authoritative internal capability read and the certification
+		// callback, behind the same boundary.
+		dispatchcommercequote.RegisterInternalCapability(
+			engine.Group("/api/v1/internal"),
+			func(group *gin.RouterGroup) { bikecapability.RegisterInternal(group, capability.Handler) },
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller},
+		)
 	}
 
 	// The internal commerce mission contract (Vendor Service Section 17F).
@@ -323,7 +373,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
 			ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
 			RolloutServiceTiers: cfg.AssignmentRolloutServiceTiers,
-		}).WithCandidateFinder(assignment.NewCandidateAuthority(db, availabilityLiveStore, cfg.AvailabilityRadiusKM)).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookingService))
+		}).WithCandidateFinder(assignment.NewCandidateAuthority(db, availabilityLiveStore, cfg.AvailabilityRadiusKM).WithCapabilityGate(capability.Gate)).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookingService))
 		assignmentRuntime = service
 		if cfg.OrganizationAssignmentEnabled && cfg.FleetServiceURL != "" && len(cfg.FleetServiceSecret) > 0 {
 			service.WithOrganizationAuthority(assignment.NewFleetOrganizationAuthority(providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)))
@@ -691,7 +741,9 @@ func startMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool
 	stopHandover := startSecureHandoverWorker(ctx, cfg, db)
 	stopRecovery := startDeliveryRecoveryWorker(ctx, cfg, db, live, bookings, trips...)
 	stopRecoveryNotifications := startRecoveryNotificationWorker(ctx, cfg, db)
+	stopCapabilityMaintenance := startCapabilityMaintenanceWorker(ctx, cfg, db)
 	stopEventWorkers := func() {
+		stopCapabilityMaintenance()
 		stopTelemetry()
 		stopAnalytics()
 		stopRecoveryNotifications()
@@ -981,4 +1033,29 @@ func registerHealthRoutes(engine *gin.Engine, cfg config.Config, ready func(cont
 			},
 		})
 	})
+}
+
+// startCapabilityMaintenanceWorker expires lapsed bike certifications,
+// publishes the rollout metrics and enforces match-evidence retention.
+//
+// It runs regardless of the capability flags. Certifications expire whether or
+// not matching reads them, and a stored ELIGIBLE row that lapsed weeks ago is a
+// lie an operator will act on; leaving the sweeper off until enforcement is
+// enabled would mean the table is already wrong on the day it starts to matter.
+func startCapabilityMaintenanceWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+	service := bikecapability.New(bikecapability.Options{
+		Repository:                    bikecapability.NewRepository(db),
+		CertificationRequiredProducts: cfg.CertificationRequiredProducts,
+	})
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		service.RunMaintenanceWorker(workerCtx,
+			cfg.CapabilityMaintenanceInterval, cfg.MatchDecisionRetention)
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
 }
