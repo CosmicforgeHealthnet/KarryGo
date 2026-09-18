@@ -16,6 +16,7 @@ import (
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/logisticscapability"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supplypreview"
 )
 
 const maxMissionBody = 32 << 10
@@ -164,4 +165,29 @@ func RegisterCapability(
 	capabilities := group.Group("")
 	capabilities.Use(fleetauthority.BoundaryWithDB(db, verifier, allowedCallers)...)
 	logisticscapability.RegisterRoutes(capabilities, provider)
+}
+
+// RegisterSupplyPreview mounts the read-only supply preview on the SAME
+// internal-commerce boundary the mission and capability routes use.
+//
+// Sharing the boundary rather than building a second one is deliberate: the
+// preview is an internal contract, and a surface that quietly installed its
+// own auth would be the one that ends up weaker than its neighbours. The
+// `enabled` flag is checked here rather than inside the previewer so a
+// disabled deployment has no route at all, instead of a route that always
+// answers UNKNOWN.
+func RegisterSupplyPreview(
+	group *gin.RouterGroup,
+	previewer supplypreview.Previewer,
+	db *pgxpool.Pool,
+	verifier *serviceauth.Verifier,
+	allowedCallers []string,
+	enabled bool,
+) {
+	if !enabled || previewer == nil || verifier == nil || db == nil {
+		return
+	}
+	preview := group.Group("")
+	preview.Use(fleetauthority.BoundaryWithDB(db, verifier, allowedCallers)...)
+	supplypreview.RegisterRoutes(preview, previewer)
 }

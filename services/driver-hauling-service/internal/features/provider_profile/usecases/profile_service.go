@@ -11,6 +11,7 @@ import (
 	providerauthmodels "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/models"
 	providerprofilemodels "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/models"
 	providerprofilerepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"
+	"cosmicforge/logistics/services/hauling-service/internal/truckcatalog"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/phonenumber"
 )
@@ -164,8 +165,12 @@ type CreateTruckInput struct {
 
 func (s *ProfileService) CreateTruck(ctx context.Context, input CreateTruckInput) (providerprofilemodels.PublicTruck, error) {
 	var fields []apperrors.FieldViolation
-	if !providerprofilemodels.ValidTruckTypes[strings.ToLower(input.TruckType)] {
-		fields = append(fields, apperrors.FieldViolation{Field: "truck_type", Message: "Truck type must be one of: flatbed, container, tipper, van, refrigerated."})
+	if !truckcatalog.ValidForProvider(input.TruckType) {
+		// The allowed set is rendered from the catalogue rather than retyped,
+		// because the message this replaced listed only five of the thirteen
+		// types a provider could actually register.
+		fields = append(fields, apperrors.FieldViolation{Field: "truck_type",
+			Message: "Truck type must be one of: " + strings.Join(truckcatalog.ProviderSelectableCodes(), ", ") + "."})
 	}
 	if input.CapacityKg <= 0 {
 		fields = append(fields, apperrors.FieldViolation{Field: "capacity_kg", Message: "Capacity must be greater than zero."})
@@ -181,7 +186,7 @@ func (s *ProfileService) CreateTruck(ctx context.Context, input CreateTruckInput
 	truck := providerprofilemodels.Truck{
 		ID:                uuid.NewString(),
 		ProviderID:        input.ProviderID,
-		TruckType:         strings.ToLower(input.TruckType),
+		TruckType:         truckcatalog.Canonical(input.TruckType),
 		CapacityKg:        input.CapacityKg,
 		PlateNumber:       plate,
 		Year:              input.Year,
@@ -255,8 +260,12 @@ type UpdateTruckInput struct {
 
 func (s *ProfileService) UpdateTruck(ctx context.Context, input UpdateTruckInput) (providerprofilemodels.PublicTruck, error) {
 	var fields []apperrors.FieldViolation
-	if !providerprofilemodels.ValidTruckTypes[strings.ToLower(input.TruckType)] {
-		fields = append(fields, apperrors.FieldViolation{Field: "truck_type", Message: "Truck type must be one of: flatbed, container, tipper, van, refrigerated."})
+	if !truckcatalog.ValidForProvider(input.TruckType) {
+		// The allowed set is rendered from the catalogue rather than retyped,
+		// because the message this replaced listed only five of the thirteen
+		// types a provider could actually register.
+		fields = append(fields, apperrors.FieldViolation{Field: "truck_type",
+			Message: "Truck type must be one of: " + strings.Join(truckcatalog.ProviderSelectableCodes(), ", ") + "."})
 	}
 	if input.CapacityKg <= 0 {
 		fields = append(fields, apperrors.FieldViolation{Field: "capacity_kg", Message: "Capacity must be greater than zero."})
@@ -275,7 +284,7 @@ func (s *ProfileService) UpdateTruck(ctx context.Context, input UpdateTruckInput
 	truck := providerprofilemodels.Truck{
 		ID:                input.ID,
 		ProviderID:        input.ProviderID,
-		TruckType:         strings.ToLower(input.TruckType),
+		TruckType:         truckcatalog.Canonical(input.TruckType),
 		CapacityKg:        input.CapacityKg,
 		PlateNumber:       plate,
 		Year:              input.Year,

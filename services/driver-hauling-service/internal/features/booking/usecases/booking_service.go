@@ -14,9 +14,11 @@ import (
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
+	"cosmicforge/logistics/services/hauling-service/internal/truckcatalog"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/routing"
 )
 
@@ -100,6 +102,8 @@ type BookingService struct {
 	bookings           bookingrepo.BookingRepository
 	availability       availabilityrepositories.AvailabilityStore
 	trucks             TruckLookup
+	capability         CapabilityAuthority
+	capabilityMatching CapabilityMatchingConfig
 	payments           PaymentClient
 	commerceSettlement CommerceDeliverySettlementAuthority
 	notifier           *bookingclients.BookingNotifier
@@ -133,9 +137,14 @@ type matchHandle struct {
 }
 
 type Options struct {
-	Bookings            bookingrepo.BookingRepository
-	Availability        availabilityrepositories.AvailabilityStore
-	Trucks              TruckLookup
+	Bookings     bookingrepo.BookingRepository
+	Availability availabilityrepositories.AvailabilityStore
+	Trucks       TruckLookup
+	// Capability is Hauling's truck capability store (Section 9). nil keeps
+	// the legacy weight-and-type matcher exactly as it was, which is what
+	// lets this ship dark.
+	Capability          CapabilityAuthority
+	CapabilityMatching  CapabilityMatchingConfig
 	Payments            PaymentClient // nil disables payment binding (local dev)
 	CommerceSettlement  CommerceDeliverySettlementAuthority
 	Notifier            *bookingclients.BookingNotifier
@@ -185,6 +194,8 @@ func NewBookingService(opts Options) *BookingService {
 		bookings:             opts.Bookings,
 		availability:         opts.Availability,
 		trucks:               opts.Trucks,
+		capability:           opts.Capability,
+		capabilityMatching:   opts.CapabilityMatching,
 		payments:             opts.Payments,
 		commerceSettlement:   opts.CommerceSettlement,
 		notifier:             opts.Notifier,
@@ -262,9 +273,9 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	}
 	// Empty means "any truck" (skips the matcher's type filter). Anything else
 	// must be a real truck type, otherwise the booking would be stored fine and
-	// then silently never match, since matching compares the type verbatim.
-	if truckType := strings.TrimSpace(input.PreferredTruckType); truckType != "" &&
-		!bookingmodels.ValidPreferredTruckTypes[strings.ToLower(truckType)] {
+	// then silently never match. The catalogue is the same source provider
+	// registration and the matcher read, so the three can no longer diverge.
+	if !truckcatalog.ValidForBooking(input.PreferredTruckType) {
 		fields = append(fields, apperrors.FieldViolation{Field: "preferred_truck_type", Message: "Choose a valid truck type."})
 	}
 	paymentMethod := strings.TrimSpace(input.PaymentMethod)
@@ -309,7 +320,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		DropoffLat:         input.DropoffLat,
 		DropoffLng:         input.DropoffLng,
 		CargoType:          "",
-		PreferredTruckType: strings.ToLower(strings.TrimSpace(input.PreferredTruckType)),
+		PreferredTruckType: truckcatalog.Canonical(input.PreferredTruckType),
 		CargoWeightKg:      input.CargoWeightKg,
 		CargoDescription:   strings.TrimSpace(input.CargoDescription),
 		RequiresHelpers:    input.RequiresHelpers,
@@ -704,6 +715,7 @@ func (s *BookingService) eligibleProviders(
 		dist float64
 	}
 	var matches []scored
+	distances := make(map[string]float64, len(providers))
 	for _, p := range providers {
 		if s.restrictions != nil {
 			restricted, err := s.restrictions.Restricted(ctx, "", "PROVIDER", p.ProviderID)
@@ -724,20 +736,23 @@ func (s *BookingService) eligibleProviders(
 		if dist > s.maxRadiusKm {
 			continue
 		}
-		// Truck eligibility. When we can't resolve the truck (no lookup wired, or
-		// the truck record is gone) we fall back to proximity-only so matching
-		// degrades gracefully rather than rejecting everyone.
+		// Legacy truck eligibility, kept as the pre-capability behaviour so a
+		// deployment with HAULING_CAPABILITY_MATCHING_ENABLED off matches
+		// exactly as it did before. Note what it does NOT do: an unresolved
+		// truck falls through, which is the fail-open the capability filter
+		// below replaces.
 		if s.trucks != nil && p.TruckID != "" {
 			truck, err := s.trucks.GetTruck(ctx, p.TruckID)
 			if err == nil {
 				if truck.CapacityKg > 0 && booking.CargoWeightKg > truck.CapacityKg {
 					continue
 				}
-				if wantType != "" && strings.ToLower(strings.TrimSpace(truck.TruckType)) != wantType {
+				if wantType != "" && !truckcatalog.SatisfiesPreferredType(truck.TruckType, wantType) {
 					continue
 				}
 			}
 		}
+		distances[p.ProviderID] = dist
 		matches = append(matches, scored{p: p, dist: dist})
 	}
 
@@ -746,6 +761,34 @@ func (s *BookingService) eligibleProviders(
 	result := make([]availabilityrepositories.ProviderStatus, len(matches))
 	for i, m := range matches {
 		result[i] = m.p
+	}
+
+	// Hard cargo fit. This is the gate the legacy block above cannot be: it
+	// refuses an unresolved truck instead of waving it through, and it reads
+	// every physical fact rather than weight and type alone.
+	//
+	// Hard eligibility and ranking stay separate. The proximity sort has
+	// already run, and this only REMOVES candidates from it -- a nearer truck
+	// can never be scored back into a job it does not fit.
+	if s.capability != nil && s.capabilityMatching.Enabled {
+		eligible, decisions := s.capabilityFilter(ctx, booking, result, distances)
+		s.recordCapabilityDecisions(ctx, decisions)
+		if s.capabilityMatching.FailClosed {
+			if len(eligible) < len(result) {
+				logging.Notice("hauling-capability",
+					"booking %s: %d of %d candidates failed hard cargo fit (%s)",
+					booking.ID, len(result)-len(eligible), len(result), capabilityShortfall(decisions))
+			}
+			return eligible
+		}
+		// Shadow mode: the decision was computed and recorded, and the legacy
+		// selection stands. Anything else here would make the flag pair
+		// meaningless.
+		if len(eligible) < len(result) {
+			logging.Notice("hauling-capability",
+				"shadow: booking %s would have lost %d of %d candidates (%s)",
+				booking.ID, len(result)-len(eligible), len(result), capabilityShortfall(decisions))
+		}
 	}
 	return result
 }

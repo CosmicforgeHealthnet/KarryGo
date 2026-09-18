@@ -101,6 +101,35 @@ type Config struct {
 	FleetServiceTimeout             time.Duration
 	ProviderOrganizationModeEnabled bool
 
+	// ── Section 9 capability matching ─────────────────────────────────────
+	//
+	// The pair is a two-stage rollout, not two independent switches:
+	//
+	//	MATCHING=false                 legacy weight-and-type matching only
+	//	MATCHING=true, FAIL_CLOSED=false  SHADOW: decide and record, do not enforce
+	//	MATCHING=true, FAIL_CLOSED=true   ENFORCED: hard fit selects
+	//
+	// Shadow exists because enabling hard fit on an unsurveyed fleet would
+	// refuse nearly every candidate as CAPABILITY_UNKNOWN and be
+	// indistinguishable from a total outage. Run shadow, watch
+	// hauling_fleet_capability_completeness_percent, then enforce.
+	CapabilityMatchingEnabled bool
+	// FailClosedTruckLookup makes an unresolved truck ineligible instead of
+	// falling through to proximity-only matching. It has no effect unless
+	// CapabilityMatchingEnabled is also true.
+	FailClosedTruckLookup bool
+	// SupplyPreviewEnabled mounts the read-only planning surface Vendor's
+	// just-in-time orchestration reads before it commits.
+	SupplyPreviewEnabled bool
+	// CertificationRequiredProducts lists products that may only be served by
+	// a formally certified truck, comma-separated. A generic truck type never
+	// substitutes for a certificate for a product named here.
+	CertificationRequiredProducts string
+	// CapabilityMaintenanceInterval and MatchDecisionRetention drive the
+	// eligibility-expiry and evidence-retention sweeper.
+	CapabilityMaintenanceInterval time.Duration
+	MatchDecisionRetention        time.Duration
+
 	// Matching config
 	BookingMatchTimeout int     // seconds a matched provider has to accept
 	BookingSearchWindow int     // seconds to keep searching (rescanning) before unmatched
@@ -189,6 +218,13 @@ func Load() Config {
 		FleetServiceTimeout:             time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
 		ProviderOrganizationModeEnabled: getEnvBool("PROVIDER_ORGANIZATION_MODE_ENABLED", false),
 
+		CapabilityMatchingEnabled:     getEnvBool("HAULING_CAPABILITY_MATCHING_ENABLED", false),
+		FailClosedTruckLookup:         getEnvBool("HAULING_FAIL_CLOSED_TRUCK_LOOKUP", false),
+		SupplyPreviewEnabled:          getEnvBool("HAULING_SUPPLY_PREVIEW_ENABLED", false),
+		CertificationRequiredProducts: os.Getenv("HAULING_CERTIFICATION_REQUIRED_PRODUCTS"),
+		CapabilityMaintenanceInterval: time.Duration(getEnvInt("HAULING_CAPABILITY_MAINTENANCE_INTERVAL_SECONDS", 900)) * time.Second,
+		MatchDecisionRetention:        time.Duration(getEnvInt("HAULING_MATCH_DECISION_RETENTION_DAYS", 30)) * 24 * time.Hour,
+
 		BookingMatchTimeout: getEnvInt("HAULING_BOOKING_MATCH_TIMEOUT", 30),
 		BookingSearchWindow: getEnvInt("HAULING_BOOKING_SEARCH_WINDOW", 60),
 		ProviderOnlineTTL:   getEnvInt("HAULING_PROVIDER_ONLINE_TTL", 90),
@@ -247,6 +283,18 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(c.MediaURL) == "" || strings.TrimSpace(c.MediaToken) == "" {
 			problems = append(problems, "HAULING_MEDIA_URL and HAULING_MEDIA_TOKEN are required when Commerce integration is enabled")
 		}
+	}
+	// Fail-closed without capability matching would be a flag that silently
+	// does nothing, which is worse than a refusal: an operator would believe
+	// unresolved trucks were being rejected while they were still matching.
+	if c.FailClosedTruckLookup && !c.CapabilityMatchingEnabled {
+		problems = append(problems, "HAULING_FAIL_CLOSED_TRUCK_LOOKUP requires HAULING_CAPABILITY_MATCHING_ENABLED")
+	}
+	// A preview answers from the capability store. Without it the endpoint
+	// could only ever return UNKNOWN, which would teach Vendor's planner to
+	// stop asking.
+	if c.SupplyPreviewEnabled && !c.CapabilityMatchingEnabled {
+		problems = append(problems, "HAULING_SUPPLY_PREVIEW_ENABLED requires HAULING_CAPABILITY_MATCHING_ENABLED")
 	}
 	if c.ProviderOrganizationModeEnabled {
 		if strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" || len(c.FleetServiceSecret) == 0 {

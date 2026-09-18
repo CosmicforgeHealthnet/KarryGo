@@ -223,10 +223,21 @@ func main() {
 		})
 	}
 
+	// Section 9 capability matching. Built unconditionally: the provider
+	// capability endpoints are how a fleet gets surveyed, and a deployment
+	// that could not record capability until matching was enabled could never
+	// reach the completeness needed to enable it.
+	capability := buildCapabilityWiring(cfg, db, availabilityStore)
+
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
-		Bookings:           bookingRepo,
-		Availability:       availabilityStore,
-		Trucks:             truckLookup{trucks: truckRepo},
+		Bookings:     bookingRepo,
+		Availability: availabilityStore,
+		Trucks:       truckLookup{trucks: truckRepo},
+		Capability:   capability.authority,
+		CapabilityMatching: bookingusecases.CapabilityMatchingConfig{
+			Enabled:    cfg.CapabilityMatchingEnabled,
+			FailClosed: cfg.FailClosedTruckLookup,
+		},
 		Payments:           paymentClient,
 		CommerceSettlement: commerceSettlement,
 		// Section 10 corporate completion. Both default off; see each flag's
@@ -340,7 +351,14 @@ func main() {
 				return redisClient.Ping(ctx).Err()
 			},
 		},
-		Workers: []func(context.Context) error{haulingMetrics.Run},
+		Workers: []func(context.Context) error{
+			haulingMetrics.Run,
+			func(ctx context.Context) error {
+				capability.service.RunMaintenanceWorker(ctx,
+					cfg.CapabilityMaintenanceInterval, cfg.MatchDecisionRetention)
+				return nil
+			},
+		},
 		Register: func(group *gin.RouterGroup) {
 			haulingMetrics.RegisterRoutes(group)
 			// HLG-021: the server-side typed financial projection. Mounted on
@@ -365,6 +383,7 @@ func main() {
 			})
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService)
+			capability.registerRoutes(group, authService, cfg.ServiceSecrets)
 			availabilityhttp.RegisterAvailabilityRoutes(group, availService, authService, customerSigner)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo, redisClient)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
@@ -436,6 +455,18 @@ func main() {
 					db,
 					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
 					[]string{commercemission.SignatureCaller},
+				)
+				// The read-only planning surface Vendor's just-in-time
+				// orchestration reads before it commits. It creates nothing:
+				// no mission, no booking, no offer, no reservation, and it
+				// names no provider or truck.
+				haulingcommercemission.RegisterSupplyPreview(
+					group,
+					capability.previewer,
+					db,
+					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+					[]string{commercemission.SignatureCaller},
+					cfg.SupplyPreviewEnabled,
 				)
 			}
 			fleetauthority.Register(group, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
