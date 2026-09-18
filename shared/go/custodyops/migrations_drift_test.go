@@ -20,9 +20,9 @@ func TestServiceMigrationsEmbedCanonicalMultiManifestSchema(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, migration := range []string{
-			"driver-taxi-service/migrations/012_custody_multi_manifest",
-			"driver-hauling-service/migrations/018_custody_multi_manifest",
-			"driver-dispatch-delivery-service/migrations/000057_custody_multi_manifest",
+			"driver-taxi-service/migrations/017_custody_multi_manifest",
+			"driver-hauling-service/migrations/019_custody_multi_manifest",
+			"driver-dispatch-delivery-service/migrations/000059_custody_multi_manifest",
 		} {
 			raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(migration+"."+direction+".sql")))
 			if err != nil {

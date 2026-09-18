@@ -21,8 +21,8 @@ func TestServiceMigrationsEmbedCanonicalMovementOutboxSchema(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, migration := range []string{
-			"driver-hauling-service/migrations/019_customer_movement_outbox",
-			"driver-dispatch-delivery-service/migrations/000058_customer_movement_outbox",
+			"driver-hauling-service/migrations/020_customer_movement_outbox",
+			"driver-dispatch-delivery-service/migrations/000060_customer_movement_outbox",
 		} {
 			raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(migration+"."+direction+".sql")))
 			if err != nil {
