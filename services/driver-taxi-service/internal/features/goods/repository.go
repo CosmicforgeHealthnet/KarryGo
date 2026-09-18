@@ -1085,7 +1085,7 @@ func (r *Repository) writeEvent(ctx context.Context, tx pgx.Tx, id, event string
 	if err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,destination) VALUES('taxi_goods_mission',$1,$2,$3,'VENDOR_COMMERCE')`, id, event, body); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,target) VALUES('taxi_goods_mission',$1,$2,$3,'vendor-service')`, id, event, body); err != nil {
 		return err
 	}
 	return r.writeGoodsMovement(ctx, tx, id, event, fields)

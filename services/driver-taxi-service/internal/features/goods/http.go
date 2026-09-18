@@ -39,7 +39,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *servicea
 	if verifier != nil {
 		internal := group.Group("/internal/commerce")
 		internal.Use(serviceauth.Middleware(verifier), handler.vendorOnlyAndNonce())
-		internal.GET("/capabilities", handler.commerceCapabilities)
+		internal.GET("/capabilities", handler.capabilities)
 
 		// The shared cross-authority capability contract Vendor reads to
 		// decide whether Taxi Goods may be selected at all (VND-007). It is
@@ -60,7 +60,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *servicea
 		internal.POST("/missions/:missionRef/cancel", handler.cancelMission)
 		internal.POST("/missions/:missionRef/pickup/verify", handler.verifyPickup)
 		internal.POST("/missions/:missionRef/receiver", handler.changeReceiver)
-		internal.GET("/capabilities", handler.commerceCapabilities)
+		internal.GET("/execution-capability", handler.commerceCapabilities)
 		internal.POST("/serviceability", handler.serviceability)
 		internal.POST("/missions/:missionRef/pickups/delay", handler.pickupDelay)
 		internal.POST("/missions/:missionRef/route/replan", handler.replanRoute)

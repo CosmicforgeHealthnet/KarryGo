@@ -297,7 +297,7 @@ func (r *Repository) OpenRecovery(ctx context.Context, mission Mission, command 
 		return RecoveryCase{}, false, err
 	}
 	for _, event := range []string{"taxi.guarantee.breached.v1", "taxi.recovery.started.v1"} {
-		if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,destination) VALUES('taxi_goods_mission',$1,$2,$3,'UNROUTED')`, mission.ID, event,
+		if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload) VALUES('taxi_goods_mission',$1,$2,$3)`, mission.ID, event,
 			mustJSON(map[string]any{"mission_ref": mission.MissionRef, "recovery_case_id": id, "trigger_code": command.TriggerCode, "custody_transfer_required": held > 0})); err != nil {
 			return RecoveryCase{}, false, err
 		}
@@ -329,7 +329,7 @@ func (r *Repository) AdvanceRecovery(ctx context.Context, id, state, providerID,
 	if state == RecoveryOpsRequired {
 		event = "taxi.recovery.failed.v1"
 	}
-	if _, err = r.db.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,destination) SELECT 'taxi_goods_mission',goods_mission_id,$2,$3,'UNROUTED' FROM taxi_recovery_cases WHERE id=$1`, id, event,
+	if _, err = r.db.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload) SELECT 'taxi_goods_mission',goods_mission_id,$2,$3 FROM taxi_recovery_cases WHERE id=$1`, id, event,
 		mustJSON(map[string]any{"recovery_case_id": id, "state": state, "reason_code": reason})); err != nil {
 		return RecoveryCase{}, err
 	}
@@ -354,7 +354,7 @@ func (r *Repository) ResolveRecovery(ctx context.Context, id, missionID, operato
 			return RecoveryCase{}, err
 		}
 		for _, event := range []string{"taxi.recovery.custody_transferred.v1", "taxi.recovery.provider_replaced.v1", "taxi.recovery.resolved.v1"} {
-			if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,destination) VALUES('taxi_goods_mission',$1,$2,$3,'UNROUTED')`, missionID, event, mustJSON(map[string]any{"recovery_case_id": id})); err != nil {
+			if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload) VALUES('taxi_goods_mission',$1,$2,$3)`, missionID, event, mustJSON(map[string]any{"recovery_case_id": id})); err != nil {
 				return RecoveryCase{}, err
 			}
 		}

@@ -84,17 +84,17 @@ func TestPostgresReconcileRepublishesOnlyWhatTheProjectionLacks(t *testing.T) {
 		t.Fatalf("republished = %d, want only the movement the projection lacks", result.Republished)
 	}
 	var queued int
-	if err = db.QueryRow(ctx, `SELECT count(*) FROM taxi_outbox WHERE aggregate_id=$1 AND destination='CUSTOMER_MOVEMENT'`, missing).Scan(&queued); err != nil || queued != 1 {
+	if err = db.QueryRow(ctx, `SELECT count(*) FROM taxi_outbox WHERE aggregate_id=$1 AND target='customer-service'`, missing).Scan(&queued); err != nil || queued != 1 {
 		t.Fatalf("queued for the missing movement = %d (%v)", queued, err)
 	}
-	if err = db.QueryRow(ctx, `SELECT count(*) FROM taxi_outbox WHERE aggregate_id=$1 AND destination='CUSTOMER_MOVEMENT'`, current).Scan(&queued); err != nil || queued != 0 {
+	if err = db.QueryRow(ctx, `SELECT count(*) FROM taxi_outbox WHERE aggregate_id=$1 AND target='customer-service'`, current).Scan(&queued); err != nil || queued != 0 {
 		t.Fatalf("an up-to-date movement was republished %d times", queued)
 	}
 
 	// What it republished is the state Taxi actually holds, with a version
 	// above the one the projection reported.
 	var payload []byte
-	if err = db.QueryRow(ctx, `SELECT payload FROM taxi_outbox WHERE aggregate_id=$1 AND destination='CUSTOMER_MOVEMENT'`, missing).Scan(&payload); err != nil {
+	if err = db.QueryRow(ctx, `SELECT payload FROM taxi_outbox WHERE aggregate_id=$1 AND target='customer-service'`, missing).Scan(&payload); err != nil {
 		t.Fatal(err)
 	}
 	var envelope events.Envelope

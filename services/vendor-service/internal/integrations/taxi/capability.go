@@ -8,7 +8,11 @@ import (
 )
 
 // CapabilityPath is Taxi's internal capability route under its API base.
-const CapabilityPath = "/api/v1/taxi/internal/commerce/capabilities"
+// CapabilityPath is Taxi's execution envelope (contract v2). It is
+// deliberately NOT /internal/commerce/capabilities: Taxi already serves a
+// differently shaped capability document there, and two contracts on one
+// path either collide at registration or answer the wrong shape.
+const CapabilityPath = "/api/v1/taxi/internal/commerce/execution-capability"
 
 // CapabilityAuthority reads Taxi's live execution envelope over the shared
 // capability contract and translates it into the planner's own vocabulary.

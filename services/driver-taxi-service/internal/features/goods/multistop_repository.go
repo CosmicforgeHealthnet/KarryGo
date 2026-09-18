@@ -336,7 +336,7 @@ func (r *Repository) MarkStopDelayed(ctx context.Context, caller, missionRef, st
 		return Mission{}, ErrConflict
 	}
 	for _, event := range []string{"taxi.goods.pickup.delayed.v1", "taxi.goods.replan_requested.v1"} {
-		if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,destination) VALUES('taxi_goods_mission',$1,$2,$3,'UNROUTED')`, missionID, event,
+		if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload) VALUES('taxi_goods_mission',$1,$2,$3)`, missionID, event,
 			mustJSON(map[string]any{"mission_ref": missionRef, "stop_ref": stopRef, "ready_at": readyAt.UTC(), "mission_version": version})); err != nil {
 			return Mission{}, err
 		}
@@ -404,7 +404,7 @@ func (r *Repository) ReplanRoute(ctx context.Context, caller, missionRef, operat
 	if _, err = tx.Exec(ctx, `INSERT INTO taxi_goods_route_versions(mission_id,route_version,stop_order,reason_code,operation_ref) VALUES($1,$2,$3,$4,$5)`, missionID, routeVersion, order, reason, operationRef); err != nil {
 		return 0, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,destination) VALUES('taxi_goods_mission',$1,'taxi.goods.route_replanned.v1',$2,'UNROUTED')`, missionID,
+	if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload) VALUES('taxi_goods_mission',$1,'taxi.goods.route_replanned.v1',$2)`, missionID,
 		mustJSON(map[string]any{"mission_ref": missionRef, "route_version": routeVersion, "stop_order": order, "reason_code": reason})); err != nil {
 		return 0, err
 	}
@@ -541,7 +541,7 @@ func (r *Repository) applyStopCustodyTx(ctx context.Context, tx pgx.Tx, in stopC
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM taxi_goods_mission_stops WHERE mission_id=$1 AND stop_type='PICKUP' AND status NOT IN ('COLLECTED','CANCELLED_BY_REPLAN','FAILED')`, in.missionID).Scan(&remaining); err != nil {
 		return "", "", err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload,destination) VALUES('taxi_goods_mission',$1,'taxi.goods.pickup.collected.v1',$2,'UNROUTED')`, in.missionID,
+	if _, err = tx.Exec(ctx, `INSERT INTO taxi_outbox(aggregate_type,aggregate_id,event_type,payload) VALUES('taxi_goods_mission',$1,'taxi.goods.pickup.collected.v1',$2)`, in.missionID,
 		mustJSON(map[string]any{"mission_ref": in.missionRef, "stop_ref": in.stopRef, "manifests": keys, "remaining_pickups": remaining})); err != nil {
 		return "", "", err
 	}

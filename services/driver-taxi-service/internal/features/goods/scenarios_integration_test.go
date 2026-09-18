@@ -181,7 +181,7 @@ func TestPostgresScenarioBEveryStopCollectedThenDeliveredOnce(t *testing.T) {
 		t.Fatal("a second completion must not settle again")
 	}
 	// The customer's movement history is fed from the same transaction.
-	if queued := countRows(t, db, `SELECT count(*) FROM taxi_outbox WHERE aggregate_id=$1 AND destination='CUSTOMER_MOVEMENT'`, mission.ID); queued == 0 {
+	if queued := countRows(t, db, `SELECT count(*) FROM taxi_outbox WHERE aggregate_id=$1 AND target='customer-service'`, mission.ID); queued == 0 {
 		t.Fatal("no customer movement event was queued for the mission")
 	}
 }
