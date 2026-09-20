@@ -45,6 +45,22 @@ func RegisterInternal(group *gin.RouterGroup, handler *Handler) {
 		return
 	}
 	group.GET("/bikes/:id/capabilities", handler.getCapabilityInternal)
+}
+
+// RegisterCertificationIngress mounts the certifying authority's callback on a
+// group the caller has ALREADY protected.
+//
+// It is separate from RegisterInternal because the two surfaces have different
+// callers and must not share a boundary. The capability read is Vendor's, and
+// its group trusts Vendor's secret; the certification callback is
+// verification-compliance-service's alone. Mounting them together meant this
+// service could only ever be certified by a caller holding Vendor's key, and
+// meant the certification surface disappeared entirely in a deployment that had
+// not configured Vendor -- two unrelated integrations sharing one switch.
+func RegisterCertificationIngress(group *gin.RouterGroup, handler *Handler) {
+	if group == nil || handler == nil || handler.service == nil {
+		return
+	}
 	group.POST("/verification/certification-events", handler.certificationEvent)
 }
 

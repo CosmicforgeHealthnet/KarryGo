@@ -64,7 +64,16 @@ type Config struct {
 	// VendorServiceSecret is the shared HMAC secret Vendor Service signs its
 	// commerce quote requests with. Empty means this deployment does not serve
 	// commerce quotes at all, and the route is not registered.
-	VendorServiceSecret          []byte
+	VendorServiceSecret []byte
+
+	// VerificationServiceSecret is the shared HMAC secret
+	// verification-compliance-service signs its certification callbacks with.
+	//
+	// It is separate from VendorServiceSecret because certification and commerce
+	// are different integrations with different callers. Sharing one secret
+	// would mean any service able to quote a delivery could also certify a bike
+	// for a product it has no authority over.
+	VerificationServiceSecret    []byte
 	VendorServiceURL             string
 	RouteServiceURL              string
 	RouteServiceTimeout          time.Duration
@@ -317,6 +326,7 @@ func Load() (Config, error) {
 		FleetServiceURL:               getEnv("FLEET_PARTNER_SERVICE_URL", ""),
 		FleetServiceSecret:            []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
 		VendorServiceSecret:           []byte(getEnv("VENDOR_SERVICE_SECRET", "")),
+		VerificationServiceSecret:     []byte(getEnv("VERIFICATION_SERVICE_SECRET", "")),
 		VendorServiceURL:              getEnv("VENDOR_SERVICE_URL", ""),
 		RouteServiceURL:               getEnv("DISPATCH_ROUTE_SERVICE_URL", ""),
 		RouteServiceTimeout:           time.Duration(getEnvInt("DISPATCH_ROUTE_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,

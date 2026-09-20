@@ -60,6 +60,11 @@ import (
 	"cosmicforge/logistics/shared/go/walletclient"
 )
 
+// certificationCaller is the only service permitted to certify a bike for a
+// service product. Certification is an external judgement by design: a service
+// that could certify its own assets would not be certified at all.
+const certificationCaller = "verification-compliance-service"
+
 // dispatchSessionRevokerAdapter bridges the auth session repository to the
 // profile.SessionRevoker interface. In this service, provider_id == dispatch_rider_id.
 type dispatchSessionRevokerAdapter struct {
@@ -303,8 +308,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			[]string{commercequote.SignatureCaller},
 			cfg.SupplyPreviewEnabled,
 		)
-		// The authoritative internal capability read and the certification
-		// callback, behind the same boundary.
+		// The authoritative internal capability read, for Vendor's planner.
 		dispatchcommercequote.RegisterInternalCapability(
 			engine.Group("/api/v1/internal"),
 			func(group *gin.RouterGroup) { bikecapability.RegisterInternal(group, capability.Handler) },
@@ -313,6 +317,28 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			}, 5*time.Minute),
 			authority.NewPostgresNonceClaimer(db),
 			[]string{commercequote.SignatureCaller},
+		)
+	}
+
+	// The certification callback from verification-compliance-service.
+	//
+	// It is mounted outside the Vendor block on purpose. Certification decides
+	// which bikes may serve which products; Vendor quotes deliveries. Tying the
+	// two together meant a deployment without a Vendor secret had no
+	// certification ingress at all, so every product requiring certification
+	// would fail closed forever with nothing able to change it -- and a
+	// deployment with one gave Vendor's key the power to certify.
+	if capability.Handler != nil && len(cfg.VerificationServiceSecret) > 0 {
+		dispatchcommercequote.RegisterInternalCapability(
+			engine.Group("/api/v1/internal"),
+			func(group *gin.RouterGroup) {
+				bikecapability.RegisterCertificationIngress(group, capability.Handler)
+			},
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				certificationCaller: cfg.VerificationServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{certificationCaller},
 		)
 	}
 
