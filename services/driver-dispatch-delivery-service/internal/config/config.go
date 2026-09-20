@@ -109,13 +109,30 @@ type Config struct {
 	// eligibility-expiry and evidence-retention sweeper.
 	CapabilityMaintenanceInterval time.Duration
 	MatchDecisionRetention        time.Duration
-	ServiceabilityDegradedMode    bool
-	ServiceabilityTTL             time.Duration
-	ServiceabilityMaxRouteKM      float64
-	ServiceZoneCenterLat          float64
-	ServiceZoneCenterLng          float64
-	ServiceZoneRadiusKM           float64
-	ServiceRestrictedZones        string
+
+	// ── Policy publication ingestion ──────────────────────────────────────
+	//
+	// PolicyIngestEnabled mounts the sink that turns a published network
+	// catalogue into an immutable local snapshot. Matching always reads the
+	// LOCAL snapshot, so this only changes where that snapshot comes from --
+	// the control plane never becomes a synchronous dependency of assignment.
+	PolicyIngestEnabled bool
+	// AdminServiceCaller / AdminServiceSecret / AdminAllowedHosts configure
+	// the authenticated read-back used when a catalogue travels as a
+	// reference. An empty host allowlist disables read-back, which parks
+	// referenced publications rather than rejecting them.
+	AdminServiceCaller string
+	AdminServiceSecret []byte
+	AdminAllowedHosts  string
+	// PolicyReconcileInterval is how often parked publications are retried.
+	PolicyReconcileInterval    time.Duration
+	ServiceabilityDegradedMode bool
+	ServiceabilityTTL          time.Duration
+	ServiceabilityMaxRouteKM   float64
+	ServiceZoneCenterLat       float64
+	ServiceZoneCenterLng       float64
+	ServiceZoneRadiusKM        float64
+	ServiceRestrictedZones     string
 
 	// Additive Sections 7-8 capabilities. Every switch defaults false so the
 	// established broadcast Request -> Trip flow remains the rollout default.
@@ -315,6 +332,11 @@ func Load() (Config, error) {
 		CapabilityMatchingEnforce:      getEnvBool("DISPATCH_CAPABILITY_MATCHING_ENFORCE", false),
 		SupplyPreviewEnabled:           getEnvBool("DISPATCH_SUPPLY_PREVIEW_ENABLED", false),
 		CertificationRequiredProducts:  os.Getenv("DISPATCH_CERTIFICATION_REQUIRED_PRODUCTS"),
+		PolicyIngestEnabled:            getEnvBool("DISPATCH_POLICY_INGEST_ENABLED", false),
+		AdminServiceCaller:             getEnv("DISPATCH_ADMIN_SERVICE_CALLER", "dispatch-delivery-service"),
+		AdminServiceSecret:             []byte(os.Getenv("DISPATCH_ADMIN_SERVICE_SECRET")),
+		AdminAllowedHosts:              os.Getenv("DISPATCH_ADMIN_ALLOWED_HOSTS"),
+		PolicyReconcileInterval:        time.Duration(getEnvInt("DISPATCH_POLICY_RECONCILE_INTERVAL_SECONDS", 120)) * time.Second,
 		CapabilityMaintenanceInterval:  time.Duration(getEnvInt("DISPATCH_CAPABILITY_MAINTENANCE_INTERVAL_SECONDS", 900)) * time.Second,
 		MatchDecisionRetention:         time.Duration(getEnvInt("DISPATCH_MATCH_DECISION_RETENTION_DAYS", 30)) * 24 * time.Hour,
 		ServiceabilityDegradedMode:     getEnvBool("DISPATCH_SERVICEABILITY_DEGRADED_MODE_ENABLED", false),

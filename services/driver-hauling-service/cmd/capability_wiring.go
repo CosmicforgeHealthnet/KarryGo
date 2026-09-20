@@ -10,9 +10,12 @@ import (
 	"cosmicforge/logistics/services/hauling-service/internal/config"
 	providerauthusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
+	"cosmicforge/logistics/services/hauling-service/internal/features/recovery"
 	"cosmicforge/logistics/services/hauling-service/internal/features/truckcapability"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/geo"
+	"cosmicforge/logistics/shared/go/policyingest"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -51,6 +54,8 @@ type capabilityWiring struct {
 	handler   *truckcapability.Handler
 	previewer *truckcapability.Previewer
 	authority capabilityAuthority
+	policy    *truckcapability.PolicyIngest
+	recovery  *recovery.Handler
 	config    config.Config
 }
 
@@ -79,7 +84,26 @@ func buildCapabilityWiring(
 			Enabled:  cfg.SupplyPreviewEnabled,
 		}),
 		authority: capabilityAuthority{service: service},
-		config:    cfg,
+		recovery: recovery.NewHandler(recovery.New(recovery.Options{
+			Repository: recovery.NewRepository(db),
+			Candidates: recoveryCandidates{store: availability},
+			// The SAME capability service the matcher uses. Recovery has no
+			// fit rules of its own, so a replacement is evaluated by exactly
+			// the call that chose the original provider.
+			Capability:  service,
+			Custody:     custodyops.NewRepository(db, "HAULING"),
+			Events:      recovery.NewOutboxSink(db, cfg.RecoveryEventTarget, cfg.RecoveryEventsEnabled, nil),
+			MaxRadiusKm: cfg.MatchMaxRadiusKm,
+			Enabled:     cfg.RecoveryEnabled,
+		})),
+		policy: truckcapability.NewPolicyIngest(truckcapability.PolicyIngestOptions{
+			DB:                db,
+			CallerName:        cfg.AdminServiceCaller,
+			AdminSecret:       cfg.AdminServiceSecret,
+			AdminHosts:        truckcapability.AdminHostsFrom(cfg.AdminAllowedHosts),
+			ReconcileInterval: cfg.PolicyReconcileInterval,
+		}),
+		config: cfg,
 	}
 }
 
@@ -108,9 +132,62 @@ func (w capabilityWiring) registerRoutes(
 	internal := group.Group("/internal")
 	internal.Use(serviceauth.Middleware(verifier))
 	truckcapability.RegisterInternal(internal, w.handler)
+
+	// Recovery is an internal/operator surface only. Nothing here lets a
+	// provider choose who replaces them.
+	if w.config.RecoveryEnabled {
+		recovery.RegisterInternal(internal, w.recovery)
+	}
+
+	// The control-plane publication sink. Mounted from the api base rather
+	// than the /internal group above because policyingest.IngressPath already
+	// carries its own /internal prefix, and behind the same HMAC verifier --
+	// this endpoint decides which trucks may take which work, so it is the
+	// last surface that should get a boundary of its own.
+	if w.config.PolicyIngestEnabled {
+		publications := group.Group("")
+		publications.Use(serviceauth.Middleware(verifier))
+		policyingest.RegisterRoutes(publications, w.policy.Ingestor())
+	}
+}
+
+// runPolicyReconciler retries publications whose read-back outcome was unknown.
+func (w capabilityWiring) runPolicyReconciler(ctx context.Context) {
+	if !w.config.PolicyIngestEnabled {
+		return
+	}
+	w.policy.RunReconcileWorker(ctx)
 }
 
 // serviceAuthSkew matches the tolerance every other internal surface in this
 // service uses. Restating it as a constant keeps a future change from moving
 // one surface's clock tolerance without the others.
 const serviceAuthSkew = 5 * time.Minute
+
+// recoveryCandidates narrows the availability store to the two fields
+// replacement search may see.
+//
+// The same narrowing the supply preview uses, for the same reason: handing a
+// selector the full provider status -- live GPS, truck id, heading -- when it
+// only needs "who is near and how far" leaves the boundary resting on the
+// selector's discipline rather than on its inputs.
+type recoveryCandidates struct {
+	store availabilityrepositories.AvailabilityStore
+}
+
+func (c recoveryCandidates) NearbyProviders(
+	ctx context.Context, center geo.Point, radiusKm float64, limit int,
+) ([]recovery.NearbyProvider, error) {
+	statuses, err := c.store.NearbyProviders(ctx, center, radiusKm, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]recovery.NearbyProvider, 0, len(statuses))
+	for _, status := range statuses {
+		out = append(out, recovery.NearbyProvider{
+			ProviderID: status.ProviderID,
+			DistanceKm: geo.HaversineKm(center, geo.Point{Lat: status.Lat, Lng: status.Lng}),
+		})
+	}
+	return out, nil
+}

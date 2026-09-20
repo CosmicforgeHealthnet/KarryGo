@@ -115,3 +115,75 @@ func TestRolloutStagesAreAllValid(t *testing.T) {
 		})
 	}
 }
+
+// The gap-closure flags default off too, so deploying this build changes
+// nothing until someone deliberately turns it on.
+func TestGapClosureFlagsDefaultOff(t *testing.T) {
+	for _, key := range []string{
+		"HAULING_RECOVERY_ENABLED", "HAULING_RECOVERY_EVENTS_ENABLED",
+		"HAULING_POLICY_INGEST_ENABLED", "HAULING_ADMIN_ALLOWED_HOSTS",
+	} {
+		os.Unsetenv(key)
+	}
+	cfg := Load()
+	if cfg.RecoveryEnabled || cfg.RecoveryEventsEnabled || cfg.PolicyIngestEnabled {
+		t.Fatalf("a gap-closure flag defaults on: %+v", cfg)
+	}
+	// An empty host allowlist is the safe default: it disables read-back
+	// entirely rather than allowing any host a publication happens to name.
+	if cfg.AdminAllowedHosts != "" {
+		t.Fatalf("admin hosts default to %q", cfg.AdminAllowedHosts)
+	}
+	if cfg.PolicyReconcileInterval <= 0 {
+		t.Fatalf("reconcile interval is not usable: %v", cfg.PolicyReconcileInterval)
+	}
+}
+
+// Recovery selects a replacement through the capability store. Without
+// capability matching it would fall back to proximity alone -- the exact
+// fail-open Section 9 removed from the original matcher.
+func TestRecoveryWithoutCapabilityMatchingIsRefused(t *testing.T) {
+	withEnv(t, map[string]string{
+		"HAULING_CAPABILITY_MATCHING_ENABLED": "false",
+		"HAULING_RECOVERY_ENABLED":            "true",
+	})
+	err := Load().Validate()
+	if err == nil {
+		t.Fatal("recovery without capability matching was accepted")
+	}
+	if !strings.Contains(err.Error(), "HAULING_RECOVERY_ENABLED") {
+		t.Fatalf("error does not name the offending flag: %v", err)
+	}
+}
+
+// An events flag with no recovery behind it silently does nothing.
+func TestRecoveryEventsWithoutRecoveryIsRefused(t *testing.T) {
+	withEnv(t, map[string]string{
+		"HAULING_CAPABILITY_MATCHING_ENABLED": "true",
+		"HAULING_RECOVERY_ENABLED":            "false",
+		"HAULING_RECOVERY_EVENTS_ENABLED":     "true",
+	})
+	err := Load().Validate()
+	if err == nil {
+		t.Fatal("recovery events without recovery were accepted")
+	}
+	if !strings.Contains(err.Error(), "HAULING_RECOVERY_EVENTS_ENABLED") {
+		t.Fatalf("error does not name the offending flag: %v", err)
+	}
+}
+
+// The full end state -- matching enforced, recovery on, events on, ingestion
+// on -- must load and validate.
+func TestFullyEnabledDeploymentIsValid(t *testing.T) {
+	withEnv(t, map[string]string{
+		"HAULING_CAPABILITY_MATCHING_ENABLED": "true",
+		"HAULING_FAIL_CLOSED_TRUCK_LOOKUP":    "true",
+		"HAULING_SUPPLY_PREVIEW_ENABLED":      "true",
+		"HAULING_RECOVERY_ENABLED":            "true",
+		"HAULING_RECOVERY_EVENTS_ENABLED":     "true",
+		"HAULING_POLICY_INGEST_ENABLED":       "true",
+	})
+	if err := Load().Validate(); err != nil {
+		t.Fatalf("the fully enabled deployment was rejected: %v", err)
+	}
+}

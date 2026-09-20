@@ -54,6 +54,7 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/policyingest"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"cosmicforge/logistics/shared/go/walletclient"
@@ -163,6 +164,30 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			CertificationRequiredProducts: cfg.CertificationRequiredProducts,
 			PreviewRadiusKM:               cfg.AvailabilityRadiusKM,
 		})
+	policyIngest := bikecapability.NewPolicyIngest(bikecapability.PolicyIngestOptions{
+		DB:                db,
+		CallerName:        cfg.AdminServiceCaller,
+		AdminSecret:       cfg.AdminServiceSecret,
+		AdminHosts:        bikecapability.AdminHostsFrom(cfg.AdminAllowedHosts),
+		ReconcileInterval: cfg.PolicyReconcileInterval,
+	})
+	if cfg.PolicyIngestEnabled {
+		// The control-plane publication sink, behind the same HMAC verifier,
+		// caller allowlist and durable nonce store as the commerce surfaces.
+		// policyingest.IngressPath carries its own /internal prefix, so it is
+		// mounted from the api base rather than an /internal group.
+		dispatchcommercequote.RegisterInternalCapability(
+			engine.Group("/api/v1"),
+			func(group *gin.RouterGroup) { policyingest.RegisterRoutes(group, policyIngest.Ingestor()) },
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+				cfg.AdminServiceCaller:        cfg.AdminServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller, cfg.AdminServiceCaller},
+		)
+	}
+
 	if cfg.CapabilityMatchingEnforce && !cfg.CapabilityMatchingEnabled {
 		// A flag that silently does nothing is worse than a refusal: an
 		// operator would believe unfit riders were being rejected while they
@@ -373,7 +398,8 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
 			ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
 			RolloutServiceTiers: cfg.AssignmentRolloutServiceTiers,
-		}).WithCandidateFinder(assignment.NewCandidateAuthority(db, availabilityLiveStore, cfg.AvailabilityRadiusKM).WithCapabilityGate(capability.Gate)).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookingService))
+		}).WithCandidateFinder(assignment.NewCandidateAuthority(db, availabilityLiveStore, cfg.AvailabilityRadiusKM).
+			WithCapabilityGate(capability.Gate.WithEvents(assignment.NewCapabilityEventSink(db, cfg.CommerceEventDeliveryEnabled, nil)))).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookingService))
 		assignmentRuntime = service
 		if cfg.OrganizationAssignmentEnabled && cfg.FleetServiceURL != "" && len(cfg.FleetServiceSecret) > 0 {
 			service.WithOrganizationAuthority(assignment.NewFleetOrganizationAuthority(providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)))
@@ -742,7 +768,9 @@ func startMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool
 	stopRecovery := startDeliveryRecoveryWorker(ctx, cfg, db, live, bookings, trips...)
 	stopRecoveryNotifications := startRecoveryNotificationWorker(ctx, cfg, db)
 	stopCapabilityMaintenance := startCapabilityMaintenanceWorker(ctx, cfg, db)
+	stopPolicyReconcile := startPolicyReconcileWorker(ctx, cfg, db)
 	stopEventWorkers := func() {
+		stopPolicyReconcile()
 		stopCapabilityMaintenance()
 		stopTelemetry()
 		stopAnalytics()
@@ -1053,6 +1081,35 @@ func startCapabilityMaintenanceWorker(ctx context.Context, cfg config.Config, db
 		defer close(done)
 		service.RunMaintenanceWorker(workerCtx,
 			cfg.CapabilityMaintenanceInterval, cfg.MatchDecisionRetention)
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
+// startPolicyReconcileWorker retries control-plane publications whose
+// read-back outcome was unknown, and publishes the pending-backlog gauge.
+//
+// It only runs when ingestion is enabled: with no sink mounted there is
+// nothing to reconcile, and a worker polling an empty table every two minutes
+// is noise rather than safety.
+func startPolicyReconcileWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+	if !cfg.PolicyIngestEnabled {
+		return func() {}
+	}
+	ingest := bikecapability.NewPolicyIngest(bikecapability.PolicyIngestOptions{
+		DB:                db,
+		CallerName:        cfg.AdminServiceCaller,
+		AdminSecret:       cfg.AdminServiceSecret,
+		AdminHosts:        bikecapability.AdminHostsFrom(cfg.AdminAllowedHosts),
+		ReconcileInterval: cfg.PolicyReconcileInterval,
+	})
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ingest.RunReconcileWorker(workerCtx)
 	}()
 	return func() {
 		cancel()

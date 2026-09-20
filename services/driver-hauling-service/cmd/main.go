@@ -358,6 +358,10 @@ func main() {
 					cfg.CapabilityMaintenanceInterval, cfg.MatchDecisionRetention)
 				return nil
 			},
+			func(ctx context.Context) error {
+				capability.runPolicyReconciler(ctx)
+				return nil
+			},
 		},
 		Register: func(group *gin.RouterGroup) {
 			haulingMetrics.RegisterRoutes(group)

@@ -87,6 +87,7 @@ func (c CapabilityConfig) Shadow() bool { return c.Enabled && !c.Enforce }
 type CapabilityGate struct {
 	authority CapabilityAuthority
 	config    CapabilityConfig
+	events    *CapabilityEventSink
 }
 
 // NewCapabilityGate builds the gate. A nil authority makes every method a
@@ -94,6 +95,15 @@ type CapabilityGate struct {
 // as it did before.
 func NewCapabilityGate(authority CapabilityAuthority, config CapabilityConfig) *CapabilityGate {
 	return &CapabilityGate{authority: authority, config: config}
+}
+
+// WithEvents attaches the capability-fact sink. It is a separate call so every
+// existing construction site keeps compiling and simply publishes nothing.
+func (g *CapabilityGate) WithEvents(sink *CapabilityEventSink) *CapabilityGate {
+	if g != nil {
+		g.events = sink
+	}
+	return g
 }
 
 // Active reports whether the gate will do anything at all.
@@ -205,6 +215,12 @@ func (g *CapabilityGate) Apply(
 		logging.Notice("dispatch-capability",
 			"mission %s: %d of %d candidates failed hard parcel fit (%s)",
 			missionID, len(candidates)-len(eligible), len(candidates), shortfall(decisions))
+	}
+	// Only a mission that found NOBODY is worth an event. A mission that lost
+	// three of forty candidates matched fine, and publishing that would drown
+	// the signal that actually needs acting on.
+	if len(eligible) == 0 && len(candidates) > 0 {
+		g.events.PublishMismatch(ctx, missionID, len(candidates), shortfall(decisions))
 	}
 	return eligible
 }

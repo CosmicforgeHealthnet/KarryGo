@@ -130,6 +130,39 @@ type Config struct {
 	CapabilityMaintenanceInterval time.Duration
 	MatchDecisionRetention        time.Duration
 
+	// ── Policy publication ingestion ──────────────────────────────────────
+	//
+	// PolicyIngestEnabled mounts the sink that turns a published network
+	// catalogue into an immutable local snapshot. Matching always reads the
+	// LOCAL snapshot, so this only changes where that snapshot comes from --
+	// the control plane never becomes a synchronous dependency of assignment.
+	PolicyIngestEnabled bool
+	// AdminServiceCaller / AdminServiceSecret / AdminAllowedHosts configure
+	// the authenticated read-back used when a catalogue travels as a
+	// reference. An empty host allowlist disables read-back, which parks
+	// referenced publications rather than rejecting them.
+	AdminServiceCaller string
+	AdminServiceSecret []byte
+	AdminAllowedHosts  string
+	// PolicyReconcileInterval is how often parked publications are retried.
+	PolicyReconcileInterval time.Duration
+
+	// ── Post-assignment recovery (Section 9) ──────────────────────────────
+	//
+	// RecoveryEnabled mounts Haulage's authority over a job whose assigned
+	// provider can no longer finish it. It is additive: with it off, a
+	// breakdown behaves exactly as it does today (the provider cancels and
+	// the booking re-enters matching), and no recovery case is ever opened.
+	RecoveryEnabled bool
+	// RecoveryEventsEnabled publishes recovery facts through the existing
+	// domain outbox. Separate from RecoveryEnabled because a deployment can
+	// legitimately want the recovery behaviour before it has an event
+	// consumer, and a load must never fail to recover because analytics is
+	// unavailable.
+	RecoveryEventsEnabled bool
+	// RecoveryEventTarget names the outbox delivery target.
+	RecoveryEventTarget string
+
 	// Matching config
 	BookingMatchTimeout int     // seconds a matched provider has to accept
 	BookingSearchWindow int     // seconds to keep searching (rescanning) before unmatched
@@ -222,6 +255,14 @@ func Load() Config {
 		FailClosedTruckLookup:         getEnvBool("HAULING_FAIL_CLOSED_TRUCK_LOOKUP", false),
 		SupplyPreviewEnabled:          getEnvBool("HAULING_SUPPLY_PREVIEW_ENABLED", false),
 		CertificationRequiredProducts: os.Getenv("HAULING_CERTIFICATION_REQUIRED_PRODUCTS"),
+		RecoveryEnabled:               getEnvBool("HAULING_RECOVERY_ENABLED", false),
+		RecoveryEventsEnabled:         getEnvBool("HAULING_RECOVERY_EVENTS_ENABLED", false),
+		RecoveryEventTarget:           getEnv("HAULING_RECOVERY_EVENT_TARGET", "analytics-service"),
+		PolicyIngestEnabled:           getEnvBool("HAULING_POLICY_INGEST_ENABLED", false),
+		AdminServiceCaller:            getEnv("HAULING_ADMIN_SERVICE_CALLER", "driver-hauling-service"),
+		AdminServiceSecret:            []byte(os.Getenv("HAULING_ADMIN_SERVICE_SECRET")),
+		AdminAllowedHosts:             os.Getenv("HAULING_ADMIN_ALLOWED_HOSTS"),
+		PolicyReconcileInterval:       time.Duration(getEnvInt("HAULING_POLICY_RECONCILE_INTERVAL_SECONDS", 120)) * time.Second,
 		CapabilityMaintenanceInterval: time.Duration(getEnvInt("HAULING_CAPABILITY_MAINTENANCE_INTERVAL_SECONDS", 900)) * time.Second,
 		MatchDecisionRetention:        time.Duration(getEnvInt("HAULING_MATCH_DECISION_RETENTION_DAYS", 30)) * 24 * time.Hour,
 
@@ -295,6 +336,18 @@ func (c Config) Validate() error {
 	// stop asking.
 	if c.SupplyPreviewEnabled && !c.CapabilityMatchingEnabled {
 		problems = append(problems, "HAULING_SUPPLY_PREVIEW_ENABLED requires HAULING_CAPABILITY_MATCHING_ENABLED")
+	}
+	// Recovery selects a replacement through the capability store. Without
+	// capability matching there is nothing for it to select against, and it
+	// would fall back to proximity alone -- which is precisely the fail-open
+	// Section 9 removed from the original matcher.
+	if c.RecoveryEnabled && !c.CapabilityMatchingEnabled {
+		problems = append(problems, "HAULING_RECOVERY_ENABLED requires HAULING_CAPABILITY_MATCHING_ENABLED")
+	}
+	// An events flag with no recovery behind it is a flag that silently does
+	// nothing, which is worse than a refusal at startup.
+	if c.RecoveryEventsEnabled && !c.RecoveryEnabled {
+		problems = append(problems, "HAULING_RECOVERY_EVENTS_ENABLED requires HAULING_RECOVERY_ENABLED")
 	}
 	if c.ProviderOrganizationModeEnabled {
 		if strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" || len(c.FleetServiceSecret) == 0 {

@@ -97,3 +97,21 @@ func ProductEligibilityChange(status string) {
 		"status": Bounded(status, "PENDING", "ELIGIBLE", "SUSPENDED", "EXPIRED", "REJECTED"),
 	}, 1)
 }
+
+// PolicySnapshotApplied counts locally applied control-plane policy versions.
+func PolicySnapshotApplied(kind string) {
+	Metrics.IncCounter("dispatch_policy_snapshot_applied_total",
+		map[string]string{"kind": Bounded(kind, "DISPATCH_CAPABILITY", "DISPATCH_PRODUCT")}, 1)
+}
+
+// PolicyPublicationsPending publishes how many publications are awaiting a
+// retryable read-back.
+//
+// It pairs with the lag gauge and answers a different question. Lag says "the
+// newest policy we hold is old"; this says "we have been handed newer policy
+// and cannot finish taking it". A deployment can sit at zero lag with a
+// growing backlog, and that combination is exactly the silent failure worth
+// alerting on.
+func PolicyPublicationsPending(count float64) {
+	Metrics.SetGauge("dispatch_policy_publications_pending", nil, count)
+}
