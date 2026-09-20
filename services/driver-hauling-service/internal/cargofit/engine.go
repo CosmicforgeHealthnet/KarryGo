@@ -371,3 +371,44 @@ func requirementIsBulkLiquid(requirement Requirement) bool {
 	}
 	return false
 }
+
+// EvaluateProvider runs hard fit for one provider across all of their active
+// trucks.
+//
+// A provider is eligible if ANY of their trucks fits, because the provider
+// brings one truck to the job and gets to choose which. The decision returned
+// is their BEST attempt, so an operator sees why the closest thing to a fit
+// still failed rather than an arbitrary truck's complaints.
+//
+// It lives here, rather than in the matcher, because recovery must select a
+// replacement by exactly the same rule the original match used. Two copies of
+// this loop would be two places for "and also check the thermal bag" to be
+// added to only one of them -- and the one that silently kept the old rule
+// would be the one choosing a truck for cargo already on the road.
+func EvaluateProvider(
+	trucks []TruckCapability,
+	resolution Resolution,
+	requirement Requirement,
+) (TruckCapability, *capabilityfit.Decision) {
+	if resolution != ResolutionFound || len(trucks) == 0 {
+		// Which of the two this is matters: a store that did not answer is a
+		// dependency problem, an empty list is a provider with no active truck.
+		if resolution == ResolutionFound {
+			resolution = ResolutionMissing
+		}
+		return TruckCapability{}, Evaluate(resolution, TruckCapability{}, requirement)
+	}
+
+	var best *capabilityfit.Decision
+	var bestTruck TruckCapability
+	for _, truck := range trucks {
+		candidate := Evaluate(ResolutionFound, truck, requirement)
+		if candidate.Eligible {
+			return truck, candidate
+		}
+		if best == nil || len(candidate.Reasons) < len(best.Reasons) {
+			best, bestTruck = candidate, truck
+		}
+	}
+	return bestTruck, best
+}

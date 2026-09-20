@@ -10,7 +10,6 @@ import (
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/services/hauling-service/internal/observability"
-	"cosmicforge/logistics/shared/go/capabilityfit"
 	"cosmicforge/logistics/shared/go/logging"
 )
 
@@ -113,42 +112,6 @@ func requirementForBooking(booking bookingmodels.Booking) cargofit.Requirement {
 	return requirement
 }
 
-// evaluateCapability runs hard fit for one provider across all of their active
-// trucks.
-//
-// A provider is eligible if ANY of their trucks fits, because the provider
-// brings one truck to the job and gets to choose which. The reasons returned
-// are those of their best attempt, so an operator sees why the closest thing
-// to a fit still failed rather than an arbitrary truck's complaints.
-func evaluateCapability(
-	trucks []cargofit.TruckCapability,
-	resolution cargofit.Resolution,
-	requirement cargofit.Requirement,
-) (fit cargofit.TruckCapability, decision *capabilityfit.Decision) {
-	if resolution != cargofit.ResolutionFound || len(trucks) == 0 {
-		// No truck to evaluate. Which of the two it is matters: a store that
-		// did not answer is a dependency problem, an empty list is a provider
-		// with no active truck.
-		if resolution == cargofit.ResolutionFound {
-			resolution = cargofit.ResolutionMissing
-		}
-		return cargofit.TruckCapability{}, cargofit.Evaluate(resolution, cargofit.TruckCapability{}, requirement)
-	}
-
-	var best *capabilityfit.Decision
-	var bestTruck cargofit.TruckCapability
-	for _, truck := range trucks {
-		candidate := cargofit.Evaluate(cargofit.ResolutionFound, truck, requirement)
-		if candidate.Eligible {
-			return truck, candidate
-		}
-		if best == nil || len(candidate.Reasons) < len(best.Reasons) {
-			best, bestTruck = candidate, truck
-		}
-	}
-	return bestTruck, best
-}
-
 // capabilityFilter applies hard fit to a proximity-ordered candidate list.
 //
 // It returns the survivors plus the evidence for every candidate considered.
@@ -190,7 +153,7 @@ func (s *BookingService) capabilityFilter(
 	shadow := s.capabilityMatching.Shadow()
 
 	for _, candidate := range candidates {
-		truck, decision := evaluateCapability(byProvider[candidate.ProviderID], resolution, requirement)
+		truck, decision := cargofit.EvaluateProvider(byProvider[candidate.ProviderID], resolution, requirement)
 
 		outcome := capabilityDecisionRejected
 		if decision.Eligible {
