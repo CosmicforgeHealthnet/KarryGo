@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -507,6 +506,7 @@ func (c Client) do(request *http.Request, body []byte, data interface{}) error {
 		Success bool            `json:"success"`
 		Data    json.RawMessage `json:"data"`
 		Error   struct {
+			Code    string `json:"code"`
 			Message string `json:"message"`
 		} `json:"error"`
 	}
@@ -517,7 +517,8 @@ func (c Client) do(request *http.Request, body []byte, data interface{}) error {
 		if envelope.Error.Message == "" {
 			envelope.Error.Message = "Wallet request failed."
 		}
-		return errors.New(envelope.Error.Message)
+		return &RequestError{Status: response.StatusCode, Code: envelope.Error.Code,
+			Message: envelope.Error.Message}
 	}
 	if data != nil && len(envelope.Data) > 0 {
 		return json.Unmarshal(envelope.Data, data)

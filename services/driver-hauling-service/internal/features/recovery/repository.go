@@ -322,3 +322,18 @@ func (r *Repository) ListOpen(ctx context.Context, limit int) ([]Case, error) {
 	}
 	return out, rows.Err()
 }
+
+// CaseForReplacement returns the newest recovery case that made providerID
+// the booking's replacement, or "" when there is none. The settlement guard
+// uses it to justify moving a held payment (Section 17).
+func (r *Repository) CaseForReplacement(ctx context.Context, bookingID, providerID string) (string, error) {
+	var id string
+	err := r.db.QueryRow(ctx, `
+		SELECT id::text FROM hauling_recovery_cases
+		 WHERE booking_id::text = $1 AND replacement_provider_id::text = $2
+		 ORDER BY detected_at DESC LIMIT 1`, bookingID, providerID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return id, err
+}

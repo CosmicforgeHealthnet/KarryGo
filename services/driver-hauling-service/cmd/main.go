@@ -23,6 +23,7 @@ import (
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
 	"cosmicforge/logistics/services/hauling-service/internal/features/movement"
+	"cosmicforge/logistics/services/hauling-service/internal/features/recovery"
 
 	haulingcommercemission "cosmicforge/logistics/services/hauling-service/internal/features/commercemission"
 	haulingcommercequote "cosmicforge/logistics/services/hauling-service/internal/features/commercequote"
@@ -203,7 +204,10 @@ func main() {
 	var paymentClient bookingusecases.PaymentClient
 	var commerceSettlement bookingusecases.CommerceDeliverySettlementAuthority
 	if cfg.PaymentURL != "" && len(cfg.PaymentSecret) > 0 {
-		walletPayments := bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret)
+		walletPayments := bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret).
+			// Section 17: the settlement guard justifies a late rebind with the
+			// recovery case that made the booking's provider its provider.
+			WithRecoveryCases(recovery.NewRepository(db).CaseForReplacement)
 		paymentClient = walletPayments
 		commerceSettlement = walletPayments
 	}

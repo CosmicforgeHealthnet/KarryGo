@@ -76,6 +76,12 @@ type PaymentClient interface {
 	Refund(ctx context.Context, paymentIntentID string, amountKobo int64, reason string) error
 }
 
+// executionProviderBinder confirms a held payment is bound to the provider
+// about to be paid (Section 17). Optional on a PaymentClient.
+type executionProviderBinder interface {
+	EnsureExecutionProvider(ctx context.Context, bookingID, providerID string) error
+}
+
 type CommerceDeliverySettlementAuthority interface {
 	ReleaseCommerceDelivery(ctx context.Context, parentOrderID, vendorOrderID, providerID, completionReference string) error
 }
@@ -1482,6 +1488,17 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 	reference := ""
 	if b.PaymentIntentID != nil {
 		reference = *b.PaymentIntentID
+	}
+	// Section 17: the held payment must be bound to the provider who did the
+	// job. After a recovery replacement that is not the provider who accepted,
+	// and the rebind that follows recovery may not have landed. An
+	// unconfirmable binding leaves the payment for reconciliation rather than
+	// releasing it to whoever it happens to point at.
+	if binder, ok := s.payments.(executionProviderBinder); ok && b.ProviderID != nil && *b.ProviderID != "" {
+		if err := binder.EnsureExecutionProvider(ctx, bookingID, *b.ProviderID); err != nil {
+			_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusUnknown, reference)
+			return
+		}
 	}
 	if err := s.payments.Settle(ctx, bookingID, reference); err != nil {
 		_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusUnknown, reference)

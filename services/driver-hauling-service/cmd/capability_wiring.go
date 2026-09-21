@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/hauling-service/internal/config"
+	bookingpayments "cosmicforge/logistics/services/hauling-service/internal/features/booking/payments"
 	providerauthusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/services/hauling-service/internal/features/recovery"
@@ -98,6 +100,7 @@ func buildCapabilityWiring(
 			Events:      recovery.NewOutboxSink(db, cfg.RecoveryEventTarget, cfg.RecoveryEventsEnabled, nil),
 			MaxRadiusKm: cfg.MatchMaxRadiusKm,
 			Enabled:     cfg.RecoveryEnabled,
+			Payments:    recoveryPayments(cfg),
 		})),
 		policy: truckcapability.NewPolicyIngest(truckcapability.PolicyIngestOptions{
 			DB:                db,
@@ -201,4 +204,14 @@ func (c recoveryCandidates) NearbyProviders(
 		})
 	}
 	return out, nil
+}
+
+// recoveryPayments moves a booking's held payment to its replacement (Section
+// 17). Without wallet credentials there is no payment to move, and the
+// settlement guard is the only protection -- which it is anyway.
+func recoveryPayments(cfg config.Config) recovery.PaymentRebinder {
+	if strings.TrimSpace(cfg.PaymentURL) == "" || len(cfg.PaymentSecret) == 0 {
+		return nil
+	}
+	return bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret)
 }

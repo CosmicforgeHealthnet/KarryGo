@@ -38,6 +38,10 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	internal.POST("/payment-intents", handler.CreatePaymentIntent)
 	internal.POST("/payment-intents/:id/pay-from-wallet", handler.PayFromWallet)
 	internal.POST("/jobs/:source_service/:source_reference/complete", handler.CompleteJob)
+	// Section 17. Only the service that owns the job may move its held
+	// payment to a replacement provider; the usecase enforces that per source.
+	internal.POST("/jobs/:source_service/:source_reference/execution-provider", handler.RebindExecutionProvider)
+	internal.GET("/jobs/:source_service/:source_reference/execution-provider", handler.GetExecutionProviderBinding)
 
 	// Section 12. Managed settlement is posted only by Fleet and read back by
 	// Fleet and the execution services; the usecase layer narrows the caller

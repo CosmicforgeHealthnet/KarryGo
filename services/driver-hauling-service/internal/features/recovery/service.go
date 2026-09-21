@@ -71,6 +71,16 @@ type Options struct {
 	MaxRadiusKm float64
 	Enabled     bool
 	Now         func() time.Time
+	// Payments moves the booking's held payment to the replacement (Section
+	// 17). Optional: without it the settlement-time guard is what keeps the
+	// original provider from being paid.
+	Payments PaymentRebinder
+}
+
+// PaymentRebinder moves a booking's held payment to the provider who replaced
+// the original one. It never changes what is held, only who it is released to.
+type PaymentRebinder interface {
+	RebindToReplacement(ctx context.Context, bookingID, providerID, recoveryCaseRef string) error
 }
 
 // Service owns recovery.
@@ -80,6 +90,7 @@ type Service struct {
 	capability CapabilitySource
 	custody    CustodyAuthority
 	events     EventSink
+	payments   PaymentRebinder
 	radiusKm   float64
 	enabled    bool
 	now        func() time.Time
@@ -98,6 +109,7 @@ func New(options Options) *Service {
 	return &Service{
 		repo: options.Repository, candidates: options.Candidates,
 		capability: options.Capability, custody: options.Custody, events: options.Events,
+		payments: options.Payments,
 		radiusKm: radius, enabled: options.Enabled, now: now,
 	}
 }
@@ -347,6 +359,7 @@ func (s *Service) bindReplacement(
 	s.publish(ctx, nil, EventRecoveryProviderReplaced, advanced, map[string]any{
 		"custody_transfer_required": false,
 	})
+	s.rebindPayment(ctx, booking.ID, providerID, current.ID)
 	return advanced.Public(), nil
 }
 
@@ -439,7 +452,26 @@ func (s *Service) CompleteTransfer(ctx context.Context, command TransferCommand)
 	s.publish(ctx, nil, EventRecoveryProviderReplaced, advanced, map[string]any{
 		"custody_transfer_required": true, "transfer_ref": command.TransferRef,
 	})
+	s.rebindPayment(ctx, booking.ID, current.ReplacementProviderID, current.ID)
 	return advanced.Public(), nil
+}
+
+// rebindPayment moves the held payment to the replacement once the booking
+// itself has been rebound.
+//
+// It runs after the commit, never inside it: a remote call inside the
+// transaction would hold the booking lock across the network, and a Wallet
+// outage must not undo a replacement that already happened. A failure here is
+// not lost -- settlement re-checks the binding before releasing anything, and
+// refuses to pay a provider the payment is not bound to.
+func (s *Service) rebindPayment(ctx context.Context, bookingID, providerID, caseID string) {
+	if s.payments == nil || providerID == "" {
+		return
+	}
+	if err := s.payments.RebindToReplacement(ctx, bookingID, providerID, caseID); err != nil {
+		logging.Notice("hauling-recovery",
+			"booking %s: held payment not yet moved to the replacement (%v); settlement will retry", bookingID, err)
+	}
 }
 
 // Resolve closes a recovery whose replacement is executing.

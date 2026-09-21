@@ -22,7 +22,8 @@ const (
 // intents keyed by booking id (source_service + source_reference), so wallet/card
 // holds, settlements, and refunds are all traceable to the trip.
 type WalletPaymentClient struct {
-	wallet walletclient.Client
+	wallet        walletclient.Client
+	recoveryCases RecoveryCaseLookup
 }
 
 func NewWalletPaymentClient(baseURL, serviceName string, secret []byte) *WalletPaymentClient {
