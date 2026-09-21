@@ -23,7 +23,10 @@ import (
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
 	"cosmicforge/logistics/services/hauling-service/internal/features/movement"
+	"cosmicforge/logistics/services/hauling-service/internal/features/networkevents"
 	"cosmicforge/logistics/services/hauling-service/internal/features/recovery"
+	sharedevents "cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 
 	haulingcommercemission "cosmicforge/logistics/services/hauling-service/internal/features/commercemission"
 	haulingcommercequote "cosmicforge/logistics/services/hauling-service/internal/features/commercequote"
@@ -283,6 +286,15 @@ func main() {
 	if cfg.HaulingFleetCompletedWorkEnabled && fleetCompat != nil && !cfg.FleetIntegrationKillSwitch {
 		go (&completedwork.Worker{DB: db, Client: fleetCompat, Enabled: true}).Run(ctx, 5*time.Second)
 		logging.Notice("hauling-fleet", "canonical completed-work delivery enabled")
+	}
+	// Section 13: analytics-addressed rows (recovery, guarantee and capability
+	// facts) had no worker at all before this.
+	if cfg.AnalyticsEventsEnabled && cfg.AnalyticsURL != "" && len(cfg.AnalyticsSecret) > 0 {
+		go (&networkevents.Worker{DB: db, Deliverer: sharedevents.HTTPDeliverer{
+			BaseURL: cfg.AnalyticsURL, Path: networkanalytics.IngestPath,
+			ServiceName: "driver-hauling-service", Secret: cfg.AnalyticsSecret,
+		}}).Run(ctx, 10*time.Second)
+		logging.Notice("hauling-analytics", "network analytics delivery enabled")
 	}
 	if cfg.OutboxWorkerEnabled && cfg.FleetIntegrationEnabled && !cfg.FleetIntegrationKillSwitch {
 		go (&fleetauthority.OutboxWorker{DB: db, URL: cfg.FleetEventURL, Secret: cfg.FleetEventSecret}).Run(ctx)

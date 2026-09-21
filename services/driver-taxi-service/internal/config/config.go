@@ -121,18 +121,23 @@ type Config struct {
 
 	// Section 7 flags. All default false; multi-pickup is only advertised
 	// when execution, secure handover and cumulative fit are all enabled.
-	ServiceProductsEnabled              bool
-	CapabilityMatchingEnabled           bool
-	GoodsCapabilityEnabled              bool
-	GoodsMultiPickupEnabled             bool
-	GoodsSecureHandoverEnabled          bool
-	GoodsCumulativeFitEnabled           bool
-	RecoveryEnabled                     bool
-	ScheduledRiskMonitorEnabled         bool
-	CustomerMovementEventsEnabled       bool
-	CustomerContextEnabled              bool
-	CustomerServiceURL                  string
-	CustomerServiceSecret               []byte
+	ServiceProductsEnabled        bool
+	CapabilityMatchingEnabled     bool
+	GoodsCapabilityEnabled        bool
+	GoodsMultiPickupEnabled       bool
+	GoodsSecureHandoverEnabled    bool
+	GoodsCumulativeFitEnabled     bool
+	RecoveryEnabled               bool
+	ScheduledRiskMonitorEnabled   bool
+	CustomerMovementEventsEnabled bool
+	CustomerContextEnabled        bool
+	CustomerServiceURL            string
+	CustomerServiceSecret         []byte
+	// Section 13. Analytics is advisory: off by default, and a Taxi journey
+	// never waits on it.
+	AnalyticsEventsEnabled              bool
+	AnalyticsURL                        string
+	AnalyticsSecret                     []byte
 	CapabilityInternalCallers           string
 	TaxiFleetCompletedWorkEnabled       bool
 	TaxiTypedFinancialVisibilityEnabled bool
@@ -295,6 +300,9 @@ func Load() Config {
 		CustomerContextEnabled:              getEnvBool("TAXI_CUSTOMER_CONTEXT_ENABLED", false),
 		CustomerServiceURL:                  os.Getenv("TAXI_CUSTOMER_SERVICE_URL"),
 		CustomerServiceSecret:               []byte(os.Getenv("TAXI_CUSTOMER_SERVICE_SECRET")),
+		AnalyticsEventsEnabled:              getEnvBool("TAXI_ANALYTICS_EVENTS_ENABLED", false),
+		AnalyticsURL:                        os.Getenv("TAXI_ANALYTICS_URL"),
+		AnalyticsSecret:                     []byte(os.Getenv("TAXI_ANALYTICS_SECRET")),
 		CapabilityInternalCallers:           getEnv("TAXI_CAPABILITY_INTERNAL_CALLERS", "vendor-service,operations-service,verification-compliance-service"),
 		TaxiFleetCompletedWorkEnabled:       getEnvBool("TAXI_FLEET_COMPLETED_WORK_ENABLED", false),
 		TaxiTypedFinancialVisibilityEnabled: getEnvBool("TAXI_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),

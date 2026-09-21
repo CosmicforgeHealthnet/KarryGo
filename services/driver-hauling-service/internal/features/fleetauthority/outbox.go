@@ -46,7 +46,7 @@ func (w *OutboxWorker) Run(ctx context.Context) {
 }
 
 func (w *OutboxWorker) runBatch(ctx context.Context) error {
-	rows, err := w.DB.Query(ctx, `UPDATE hauling_domain_outbox SET lease_owner='hauling-outbox',lease_until=now()+interval '30 seconds',attempts=attempts+1 WHERE id IN (SELECT id FROM hauling_domain_outbox WHERE delivered_at IS NULL AND dead_lettered_at IS NULL AND attempts<12 AND available_at<=now() AND (lease_until IS NULL OR lease_until<now()) ORDER BY occurred_at FOR UPDATE SKIP LOCKED LIMIT 25) RETURNING id::text,aggregate_type,aggregate_id::text,event_type,event_version,payload,correlation_id,occurred_at,attempts`)
+	rows, err := w.DB.Query(ctx, `UPDATE hauling_domain_outbox SET lease_owner='hauling-outbox',lease_until=now()+interval '30 seconds',attempts=attempts+1 WHERE id IN (SELECT id FROM hauling_domain_outbox WHERE target='fleet-events' AND delivered_at IS NULL AND dead_lettered_at IS NULL AND attempts<12 AND available_at<=now() AND (lease_until IS NULL OR lease_until<now()) ORDER BY occurred_at FOR UPDATE SKIP LOCKED LIMIT 25) RETURNING id::text,aggregate_type,aggregate_id::text,event_type,event_version,payload,correlation_id,occurred_at,attempts`)
 	if err != nil {
 		return err
 	}
@@ -97,3 +97,7 @@ func (w *OutboxWorker) deliver(ctx context.Context, r outboxRow) error {
 	}
 	return nil
 }
+
+// RunBatchForTest runs one delivery pass. Exposed for the cross-worker target
+// isolation test; production code calls Run.
+func (w *OutboxWorker) RunBatchForTest(ctx context.Context) { _ = w.runBatch(ctx) }

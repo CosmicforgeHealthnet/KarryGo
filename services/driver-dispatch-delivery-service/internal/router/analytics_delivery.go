@@ -5,6 +5,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/routeintegrity"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -16,7 +17,9 @@ func startAnalyticsOutboxWorker(ctx context.Context, cfg config.Config, db *pgxp
 	if !ready {
 		return func() {}
 	}
-	w := marketplace.NewOutboxWorker(marketplace.NewRepository(db), routeintegrity.AnalyticsDeliverer{Transport: transport}, marketplace.OutboxWorkerConfig{Owner: cfg.ServiceName + "-analytics", SourceService: cfg.ServiceName, Target: "analytics-service", Lease: cfg.EventDeliveryLease, BatchSize: cfg.EventDeliveryBatchSize, MaxAttempts: cfg.EventDeliveryRetryLimit, BaseBackoff: cfg.EventDeliveryBackoffBase, MaxBackoff: cfg.EventDeliveryBackoffMax})
+	// Section 13: the same credentials reach the network ingest.
+	network, _ := marketplace.NewHTTPEventDeliverer(marketplace.DelivererConfig{BaseURL: cfg.AnalyticsURL, Path: networkanalytics.IngestPath, ServiceName: cfg.ServiceName, Secret: string(cfg.AnalyticsSecret), Timeout: cfg.ExternalServiceTimeout})
+	w := marketplace.NewOutboxWorker(marketplace.NewRepository(db), routeintegrity.AnalyticsDeliverer{Transport: transport, Network: network}, marketplace.OutboxWorkerConfig{Owner: cfg.ServiceName + "-analytics", SourceService: cfg.ServiceName, Target: "analytics-service", Lease: cfg.EventDeliveryLease, BatchSize: cfg.EventDeliveryBatchSize, MaxAttempts: cfg.EventDeliveryRetryLimit, BaseBackoff: cfg.EventDeliveryBackoffBase, MaxBackoff: cfg.EventDeliveryBackoffMax})
 	run, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(run, cfg.EventDeliveryInterval) }()

@@ -68,10 +68,29 @@ type QueueReader interface {
 	BranchQueueDepth(ctx context.Context, businessID, branchID string) (int, error)
 }
 
+// ReadySignal is the Section 13 fact that an order became ready, measured
+// against the readiness the branch had promised before it did.
+type ReadySignal struct {
+	VendorOrderID   string
+	BusinessID      string
+	BranchID        string
+	Version         int64
+	OnTime          bool
+	LatenessSeconds int64
+	PrepSeconds     int64
+}
+
+// ReadySignalSink records a ReadySignal inside the readiness transaction, so
+// the fact commits with the state it describes or not at all.
+type ReadySignalSink interface {
+	RecordReady(ctx context.Context, tx pgx.Tx, signal ReadySignal) error
+}
+
 // Service holds the readiness rules.
 type Service struct {
 	repo    *Repository
 	queue   QueueReader
+	signals ReadySignalSink
 	enabled bool
 	now     func() time.Time
 }
@@ -83,6 +102,9 @@ type Options struct {
 	// Enabled is VENDOR_READINESS_ORCHESTRATION_ENABLED.
 	Enabled bool
 	Now     func() time.Time
+	// Signals receives readiness facts for analytics. Optional: without it
+	// readiness behaves exactly as before.
+	Signals ReadySignalSink
 }
 
 // NewService builds the service.
@@ -91,7 +113,7 @@ func NewService(options Options) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{repo: options.Repository, queue: options.Queue,
+	return &Service{repo: options.Repository, queue: options.Queue, signals: options.Signals,
 		enabled: options.Enabled, now: now}
 }
 
@@ -309,6 +331,9 @@ func (s *Service) commit(ctx context.Context, tx pgx.Tx, current Readiness, move
 	if err != nil {
 		return err
 	}
+	if err = s.recordReady(ctx, tx, current, updated, now, move); err != nil {
+		return err
+	}
 
 	return s.repo.AppendHistory(ctx, tx, HistoryEntry{
 		VendorOrderID: current.VendorOrderID,
@@ -368,4 +393,35 @@ func DescribeCorrection(move Move) string {
 		return ""
 	}
 	return string(move.To) + ":" + reason
+}
+
+// recordReady emits the readiness fact analytics measures branches by.
+//
+// Only the FIRST transition to ready counts: an order that bounced back to
+// preparing and became ready again was still only late once. And only an
+// order that had a promise can be on time or late -- with no prediction and
+// no vendor estimate there is nothing to measure against, so nothing is
+// emitted rather than a guess.
+func (s *Service) recordReady(ctx context.Context, tx pgx.Tx, before, after Readiness, now time.Time, move Move) error {
+	if s.signals == nil || move.To != StateReady || before.FirstActualReadyAt != nil {
+		return nil
+	}
+	promise := before.PredictedReadyEnd
+	if promise == nil {
+		promise = before.VendorEstimatedReadyAt
+	}
+	if promise == nil {
+		return nil
+	}
+	signal := ReadySignal{
+		VendorOrderID: after.VendorOrderID, BusinessID: after.BusinessID, BranchID: after.BranchID,
+		Version: after.Version, OnTime: !now.After(promise.UTC()),
+	}
+	if !signal.OnTime {
+		signal.LatenessSeconds = int64(now.Sub(promise.UTC()).Seconds())
+	}
+	if before.PrepStartedAt != nil && now.After(before.PrepStartedAt.UTC()) {
+		signal.PrepSeconds = int64(now.Sub(before.PrepStartedAt.UTC()).Seconds())
+	}
+	return s.signals.RecordReady(ctx, tx, signal)
 }

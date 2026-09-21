@@ -162,6 +162,12 @@ type Config struct {
 	RecoveryEventsEnabled bool
 	// RecoveryEventTarget names the outbox delivery target.
 	RecoveryEventTarget string
+	// Section 13. AnalyticsEventsEnabled starts the worker that delivers
+	// analytics-addressed outbox rows to analytics-service. Off by default:
+	// analytics is advisory, and nothing about a load depends on it.
+	AnalyticsEventsEnabled bool
+	AnalyticsURL           string
+	AnalyticsSecret        []byte
 
 	// Matching config
 	BookingMatchTimeout int     // seconds a matched provider has to accept
@@ -258,6 +264,9 @@ func Load() Config {
 		RecoveryEnabled:               getEnvBool("HAULING_RECOVERY_ENABLED", false),
 		RecoveryEventsEnabled:         getEnvBool("HAULING_RECOVERY_EVENTS_ENABLED", false),
 		RecoveryEventTarget:           getEnv("HAULING_RECOVERY_EVENT_TARGET", "analytics-service"),
+		AnalyticsEventsEnabled:        getEnvBool("HAULING_ANALYTICS_EVENTS_ENABLED", false),
+		AnalyticsURL:                  os.Getenv("HAULING_ANALYTICS_URL"),
+		AnalyticsSecret:               []byte(os.Getenv("HAULING_ANALYTICS_SECRET")),
 		PolicyIngestEnabled:           getEnvBool("HAULING_POLICY_INGEST_ENABLED", false),
 		AdminServiceCaller:            getEnv("HAULING_ADMIN_SERVICE_CALLER", "driver-hauling-service"),
 		AdminServiceSecret:            []byte(os.Getenv("HAULING_ADMIN_SERVICE_SECRET")),

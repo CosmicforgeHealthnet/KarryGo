@@ -62,6 +62,7 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/observability"
 	"cosmicforge/logistics/shared/go/outboxmetrics"
@@ -443,6 +444,14 @@ func main() {
 			BaseURL: cfg.CustomerServiceURL, Path: events.CustomerMovementIngressPath, ServiceName: movement.SourceService,
 			Secret: cfg.CustomerServiceSecret, HTTPClient: &http.Client{Timeout: 10 * time.Second},
 		}},
+		// Section 13: analytics copies of recovery, guarantee and outcome facts.
+		taxioutbox.TargetAnalytics: taxioutbox.AnalyticsDestination{
+			Enabled: cfg.AnalyticsEventsEnabled && cfg.AnalyticsURL != "" && len(cfg.AnalyticsSecret) > 0,
+			Deliverer: events.HTTPDeliverer{
+				BaseURL: cfg.AnalyticsURL, Path: networkanalytics.IngestPath, ServiceName: movement.SourceService,
+				Secret: cfg.AnalyticsSecret, HTTPClient: &http.Client{Timeout: 10 * time.Second},
+			},
+		},
 	})
 	goodsOutboxPublisher := taxioutbox.NewPublisher(taxiOutboxStore, outboxRouter, "taxi-outbox-"+uuid.NewString())
 	if err := goodsService.AssertDependencies(); err != nil {

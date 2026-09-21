@@ -5,17 +5,38 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	"cosmicforge/logistics/shared/go/commerceanalytics"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 )
 
 // AnalyticsDeliverer also minimizes already-persisted legacy route envelopes.
 // It never performs a request from the GPS/domain transaction.
-type AnalyticsDeliverer struct{ Transport marketplace.EventDeliverer }
+//
+// Section 13: network facts -- capability mismatches, recovery, trip outcomes
+// -- go to the network ingest through Network. Before it existed they reached
+// this deliverer and were refused as "not a route event", so every one was
+// dead-lettered locally and analytics never saw a bike-delivery mismatch.
+type AnalyticsDeliverer struct {
+	Transport marketplace.EventDeliverer
+	Network   marketplace.EventDeliverer
+}
+
+// analyticsCopyPrefix marks the outbox copy made for analytics by migration
+// 000063; the consumer sees the original aggregate type.
+const analyticsCopyPrefix = "analytics:"
 
 func (d AnalyticsDeliverer) Configured() bool { return d.Transport != nil && d.Transport.Configured() }
 func (d AnalyticsDeliverer) Deliver(ctx context.Context, e marketplace.Envelope) (marketplace.DeliveryResult, error) {
+	if _, _, network := networkanalytics.Classify(e.EventType, ""); network {
+		if d.Network == nil || !d.Network.Configured() {
+			return marketplace.DeliveryResult{Outcome: marketplace.DeliveryRejected, Code: "NETWORK_ANALYTICS_UNCONFIGURED"}, nil
+		}
+		e.AggregateType = strings.TrimPrefix(e.AggregateType, analyticsCopyPrefix)
+		return d.Network.Deliver(ctx, e)
+	}
 	if !commerceanalytics.IsDispatchRouteEvent(e.EventType) {
 		return marketplace.DeliveryResult{Outcome: marketplace.DeliveryRejected, Code: "UNSUPPORTED_ROUTE_EVENT"}, nil
 	}

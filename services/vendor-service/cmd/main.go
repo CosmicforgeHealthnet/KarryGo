@@ -53,6 +53,7 @@ import (
 
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -532,6 +533,15 @@ func main() {
 			10*time.Second,
 		)
 		if err == nil {
+			// Section 13: readiness facts go to the network ingest, which
+			// accepts this same envelope.
+			if network, networkErr := events.NewHTTPPublisher(cfg.AnalyticsURL, networkanalytics.IngestPath,
+				"vendor-service", []byte(cfg.AnalyticsSecret), 10*time.Second); networkErr == nil {
+				worker := events.NewWorker(outboxRepo, network, events.WorkerConfig{
+					Owner: "vendor-network-analytics-readiness", EventType: networkanalytics.EventBranchReadiness,
+				})
+				workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+			}
 			for _, eventType := range events.AnalyticsEventTypes() {
 				eventType := eventType
 				worker := events.NewWorker(outboxRepo, publisher, events.WorkerConfig{

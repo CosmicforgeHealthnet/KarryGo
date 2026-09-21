@@ -23,12 +23,13 @@ const (
 )
 
 type Record struct {
-	ID          string
-	AggregateID string
-	EventType   string
-	Payload     json.RawMessage
-	OccurredAt  time.Time
-	Attempts    int
+	ID            string
+	AggregateType string
+	AggregateID   string
+	EventType     string
+	Payload       json.RawMessage
+	OccurredAt    time.Time
+	Attempts      int
 	// Target names the consumer that owns this row. Existing rows default to
 	// the Vendor lifecycle ingress, so adding Fleet completed-work delivery
 	// changes nothing about Taxi Goods.
@@ -68,7 +69,7 @@ func (s *Store) Claim(ctx context.Context, owner string, limit int, lease time.D
 		UPDATE taxi_outbox o
 		   SET lease_owner=$2,lease_until=now()+$3::interval,attempts=attempts+1,last_error=''
 		  FROM due WHERE o.id=due.id
-		RETURNING o.id::text,o.aggregate_id::text,o.event_type,o.payload,o.occurred_at,o.attempts,
+		RETURNING o.id::text,o.aggregate_type,o.aggregate_id::text,o.event_type,o.payload,o.occurred_at,o.attempts,
 		          o.target,o.idempotency_key`,
 		limit, owner, fmt.Sprintf("%f seconds", lease.Seconds()))
 	if err != nil {
@@ -78,7 +79,7 @@ func (s *Store) Claim(ctx context.Context, owner string, limit int, lease time.D
 	records := make([]Record, 0, limit)
 	for rows.Next() {
 		var record Record
-		if err = rows.Scan(&record.ID, &record.AggregateID, &record.EventType, &record.Payload,
+		if err = rows.Scan(&record.ID, &record.AggregateType, &record.AggregateID, &record.EventType, &record.Payload,
 			&record.OccurredAt, &record.Attempts, &record.Target, &record.IdempotencyKey); err != nil {
 			return nil, err
 		}

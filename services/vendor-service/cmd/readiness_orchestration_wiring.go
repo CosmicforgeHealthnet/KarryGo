@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/vendor-service/internal/config"
+	"cosmicforge/logistics/services/vendor-service/internal/events"
 	readiness "cosmicforge/logistics/services/vendor-service/internal/features/fulfilment_readiness"
 	"cosmicforge/logistics/services/vendor-service/internal/features/orchestration"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
@@ -18,8 +19,10 @@ import (
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"cosmicforge/logistics/shared/go/supplypreview"
+	"github.com/jackc/pgx/v5"
 )
 
 // The composition root for readiness and just-in-time orchestration.
@@ -179,9 +182,17 @@ func buildReadinessOrchestration(cfg config.Config, pool *pgxpool.Pool,
 	}
 
 	readinessRepo := readiness.NewRepository(pool)
+	// Section 13: readiness facts go to analytics only when analytics is
+	// configured -- without a worker to deliver them they would only
+	// accumulate in the outbox.
+	var readySignals readiness.ReadySignalSink
+	if cfg.AnalyticsURL != "" && cfg.AnalyticsSecret != "" {
+		readySignals = readinessAnalyticsSink{outbox: events.NewOutboxRepository(pool)}
+	}
 	readinessService := readiness.NewService(readiness.Options{
 		Repository: readinessRepo,
 		Enabled:    cfg.Flags.VendorReadinessOrchestrationEnabled && !cfg.Flags.CommerceGlobalKillSwitch,
+		Signals:    readySignals,
 	})
 
 	orchestrationRepo := orchestration.NewRepository(pool)
@@ -305,4 +316,20 @@ func (c readinessOrchestrationComponents) Workers() []jobs.Job {
 				return err
 			}},
 	}
+}
+
+// readinessAnalyticsSink writes a readiness fact to Vendor's outbox inside the
+// readiness transaction (Section 13).
+type readinessAnalyticsSink struct{ outbox *events.OutboxRepository }
+
+func (s readinessAnalyticsSink) RecordReady(ctx context.Context, tx pgx.Tx, signal readiness.ReadySignal) error {
+	envelope, err := events.NewEnvelope(networkanalytics.EventBranchReadiness, 1, "vendor_order",
+		signal.VendorOrderID, signal.Version, signal.BusinessID, "", "", map[string]any{
+			"business_id": signal.BusinessID, "branch_id": signal.BranchID, "on_time": signal.OnTime,
+			"lateness_seconds": signal.LatenessSeconds, "prep_seconds": signal.PrepSeconds,
+		}, false)
+	if err != nil {
+		return err
+	}
+	return s.outbox.Append(ctx, tx, envelope)
 }
