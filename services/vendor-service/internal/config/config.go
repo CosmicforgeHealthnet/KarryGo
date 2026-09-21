@@ -338,6 +338,26 @@ type FeatureFlags struct {
 	CommerceFulfilmentPlanningEnabled bool
 	CommerceFulfilmentWorkersEnabled  bool
 
+	// Section 11's three-stage rollout. They are separate switches because
+	// each stage is independently useful and independently reversible.
+	//
+	// VendorReadinessOrchestrationEnabled makes readiness authoritative: staff
+	// declare state, the predictor produces a window, and history records who
+	// said what. On its own it changes nothing about fulfilment -- it is the
+	// observe-then-trust stage.
+	//
+	// VendorJITPickupEnabled defers mission creation until the readiness
+	// prediction says a provider should come. It needs readiness, because
+	// deferring against no prediction is just delaying.
+	//
+	// VendorAutoAuthoritySelectionEnabled lets Vendor choose the execution
+	// authority from the authorities' own answers instead of a stored plan
+	// decision. It needs JIT, because selecting at commit time is the whole
+	// point of selecting automatically at all.
+	VendorReadinessOrchestrationEnabled bool
+	VendorJITPickupEnabled              bool
+	VendorAutoAuthoritySelectionEnabled bool
+
 	// CommerceBasketOptimizationEnabled is the master switch for Optimize My
 	// Cart and budget shopping.
 	CommerceBasketOptimizationEnabled bool
@@ -468,11 +488,15 @@ func Load() Config {
 
 			CommerceFulfilmentPlanningEnabled: getEnvBool("COMMERCE_FULFILMENT_PLANNING_ENABLED", false),
 			CommerceFulfilmentWorkersEnabled:  getEnvBool("COMMERCE_FULFILMENT_WORKERS_ENABLED", false),
-			CommerceBasketOptimizationEnabled: getEnvBool("COMMERCE_BASKET_OPTIMIZATION_ENABLED", false),
-			CommerceRecurringBasketEnabled:    getEnvBool("COMMERCE_RECURRING_BASKET_ENABLED", false),
-			CommerceQuoteLockEnabled:          getEnvBool("COMMERCE_QUOTE_LOCK_ENABLED", false),
-			CommerceOrdersEnabled:             getEnvBool("COMMERCE_ORDERS_ENABLED", false),
-			CommerceGlobalKillSwitch:          getEnvBool("COMMERCE_GLOBAL_KILL_SWITCH", false),
+
+			VendorReadinessOrchestrationEnabled: getEnvBool("VENDOR_READINESS_ORCHESTRATION_ENABLED", false),
+			VendorJITPickupEnabled:              getEnvBool("VENDOR_JIT_PICKUP_ENABLED", false),
+			VendorAutoAuthoritySelectionEnabled: getEnvBool("VENDOR_AUTO_AUTHORITY_SELECTION_ENABLED", false),
+			CommerceBasketOptimizationEnabled:   getEnvBool("COMMERCE_BASKET_OPTIMIZATION_ENABLED", false),
+			CommerceRecurringBasketEnabled:      getEnvBool("COMMERCE_RECURRING_BASKET_ENABLED", false),
+			CommerceQuoteLockEnabled:            getEnvBool("COMMERCE_QUOTE_LOCK_ENABLED", false),
+			CommerceOrdersEnabled:               getEnvBool("COMMERCE_ORDERS_ENABLED", false),
+			CommerceGlobalKillSwitch:            getEnvBool("COMMERCE_GLOBAL_KILL_SWITCH", false),
 
 			VendorTaxonomyEnabled:       getEnvBool("VENDOR_TAXONOMY_ENABLED", false),
 			VendorTaxonomyWritesEnabled: getEnvBool("VENDOR_TAXONOMY_WRITES_ENABLED", false),
@@ -657,7 +681,9 @@ func (c Config) Validate() error {
 			c.Flags.VendorTaxonomyEnabled || c.Flags.VendorSearchEnabled ||
 			c.Flags.CommerceCheckoutEnabled || c.Flags.CommerceCheckoutRecoveryEnabled ||
 			c.Flags.CommerceFulfilmentPlanningEnabled || c.Flags.CommerceFulfilmentWorkersEnabled ||
-			c.Flags.CommerceQuoteLockEnabled || c.Flags.CommerceOrdersEnabled
+			c.Flags.CommerceQuoteLockEnabled || c.Flags.CommerceOrdersEnabled ||
+			c.Flags.VendorReadinessOrchestrationEnabled || c.Flags.VendorJITPickupEnabled ||
+			c.Flags.VendorAutoAuthoritySelectionEnabled
 		if anyFeature {
 			problems = append(problems, "VENDOR_SERVICE_ENABLED must be true when any VENDOR_* or COMMERCE_* feature flag is enabled")
 		}
@@ -668,6 +694,34 @@ func (c Config) Validate() error {
 	// Materialization in turn needs the segmentation surface that owns its
 	// definitions. A flag enabled without its prerequisite is a configuration
 	// mistake, not a partially-enabled state.
+	// Section 11's stages depend on each other in one direction only, and each
+	// refusal below prevents a specific silent failure.
+	//
+	// JIT without readiness would defer commitment against no prediction,
+	// which is not just-in-time -- it is late.
+	if c.Flags.VendorJITPickupEnabled && !c.Flags.VendorReadinessOrchestrationEnabled {
+		problems = append(problems,
+			"VENDOR_READINESS_ORCHESTRATION_ENABLED must be true when VENDOR_JIT_PICKUP_ENABLED=true")
+	}
+	// Automatic selection without JIT would choose an authority at order time
+	// from supply that will have changed by the time anyone collects.
+	if c.Flags.VendorAutoAuthoritySelectionEnabled && !c.Flags.VendorJITPickupEnabled {
+		problems = append(problems,
+			"VENDOR_JIT_PICKUP_ENABLED must be true when VENDOR_AUTO_AUTHORITY_SELECTION_ENABLED=true")
+	}
+	// And automatic selection needs somebody to ask. With no logistics
+	// authority integration enabled there is nothing to choose between, and
+	// every order would fail selection while looking like a planning bug.
+	if c.Flags.VendorAutoAuthoritySelectionEnabled &&
+		!c.Flags.DispatchCommerceIntegrationEnabled &&
+		!c.Flags.TaxiGoodsDeliveryEnabled &&
+		!c.Flags.HaulingCommerceIntegrationEnabled {
+		problems = append(problems,
+			"VENDOR_AUTO_AUTHORITY_SELECTION_ENABLED requires at least one of "+
+				"DISPATCH_COMMERCE_INTEGRATION_ENABLED, TAXI_GOODS_DELIVERY_ENABLED or "+
+				"HAULING_COMMERCE_INTEGRATION_ENABLED")
+	}
+
 	if c.Flags.VendorCRMSegmentationEnabled && !c.Flags.VendorCRMEnabled {
 		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_SEGMENTATION_ENABLED=true")
 	}
