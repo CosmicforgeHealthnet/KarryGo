@@ -54,6 +54,7 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 
 	taxisettlement "cosmicforge/logistics/services/taxi-service/internal/features/booking/settlement"
+	"cosmicforge/logistics/services/taxi-service/internal/features/supportcontext"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/events"
@@ -68,6 +69,7 @@ import (
 	sharedrouting "cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supportcase"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
 
@@ -480,6 +482,10 @@ func main() {
 		Register: func(group *gin.RouterGroup) {
 			taxiOutboxMetrics.RegisterRoutes(group)
 			if opsVerifier != nil {
+				// Section 15: Support's minimized read of a booking or goods
+				// mission. It verifies its own caller -- support-dispute-service
+				// only -- and answers only about a job the complainant is on.
+				supportcase.RegisterContextRoute(group, opsVerifier, supportcontext.NewProjector(db))
 				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "TAXI_GOODS"), opsVerifier,
 					custodyops.MediaFileAuthorizer{Client: taxiMediaClient, AllowedOwners: map[string]struct{}{"driver-taxi-service": {}, "vendor-service": {}}},
 					custodyops.Policy{}, []string{"vendor-service", "operations-service"})

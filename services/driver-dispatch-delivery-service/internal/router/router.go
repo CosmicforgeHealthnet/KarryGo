@@ -39,6 +39,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/routeintegrity"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/supportcontext"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vehicle"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vendorownedhandover"
@@ -57,6 +58,7 @@ import (
 	"cosmicforge/logistics/shared/go/policyingest"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supportcase"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
 
@@ -650,6 +652,12 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			profileRepository,
 			serviceauth.NewVerifier(secrets, 5*time.Minute),
 		)
+		// Section 15: Support's minimized read of a delivery, under the same
+		// /api/v1/dispatch base Support already uses for identity. It
+		// verifies its own caller and answers only about a delivery the
+		// named complainant is party to.
+		supportcase.RegisterContextRoute(engine.Group("/api/v1/dispatch"),
+			serviceauth.NewVerifier(secrets, 5*time.Minute), supportcontext.NewProjector(db))
 	}
 
 	// Notification proxy (feed / realtime token / device registration) for the

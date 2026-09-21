@@ -31,6 +31,10 @@ type Config struct {
 	// secrets. Empty disables enrichment for that service.
 	CustomerServiceURL    string
 	CustomerServiceSecret string
+	// NetworkContextEnabled gates Section 15: context references, owner
+	// context reads, snapshots and action requests. Off by default so a
+	// deployment enables it only once the owning services expose the read.
+	NetworkContextEnabled bool
 	HaulingServiceURL     string
 	HaulingServiceSecret  string
 	TaxiServiceURL        string
@@ -72,6 +76,7 @@ func Load() Config {
 		CustomerServiceSecret:     getEnv("SUPPORT_DISPUTE_CUSTOMER_SERVICE_SECRET", "development-support-dispute-service-secret"),
 		FleetPartnerServiceURL:    getEnv("SUPPORT_DISPUTE_FLEET_PARTNER_SERVICE_URL", ""),
 		FleetPartnerServiceSecret: getEnv("SUPPORT_DISPUTE_FLEET_PARTNER_SERVICE_SECRET", ""),
+		NetworkContextEnabled:     getEnv("SUPPORT_NETWORK_CONTEXT_ENABLED", "false") == "true",
 		HaulingServiceURL:         getEnv("SUPPORT_DISPUTE_HAULING_SERVICE_URL", ""),
 		HaulingServiceSecret:      getEnv("SUPPORT_DISPUTE_HAULING_SERVICE_SECRET", "development-support-dispute-service-secret"),
 		TaxiServiceURL:            getEnv("SUPPORT_DISPUTE_TAXI_SERVICE_URL", ""),

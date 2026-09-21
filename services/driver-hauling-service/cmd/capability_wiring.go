@@ -11,12 +11,14 @@ import (
 	providerauthusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/services/hauling-service/internal/features/recovery"
+	"cosmicforge/logistics/services/hauling-service/internal/features/supportcontext"
 	"cosmicforge/logistics/services/hauling-service/internal/features/truckcapability"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/policyingest"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supportcase"
 )
 
 // nearbyProviderAdapter narrows the full availability store to the two fields
@@ -56,6 +58,7 @@ type capabilityWiring struct {
 	authority capabilityAuthority
 	policy    *truckcapability.PolicyIngest
 	recovery  *recovery.Handler
+	support   *supportcontext.Projector
 	config    config.Config
 }
 
@@ -103,7 +106,8 @@ func buildCapabilityWiring(
 			AdminHosts:        truckcapability.AdminHostsFrom(cfg.AdminAllowedHosts),
 			ReconcileInterval: cfg.PolicyReconcileInterval,
 		}),
-		config: cfg,
+		support: supportcontext.NewProjector(db),
+		config:  cfg,
 	}
 }
 
@@ -132,6 +136,13 @@ func (w capabilityWiring) registerRoutes(
 	internal := group.Group("/internal")
 	internal.Use(serviceauth.Middleware(verifier))
 	truckcapability.RegisterInternal(internal, w.handler)
+
+	// Section 15: Support's minimized read of a booking. Mounted on the api
+	// base rather than the /internal group because supportcase.ContextPath
+	// carries its own /internal prefix, and it verifies its own caller: only
+	// support-dispute-service may read, and only about a booking the named
+	// complainant is party to.
+	supportcase.RegisterContextRoute(group, verifier, w.support)
 
 	// Recovery is an internal/operator surface only. Nothing here lets a
 	// provider choose who replaces them.
