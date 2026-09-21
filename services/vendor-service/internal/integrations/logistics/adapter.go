@@ -317,6 +317,15 @@ func (r *Registry) Authorize(ctx context.Context, authority Authority, requireme
 	return NewFailure(authority, categoryForReason(answer.ReasonCode), answer.ReasonCode)
 }
 
+// CategoryForReasonCode maps a capability refusal code onto the Vendor-safe
+// category.
+//
+// It is exported because the orchestration planner classifies the SAME codes
+// when it evaluates candidates, and a second copy of this mapping is a second
+// thing to keep in step -- the drift would show up as an authority that is
+// permanently eliminated for what was really an outage.
+func CategoryForReasonCode(reason string) FailureCategory { return categoryForReason(reason) }
+
 // categoryForReason maps the capability contract's refusal codes onto the
 // Vendor-safe categories.
 //

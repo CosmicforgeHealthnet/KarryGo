@@ -395,6 +395,11 @@ func main() {
 		logging.Fatal("section13", "assemble taxonomy and search: %v", err)
 	}
 
+	// Fulfilment readiness and just-in-time orchestration. Assembled in
+	// readiness_orchestration_wiring.go for the same reason Section 13 is
+	// assembled elsewhere: the layering is worth reading where it is built.
+	readinessOrchestration := buildReadinessOrchestration(cfg, db, evaluator)
+
 	goodsReceivingService := purchasing.NewGoodsReceivingService(
 		db,
 		purchaseOrderService,
@@ -1196,6 +1201,17 @@ func main() {
 		})
 	}
 
+	// Readiness/orchestration passes. Both are empty unless just-in-time
+	// orchestration is enabled, so a deployment that has not certified it adds
+	// no background work at all.
+	for _, job := range readinessOrchestration.Workers() {
+		orchestrationJob := job
+		workers = append(workers, func(runCtx context.Context) error {
+			orchestrationJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+
 	// Deployment topology is decided after workers are assembled so the same
 	// domain wiring is used by every mode. API instances never claim work. The
 	// global kill switch also stops new claims while leaving database-backed
@@ -1305,6 +1321,7 @@ func main() {
 
 			purchasing.RegisterOperationsRoutes(protected, purchasingOperationsHandler, cfg.Flags.VendorPurchasingEnabled)
 			section13Components.registerVendorRoutes(protected)
+			readinessOrchestration.registerVendorRoutes(protected)
 
 			// Section 17E vendor order queue and lifecycle commands.
 			orders.RegisterVendorRoutes(
@@ -1388,6 +1405,10 @@ func main() {
 			// taxonomy administration and internal Food/Shop search. Each carries its
 			// own caller allowlist.
 			section13Components.registerInternalRoutes(router, inboundVerifier)
+			// The read-only orchestration decision surface, with its own
+			// caller allowlist: an authority reconciling its own work may ask
+			// what Vendor planned, but none may tell Vendor what to plan.
+			readinessOrchestration.registerInternalRoutes(router, inboundVerifier)
 		},
 		Workers:     workers,
 		DisableHTTP: cfg.ProcessMode == "worker",

@@ -18,6 +18,7 @@ import (
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/logisticscapability"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supplypreview"
 )
 
 const maxBodyBytes = 64 << 10
@@ -62,6 +63,13 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *servicea
 		internal.POST("/missions/:missionRef/receiver", handler.changeReceiver)
 		internal.GET("/execution-capability", handler.commerceCapabilities)
 		internal.POST("/serviceability", handler.serviceability)
+
+		// The read-only planning surface Vendor's just-in-time orchestration
+		// reads before it commits. It creates nothing -- no mission, no
+		// booking, no offer, no reservation -- and it names no provider or
+		// vehicle, because a preview that returned an identity would be an
+		// assignment by another name.
+		supplypreview.RegisterRoutes(internal, NewPreviewer(service, true))
 		internal.POST("/missions/:missionRef/pickups/delay", handler.pickupDelay)
 		internal.POST("/missions/:missionRef/route/replan", handler.replanRoute)
 

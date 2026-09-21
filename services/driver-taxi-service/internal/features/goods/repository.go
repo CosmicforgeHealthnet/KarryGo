@@ -1234,6 +1234,7 @@ func planValue(r commercemission.Request, which string) string {
 		return r.Plan.MissionSlotRef
 	}
 }
+
 // Plan binding modes. A legacy quote-bound mission has no plan identity and is
 // stored with an empty plan_ref, never a generated placeholder that could
 // collide with a real plan slot.
