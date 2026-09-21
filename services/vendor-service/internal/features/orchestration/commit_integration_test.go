@@ -98,9 +98,11 @@ func (c *recordingCommitter) counts() (int, int) {
 
 // staticGate answers serviceability without a network.
 type staticGate struct {
-	usable  map[logistics.Authority]bool
-	answers map[logistics.Authority]logistics.Serviceability
-	errs    map[logistics.Authority]error
+	usable        map[logistics.Authority]bool
+	answers       map[logistics.Authority]logistics.Serviceability
+	errs          map[logistics.Authority]error
+	capabilities  map[logistics.Authority]logistics.Capability
+	capabilityErr error
 }
 
 func (g staticGate) Usable(authority logistics.Authority) bool { return g.usable[authority] }
@@ -113,8 +115,12 @@ func (g staticGate) Serviceability(_ context.Context, authority logistics.Author
 	return g.answers[authority], nil
 }
 
-func (g staticGate) Capability(context.Context, logistics.Authority) (logistics.Capability, error) {
-	return logistics.Capability{}, nil
+func (g staticGate) Capability(_ context.Context,
+	authority logistics.Authority) (logistics.Capability, error) {
+	if g.capabilityErr != nil {
+		return logistics.Capability{}, g.capabilityErr
+	}
+	return g.capabilities[authority], nil
 }
 
 // staticReadiness supplies a prediction without a readiness row.

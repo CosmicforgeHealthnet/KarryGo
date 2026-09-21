@@ -370,6 +370,19 @@ func (s *Service) selectAuthority(ctx context.Context, current Orchestration) (O
 	if err = tx.Commit(ctx); err != nil {
 		return current, err
 	}
+
+	// Group the pickups against the authority that was just selected.
+	//
+	// It runs after the selection commits, not inside it, because the two
+	// answer different questions and fail differently: the selection is a
+	// decision about the whole order and must be durable, while a grouping that
+	// could not be computed leaves the orchestration correctly selected and
+	// simply unplanned, to be planned on the next pass. Folding grouping into
+	// the selection transaction would let a capability lookup roll back a
+	// decision that was already sound.
+	if groupErr := s.planGroups(ctx, updated); groupErr != nil {
+		return updated, groupErr
+	}
 	return updated, nil
 }
 

@@ -331,6 +331,26 @@ type Pickup struct {
 	Sequence      int    `json:"sequence"`
 	BusinessID    string `json:"business_id"`
 	BranchID      string `json:"branch_id"`
+
+	// The facts grouping is decided from, snapshotted when the orchestration
+	// was opened. They are per pickup because that is what they describe: one
+	// group-level total cannot say whether the bakery and the grocery can share
+	// a vehicle.
+	PickupLatitude  float64  `json:"pickup_latitude,omitempty"`
+	PickupLongitude float64  `json:"pickup_longitude,omitempty"`
+	WeightGrams     int64    `json:"weight_grams,omitempty"`
+	VolumeMl        int64    `json:"volume_ml,omitempty"`
+	PackageCount    int64    `json:"package_count,omitempty"`
+	Handling        []string `json:"handling,omitempty"`
+	TemperatureBand string   `json:"temperature_band,omitempty"`
+	SecurePickup    bool     `json:"secure_pickup,omitempty"`
+
+	// GroupIndex is the planner's output: which mission this pickup belongs to.
+	// Nil means grouping has not run, which is deliberately distinct from group
+	// zero -- an unplanned pickup read as "the first mission" is how goods get
+	// loaded onto a vehicle nobody planned to send.
+	GroupIndex  *int   `json:"group_index,omitempty"`
+	SplitReason string `json:"split_reason,omitempty"`
 }
 
 // DecisionEvent is one piece of append-only selection evidence.
@@ -365,6 +385,8 @@ const (
 	EventServiceabilityChecked = "SERVICEABILITY_CHECKED"
 	EventSupplyPreviewed       = "SUPPLY_PREVIEWED"
 	EventAuthoritySelected     = "AUTHORITY_SELECTED"
+	EventGroupPlanned          = "GROUP_PLANNED"
+	EventGroupSplit            = "GROUP_SPLIT"
 	EventCommitScheduled       = "COMMIT_SCHEDULED"
 	EventCommitAttempted       = "COMMIT_ATTEMPTED"
 	EventMissionCommitted      = "MISSION_COMMITTED"

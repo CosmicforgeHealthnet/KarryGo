@@ -266,5 +266,16 @@ func (c readinessOrchestrationComponents) Workers() []jobs.Job {
 				_, err := c.orchestrationSvc.RunReconciliationPass(runCtx)
 				return err
 			}},
+		// The stale-signal sweep. It is separate from evaluation because it
+		// answers a different question: evaluation asks what is due, this asks
+		// what has gone quiet. An order nobody has touched in a quarter of an
+		// hour is not due for anything, which is exactly why the evaluation
+		// pass would never look at it.
+		{Name: "fulfilment-readiness-stale-sweep", Interval: orchestration.StaleSweepInterval,
+			Pass: func(runCtx context.Context) error {
+				_, err := c.orchestrationSvc.SweepStale(runCtx,
+					time.Now().UTC().Add(-orchestration.StaleSweepLookback))
+				return err
+			}},
 	}
 }

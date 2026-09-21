@@ -182,11 +182,19 @@ func (r *Repository) ReplacePickups(ctx context.Context, tx pgx.Tx, id string, p
 		return err
 	}
 	for _, pickup := range pickups {
+		handling := pickup.Handling
+		if handling == nil {
+			handling = []string{}
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO vendor_orchestration_pickups(
-				orchestration_id, vendor_order_id, sequence, business_id, branch_id)
-			VALUES($1,$2,$3,$4,$5)`,
-			id, pickup.VendorOrderID, pickup.Sequence, pickup.BusinessID, pickup.BranchID); err != nil {
+				orchestration_id, vendor_order_id, sequence, business_id, branch_id,
+				pickup_latitude, pickup_longitude, weight_grams, volume_ml,
+				package_count, handling, temperature_band, secure_pickup)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+			id, pickup.VendorOrderID, pickup.Sequence, pickup.BusinessID, pickup.BranchID,
+			pickup.PickupLatitude, pickup.PickupLongitude, pickup.WeightGrams, pickup.VolumeMl,
+			pickup.PackageCount, handling, pickup.TemperatureBand, pickup.SecurePickup); err != nil {
 			if isUniqueViolation(err) {
 				// Another live orchestration already holds this vendor order.
 				// Two planners collecting the same goods is the one outcome
@@ -202,7 +210,10 @@ func (r *Repository) ReplacePickups(ctx context.Context, tx pgx.Tx, id string, p
 // Pickups returns the vendor orders this orchestration collects.
 func (r *Repository) Pickups(ctx context.Context, id string) ([]Pickup, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT vendor_order_id, sequence, business_id, branch_id
+		SELECT vendor_order_id, sequence, business_id, branch_id,
+		       COALESCE(pickup_latitude,0), COALESCE(pickup_longitude,0),
+		       weight_grams, volume_ml, package_count, handling,
+		       temperature_band, secure_pickup, group_index, split_reason
 		  FROM vendor_orchestration_pickups WHERE orchestration_id=$1 ORDER BY sequence`, id)
 	if err != nil {
 		return nil, err
@@ -212,12 +223,36 @@ func (r *Repository) Pickups(ctx context.Context, id string) ([]Pickup, error) {
 	for rows.Next() {
 		var pickup Pickup
 		if err = rows.Scan(&pickup.VendorOrderID, &pickup.Sequence,
-			&pickup.BusinessID, &pickup.BranchID); err != nil {
+			&pickup.BusinessID, &pickup.BranchID,
+			&pickup.PickupLatitude, &pickup.PickupLongitude,
+			&pickup.WeightGrams, &pickup.VolumeMl, &pickup.PackageCount,
+			&pickup.Handling, &pickup.TemperatureBand, &pickup.SecurePickup,
+			&pickup.GroupIndex, &pickup.SplitReason); err != nil {
 			return nil, err
 		}
 		out = append(out, pickup)
 	}
 	return out, rows.Err()
+}
+
+// AssignGroups records the planner's output on each pickup.
+//
+// It writes group membership and, for a pickup that was split out, the specific
+// incompatibility that split it. Both are written in the caller's transaction
+// alongside the decision events that explain them, so a plan and its evidence
+// are never half-recorded.
+func (r *Repository) AssignGroups(ctx context.Context, tx pgx.Tx, id string,
+	assignments map[string]GroupAssignment) error {
+	for vendorOrderID, assignment := range assignments {
+		if _, err := tx.Exec(ctx, `
+			UPDATE vendor_orchestration_pickups
+			   SET group_index=$3, split_reason=$4
+			 WHERE orchestration_id=$1 AND vendor_order_id=$2`,
+			id, vendorOrderID, assignment.GroupIndex, assignment.SplitReason); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RecordDecision appends one piece of selection evidence.
@@ -271,6 +306,38 @@ func (r *Repository) Decisions(ctx context.Context, id string, limit int) ([]Dec
 		out = append(out, event)
 	}
 	return out, rows.Err()
+}
+
+// ClaimQuiet returns waiting orchestrations that have not been touched in a
+// while, regardless of when their next evaluation is scheduled.
+//
+// It is the counterpart to ClaimDue, and the difference is the whole point. An
+// orchestration whose kitchen has gone silent is not due for anything -- its
+// next evaluation may be half an hour out, scheduled from a prediction that is
+// now being made on a signal nobody has confirmed since. ClaimDue will never
+// look at it. This does.
+//
+// It deliberately does NOT push next_evaluation_at out the way ClaimDue does.
+// The caller re-evaluates what it claims, and that re-evaluation sets the
+// timing from the widened prediction; moving it here first would make the
+// sweep fight the planner for the same column.
+func (r *Repository) ClaimQuiet(ctx context.Context, quietSince time.Time,
+	limit int) ([]Orchestration, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT `+orchestrationColumns+`
+		  FROM vendor_fulfilment_orchestrations
+		 WHERE state IN ('PLANNED','WAITING_READINESS','WARM_MATCH')
+		   AND updated_at <= $1
+		 ORDER BY updated_at
+		 LIMIT $2 FOR UPDATE SKIP LOCKED`, quietSince, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectOrchestrations(rows)
 }
 
 // ClaimDue returns orchestrations whose next evaluation has arrived.
