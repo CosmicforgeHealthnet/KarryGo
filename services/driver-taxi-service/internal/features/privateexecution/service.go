@@ -32,9 +32,28 @@ type ZoneResolver interface {
 	ResolveZone(ctx context.Context, point geo.Point) (Zone, error)
 }
 
+// store is the persistence this service needs, named as a port rather than
+// taken as the concrete repository.
+//
+// It exists so the acceptance gate can be exercised without a database. Almost
+// every rule worth testing here -- a declined provider, a mismatched
+// organization, an unreachable Fleet -- is decided BEFORE anything is written,
+// and the assertion that matters in each case is that nothing was written at
+// all. A concrete repository makes that assertion cost a database and a
+// transaction to observe; a port makes it a counter.
+//
+// *Repository satisfies this, and the production wiring still passes one.
+type store interface {
+	GetOperation(ctx context.Context, id string) (record, error)
+	GetKey(ctx context.Context, key string) (record, error)
+	GetBooking(ctx context.Context, id string) (record, error)
+	Create(ctx context.Context, in CreateRequest, fingerprint string, zone Zone) (record, error)
+	Cancel(ctx context.Context, operationID, key, fingerprint, reason string) (CancelView, error)
+}
+
 // Service holds the rules for accepting a Fleet execution command.
 type Service struct {
-	repo       *Repository
+	repo       store
 	verifier   AcceptanceVerifier
 	zones      ZoneResolver
 	enabled    bool
@@ -46,7 +65,7 @@ type Service struct {
 // enabled and killSwitch are separate on purpose: the first is a rollout
 // decision that can be planned, the second is an operational stop that has to
 // work immediately and independently of whatever the rollout flag says.
-func NewService(repo *Repository, verifier AcceptanceVerifier, zones ZoneResolver,
+func NewService(repo store, verifier AcceptanceVerifier, zones ZoneResolver,
 	enabled, killSwitch bool) *Service {
 	return &Service{repo: repo, verifier: verifier, zones: zones,
 		enabled: enabled, killSwitch: killSwitch}
