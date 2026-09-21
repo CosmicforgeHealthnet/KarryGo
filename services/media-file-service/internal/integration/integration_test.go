@@ -144,6 +144,15 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("rollback last migration: %v", err)
 	}
+	// Reapply however this test ends. A failed assertion below used to skip
+	// the reapply at the bottom and leave the shared test database rolled
+	// back, which made every later test in the package fail with an
+	// unrelated-looking internal error.
+	t.Cleanup(func() {
+		if err := database.ApplyMigrations(context.Background(), pool, migrationsDir); err != nil {
+			t.Errorf("cleanup reapply migrations: %v", err)
+		}
+	})
 	// Rolling back the tip must remove exactly what the tip added and leave
 	// everything before it standing. The assertion is written against whatever
 	// the current tip is rather than against a named version: an earlier form
@@ -157,16 +166,28 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if !exists {
 		t.Fatal("latest rollback removed the media_objects baseline table")
 	}
-	// The tip is 000004, additive data-export metadata.
+	// The tip is 000005, network evidence binding. Rolling it back removes the
+	// binding and evidence-state columns and nothing else.
+	var bindingExists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema='public' AND table_name='media_objects' AND column_name='binding_type'
+	)`).Scan(&bindingExists); err != nil {
+		t.Fatalf("check rolled-back binding metadata: %v", err)
+	}
+	if bindingExists {
+		t.Fatal("expected the evidence binding columns to be removed by rolling back the tip")
+	}
+	// 000004's data-export visibility is NOT the tip's, so it must survive.
 	var visibilityExists bool
 	if err := pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM information_schema.columns
 		WHERE table_schema='public' AND table_name='media_objects' AND column_name='visibility'
 	)`).Scan(&visibilityExists); err != nil {
-		t.Fatalf("check rolled-back export metadata: %v", err)
+		t.Fatalf("check preserved export metadata: %v", err)
 	}
-	if visibilityExists {
-		t.Fatal("expected the data-export columns to be removed by rolling back the tip")
+	if !visibilityExists {
+		t.Fatal("rolling back the tip removed 000004's visibility column")
 	}
 	// And everything the tip did not own survives untouched.
 	var capturedAtExists bool
@@ -192,12 +213,12 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	}
 	if err := pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM information_schema.columns
-		WHERE table_schema='public' AND table_name='media_objects' AND column_name='visibility'
-	)`).Scan(&visibilityExists); err != nil {
-		t.Fatalf("check reapplied export metadata: %v", err)
+		WHERE table_schema='public' AND table_name='media_objects' AND column_name='binding_type'
+	)`).Scan(&bindingExists); err != nil {
+		t.Fatalf("check reapplied binding metadata: %v", err)
 	}
-	if !visibilityExists {
-		t.Fatal("expected the data-export columns to exist after reapply")
+	if !bindingExists {
+		t.Fatal("expected the evidence binding columns to exist after reapply")
 	}
 	// The private-only rule is part of the schema, not just the use case, so it
 	// must come back with the reapply.

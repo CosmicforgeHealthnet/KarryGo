@@ -210,6 +210,13 @@ type AuthorizeUploadInput struct {
 	IdempotencyKey     string
 	RequestFingerprint string
 	PayloadVersion     int
+
+	// BindingType and BindingID say what this file is evidence FOR. They are
+	// fixed here, at authorisation, because the object row is created here:
+	// no later request can re-point a file at a different job.
+	BindingType       string
+	BindingID         string
+	SecondaryBindings []models.Binding
 }
 
 // UploadGrant is everything the caller learns.
@@ -329,6 +336,9 @@ func (s *Service) AuthorizeUpload(ctx context.Context, input AuthorizeUploadInpu
 		RetentionClass:   input.RetentionClass,
 		CorrelationID:    input.Caller.CorrelationID,
 		CausationID:      input.Caller.CausationID,
+		BindingType:      input.BindingType,
+		BindingID:        input.BindingID,
+		EvidenceState:    models.EvidenceActive,
 	}
 	if s.opts.Policy.DefaultRetention > 0 {
 		until := now.Add(s.opts.Policy.DefaultRetention)
@@ -362,6 +372,12 @@ func (s *Service) AuthorizeUpload(ctx context.Context, input AuthorizeUploadInpu
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 		if createErr := s.opts.Objects.CreateObject(ctx, tx, object); createErr != nil {
 			return createErr
+		}
+		// Written in the same transaction as the object, so the complete set
+		// of bindings exists before a single byte is accepted.
+		if bindErr := s.opts.Objects.AddSecondaryBindings(ctx, tx, object.ID,
+			input.SecondaryBindings); bindErr != nil {
+			return bindErr
 		}
 		if createErr := s.opts.Objects.CreateAuthorization(ctx, tx, authorization); createErr != nil {
 			if errors.Is(createErr, repositories.ErrConflict) {
@@ -427,8 +443,13 @@ func (s *Service) validateAuthorizeInput(input *AuthorizeUploadInput) error {
 		input.Visibility = models.VisibilityPrivate
 	}
 	if input.RetentionClass == "" {
-		input.RetentionClass = models.RetentionStandard
+		// The default follows the purpose, so a caller that forgot to say
+		// "this is a safety incident" does not have it expire on the ordinary
+		// schedule.
+		input.RetentionClass = models.DefaultRetentionFor(input.UploadPurpose)
 	}
+	input.BindingType = strings.ToUpper(strings.TrimSpace(input.BindingType))
+	input.BindingID = strings.TrimSpace(input.BindingID)
 	if input.PayloadVersion <= 0 {
 		input.PayloadVersion = 1
 	}
@@ -448,6 +469,11 @@ func (s *Service) validateAuthorizeInput(input *AuthorizeUploadInput) error {
 		return invalid("FINGERPRINT_REQUIRED", "A request fingerprint is required.")
 	case !models.ValidVisibility(input.Visibility):
 		return invalid("VISIBILITY_UNSUPPORTED", "That visibility is not supported.")
+	case !models.ValidRetentionClass(input.RetentionClass):
+		return invalid("RETENTION_UNSUPPORTED", "That retention class is not supported.")
+	}
+	if err := validateBindings(input); err != nil {
+		return err
 	}
 
 	// A generated data export is customer data in bulk. It is refused here as
@@ -956,7 +982,22 @@ func (s *Service) GetObject(ctx context.Context, caller Caller, id string) (*mod
 	if errors.Is(err, repositories.ErrNotFound) {
 		return nil, ErrNotFound
 	}
-	return object, err
+	if err != nil {
+		return nil, err
+	}
+	if err = s.loadBindings(ctx, object); err != nil {
+		return nil, err
+	}
+	return object, nil
+}
+
+func (s *Service) loadBindings(ctx context.Context, object *models.Object) error {
+	bindings, err := s.opts.Objects.SecondaryBindings(ctx, nil, object.ID)
+	if err != nil {
+		return err
+	}
+	object.SecondaryBindings = bindings
+	return nil
 }
 
 // History returns an object's append-only history inside the caller's scope.
@@ -1499,4 +1540,237 @@ func firstMIME(values []string) string {
 		return ""
 	}
 	return values[0]
+}
+
+// validateBindings enforces the binding rules before anything is written.
+//
+// A binding is a pair or nothing, it names a known type, and a secondary
+// binding repeats neither the primary nor itself. Duplicates are refused
+// rather than silently collapsed: a caller who sent the same binding twice
+// has a bug worth hearing about.
+func validateBindings(input *AuthorizeUploadInput) error {
+	if (input.BindingType == "") != (input.BindingID == "") {
+		return invalid("BINDING_INCOMPLETE", "A binding needs both a type and an id.")
+	}
+	if input.BindingType != "" && !models.ValidBindingType(input.BindingType) {
+		return invalid("BINDING_TYPE_UNSUPPORTED", "That binding type is not supported.")
+	}
+	// Sensitive evidence must say what it is evidence for. An unbound damage
+	// photo proves nothing about any particular job and could be attached to
+	// any of them later.
+	if models.SensitiveEvidencePurpose(input.UploadPurpose) && input.BindingType == "" {
+		return invalid("BINDING_REQUIRED", "That evidence purpose must be bound to what it is evidence for.")
+	}
+	seen := map[string]bool{input.BindingType + "\x00" + input.BindingID: input.BindingType != ""}
+	normalized := make([]models.Binding, 0, len(input.SecondaryBindings))
+	for _, binding := range input.SecondaryBindings {
+		binding.Type = strings.ToUpper(strings.TrimSpace(binding.Type))
+		binding.ID = strings.TrimSpace(binding.ID)
+		if binding.Type == "" || binding.ID == "" {
+			return invalid("BINDING_INCOMPLETE", "A secondary binding needs both a type and an id.")
+		}
+		if !models.ValidBindingType(binding.Type) {
+			return invalid("BINDING_TYPE_UNSUPPORTED", "That secondary binding type is not supported.")
+		}
+		key := binding.Type + "\x00" + binding.ID
+		if seen[key] {
+			return invalid("BINDING_DUPLICATE", "A binding was declared more than once.")
+		}
+		seen[key] = true
+		normalized = append(normalized, binding)
+	}
+	input.SecondaryBindings = normalized
+	return nil
+}
+
+// RevokeInput withdraws an object as evidence.
+type RevokeInput struct {
+	Caller          Caller
+	MediaObjectID   string
+	ExpectedVersion int64
+	Reason          string
+}
+
+// RevokeEvidence withdraws a file as evidence without deleting it.
+//
+// Only the owning service may revoke, because revoking is a statement about
+// what the owner is prepared to rely on. The bytes are kept: what was
+// withdrawn, and when, may itself be evidence later.
+func (s *Service) RevokeEvidence(ctx context.Context, input RevokeInput) (*models.Object, error) {
+	reason := strings.TrimSpace(input.Reason)
+	if reason == "" {
+		return nil, invalid("REASON_REQUIRED", "A revocation reason is required.")
+	}
+	if input.ExpectedVersion <= 0 {
+		return nil, invalid("VERSION_REQUIRED", "The expected version is required.")
+	}
+	current, err := s.GetObject(ctx, input.Caller, input.MediaObjectID)
+	if err != nil {
+		return nil, err
+	}
+	if current.EffectiveStatus() == models.StatusRevoked {
+		// Already withdrawn. A retried revocation is not an error.
+		return current, nil
+	}
+	if current.EffectiveStatus() == models.StatusDeleted {
+		return nil, fmt.Errorf("%w: a deleted object cannot be revoked", ErrConflict)
+	}
+	revoked, err := s.opts.Objects.RevokeObject(ctx, nil, current.ID, input.ExpectedVersion, reason)
+	if errors.Is(err, repositories.ErrVersionMismatch) {
+		return nil, repositories.ErrVersionMismatch
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = s.loadBindings(ctx, revoked); err != nil {
+		return nil, err
+	}
+	return revoked, nil
+}
+
+// EvidenceExpectation is what a consumer is prepared to accept.
+//
+// Every field is optional except the object id; a field left empty is not
+// checked. The consumer states its expectations and the answer says which of
+// them held, so it can never be tricked into trusting a raw id it was handed.
+type EvidenceExpectation struct {
+	MediaObjectID string
+	OwnerService  string
+	OwnerType     string
+	OwnerRef      string
+	Purposes      []string
+	BindingType   string
+	BindingID     string
+}
+
+// EvidenceVerdict is the answer to "may I rely on this file?".
+//
+// It carries NO bytes, no storage key and no download grant. It is safe to
+// return to a service that does not own the object precisely because it says
+// only whether that service's own stated expectation holds.
+type EvidenceVerdict struct {
+	MediaObjectID  string   `json:"mediaObjectId"`
+	Usable         bool     `json:"usable"`
+	Status         string   `json:"status"`
+	UploadComplete bool     `json:"uploadComplete"`
+	SafetyStatus   string   `json:"safetyStatus"`
+	Purpose        string   `json:"purpose"`
+	ChecksumSHA256 string   `json:"checksumSha256"`
+	Failures       []string `json:"failures"`
+	Version        int64    `json:"version"`
+}
+
+// Controlled reasons an expectation failed. A consumer branches on these.
+const (
+	EvidenceNotActive        = "NOT_ACTIVE"
+	EvidenceUploadIncomplete = "UPLOAD_INCOMPLETE"
+	EvidenceUnsafe           = "NOT_SAFE"
+	EvidenceWrongOwner       = "WRONG_OWNER"
+	EvidenceWrongPurpose     = "WRONG_PURPOSE"
+	EvidenceWrongBinding     = "WRONG_BINDING"
+)
+
+// ValidateEvidence answers whether a file may be relied on as stated.
+//
+// It deliberately reads WITHOUT owner scoping: the question is often asked by
+// a service that did not upload the file -- Verification checking a photo a
+// provider app uploaded. That is safe because the answer is a verdict against
+// the caller's own expectation, never the file or where it lives. An unknown
+// id and an id outside the caller's tenant both answer NOT_ACTIVE, so the
+// endpoint cannot be used to discover which ids exist.
+func (s *Service) ValidateEvidence(ctx context.Context, caller Caller,
+	expectation EvidenceExpectation) (EvidenceVerdict, error) {
+	id := strings.TrimSpace(expectation.MediaObjectID)
+	if id == "" {
+		return EvidenceVerdict{}, invalid("OBJECT_REQUIRED", "A media object id is required.")
+	}
+	// A question must come with context. The caller names either its own
+	// tenant or the binding or owner it already knows the file by. Without
+	// this, the route would answer "is this id live?" for any id at all --
+	// an existence oracle, which is precisely what a verdict-only contract is
+	// meant not to be.
+	if caller.OrganizationID == "" && strings.TrimSpace(expectation.BindingID) == "" &&
+		strings.TrimSpace(expectation.OwnerRef) == "" {
+		return EvidenceVerdict{}, invalid("CONTEXT_REQUIRED",
+			"Name the organization, binding or owner the file is expected to belong to.")
+	}
+	verdict := EvidenceVerdict{MediaObjectID: id, Failures: []string{}}
+
+	object, err := s.opts.Objects.GetObject(ctx, nil, id)
+	if errors.Is(err, repositories.ErrNotFound) ||
+		(err == nil && caller.OrganizationID != "" && object.OrganizationID != caller.OrganizationID) {
+		verdict.Status = models.StatusDeleted
+		verdict.Failures = append(verdict.Failures, EvidenceNotActive)
+		return verdict, nil
+	}
+	if err != nil {
+		return EvidenceVerdict{}, err
+	}
+	if err = s.loadBindings(ctx, object); err != nil {
+		return EvidenceVerdict{}, err
+	}
+
+	verdict.Status = object.EffectiveStatus()
+	verdict.UploadComplete = object.UploadStatus == models.UploadCompleted
+	verdict.SafetyStatus = object.SafetyStatus
+	verdict.Purpose = object.UploadPurpose
+	verdict.ChecksumSHA256 = object.ChecksumSHA256
+	verdict.Version = object.Version
+
+	if verdict.Status != models.StatusActive {
+		verdict.Failures = append(verdict.Failures, EvidenceNotActive)
+	}
+	if !verdict.UploadComplete {
+		verdict.Failures = append(verdict.Failures, EvidenceUploadIncomplete)
+	}
+	// Only a positive scan result counts. PENDING and UNKNOWN are not "not
+	// unsafe"; they are unanswered, and evidence nobody has checked is not
+	// evidence to rely on.
+	if object.SafetyStatus != models.SafetySafe {
+		verdict.Failures = append(verdict.Failures, EvidenceUnsafe)
+	}
+	if owner := strings.TrimSpace(expectation.OwnerService); owner != "" && owner != object.OwnerService {
+		verdict.Failures = append(verdict.Failures, EvidenceWrongOwner)
+	}
+	if ownerType := strings.ToUpper(strings.TrimSpace(expectation.OwnerType)); ownerType != "" &&
+		ownerType != object.OwnerType {
+		verdict.Failures = append(verdict.Failures, EvidenceWrongOwner)
+	}
+	if ref := strings.TrimSpace(expectation.OwnerRef); ref != "" && ref != object.OwnerReference {
+		verdict.Failures = append(verdict.Failures, EvidenceWrongOwner)
+	}
+	if len(expectation.Purposes) > 0 {
+		matched := false
+		for _, purpose := range expectation.Purposes {
+			if strings.ToUpper(strings.TrimSpace(purpose)) == object.UploadPurpose {
+				matched = true
+			}
+		}
+		if !matched {
+			verdict.Failures = append(verdict.Failures, EvidenceWrongPurpose)
+		}
+	}
+	bindingType := strings.ToUpper(strings.TrimSpace(expectation.BindingType))
+	bindingID := strings.TrimSpace(expectation.BindingID)
+	if bindingType != "" || bindingID != "" {
+		if !object.BoundTo(bindingType, bindingID) {
+			verdict.Failures = append(verdict.Failures, EvidenceWrongBinding)
+		}
+	}
+	verdict.Failures = uniqueStrings(verdict.Failures)
+	verdict.Usable = len(verdict.Failures) == 0
+	return verdict, nil
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
 }
