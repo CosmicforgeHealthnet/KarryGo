@@ -333,8 +333,18 @@ type Config struct {
 	PrivateHaulingExecutionEnabled  bool
 	PrivateTaxiExecutionEnabled     bool
 	PrivateOperationsKillSwitch     bool
-	PrivateAssignmentResponseTTL    time.Duration
-	PrivateExecutionWorkerEnabled   bool
+
+	// MultiServiceProviderLinksEnabled turns on the organization-member layer:
+	// one logical person who may hold a Dispatch, a Taxi and a Hauling provider
+	// identity at once, each owned by its own service.
+	//
+	// Without it, memberships remain what they have always been -- independent
+	// per-service rows with no link between them -- which is why private Taxi
+	// execution requires it: a taxi job assigned to "the same driver" is only
+	// meaningful if Fleet can say which dispatch rider that same driver is.
+	MultiServiceProviderLinksEnabled bool
+	PrivateAssignmentResponseTTL     time.Duration
+	PrivateExecutionWorkerEnabled    bool
 
 	// Section 16 planning and live-control capabilities. Every write and every
 	// worker defaults closed; the Fleet integration kill switch overrides all.
@@ -719,11 +729,17 @@ func Load() (Config, error) {
 		PrivateAssignmentsWorkerEnabled: getEnvBool("PRIVATE_ASSIGNMENTS_WORKER_ENABLED", false),
 		PrivateDispatchExecutionEnabled: getEnvBool("PRIVATE_DISPATCH_EXECUTION_ENABLED", false),
 		PrivateHaulingExecutionEnabled:  getEnvBool("PRIVATE_HAULING_EXECUTION_ENABLED", false),
-		// Taxi has no production authority contract. Configuration cannot turn it on.
-		PrivateTaxiExecutionEnabled:   false,
-		PrivateOperationsKillSwitch:   getEnvBool("FLEET_PRIVATE_OPERATIONS_KILL_SWITCH", false),
-		PrivateAssignmentResponseTTL:  time.Duration(getEnvInt("FLEET_PRIVATE_ASSIGNMENT_RESPONSE_TTL_SECONDS", 1800)) * time.Second,
-		PrivateExecutionWorkerEnabled: getEnvBool("PRIVATE_EXECUTION_WORKER_ENABLED", false),
+		// Taxi now has a production private-execution contract
+		// (driver-taxi-service's privateexecution feature, Section 10), so the
+		// flag is configuration again rather than a hardcoded false. It still
+		// defaults off and is still validated against a reachable Taxi client
+		// below: a flag that turns on an integration nobody configured is
+		// worse than one that cannot be turned on at all.
+		PrivateTaxiExecutionEnabled:      getEnvBool("PRIVATE_TAXI_EXECUTION_ENABLED", false),
+		PrivateOperationsKillSwitch:      getEnvBool("FLEET_PRIVATE_OPERATIONS_KILL_SWITCH", false),
+		MultiServiceProviderLinksEnabled: getEnvBool("FLEET_MULTI_SERVICE_PROVIDER_LINKS_ENABLED", false),
+		PrivateAssignmentResponseTTL:     time.Duration(getEnvInt("FLEET_PRIVATE_ASSIGNMENT_RESPONSE_TTL_SECONDS", 1800)) * time.Second,
+		PrivateExecutionWorkerEnabled:    getEnvBool("PRIVATE_EXECUTION_WORKER_ENABLED", false),
 
 		DispatchPlanningEnabled:     getEnvBool("DISPATCH_PLANNING_ENABLED", false),
 		RoutePlanningEnabled:        getEnvBool("ROUTE_PLANNING_ENABLED", false),
@@ -1001,14 +1017,30 @@ func (c Config) Validate() error {
 	if c.RedisRequired && c.Redis.Addr == "" {
 		problems = append(problems, "FLEET_PARTNER_REDIS_ADDR is required when FLEET_PARTNER_REDIS_REQUIRED=true")
 	}
-	// Taxi is intentionally unavailable until driver-taxi-service publishes a
-	// production contract. Rejecting the flag is safer than accepting config
-	// that can only fail later or silently fall back locally.
-	if c.TaxiIntegrationEnabled {
-		problems = append(problems, "FLEET_TAXI_INTEGRATION_ENABLED cannot be enabled: driver-taxi-service has no production contract")
+	// Taxi is no longer blanket-rejected: driver-taxi-service publishes both
+	// the marketplace contract (its managedexec feature) and, since Section 10,
+	// the private execution contract. What replaces the blanket rejection is a
+	// real check that the deployment can actually reach it -- an enabled
+	// integration with no URL or secret would fail closed on every call and
+	// look identical to a Taxi outage.
+	if c.TaxiIntegrationEnabled && !c.IntegrationsKillSwitch {
+		if taxi := c.Clients["driver-taxi-service"]; !taxi.Configured() {
+			problems = append(problems, "FLEET_PARTNER_TAXI_SERVICE_BASE_URL and FLEET_PARTNER_TAXI_SERVICE_SECRET are required when FLEET_TAXI_INTEGRATION_ENABLED is true")
+		}
 	}
-	if c.PrivateTaxiExecutionEnabled {
-		problems = append(problems, "PRIVATE_TAXI_EXECUTION_ENABLED cannot be enabled: driver-taxi-service has no production private execution contract")
+	if c.PrivateTaxiExecutionEnabled && !c.IntegrationsKillSwitch && !c.PrivateOperationsKillSwitch {
+		taxi := c.Clients["driver-taxi-service"]
+		if !taxi.Configured() || c.HTTPClientTimeout <= 0 {
+			problems = append(problems, "driver-taxi-service URL, secret and a positive timeout are required when private Taxi execution is enabled")
+		}
+		// Private Taxi execution is a MULTI-SERVICE link: one organization
+		// member holding a taxi provider identity alongside their dispatch or
+		// hauling one. Enabling execution without link support would let Fleet
+		// dispatch a taxi job through a member model that cannot represent the
+		// taxi identity it just used.
+		if !c.MultiServiceProviderLinksEnabled {
+			problems = append(problems, "PRIVATE_TAXI_EXECUTION_ENABLED requires FLEET_MULTI_SERVICE_PROVIDER_LINKS_ENABLED")
+		}
 	}
 	if c.PrivateDispatchExecutionEnabled && !c.IntegrationsKillSwitch && !c.PrivateOperationsKillSwitch {
 		if strings.TrimSpace(c.DispatchServiceURL) == "" || len(c.DispatchServiceSecret) == 0 || c.DispatchServiceTimeout <= 0 {

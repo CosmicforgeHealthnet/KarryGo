@@ -19,7 +19,7 @@ import (
 // TestMigrationReplay_EmptySchemaAppliesCleanly is WP8(A): apply
 // 000001->tip against a genuinely empty database and verify the resulting
 // schema, constraints, and indexes -- representative objects spanning the
-// earliest (000001-000002) and the latest (000078) migrations.
+// earliest (000001-000002) and the latest (000079) migrations.
 func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_empty")
 	ctx := context.Background()
@@ -32,8 +32,8 @@ func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 	if len(applied) < 76 {
 		t.Fatalf("recorded %d applied migrations, want at least 76", len(applied))
 	}
-	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000078") {
-		t.Fatalf("last applied migration = %s, want prefix 000078", got)
+	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000079") {
+		t.Fatalf("last applied migration = %s, want prefix 000079", got)
 	}
 
 	for _, table := range []string{
@@ -72,11 +72,11 @@ func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 }
 
 // TestMigrationReplay_LatestMigrationRollbackAndReapply is WP8(B): apply
-// everything, roll back the safely-reversible latest migration (000078),
+// everything, roll back the safely-reversible latest migration (000079),
 // verify its additions are actually gone, then reapply and verify the
-// state is fully restored. Earlier migrations -- 000077's completed-work and
-// settlement-instruction tables among them -- must survive rolling back
-// 000078.
+// state is fully restored. Earlier migrations -- 000078's work-settled
+// components and 000077's completed-work tables among them -- must survive
+// rolling back 000079.
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_rollback")
 	ctx := context.Background()
@@ -97,37 +97,54 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 
 	applied := appliedMigrationVersions(t, pool)
 	for _, v := range applied {
-		if strings.HasPrefix(v, "000078") {
-			t.Fatal("000078 is still recorded as applied after RollbackLastMigration")
+		if strings.HasPrefix(v, "000079") {
+			t.Fatal("000079 is still recorded as applied after RollbackLastMigration")
 		}
 	}
 	// The down migration must actually drop the table, not merely untrack it.
-	if tableExists(t, pool, "fleet_partner_work_settled_components") {
-		t.Error("fleet_partner_work_settled_components survived its own rollback")
+	if tableExists(t, pool, "fleet_partner_managed_provider_members") {
+		t.Error("fleet_partner_managed_provider_members survived its own rollback")
 	}
-	// Earlier migrations must survive rolling back 000078.
+	if tableExists(t, pool, "fleet_partner_managed_asset_links") {
+		t.Error("fleet_partner_managed_asset_links survived its own rollback")
+	}
+	// The member link column must go with it. A column left behind would make
+	// the reapply a no-op and hide a broken down migration.
+	if columnExists(t, pool, "fleet_partner_organization_provider_memberships", "member_id") {
+		t.Error("memberships.member_id survived the rollback of 000079")
+	}
+	// Earlier migrations must survive rolling back 000079.
+	if !tableExists(t, pool, "fleet_partner_work_settled_components") {
+		t.Error("000078 work-settled components table was removed by rolling back 000079 -- rollback affected the wrong migration")
+	}
 	if !tableExists(t, pool, "fleet_partner_completed_work_records") {
-		t.Error("000077 completed-work records table was removed by rolling back 000078 -- rollback affected the wrong migration")
+		t.Error("000077 completed-work records table was removed by rolling back 000079")
 	}
 	if !tableExists(t, pool, "fleet_partner_managed_work_settlement_instructions") {
-		t.Error("000077 settlement instructions table was removed by rolling back 000078")
+		t.Error("000077 settlement instructions table was removed by rolling back 000079")
 	}
 	if !tableExists(t, pool, "fleet_partner_export_jobs") {
-		t.Error("fleet_partner_export_jobs table was removed by rolling back 000078")
+		t.Error("fleet_partner_export_jobs table was removed by rolling back 000079")
 	}
 	if !tableExists(t, pool, "fleet_partner_organization_api_clients") {
-		t.Error("000076 organization API clients table was removed by rolling back 000078")
+		t.Error("000076 organization API clients table was removed by rolling back 000079")
 	}
 	if !columnExists(t, pool, "fleet_partner_export_jobs", "media_deletion_status") {
-		t.Error("000073 media_deletion_status column was removed by rolling back 000078")
+		t.Error("000073 media_deletion_status column was removed by rolling back 000079")
 	}
 
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("reapply after rollback: %v", err)
 	}
 	applied = appliedMigrationVersions(t, pool)
-	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000078") {
-		t.Fatalf("last applied migration after reapply = %s, want prefix 000078", got)
+	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000079") {
+		t.Fatalf("last applied migration after reapply = %s, want prefix 000079", got)
+	}
+	if !tableExists(t, pool, "fleet_partner_managed_provider_members") {
+		t.Error("managed provider members table not restored after reapply")
+	}
+	if !columnExists(t, pool, "fleet_partner_organization_provider_memberships", "member_id") {
+		t.Error("memberships.member_id not restored after reapply")
 	}
 	if !tableExists(t, pool, "fleet_partner_completed_work_records") {
 		t.Error("completed-work records table not restored after reapply")
@@ -142,7 +159,7 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 
 // TestMigrationReplay_MultiStepRangeAcrossSections is WP8(C): replay a
 // range spanning Section 25's introduction of fleet_partner_export_jobs
-// (000055) through the release tip (000078) in two separate apply calls,
+// (000055) through the release tip (000079) in two separate apply calls,
 // proving the schema is valid and correctly incremental at the pause point,
 // not just at the final tip.
 func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
@@ -162,7 +179,7 @@ func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
 		t.Fatalf("last applied migration after staged apply = %s, want prefix 000054", got)
 	}
 
-	// Stage 2: resume to the tip (000078). The table must now exist WITH
+	// Stage 2: resume to the tip (000079). The table must now exist WITH
 	// both its founding (000055) and later-added (000073) columns.
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("resume migrations to tip: %v", err)
@@ -177,8 +194,8 @@ func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
 		t.Error("fleet_partner_export_jobs.media_deletion_status (000073) missing after resumed replay")
 	}
 	applied = appliedMigrationVersions(t, pool)
-	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000078") {
-		t.Fatalf("last applied migration after resumed replay = %s, want prefix 000078", got)
+	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000079") {
+		t.Fatalf("last applied migration after resumed replay = %s, want prefix 000079", got)
 	}
 }
 

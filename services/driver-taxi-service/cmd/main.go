@@ -41,6 +41,7 @@ import (
 	fleetprovider "cosmicforge/logistics/services/taxi-service/internal/features/fleetprovider"
 	goods "cosmicforge/logistics/services/taxi-service/internal/features/goods"
 	"cosmicforge/logistics/services/taxi-service/internal/features/managedexec"
+	"cosmicforge/logistics/services/taxi-service/internal/features/privateexecution"
 	"cosmicforge/logistics/services/taxi-service/internal/movement"
 
 	identityhttp "cosmicforge/logistics/services/taxi-service/internal/features/identity/http"
@@ -56,6 +57,7 @@ import (
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
@@ -377,6 +379,24 @@ func main() {
 		ReservationTTL:   cfg.TaxiFleetReservationTTL,
 	})
 
+	// Fleet's PRIVATE execution authority (Section 10). Distinct from the
+	// managed-execution surface above: that one claims an existing passenger
+	// booking for an organization, this one creates a corporate trip no
+	// passenger ever requested. Both produce ordinary taxi bookings on the
+	// ordinary engine.
+	//
+	// The acceptance verifier is what makes it safe. Taxi does not take the
+	// request body's word that a provider agreed; it reads Fleet's own record
+	// before creating anything.
+	privateExecutionService := privateexecution.NewService(
+		privateexecution.NewRepository(db),
+		privateexecution.NewHTTPAcceptanceVerifier(cfg.FleetServiceURL, cfg.FleetServiceCaller,
+			cfg.FleetServiceSecret, cfg.FleetServiceTimeout),
+		taxiZoneResolver{repo: marketRepo},
+		cfg.TaxiFleetPrivateExecutionEnabled,
+		cfg.TaxiFleetKillSwitch,
+	)
+
 	goodsNotifier := goods.NewRedisNotificationAdapter(notifications.RedisPublisher{Client: notificationRedis})
 	goodsService := goods.NewService(goods.Options{
 		Repository: goodsRepo, Markets: marketRepo, Candidates: availabilityStore,
@@ -483,6 +503,9 @@ func main() {
 			managedexec.RegisterReconciliationRoutes(group,
 				managedexec.NewReconciliationHandler(taxiOutboxStore, cfg.TaxiFleetExecutionCallers),
 				opsVerifier)
+			privateexecution.Register(group,
+				privateexecution.NewHandler(privateExecutionService, cfg.TaxiFleetExecutionCallers),
+				opsVerifier)
 			// Closes baseline spec finding 3.3 (phase B11): the last piece
 			// needed before support-dispute-service can resolve a taxi
 			// driver's identity for a complaint/dispute, the same way it
@@ -585,4 +608,23 @@ func logConnectivity(ctx context.Context, redisAddr string, db interface{ Ping(c
 	} else {
 		logging.Success("redis", "connected addr=%s", redisAddr)
 	}
+}
+
+// taxiZoneResolver adapts the markets repository to the private-execution
+// feature's two-field zone view.
+//
+// The adapter exists so privateexecution depends on a shape rather than on the
+// markets feature. A private execution needs exactly two facts about a zone --
+// which zone, which market -- and importing the whole feature to get them would
+// tie a Fleet integration to every future change in market modelling.
+type taxiZoneResolver struct {
+	repo marketrepositories.MarketRepository
+}
+
+func (r taxiZoneResolver) ResolveZone(ctx context.Context, point geo.Point) (privateexecution.Zone, error) {
+	zone, err := r.repo.ResolveZone(ctx, point)
+	if err != nil {
+		return privateexecution.Zone{}, err
+	}
+	return privateexecution.Zone{ID: zone.ID, MarketID: zone.MarketID}, nil
 }

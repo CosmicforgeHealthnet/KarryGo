@@ -141,6 +141,22 @@ type Config struct {
 	// reconciliation reads). Default false: Section 8 TAX-028 gates the whole
 	// corporate Taxi chain behind certification.
 	TaxiFleetManagedExecutionEnabled bool
+	// TaxiFleetPrivateExecutionEnabled mounts the Fleet-facing PRIVATE
+	// execution surface: corporate work that never reached a marketplace at
+	// all, where Fleet already holds the order, the assignment and the
+	// provider's acceptance and asks Taxi to create the trip.
+	//
+	// It is separate from the managed-execution flag because the two answer
+	// different questions. Managed execution claims an EXISTING passenger
+	// booking for an organization; private execution CREATES a booking that no
+	// passenger requested. A deployment may legitimately want one without the
+	// other, and sharing a flag would make that impossible to express.
+	TaxiFleetPrivateExecutionEnabled bool
+	// TaxiFleetKillSwitch stops every Fleet-facing surface immediately,
+	// independently of the rollout flags. A rollout flag is a planning
+	// decision; a kill switch has to work during an incident without anyone
+	// reasoning about which of several flags also has to move.
+	TaxiFleetKillSwitch bool
 	// TaxiManagedSettlementEnabled isolates corporate settlement from the
 	// legacy direct-to-provider wallet path (Section 8 TAX-020A). Default
 	// false until Section 12 exists; turning it on stops corporate work
@@ -283,6 +299,8 @@ func Load() Config {
 		TaxiFleetCompletedWorkEnabled:       getEnvBool("TAXI_FLEET_COMPLETED_WORK_ENABLED", false),
 		TaxiTypedFinancialVisibilityEnabled: getEnvBool("TAXI_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
 		TaxiFleetManagedExecutionEnabled:    getEnvBool("TAXI_FLEET_MANAGED_EXECUTION_ENABLED", false),
+		TaxiFleetPrivateExecutionEnabled:    getEnvBool("TAXI_FLEET_PRIVATE_EXECUTION_ENABLED", false),
+		TaxiFleetKillSwitch:                 getEnvBool("TAXI_FLEET_KILL_SWITCH", false),
 		TaxiManagedSettlementEnabled:        getEnvBool("TAXI_MANAGED_SETTLEMENT_ENABLED", false),
 		TaxiFleetExecutionCallers:           splitCSV(getEnv("TAXI_FLEET_EXECUTION_CALLERS", "fleet-partner-service")),
 		TaxiFleetReservationTTL:             time.Duration(getEnvInt("TAXI_FLEET_RESERVATION_TTL_SECONDS", 300)) * time.Second,
@@ -425,6 +443,21 @@ func (c Config) Validate() error {
 	}
 	if path := urlPath(c.FleetServiceURL); path != "" {
 		problems = append(problems, "FLEET_PARTNER_SERVICE_URL must be a bare origin, got path "+path)
+	}
+	// Private execution depends on Fleet unconditionally, in every
+	// environment. Its whole safety rests on reading Fleet's own acceptance
+	// record before creating a trip, so an unreachable Fleet is not a degraded
+	// mode here -- it is a surface that would accept commands it cannot verify.
+	if c.TaxiFleetPrivateExecutionEnabled && !c.TaxiFleetKillSwitch {
+		if strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" ||
+			len(c.FleetServiceSecret) == 0 {
+			problems = append(problems,
+				"FLEET_PARTNER_SERVICE_URL, TAXI_FLEET_SERVICE_CALLER and FLEET_PARTNER_SERVICE_SECRET are required when TAXI_FLEET_PRIVATE_EXECUTION_ENABLED is true: acceptance cannot be verified without them")
+		}
+		if len(serviceSecretsFor(c.ServiceSecrets)) == 0 {
+			problems = append(problems,
+				"TAXI_SERVICE_SECRETS must carry a secret for fleet-partner-service when TAXI_FLEET_PRIVATE_EXECUTION_ENABLED is true")
+		}
 	}
 
 	if len(problems) > 0 {

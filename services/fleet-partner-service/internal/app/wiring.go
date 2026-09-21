@@ -51,6 +51,7 @@ import (
 	integrationsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers"
 	manifestshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/http"
 	manifestsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/usecases"
 	marketplacehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
@@ -666,6 +667,16 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	})
 	c.Integrations = integrationService
 	integrationHandler := integrationsfeature.NewHandler(integrationService, c.Authorizer)
+
+	// Section 10: the organization-member layer. One person, several provider
+	// identities, each still owned by the service that issued it. The authority
+	// adapter is what keeps that true -- Fleet resolves a provider with its
+	// owning service before recording a link and never mints one itself.
+	managedMemberHandler := managedmembers.NewHandler(managedmembers.NewService(managedmembers.Options{
+		Repository: managedmembers.NewRepository(c.Pool),
+		Authority:  BuildProviderAuthorityAdapter(c.Contracts),
+		Enabled:    cfg.MultiServiceProviderLinksEnabled,
+	}), c.Authorizer)
 	legalHoldService := legalholdusecases.NewService(c.Pool, stepUpVerifier, securitySettingsService)
 	legalHoldHandler := legalholdhttp.NewHandler(legalHoldService, c.Authorizer)
 	securitySettingsHandler := securitysettingshttp.NewHandler(securitySettingsService, c.Authorizer)
@@ -826,6 +837,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		retentionPolicyHandler.RegisterTenantRoutes(group)
 		retentionExecutionHandler.RegisterTenantRoutes(group)
 		integrationHandler.RegisterTenantRoutes(group)
+		managedMemberHandler.RegisterTenantRoutes(group)
 		// ============================================================
 		// DASHBOARD ROUTES - REGISTERED HERE
 		// ============================================================
