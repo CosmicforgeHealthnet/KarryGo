@@ -87,6 +87,12 @@ type Service struct {
 	// nil means an order activates exactly as it did before the aggregate
 	// existed, rather than failing because traceability is unavailable.
 	fulfilmentProjection FulfilmentProjection
+	// logisticsPlanner defers dispatch to the just-in-time orchestration.
+	// Optional: nil is the legacy deployment, which dispatches synchronously
+	// during activation exactly as it always has. Whether it is nil is the
+	// single thing that decides which path owns mission creation for a
+	// fulfilment, so there is never a moment when both do.
+	logisticsPlanner LogisticsPlanner
 	// customerGrouping publishes the commercial grouping of a purchase to the
 	// customer context owner. Optional: nil publishes nothing and changes no
 	// fulfilment behaviour.
@@ -250,10 +256,30 @@ func (s *Service) CancelByCustomer(
 			}
 		}
 		if activeOnMission == 1 {
-			if cancellation, ok := s.missions.(MissionCancellationAuthority); ok {
-				operationRef := "vfm_" + current.ParentOrderID + "_" + current.LogisticsMissionRef
-				if err = cancellation.CancelMission(ctx, operationRef, strings.TrimSpace(reasonCode)); err != nil {
+			operationRef := "vfm_" + current.ParentOrderID + "_" + current.LogisticsMissionRef
+			// Withdraw the plan first, when there is one.
+			//
+			// A slot the orchestration still holds has no vehicle behind it,
+			// so cancelling it costs nothing and must not be reported to an
+			// authority that was never asked. Only if the plan is already
+			// committed -- or there never was one -- does the authority's own
+			// cancellation contract apply. Doing these in the other order
+			// would ask an authority to cancel a mission it has never heard
+			// of, and a refusal there would block a cancellation the customer
+			// is entitled to.
+			withdrawn := false
+			if s.JITPlanningEnabled() {
+				withdrawn, err = s.logisticsPlanner.CancelMissionPlan(
+					ctx, operationRef, strings.TrimSpace(reasonCode))
+				if err != nil {
 					return VendorOrder{}, ParentOrder{}, err
+				}
+			}
+			if !withdrawn {
+				if cancellation, ok := s.missions.(MissionCancellationAuthority); ok {
+					if err = cancellation.CancelMission(ctx, operationRef, strings.TrimSpace(reasonCode)); err != nil {
+						return VendorOrder{}, ParentOrder{}, err
+					}
 				}
 			}
 		}

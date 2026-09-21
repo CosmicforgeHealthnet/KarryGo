@@ -172,10 +172,29 @@ func (s *Service) Open(ctx context.Context, request OpenRequest) (Orchestration,
 	if err != nil {
 		return Orchestration{}, err
 	}
-	if opened.State.Committed() {
-		// Already committed by an earlier pass. Replanning it would be Vendor
-		// re-deciding work an authority now owns.
+	if opened.State.Committed() || opened.State.Terminal() {
+		// Already committed, completed or withdrawn by an earlier pass.
+		// Replanning would be Vendor re-deciding work an authority now owns,
+		// or reviving an order somebody cancelled.
 		return opened, nil
+	}
+
+	// A repeat of the same request changes nothing.
+	//
+	// Activation and recovery both re-run, so Open is called again for orders
+	// that are already planned. Replacing the pickups on every repeat would be
+	// harmless-looking and is not: ReplacePickups deletes and re-inserts, which
+	// discards the planner's group assignments and makes the orchestration
+	// re-plan from scratch on every retry. Comparing what is already stored is
+	// what keeps a retry free.
+	if sameRequirement(opened.Requirement, request.Requirement) {
+		existing, pickupErr := s.repo.Pickups(ctx, opened.ID)
+		if pickupErr == nil && samePickups(existing, request.Pickups) {
+			if err = tx.Commit(ctx); err != nil {
+				return Orchestration{}, err
+			}
+			return opened, nil
+		}
 	}
 
 	if err = s.repo.ReplacePickups(ctx, tx, opened.ID, request.Pickups); err != nil {
@@ -212,6 +231,18 @@ func (s *Service) Evaluate(ctx context.Context, id string) (Orchestration, error
 	}
 	if current.State.Committed() {
 		// The authority owns it now. Vendor projects and does not re-time.
+		return current, nil
+	}
+	if current.RecoveryState == RecoveryReconciling {
+		// A create is out there and nobody knows whether it landed. The
+		// planner must not touch this orchestration at all until the
+		// reconciler has established what happened.
+		//
+		// Without this the ordinary evaluation loop will happily re-time the
+		// order, find the window open and commit again -- asking the authority
+		// for a mission it may already hold, which is the exact duplicate
+		// dispatch the whole read-back contract exists to prevent. Reconcile
+		// is the only path out of this state.
 		return current, nil
 	}
 
@@ -610,11 +641,18 @@ func (s *Service) Reconcile(ctx context.Context, id string) (Orchestration, erro
 
 // MissionRefFor is the deterministic mission identity for an orchestration.
 //
-// It is derived rather than generated so a read-back after an ambiguous create
-// can ask about the same reference the create used. A random reference would
-// make the mission unfindable exactly when finding it matters.
+// It is the fulfilment group reference, unchanged. That is not a simplification
+// -- it is the whole requirement: a read-back after an ambiguous create has to
+// ask about THE REFERENCE THE CREATE USED, and the committer creates against
+// the durable slot this orchestration was opened for.
+//
+// An earlier version decorated it ("commerce-orc:<group>:<version>"). That was
+// wrong twice over. No committer ever creates with the decorated value, so the
+// read-back asked about a mission that could not exist; and the plan version in
+// it meant a replan would change the identity of a mission already in flight,
+// which is precisely the reference that must never move.
 func MissionRefFor(o Orchestration) string {
-	return fmt.Sprintf("commerce-orc:%s:%d", o.FulfilmentGroupRef, o.PlanVersion)
+	return o.FulfilmentGroupRef
 }
 
 // ObserveAuthorityRecovery records that the executing authority is repairing

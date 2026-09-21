@@ -20,6 +20,15 @@ var (
 	ErrAuthorityUnavailable = errors.New("dispatch commerce authority is unavailable")
 	ErrInvalidRequest       = errors.New("dispatch commerce request is invalid")
 	ErrConflict             = errors.New("dispatch commerce idempotency conflict")
+
+	// ErrMissionNotFound means Dispatch answered, and its answer is that it
+	// holds no such operation.
+	//
+	// It also satisfies ErrInvalidRequest so no existing caller changes
+	// behaviour. It exists because a reconciler resolving an ambiguous create
+	// has to distinguish "definitely absent" -- the one state in which sending
+	// the create again is safe -- from every other 4xx.
+	ErrMissionNotFound = errors.New("dispatch commerce holds no such mission")
 )
 
 type Client struct {
@@ -148,6 +157,9 @@ func do[T any](c *Client, ctx context.Context, method, path string, request any,
 	}
 	if response.StatusCode == http.StatusConflict {
 		return zero, fmt.Errorf("%w: %s", ErrConflict, message)
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return zero, fmt.Errorf("%w: %w: %s", ErrInvalidRequest, ErrMissionNotFound, message)
 	}
 	if response.StatusCode >= 400 && response.StatusCode < 500 {
 		return zero, fmt.Errorf("%w: %s", ErrInvalidRequest, message)

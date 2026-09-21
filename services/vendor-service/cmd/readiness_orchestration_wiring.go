@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/jobs"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"cosmicforge/logistics/shared/go/supplypreview"
 )
@@ -128,11 +130,12 @@ func newSupplyPreviewClients(cfg config.Config, timeout time.Duration) supplypre
 
 // readinessOrchestrationComponents holds what the router and the workers need.
 type readinessOrchestrationComponents struct {
-	readinessService    *readiness.Service
-	readinessHandler    *readiness.Handler
-	orchestrationSvc    *orchestration.Service
-	orchestrationRepo   *orchestration.Repository
-	orchestrationHandle *orchestration.Handler
+	orchestrationService *orchestration.Service
+	readinessService     *readiness.Service
+	readinessHandler     *readiness.Handler
+	orchestrationSvc     *orchestration.Service
+	orchestrationRepo    *orchestration.Repository
+	orchestrationHandle  *orchestration.Handler
 
 	readinessEnabled     bool
 	orchestrationEnabled bool
@@ -140,18 +143,40 @@ type readinessOrchestrationComponents struct {
 
 // buildReadinessOrchestration wires readiness and orchestration.
 //
-// The mission committer is deliberately left nil here: Section 11's commit path
-// requires a read-back contract (ask the authority what happened after an
-// ambiguous create), and the existing mission authority exposes creation only.
-// A committer that could create but not read back would turn every timeout into
-// a duplicate dispatch, so the orchestration refuses to commit rather than
-// commit unsafely -- see Commit's own guard.
+// committer is the production mission committer. It is a required argument
+// rather than an optional setter, and it is validated below, because a
+// deployment that enables just-in-time commitment with no way to commit would
+// plan every order and dispatch none of them -- silently, since the
+// orchestration would simply park at COMMIT_DUE forever.
 func buildReadinessOrchestration(cfg config.Config, pool *pgxpool.Pool,
-	evaluator *staffusecases.AuthorizationEvaluator) readinessOrchestrationComponents {
+	evaluator *staffusecases.AuthorizationEvaluator,
+	committer orchestration.MissionCommitter) (readinessOrchestrationComponents, error) {
 
 	authorizer := staffAuthorizer{evaluator: evaluator}
 	registry := newLogisticsRegistry(cfg, cfg.Fulfilment.QuoteTimeout)
 	previews := newSupplyPreviewClients(cfg, cfg.Fulfilment.QuoteTimeout)
+
+	jitEnabled := cfg.Flags.VendorJITPickupEnabled && !cfg.Flags.CommerceGlobalKillSwitch
+
+	// Fail closed.
+	//
+	// Running with the flag on and no committer is the one configuration that
+	// looks healthy and delivers nothing: orders plan, workers evaluate,
+	// everything reaches COMMIT_DUE, and no vehicle is ever dispatched. A
+	// refused startup is loud; that state is silent.
+	if jitEnabled && committer == nil {
+		return readinessOrchestrationComponents{}, errors.New(
+			"VENDOR_JIT_PICKUP_ENABLED is set but no mission committer could be built; " +
+				"just-in-time commitment needs at least one configured logistics authority")
+	}
+	if jitEnabled && len(previews) == 0 {
+		// Warm match is what makes just-in-time timing better than a guess. A
+		// deployment with no preview client can still commit, so this is not
+		// fatal, but it is worth saying out loud at startup.
+		logging.Notice("orchestration",
+			"just-in-time commitment is enabled with no supply-preview client; "+
+				"commit timing will proceed without warm match")
+	}
 
 	readinessRepo := readiness.NewRepository(pool)
 	readinessService := readiness.NewService(readiness.Options{
@@ -165,20 +190,22 @@ func buildReadinessOrchestration(cfg config.Config, pool *pgxpool.Pool,
 		Gate:                 registryGate{registry: registry},
 		Preview:              previewSet{clients: previews},
 		Readiness:            readinessService,
-		JITEnabled:           cfg.Flags.VendorJITPickupEnabled && !cfg.Flags.CommerceGlobalKillSwitch,
+		Committer:            committer,
+		JITEnabled:           jitEnabled,
 		AutoSelectionEnabled: cfg.Flags.VendorAutoAuthoritySelectionEnabled && !cfg.Flags.CommerceGlobalKillSwitch,
 	})
 
 	return readinessOrchestrationComponents{
-		readinessService:  readinessService,
-		readinessHandler:  readiness.NewHandler(readinessService, authorizer),
-		orchestrationSvc:  orchestrationService,
-		orchestrationRepo: orchestrationRepo,
+		orchestrationService: orchestrationService,
+		readinessService:     readinessService,
+		readinessHandler:     readiness.NewHandler(readinessService, authorizer),
+		orchestrationSvc:     orchestrationService,
+		orchestrationRepo:    orchestrationRepo,
 		orchestrationHandle: orchestration.NewHandler(
 			orchestrationService, orchestrationRepo, authorizer),
 		readinessEnabled:     cfg.Flags.VendorReadinessOrchestrationEnabled && !cfg.Flags.CommerceGlobalKillSwitch,
-		orchestrationEnabled: cfg.Flags.VendorJITPickupEnabled && !cfg.Flags.CommerceGlobalKillSwitch,
-	}
+		orchestrationEnabled: jitEnabled,
+	}, nil
 }
 
 // registerVendorRoutes mounts the staff-facing surfaces.

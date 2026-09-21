@@ -133,3 +133,59 @@ func TestGroupingMigrationRollbackAndReapply(t *testing.T) {
 		t.Fatalf("GROUP_PLANNED refused after reapply: %v", err)
 	}
 }
+
+// TestLifecycleEventMigrationRollbackAndReapply certifies 000120.
+//
+// It widens the same append-only event vocabulary 000118 did, so it carries the
+// same hazard: restoring the narrower CHECK while ORDER_BOUND rows are present
+// would fail, and the immutability trigger would then refuse the delete that
+// would have fixed it. The test seeds exactly that state before rolling back.
+func TestLifecycleEventMigrationRollbackAndReapply(t *testing.T) {
+	pool := groupingMigrationPool(t)
+	ctx := context.Background()
+
+	accepts := func(eventType string) bool {
+		t.Helper()
+		id := "orc_evt_" + uuid.NewString()
+		_, err := pool.Exec(ctx, `
+			INSERT INTO vendor_orchestration_events(id, orchestration_id, plan_version, event_type)
+			VALUES($1,$2,1,$3)`, id, lifecycleSeedOrchestration(t, pool), eventType)
+		return err == nil
+	}
+
+	if !accepts("ORDER_BOUND") {
+		t.Fatal("ORDER_BOUND is not accepted after apply")
+	}
+	if !accepts("CANCELLED") {
+		t.Fatal("CANCELLED is not accepted after apply")
+	}
+	if accepts("NOT_A_REAL_EVENT") {
+		t.Fatal("the event vocabulary is not closed; a typo would be accepted")
+	}
+
+	if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+		t.Fatalf("rollback 000120: %v", err)
+	}
+	if accepts("ORDER_BOUND") {
+		t.Fatal("ORDER_BOUND survived the rollback; the CHECK was not narrowed")
+	}
+	if err := ApplyMigrations(ctx, pool, "../../migrations"); err != nil {
+		t.Fatalf("reapply 000120: %v", err)
+	}
+	if !accepts("ORDER_BOUND") {
+		t.Fatal("ORDER_BOUND is not accepted after reapply")
+	}
+}
+
+// lifecycleSeedOrchestration returns an orchestration id events can hang from.
+func lifecycleSeedOrchestration(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	id := "orc_lifecycle_" + uuid.NewString()
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO vendor_fulfilment_orchestrations(
+			id, fulfilment_group_ref, parent_order_id, plan_version, state, requirements_snapshot)
+		VALUES($1,$2,$3,1,'PLANNED','{}'::jsonb)`, id, id+"_fg", id+"_po"); err != nil {
+		t.Fatalf("seed orchestration: %v", err)
+	}
+	return id
+}

@@ -332,6 +332,16 @@ var (
 	ErrAuthorityUnavailable = errors.New("logistics authority is unavailable")
 
 	ErrNotConfigured = errors.New("logistics authority is not configured")
+
+	// ErrMissionNotFound means the authority answered, and its answer is that
+	// it holds no such mission.
+	//
+	// It is separate from ErrInvalidRequest -- which it also satisfies, so
+	// existing callers are unaffected -- because a caller reconciling an
+	// ambiguous create needs to tell "definitely absent" from "malformed" and
+	// from "could not ask". Only the first permits sending the create again;
+	// collapsing them is how one timeout becomes two vehicles.
+	ErrMissionNotFound = errors.New("logistics authority holds no such mission")
 )
 
 // Validate reports the first reason a request could not be executed.

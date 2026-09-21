@@ -227,8 +227,14 @@ func (c *Client) doMission(request *http.Request) (Mission, error) {
 		if message == "" {
 			message = fmt.Sprintf("status %d", response.StatusCode)
 		}
-		if response.StatusCode == http.StatusNotFound ||
-			(response.StatusCode >= 400 && response.StatusCode < 500) {
+		if response.StatusCode == http.StatusNotFound {
+			// Both sentinels are wrapped: the precise one for a reconciler
+			// deciding whether a retry is safe, and the broad one so every
+			// existing caller keeps matching exactly what it matched before.
+			return Mission{}, fmt.Errorf("%w: %w: %s",
+				ErrInvalidRequest, ErrMissionNotFound, message)
+		}
+		if response.StatusCode >= 400 && response.StatusCode < 500 {
 			return Mission{}, fmt.Errorf("%w: %s", ErrInvalidRequest, message)
 		}
 		return Mission{}, fmt.Errorf("%w: %s", ErrAuthorityUnavailable, message)

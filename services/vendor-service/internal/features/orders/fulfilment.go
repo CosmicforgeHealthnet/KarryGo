@@ -379,6 +379,12 @@ type ActivationOutcome struct {
 	MissionsCreated    int
 	MissionsRefused    int
 	VendorOwnDelivery  int
+	// MissionsPlanned counts slots handed to the just-in-time orchestration
+	// instead of dispatched now. It is deliberately NOT folded into
+	// MissionsCreated: a planned slot has no vehicle behind it yet, and a
+	// recovery pass that could not tell the two apart would report work as
+	// done that nobody has started.
+	MissionsPlanned int
 }
 
 // ActivateFulfilment finalizes stock and creates logistics missions for a paid
@@ -498,6 +504,37 @@ func (s *Service) ActivateFulfilment(
 				return outcome, snapshotErr
 			}
 			execution = &snapshot
+		}
+
+		// The mutual-exclusion point for this fulfilment.
+		//
+		// With just-in-time planning wired, this slot is handed to the
+		// orchestration and NOT dispatched here. That is what makes one
+		// authority-creation owner structural rather than a convention: there
+		// is no configuration in which control reaches both the planner above
+		// and the CreateMission below for the same slot, because this branch
+		// returns to the loop.
+		//
+		// Planning failures are fatal to activation rather than falling back
+		// to a synchronous create. A fallback would dispatch immediately on
+		// the one occasion the planner could not record that it intends to
+		// dispatch later, which is precisely how the same slot gets two
+		// vehicles.
+		if s.JITPlanningEnabled() {
+			if execution == nil {
+				// Just-in-time planning is decided from stops, ready windows
+				// and parcels. Without the frozen evidence there is nothing to
+				// plan against, and guessing would commit at a time nobody
+				// derived.
+				return outcome, ErrDependencyMissing
+			}
+			if planErr := s.logisticsPlanner.PlanMission(
+				ctx, plannedMissionFor(order, plan, mission, *execution),
+			); planErr != nil {
+				return outcome, planErr
+			}
+			outcome.MissionsPlanned++
+			continue
 		}
 
 		result, missionErr := s.missions.CreateMission(ctx, MissionRequest{

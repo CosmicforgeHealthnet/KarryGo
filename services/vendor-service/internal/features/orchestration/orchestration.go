@@ -387,6 +387,8 @@ const (
 	EventAuthoritySelected     = "AUTHORITY_SELECTED"
 	EventGroupPlanned          = "GROUP_PLANNED"
 	EventGroupSplit            = "GROUP_SPLIT"
+	EventOrderBound            = "ORDER_BOUND"
+	EventCancelled             = "CANCELLED"
 	EventCommitScheduled       = "COMMIT_SCHEDULED"
 	EventCommitAttempted       = "COMMIT_ATTEMPTED"
 	EventMissionCommitted      = "MISSION_COMMITTED"

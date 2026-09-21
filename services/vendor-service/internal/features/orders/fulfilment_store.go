@@ -163,6 +163,18 @@ func (s *Store) EnsureMission(
 	return created, true, nil
 }
 
+// GetMissionByRef reads one mission slot by its stable reference.
+//
+// The reference, not the internal id, is what the just-in-time orchestration
+// carries: it is derived from the order and its plan mission, so it survives a
+// restart and means the same thing to the executing authority.
+func (s *Store) GetMissionByRef(ctx context.Context, missionRef string) (OrderMission, error) {
+	if s == nil || s.db == nil {
+		return OrderMission{}, ErrDependencyMissing
+	}
+	return loadMissionBy(ctx, s.db, `m.mission_ref=$1`, missionRef)
+}
+
 // RecordMissionResult stores the executing authority's own answer.
 func (s *Store) RecordMissionResult(
 	ctx context.Context, missionID string, result MissionResult, now time.Time,

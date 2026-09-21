@@ -33,6 +33,7 @@ import (
 	food "cosmicforge/logistics/services/vendor-service/internal/features/food"
 	fulfilmentgroup "cosmicforge/logistics/services/vendor-service/internal/features/fulfilmentgroup"
 	inventory "cosmicforge/logistics/services/vendor-service/internal/features/inventory"
+	"cosmicforge/logistics/services/vendor-service/internal/features/orchestration"
 	orders "cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	pastry "cosmicforge/logistics/services/vendor-service/internal/features/pastry"
 	production "cosmicforge/logistics/services/vendor-service/internal/features/production"
@@ -394,11 +395,6 @@ func main() {
 	if err != nil {
 		logging.Fatal("section13", "assemble taxonomy and search: %v", err)
 	}
-
-	// Fulfilment readiness and just-in-time orchestration. Assembled in
-	// readiness_orchestration_wiring.go for the same reason Section 13 is
-	// assembled elsewhere: the layering is worth reading where it is built.
-	readinessOrchestration := buildReadinessOrchestration(cfg, db, evaluator)
 
 	goodsReceivingService := purchasing.NewGoodsReceivingService(
 		db,
@@ -818,6 +814,35 @@ func main() {
 	// isolated VendorOrders from an approved quote. Composed with no Wallet
 	// or mission-execution dependency: it creates orders, not payments.
 	orderService := buildSection17EOrderService(cfg, db, evaluator, inventoryStockService, quoteService, productionService, abuseLimiter, events.NewDomainPublisher(outboxRepo))
+
+	// Fulfilment readiness and just-in-time orchestration.
+	//
+	// Built here, after the order service, because the two are wired to each
+	// other: the orchestration commits through the order service (so a
+	// just-in-time mission is assembled by exactly the code that assembles a
+	// legacy one), and the order service plans through the orchestration
+	// instead of dispatching during activation.
+	//
+	// A nil committer is passed deliberately when there is no order service to
+	// commit through, so the fail-closed check inside sees the truth rather
+	// than a non-nil adapter wrapping nothing.
+	var missionCommitter orchestration.MissionCommitter
+	if orderService != nil {
+		missionCommitter = productionMissionCommitter{orders: orderService}
+	}
+	readinessOrchestration, err := buildReadinessOrchestration(cfg, db, evaluator, missionCommitter)
+	if err != nil {
+		logging.Fatal("orchestration", "assemble just-in-time orchestration: %v", err)
+	}
+	// The other direction. Wiring it only when just-in-time commitment is
+	// actually enabled is what makes legacy and JIT mutually exclusive: with
+	// the flag off the order service has no planner, and activation dispatches
+	// synchronously exactly as it always has.
+	if readinessOrchestration.orchestrationEnabled && orderService != nil {
+		orderService.SetLogisticsPlanner(orchestrationPlanner{
+			service: readinessOrchestration.orchestrationService,
+		})
+	}
 	if orderService != nil {
 		productionService.SetETAReadinessProjector(orderService)
 	}

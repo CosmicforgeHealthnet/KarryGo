@@ -14,6 +14,20 @@ import (
 func section11Config() Config {
 	cfg := withAuthSecrets(Load())
 	cfg.Flags.VendorServiceEnabled = true
+	// Just-in-time commitment defers the dispatch that happens during Section
+	// 17E order activation, so orders (and the quote lock they are cut from)
+	// are genuine prerequisites rather than test scaffolding. They are set
+	// here so a test about readiness and orchestration fails on its own rule
+	// rather than on that one.
+	cfg.Flags.CommerceFoodEnabled = true
+	// Vendor-owned delivery satisfies fulfilment planning's own prerequisite
+	// WITHOUT supplying a platform authority, so the tests below that assert
+	// "there is nobody to ask" still have nobody to ask.
+	cfg.Flags.VendorOwnDeliveryEnabled = true
+	cfg.Flags.CommerceCheckoutEnabled = true
+	cfg.Flags.CommerceFulfilmentPlanningEnabled = true
+	cfg.Flags.CommerceQuoteLockEnabled = true
+	cfg.Flags.CommerceOrdersEnabled = true
 	return cfg
 }
 
@@ -48,10 +62,43 @@ func TestJITRequiresReadiness(t *testing.T) {
 	cfg.Flags.VendorJITPickupEnabled = true
 	expectProblem(t, cfg, "VENDOR_READINESS_ORCHESTRATION_ENABLED must be true")
 
+	// Readiness alone is not enough any more: just-in-time commitment now
+	// actually commits, so it also needs an authority it can commit TO.
 	cfg.Flags.VendorReadinessOrchestrationEnabled = true
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("readiness plus JIT was rejected: %v", err)
+	expectProblem(t, cfg, "requires at least one configured logistics authority")
+
+	withAuthority := withDispatch(cfg)
+	if err := withAuthority.Validate(); err != nil {
+		t.Fatalf("readiness plus JIT plus one authority was rejected: %v", err)
 	}
+}
+
+// TestJITCannotRunWithoutSomewhereToCommit is the fail-closed rule.
+//
+// A deployment that defers every mission to an authority it cannot reach plans
+// every order and dispatches none. Nothing errors, nothing retries, and the
+// orchestrations simply queue at COMMIT_DUE -- which is why this has to be
+// refused at startup rather than discovered from a delivery backlog.
+func TestJITCannotRunWithoutSomewhereToCommit(t *testing.T) {
+	// Enabled but uncredentialled is the interesting case: the flag alone
+	// looks configured.
+	cfg := section11Config()
+	cfg.Flags.VendorReadinessOrchestrationEnabled = true
+	cfg.Flags.VendorJITPickupEnabled = true
+	cfg.Flags.DispatchCommerceIntegrationEnabled = true
+	expectProblem(t, cfg, "requires at least one configured logistics authority")
+}
+
+// TestJITRequiresCommerceOrders pins the prerequisite that makes the whole
+// integration meaningful: just-in-time commitment replaces the dispatch that
+// happens during order activation, so with orders off there is nothing to
+// defer.
+func TestJITRequiresCommerceOrders(t *testing.T) {
+	cfg := withDispatch(section11Config())
+	cfg.Flags.CommerceOrdersEnabled = false
+	cfg.Flags.VendorReadinessOrchestrationEnabled = true
+	cfg.Flags.VendorJITPickupEnabled = true
+	expectProblem(t, cfg, "COMMERCE_ORDERS_ENABLED must be true")
 }
 
 // TestAutomaticSelectionRequiresJIT pins the second.

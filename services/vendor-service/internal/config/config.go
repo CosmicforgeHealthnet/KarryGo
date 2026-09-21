@@ -703,6 +703,25 @@ func (c Config) Validate() error {
 		problems = append(problems,
 			"VENDOR_READINESS_ORCHESTRATION_ENABLED must be true when VENDOR_JIT_PICKUP_ENABLED=true")
 	}
+	// Just-in-time commitment replaces the synchronous dispatch that happens
+	// during order activation. That makes Section 17E orders a hard
+	// prerequisite rather than a nicety: with orders off there is no activation
+	// to defer, so every planned orchestration would sit at COMMIT_DUE with
+	// nothing behind it.
+	if c.Flags.VendorJITPickupEnabled && !c.Flags.CommerceOrdersEnabled {
+		problems = append(problems,
+			"COMMERCE_ORDERS_ENABLED must be true when VENDOR_JIT_PICKUP_ENABLED=true")
+	}
+	// And it needs an authority that can actually be asked. A deployment that
+	// defers every mission to an authority it has no credentials for would
+	// plan every order and dispatch none, which looks healthy from the outside
+	// and delivers nothing.
+	if c.Flags.VendorJITPickupEnabled && !c.anyLogisticsAuthorityConfigured() {
+		problems = append(problems,
+			"VENDOR_JIT_PICKUP_ENABLED requires at least one configured logistics authority "+
+				"(DISPATCH_COMMERCE_INTEGRATION_ENABLED, TAXI_GOODS_DELIVERY_ENABLED or "+
+				"HAULING_COMMERCE_INTEGRATION_ENABLED with its URL and secret)")
+	}
 	// Automatic selection without JIT would choose an authority at order time
 	// from supply that will have changed by the time anyone collects.
 	if c.Flags.VendorAutoAuthoritySelectionEnabled && !c.Flags.VendorJITPickupEnabled {
@@ -1036,4 +1055,28 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// anyLogisticsAuthorityConfigured reports whether at least one execution
+// authority is both enabled and credentialled.
+//
+// It checks the credentials, not just the flag. An authority switched on
+// without a URL or a secret cannot be called, and treating it as available is
+// how a deployment passes validation and then fails every commit.
+func (c Config) anyLogisticsAuthorityConfigured() bool {
+	type binding struct {
+		enabled bool
+		url     string
+		secret  string
+	}
+	for _, item := range []binding{
+		{c.Flags.DispatchCommerceIntegrationEnabled, c.DispatchURL, c.DispatchSecret},
+		{c.Flags.TaxiGoodsDeliveryEnabled, c.TaxiURL, c.TaxiSecret},
+		{c.Flags.HaulingCommerceIntegrationEnabled, c.HaulingURL, c.HaulingSecret},
+	} {
+		if item.enabled && strings.TrimSpace(item.url) != "" && strings.TrimSpace(item.secret) != "" {
+			return true
+		}
+	}
+	return false
 }
