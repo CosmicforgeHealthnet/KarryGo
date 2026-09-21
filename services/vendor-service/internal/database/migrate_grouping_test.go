@@ -87,11 +87,23 @@ func TestGroupingMigrationRollbackAndReapply(t *testing.T) {
 		t.Fatalf("seed grouping evidence: %v", err)
 	}
 
-	if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
-		t.Fatalf("rollback 000118: %v", err)
-	}
-	if columnExists("group_index") {
-		t.Fatal("group_index survived the rollback")
+	// Roll back until 000118 itself is undone, rather than assuming it is the
+	// last migration. It was when it was written and it is not any more, and a
+	// test that silently rolls back whatever happens to be on top would start
+	// asserting things about somebody else's migration.
+	//
+	// The bound is there so a down file that fails to drop the column makes
+	// this test fail rather than unwind the entire schema looking for it.
+	rolledBack := 0
+	for columnExists("group_index") {
+		if rolledBack >= 8 {
+			t.Fatal("rolled back 8 migrations and group_index is still present; " +
+				"000118's down file is not dropping it")
+		}
+		if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+			t.Fatalf("rollback: %v", err)
+		}
+		rolledBack++
 	}
 
 	// The narrowed vocabulary must actually be back in force, not merely
