@@ -110,13 +110,29 @@ var eventKinds = map[string]classification{
 	"dispatch.delivery_recovery.selected.v1":   {AuthorityDispatch, KindRecoveryStarted},
 	"dispatch.provider_replacement.started.v1": {AuthorityDispatch, KindRecoveryReplaced},
 	"trip.provider_arrived":                    {AuthorityDispatch, KindProviderArrived},
-	"offer.provider_declined":                  {AuthorityDispatch, KindProviderDeclined},
-	"trip.completed.v1":                        {AuthorityDispatch, KindMissionCompleted},
-	"trip.delivery_failed.v1":                  {AuthorityDispatch, KindMissionFailed},
-	"trip.cancelled.v1":                        {AuthorityDispatch, KindMissionCancelled},
+	// A rider declining an offer, with its reason. Emitted by Dispatch inside
+	// the decline transaction.
+	"dispatch.offer.declined.v1": {AuthorityDispatch, KindProviderDeclined},
+	"trip.completed.v1":          {AuthorityDispatch, KindMissionCompleted},
+	"trip.delivery_failed.v1":    {AuthorityDispatch, KindMissionFailed},
+	"trip.cancelled.v1":          {AuthorityDispatch, KindMissionCancelled},
 
 	// Vendor.
 	EventBranchReadiness: {AuthorityVendor, KindBranchReadiness},
+}
+
+// safetyDeclineReasons are declines a provider makes FOR safety. They are the
+// decline doing its job -- a rider refusing an unsafe vehicle is the outcome
+// the platform wants -- so they are counted apart from ordinary declines and
+// never against the provider.
+var safetyDeclineReasons = map[string]bool{
+	"UNSAFE_VEHICLE": true, "VEHICLE_DEFECT": true, "CARGO_OR_SAFETY_CONCERN": true,
+	"SECURITY_CONCERN": true, "UNSAFE_ROUTE": true, "UNSAFE_CARGO": true,
+}
+
+// IsSafetyDecline reports whether a decline reason is a safety refusal.
+func IsSafetyDecline(reason string) bool {
+	return safetyDeclineReasons[strings.ToUpper(strings.TrimSpace(reason))]
 }
 
 // Classify maps a producer's event name to the authority whose work it

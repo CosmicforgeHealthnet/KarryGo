@@ -332,3 +332,62 @@ func TestDemandProjection(t *testing.T) {
 		t.Fatalf("demand %+v err=%v", days, err)
 	}
 }
+
+// E2E 3: a safety decline is counted apart and never scores against the
+// provider who made it.
+func TestASafetyDeclineIsDistinctFromAPerformanceDecline(t *testing.T) {
+	h := newHarness(t)
+	dispatch := "driver-dispatch-delivery-service"
+	for i := 0; i < 5; i++ {
+		h.ingest(t, envelope(dispatch, "trip.completed.v1", "trip", fmt.Sprintf("t%d", i), 1, h.now,
+			map[string]any{"provider_id": "rider-s"}))
+	}
+	h.ingest(t, envelope(dispatch, "dispatch.offer.declined.v1", "delivery_mission", "m1", 2, h.now,
+		map[string]any{"provider_id": "rider-s", "reason": "UNSAFE_VEHICLE"}))
+	h.ingest(t, envelope(dispatch, "dispatch.offer.declined.v1", "delivery_mission", "m2", 2, h.now,
+		map[string]any{"provider_id": "rider-s", "reason": "SHIFT_ENDING"}))
+
+	quality, err := h.service.ProviderQuality(context.Background(), "DISPATCH", "rider-s", 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if quality.SafetyDeclines != 1 || quality.Declines != 1 {
+		t.Fatalf("safety=%d ordinary=%d, want 1/1", quality.SafetyDeclines, quality.Declines)
+	}
+	if quality.Score != 1 {
+		t.Fatalf("a decline changed the provider's score to %v", quality.Score)
+	}
+	days, err := h.service.Declines(context.Background(), "DISPATCH", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, day := range days {
+		got[day.ReasonCode] = day.Safety
+	}
+	if safety, ok := got["UNSAFE_VEHICLE"]; !ok || !safety {
+		t.Fatalf("UNSAFE_VEHICLE must be recorded as a safety decline: %v", got)
+	}
+	if safety, ok := got["SHIFT_ENDING"]; !ok || safety {
+		t.Fatalf("SHIFT_ENDING must be recorded as an ordinary decline: %v", got)
+	}
+}
+
+// E2E 1: the readiness profile carries a version that moves with the data.
+func TestTheReadinessProfileVersionAdvances(t *testing.T) {
+	h := newHarness(t)
+	ready := func(order string) {
+		h.ingest(t, envelope("vendor-service", networkanalytics.EventBranchReadiness, "vendor_order", order, 3, h.now,
+			map[string]any{"branch_id": "br-v", "on_time": true}))
+	}
+	ready("o1")
+	first, _ := h.service.BranchReadiness(context.Background(), "br-v", 30)
+	ready("o1") // a replayed fact
+	replayed, _ := h.service.BranchReadiness(context.Background(), "br-v", 30)
+	ready("o2")
+	second, _ := h.service.BranchReadiness(context.Background(), "br-v", 30)
+	if first.ProfileVersion != 1 || replayed.ProfileVersion != 1 || second.ProfileVersion != 2 || second.DataAsOf.IsZero() {
+		t.Fatalf("versions %d/%d/%d data_as_of=%v", first.ProfileVersion, replayed.ProfileVersion,
+			second.ProfileVersion, second.DataAsOf)
+	}
+}

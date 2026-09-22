@@ -53,7 +53,10 @@ func Neutral(status string) Signal {
 // BranchReadiness is how reliably a branch is ready when it said it would be.
 type BranchReadiness struct {
 	Signal
-	BranchID            string  `json:"branch_id"`
+	BranchID string `json:"branch_id"`
+	// ProfileVersion advances every time a readiness fact is counted, so a
+	// reader can tell a changed profile from an unchanged one.
+	ProfileVersion      int64   `json:"profile_version"`
 	OnTimeRate          float64 `json:"on_time_rate"`
 	AverageLatenessSecs float64 `json:"average_lateness_seconds"`
 	AveragePrepSecs     float64 `json:"average_prep_seconds"`
@@ -66,6 +69,10 @@ type ProviderQuality struct {
 	ProviderID          string  `json:"provider_id"`
 	CompletionRate      float64 `json:"completion_rate"`
 	RecoveryInvolvement float64 `json:"recovery_involvement_rate"`
+	// Declines and SafetyDeclines are reported, never scored: a safety
+	// decline is the provider refusing unsafe work.
+	Declines       int64 `json:"declines"`
+	SafetyDeclines int64 `json:"safety_declines"`
 }
 
 // SupplySnapshot is the latest reported supply in one zone.

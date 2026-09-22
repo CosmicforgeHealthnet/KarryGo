@@ -896,7 +896,9 @@ func startRecoveryNotificationWorker(ctx context.Context, cfg config.Config, db 
 	notifier := notifications.Client{
 		BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout},
 	}
-	deliverer := bookingfeature.LifecycleNotificationDeliverer{Notifier: notifier, Other: deliveryrecovery.NewRecoveryNotificationDeliverer(deliveryrecovery.NewRepository(db), notifier)}
+	// Section 14: safety declines reach operations; every other row falls
+	// through to the lifecycle and recovery deliverers exactly as before.
+	deliverer := assignment.SafetyDeclineNotifier{Notifier: notifier, Next: bookingfeature.LifecycleNotificationDeliverer{Notifier: notifier, Other: deliveryrecovery.NewRecoveryNotificationDeliverer(deliveryrecovery.NewRepository(db), notifier)}}
 	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), deliverer, marketplace.OutboxWorkerConfig{
 		Owner: cfg.ServiceName + "-recovery-notifications", SourceService: "driver-dispatch-delivery-service", Target: "notification-service",
 		Lease: cfg.EventDeliveryLease, BatchSize: cfg.EventDeliveryBatchSize, MaxAttempts: cfg.EventDeliveryRetryLimit,

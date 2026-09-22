@@ -20,13 +20,13 @@ func (r *Repository) ProviderTotals(ctx context.Context, authority, providerID s
 	var asOf *time.Time
 	err := r.db.QueryRow(ctx, `
 		SELECT COALESCE(SUM(completed),0), COALESCE(SUM(failed),0), COALESCE(SUM(cancelled),0),
-		       COALESCE(SUM(arrivals),0), COALESCE(SUM(declines),0),
+		       COALESCE(SUM(arrivals),0), COALESCE(SUM(declines),0), COALESCE(SUM(safety_declines),0),
 		       COALESCE(SUM(recoveries_as_original),0), COALESCE(SUM(recoveries_as_replacement),0),
 		       MAX(updated_at)
 		  FROM provider_quality_snapshots
 		 WHERE authority=$1 AND provider_id=$2 AND metric_date BETWEEN $3 AND $4`,
 		authority, providerID, window.Start, window.End).Scan(&totals.Completed, &totals.Failed,
-		&totals.Cancelled, &totals.Arrivals, &totals.Declines, &totals.RecoveriesAsOriginal,
+		&totals.Cancelled, &totals.Arrivals, &totals.Declines, &totals.SafetyDeclines, &totals.RecoveriesAsOriginal,
 		&totals.RecoveriesAsReplacement, &asOf)
 	if err != nil {
 		return totals, err
@@ -162,6 +162,28 @@ func (r *Repository) Demand(ctx context.Context, authority string, window models
 	for rows.Next() {
 		var day models.DemandDay
 		if err = rows.Scan(&day.Authority, &day.Zone, &day.Date, &day.Requests, &day.Unmatched); err != nil {
+			return nil, err
+		}
+		days = append(days, day)
+	}
+	return days, rows.Err()
+}
+
+// Declines returns daily provider declines by reason.
+func (r *Repository) Declines(ctx context.Context, authority string, window models.Window) ([]models.DeclineDay, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT authority, metric_date, reason_code, safety, declines
+		  FROM decline_reason_metrics
+		 WHERE ($1 = '' OR authority = $1) AND metric_date BETWEEN $2 AND $3
+		 ORDER BY metric_date, authority, reason_code`, authority, window.Start, window.End)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	days := []models.DeclineDay{}
+	for rows.Next() {
+		var day models.DeclineDay
+		if err = rows.Scan(&day.Authority, &day.Date, &day.ReasonCode, &day.Safety, &day.Declines); err != nil {
 			return nil, err
 		}
 		days = append(days, day)

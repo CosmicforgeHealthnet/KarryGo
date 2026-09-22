@@ -167,7 +167,24 @@ func project(ctx context.Context, tx pgx.Tx, e models.Event) error {
 	case networkanalytics.KindProviderArrived:
 		return bumpProvider(ctx, tx, e.Authority, str(p, "provider_id", "rider_id", "driver_id"), day, "arrivals")
 	case networkanalytics.KindProviderDeclined:
-		return bumpProvider(ctx, tx, e.Authority, str(p, "provider_id", "rider_id", "driver_id"), day, "declines")
+		reason := strings.ToUpper(str(p, "reason_code", "decline_reason", "reason"))
+		if reason == "" {
+			reason = "UNSPECIFIED"
+		}
+		safety := networkanalytics.IsSafetyDecline(reason)
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO decline_reason_metrics (authority, metric_date, reason_code, safety, declines)
+			VALUES ($1,$2,$3,$4,1)
+			ON CONFLICT (authority, metric_date, reason_code) DO UPDATE SET
+				declines = decline_reason_metrics.declines + 1, updated_at = now()`,
+			e.Authority, day, reason, safety); err != nil {
+			return err
+		}
+		column := "declines"
+		if safety {
+			column = "safety_declines"
+		}
+		return bumpProvider(ctx, tx, e.Authority, str(p, "provider_id", "rider_id", "driver_id"), day, column)
 	case networkanalytics.KindSupplySnapshot:
 		zone := str(p, "zone")
 		if zone == "" {

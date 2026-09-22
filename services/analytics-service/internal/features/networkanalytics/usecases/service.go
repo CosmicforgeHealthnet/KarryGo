@@ -96,7 +96,7 @@ func (s *Service) BranchReadiness(ctx context.Context, branchID string, days int
 	if err != nil {
 		return answer, err
 	}
-	answer.SampleSize, answer.DataAsOf = totals.ReadyCount, totals.DataAsOf
+	answer.SampleSize, answer.DataAsOf, answer.ProfileVersion = totals.ReadyCount, totals.DataAsOf, totals.ReadyCount
 	answer.OnTimeRate = ratio(totals.OnTimeCount, totals.ReadyCount)
 	answer.AverageLatenessSecs = ratioFloat(totals.LatenessSecondsTotal, totals.LateCount)
 	answer.AveragePrepSecs = ratioFloat(totals.PrepSecondsTotal, totals.PrepCount)
@@ -125,6 +125,7 @@ func (s *Service) ProviderQuality(ctx context.Context, authority, providerID str
 	answer.SampleSize, answer.DataAsOf = held, totals.DataAsOf
 	answer.CompletionRate = ratio(totals.Completed, totals.Completed+totals.Failed)
 	answer.RecoveryInvolvement = ratio(totals.RecoveriesAsOriginal, held)
+	answer.Declines, answer.SafetyDeclines = totals.Declines, totals.SafetyDeclines
 	if held >= models.MinimumSample {
 		answer.Available, answer.Status = true, networkanalytics.StatusOK
 		answer.Score = answer.CompletionRate * (1 - answer.RecoveryInvolvement)
@@ -168,6 +169,10 @@ func (s *Service) Recovery(ctx context.Context, authority string, days int) ([]m
 
 func (s *Service) Mismatches(ctx context.Context, authority string, days int) ([]models.MismatchDay, error) {
 	return s.repo.Mismatches(ctx, authority, s.window(days))
+}
+
+func (s *Service) Declines(ctx context.Context, authority string, days int) ([]models.DeclineDay, error) {
+	return s.repo.Declines(ctx, authority, s.window(days))
 }
 
 func (s *Service) Demand(ctx context.Context, authority string, days int) ([]models.DemandDay, error) {

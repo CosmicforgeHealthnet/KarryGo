@@ -87,6 +87,7 @@ type DemandDay struct {
 // ProviderTotals are a provider's counts over a window.
 type ProviderTotals struct {
 	Completed, Failed, Cancelled, Arrivals, Declines int64
+	SafetyDeclines                                   int64
 	RecoveriesAsOriginal, RecoveriesAsReplacement    int64
 	DataAsOf                                         time.Time
 }
@@ -97,6 +98,15 @@ type ReadinessTotals struct {
 	LatenessSecondsTotal, PrepSecondsTotal int64
 	PrepCount                              int64
 	DataAsOf                               time.Time
+}
+
+// DeclineDay is one authority-day-reason of provider declines.
+type DeclineDay struct {
+	Authority  string    `json:"authority"`
+	Date       time.Time `json:"date"`
+	ReasonCode string    `json:"reason_code"`
+	Safety     bool      `json:"safety"`
+	Declines   int64     `json:"declines"`
 }
 
 // Supply is the latest supply report for a zone.

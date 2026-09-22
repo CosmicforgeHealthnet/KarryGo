@@ -166,3 +166,19 @@ func TestNormalizeKeysMakesOneSpelling(t *testing.T) {
 		t.Fatalf("the snake_case original must win a collision, got %v", out["provider_id"])
 	}
 }
+
+func TestSafetyDeclinesAreRecognised(t *testing.T) {
+	for _, reason := range []string{"UNSAFE_VEHICLE", "vehicle_defect", " SECURITY_CONCERN "} {
+		if !IsSafetyDecline(reason) {
+			t.Errorf("%q is a safety decline", reason)
+		}
+	}
+	for _, reason := range []string{"SHIFT_ENDING", "EXCESSIVE_DISTANCE", "OTHER", ""} {
+		if IsSafetyDecline(reason) {
+			t.Errorf("%q is not a safety decline", reason)
+		}
+	}
+	if _, kind, ok := Classify("dispatch.offer.declined.v1", ""); !ok || kind != KindProviderDeclined {
+		t.Fatal("a Dispatch decline must classify")
+	}
+}

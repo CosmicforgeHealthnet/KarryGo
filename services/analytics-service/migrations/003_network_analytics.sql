@@ -80,6 +80,9 @@ CREATE TABLE IF NOT EXISTS provider_quality_snapshots (
     cancelled bigint NOT NULL DEFAULT 0,
     arrivals bigint NOT NULL DEFAULT 0,
     declines bigint NOT NULL DEFAULT 0,
+    -- A decline FOR safety is the provider doing the right thing. It is
+    -- counted apart and never scores against them.
+    safety_declines bigint NOT NULL DEFAULT 0,
     recoveries_as_original bigint NOT NULL DEFAULT 0,
     recoveries_as_replacement bigint NOT NULL DEFAULT 0,
     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -139,6 +142,18 @@ CREATE TABLE IF NOT EXISTS capability_mismatch_metrics (
     metric_date date NOT NULL,
     reason_code text NOT NULL,
     mismatches bigint NOT NULL DEFAULT 0,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (authority, metric_date, reason_code)
+);
+
+-- Why providers decline, by reason. Safety reasons are flagged so a
+-- dashboard can separate "the vehicle was unsafe" from "the rider was busy".
+CREATE TABLE IF NOT EXISTS decline_reason_metrics (
+    authority text NOT NULL,
+    metric_date date NOT NULL,
+    reason_code text NOT NULL,
+    safety boolean NOT NULL,
+    declines bigint NOT NULL DEFAULT 0,
     updated_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (authority, metric_date, reason_code)
 );

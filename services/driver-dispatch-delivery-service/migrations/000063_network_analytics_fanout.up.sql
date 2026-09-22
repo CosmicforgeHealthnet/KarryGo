@@ -16,7 +16,8 @@ BEGIN
     AND NEW.aggregate_type IN ('trip','delivery_mission')
     AND NEW.event_type IN (
       'trip.completed.v1','trip.cancelled.v1','trip.delivery_failed.v1',
-      'dispatch.delivery_recovery.selected.v1','dispatch.provider_replacement.started.v1')
+      'dispatch.delivery_recovery.selected.v1','dispatch.provider_replacement.started.v1',
+      'dispatch.offer.declined.v1')
  THEN
   INSERT INTO dispatch_marketplace_outbox
     (event_type, schema_version, aggregate_type, aggregate_id, aggregate_version,

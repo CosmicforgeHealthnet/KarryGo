@@ -60,6 +60,11 @@ func TestNetworkAnalyticsFanout(t *testing.T) {
 	if copies("dispatch.provider_replacement.started.v1") != 0 {
 		t.Fatal("the vendor projection was copied to analytics")
 	}
+	// A rider's decline, with its reason, is a network fact too.
+	insert("dispatch.offer.declined.v1", "delivery_mission", uuid.NewString(), "vendor-service", 2)
+	if copies("dispatch.offer.declined.v1") != 1 {
+		t.Fatal("a decline must reach analytics")
+	}
 	insert("trip.status_changed.v1", "trip", uuid.NewString(), "fleet-partner-service", 1)
 	if copies("trip.status_changed.v1") != 0 {
 		t.Fatal("a non-network event was copied to analytics")

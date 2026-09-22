@@ -44,6 +44,10 @@ const (
 
 	EventNetworkAdminOperatorRequired = "network.admin.recovery_operator_required"
 	EventNetworkAdminActionUnresolved = "network.admin.support_action_unresolved"
+	// EventNetworkAdminSafetyDecline: a provider refused work for a safety
+	// reason. Operations looks at the vehicle or route; it is not a mark
+	// against the provider.
+	EventNetworkAdminSafetyDecline = "network.admin.provider_safety_decline"
 )
 
 // NetworkEventTypes lists every intent, for template coverage checks.
@@ -57,6 +61,7 @@ func NetworkEventTypes() []string {
 		EventNetworkVendorDeliveryRecovery,
 		EventNetworkFleetProviderReplaced, EventNetworkFleetRecoveryStarted,
 		EventNetworkAdminOperatorRequired, EventNetworkAdminActionUnresolved,
+		EventNetworkAdminSafetyDecline,
 	}
 }
 

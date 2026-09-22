@@ -88,6 +88,9 @@ func RegisterAdminRoutes(group *gin.RouterGroup, h *Handler) {
 	network.GET("/capability-mismatches", h.admin(func(ctx context.Context, authority string, days int) (any, error) {
 		return h.service.Mismatches(ctx, authority, days)
 	}))
+	network.GET("/declines", h.admin(func(ctx context.Context, authority string, days int) (any, error) {
+		return h.service.Declines(ctx, authority, days)
+	}))
 	network.GET("/demand", h.admin(func(ctx context.Context, authority string, days int) (any, error) {
 		return h.service.Demand(ctx, authority, days)
 	}))

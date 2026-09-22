@@ -17,7 +17,8 @@ VALUES
  ('network.fleet.managed_provider_replaced','en-NG','Managed job reassigned','A job held by one of your providers was reassigned during recovery.','["websocket","in_app"]',true),
  ('network.fleet.managed_recovery_started','en-NG','Managed job in recovery','A job held by one of your providers has entered recovery.','["websocket","in_app"]',true),
  ('network.admin.recovery_operator_required','en-NG','Recovery needs an operator','A recovery found no compatible replacement and is waiting for an operator.','["websocket","in_app"]',true),
- ('network.admin.support_action_unresolved','en-NG','Support action unresolved','A support action could not be confirmed with its owning service.','["websocket","in_app"]',true)
+ ('network.admin.support_action_unresolved','en-NG','Support action unresolved','A support action could not be confirmed with its owning service.','["websocket","in_app"]',true),
+ ('network.admin.provider_safety_decline','en-NG','Provider safety decline','A provider declined work for a safety reason. Review the vehicle or route before it is offered again.','["websocket","in_app"]',true)
 ON CONFLICT (key, locale) DO UPDATE SET
     title=EXCLUDED.title, body=EXCLUDED.body,
     default_channels=EXCLUDED.default_channels, active=true, updated_at=now();
