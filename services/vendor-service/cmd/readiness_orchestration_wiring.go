@@ -296,12 +296,14 @@ func (c readinessOrchestrationComponents) Workers() []jobs.Job {
 	return []jobs.Job{
 		{Name: "fulfilment-orchestration-evaluation", Interval: orchestration.EvaluationInterval,
 			Pass: func(runCtx context.Context) error {
-				_, err := c.orchestrationSvc.RunEvaluationPass(runCtx)
+				result, err := c.orchestrationSvc.RunEvaluationPass(runCtx)
+				logSweep("evaluation", result)
 				return err
 			}},
 		{Name: "fulfilment-orchestration-reconciliation", Interval: orchestration.ReconciliationInterval,
 			Pass: func(runCtx context.Context) error {
-				_, err := c.orchestrationSvc.RunReconciliationPass(runCtx)
+				result, err := c.orchestrationSvc.RunReconciliationPass(runCtx)
+				logSweep("reconciliation", result)
 				return err
 			}},
 		// The stale-signal sweep. It is separate from evaluation because it
@@ -332,4 +334,19 @@ func (s readinessAnalyticsSink) RecordReady(ctx context.Context, tx pgx.Tx, sign
 		return err
 	}
 	return s.outbox.Append(ctx, tx, envelope)
+}
+
+// logSweep reports what one orchestration pass did (Section 22). A pass that
+// found nothing says nothing, so a growing backlog -- orders claimed every
+// tick but never committed, or unknown commit outcomes still being chased --
+// is visible in the log instead of only in the database.
+func logSweep(pass string, result orchestration.SweepResult) {
+	if result == (orchestration.SweepResult{}) {
+		return
+	}
+	logging.Structured("info", "vendor_orchestration_sweep", map[string]any{
+		"service": "vendor-service", "operation": "orchestration_" + pass + "_pass",
+		"claimed": result.Claimed, "advanced": result.Advanced,
+		"committed": result.Committed, "failed": result.Failed,
+	})
 }
