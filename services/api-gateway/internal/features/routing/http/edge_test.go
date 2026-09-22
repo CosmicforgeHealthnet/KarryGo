@@ -161,6 +161,30 @@ func TestInternalRoutesAreNeverForwarded(t *testing.T) {
 	}
 }
 
+// Analytics has no public route: its admin reads are service-signed and
+// reached only by the admin backoffice (ADMIN_NETWORK_PUBLIC_UI_DEPENDENCY).
+func TestAnalyticsIsNeverReachableAtTheEdge(t *testing.T) {
+	f := newFixture(t, time.Second)
+	for _, path := range []string{
+		"/api/v1/analytics/network/supply",
+		"/api/v1/analytics/network/mission-outcomes",
+		"/api/v1/analytics/network/demand-forecast",
+		"/api/v1/analytics/meta",
+		"/internal/analytics/v1/supply-snapshot",
+		"/internal/analytics/v1/demand-forecast",
+		"/internal/analytics/v1/events",
+	} {
+		if code := f.do(http.MethodGet, path, nil, nil).Code; code != http.StatusNotFound {
+			t.Errorf("%s -> %d, want 404", path, code)
+		}
+	}
+	for name, upstream := range f.upstreams {
+		if upstream.count() != 0 {
+			t.Errorf("an analytics route reached %s", name)
+		}
+	}
+}
+
 // The gateway's own routes -- including its own internal callbacks -- are
 // served by the gateway, never forwarded.
 func TestGatewayOwnedRoutesWin(t *testing.T) {
