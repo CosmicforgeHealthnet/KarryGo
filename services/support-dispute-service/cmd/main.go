@@ -93,6 +93,7 @@ func main() {
 			3*time.Second)
 		options := supportusecases.NetworkContextOptions{
 			Support: service, Store: supportrepositories.NewNetworkContextStore(db), Contexts: registry,
+			Notifier: notifier.Transport(),
 		}
 		if escalation := supportclients.NewHaulingRecoveryEscalation(
 			joinBase(cfg.HaulingServiceURL, "/api/v1/hauling"), cfg.HaulingServiceSecret,

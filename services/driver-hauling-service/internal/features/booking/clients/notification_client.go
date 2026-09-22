@@ -46,6 +46,12 @@ func NewDurableBookingNotifier(client *redis.Client) *BookingNotifier {
 	return NewBookingNotifierWith(redisQueueNotifier{publisher: notifications.RedisPublisher{Client: client}})
 }
 
+// NewDurableQueue is the same durable Redis queue, for senders that build
+// their own requests (Section 14 recovery notifications).
+func NewDurableQueue(client *redis.Client) notifications.Notifier {
+	return redisQueueNotifier{publisher: notifications.RedisPublisher{Client: client}}
+}
+
 type redisQueueNotifier struct{ publisher notifications.RedisPublisher }
 
 func (n redisQueueNotifier) Send(ctx context.Context, request notifications.Request) (notifications.SendResponse, error) {

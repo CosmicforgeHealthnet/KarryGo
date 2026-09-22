@@ -16,6 +16,7 @@ import (
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/notifications"
 )
 
 // CandidateSource returns providers who could take over, nearest first.
@@ -75,6 +76,9 @@ type Options struct {
 	// 17). Optional: without it the settlement-time guard is what keeps the
 	// original provider from being paid.
 	Payments PaymentRebinder
+	// Notifier tells the customer, providers, managing organization and
+	// operations about a recovery (Section 14). Optional.
+	Notifier notifications.Notifier
 }
 
 // PaymentRebinder moves a booking's held payment to the provider who replaced
@@ -91,6 +95,7 @@ type Service struct {
 	custody    CustodyAuthority
 	events     EventSink
 	payments   PaymentRebinder
+	notifier   notifications.Notifier
 	radiusKm   float64
 	enabled    bool
 	now        func() time.Time
@@ -109,7 +114,7 @@ func New(options Options) *Service {
 	return &Service{
 		repo: options.Repository, candidates: options.Candidates,
 		capability: options.Capability, custody: options.Custody, events: options.Events,
-		payments: options.Payments,
+		payments: options.Payments, notifier: options.Notifier,
 		radiusKm: radius, enabled: options.Enabled, now: now,
 	}
 }

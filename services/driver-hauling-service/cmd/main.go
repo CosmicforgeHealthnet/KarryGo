@@ -234,7 +234,7 @@ func main() {
 	// capability endpoints are how a fleet gets surveyed, and a deployment
 	// that could not record capability until matching was enabled could never
 	// reach the completeness needed to enable it.
-	capability := buildCapabilityWiring(cfg, db, availabilityStore)
+	capability := buildCapabilityWiring(cfg, db, availabilityStore, bookingclients.NewDurableQueue(notificationRedis))
 
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
 		Bookings:     bookingRepo,

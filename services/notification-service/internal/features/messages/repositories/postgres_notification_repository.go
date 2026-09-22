@@ -135,7 +135,10 @@ func (r *PostgresNotificationRepository) CreateMessageWithDeliveries(ctx context
 			status
 		)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULLIF($12,''),NULLIF($13,''),$14,$15,$16,$17,$18,$19,$20,$21,$22)
-		ON CONFLICT (idempotency_key) DO NOTHING
+		-- No conflict target: a repeat is recognised by its idempotency key OR
+		-- by its semantic identity (the same fact to the same recipient under
+		-- the same template), whichever the caller happened to reuse.
+		ON CONFLICT DO NOTHING
 		RETURNING `+messageColumns+`
 	`,
 		messageID,
@@ -165,6 +168,16 @@ func (r *PostgresNotificationRepository) CreateMessageWithDeliveries(ctx context
 	message, err := scanMessage(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, err := r.getMessageTx(ctx, tx, input.Request.IDempotencyKey, true)
+		if err != nil && input.Request.SourceEventID != "" {
+			// A fact re-published under a new idempotency key. It used to
+			// surface as a raw unique violation, which a producer reads as a
+			// failure and retries forever.
+			existing, err = scanMessage(tx.QueryRow(ctx, `SELECT `+messageColumns+` FROM notification_messages
+				WHERE source_service=$1 AND source_event_id=$2 AND event_type=$3
+				  AND recipient_type=$4 AND recipient_id=$5`,
+				input.Request.SourceService, input.Request.SourceEventID, input.Request.EventName(),
+				input.Request.Recipient.Type, input.Request.Recipient.ID))
+		}
 		if err != nil {
 			return messagemodels.Message{}, nil, false, err
 		}

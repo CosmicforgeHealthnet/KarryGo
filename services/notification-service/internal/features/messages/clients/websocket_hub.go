@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -156,6 +157,12 @@ func encodeTextFrame(payload []byte) []byte {
 	return append(header, payload...)
 }
 
+// realtimeRecipientKey is the connection bucket for one recipient.
+//
+// The type is length-prefixed. Joining with a bare separator made the key
+// ambiguous -- type "customer" with id "a:b" and type "customer:a" with id
+// "b" shared a bucket -- and recipient types are free text, so a message for
+// one audience could reach a socket opened by another.
 func realtimeRecipientKey(recipientType string, recipientID string) string {
-	return recipientType + ":" + recipientID
+	return strconv.Itoa(len(recipientType)) + ":" + recipientType + ":" + recipientID
 }

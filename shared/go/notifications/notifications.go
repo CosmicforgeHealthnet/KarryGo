@@ -16,6 +16,9 @@ import (
 	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"sort"
+
+	"cosmicforge/logistics/shared/go/networkanalytics"
 )
 
 const (
@@ -223,10 +226,40 @@ func (r Request) Validate() error {
 			})
 		}
 	}
+	// Section 14: a network notification is about work, not people or money.
+	// It carries references -- a booking, a case, a provider id -- and the
+	// template supplies the words. A location, a contact detail, an amount or
+	// a credential in its data is refused, for the same reason as above.
+	if strings.HasPrefix(r.EventType, "network.") {
+		for _, bag := range []struct {
+			field   string
+			payload map[string]interface{}
+		}{{"data", r.Data}, {"template_data", r.TemplateData}} {
+			if leaked := unsafeNetworkKeys(bag.payload); len(leaked) > 0 {
+				fields = append(fields, apperrors.FieldViolation{
+					Field:   bag.field,
+					Message: "Network notifications carry references only; refused: " + strings.Join(leaked, ", "),
+				})
+			}
+		}
+	}
 	if len(fields) > 0 {
 		return apperrors.Validation("Check your notification request.", fields)
 	}
 	return nil
+}
+
+// unsafeNetworkKeys lists the keys the network minimization would drop.
+func unsafeNetworkKeys(payload map[string]interface{}) []string {
+	kept := networkanalytics.Minimize(payload)
+	var leaked []string
+	for key := range payload {
+		if _, ok := kept[key]; !ok {
+			leaked = append(leaked, key)
+		}
+	}
+	sort.Strings(leaked)
+	return leaked
 }
 
 func (r Request) EventName() string {

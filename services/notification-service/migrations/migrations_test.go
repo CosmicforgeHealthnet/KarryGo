@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"cosmicforge/logistics/shared/go/notifications"
 )
 
 func TestNotificationMigrationContainsRequiredTables(t *testing.T) {
@@ -46,5 +48,22 @@ func TestCommerceSemanticNotificationMigration(t *testing.T) {
 	}
 	if strings.Contains(sql, "CREATE TABLE commerce_vendor_orders") || strings.Contains(sql, "CREATE TABLE commerce_delivery_eta_versions") {
 		t.Fatal("Notification migration creates business-domain authority")
+	}
+}
+
+// Section 14: every network intent has copy, and none of it interpolates.
+func TestNetworkTemplatesCoverEveryIntent(t *testing.T) {
+	content, err := os.ReadFile("003_network_notification_templates.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := string(content)
+	for _, event := range notifications.NetworkEventTypes() {
+		if !strings.Contains(sql, "('"+event+"','en-NG'") {
+			t.Errorf("no template for %s", event)
+		}
+	}
+	if strings.Contains(sql, "{{") {
+		t.Fatal("network templates must not interpolate producer data")
 	}
 }

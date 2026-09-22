@@ -31,6 +31,7 @@ import (
 	supportclients "cosmicforge/logistics/services/support-dispute-service/internal/features/support/clients"
 	supportmodels "cosmicforge/logistics/services/support-dispute-service/internal/features/support/models"
 	supportrepositories "cosmicforge/logistics/services/support-dispute-service/internal/features/support/repositories"
+	"cosmicforge/logistics/shared/go/notifications"
 )
 
 func networkPool(t *testing.T) *pgxpool.Pool {
@@ -144,6 +145,24 @@ type networkHarness struct {
 	network   *NetworkContextService
 	owner     *recordingOwner
 	deliverer *countingDeliverer
+	notified  *recordingNotifier
+}
+
+// recordingNotifier stands in for notification-service.
+type recordingNotifier struct {
+	mu       sync.Mutex
+	requests []notifications.Request
+	fail     bool
+}
+
+func (n *recordingNotifier) Send(_ context.Context, request notifications.Request) (notifications.SendResponse, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.requests = append(n.requests, request)
+	if n.fail {
+		return notifications.SendResponse{}, errors.New("notification-service is down")
+	}
+	return notifications.SendResponse{Status: "queued"}, nil
 }
 
 func newNetworkHarness(t *testing.T, owner *recordingOwner) *networkHarness {
@@ -156,12 +175,13 @@ func newNetworkHarness(t *testing.T, owner *recordingOwner) *networkHarness {
 		supportcase.NewContextClient(server.URL, secret, time.Second))
 	support := NewSupportService(supportrepositories.NewPostgresSupportRepository(pool), Options{})
 	deliverer := &countingDeliverer{}
+	notified := &recordingNotifier{}
 	network := NewNetworkContextService(NetworkContextOptions{
 		Support: support, Store: supportrepositories.NewNetworkContextStore(pool),
-		Contexts: registry, HaulingRecovery: deliverer,
+		Contexts: registry, HaulingRecovery: deliverer, Notifier: notified,
 	})
 	return &networkHarness{pool: pool, support: support, network: network, owner: owner,
-		deliverer: deliverer}
+		deliverer: deliverer, notified: notified}
 }
 
 // complaint opens a real complaint owned by a fresh customer.
@@ -480,5 +500,41 @@ func TestRefusalIsFinal(t *testing.T) {
 	}
 	if h.deliverer.callCount() != 1 {
 		t.Fatalf("a refused request was sent again (%d calls)", h.deliverer.callCount())
+	}
+}
+
+// Section 14: the complainant hears the owner's definite answer, once.
+func TestADefiniteOutcomeIsAnnouncedToTheComplainant(t *testing.T) {
+	h := newNetworkHarness(t, &recordingOwner{})
+	created, customer := h.complaint(t, "")
+	h.attach(t, created.ID, "bk_"+uuid.NewString())
+	if _, err := h.request(created.ID, "key-notify", "PROVIDER_BREAKDOWN"); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.notified.requests) != 1 {
+		t.Fatalf("notifications=%d, want 1", len(h.notified.requests))
+	}
+	sent := h.notified.requests[0]
+	if sent.EventType != notifications.EventNetworkCustomerSupportUpdate || sent.Recipient.ID != customer ||
+		sent.Recipient.Type != notifications.RecipientCustomer {
+		t.Fatalf("notification %+v", sent)
+	}
+	if err := sent.Validate(); err != nil {
+		t.Fatalf("the outcome notification is invalid: %v", err)
+	}
+}
+
+// A notification outage never changes what the owner answered.
+func TestANotificationOutageLeavesTheOutcomeStanding(t *testing.T) {
+	h := newNetworkHarness(t, &recordingOwner{})
+	h.notified.fail = true
+	created, _ := h.complaint(t, "")
+	h.attach(t, created.ID, "bk_"+uuid.NewString())
+	action, err := h.request(created.ID, "key-outage", "PROVIDER_BREAKDOWN")
+	if err != nil {
+		t.Fatalf("a notification failure surfaced as an action failure: %v", err)
+	}
+	if action.Status != supportmodels.ActionAccepted {
+		t.Fatalf("status=%s, want ACCEPTED despite the outage", action.Status)
 	}
 }

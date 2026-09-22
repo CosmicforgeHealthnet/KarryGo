@@ -40,6 +40,10 @@ func NewSupportNotifier(baseURL string, secret []byte) *SupportNotifier {
 	}}
 }
 
+// Transport is the underlying notifier, for senders that build their own
+// requests (Section 14 action outcomes). Unconfigured, it is the no-op.
+func (n *SupportNotifier) Transport() notifications.Notifier { return n.notifier }
+
 // NewSupportNotifierWith wraps an explicit notifier. Useful in tests.
 func NewSupportNotifierWith(notifier notifications.Notifier) *SupportNotifier {
 	return &SupportNotifier{notifier: notifier}

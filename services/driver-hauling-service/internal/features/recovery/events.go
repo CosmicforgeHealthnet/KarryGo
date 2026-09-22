@@ -127,6 +127,12 @@ ON CONFLICT (aggregate_type, aggregate_id, event_version, event_type) DO NOTHING
 // bound but whose event did not enqueue is still a recovered load; refusing
 // the recovery because analytics was unavailable would be strictly worse.
 func (s *Service) publish(ctx context.Context, tx pgx.Tx, name string, current Case, extra map[string]any) {
+	// Section 14: people are told only about committed facts. Inside a
+	// caller's transaction the fact may still roll back, so notification
+	// waits for the post-commit path -- which is every call today.
+	if tx == nil {
+		defer s.notify(ctx, name, current)
+	}
 	if s.events == nil {
 		return
 	}

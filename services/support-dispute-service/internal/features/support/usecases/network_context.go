@@ -29,6 +29,8 @@ import (
 	supportclients "cosmicforge/logistics/services/support-dispute-service/internal/features/support/clients"
 	supportmodels "cosmicforge/logistics/services/support-dispute-service/internal/features/support/models"
 	supportrepositories "cosmicforge/logistics/services/support-dispute-service/internal/features/support/repositories"
+	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/notifications"
 )
 
 // actionRoute is one action Support may ask one owner for.
@@ -58,6 +60,7 @@ type NetworkContextService struct {
 	store    *supportrepositories.NetworkContextStore
 	contexts *supportclients.ContextRegistry
 	routes   map[string]actionRoute
+	notifier notifications.Notifier
 	now      func() time.Time
 }
 
@@ -69,7 +72,10 @@ type NetworkContextOptions struct {
 	// HaulingRecovery delivers recovery escalations to Hauling. Nil means the
 	// action is not offered on this deployment.
 	HaulingRecovery supportclients.ActionDeliverer
-	Now             func() time.Time
+	// Notifier tells the complainant an action's definite outcome, and
+	// operations about one that could not be confirmed (Section 14).
+	Notifier notifications.Notifier
+	Now      func() time.Time
 }
 
 // NewNetworkContextService builds the service.
@@ -85,7 +91,7 @@ func NewNetworkContextService(options NetworkContextOptions) *NetworkContextServ
 				requiredParameters: []string{"trigger_code"}}
 	}
 	return &NetworkContextService{support: options.Support, store: options.Store,
-		contexts: options.Contexts, routes: routes, now: now}
+		contexts: options.Contexts, routes: routes, notifier: options.Notifier, now: now}
 }
 
 // AttachContextInput attaches references to a complaint.
@@ -313,7 +319,43 @@ func (s *NetworkContextService) deliver(ctx context.Context, route actionRoute,
 	if recordErr != nil {
 		return action, recordErr
 	}
+	s.notifyOutcome(ctx, updated)
 	return updated, nil
+}
+
+// notifyOutcome tells the people an action's outcome concerns. It runs after
+// the outcome is recorded, and a failed send is logged -- the owner's answer
+// stands whether or not anyone heard it.
+func (s *NetworkContextService) notifyOutcome(ctx context.Context, action supportmodels.ActionRequest) {
+	if s.notifier == nil {
+		return
+	}
+	intent := notifications.NetworkIntent{
+		SourceEventID: "support-action-" + action.ID + ":" + action.Status, SourceAggregateType: "support_action",
+		SourceAggregateID: action.ID, Data: map[string]interface{}{"complaint_id": action.ComplaintID,
+			"action_code": action.ActionCode, "status": action.Status},
+	}
+	switch action.Status {
+	case supportmodels.ActionAccepted, supportmodels.ActionRefused:
+		complaint, err := s.support.repo.GetComplaintByID(ctx, action.ComplaintID)
+		if err != nil {
+			logging.Error("support-network", "notify action %s: %v", action.ID, err)
+			return
+		}
+		intent.RecipientID = complaint.ComplainantID
+		intent.RecipientType, intent.EventType = notifications.RecipientProvider, notifications.EventNetworkProviderSupportUpdate
+		if complaint.ComplainantType == supportmodels.ComplainantCustomer {
+			intent.RecipientType, intent.EventType = notifications.RecipientCustomer, notifications.EventNetworkCustomerSupportUpdate
+		}
+	case supportmodels.ActionDeadLetter:
+		intent.EventType = notifications.EventNetworkAdminActionUnresolved
+		intent.RecipientType, intent.RecipientID = notifications.RecipientAdminOperations, notifications.AdminOperationsQueue
+	default:
+		return
+	}
+	if _, err := s.notifier.Send(ctx, notifications.NetworkRequest("support-dispute-service", intent)); err != nil {
+		logging.Error("support-network", "notify %s for action %s: %v", intent.EventType, action.ID, err)
+	}
 }
 
 // ListActions returns a complaint's action requests.

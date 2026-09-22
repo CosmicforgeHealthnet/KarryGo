@@ -18,6 +18,7 @@ import (
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/geo"
+	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/policyingest"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"cosmicforge/logistics/shared/go/supportcase"
@@ -74,6 +75,7 @@ func buildCapabilityWiring(
 	cfg config.Config,
 	db *pgxpool.Pool,
 	availability availabilityrepositories.AvailabilityStore,
+	notifier notifications.Notifier,
 ) capabilityWiring {
 	service := truckcapability.New(truckcapability.Options{
 		Repository:                    truckcapability.NewRepository(db),
@@ -101,6 +103,7 @@ func buildCapabilityWiring(
 			MaxRadiusKm: cfg.MatchMaxRadiusKm,
 			Enabled:     cfg.RecoveryEnabled,
 			Payments:    recoveryPayments(cfg),
+			Notifier:    notifier,
 		})),
 		policy: truckcapability.NewPolicyIngest(truckcapability.PolicyIngestOptions{
 			DB:                db,
