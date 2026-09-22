@@ -30,7 +30,9 @@ const analyticsCopyPrefix = "analytics:"
 
 func (d AnalyticsDeliverer) Configured() bool { return d.Transport != nil && d.Transport.Configured() }
 func (d AnalyticsDeliverer) Deliver(ctx context.Context, e marketplace.Envelope) (marketplace.DeliveryResult, error) {
-	if _, _, network := networkanalytics.Classify(e.EventType, ""); network {
+	// Supply and demand facts carry their authority in the payload.
+	payloadAuthority, _ := e.Payload["authority"].(string)
+	if _, _, network := networkanalytics.Classify(e.EventType, payloadAuthority); network {
 		if d.Network == nil || !d.Network.Configured() {
 			return marketplace.DeliveryResult{Outcome: marketplace.DeliveryRejected, Code: "NETWORK_ANALYTICS_UNCONFIGURED"}, nil
 		}

@@ -796,7 +796,7 @@ func startMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool
 	stopTelemetry := observability.StartCollector(ctx, db, cfg.MetricsInterval)
 	stopOutbox := startOutboxWorker(ctx, cfg, db)
 	stopCommerceOutbox := startCommerceOutboxWorker(ctx, cfg, db)
-	stopAnalytics := startAnalyticsOutboxWorker(ctx, cfg, db)
+	stopAnalytics := startAnalyticsOutboxWorker(ctx, cfg, db, live)
 	stopAssignment := startAssignmentWorker(ctx, cfg, db, live, bookings, trips...)
 	stopHandover := startSecureHandoverWorker(ctx, cfg, db)
 	stopRecovery := startDeliveryRecoveryWorker(ctx, cfg, db, live, bookings, trips...)

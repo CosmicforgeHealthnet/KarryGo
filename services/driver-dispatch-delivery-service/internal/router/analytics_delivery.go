@@ -4,12 +4,13 @@ import (
 	"context"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/networkobserver"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/routeintegrity"
 	"cosmicforge/logistics/shared/go/networkanalytics"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func startAnalyticsOutboxWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+func startAnalyticsOutboxWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool, live networkobserver.Locator) func() {
 	if !cfg.AnalyticsEventDeliveryEnabled {
 		return func() {}
 	}
@@ -23,5 +24,10 @@ func startAnalyticsOutboxWorker(ctx context.Context, cfg config.Config, db *pgxp
 	run, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(run, cfg.EventDeliveryInterval) }()
-	return func() { cancel(); <-done }
+	// Section 13: supply and demand, observed once per bucket from the
+	// matcher's own state. Only started alongside delivery -- with nowhere to
+	// deliver, the facts would only accumulate.
+	observerDone := make(chan struct{})
+	go func() { defer close(observerDone); (&networkobserver.Observer{DB: db, Locator: live}).Run(run) }()
+	return func() { cancel(); <-done; <-observerDone }
 }
