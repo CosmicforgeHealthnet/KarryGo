@@ -114,7 +114,7 @@ func TestEveryMutationRequiresIdempotencyAndPermission(t *testing.T) {
 }
 func TestStateVocabulariesAndCapabilitiesAreExact(t *testing.T) {
 	s := load(t)
-	want := map[string][]string{"CapabilityType": {"RESTAURANT", "FAST_FOOD", "CLOUD_KITCHEN", "PASTRY_BAKERY", "SHOP_GROCERY", "MARKET", "WHOLESALE"}, "BusinessStatus": {"DRAFT", "PENDING_VERIFICATION", "PENDING_REVIEW", "ACTIVE", "PAUSED", "SUSPENDED", "CLOSED"}, "CapabilityStatus": {"DRAFT", "PENDING_REVIEW", "ACTIVE", "PAUSED", "SUSPENDED", "REJECTED"}, "BrandVerificationState": {"NOT_STARTED", "IN_PROGRESS", "PENDING_REVIEW", "VERIFIED", "REJECTED", "EXPIRED", "SUSPENDED"}, "BranchStatus": {"DRAFT", "ACTIVE", "PAUSED", "SUSPENDED", "CLOSED"}, "BranchCapabilityStatus": {"DRAFT", "ACTIVE", "PAUSED", "SUSPENDED"}}
+	want := map[string][]string{"CapabilityType": {"RESTAURANT", "FAST_FOOD", "CLOUD_KITCHEN", "PASTRY_BAKERY", "SHOP_GROCERY", "MARKET", "WHOLESALE", "CATERING", "MANUFACTURER"}, "BusinessStatus": {"DRAFT", "PENDING_VERIFICATION", "PENDING_REVIEW", "ACTIVE", "PAUSED", "SUSPENDED", "CLOSED"}, "CapabilityStatus": {"DRAFT", "PENDING_REVIEW", "ACTIVE", "PAUSED", "SUSPENDED", "REJECTED"}, "BrandVerificationState": {"NOT_STARTED", "IN_PROGRESS", "PENDING_REVIEW", "VERIFIED", "REJECTED", "EXPIRED", "SUSPENDED"}, "BranchStatus": {"DRAFT", "ACTIVE", "PAUSED", "SUSPENDED", "CLOSED"}, "BranchCapabilityStatus": {"DRAFT", "ACTIVE", "PAUSED", "SUSPENDED"}}
 	for name, values := range want {
 		got := s.Components.Schemas[name].Enum
 		if strings.Join(got, "|") != strings.Join(values, "|") {

@@ -443,7 +443,7 @@ Each of these is expected to follow the specification's own "Preferred backend f
 
 - Real Postgres aggregates and constraints: `vendor_businesses`, `vendor_capabilities`, `vendor_brands`, `vendor_branches`, normalized hours, radius service areas, explicit settings, and branch capabilities.
 - Authenticated staff scope is authoritative: business id equals the Section 5 `vendor_id`, owner is the creating `staff_id`, and every repository query includes business scope. Multi-business staff continue to select a distinct Section 5 session scope.
-- Exact state vocabularies and seven capability types are enforced in Go, SQL, OpenAPI, and contract tests. Creation is always non-active/non-verified; vendor operational transitions are only `ACTIVE` to `PAUSED` and `PAUSED` to `ACTIVE`.
+- Exact state vocabularies and nine capability types (the original seven plus `CATERING` and `MANUFACTURER`, admitted by migration 000121) are enforced in Go, SQL, OpenAPI, and contract tests. Creation is always non-active/non-verified; vendor operational transitions are only `ACTIVE` to `PAUSED` and `PAUSED` to `ACTIVE`.
 - Mutations use optimistic versions, idempotency, audit records, and transactional outbox events for aggregate/status changes. Parent pause gates effective branch capability state without rewriting children.
 - Production IAM branch assignments validate that the branch exists in the same business. Section 5 tests remain backward compatible through the optional validation port.
 - No frontend, catalogue, logistics, wallet, verification, media-file, or other-service implementation was added.

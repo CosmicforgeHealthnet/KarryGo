@@ -5,7 +5,7 @@ import (
 )
 
 func TestCapabilityCatalogueIsExact(t *testing.T) {
-	want := []CapabilityType{CapabilityRestaurant, CapabilityFastFood, CapabilityCloudKitchen, CapabilityPastryBakery, CapabilityShopGrocery, CapabilityMarket, CapabilityWholesale}
+	want := []CapabilityType{CapabilityRestaurant, CapabilityFastFood, CapabilityCloudKitchen, CapabilityPastryBakery, CapabilityShopGrocery, CapabilityMarket, CapabilityWholesale, CapabilityCatering, CapabilityManufacturer}
 	if len(SupportedCapabilityTypes) != len(want) {
 		t.Fatalf("got %d capability types, want %d", len(SupportedCapabilityTypes), len(want))
 	}

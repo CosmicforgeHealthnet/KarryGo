@@ -138,18 +138,25 @@ func TestEveryPlatformVendorTypeHasSubstates(t *testing.T) {
 // either, so an order can never reach them today. Defining them makes the day
 // that vocabulary grows a one-line change; asserting they are NOT configurable
 // stops the definition being mistaken for working support.
-func TestSpecifiedButUnconfigurableTypesAreDocumentedNotMissing(t *testing.T) {
+// Catering and Manufacturer are configurable since migration 000121. This is
+// the test that used to pin the gap; it now pins its closure.
+func TestCateringAndManufacturerAreConfigurable(t *testing.T) {
 	for _, vendorType := range []VendorType{VendorCatering, VendorManufacturer} {
 		if len(SubstatesFor(vendorType)) == 0 {
 			t.Errorf("%s has no substates defined", vendorType)
 		}
-		if vendorType.ConfigurableOnPlatform() {
-			t.Errorf("%s reports as configurable, but no capability_type admits it", vendorType)
+		if !vendorType.ConfigurableOnPlatform() {
+			t.Errorf("%s is still unreachable: no capability_type admits it", vendorType)
 		}
 	}
-	if len(PlatformVendorTypes()) != 7 {
-		t.Fatalf("platform vendor types = %d, want the 7 capability_type values",
+	if len(PlatformVendorTypes()) != 9 {
+		t.Fatalf("platform vendor types = %d, want the 9 capability_type values",
 			len(PlatformVendorTypes()))
+	}
+	// Every vendor type is now a platform type; nothing is modelled-but-unreachable.
+	if len(AllVendorTypes()) != len(PlatformVendorTypes()) {
+		t.Fatalf("all=%d platform=%d: a type is modelled but unreachable",
+			len(AllVendorTypes()), len(PlatformVendorTypes()))
 	}
 }
 

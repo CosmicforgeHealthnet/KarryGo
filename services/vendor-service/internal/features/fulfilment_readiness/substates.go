@@ -23,28 +23,31 @@ const (
 	VendorMarket       VendorType = "MARKET"
 	VendorWholesale    VendorType = "WHOLESALE"
 
-	// The last two are defined because Section 11 specifies their substates,
-	// and left unreachable because the platform's capability vocabulary does
-	// not yet admit them. Defining them now means the day that vocabulary grows
-	// is a one-line change here rather than a redesign; a test below pins the
-	// gap rather than letting it look like an oversight.
+	// Catering and Manufacturer produce to order. Migration 000121 admitted
+	// them to vendor_capabilities.capability_type, so they are reachable on
+	// the same terms as the rest.
 	VendorCatering     VendorType = "CATERING"
 	VendorManufacturer VendorType = "MANUFACTURER"
 )
 
 // PlatformVendorTypes are the capability types the platform can actually
-// configure today.
+// configure today. It is the whole of vendors.SupportedCapabilityTypes, in the
+// same order; a test pins the two lists together, because a readiness type the
+// vocabulary does not admit describes an order nobody can place, and a
+// capability with no readiness model has no way to say it is ready.
 func PlatformVendorTypes() []VendorType {
 	return []VendorType{
 		VendorRestaurant, VendorFastFood, VendorCloudKitchen, VendorPastryBakery,
 		VendorShopGrocery, VendorMarket, VendorWholesale,
+		VendorCatering, VendorManufacturer,
 	}
 }
 
-// AllVendorTypes includes the two categories Section 11 specifies but the
-// capability vocabulary cannot yet express.
+// AllVendorTypes is every vendor type. It is kept as its own function because
+// callers read as what they mean, and because a future category may again be
+// modelled before it is configurable.
 func AllVendorTypes() []VendorType {
-	return append(PlatformVendorTypes(), VendorCatering, VendorManufacturer)
+	return PlatformVendorTypes()
 }
 
 // ParseVendorType resolves a wire value.

@@ -4,7 +4,7 @@
   "servers": [{"url": "/api/v1/vendor"}],
   "security": [{"bearerAuth": []}],
   "paths": {
-    "/capability-types": {"get": {"operationId": "listCapabilityTypes", "x-permission": "authenticated", "responses": {"200": {"description": "Exactly seven supported capability types"}}}},
+    "/capability-types": {"get": {"operationId": "listCapabilityTypes", "x-permission": "authenticated", "responses": {"200": {"description": "Exactly nine supported capability types"}}}},
     "/businesses": {
       "get": {"operationId": "listBusinesses", "x-permission": "vendor.business.read", "parameters": [{"$ref":"#/components/parameters/Limit"},{"$ref":"#/components/parameters/Offset"},{"$ref":"#/components/parameters/StatusFilter"},{"$ref":"#/components/parameters/Search"}], "responses": {"200": {"description": "Paginated businesses in the authenticated staff scope"}}},
       "post": {"operationId": "createBusiness", "x-permission": "vendor.business.manage", "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"$ref": "#/components/requestBodies/BusinessCreate"}, "responses": {"201": {"description": "DRAFT business; id equals authenticated vendor scope"}, "409": {"$ref": "#/components/responses/Conflict"}}}
@@ -107,7 +107,7 @@
       "HoursUpdate": {"type":"object","required":["hours","expected_version"],"properties":{"hours":{"type":"array","items":{"$ref":"#/components/schemas/OperatingWindow"}},"expected_version":{"type":"integer","minimum":1}},"additionalProperties":false},
       "ServiceAreaUpdate": {"type":"object","required":["mode","center_latitude","center_longitude","radius_meters","expected_version"],"properties":{"mode":{"type":"string","enum":["RADIUS"]},"center_latitude":{"type":"number","minimum":-90,"maximum":90},"center_longitude":{"type":"number","minimum":-180,"maximum":180},"radius_meters":{"type":"integer","minimum":1,"maximum":200000},"expected_version":{"type":"integer","minimum":0}},"additionalProperties":false},
       "SettingsUpdate": {"type":"object","required":["schema_version","accepting_new_orders","pickup_enabled","expected_version"],"properties":{"schema_version":{"type":"integer","enum":[1]},"accepting_new_orders":{"type":"boolean"},"pickup_enabled":{"type":"boolean"},"expected_version":{"type":"integer","minimum":0}},"additionalProperties":false},
-      "CapabilityType": {"type": "string", "enum": ["RESTAURANT","FAST_FOOD","CLOUD_KITCHEN","PASTRY_BAKERY","SHOP_GROCERY","MARKET","WHOLESALE"]},
+      "CapabilityType": {"type": "string", "enum": ["RESTAURANT","FAST_FOOD","CLOUD_KITCHEN","PASTRY_BAKERY","SHOP_GROCERY","MARKET","WHOLESALE","CATERING","MANUFACTURER"]},
       "BusinessStatus": {"type": "string", "enum": ["DRAFT","PENDING_VERIFICATION","PENDING_REVIEW","ACTIVE","PAUSED","SUSPENDED","CLOSED"]},
       "CapabilityStatus": {"type": "string", "enum": ["DRAFT","PENDING_REVIEW","ACTIVE","PAUSED","SUSPENDED","REJECTED"]},
       "BrandVerificationState": {"type": "string", "enum": ["NOT_STARTED","IN_PROGRESS","PENDING_REVIEW","VERIFIED","REJECTED","EXPIRED","SUSPENDED"]},
