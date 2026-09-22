@@ -163,11 +163,20 @@ func TestLifecycleEventMigrationRollbackAndReapply(t *testing.T) {
 		t.Fatal("the event vocabulary is not closed; a typo would be accepted")
 	}
 
-	if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
-		t.Fatalf("rollback 000120: %v", err)
-	}
-	if accepts("ORDER_BOUND") {
-		t.Fatal("ORDER_BOUND survived the rollback; the CHECK was not narrowed")
+	// Roll back until 000120 itself is undone rather than assuming it is the
+	// last migration: a later section adding one would otherwise turn this
+	// into a confusing failure in unrelated code, which is the staleness this
+	// package's own doc comment warns about.
+	rolledBack := 0
+	for accepts("ORDER_BOUND") {
+		if rolledBack >= 8 {
+			t.Fatal("rolled back 8 migrations and ORDER_BOUND is still accepted; " +
+				"000120's down file is not narrowing the CHECK")
+		}
+		if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+			t.Fatalf("rollback towards 000120: %v", err)
+		}
+		rolledBack++
 	}
 	if err := ApplyMigrations(ctx, pool, "../../migrations"); err != nil {
 		t.Fatalf("reapply 000120: %v", err)
