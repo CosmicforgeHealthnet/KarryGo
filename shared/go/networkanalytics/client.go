@@ -17,6 +17,7 @@ const (
 	BranchReadinessPath = "/internal/analytics/v1/readiness/branches/"
 	ProviderQualityPath = "/internal/analytics/v1/provider-quality/"
 	SupplySnapshotPath  = "/internal/analytics/v1/supply-snapshot"
+	DemandForecastPath  = "/internal/analytics/v1/demand-forecast"
 )
 
 // NeutralScore is what every advisory score reads when there is nothing to
@@ -78,8 +79,15 @@ type ProviderQuality struct {
 // SupplySnapshot is the latest reported supply in one zone.
 type SupplySnapshot struct {
 	Signal
-	Authority          string    `json:"authority"`
-	Zone               string    `json:"zone"`
+	Authority   string `json:"authority"`
+	Zone        string `json:"zone"`
+	ProductCode string `json:"product_code,omitempty"`
+	// OnlineCount is always known. EligibleCount and OccupiedCount are nil
+	// when the authority could not determine them: UNKNOWN, not zero.
+	OnlineCount        int64     `json:"online_count"`
+	EligibleCount      *int64    `json:"eligible_count"`
+	OccupiedCount      *int64    `json:"occupied_count"`
+	SupplyState        string    `json:"supply_state,omitempty"`
 	AvailableProviders int64     `json:"available_providers"`
 	BusyProviders      int64     `json:"busy_providers"`
 	ObservedAt         time.Time `json:"observed_at,omitempty"`
@@ -170,4 +178,42 @@ func (c Client) read(ctx context.Context, path string, target any) bool {
 		return false
 	}
 	return json.Unmarshal(envelope.Data, target) == nil
+}
+
+// DemandForecast is the deterministic expected demand for one zone, product
+// and upcoming bucket.
+type DemandForecast struct {
+	Signal
+	Authority   string    `json:"authority"`
+	Zone        string    `json:"zone"`
+	ProductCode string    `json:"product_code"`
+	BucketStart time.Time `json:"bucket_start"`
+	// Expected is the mean of the same slot in previous weeks.
+	Expected float64 `json:"expected"`
+	// CurrentCount is the bucket's count so far, when it has one.
+	CurrentCount *int64 `json:"current_count"`
+	Method       string `json:"method"`
+	ModelVersion string `json:"model_version"`
+}
+
+// DemandForecastMethod names the forecast: the mean of the same weekday and
+// time slot over the previous DemandForecastWeeks weeks. No learning, no
+// weights -- it can be recomputed by hand from the buckets.
+const (
+	DemandForecastMethod = "same_slot_mean_v1"
+	DemandForecastWeeks  = 4
+	// DemandForecastMinimumSlots is the least history a forecast is trusted
+	// on. Below it the answer is neutral.
+	DemandForecastMinimumSlots = 3
+)
+
+// DemandForecast reads expected demand for a zone and product.
+func (c Client) DemandForecast(ctx context.Context, authority, zone, product string) DemandForecast {
+	answer := DemandForecast{Signal: Neutral(StatusUnavailable), Authority: authority, Zone: zone, ProductCode: product}
+	path := DemandForecastPath + "?authority=" + url.QueryEscape(authority) + "&zone=" + url.QueryEscape(zone) +
+		"&product=" + url.QueryEscape(product)
+	if !ValidAuthority(authority) || strings.TrimSpace(zone) == "" || !c.read(ctx, path, &answer) {
+		answer = DemandForecast{Signal: Neutral(StatusUnavailable), Authority: authority, Zone: zone, ProductCode: product}
+	}
+	return answer
 }

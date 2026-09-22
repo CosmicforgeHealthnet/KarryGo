@@ -56,7 +56,7 @@ func TestAnalyticsMakesNoOutboundCalls(t *testing.T) {
 	}
 }
 
-var ownTables = regexp.MustCompile(`^(analytics_|vendor_branch_readiness_stats|provider_quality_snapshots|zone_supply_snapshots|zone_demand_daily|mission_success_daily|recovery_performance|capability_mismatch_metrics|decline_reason_metrics|schema_migrations)`)
+var ownTables = regexp.MustCompile(`^(analytics_|vendor_branch_readiness_stats|provider_quality_snapshots|zone_supply_snapshots|supply_product_snapshots|zone_demand_daily|demand_buckets|mission_success_daily|mission_outcomes_daily|recovery_performance|capability_mismatch_metrics|decline_reason_metrics|schema_migrations)`)
 
 // Every write lands in analytics' own read models.
 func TestAnalyticsWritesOnlyItsOwnTables(t *testing.T) {

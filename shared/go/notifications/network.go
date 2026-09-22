@@ -36,6 +36,9 @@ const (
 	EventNetworkProviderJobReassigned       = "network.provider.job_reassigned"
 	EventNetworkProviderReplacementAssigned = "network.provider.replacement_assigned"
 	EventNetworkProviderSupportUpdate       = "network.provider.support_update"
+	// EventNetworkProviderRecoveryTransfer: the cargo must be handed from the
+	// failed provider to the replacement before the job continues.
+	EventNetworkProviderRecoveryTransfer = "network.provider.recovery_transfer_required"
 
 	EventNetworkVendorDeliveryRecovery = "network.vendor.delivery_recovery"
 
@@ -48,6 +51,9 @@ const (
 	// reason. Operations looks at the vehicle or route; it is not a mark
 	// against the provider.
 	EventNetworkAdminSafetyDecline = "network.admin.provider_safety_decline"
+	// EventNetworkAdminRecoveryFailed: a recovery ended without completing
+	// the job.
+	EventNetworkAdminRecoveryFailed = "network.admin.recovery_failed"
 )
 
 // NetworkEventTypes lists every intent, for template coverage checks.
@@ -61,7 +67,7 @@ func NetworkEventTypes() []string {
 		EventNetworkVendorDeliveryRecovery,
 		EventNetworkFleetProviderReplaced, EventNetworkFleetRecoveryStarted,
 		EventNetworkAdminOperatorRequired, EventNetworkAdminActionUnresolved,
-		EventNetworkAdminSafetyDecline,
+		EventNetworkAdminSafetyDecline, EventNetworkProviderRecoveryTransfer, EventNetworkAdminRecoveryFailed,
 	}
 }
 

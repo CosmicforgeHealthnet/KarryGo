@@ -74,6 +74,7 @@ func RegisterInternalRoutes(router *gin.Engine, h *Handler) {
 	router.GET(networkanalytics.BranchReadinessPath+":branchId", h.branchReadiness)
 	router.GET(networkanalytics.ProviderQualityPath+":authority/:providerId", h.providerQuality)
 	router.GET(networkanalytics.SupplySnapshotPath, h.supplySnapshot)
+	router.GET(networkanalytics.DemandForecastPath, h.demandForecast)
 }
 
 // RegisterAdminRoutes mounts the dashboards under the service's API base.
@@ -97,6 +98,8 @@ func RegisterAdminRoutes(group *gin.RouterGroup, h *Handler) {
 	network.GET("/provider-quality/:authority/:providerId", h.adminProviderQuality)
 	network.GET("/readiness/branches/:branchId", h.adminBranchReadiness)
 	network.GET("/supply", h.adminSupply)
+	network.GET("/mission-outcomes", h.adminMissionOutcomes)
+	network.GET("/demand-forecast", h.adminDemandForecast)
 }
 
 func (h *Handler) ingestEvent(c *gin.Context) {
@@ -224,7 +227,7 @@ func (h *Handler) writeSupply(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "validation_failed", "A logistics authority and a zone are required.")
 		return
 	}
-	answer, err := h.service.SupplySnapshot(c.Request.Context(), authority, zone)
+	answer, err := h.service.SupplySnapshotFor(c.Request.Context(), authority, zone, c.Query("product"))
 	respond(c, answer, err)
 }
 
@@ -317,4 +320,43 @@ func respond(c *gin.Context, data any, err error) {
 
 func fail(c *gin.Context, status int, code, message string) {
 	c.AbortWithStatusJSON(status, gin.H{"success": false, "error": gin.H{"code": code, "message": message}})
+}
+
+func (h *Handler) demandForecast(c *gin.Context) {
+	if _, ok := h.authorize(c, h.read); !ok {
+		return
+	}
+	h.writeForecast(c)
+}
+
+func (h *Handler) adminDemandForecast(c *gin.Context) {
+	if !h.authorizeAdmin(c) {
+		return
+	}
+	h.writeForecast(c)
+}
+
+func (h *Handler) writeForecast(c *gin.Context) {
+	authority := strings.ToUpper(c.Query("authority"))
+	zone := strings.TrimSpace(c.Query("zone"))
+	if !networkanalytics.ValidAuthority(authority) || zone == "" {
+		fail(c, http.StatusBadRequest, "validation_failed", "A logistics authority and a zone are required.")
+		return
+	}
+	at, _ := time.Parse(time.RFC3339, c.Query("at"))
+	answer, err := h.service.DemandForecast(c.Request.Context(), authority, zone, c.Query("product"), at)
+	respond(c, answer, err)
+}
+
+func (h *Handler) adminMissionOutcomes(c *gin.Context) {
+	if !h.authorizeAdmin(c) {
+		return
+	}
+	authority := strings.ToUpper(strings.TrimSpace(c.Query("authority")))
+	if authority != "" && !networkanalytics.ValidAuthority(authority) {
+		fail(c, http.StatusBadRequest, "validation_failed", "Unknown authority.")
+		return
+	}
+	days, err := h.service.MissionOutcomes(c.Request.Context(), authority, c.Query("product"), days(c))
+	respond(c, days, err)
 }

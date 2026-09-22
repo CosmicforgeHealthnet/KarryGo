@@ -59,12 +59,14 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "migrations", "003_network_analytics.sql"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = pool.Exec(ctx, string(raw)); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"003_network_analytics.sql", "004_network_supply_demand_outcomes.sql"} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "migrations", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = pool.Exec(ctx, string(raw)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
 	}
 	h := &harness{pool: pool, service: NewService(repositories.NewRepository(pool)),
 		now: time.Now().UTC().Truncate(time.Second)}

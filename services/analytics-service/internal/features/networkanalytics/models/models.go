@@ -115,3 +115,36 @@ type Supply struct {
 	BusyProviders      int64
 	ObservedAt         time.Time
 }
+
+// ProductSupply is a zone's aggregated supply. Nil counts are UNKNOWN.
+type ProductSupply struct {
+	OnlineCount   int64
+	EligibleCount *int64
+	OccupiedCount *int64
+	State         string
+	ObservedAt    time.Time
+}
+
+// DemandSlot is one bucket's demand.
+type DemandSlot struct {
+	BucketStart   time.Time
+	DemandCount   int64
+	ObservedAt    time.Time
+	SourceVersion int64
+}
+
+// MissionOutcomeDay is one authority-product-day of lifecycle outcomes.
+type MissionOutcomeDay struct {
+	Authority         string    `json:"authority"`
+	ProductCode       string    `json:"product_code"`
+	Date              time.Time `json:"date"`
+	Committed         int64     `json:"committed"`
+	Assigned          int64     `json:"assigned"`
+	Completed         int64     `json:"completed"`
+	Failed            int64     `json:"failed"`
+	Cancelled         int64     `json:"cancelled"`
+	Recovered         int64     `json:"recovered"`
+	RecoveryFailed    int64     `json:"recovery_failed"`
+	GuaranteeBreaches int64     `json:"guarantee_breaches"`
+	SuccessRate       float64   `json:"success_rate"`
+}

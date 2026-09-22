@@ -52,11 +52,14 @@ const (
 	KindCapabilityMismatch Kind = "CAPABILITY_MISMATCH"
 	KindProviderArrived    Kind = "PROVIDER_ARRIVED"
 	KindProviderDeclined   Kind = "PROVIDER_DECLINED"
+	KindMissionCommitted   Kind = "MISSION_COMMITTED"
+	KindMissionAssigned    Kind = "MISSION_ASSIGNED"
 	KindMissionCompleted   Kind = "MISSION_COMPLETED"
 	KindMissionFailed      Kind = "MISSION_FAILED"
 	KindMissionCancelled   Kind = "MISSION_CANCELLED"
 	KindSupplySnapshot     Kind = "SUPPLY_SNAPSHOT"
 	KindDemandObserved     Kind = "DEMAND_OBSERVED"
+	KindDemandBucket       Kind = "DEMAND_BUCKET"
 	KindBranchReadiness    Kind = "BRANCH_READINESS"
 )
 
@@ -94,7 +97,17 @@ var eventKinds = map[string]classification{
 	"taxi.booking.arrived_at_pickup":     {AuthorityTaxi, KindProviderArrived},
 	"taxi.goods.pickup.arrived.v1":       {AuthorityTaxi, KindProviderArrived},
 	"taxi.goods.completed.v1":            {AuthorityTaxi, KindMissionCompleted},
-	"taxi.goods.mission.cancelled.v1":    {AuthorityTaxi, KindMissionCancelled},
+	"taxi.goods.mission.committed.v1":    {AuthorityTaxi, KindMissionCommitted},
+	"taxi.goods.assigned.v1":             {AuthorityTaxi, KindMissionAssigned},
+	// Taxi passenger lifecycle, as taxi_outbox already records it.
+	"taxi.booking.created":            {AuthorityTaxi, KindMissionCommitted},
+	"taxi.booking.accepted":           {AuthorityTaxi, KindMissionAssigned},
+	"taxi.booking.completed":          {AuthorityTaxi, KindMissionCompleted},
+	"taxi.booking.auto_completed":     {AuthorityTaxi, KindMissionCompleted},
+	"taxi.booking.cancelled":          {AuthorityTaxi, KindMissionCancelled},
+	"taxi.booking.admin_cancelled":    {AuthorityTaxi, KindMissionCancelled},
+	"taxi.booking.unmatched":          {AuthorityTaxi, KindMissionFailed},
+	"taxi.goods.mission.cancelled.v1": {AuthorityTaxi, KindMissionCancelled},
 
 	// Hauling.
 	"hauling.recovery.started":           {AuthorityHauling, KindRecoveryStarted},
@@ -103,6 +116,13 @@ var eventKinds = map[string]classification{
 	"hauling.recovery.failed":            {AuthorityHauling, KindRecoveryFailed},
 	"hauling.guarantee.breached":         {AuthorityHauling, KindGuaranteeBreached},
 	"hauling.capability_mismatch":        {AuthorityHauling, KindCapabilityMismatch},
+	// Haulage booking lifecycle, emitted by migration 024's trigger on the
+	// booking's own status.
+	"hauling.booking.committed.v1": {AuthorityHauling, KindMissionCommitted},
+	"hauling.booking.assigned.v1":  {AuthorityHauling, KindMissionAssigned},
+	"hauling.booking.completed.v1": {AuthorityHauling, KindMissionCompleted},
+	"hauling.booking.cancelled.v1": {AuthorityHauling, KindMissionCancelled},
+	"hauling.booking.unmatched.v1": {AuthorityHauling, KindMissionFailed},
 
 	// Dispatch. A delivery recovery being SELECTED is the start of recovery;
 	// a provider replacement starting is the replacement itself.
@@ -113,9 +133,15 @@ var eventKinds = map[string]classification{
 	// A rider declining an offer, with its reason. Emitted by Dispatch inside
 	// the decline transaction.
 	"dispatch.offer.declined.v1": {AuthorityDispatch, KindProviderDeclined},
+	"trip.created.v1":            {AuthorityDispatch, KindMissionAssigned},
 	"trip.completed.v1":          {AuthorityDispatch, KindMissionCompleted},
-	"trip.delivery_failed.v1":    {AuthorityDispatch, KindMissionFailed},
-	"trip.cancelled.v1":          {AuthorityDispatch, KindMissionCancelled},
+	// Dispatch customer bookings and commerce missions being committed,
+	// emitted by migration 000064's triggers.
+	"dispatch.booking.committed.v1": {AuthorityDispatch, KindMissionCommitted},
+	"dispatch.booking.assigned.v1":  {AuthorityDispatch, KindMissionAssigned},
+	"commerce.mission.created.v1":   {AuthorityDispatch, KindMissionCommitted},
+	"trip.delivery_failed.v1":       {AuthorityDispatch, KindMissionFailed},
+	"trip.cancelled.v1":             {AuthorityDispatch, KindMissionCancelled},
 
 	// Vendor.
 	EventBranchReadiness: {AuthorityVendor, KindBranchReadiness},
@@ -144,13 +170,16 @@ func IsSafetyDecline(reason string) bool {
 func Classify(eventName, payloadAuthority string) (authority string, kind Kind, ok bool) {
 	name := strings.TrimSpace(eventName)
 	switch name {
-	case EventSupplySnapshot, EventDemandObserved:
+	case EventSupplySnapshot, EventDemandObserved, EventDemandBucket:
 		authority = strings.ToUpper(strings.TrimSpace(payloadAuthority))
 		if !ValidAuthority(authority) {
 			return "", "", false
 		}
 		if name == EventSupplySnapshot {
 			return authority, KindSupplySnapshot, true
+		}
+		if name == EventDemandBucket {
+			return authority, KindDemandBucket, true
 		}
 		return authority, KindDemandObserved, true
 	}
@@ -165,7 +194,7 @@ func KnownEventNames() []string {
 	for name := range eventKinds {
 		names = append(names, name)
 	}
-	return append(names, EventSupplySnapshot, EventDemandObserved)
+	return append(names, EventSupplySnapshot, EventDemandObserved, EventDemandBucket)
 }
 
 // forbiddenTokens never survive ingestion. Analytics measures work, not
@@ -294,4 +323,37 @@ func NormalizeKeys(payload map[string]any) map[string]any {
 		out[snake] = value
 	}
 	return out
+}
+
+// Products, so authorities that share a name stay distinguishable.
+const (
+	ProductTaxiPassenger    = "TAXI_PASSENGER"
+	ProductTaxiGoods        = "TAXI_GOODS"
+	ProductDispatchParcel   = "DISPATCH_PARCEL"
+	ProductDispatchCommerce = "DISPATCH_COMMERCE"
+	ProductHaulage          = "HAULAGE"
+)
+
+// ProductFor resolves the product a lifecycle fact is about. An explicit
+// product_code in the payload wins; otherwise it follows from where the event
+// came from, which every producer already makes unambiguous.
+func ProductFor(eventName, entityType string, payload map[string]any) string {
+	if code, ok := payload["product_code"].(string); ok && strings.TrimSpace(code) != "" {
+		return strings.ToUpper(strings.TrimSpace(code))
+	}
+	name := strings.TrimSpace(eventName)
+	entity := strings.ToLower(strings.TrimSpace(entityType))
+	switch {
+	case strings.HasPrefix(name, "taxi.goods."), entity == "taxi_goods_mission":
+		return ProductTaxiGoods
+	case strings.HasPrefix(name, "taxi."):
+		return ProductTaxiPassenger
+	case strings.HasPrefix(name, "hauling."):
+		return ProductHaulage
+	case strings.HasPrefix(name, "commerce."):
+		return ProductDispatchCommerce
+	case strings.HasPrefix(name, "dispatch."), strings.HasPrefix(name, "trip."):
+		return ProductDispatchParcel
+	}
+	return "UNSPECIFIED"
 }

@@ -135,8 +135,35 @@ func (s *Service) ProviderQuality(ctx context.Context, authority, providerID str
 
 // SupplySnapshot is the latest supply in a zone, if it is still current.
 func (s *Service) SupplySnapshot(ctx context.Context, authority, zone string) (networkanalytics.SupplySnapshot, error) {
+	return s.SupplySnapshotFor(ctx, authority, zone, "")
+}
+
+// SupplySnapshotFor is the latest supply in a zone, optionally for one
+// product. Per-product facts from the authorities win; the legacy per-zone
+// table answers only where no product fact exists.
+func (s *Service) SupplySnapshotFor(ctx context.Context, authority, zone, product string) (networkanalytics.SupplySnapshot, error) {
 	answer := networkanalytics.SupplySnapshot{Signal: networkanalytics.Neutral(networkanalytics.StatusInsufficientData),
-		Authority: authority, Zone: zone}
+		Authority: authority, Zone: zone, ProductCode: product}
+	facts, err := s.repo.ProductSupply(ctx, authority, zone, strings.ToUpper(strings.TrimSpace(product)))
+	if err == nil {
+		answer.OnlineCount, answer.EligibleCount, answer.OccupiedCount = facts.OnlineCount, facts.EligibleCount, facts.OccupiedCount
+		answer.SupplyState, answer.ObservedAt, answer.DataAsOf = facts.State, facts.ObservedAt, facts.ObservedAt
+		answer.SampleSize = facts.OnlineCount
+		if facts.OccupiedCount != nil {
+			answer.AvailableProviders = facts.OnlineCount - *facts.OccupiedCount
+			answer.BusyProviders = *facts.OccupiedCount
+		}
+		// Fresh AND fully known: only then is there a score to give. An
+		// unknown count is exactly the case where a guess would mislead.
+		if s.now().Sub(facts.ObservedAt) <= SupplyFreshness && facts.EligibleCount != nil && facts.OccupiedCount != nil {
+			answer.Available, answer.Status = true, networkanalytics.StatusOK
+			answer.Score = ratio(*facts.EligibleCount-min(*facts.EligibleCount, *facts.OccupiedCount), facts.OnlineCount)
+		}
+		return answer, nil
+	}
+	if !errors.Is(err, repositories.ErrNoData) {
+		return answer, err
+	}
 	supply, err := s.repo.LatestSupply(ctx, authority, zone)
 	if errors.Is(err, repositories.ErrNoData) {
 		return answer, nil
@@ -195,3 +222,58 @@ func ratio(numerator, denominator int64) float64 {
 }
 
 func ratioFloat(total, count int64) float64 { return ratio(total, count) }
+
+// DemandForecast is the expected demand for the bucket containing at.
+//
+// Deterministic and explainable: the mean demand of the same weekday and time
+// slot over the previous weeks, from buckets the authorities published. A
+// slot the authorities never reported is absent, not zero.
+func (s *Service) DemandForecast(ctx context.Context, authority, zone, product string, at time.Time) (networkanalytics.DemandForecast, error) {
+	if at.IsZero() {
+		at = s.now()
+	}
+	bucket := networkanalytics.DemandBucketStart(at)
+	product = strings.ToUpper(strings.TrimSpace(product))
+	answer := networkanalytics.DemandForecast{Signal: networkanalytics.Neutral(networkanalytics.StatusInsufficientData),
+		Authority: authority, Zone: zone, ProductCode: product, BucketStart: bucket,
+		Method: networkanalytics.DemandForecastMethod}
+	slots := []time.Time{bucket}
+	for week := 1; week <= networkanalytics.DemandForecastWeeks; week++ {
+		slots = append(slots, bucket.AddDate(0, 0, -7*week))
+	}
+	found, err := s.repo.DemandSlots(ctx, authority, zone, product, slots)
+	if err != nil {
+		return answer, err
+	}
+	var total, history, latestVersion int64
+	for _, slot := range found {
+		if slot.ObservedAt.After(answer.DataAsOf) {
+			answer.DataAsOf = slot.ObservedAt
+		}
+		if slot.SourceVersion > latestVersion {
+			latestVersion = slot.SourceVersion
+		}
+		if slot.BucketStart.Equal(bucket) {
+			current := slot.DemandCount
+			answer.CurrentCount = &current
+			continue
+		}
+		total += slot.DemandCount
+		history++
+	}
+	answer.SampleSize = history
+	answer.ModelVersion = fmt.Sprintf("%s@%d", networkanalytics.DemandForecastMethod, latestVersion)
+	if history > 0 {
+		answer.Expected = float64(total) / float64(history)
+	}
+	if history >= networkanalytics.DemandForecastMinimumSlots {
+		answer.Available, answer.Status = true, networkanalytics.StatusOK
+		answer.Score = networkanalytics.NeutralScore
+	}
+	return answer, nil
+}
+
+// MissionOutcomes backs the per-product lifecycle dashboard.
+func (s *Service) MissionOutcomes(ctx context.Context, authority, product string, days int) ([]models.MissionOutcomeDay, error) {
+	return s.repo.MissionOutcomes(ctx, authority, strings.ToUpper(strings.TrimSpace(product)), s.window(days))
+}

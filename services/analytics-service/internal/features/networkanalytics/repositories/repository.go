@@ -103,7 +103,12 @@ func (r *Repository) Ingest(ctx context.Context, event models.Event) (string, er
 func project(ctx context.Context, tx pgx.Tx, e models.Event) error {
 	day := e.OccurredAt.UTC().Truncate(24 * time.Hour)
 	p := e.Payload
+	if err := projectOutcome(ctx, tx, e, day); err != nil {
+		return err
+	}
 	switch e.Kind {
+	case networkanalytics.KindDemandBucket:
+		return projectDemandBucket(ctx, tx, e)
 	case networkanalytics.KindRecoveryStarted:
 		if err := bumpRecovery(ctx, tx, e.Authority, day, "started"); err != nil {
 			return err
@@ -186,6 +191,9 @@ func project(ctx context.Context, tx pgx.Tx, e models.Event) error {
 		}
 		return bumpProvider(ctx, tx, e.Authority, str(p, "provider_id", "rider_id", "driver_id"), day, column)
 	case networkanalytics.KindSupplySnapshot:
+		if _, productFact := p["online_count"]; productFact {
+			return projectProductSupply(ctx, tx, e)
+		}
 		zone := str(p, "zone")
 		if zone == "" {
 			return nil
