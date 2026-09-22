@@ -135,9 +135,13 @@ type Config struct {
 	CustomerServiceSecret         []byte
 	// Section 13. Analytics is advisory: off by default, and a Taxi journey
 	// never waits on it.
-	AnalyticsEventsEnabled              bool
-	AnalyticsURL                        string
-	AnalyticsSecret                     []byte
+	AnalyticsEventsEnabled bool
+	AnalyticsURL           string
+	AnalyticsSecret        []byte
+	// RecoveryNotificationsEnabled tells customers, drivers, fleets and
+	// operations about recovery (Section 14). Off by default.
+	RecoveryNotificationsEnabled bool
+
 	CapabilityInternalCallers           string
 	TaxiFleetCompletedWorkEnabled       bool
 	TaxiTypedFinancialVisibilityEnabled bool
@@ -288,21 +292,23 @@ func Load() Config {
 		FleetServiceTimeout:          time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
 		TaxiFleetProviderWorkEnabled: getEnvBool("TAXI_FLEET_PROVIDER_WORK_ENABLED", false),
 
-		ServiceProductsEnabled:              getEnvBool("TAXI_SERVICE_PRODUCTS_ENABLED", false),
-		CapabilityMatchingEnabled:           getEnvBool("TAXI_CAPABILITY_MATCHING_ENABLED", false),
-		GoodsCapabilityEnabled:              getEnvBool("TAXI_GOODS_CAPABILITY_ENABLED", false),
-		GoodsMultiPickupEnabled:             getEnvBool("TAXI_GOODS_MULTI_PICKUP_ENABLED", false),
-		GoodsSecureHandoverEnabled:          getEnvBool("TAXI_GOODS_SECURE_HANDOVER_ENABLED", false),
-		GoodsCumulativeFitEnabled:           getEnvBool("TAXI_GOODS_CUMULATIVE_FIT_ENABLED", false),
-		RecoveryEnabled:                     getEnvBool("TAXI_RECOVERY_ENABLED", false),
-		ScheduledRiskMonitorEnabled:         getEnvBool("TAXI_SCHEDULED_RISK_MONITOR_ENABLED", false),
-		CustomerMovementEventsEnabled:       getEnvBool("TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
-		CustomerContextEnabled:              getEnvBool("TAXI_CUSTOMER_CONTEXT_ENABLED", false),
-		CustomerServiceURL:                  os.Getenv("TAXI_CUSTOMER_SERVICE_URL"),
-		CustomerServiceSecret:               []byte(os.Getenv("TAXI_CUSTOMER_SERVICE_SECRET")),
-		AnalyticsEventsEnabled:              getEnvBool("TAXI_ANALYTICS_EVENTS_ENABLED", false),
-		AnalyticsURL:                        os.Getenv("TAXI_ANALYTICS_URL"),
-		AnalyticsSecret:                     []byte(os.Getenv("TAXI_ANALYTICS_SECRET")),
+		ServiceProductsEnabled:        getEnvBool("TAXI_SERVICE_PRODUCTS_ENABLED", false),
+		CapabilityMatchingEnabled:     getEnvBool("TAXI_CAPABILITY_MATCHING_ENABLED", false),
+		GoodsCapabilityEnabled:        getEnvBool("TAXI_GOODS_CAPABILITY_ENABLED", false),
+		GoodsMultiPickupEnabled:       getEnvBool("TAXI_GOODS_MULTI_PICKUP_ENABLED", false),
+		GoodsSecureHandoverEnabled:    getEnvBool("TAXI_GOODS_SECURE_HANDOVER_ENABLED", false),
+		GoodsCumulativeFitEnabled:     getEnvBool("TAXI_GOODS_CUMULATIVE_FIT_ENABLED", false),
+		RecoveryEnabled:               getEnvBool("TAXI_RECOVERY_ENABLED", false),
+		ScheduledRiskMonitorEnabled:   getEnvBool("TAXI_SCHEDULED_RISK_MONITOR_ENABLED", false),
+		CustomerMovementEventsEnabled: getEnvBool("TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerContextEnabled:        getEnvBool("TAXI_CUSTOMER_CONTEXT_ENABLED", false),
+		CustomerServiceURL:            os.Getenv("TAXI_CUSTOMER_SERVICE_URL"),
+		CustomerServiceSecret:         []byte(os.Getenv("TAXI_CUSTOMER_SERVICE_SECRET")),
+		AnalyticsEventsEnabled:        getEnvBool("TAXI_ANALYTICS_EVENTS_ENABLED", false),
+		AnalyticsURL:                  os.Getenv("TAXI_ANALYTICS_URL"),
+		AnalyticsSecret:               []byte(os.Getenv("TAXI_ANALYTICS_SECRET")),
+		RecoveryNotificationsEnabled:  getEnvBool("TAXI_RECOVERY_NOTIFICATIONS_ENABLED", false),
+
 		CapabilityInternalCallers:           getEnv("TAXI_CAPABILITY_INTERNAL_CALLERS", "vendor-service,operations-service,verification-compliance-service"),
 		TaxiFleetCompletedWorkEnabled:       getEnvBool("TAXI_FLEET_COMPLETED_WORK_ENABLED", false),
 		TaxiTypedFinancialVisibilityEnabled: getEnvBool("TAXI_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),

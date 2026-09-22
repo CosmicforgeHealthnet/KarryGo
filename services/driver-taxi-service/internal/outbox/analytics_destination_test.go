@@ -19,7 +19,7 @@ import (
 // The trigger decides what reaches analytics; the shared classification
 // decides what analytics understands. They must name the same events.
 func TestTheFanoutTriggerMatchesTheSharedClassification(t *testing.T) {
-	raw, err := os.ReadFile("../../migrations/019_network_analytics_fanout.up.sql")
+	raw, err := os.ReadFile("../../migrations/020_network_lifecycle_and_recovery_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,25 +76,36 @@ func TestAnUnconfiguredAnalyticsIsAVisibleTerminalFailure(t *testing.T) {
 	}
 }
 
-// PostgreSQL: the trigger copies a network fact once, and nothing else.
+// PostgreSQL: the trigger copies each network fact once to analytics, only
+// recovery facts to notification, and nothing that is not a network fact.
 func TestTheFanoutTriggerCopiesOnce(t *testing.T) {
 	pool := testDB(t)
 	ctx := context.Background()
 	booking := uuid.NewString()
-	if err := Write(ctx, pool, "booking", booking, "taxi.recovery.started", []byte(`{"original_provider_id":"p1"}`)); err != nil {
-		t.Fatal(err)
+	for _, event := range []string{"taxi.recovery.started", "taxi.booking.created", "taxi.booking.fare_recalculated"} {
+		if err := Write(ctx, pool, "booking", booking, event, []byte(`{}`)); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if err := Write(ctx, pool, "booking", booking, "taxi.booking.created", []byte(`{}`)); err != nil {
-		t.Fatal(err)
+	count := func(target, event string) int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM taxi_outbox WHERE aggregate_id=$1::uuid
+			AND target=$2 AND event_type=$3`, booking, target, event).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
 	}
-	var copies, others int
-	if err := pool.QueryRow(ctx, `SELECT
-		count(*) FILTER (WHERE event_type='taxi.recovery.started'),
-		count(*) FILTER (WHERE event_type<>'taxi.recovery.started')
-		FROM taxi_outbox WHERE aggregate_id=$1::uuid AND target='analytics-service'`, booking).Scan(&copies, &others); err != nil {
-		t.Fatal(err)
+	want := map[[2]string]int{
+		{"analytics-service", "taxi.recovery.started"}:          1,
+		{"analytics-service", "taxi.booking.created"}:           1,
+		{"analytics-service", "taxi.booking.fare_recalculated"}: 0,
+		{TargetNotification, "taxi.recovery.started"}:           1,
+		{TargetNotification, "taxi.booking.created"}:            0,
+		{TargetNotification, "taxi.booking.fare_recalculated"}:  0,
 	}
-	if copies != 1 || others != 0 {
-		t.Fatalf("analytics copies=%d others=%d, want 1/0", copies, others)
+	for key, n := range want {
+		if got := count(key[0], key[1]); got != n {
+			t.Errorf("%s copies of %s = %d, want %d", key[0], key[1], got, n)
+		}
 	}
 }

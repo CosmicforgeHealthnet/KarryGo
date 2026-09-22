@@ -54,6 +54,7 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 
 	taxisettlement "cosmicforge/logistics/services/taxi-service/internal/features/booking/settlement"
+	"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver"
 	"cosmicforge/logistics/services/taxi-service/internal/features/supportcontext"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/custodyops"
@@ -445,6 +446,12 @@ func main() {
 			Secret: cfg.CustomerServiceSecret, HTTPClient: &http.Client{Timeout: 10 * time.Second},
 		}},
 		// Section 13: analytics copies of recovery, guarantee and outcome facts.
+		// Section 14: recovery facts, told to the people they concern.
+		taxioutbox.TargetNotification: taxioutbox.RecoveryNotificationDestination{
+			Enabled:   cfg.RecoveryNotificationsEnabled,
+			Publisher: notifications.RedisPublisher{Client: notificationRedis},
+			Audience:  taxioutbox.PostgresAudience{DB: db},
+		},
 		taxioutbox.TargetAnalytics: taxioutbox.AnalyticsDestination{
 			Enabled: cfg.AnalyticsEventsEnabled && cfg.AnalyticsURL != "" && len(cfg.AnalyticsSecret) > 0,
 			Deliverer: events.HTTPDeliverer{
@@ -576,8 +583,20 @@ func main() {
 				// Goods alone would have left Fleet completed-work rows
 				// undelivered in a deployment that runs corporate taxi work
 				// without Commerce.
-				if cfg.TaxiGoodsDeliveryEnabled || cfg.TaxiFleetCompletedWorkEnabled {
+				//
+				// Section 13/14: analytics and recovery-notification rows ride
+				// the same worker, so either of those flags needs it too.
+				if cfg.TaxiGoodsDeliveryEnabled || cfg.TaxiFleetCompletedWorkEnabled ||
+					cfg.AnalyticsEventsEnabled || cfg.RecoveryNotificationsEnabled {
 					goodsOutboxPublisher.Run(ctx, time.Second)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				// Section 13: supply and demand observed from the matcher's
+				// own online set once per bucket; only alongside delivery.
+				if cfg.AnalyticsEventsEnabled && cfg.AnalyticsURL != "" && len(cfg.AnalyticsSecret) > 0 {
+					(&networkobserver.Observer{DB: db, Online: availabilityStore}).Run(ctx)
 				}
 				return nil
 			},
