@@ -74,6 +74,9 @@ func recoveryIntents(name string, current Case, audience Audience) []notificatio
 		add(notifications.EventNetworkFleetProviderReplaced, notifications.RecipientFleetOrganization, audience.OrganizationID, fact)
 	case EventRecoveryFailed:
 		add(notifications.EventNetworkCustomerRecoveryFailed, notifications.RecipientCustomer, audience.CustomerID, "failed")
+		// The job is still unserved: operations must know, not only the customer.
+		add(notifications.EventNetworkAdminRecoveryFailed, notifications.RecipientAdminOperations,
+			notifications.AdminOperationsQueue, "failed")
 	case EventCapabilityMismatch:
 		// No compatible replacement: the case is parked for an operator.
 		add(notifications.EventNetworkAdminOperatorRequired, notifications.RecipientAdminOperations,

@@ -24,6 +24,7 @@ import (
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
 	"cosmicforge/logistics/services/hauling-service/internal/features/movement"
 	"cosmicforge/logistics/services/hauling-service/internal/features/networkevents"
+	"cosmicforge/logistics/services/hauling-service/internal/features/networkobserver"
 	"cosmicforge/logistics/services/hauling-service/internal/features/recovery"
 	sharedevents "cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/networkanalytics"
@@ -294,6 +295,9 @@ func main() {
 			BaseURL: cfg.AnalyticsURL, Path: networkanalytics.IngestPath,
 			ServiceName: "driver-hauling-service", Secret: cfg.AnalyticsSecret,
 		}}).Run(ctx, 10*time.Second)
+		// Supply and demand, observed from the matcher's own online set once
+		// per bucket.
+		go (&networkobserver.Observer{DB: db, Online: availabilityStore}).Run(ctx)
 		logging.Notice("hauling-analytics", "network analytics delivery enabled")
 	}
 	if cfg.OutboxWorkerEnabled && cfg.FleetIntegrationEnabled && !cfg.FleetIntegrationKillSwitch {

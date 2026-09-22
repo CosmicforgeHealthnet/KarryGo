@@ -103,3 +103,21 @@ func TestANotificationOutageChangesNothing(t *testing.T) {
 		t.Fatal("the notifier was never asked")
 	}
 }
+
+// A failed recovery leaves the job unserved: the customer and operations are
+// both told, and nobody else.
+func TestAFailedRecoveryReachesTheCustomerAndOperations(t *testing.T) {
+	got := byRecipient(recoveryIntents(EventRecoveryFailed, caseFor(), Audience{CustomerID: "c-1", OrganizationID: "org-1"}))
+	want := map[string]string{
+		"customer/c-1": notifications.EventNetworkCustomerRecoveryFailed,
+		"admin_operations/" + notifications.AdminOperationsQueue: notifications.EventNetworkAdminRecoveryFailed,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v", got)
+	}
+	for recipient, event := range want {
+		if got[recipient] != event {
+			t.Errorf("%s got %q, want %q", recipient, got[recipient], event)
+		}
+	}
+}
