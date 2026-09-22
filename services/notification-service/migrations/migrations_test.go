@@ -53,11 +53,14 @@ func TestCommerceSemanticNotificationMigration(t *testing.T) {
 
 // Section 14: every network intent has copy, and none of it interpolates.
 func TestNetworkTemplatesCoverEveryIntent(t *testing.T) {
-	content, err := os.ReadFile("003_network_notification_templates.sql")
-	if err != nil {
-		t.Fatal(err)
+	var sql string
+	for _, name := range []string{"003_network_notification_templates.sql", "004_network_recovery_templates.sql"} {
+		content, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sql += string(content)
 	}
-	sql := string(content)
 	for _, event := range notifications.NetworkEventTypes() {
 		if !strings.Contains(sql, "('"+event+"','en-NG'") {
 			t.Errorf("no template for %s", event)
