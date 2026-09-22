@@ -95,6 +95,10 @@ func main() {
 			Support: service, Store: supportrepositories.NewNetworkContextStore(db), Contexts: registry,
 			Notifier: notifier.Transport(),
 		}
+		if media := supportclients.NewMediaEvidenceValidator(cfg.MediaFileURL, cfg.MediaFileSecret,
+			5*time.Second); media.Configured() {
+			options.Media = media
+		}
 		if escalation := supportclients.NewHaulingRecoveryEscalation(
 			joinBase(cfg.HaulingServiceURL, "/api/v1/hauling"), cfg.HaulingServiceSecret,
 			5*time.Second); escalation.Configured() {

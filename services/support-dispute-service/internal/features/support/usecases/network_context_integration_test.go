@@ -538,3 +538,76 @@ func TestANotificationOutageLeavesTheOutcomeStanding(t *testing.T) {
 		t.Fatalf("status=%s, want ACCEPTED despite the outage", action.Status)
 	}
 }
+
+// fakeMedia answers evidence validations and records what it was asked.
+type fakeMedia struct {
+	verdict supportclients.EvidenceVerdict
+	err     error
+	asked   []string
+}
+
+func (m *fakeMedia) Validate(_ context.Context, objectID, bindingType, bindingID string) (supportclients.EvidenceVerdict, error) {
+	m.asked = append(m.asked, objectID+"|"+bindingType+"|"+bindingID)
+	return m.verdict, m.err
+}
+
+func withMedia(h *networkHarness, media *fakeMedia) {
+	h.network.media = media
+}
+
+// E2E 6: private evidence is cited only through Media's verdict, against the
+// complaint's own job.
+func TestPrivateEvidenceIsCitedThroughMediasVerdict(t *testing.T) {
+	h := newNetworkHarness(t, &recordingOwner{})
+	media := &fakeMedia{verdict: supportclients.EvidenceVerdict{Usable: true, Purpose: "DAMAGE_EVIDENCE"}}
+	withMedia(h, media)
+	created, customer := h.complaint(t, "")
+	booking := "bk_" + uuid.NewString()
+	h.attach(t, created.ID, booking)
+
+	evidence, err := h.network.ReferenceEvidence(context.Background(), ReferenceEvidenceInput{
+		ComplaintID: created.ID, MediaObjectID: "med_1", BindingType: "mission",
+		RequesterType: supportmodels.ComplainantCustomer, RequesterID: customer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence.MediaAssetID == nil || *evidence.MediaAssetID != "med_1" {
+		t.Fatalf("evidence %+v", evidence)
+	}
+	if len(media.asked) != 1 || media.asked[0] != "med_1|MISSION|"+booking {
+		t.Fatalf("media was asked %v; the binding must come from the complaint", media.asked)
+	}
+}
+
+func TestUnusableOrUnboundEvidenceIsRefused(t *testing.T) {
+	h := newNetworkHarness(t, &recordingOwner{})
+	media := &fakeMedia{verdict: supportclients.EvidenceVerdict{Usable: false, Failures: []string{"WRONG_BINDING"}}}
+	withMedia(h, media)
+	created, customer := h.complaint(t, "")
+	h.attach(t, created.ID, "bk_"+uuid.NewString())
+	cite := func(bindingType, requester string) error {
+		_, err := h.network.ReferenceEvidence(context.Background(), ReferenceEvidenceInput{
+			ComplaintID: created.ID, MediaObjectID: "med_2", BindingType: bindingType,
+			RequesterType: supportmodels.ComplainantCustomer, RequesterID: requester,
+		})
+		return err
+	}
+	if status := appStatus(cite("MISSION", customer)); status != 422 {
+		t.Fatalf("an unusable file -> %d, want 422", status)
+	}
+	if status := appStatus(cite("RECOVERY_CASE", customer)); status != 422 {
+		t.Fatalf("citing a recovery case the complaint does not reference -> %d, want 422", status)
+	}
+	if status := appStatus(cite("MISSION", "cus_someone_else")); status != 403 && status != 404 {
+		t.Fatalf("another customer's citation -> %d", status)
+	}
+	media.err = supportclients.ErrMediaUnavailable
+	if status := appStatus(cite("MISSION", customer)); status != 503 {
+		t.Fatalf("media down -> %d, want 503", status)
+	}
+	evidence, _ := h.support.ListEvidence(context.Background(), created.ID, supportmodels.ComplainantCustomer, customer)
+	if len(evidence) != 0 {
+		t.Fatalf("a refused citation stored %d evidence rows", len(evidence))
+	}
+}

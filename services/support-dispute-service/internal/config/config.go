@@ -35,6 +35,10 @@ type Config struct {
 	// context reads, snapshots and action requests. Off by default so a
 	// deployment enables it only once the owning services expose the read.
 	NetworkContextEnabled bool
+	// MediaFileURL / MediaFileSecret reach Media's verdict-only evidence
+	// route, so a complaint can cite private evidence (Section 16).
+	MediaFileURL          string
+	MediaFileSecret       string
 	HaulingServiceURL     string
 	HaulingServiceSecret  string
 	TaxiServiceURL        string
@@ -77,6 +81,8 @@ func Load() Config {
 		FleetPartnerServiceURL:    getEnv("SUPPORT_DISPUTE_FLEET_PARTNER_SERVICE_URL", ""),
 		FleetPartnerServiceSecret: getEnv("SUPPORT_DISPUTE_FLEET_PARTNER_SERVICE_SECRET", ""),
 		NetworkContextEnabled:     getEnv("SUPPORT_NETWORK_CONTEXT_ENABLED", "false") == "true",
+		MediaFileURL:              getEnv("SUPPORT_DISPUTE_MEDIA_FILE_URL", ""),
+		MediaFileSecret:           getEnv("SUPPORT_DISPUTE_MEDIA_FILE_SECRET", ""),
 		HaulingServiceURL:         getEnv("SUPPORT_DISPUTE_HAULING_SERVICE_URL", ""),
 		HaulingServiceSecret:      getEnv("SUPPORT_DISPUTE_HAULING_SERVICE_SECRET", "development-support-dispute-service-secret"),
 		TaxiServiceURL:            getEnv("SUPPORT_DISPUTE_TAXI_SERVICE_URL", ""),

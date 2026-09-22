@@ -9,6 +9,7 @@ package supporthttp
 // another service's recovery process directly.
 
 import (
+	nethttp "net/http"
 	"strings"
 	"time"
 
@@ -46,6 +47,7 @@ func RegisterNetworkContextRoutes(group *gin.RouterGroup, handler *NetworkContex
 	customer.Use(sharedauth.BearerMiddleware(
 		sharedauth.NewTokenSigner(customerAccessSecret), "customer", "customer"))
 	customer.PUT("/complaints/:id/context", handler.attachOwn)
+	customer.POST("/complaints/:id/evidence/references", handler.referenceEvidence)
 
 	for _, pg := range providerGroups {
 		if len(pg.Secret) == 0 {
@@ -54,6 +56,7 @@ func RegisterNetworkContextRoutes(group *gin.RouterGroup, handler *NetworkContex
 		provider := group.Group(pg.Prefix)
 		provider.Use(sharedauth.BearerMiddleware(sharedauth.NewTokenSigner(pg.Secret), pg.Role, pg.Service))
 		provider.PUT("/complaints/:id/context", handler.attachOwn)
+		provider.POST("/complaints/:id/evidence/references", handler.referenceEvidence)
 	}
 
 	admin := group.Group("/admin")
@@ -164,4 +167,31 @@ func correlationOf(c *gin.Context) string {
 		}
 	}
 	return httpx.GetRequestID(c)
+}
+
+// referenceEvidence cites a Media object on the caller's own complaint.
+func (h *NetworkContextHandler) referenceEvidence(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	var body struct {
+		MediaObjectID string `json:"media_object_id"`
+		BindingType   string `json:"binding_type"`
+		Note          string `json:"note"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Invalid evidence reference.", err))
+		return
+	}
+	evidence, err := h.service.ReferenceEvidence(c.Request.Context(), supportusecases.ReferenceEvidenceInput{
+		ComplaintID: c.Param("id"), MediaObjectID: body.MediaObjectID, BindingType: body.BindingType,
+		Note: body.Note, RequesterType: complainantTypeFromRole(claims.Role), RequesterID: claims.Subject,
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respond(c, nethttp.StatusCreated, evidence)
 }

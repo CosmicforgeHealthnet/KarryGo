@@ -61,7 +61,13 @@ type NetworkContextService struct {
 	contexts *supportclients.ContextRegistry
 	routes   map[string]actionRoute
 	notifier notifications.Notifier
+	media    EvidenceValidator
 	now      func() time.Time
+}
+
+// EvidenceValidator asks Media for a verdict on a file (Section 16).
+type EvidenceValidator interface {
+	Validate(ctx context.Context, objectID, bindingType, bindingID string) (supportclients.EvidenceVerdict, error)
 }
 
 // NetworkContextOptions configures the service.
@@ -75,7 +81,10 @@ type NetworkContextOptions struct {
 	// Notifier tells the complainant an action's definite outcome, and
 	// operations about one that could not be confirmed (Section 14).
 	Notifier notifications.Notifier
-	Now      func() time.Time
+	// Media validates private evidence a complaint cites. Nil means citing
+	// network evidence is not offered on this deployment.
+	Media EvidenceValidator
+	Now   func() time.Time
 }
 
 // NewNetworkContextService builds the service.
@@ -91,7 +100,7 @@ func NewNetworkContextService(options NetworkContextOptions) *NetworkContextServ
 				requiredParameters: []string{"trigger_code"}}
 	}
 	return &NetworkContextService{support: options.Support, store: options.Store,
-		contexts: options.Contexts, routes: routes, notifier: options.Notifier, now: now}
+		contexts: options.Contexts, routes: routes, notifier: options.Notifier, media: options.Media, now: now}
 }
 
 // AttachContextInput attaches references to a complaint.
@@ -407,4 +416,76 @@ func mapNetworkErr(err error) error {
 		return apperrors.NotFound("Complaint not found.", nil)
 	}
 	return fmt.Errorf("support network context: %w", err)
+}
+
+// ReferenceEvidenceInput cites one Media object on a complaint.
+type ReferenceEvidenceInput struct {
+	ComplaintID   string
+	MediaObjectID string
+	// BindingType is what the file must be bound to: the complaint's MISSION,
+	// its RECOVERY_CASE, or the COMPLAINT itself.
+	BindingType   string
+	Note          string
+	RequesterType supportmodels.ComplainantType
+	RequesterID   string
+}
+
+// ReferenceEvidence cites private evidence on a complaint (E2E 6).
+//
+// The binding Media is asked about is taken from the complaint, never from
+// the request: a complainant can cite a file bound to THEIR job, and cannot
+// use a complaint to learn whether some other job's file exists. Media's
+// answer is a verdict only; nothing about the file itself reaches Support.
+func (s *NetworkContextService) ReferenceEvidence(ctx context.Context,
+	input ReferenceEvidenceInput) (supportmodels.Evidence, error) {
+	if s.media == nil {
+		return supportmodels.Evidence{}, apperrors.Unavailable("Evidence references are not enabled.", nil)
+	}
+	// Only the complainant cites evidence: the evidence record names its
+	// uploader, and an agent citing on someone's behalf would misstate it.
+	// Agents read cited evidence through the existing admin routes.
+	if err := s.authorize(ctx, input.ComplaintID, input.RequesterType, input.RequesterID, false); err != nil {
+		return supportmodels.Evidence{}, err
+	}
+	objectID := strings.TrimSpace(input.MediaObjectID)
+	if objectID == "" {
+		return supportmodels.Evidence{}, apperrors.Validation("Check the evidence.",
+			[]apperrors.FieldViolation{{Field: "media_object_id", Message: "A media object id is required."}})
+	}
+	refs, err := s.store.GetContextRefs(ctx, input.ComplaintID)
+	if err != nil {
+		return supportmodels.Evidence{}, mapNetworkErr(err)
+	}
+	bindingType := strings.ToUpper(strings.TrimSpace(input.BindingType))
+	var bindingID string
+	switch bindingType {
+	case "MISSION":
+		bindingID = refs.PrimaryRef()
+	case "RECOVERY_CASE":
+		bindingID = refs.RecoveryCaseRef
+	case "COMPLAINT":
+		bindingID = input.ComplaintID
+	default:
+		return supportmodels.Evidence{}, apperrors.Validation("Check the evidence.",
+			[]apperrors.FieldViolation{{Field: "binding_type", Message: "Use MISSION, RECOVERY_CASE or COMPLAINT."}})
+	}
+	if bindingID == "" {
+		return supportmodels.Evidence{}, apperrors.Validation("Check the evidence.",
+			[]apperrors.FieldViolation{{Field: "binding_type",
+				Message: "This complaint does not reference a " + strings.ToLower(bindingType) + " yet."}})
+	}
+	verdict, err := s.media.Validate(ctx, objectID, bindingType, bindingID)
+	if err != nil {
+		return supportmodels.Evidence{}, apperrors.Unavailable("Evidence could not be checked right now.", err)
+	}
+	if !verdict.Usable {
+		return supportmodels.Evidence{}, apperrors.Validation("This file cannot be cited on this complaint.",
+			[]apperrors.FieldViolation{{Field: "media_object_id", Message: strings.Join(verdict.Failures, ", ")}})
+	}
+	note := strings.TrimSpace(input.Note)
+	if note == "" {
+		note = verdict.Purpose + " bound to " + strings.ToLower(bindingType)
+	}
+	return s.support.AddEvidence(ctx, AddEvidenceInput{ComplaintID: input.ComplaintID,
+		UploaderType: input.RequesterType, UploaderID: input.RequesterID, MediaAssetID: objectID, Note: note})
 }
