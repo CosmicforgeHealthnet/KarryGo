@@ -1491,3 +1491,46 @@ func TestEngine_HasNoProviderSupplyInput(t *testing.T) {
 			decision.MinimumPhysicalClass)
 	}
 }
+
+// Catering and Manufacturer loads reach the same selection engine as every
+// other vendor's. The engine never sees a vendor category: it sees weight,
+// volume, dimension and handling, which is why a caterer's tray stack and a
+// factory's pallet get the vehicle the physics require rather than the one
+// their business type suggests.
+func TestCateringBulkLoadEscalatesBeyondAMotorcycle(t *testing.T) {
+	// A modest catering run: trays for fifty covers.
+	decision := decide(t, loadOf(45_000, 120_000, 900, 12))
+
+	if decision.SelectedClass == VehicleMotorcycle {
+		t.Fatal("a catering tray load was assigned to a motorcycle")
+	}
+	if !decision.Selected() {
+		t.Fatalf("catering load refused entirely: %s", decision.PrimaryReason)
+	}
+	if decision.SelectedService == "" {
+		t.Fatal("no authority selected for a catering load")
+	}
+}
+
+func TestManufacturerPalletLoadSelectsHaulage(t *testing.T) {
+	// Palletised factory output: beyond any van.
+	decision := decide(t, loadOf(850_000, 2_400_000, 1_200, 4))
+
+	if decision.SelectedService != ServiceHauling {
+		t.Fatalf("pallet shipment selected %s/%s, want the HAULING authority",
+			decision.SelectedClass, decision.SelectedService)
+	}
+}
+
+// A manufacturer is not condemned to a truck: a small shipment that genuinely
+// fits a smaller authority gets one, because the requirement decides.
+func TestManufacturerSmallShipmentUsesASmallerAuthority(t *testing.T) {
+	decision := decide(t, loadOf(3_000, 8_000, 250, 1))
+
+	if decision.SelectedService == ServiceHauling {
+		t.Fatal("a 3 kg shipment was sent to Haulage because of who made it")
+	}
+	if !decision.Selected() {
+		t.Fatalf("small manufacturer shipment refused: %s", decision.PrimaryReason)
+	}
+}
