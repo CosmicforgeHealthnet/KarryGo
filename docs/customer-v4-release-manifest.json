@@ -2,16 +2,16 @@
  "kind": "karryam-customer-v4-backend-release-manifest",
  "manifest_version": 1,
  "statement": "LOCAL RELEASE CANDIDATE. Not a production build ID, not a commit, not a deployed immutable build.",
- "local_head": "5b2050a896942ddb4d191a3a90cb4af49342bd02",
+ "local_head": "6dd75c8f17d09b3d0f54abf4d99f0be466579c50",
  "branch": "staging",
  "worktree": {
-  "dirty": true,
-  "modified": 216,
-  "untracked": 174
+  "dirty": false,
+  "modified": 0,
+  "untracked": 0
  },
  "LOCAL_RELEASE_CANDIDATE_DIGEST": {
-  "sha256": "533eb2167b8551958ce44c649078c3734954dd652513ed5f86c7296be10ee40e",
-  "files": 4625,
+  "sha256": "cb099bbaff5406245e15e5a9cfdce5c7af60721c1655f9c04c1ad7d348abb066",
+  "files": 4620,
   "roots": [
    "services/",
    "shared/go/",
@@ -635,7 +635,7 @@
    "driver-dispatch-delivery-service": {
     "constraints": 769,
     "detects_drift": true,
-    "dump_bytes": 520697,
+    "dump_bytes": 520721,
     "indexes": 379,
     "migration_ledgers": {},
     "passed": true,
@@ -645,7 +645,7 @@
     "restore_exit": 0,
     "rows": 72,
     "rows_digested": 112,
-    "schema_fingerprint": "db13669b2db8d135",
+    "schema_fingerprint": "f5f9f77748c5d158",
     "tables": 112,
     "triggers": 35,
     "verified": true
@@ -653,10 +653,10 @@
    "driver-hauling-service": {
     "constraints": 226,
     "detects_drift": true,
-    "dump_bytes": 166776,
+    "dump_bytes": 166796,
     "indexes": 125,
     "migration_ledgers": {
-     "public.hauling_schema_migrations": "(026_receiver_secure_channel.up.sql,\"2026-09-29 15:51:23.428902+00\")"
+     "public.hauling_schema_migrations": "(026_receiver_secure_channel.up.sql,\"2026-09-29 16:22:27.93942+00\")"
     },
     "passed": true,
     "refuses_occupied_target": true,
@@ -665,7 +665,7 @@
     "restore_exit": 0,
     "rows": 106,
     "rows_digested": 43,
-    "schema_fingerprint": "fe06b28b501e9153",
+    "schema_fingerprint": "e2c42f591e0c6e24",
     "tables": 43,
     "triggers": 9,
     "verified": true
@@ -673,10 +673,10 @@
    "driver-taxi-service": {
     "constraints": 296,
     "detects_drift": true,
-    "dump_bytes": 193792,
+    "dump_bytes": 193829,
     "indexes": 136,
     "migration_ledgers": {
-     "public.taxi_schema_migrations": "(021_customer_ride_notifications.up.sql,\"2026-09-29 15:51:04.951348+00\")"
+     "public.taxi_schema_migrations": "(021_customer_ride_notifications.up.sql,\"2026-09-29 16:22:16.117716+00\")"
     },
     "passed": true,
     "refuses_occupied_target": true,
@@ -685,7 +685,7 @@
     "restore_exit": 0,
     "rows": 22,
     "rows_digested": 52,
-    "schema_fingerprint": "3651af26b6d8bbce",
+    "schema_fingerprint": "dd0b6dc23a023738",
     "tables": 52,
     "triggers": 9,
     "verified": true
@@ -693,10 +693,10 @@
    "media-file-service": {
     "constraints": 44,
     "detects_drift": true,
-    "dump_bytes": 37290,
+    "dump_bytes": 37293,
     "indexes": 37,
     "migration_ledgers": {
-     "public.media_file_schema_migrations": "(000005_network_evidence_binding,\"2026-09-29 15:52:13.801016+00\")"
+     "public.media_file_schema_migrations": "(000005_network_evidence_binding,\"2026-09-29 16:23:02.656109+00\")"
     },
     "passed": true,
     "refuses_occupied_target": true,
@@ -713,10 +713,10 @@
    "payment-wallet-service": {
     "constraints": 381,
     "detects_drift": true,
-    "dump_bytes": 236686,
+    "dump_bytes": 236724,
     "indexes": 209,
     "migration_ledgers": {
-     "public.payment_wallet_schema_migrations": "(000018_customer_notification_outbox,\"2026-09-29 15:52:04.39123+00\")"
+     "public.payment_wallet_schema_migrations": "(000018_customer_notification_outbox,\"2026-09-29 16:22:55.56803+00\")"
     },
     "passed": true,
     "refuses_occupied_target": true,
@@ -725,7 +725,7 @@
     "restore_exit": 0,
     "rows": 107,
     "rows_digested": 56,
-    "schema_fingerprint": "a410420b65525283",
+    "schema_fingerprint": "dd70dfbb33f5c641",
     "tables": 56,
     "triggers": 10,
     "verified": true
@@ -733,10 +733,10 @@
    "vendor-service": {
     "constraints": 4053,
     "detects_drift": true,
-    "dump_bytes": 2091525,
+    "dump_bytes": 2091504,
     "indexes": 1481,
     "migration_ledgers": {
-     "public.vendor_service_schema_migrations": "(000129_receiver_secure_channel,\"2026-09-29 15:51:51.443294+00\")"
+     "public.vendor_service_schema_migrations": "(000129_receiver_secure_channel,\"2026-09-29 16:22:47.907021+00\")"
     },
     "passed": true,
     "refuses_occupied_target": true,
@@ -745,7 +745,7 @@
     "restore_exit": 0,
     "rows": 1036,
     "rows_digested": 407,
-    "schema_fingerprint": "56c822065581e86c",
+    "schema_fingerprint": "4e89e434154736b0",
     "tables": 407,
     "triggers": 75,
     "verified": true
@@ -759,7 +759,7 @@
     "package_failures": [],
     "packages_with_tests": 22,
     "passed": 83,
-    "seconds": 174.1,
+    "seconds": 123.7,
     "skipped": []
    },
    "dispatch": {
@@ -769,7 +769,7 @@
     "package_failures": [],
     "packages_with_tests": 6,
     "passed": 159,
-    "seconds": 496.3,
+    "seconds": 312.1,
     "skipped": []
    },
    "hauling": {
@@ -779,7 +779,7 @@
     "package_failures": [],
     "packages_with_tests": 8,
     "passed": 111,
-    "seconds": 61.4,
+    "seconds": 52.6,
     "skipped": []
    },
    "media": {
@@ -789,7 +789,7 @@
     "package_failures": [],
     "packages_with_tests": 9,
     "passed": 88,
-    "seconds": 90.7,
+    "seconds": 53.8,
     "skipped": []
    },
    "notification": {
@@ -799,7 +799,7 @@
     "package_failures": [],
     "packages_with_tests": 6,
     "passed": 19,
-    "seconds": 34.7,
+    "seconds": 21.2,
     "skipped": []
    },
    "shared-go": {
@@ -809,7 +809,7 @@
     "package_failures": [],
     "packages_with_tests": 38,
     "passed": 379,
-    "seconds": 253.2,
+    "seconds": 141.4,
     "skipped": []
    },
    "support": {
@@ -819,7 +819,7 @@
     "package_failures": [],
     "packages_with_tests": 4,
     "passed": 46,
-    "seconds": 24.2,
+    "seconds": 14.1,
     "skipped": []
    },
    "taxi": {
@@ -829,7 +829,7 @@
     "package_failures": [],
     "packages_with_tests": 13,
     "passed": 279,
-    "seconds": 65.3,
+    "seconds": 46.1,
     "skipped": []
    },
    "vendor-e2e": {
@@ -839,7 +839,7 @@
     "package_failures": [],
     "packages_with_tests": 1,
     "passed": 59,
-    "seconds": 48.7,
+    "seconds": 41.5,
     "skipped": []
    },
    "vendor-fulfilmentgroup": {
@@ -852,7 +852,7 @@
     "package_failures": [],
     "packages_with_tests": 1,
     "passed": 112,
-    "seconds": 8.9,
+    "seconds": 9.4,
     "skipped": []
    },
    "vendor-orders": {
@@ -862,7 +862,7 @@
     "package_failures": [],
     "packages_with_tests": 1,
     "passed": 99,
-    "seconds": 13.0,
+    "seconds": 12.7,
     "skipped": []
    },
    "vendor-packages": {
@@ -872,7 +872,7 @@
     "package_failures": [],
     "packages_with_tests": 6,
     "passed": 276,
-    "seconds": 30.7,
+    "seconds": 23.0,
     "skipped": []
    },
    "wallet": {
@@ -882,7 +882,7 @@
     "package_failures": [],
     "packages_with_tests": 7,
     "passed": 163,
-    "seconds": 139.3,
+    "seconds": 93.4,
     "skipped": []
    }
   },
@@ -891,49 +891,49 @@
     "files": 13,
     "repository_tip": "013_movement_commerce_order_authority.sql",
     "runner": "go test ./internal/database",
-    "seconds": 4.3
+    "seconds": 2.4
    },
    "driver-dispatch-delivery-service": {
     "files": 73,
     "repository_tip": "000067_outbox_guard_restore_safe.up.sql",
     "runner": "go run ./cmd/test-migrate",
-    "seconds": 7.1
+    "seconds": 7.7
    },
    "driver-hauling-service": {
     "files": 28,
     "repository_tip": "026_receiver_secure_channel.up.sql",
     "runner": "go test ./internal/database",
-    "seconds": 4.5
+    "seconds": 4.0
    },
    "driver-taxi-service": {
     "files": 21,
     "repository_tip": "021_customer_ride_notifications.up.sql",
     "runner": "go test ./internal/database",
-    "seconds": 3.9
+    "seconds": 3.8
    },
    "media-file-service": {
     "files": 5,
     "repository_tip": "000005_network_evidence_binding.up.sql",
     "runner": "go test ./internal/integration",
-    "seconds": 7.3
+    "seconds": 7.1
    },
    "payment-wallet-service": {
     "files": 18,
     "repository_tip": "000018_customer_notification_outbox.up.sql",
     "runner": "go test ./internal/integration",
-    "seconds": 9.4
+    "seconds": 6.9
    },
    "support-dispute-service": {
     "files": 8,
     "repository_tip": "008_network_case_context.sql",
     "runner": "go test ./internal/database",
-    "seconds": 2.1
+    "seconds": 1.9
    },
    "vendor-service": {
     "files": 129,
     "repository_tip": "000129_receiver_secure_channel.up.sql",
     "runner": "go test ./internal/database",
-    "seconds": 23.7
+    "seconds": 21.2
    }
   },
   "monitoring": {
