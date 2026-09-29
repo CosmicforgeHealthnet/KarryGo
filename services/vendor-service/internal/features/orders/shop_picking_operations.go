@@ -143,6 +143,20 @@ func (s *Service) RecordActualQuantity(ctx context.Context, actor Actor, vendorO
 	if err != nil {
 		return VariableMeasurement{}, err
 	}
+	var pricingBasis string
+	if m.State == FinancialFinalized || m.State == FinancialPending {
+		return VariableMeasurement{}, ErrOrderConflict
+	}
+	var expectedMeasure int64
+	if err = tx.QueryRow(ctx, `SELECT pricing_basis,expected_measure_quantity FROM commerce_vendor_order_lines WHERE id=$1 AND vendor_order_id=$2`, lineID, vendorOrderID).Scan(&pricingBasis, &expectedMeasure); err != nil {
+		return VariableMeasurement{}, err
+	}
+	if pricingBasis == "VARIABLE_MEASURE" {
+		if expectedMeasure <= 0 {
+			return VariableMeasurement{}, ErrQuoteNotOrderable
+		}
+		m.PricingDenominator = expectedMeasure
+	}
 	m, err = m.RecordActual(actual)
 	if err != nil {
 		return VariableMeasurement{}, ErrOrderConflict

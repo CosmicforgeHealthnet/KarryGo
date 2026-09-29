@@ -1,0 +1,28 @@
+{"Time":"2026-09-27T16:55:00.7673886+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/events"}
+{"Time":"2026-09-27T16:55:00.9442225+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresEmissionIsIdempotentAndMonotonic"}
+{"Time":"2026-09-27T16:55:00.9442225+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresEmissionIsIdempotentAndMonotonic","Output":"=== RUN   TestPostgresEmissionIsIdempotentAndMonotonic\n"}
+{"Time":"2026-09-27T16:55:01.0342592+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresEmissionIsIdempotentAndMonotonic","Output":"--- PASS: TestPostgresEmissionIsIdempotentAndMonotonic (0.09s)\n"}
+{"Time":"2026-09-27T16:55:01.0342592+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresEmissionIsIdempotentAndMonotonic","Elapsed":0.09}
+{"Time":"2026-09-27T16:55:01.0342592+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresPublisherDeliversSignedAndRetries"}
+{"Time":"2026-09-27T16:55:01.0342592+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresPublisherDeliversSignedAndRetries","Output":"=== RUN   TestPostgresPublisherDeliversSignedAndRetries\n"}
+{"Time":"2026-09-27T16:55:01.0762182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresPublisherDeliversSignedAndRetries","Output":"--- PASS: TestPostgresPublisherDeliversSignedAndRetries (0.04s)\n"}
+{"Time":"2026-09-27T16:55:01.0762182+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresPublisherDeliversSignedAndRetries","Elapsed":0.04}
+{"Time":"2026-09-27T16:55:01.0762182+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/events","Test":"TestMovementEnvelopeValidation"}
+{"Time":"2026-09-27T16:55:01.0762182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestMovementEnvelopeValidation","Output":"=== RUN   TestMovementEnvelopeValidation\n"}
+{"Time":"2026-09-27T16:55:01.0762182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestMovementEnvelopeValidation","Output":"--- PASS: TestMovementEnvelopeValidation (0.00s)\n"}
+{"Time":"2026-09-27T16:55:01.0762182+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/events","Test":"TestMovementEnvelopeValidation","Elapsed":0}
+{"Time":"2026-09-27T16:55:01.0767375+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/events","Test":"TestHTTPDelivererSignsAndPosts"}
+{"Time":"2026-09-27T16:55:01.0767375+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestHTTPDelivererSignsAndPosts","Output":"=== RUN   TestHTTPDelivererSignsAndPosts\n"}
+{"Time":"2026-09-27T16:55:01.0784442+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestHTTPDelivererSignsAndPosts","Output":"--- PASS: TestHTTPDelivererSignsAndPosts (0.00s)\n"}
+{"Time":"2026-09-27T16:55:01.0784442+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/events","Test":"TestHTTPDelivererSignsAndPosts","Elapsed":0}
+{"Time":"2026-09-27T16:55:01.0784442+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/events","Test":"TestServiceMigrationsEmbedCanonicalMovementOutboxSchema"}
+{"Time":"2026-09-27T16:55:01.0784442+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestServiceMigrationsEmbedCanonicalMovementOutboxSchema","Output":"=== RUN   TestServiceMigrationsEmbedCanonicalMovementOutboxSchema\n"}
+{"Time":"2026-09-27T16:55:01.0811137+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestServiceMigrationsEmbedCanonicalMovementOutboxSchema","Output":"--- PASS: TestServiceMigrationsEmbedCanonicalMovementOutboxSchema (0.00s)\n"}
+{"Time":"2026-09-27T16:55:01.0811137+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/events","Test":"TestServiceMigrationsEmbedCanonicalMovementOutboxSchema","Elapsed":0}
+{"Time":"2026-09-27T16:55:01.0811137+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresReconciliationRequeuesMissingVersions"}
+{"Time":"2026-09-27T16:55:01.0811137+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresReconciliationRequeuesMissingVersions","Output":"=== RUN   TestPostgresReconciliationRequeuesMissingVersions\n"}
+{"Time":"2026-09-27T16:55:01.1269656+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresReconciliationRequeuesMissingVersions","Output":"--- PASS: TestPostgresReconciliationRequeuesMissingVersions (0.05s)\n"}
+{"Time":"2026-09-27T16:55:01.1269656+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/events","Test":"TestPostgresReconciliationRequeuesMissingVersions","Elapsed":0.05}
+{"Time":"2026-09-27T16:55:01.1269656+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:01.1315607+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/events","Output":"ok  \tcosmicforge/logistics/shared/go/events\t0.364s\n"}
+{"Time":"2026-09-27T16:55:01.1315607+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/events","Elapsed":0.364}

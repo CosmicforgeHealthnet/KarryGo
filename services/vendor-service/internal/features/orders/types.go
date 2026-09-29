@@ -229,16 +229,18 @@ type AddressSnapshot struct {
 	SnapshottedAt    time.Time `json:"snapshotted_at"`
 }
 
-// ReceiverSnapshot is delivery contact evidence only. It never becomes a
-// customer account, exactly as Section 17A states.
+// ReceiverSnapshot preserves delivery contact evidence. An optional account
+// binding is separate from the contact and is used only for secure handover
+// reads; a phone number alone never implies an account identity.
 //
 // Section 17D does not fingerprint the receiver, so the order store reads it
 // from the cart under the cart version the quote already binds. A receiver
 // change bumps that version, so a changed receiver can never be silently
 // snapshotted onto an order the customer approved before the change.
 type ReceiverSnapshot struct {
-	ReceiverName  string `json:"receiver_name,omitempty"`
-	ReceiverPhone string `json:"receiver_phone,omitempty"`
+	ReceiverName       string `json:"receiver_name,omitempty"`
+	ReceiverPhone      string `json:"receiver_phone,omitempty"`
+	ReceiverCustomerID string `json:"receiver_customer_id,omitempty"`
 }
 
 // GroupSource is one vendor/branch allocation of the approved quote.

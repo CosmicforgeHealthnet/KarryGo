@@ -23,8 +23,10 @@ const defaultProvisionalRatesJSON = `{
 }`
 
 type Config struct {
-	AppEnv   string
-	HTTPAddr string
+	CustomerLiveLocationEnabled bool
+	CustomerLocationFreshFor    time.Duration
+	AppEnv                      string
+	HTTPAddr                    string
 
 	Migration bool
 
@@ -226,8 +228,10 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8102"),
+		CustomerLiveLocationEnabled: getEnvBool("TAXI_CUSTOMER_LIVE_LOCATION_ENABLED", false),
+		CustomerLocationFreshFor:    time.Duration(getEnvInt("TAXI_CUSTOMER_LOCATION_FRESH_SECONDS", 30)) * time.Second,
+		AppEnv:                      getEnv("APP_ENV", "development"),
+		HTTPAddr:                    getEnv("HTTP_ADDR", ":8102"),
 
 		Migration: getEnvBool("TAXI_MIGRATION", false),
 
@@ -419,6 +423,9 @@ func (c Config) Validate() error {
 	}
 	if c.CustomerContextEnabled && !c.ServiceProductsEnabled {
 		problems = append(problems, "TAXI_CUSTOMER_CONTEXT_ENABLED requires TAXI_SERVICE_PRODUCTS_ENABLED (saved needs are frozen into the product snapshot)")
+	}
+	if c.CustomerLiveLocationEnabled && len(serviceSecretsFor(c.ServiceSecrets)["customer-service"]) == 0 {
+		problems = append(problems, "TAXI_CUSTOMER_LIVE_LOCATION_ENABLED requires customer-service in TAXI_SERVICE_SECRETS")
 	}
 	if c.CustomerMovementEventsEnabled || c.CustomerContextEnabled {
 		if strings.TrimSpace(c.CustomerServiceURL) == "" || len(c.CustomerServiceSecret) == 0 {

@@ -35,6 +35,9 @@ func (s *Service) Bind(ctx context.Context, b MissionBinding) (Observation, erro
 	if !s.Enabled() {
 		return Observation{}, ErrDisabled
 	}
+	if strings.TrimSpace(b.ReceiverRef) == "" {
+		return Observation{}, ErrReceiverSecureChannelRequired
+	}
 	if s.limiter != nil {
 		if err := s.limiter.Allow(ctx, "vendor-owned:bind:"+b.BusinessID, 30, time.Minute); err != nil {
 			return Observation{}, err
@@ -57,6 +60,31 @@ func (s *Service) Read(ctx context.Context, mission string, stage Stage) (Observ
 		return Observation{}, ErrDisabled
 	}
 	return s.repo.Read(ctx, mission, stage)
+}
+
+type CredentialView struct {
+	ChallengeRef string    `json:"challenge_ref"`
+	Version      int64     `json:"version"`
+	OTP          string    `json:"otp"`
+	QRToken      string    `json:"qr_token"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
+func (s *Service) ReadCredential(ctx context.Context, mission, ref string, stage Stage, holder string) (CredentialView, error) {
+	if !s.Enabled() {
+		return CredentialView{}, ErrDisabled
+	}
+	if s.limiter == nil {
+		return CredentialView{}, ErrDisabled
+	}
+	if err := s.limiter.Allow(ctx, "vendor-owned:credential-read:"+mission+":"+holder, 12, time.Minute); err != nil {
+		return CredentialView{}, ErrRateLimited
+	}
+	record, err := s.repo.ReadCredential(ctx, mission, ref, stage, holder)
+	if err != nil {
+		return CredentialView{}, err
+	}
+	return CredentialView{ChallengeRef: record.ChallengeRef, Version: record.Version, OTP: record.Code, QRToken: record.QRToken, ExpiresAt: record.ExpiresAt}, nil
 }
 func (s *Service) Confirm(ctx context.Context, c ConfirmCommand, caller, correlation string) (Observation, error) {
 	if !s.Enabled() {
@@ -168,13 +196,9 @@ func (s *Service) deliver(ctx context.Context, i secretIssue, resend bool) error
 	recipient := notifications.Recipient{Type: notifications.RecipientStaff, ID: i.RecipientRef}
 	channels := []string{notifications.ChannelInApp}
 	if i.Stage == Delivery {
-		recipient.Type = "receiver"
-		recipient.Phone = strings.TrimSpace(i.RecipientPhone)
-		channels = []string{notifications.ChannelInApp}
-		if recipient.Phone != "" {
-			channels = append(channels, notifications.ChannelPush)
-		}
+		recipient.Type = notifications.RecipientCustomer
+		channels = []string{notifications.ChannelInApp, notifications.ChannelPush}
 	}
-	_, err := s.notifier.Send(ctx, notifications.Request{IDempotencyKey: notifications.IdempotencyKey("driver-dispatch-delivery-service", event, i.HandoverRef), SourceService: "driver-dispatch-delivery-service", SourceAggregateType: "vendor_handover_challenge", SourceAggregateID: i.HandoverRef, SourceVersion: i.SourceVersion, EventType: event, Recipient: recipient, Channels: channels, TemplateKey: "booking.delivery_code_ready", TemplateData: map[string]any{"code": i.OTP, "qr_token": i.QR, "expires_at": i.ExpiresAt, "stage": i.Stage}, Priority: notifications.PriorityHigh})
+	_, err := s.notifier.Send(ctx, notifications.Request{IDempotencyKey: notifications.IdempotencyKey("driver-dispatch-delivery-service", event, i.HandoverRef), SourceService: "driver-dispatch-delivery-service", SourceAggregateType: "vendor_handover_challenge", SourceAggregateID: i.HandoverRef, SourceVersion: i.SourceVersion, EventType: event, Recipient: recipient, Channels: channels, TemplateKey: "booking.delivery_code_ready", Data: map[string]any{"mission_ref": i.MissionRef, "challenge_ref": i.HandoverRef}, TemplateData: map[string]any{"challenge_ref": i.HandoverRef, "expires_at": i.ExpiresAt, "stage": i.Stage}, Priority: notifications.PriorityHigh})
 	return err
 }

@@ -20,3 +20,17 @@ func TestSafeFieldsRedactsNestedSecretsAndOpaqueObjects(t *testing.T) {
 		t.Fatal("safe correlation lost")
 	}
 }
+
+// Customer V4 §25.11: settlement account values are redacted even when the
+// key does not say "bank"; ordinary account ids are not over-redacted.
+func TestSafeFieldsRedactsAccountNumbersButNotAccountIDs(t *testing.T) {
+	out := SafeFields(map[string]any{"account_number": "0123456789", "recipient_nuban": "0123456789", "bvn": "22222222222", "account_id": "acct-1"})
+	for _, key := range []string{"account_number", "recipient_nuban", "bvn"} {
+		if out[key] != "[REDACTED]" {
+			t.Errorf("%s not redacted: %v", key, out[key])
+		}
+	}
+	if out["account_id"] != "acct-1" {
+		t.Errorf("account_id over-redacted: %v", out["account_id"])
+	}
+}

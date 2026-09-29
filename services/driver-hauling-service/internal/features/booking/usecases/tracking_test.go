@@ -2,6 +2,7 @@ package bookingusecases
 
 import (
 	"context"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"errors"
 	"sync"
 	"testing"
@@ -363,6 +364,56 @@ func TestResolveTrackTarget(t *testing.T) {
 	if _, err := svc.ResolveTrackTarget(context.Background(), unassigned.ID, "c1"); err == nil {
 		t.Fatal("a booking with no assigned driver resolved a track target")
 	}
+}
+
+// Customer tracking: only the booking-bound point of an ACTIVE booking. The
+// driver's global heartbeat is never a fallback and a finished booking stops
+// exposing the driver.
+func TestBookingLocationIsBookingBoundAndTerminalSuppressed(t *testing.T) {
+	store := newFakeStore()
+	repo := newTrackingRepo()
+	svc := trackingTestService(t, store, repo, nil)
+	providerID := "p1"
+	booking := repo.put(bookingmodels.Booking{ID: "b1", CustomerID: "c1", ProviderID: &providerID, Status: bookingmodels.StatusPickedUp})
+
+	// No reader wired: report no fix even though the store may know the driver.
+	if got, err := svc.GetBookingLocation(context.Background(), booking.ID, "c1"); err != nil || got.Available {
+		t.Fatalf("unwired: %+v %v", got, err)
+	}
+	lat, lng, at := 6.5, 3.3, time.Now().UTC()
+	reader := &fakeBookingLocation{projection: journeyshare.Projection{Location: journeyshare.Location{Available: true, State: "STALE", Lat: &lat, Lng: &lng, UpdatedAt: &at}}}
+	svc.WithBookingLocation(reader)
+	got, err := svc.GetBookingLocation(context.Background(), booking.ID, "c1")
+	if err != nil || !got.Available || got.Lat != 6.5 || got.State != "STALE" || got.UpdatedAt != at.Unix() || reader.customer != "c1" {
+		t.Fatalf("bound point: %+v %v", got, err)
+	}
+	if _, err = svc.GetBookingLocation(context.Background(), booking.ID, "someone-else"); err == nil {
+		t.Fatal("non-owner read the driver's location")
+	}
+	for _, status := range []string{bookingmodels.StatusDelivered, bookingmodels.StatusCompleted, bookingmodels.StatusCancelled} {
+		repo.put(bookingmodels.Booking{ID: "b1", CustomerID: "c1", ProviderID: &providerID, Status: status})
+		if got, _ = svc.GetBookingLocation(context.Background(), booking.ID, "c1"); got.Available {
+			t.Fatalf("%s booking still exposes the driver", status)
+		}
+		if _, err = svc.ResolveTrackTarget(context.Background(), booking.ID, "c1"); err == nil {
+			t.Fatalf("%s booking still streams the driver", status)
+		}
+	}
+	repo.put(bookingmodels.Booking{ID: "b1", CustomerID: "c1", ProviderID: &providerID, Status: bookingmodels.StatusEnRouteDelivery})
+	reader.projection.Location = journeyshare.Location{State: "UNAVAILABLE"}
+	if got, _ = svc.GetBookingLocation(context.Background(), booking.ID, "c1"); got.Available {
+		t.Fatal("unbound point exposed")
+	}
+}
+
+type fakeBookingLocation struct {
+	projection journeyshare.Projection
+	customer   string
+}
+
+func (f *fakeBookingLocation) Read(_ context.Context, _, customer string) (journeyshare.Projection, error) {
+	f.customer = customer
+	return f.projection, nil
 }
 
 // bookingFor stores a booking and returns it, mirroring how the other matcher

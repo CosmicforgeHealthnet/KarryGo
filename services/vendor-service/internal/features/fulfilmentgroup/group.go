@@ -39,8 +39,9 @@ var (
 	// historical manifest may no longer be rewritten.
 	ErrCustodySealed = errors.New("fulfilmentgroup: parcel manifest is sealed by custody")
 
-	ErrDependencyMissing   = errors.New("fulfilmentgroup: required dependency is not connected")
-	ErrHandoverUnavailable = errors.New("fulfilmentgroup: vendor handover authority is unavailable")
+	ErrDependencyMissing             = errors.New("fulfilmentgroup: required dependency is not connected")
+	ErrHandoverUnavailable           = errors.New("fulfilmentgroup: vendor handover authority is unavailable")
+	ErrReceiverSecureChannelRequired = errors.New("fulfilmentgroup: receiver secure channel is required")
 
 	ErrDisabled = errors.New("fulfilmentgroup: commerce fulfilment is not enabled")
 )

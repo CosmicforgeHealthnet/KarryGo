@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:46:09.0119241+02:00","Action":"start","Package":"cosmicforge/logistics/services/vendor-service/internal/promotioncontract"}
+{"Time":"2026-09-27T16:46:09.1796569+02:00","Action":"run","Package":"cosmicforge/logistics/services/vendor-service/internal/promotioncontract","Test":"TestPromotionRoutesEqualOpenAPI"}
+{"Time":"2026-09-27T16:46:09.1817664+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/promotioncontract","Test":"TestPromotionRoutesEqualOpenAPI","Output":"=== RUN   TestPromotionRoutesEqualOpenAPI\n"}
+{"Time":"2026-09-27T16:46:09.1817664+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/promotioncontract","Test":"TestPromotionRoutesEqualOpenAPI","Output":"--- PASS: TestPromotionRoutesEqualOpenAPI (0.00s)\n"}
+{"Time":"2026-09-27T16:46:09.1817664+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal/promotioncontract","Test":"TestPromotionRoutesEqualOpenAPI","Elapsed":0}
+{"Time":"2026-09-27T16:46:09.1817664+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/promotioncontract","Output":"PASS\n"}
+{"Time":"2026-09-27T16:46:09.1840099+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/promotioncontract","Output":"ok  \tcosmicforge/logistics/services/vendor-service/internal/promotioncontract\t0.171s\n"}
+{"Time":"2026-09-27T16:46:09.1845131+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal/promotioncontract","Elapsed":0.173}

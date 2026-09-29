@@ -114,3 +114,10 @@ func TestBadCredentialNeverAdvances(t *testing.T) {
 		t.Fatal("invalid credential advanced custody")
 	}
 }
+
+func TestVendorOwnedPhoneOnlyBindingFailsClosed(t *testing.T) {
+	_, err := (&VendorOwned{Enabled: true}).Bind(context.Background(), Binding{Authority: "VENDOR_OWN_DELIVERY", MissionRef: "mission", FulfilmentRef: "fulfilment", BusinessID: "business", BranchID: "branch", ProviderRef: "staff", ReceiverPhone: "+390001234567", ManifestRef: "manifest", ManifestVersion: 1}, "operation", "correlation")
+	if !errors.Is(err, ErrReceiverSecureChannelRequired) {
+		t.Fatalf("phone-only Vendor Own binding returned %v", err)
+	}
+}

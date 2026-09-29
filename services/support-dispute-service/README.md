@@ -172,3 +172,15 @@ go build ./... && go vet ./... && go test ./...
 
 Usecase tests cover ownership denial (IDOR), enum validation, the `wallet`
 service type, SOS emergency priority, and unread counts.
+
+## V4 Section 17 evidence closure (local)
+
+Support remains the case and resolution authority. Ride, Send, Truck and
+order-scoped Food/Shop paths derive owner/source context server-side and reject
+cross-customer or unrelated child references. Evidence now accepts MediaRef,
+not arbitrary URLs: Support obtains a signed Media verdict for the exact owner,
+purpose and case/order binding before attachment. If Media is unavailable or
+the verdict is unusable, evidence attachment fails closed. Deterministic
+Commerce refunds continue through Wallet/domain policy independently of a
+case. Targeted HTTP, PostgreSQL, IDOR, Media-verdict and commerce-case race
+tests pass locally; staging service HMAC configuration remains to certify.

@@ -65,3 +65,29 @@ Then apply the migration:
 psql "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5438/notification_service?sslmode=disable" \
   -f services/notification-service/migrations/001_notifications.sql
 ```
+
+## V4 Section 16 customer hints (local status)
+
+The existing signed service request, durable feed, push/email/websocket
+delivery and retry machinery remain the notification authority. Navigation
+intents are derived from controlled event families and opaque references; a
+customer must read current Ride, Send, Truck, Commerce, Share or Wallet state
+from the owning service after opening a hint. Production migrations `005`–`008`
+seed Ride, Share and financial templates without interpolating business data.
+Taxi Ride milestones, Customer Share create/revoke/expire and Wallet status
+changes now have committed notification intents with stable retry identity.
+Template rendering and email delivery no longer log message bodies, recipient
+addresses or rendered credentials.
+The shared request validator rejects credential and bank-secret keys, including
+nested data, for ordinary events and custody hints. Only the separate corporate
+login OTP event retains its explicit legacy exception. Migration `008` replaces
+handover template copy that previously interpolated a code.
+
+**Section 16 remains PARTIAL locally.** Dispatch, Hauling, Taxi Goods and Vendor
+Own Delivery custody hints now carry references without OTP/QR secrets. Full
+receiver-channel binding and the verified email-only secure-read contract are
+still required before the affected handover lifecycle can be certified. A
+phone-only receiver without an authenticated account or other supported secure
+channel must fail closed rather than receiving a fictitious credential notice.
+Deployment of signed Notification callers and consumer navigation is still
+subject to staging certification.

@@ -219,6 +219,15 @@ func (r Request) Validate() error {
 		field   string
 		payload map[string]interface{}
 	}{{"data", r.Data}, {"template_data", r.TemplateData}} {
+		if !legacyCredentialDeliveryEvent(r.EventType) {
+			leaked := unsafeCredentialKeys(bag.payload)
+			if custodyNotificationEvent(r.EventType) {
+				leaked = append(leaked, unsafeCustodyKeys(bag.payload)...)
+			}
+			if len(leaked) > 0 {
+				fields = append(fields, apperrors.FieldViolation{Field: bag.field, Message: "Notification payload cannot carry credentials: " + strings.Join(leaked, ", ")})
+			}
+		}
 		if leaked := providercompat.ConcealedFinancialFields(bag.payload); len(leaked) > 0 && isProviderRecipient(r.Recipient.Type) {
 			fields = append(fields, apperrors.FieldViolation{
 				Field:   bag.field,
@@ -247,6 +256,80 @@ func (r Request) Validate() error {
 		return apperrors.Validation("Check your notification request.", fields)
 	}
 	return nil
+}
+
+func custodyNotificationEvent(event string) bool {
+	return event == "booking.delivery_code_ready" || event == "package.delivery_code_ready" ||
+		event == "taxi.goods.pickup_credential_ready" || event == "dispatch.delivery_handover_challenge" ||
+		event == "dispatch.handover_resend" || strings.HasPrefix(event, "dispatch.vendor_delivery.handover_")
+}
+
+func unsafeCustodyKeys(payload map[string]interface{}) []string {
+	var leaked []string
+	var walk func(any, string, int)
+	walk = func(value any, prefix string, depth int) {
+		if depth > 8 {
+			leaked = append(leaked, prefix)
+			return
+		}
+		switch values := value.(type) {
+		case map[string]interface{}:
+			for key, nested := range values {
+				path := prefix + key
+				switch strings.ToLower(strings.ReplaceAll(key, "-", "_")) {
+				case "code", "qr", "credential", "delivery_code", "pickup_code":
+					leaked = append(leaked, path)
+				}
+				walk(nested, path+".", depth+1)
+			}
+		case []interface{}:
+			for _, nested := range values {
+				walk(nested, prefix, depth+1)
+			}
+		}
+	}
+	walk(payload, "", 0)
+	return leaked
+}
+
+// The legacy custody and login templates still need their own verified-read
+// migration. All other producers fail closed if they attempt to add a secret.
+func legacyCredentialDeliveryEvent(event string) bool {
+	switch event {
+	case "corporate.auth.otp":
+		return true
+	}
+	return false
+}
+
+func unsafeCredentialKeys(payload map[string]interface{}) []string {
+	var leaked []string
+	var walk func(map[string]interface{}, string, int)
+	walk = func(values map[string]interface{}, prefix string, depth int) {
+		if depth > 8 {
+			leaked = append(leaked, prefix)
+			return
+		}
+		for key, value := range values {
+			path := prefix + key
+			switch strings.ToLower(strings.ReplaceAll(key, "-", "_")) {
+			case "otp", "qr_token", "qrtoken", "share_token", "bearer_token", "hmac_secret", "service_token", "account_number", "bank_account", "access_code", "cvv", "pan":
+				leaked = append(leaked, path)
+			}
+			switch nested := value.(type) {
+			case map[string]interface{}:
+				walk(nested, path+".", depth+1)
+			case []interface{}:
+				for _, item := range nested {
+					if object, ok := item.(map[string]interface{}); ok {
+						walk(object, path+"[].", depth+1)
+					}
+				}
+			}
+		}
+	}
+	walk(payload, "", 0)
+	return leaked
 }
 
 // unsafeNetworkKeys lists the keys the network minimization would drop.

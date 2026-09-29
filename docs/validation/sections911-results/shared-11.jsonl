@@ -1,0 +1,80 @@
+{"Time":"2026-09-27T16:54:48.309889+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/custodychain"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestNoPurposeLetsOnePartyApproveItself"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestNoPurposeLetsOnePartyApproveItself","Output":"=== RUN   TestNoPurposeLetsOnePartyApproveItself\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestNoPurposeLetsOnePartyApproveItself","Output":"--- PASS: TestNoPurposeLetsOnePartyApproveItself (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestNoPurposeLetsOnePartyApproveItself","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCommerceAndDirectPickupPointOppositeWays"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCommerceAndDirectPickupPointOppositeWays","Output":"=== RUN   TestCommerceAndDirectPickupPointOppositeWays\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCommerceAndDirectPickupPointOppositeWays","Output":"--- PASS: TestCommerceAndDirectPickupPointOppositeWays (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCommerceAndDirectPickupPointOppositeWays","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestDeliveryCredentialIsReceiverHeld"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestDeliveryCredentialIsReceiverHeld","Output":"=== RUN   TestDeliveryCredentialIsReceiverHeld\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestDeliveryCredentialIsReceiverHeld","Output":"--- PASS: TestDeliveryCredentialIsReceiverHeld (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestDeliveryCredentialIsReceiverHeld","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestVerifierIsExclusivePerPurpose"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestVerifierIsExclusivePerPurpose","Output":"=== RUN   TestVerifierIsExclusivePerPurpose\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestVerifierIsExclusivePerPurpose","Output":"--- PASS: TestVerifierIsExclusivePerPurpose (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestVerifierIsExclusivePerPurpose","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestEveryPurposeConsumesItsCredential"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestEveryPurposeConsumesItsCredential","Output":"=== RUN   TestEveryPurposeConsumesItsCredential\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestEveryPurposeConsumesItsCredential","Output":"--- PASS: TestEveryPurposeConsumesItsCredential (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestEveryPurposeConsumesItsCredential","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestUnknownPurposeIsRefusedRatherThanZeroValued"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestUnknownPurposeIsRefusedRatherThanZeroValued","Output":"=== RUN   TestUnknownPurposeIsRefusedRatherThanZeroValued\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestUnknownPurposeIsRefusedRatherThanZeroValued","Output":"--- PASS: TestUnknownPurposeIsRefusedRatherThanZeroValued (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestUnknownPurposeIsRefusedRatherThanZeroValued","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestPurposeForSeparatesCommerceFromDirect"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestPurposeForSeparatesCommerceFromDirect","Output":"=== RUN   TestPurposeForSeparatesCommerceFromDirect\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestPurposeForSeparatesCommerceFromDirect","Output":"--- PASS: TestPurposeForSeparatesCommerceFromDirect (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestPurposeForSeparatesCommerceFromDirect","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestThreePickupDirectionsStayDistinct"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestThreePickupDirectionsStayDistinct","Output":"=== RUN   TestThreePickupDirectionsStayDistinct\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestThreePickupDirectionsStayDistinct","Output":"--- PASS: TestThreePickupDirectionsStayDistinct (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestThreePickupDirectionsStayDistinct","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestHappyPathIsSenderThenProviderThenReceiver"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestHappyPathIsSenderThenProviderThenReceiver","Output":"=== RUN   TestHappyPathIsSenderThenProviderThenReceiver\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestHappyPathIsSenderThenProviderThenReceiver","Output":"--- PASS: TestHappyPathIsSenderThenProviderThenReceiver (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestHappyPathIsSenderThenProviderThenReceiver","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCustodyCannotSkipTheProvider"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCustodyCannotSkipTheProvider","Output":"=== RUN   TestCustodyCannotSkipTheProvider\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCustodyCannotSkipTheProvider","Output":"--- PASS: TestCustodyCannotSkipTheProvider (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCustodyCannotSkipTheProvider","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCustodyCannotReverseOutOfTheReceiver"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCustodyCannotReverseOutOfTheReceiver","Output":"=== RUN   TestCustodyCannotReverseOutOfTheReceiver\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCustodyCannotReverseOutOfTheReceiver","Output":"--- PASS: TestCustodyCannotReverseOutOfTheReceiver (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestCustodyCannotReverseOutOfTheReceiver","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestProviderToProviderNeedsAnExplicitTransfer"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestProviderToProviderNeedsAnExplicitTransfer","Output":"=== RUN   TestProviderToProviderNeedsAnExplicitTransfer\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestProviderToProviderNeedsAnExplicitTransfer","Output":"--- PASS: TestProviderToProviderNeedsAnExplicitTransfer (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestProviderToProviderNeedsAnExplicitTransfer","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestTransitionMustAgreeWithTheRecordedHolder"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestTransitionMustAgreeWithTheRecordedHolder","Output":"=== RUN   TestTransitionMustAgreeWithTheRecordedHolder\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestTransitionMustAgreeWithTheRecordedHolder","Output":"--- PASS: TestTransitionMustAgreeWithTheRecordedHolder (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestTransitionMustAgreeWithTheRecordedHolder","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestUnknownPartyOrOperationIsRefused"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestUnknownPartyOrOperationIsRefused","Output":"=== RUN   TestUnknownPartyOrOperationIsRefused\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestUnknownPartyOrOperationIsRefused","Output":"--- PASS: TestUnknownPartyOrOperationIsRefused (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestUnknownPartyOrOperationIsRefused","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestReturnEndsBackWithTheSender"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestReturnEndsBackWithTheSender","Output":"=== RUN   TestReturnEndsBackWithTheSender\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestReturnEndsBackWithTheSender","Output":"--- PASS: TestReturnEndsBackWithTheSender (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestReturnEndsBackWithTheSender","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestOnlyPreparationSkipsTheCredentialRequirement"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestOnlyPreparationSkipsTheCredentialRequirement","Output":"=== RUN   TestOnlyPreparationSkipsTheCredentialRequirement\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestOnlyPreparationSkipsTheCredentialRequirement","Output":"--- PASS: TestOnlyPreparationSkipsTheCredentialRequirement (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestOnlyPreparationSkipsTheCredentialRequirement","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestParseParty"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestParseParty","Output":"=== RUN   TestParseParty\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestParseParty","Output":"--- PASS: TestParseParty (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestParseParty","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestVendorOwnedDeliveryMayGoStraightToTheReceiver"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestVendorOwnedDeliveryMayGoStraightToTheReceiver","Output":"=== RUN   TestVendorOwnedDeliveryMayGoStraightToTheReceiver\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestVendorOwnedDeliveryMayGoStraightToTheReceiver","Output":"--- PASS: TestVendorOwnedDeliveryMayGoStraightToTheReceiver (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestVendorOwnedDeliveryMayGoStraightToTheReceiver","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestFailedAttemptLeavesCustodyWhereItIs"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestFailedAttemptLeavesCustodyWhereItIs","Output":"=== RUN   TestFailedAttemptLeavesCustodyWhereItIs\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestFailedAttemptLeavesCustodyWhereItIs","Output":"--- PASS: TestFailedAttemptLeavesCustodyWhereItIs (0.00s)\n"}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Test":"TestFailedAttemptLeavesCustodyWhereItIs","Elapsed":0}
+{"Time":"2026-09-27T16:54:48.4341242+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:48.4362832+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/custodychain","Output":"ok  \tcosmicforge/logistics/shared/go/custodychain\t0.126s\n"}
+{"Time":"2026-09-27T16:54:48.4362832+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/custodychain","Elapsed":0.126}

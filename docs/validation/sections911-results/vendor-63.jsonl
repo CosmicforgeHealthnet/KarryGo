@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:45:14.7837963+02:00","Action":"start","Package":"cosmicforge/logistics/services/vendor-service/internal/integrations/verification"}
+{"Time":"2026-09-27T16:45:14.7837963+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/integrations/verification","Output":"?   \tcosmicforge/logistics/services/vendor-service/internal/integrations/verification\t[no test files]\n"}
+{"Time":"2026-09-27T16:45:14.7837963+02:00","Action":"skip","Package":"cosmicforge/logistics/services/vendor-service/internal/integrations/verification","Elapsed":0}

@@ -357,6 +357,9 @@ type PublicRequirements struct {
 	ChildSeatRequired  bool            `json:"child_seat_required"`
 	PetTravel          bool            `json:"pet_travel"`
 	Preferences        json.RawMessage `json:"preferences,omitempty"`
+	// Traveller is the frozen guest the ride was booked for; absent when the
+	// booking customer is travelling.
+	Traveller json.RawMessage `json:"traveller,omitempty"`
 }
 
 func (b Booking) Public() PublicBooking {

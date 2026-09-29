@@ -208,20 +208,21 @@ type QuoteBinding struct {
 }
 
 type MissionCreateRequest struct {
-	OperationRef     string             `json:"operation_ref"`
-	ParentOrderRef   string             `json:"parent_order_ref"`
-	CustomerRef      string             `json:"customer_ref"`
-	Plan             PlanBinding        `json:"plan"`
-	Quote            QuoteBinding       `json:"quote"`
-	Mode             Mode               `json:"mode"`
-	ServiceClass     string             `json:"service_class"`
-	PickupStops      []PickupStop       `json:"pickup_stops"`
-	Receiver         Point              `json:"receiver"`
-	Parcels          []Parcel           `json:"parcels"`
-	Vehicle          VehicleRequirement `json:"vehicle_requirement"`
-	PromisedBy       time.Time          `json:"promised_by"`
-	FundingReference string             `json:"funding_reference"`
-	CorrelationID    string             `json:"correlation_id,omitempty"`
+	OperationRef        string             `json:"operation_ref"`
+	ParentOrderRef      string             `json:"parent_order_ref"`
+	CustomerRef         string             `json:"customer_ref"`
+	ReceiverCustomerRef string             `json:"receiver_customer_ref,omitempty"`
+	Plan                PlanBinding        `json:"plan"`
+	Quote               QuoteBinding       `json:"quote"`
+	Mode                Mode               `json:"mode"`
+	ServiceClass        string             `json:"service_class"`
+	PickupStops         []PickupStop       `json:"pickup_stops"`
+	Receiver            Point              `json:"receiver"`
+	Parcels             []Parcel           `json:"parcels"`
+	Vehicle             VehicleRequirement `json:"vehicle_requirement"`
+	PromisedBy          time.Time          `json:"promised_by"`
+	FundingReference    string             `json:"funding_reference"`
+	CorrelationID       string             `json:"correlation_id,omitempty"`
 }
 
 type StopView struct {

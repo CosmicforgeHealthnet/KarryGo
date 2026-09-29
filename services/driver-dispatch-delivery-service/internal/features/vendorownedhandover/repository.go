@@ -129,6 +129,38 @@ func (r *Repository) Read(ctx context.Context, mission string, stage Stage) (Obs
 	return o, commitWith(tx, err)
 }
 
+// ReadCredential reconstructs only a live challenge for its current bound
+// holder. The stored keyed hashes also reject older random-format challenges
+// until they are rotated by the existing resend contract.
+func (r *Repository) ReadCredential(ctx context.Context, mission, ref string, stage Stage, holder string) (sharedhandover.CodeRecord, error) {
+	var record sharedhandover.CodeRecord
+	var status, provider, receiver, branch string
+	err := r.db.QueryRow(ctx, `SELECT h.challenge_ref,h.version,h.provider_ref,h.receiver_ref,h.otp_keyed_hash,h.qr_keyed_hash,h.expires_at,h.status,m.provider_ref,m.receiver_ref,m.branch_id
+		FROM dispatch_vendor_handover_challenges h JOIN dispatch_vendor_delivery_missions m ON m.mission_ref=h.mission_ref
+		WHERE h.mission_ref=$1 AND h.challenge_ref=$2 AND h.stage=$3`, mission, ref, stage).
+		Scan(&record.ChallengeRef, &record.Version, &record.ProviderID, &record.OwnerID, &record.Hash, &record.QRHash, &record.ExpiresAt, &status, &provider, &receiver, &branch)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sharedhandover.CodeRecord{}, ErrNotFound
+	}
+	if err != nil {
+		return sharedhandover.CodeRecord{}, err
+	}
+	expectedOwner := receiver
+	if stage == Return {
+		expectedOwner = branch
+	}
+	if status != "ACTIVE" || !record.ExpiresAt.After(time.Now().UTC()) || provider != record.ProviderID || expectedOwner != record.OwnerID ||
+		(stage == Delivery && holder != receiver) || (stage != Delivery && holder != provider) {
+		return sharedhandover.CodeRecord{}, ErrNotFound
+	}
+	record.Service, record.Stage, record.BookingID = "dispatch-vendor-owned", sharedhandover.Step(strings.ToLower(string(stage))), mission
+	result, ok := sharedhandover.RecoverSecureCredentials(r.secret, record)
+	if !ok {
+		return sharedhandover.CodeRecord{}, ErrConflict
+	}
+	return result, nil
+}
+
 func readTx(ctx context.Context, tx pgx.Tx, mission string, stage Stage) (Observation, error) {
 	var o Observation
 	err := tx.QueryRow(ctx, `SELECT mission_ref,challenge_ref,stage,status,version FROM dispatch_vendor_handover_challenges WHERE mission_ref=$1 AND stage=$2 ORDER BY version DESC LIMIT 1`, mission, stage).Scan(&o.MissionRef, &o.HandoverRef, &o.Stage, &o.Status, &o.SourceVersion)

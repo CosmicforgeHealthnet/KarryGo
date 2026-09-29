@@ -102,7 +102,7 @@ func (r *PostgresRepository) Project(ctx context.Context, envelope events.Envelo
 		// A grouping Vendor published earlier decorates this movement now.
 		// Grouping is commercial context only, so it is applied after the
 		// authority's own state, never instead of it.
-		if deref(next.FulfilmentGroupRef) != "" && deref(next.ParentContextRef) == "" {
+		if deref(next.FulfilmentGroupRef) != "" {
 			if _, _, _, _, found, groupErr := r.GroupingFor(ctx, tx, next.CustomerID, deref(next.FulfilmentGroupRef)); groupErr != nil {
 				return "", groupErr
 			} else if found {
@@ -110,9 +110,9 @@ func (r *PostgresRepository) Project(ctx context.Context, envelope events.Envelo
 					UPDATE customer_movement_history_projection p
 					   SET parent_context_type=g.parent_context_type, parent_context_ref=g.parent_context_ref,
 					       fulfilment_plan_ref=NULLIF(g.fulfilment_plan_ref,''), mission_sequence=g.mission_sequence,
-					       mission_count=g.mission_count, updated_at=NOW()
+					       mission_count=g.mission_count, product_code=COALESCE(g.product_code,p.product_code), updated_at=NOW()
 					  FROM customer_movement_groupings g
-					 WHERE g.fulfilment_group_ref=p.fulfilment_group_ref AND p.authority=$1 AND p.source_ref=$2`,
+					 WHERE g.fulfilment_group_ref=p.fulfilment_group_ref AND g.customer_id=p.customer_id AND p.authority=$1 AND p.source_ref=$2`,
 					next.Authority, next.SourceRef); err != nil {
 					return "", err
 				}
@@ -157,7 +157,18 @@ func (r *PostgresRepository) List(ctx context.Context, customerID string, filter
 		add("authority=$%d", filter.Authority)
 	}
 	if filter.ProductCode != "" {
-		add("product_code=$%d", filter.ProductCode)
+		// Product families are aliases over canonical execution variants. Vendor
+		// grouping supplies FOOD/SHOP; it never supplies lifecycle state.
+		switch filter.ProductCode {
+		case "RIDE":
+			where = append(where, "authority='TAXI' AND movement_type='PASSENGER'")
+		case "SEND":
+			where = append(where, "authority='DISPATCH' AND COALESCE(product_code,'') NOT IN ('FOOD','SHOP')")
+		case "TRUCK":
+			where = append(where, "authority='HAULING' AND COALESCE(product_code,'') NOT IN ('FOOD','SHOP')")
+		default:
+			add("product_code=$%d", filter.ProductCode)
+		}
 	}
 	if filter.MovementType != "" {
 		add("movement_type=$%d", filter.MovementType)

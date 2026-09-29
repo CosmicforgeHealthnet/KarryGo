@@ -47,11 +47,10 @@ const (
 	// MissingMetadataProceed plans on the stated lower bound and records that
 	// the evidence was weak.
 	//
-	// This is the platform's current product policy and the behaviour every
-	// existing caller already relies on: aggregation reports PARTIAL or
-	// ABSENT evidence and planning proceeds in the open rather than refusing.
-	// It is named here so that behaviour is a stated choice rather than an
-	// accident of where the check was not written.
+	// This WAS the platform default until vehicle-capability/2. Karryam V4
+	// §14.6 rejects it for production because a lower bound can put an
+	// unmeasured load on the smallest vehicle; it remains only as an explicit,
+	// named choice for a caller that states it.
 	MissingMetadataProceed MissingMetadataPolicy = "PROCEED_ON_LOWER_BOUND"
 
 	// MissingMetadataConservativeEscalation refuses the smallest class when
@@ -65,13 +64,24 @@ const (
 	// MissingMetadataManualReview refuses to decide automatically and asks
 	// for a human.
 	MissingMetadataManualReview MissingMetadataPolicy = "MANUAL_REVIEW"
+
+	// MissingMetadataRequirePackedWeight is the platform default (Karryam V4
+	// §14.6): every platform-delivered line must state an estimated packed
+	// weight per sell unit, so the load's weight evidence must be COMPLETE.
+	// A PARTIAL total - including one topped up by the Food package-size
+	// fallback - is a lower bound, and planning a lower bound onto the
+	// smallest vehicle is exactly what this refuses. Volume and dimensions
+	// stay vendor-declared "where material": when stated they are enforced by
+	// the thresholds, when absent they do not by themselves refuse the load.
+	MissingMetadataRequirePackedWeight MissingMetadataPolicy = "REQUIRE_PACKED_WEIGHT"
 )
 
 // Valid reports whether the policy is known.
 func (m MissingMetadataPolicy) Valid() bool {
 	switch m {
 	case MissingMetadataProceed, MissingMetadataConservativeEscalation,
-		MissingMetadataRequire, MissingMetadataManualReview:
+		MissingMetadataRequire, MissingMetadataManualReview,
+		MissingMetadataRequirePackedWeight:
 		return true
 	default:
 		return false
@@ -169,7 +179,10 @@ const DefaultNonStackableVolumeFactorBP = 13000
 // It changes whenever any threshold, handling column or executability flag in
 // DefaultCapabilityPolicy changes. Snapshots taken under the old version keep
 // naming it, which is the whole point.
-const DefaultCapabilityPolicyVersion = "vehicle-capability/1"
+//
+// Version 2 made missing packed weight fail closed (REQUIRE_PACKED_WEIGHT)
+// instead of planning on a lower bound.
+const DefaultCapabilityPolicyVersion = "vehicle-capability/2"
 
 // DefaultCapabilityPolicy is the platform's vehicle envelope.
 //
@@ -191,7 +204,7 @@ func DefaultCapabilityPolicy() CapabilityPolicy {
 	return CapabilityPolicy{
 		Version:                    DefaultCapabilityPolicyVersion,
 		NonStackableVolumeFactorBP: DefaultNonStackableVolumeFactorBP,
-		MissingMetadata:            MissingMetadataProceed,
+		MissingMetadata:            MissingMetadataRequirePackedWeight,
 		Classes: []VehicleCapability{
 			{
 				Class:                       VehicleMotorcycle,
@@ -330,7 +343,9 @@ func (p CapabilityPolicy) Normalized() CapabilityPolicy {
 	}
 
 	if !p.MissingMetadata.Valid() {
-		p.MissingMetadata = MissingMetadataProceed
+		// An unknown or unset policy fails closed; it never silently becomes
+		// "plan on whatever weight was stated".
+		p.MissingMetadata = MissingMetadataRequirePackedWeight
 	}
 
 	classes := append([]VehicleCapability(nil), p.Classes...)

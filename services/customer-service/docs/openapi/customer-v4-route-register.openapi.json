@@ -1,0 +1,2287 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "customer-service customer route register (Customer V4 \u00a723)",
+    "version": "v4-23",
+    "description": "Mounted customer-family routes that had no OpenAPI document. Every operation is derived from the registered gin route and its handler source (request DTO fields, query and header reads); no field is hand-authored. Response bodies use the platform success/error envelope."
+  },
+  "paths": {
+    "/api/v1/customer/auth/start": {
+      "post": {
+        "operationId": "post_api_v1_customer_auth_start",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/auth/http.(*AuthHandler).StartAuth-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "startAuthRequest",
+                "properties": {
+                  "phone": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/auth/verify": {
+      "post": {
+        "operationId": "post_api_v1_customer_auth_verify",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/auth/http.(*AuthHandler).VerifyAuth-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "verifyAuthRequest",
+                "properties": {
+                  "phone": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "otp": {
+                    "type": "string"
+                  },
+                  "challenge_id": {
+                    "type": "string"
+                  },
+                  "device_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/auth/refresh": {
+      "post": {
+        "operationId": "post_api_v1_customer_auth_refresh",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/auth/http.(*AuthHandler).Refresh-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "refreshRequest",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "device_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/auth/logout": {
+      "post": {
+        "operationId": "post_api_v1_customer_auth_logout",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/auth/http.(*AuthHandler).Logout-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "logoutRequest",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/me": {
+      "get": {
+        "operationId": "get_api_v1_customer_me",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/auth/http.(*AuthHandler).Me-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/profile": {
+      "get": {
+        "operationId": "get_api_v1_customer_profile",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.(*ProfileHandler).GetProfile-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "put_api_v1_customer_profile",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.(*ProfileHandler).UpdateProfile-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "updateProfileRequest",
+                "properties": {
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/profile/photo": {
+      "post": {
+        "operationId": "post_api_v1_customer_profile_photo",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.(*ProfileHandler).UploadPhoto-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "photo"
+                ],
+                "properties": {
+                  "photo": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/profile/photo-url": {
+      "put": {
+        "operationId": "put_api_v1_customer_profile_photo_url",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.(*ProfileHandler).SavePhotoURL-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "savePhotoURLRequest",
+                "properties": {
+                  "photo_url": {
+                    "type": "string"
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/profile/emergency-contacts": {
+      "get": {
+        "operationId": "get_api_v1_customer_profile_emergency_contacts",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.(*ProfileHandler).GetEmergencyContacts-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "post_api_v1_customer_profile_emergency_contacts",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.(*ProfileHandler).AddEmergencyContact-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "addEmergencyContactRequest",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "relationship": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/profile/emergency-contacts/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_customer_profile_emergency_contacts_id",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.(*ProfileHandler).DeleteEmergencyContact-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/trusted-contacts": {
+      "get": {
+        "operationId": "get_api_v1_customer_trusted_contacts",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.RegisterTrustedContactRoutes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "post_api_v1_customer_trusted_contacts",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.RegisterTrustedContactRoutes",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "trustedContactRequest",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "relationship_label": {
+                    "type": "string"
+                  },
+                  "emergency_alerts_enabled": {
+                    "type": "boolean"
+                  },
+                  "trip_sharing_enabled": {
+                    "type": "boolean"
+                  },
+                  "expected_version": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/trusted-contacts/{id}": {
+      "put": {
+        "operationId": "put_api_v1_customer_trusted_contacts_id",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.RegisterTrustedContactRoutes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "trustedContactRequest",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "relationship_label": {
+                    "type": "string"
+                  },
+                  "emergency_alerts_enabled": {
+                    "type": "boolean"
+                  },
+                  "trip_sharing_enabled": {
+                    "type": "boolean"
+                  },
+                  "expected_version": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_api_v1_customer_trusted_contacts_id",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/profile/http.RegisterTrustedContactRoutes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/mobility-preferences": {
+      "get": {
+        "operationId": "get_api_v1_customer_mobility_preferences",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http.(*Handler).getPreferences-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "put_api_v1_customer_mobility_preferences",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http.(*Handler).putPreferences-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "preferencesRequest",
+                "properties": {
+                  "accessibility_required": {
+                    "type": "boolean"
+                  },
+                  "wheelchair_required": {
+                    "type": "boolean"
+                  },
+                  "child_seat_preference": {
+                    "type": "string"
+                  },
+                  "pet_travel_preference": {
+                    "type": "string"
+                  },
+                  "luggage_default": {
+                    "type": "string"
+                  },
+                  "preferred_passenger_count": {
+                    "type": "integer"
+                  },
+                  "communication_preferences": {
+                    "type": "object"
+                  },
+                  "safety_share_default": {
+                    "type": "boolean"
+                  },
+                  "special_assistance_notes": {
+                    "type": "string"
+                  },
+                  "expected_version": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/guest-travellers": {
+      "get": {
+        "operationId": "get_api_v1_customer_guest_travellers",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http.(*Handler).listGuests-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "post_api_v1_customer_guest_travellers",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http.(*Handler).createGuest-fm",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "guestRequest",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "relationship_label": {
+                    "type": "string"
+                  },
+                  "accessibility_notes": {
+                    "type": "string"
+                  },
+                  "mobility_requirements_json": {
+                    "type": "object"
+                  },
+                  "expected_version": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/guest-travellers/{id}": {
+      "get": {
+        "operationId": "get_api_v1_customer_guest_travellers_id",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http.(*Handler).getGuest-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "put_api_v1_customer_guest_travellers_id",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http.(*Handler).updateGuest-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "guestRequest",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "relationship_label": {
+                    "type": "string"
+                  },
+                  "accessibility_notes": {
+                    "type": "string"
+                  },
+                  "mobility_requirements_json": {
+                    "type": "object"
+                  },
+                  "expected_version": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_api_v1_customer_guest_travellers_id",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http.(*Handler).deleteGuest-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/internal/customers/{customerId}/context": {
+      "get": {
+        "operationId": "get_api_v1_customer_internal_customers_customerId_context",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/customer_context/http.RegisterInternalRoutes",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guest_traveller_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "saved_location_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scopes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ServiceHMAC": []
+          }
+        ],
+        "x-internal": true
+      }
+    },
+    "/api/v1/customer/movements": {
+      "get": {
+        "operationId": "get_api_v1_customer_movements",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/http.RegisterCustomerRoutes",
+        "parameters": [
+          {
+            "name": "authority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "movement_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "parent_context_ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/movements/{authority}/{sourceRef}": {
+      "get": {
+        "operationId": "get_api_v1_customer_movements_authority_sourceRef",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/http.RegisterCustomerRoutes",
+        "parameters": [
+          {
+            "name": "authority",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceRef",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/saved-locations": {
+      "get": {
+        "operationId": "get_api_v1_customer_saved_locations",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/http.(*SavedLocationHandler).ListLocations-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "post_api_v1_customer_saved_locations",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/http.(*SavedLocationHandler).AddLocation-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "saveLocationRequest",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/saved-locations/{id}": {
+      "put": {
+        "operationId": "put_api_v1_customer_saved_locations_id",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/http.(*SavedLocationHandler).UpdateLocation-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "saveLocationRequest",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_api_v1_customer_saved_locations_id",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/http.(*SavedLocationHandler).DeleteLocation-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/internal/customers/{customerId}/saved-locations/{locationId}": {
+      "get": {
+        "operationId": "get_api_v1_customer_internal_customers_customerId_saved_locations_locationId",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/http.(*InternalSavedLocationHandler).GetLocation-fm",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ServiceHMAC": []
+          }
+        ],
+        "x-internal": true
+      }
+    },
+    "/api/v1/customer/notifications": {
+      "get": {
+        "operationId": "get_api_v1_customer_notifications",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/notifications/http.(*Handler).ListFeed-fm",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/notifications/realtime-token": {
+      "post": {
+        "operationId": "post_api_v1_customer_notifications_realtime_token",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/notifications/http.(*Handler).RealtimeToken-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/notifications/devices": {
+      "post": {
+        "operationId": "post_api_v1_customer_notifications_devices",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/notifications/http.(*Handler).RegisterDevice-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "registerDeviceRequest",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "platform": {
+                    "type": "string"
+                  },
+                  "app": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/internal/customers/{customerId}": {
+      "get": {
+        "operationId": "get_api_v1_customer_internal_customers_customerId",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/identity/http.(*Handler).GetCustomer-fm",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ServiceHMAC": []
+          }
+        ],
+        "x-internal": true
+      }
+    },
+    "/api/v1/customer/preferences": {
+      "get": {
+        "operationId": "get_api_v1_customer_preferences",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/preferences.RegisterRoutes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/preferences/{type}": {
+      "put": {
+        "operationId": "put_api_v1_customer_preferences_type",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/preferences.RegisterRoutes",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "anonymous struct in closure",
+                "properties": {
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/internal/customers/{customerId}/quality-preferences": {
+      "get": {
+        "operationId": "get_api_v1_customer_internal_customers_customerId_quality_preferences",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/preferences.RegisterInternalRoutes",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ServiceHMAC": []
+          }
+        ],
+        "x-internal": true
+      }
+    },
+    "/internal/customer/v1/metrics": {
+      "get": {
+        "operationId": "get_internal_customer_v1_metrics",
+        "x-handler": "main.main",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ServiceHMAC": []
+          }
+        ],
+        "x-internal": true
+      }
+    },
+    "/internal/customer/v1/movement-events": {
+      "post": {
+        "operationId": "post_internal_customer_v1_movement_events",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/http.RegisterIngress",
+        "parameters": [
+          {
+            "name": "authority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_refs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ServiceHMAC": []
+          }
+        ],
+        "x-internal": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedEventEnvelope"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/customer/v1/movement-state": {
+      "get": {
+        "operationId": "get_internal_customer_v1_movement_state",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/http.RegisterIngress",
+        "parameters": [
+          {
+            "name": "authority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_refs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ServiceHMAC": []
+          }
+        ],
+        "x-internal": true
+      }
+    },
+    "/internal/customer/v1/movement-groupings": {
+      "post": {
+        "operationId": "post_internal_customer_v1_movement_groupings",
+        "x-handler": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/http.RegisterIngress",
+        "parameters": [
+          {
+            "name": "authority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_refs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ServiceHMAC": []
+          }
+        ],
+        "x-internal": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedEventEnvelope"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "ServiceHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2 service auth: X-Service-Name, X-Service-Timestamp, X-Service-Nonce and X-Service-Signature; exact caller allowlist; replayed nonce refused."
+      }
+    },
+    "schemas": {
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {}
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          }
+        }
+      },
+      "SharedEventEnvelope": {
+        "type": "object",
+        "x-go-dto": "shared/go/events.Envelope",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "event_name",
+          "schema_version",
+          "source_service",
+          "source_entity_type",
+          "source_entity_id",
+          "source_version",
+          "occurred_at",
+          "payload"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "event_name": {
+            "type": "string"
+          },
+          "schema_version": {
+            "type": "integer"
+          },
+          "source_service": {
+            "type": "string"
+          },
+          "source_entity_type": {
+            "type": "string"
+          },
+          "source_entity_id": {
+            "type": "string"
+          },
+          "source_version": {
+            "type": "integer"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "causation_id": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

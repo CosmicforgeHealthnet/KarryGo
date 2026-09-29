@@ -9,6 +9,13 @@ This document covers the private, service-to-service contract added by WP10.
 The pre-existing public multipart upload surface (`/files`, profile photos,
 proof images, signatures) is unchanged and is not described here.
 
+Customer support evidence also has a public, token-only redemption route:
+`POST /api/v1/media-files/customer-uploads/:id/content`. Customer Service first
+checks complaint ownership and obtains a grant through the private HMAC route.
+The public route accepts only a one-use grant owned by `customer-service`,
+scoped to a `CUSTOMER` and `DISPUTE_ATTACHMENT`; it never accepts a service
+credential from the phone. See `customer-evidence-upload.openapi.json`.
+
 ## Authority boundary
 
 | media-file-service owns | consuming services own |

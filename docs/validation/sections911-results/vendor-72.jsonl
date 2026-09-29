@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:46:03.0777509+02:00","Action":"start","Package":"cosmicforge/logistics/services/vendor-service/internal/privacy"}
+{"Time":"2026-09-27T16:46:03.2320592+02:00","Action":"run","Package":"cosmicforge/logistics/services/vendor-service/internal/privacy","Test":"TestRetentionWorkerHonorsLegalHoldThenMinimizesOperationalPII"}
+{"Time":"2026-09-27T16:46:03.2320592+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/privacy","Test":"TestRetentionWorkerHonorsLegalHoldThenMinimizesOperationalPII","Output":"=== RUN   TestRetentionWorkerHonorsLegalHoldThenMinimizesOperationalPII\n"}
+{"Time":"2026-09-27T16:46:03.5350181+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/privacy","Test":"TestRetentionWorkerHonorsLegalHoldThenMinimizesOperationalPII","Output":"--- PASS: TestRetentionWorkerHonorsLegalHoldThenMinimizesOperationalPII (0.30s)\n"}
+{"Time":"2026-09-27T16:46:03.5355412+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal/privacy","Test":"TestRetentionWorkerHonorsLegalHoldThenMinimizesOperationalPII","Elapsed":0.3}
+{"Time":"2026-09-27T16:46:03.5355412+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/privacy","Output":"PASS\n"}
+{"Time":"2026-09-27T16:46:03.5388978+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/privacy","Output":"ok  \tcosmicforge/logistics/services/vendor-service/internal/privacy\t0.461s\n"}
+{"Time":"2026-09-27T16:46:03.5388978+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal/privacy","Elapsed":0.461}

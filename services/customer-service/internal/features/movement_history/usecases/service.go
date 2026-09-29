@@ -14,6 +14,7 @@ import (
 	movementrepositories "cosmicforge/logistics/services/customer-service/internal/features/movement_history/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/observability"
 	"cosmicforge/logistics/shared/go/pagination"
 )
 
@@ -40,7 +41,8 @@ func ParseCallerAuthorities(raw string) (CallerAuthorities, error) {
 		}
 		name, authority, ok := strings.Cut(entry, "=")
 		name, authority = strings.TrimSpace(name), strings.ToUpper(strings.TrimSpace(authority))
-		if !ok || name == "" || (authority != events.MovementAuthorityTaxi && authority != events.MovementAuthorityDispatch && authority != events.MovementAuthorityHauling) {
+		if !ok || name == "" || (authority != events.MovementAuthorityTaxi && authority != events.MovementAuthorityDispatch &&
+			authority != events.MovementAuthorityHauling && authority != events.MovementAuthorityVendorCommerce) {
 			return nil, fmt.Errorf("invalid movement caller entry %q", entry)
 		}
 		out[name] = authority
@@ -57,6 +59,8 @@ type Options struct {
 	// Grouping is commercial context only; a grouping caller can never
 	// publish movement state.
 	GroupingCallers []string
+	// Metrics receives bounded ingestion counters (Customer V4 §27.2).
+	Metrics *observability.Metrics
 }
 
 type Service struct {
@@ -65,6 +69,7 @@ type Service struct {
 	consumerEnabled bool
 	readEnabled     bool
 	groupingCallers map[string]bool
+	metrics         *observability.Metrics
 }
 
 func NewService(options Options) *Service {
@@ -75,7 +80,7 @@ func NewService(options Options) *Service {
 		}
 	}
 	return &Service{repo: options.Repository, callers: options.Callers, consumerEnabled: options.ConsumerEnabled,
-		readEnabled: options.ReadEnabled, groupingCallers: grouping}
+		readEnabled: options.ReadEnabled, groupingCallers: grouping, metrics: options.Metrics}
 }
 
 // IngestGrouping records the commercial grouping of one purchase.
@@ -129,7 +134,50 @@ type IngestResult struct {
 // Ingest projects one movement event. Duplicate, stale and
 // terminal-protected events succeed so the producer's outbox acknowledges
 // them. Authority violations are recorded and refused.
-func (s *Service) Ingest(ctx context.Context, caller string, envelope events.Envelope) (IngestResult, error) {
+func (s *Service) Ingest(ctx context.Context, caller string, envelope events.Envelope) (result IngestResult, err error) {
+	defer func() { s.observeIngest(envelope, result, err) }()
+	return s.ingest(ctx, caller, envelope)
+}
+
+// observeIngest records bounded ingestion evidence: authority and outcome are
+// closed vocabularies; lag is authority occurrence to projection.
+func (s *Service) observeIngest(envelope events.Envelope, result IngestResult, err error) {
+	if s.metrics == nil {
+		return
+	}
+	authority := strings.ToUpper(strings.TrimSpace(authorityOf(envelope)))
+	switch authority {
+	case events.MovementAuthorityTaxi, events.MovementAuthorityDispatch, events.MovementAuthorityHauling, events.MovementAuthorityVendorCommerce:
+	default:
+		authority = "UNKNOWN"
+	}
+	outcome := strings.ToLower(result.Outcome)
+	if err != nil {
+		outcome = string(observability.OutcomeForStatus(apperrors.From(err).Status))
+	}
+	switch outcome {
+	case "applied", "stale", "terminal_protected", "duplicate", "validation", "conflict", "authorization_denied", "dependency_unavailable", "not_found":
+	default:
+		outcome = "other"
+	}
+	labels := map[string]string{"authority": authority, "outcome": outcome}
+	s.metrics.IncCounter("karry_movement_ingest_total", labels, 1)
+	if err == nil && !envelope.OccurredAt.IsZero() {
+		if lag := time.Since(envelope.OccurredAt); lag >= 0 {
+			s.metrics.ObserveDuration("karry_movement_ingest_lag", map[string]string{"authority": authority}, lag)
+		}
+	}
+}
+
+func authorityOf(envelope events.Envelope) string {
+	var summary struct {
+		Authority string `json:"authority"`
+	}
+	_ = json.Unmarshal(envelope.Payload, &summary)
+	return summary.Authority
+}
+
+func (s *Service) ingest(ctx context.Context, caller string, envelope events.Envelope) (IngestResult, error) {
 	if !s.consumerEnabled {
 		return IngestResult{}, apperrors.Unavailable("Movement event consumption is disabled.", nil)
 	}
@@ -173,10 +221,28 @@ func (s *Service) Ingest(ctx context.Context, caller string, envelope events.Env
 // customer data: only refs the caller already named and the versions it
 // published.
 func (s *Service) ProjectedVersions(ctx context.Context, caller string, sourceRefs []string) (map[string]int64, error) {
+	return s.ProjectedVersionsFor(ctx, caller, "", sourceRefs)
+}
+
+// ProjectedVersionsFor lets a caller that is both a grouping publisher and a
+// movement authority (Vendor: grouping plus VENDOR_COMMERCE purchase rows)
+// name which of its own two projections it is reconciling. It can never name
+// an authority it is not mapped to.
+func (s *Service) ProjectedVersionsFor(ctx context.Context, caller, requested string, sourceRefs []string) (map[string]int64, error) {
 	if !s.consumerEnabled {
 		return nil, apperrors.Unavailable("Movement event consumption is disabled.", nil)
 	}
-	authority, allowed := s.callers[strings.TrimSpace(caller)]
+	caller = strings.TrimSpace(caller)
+	requested = strings.ToUpper(strings.TrimSpace(requested))
+	authority, allowed := s.callers[caller]
+	grouping := s.groupingCallers[caller]
+	switch {
+	case requested == "" && grouping, requested == "COMMERCE" && grouping:
+		// Vendor may reconcile grouping versions, never logistics movement state.
+		authority, allowed = "COMMERCE", true
+	case requested != "" && requested != authority:
+		allowed = false
+	}
 	if !allowed {
 		return nil, apperrors.Forbidden("This service may not reconcile customer movements.", nil)
 	}

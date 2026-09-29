@@ -14,6 +14,25 @@ import (
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 
+// customerDomainGate is the Karryam V4 §24 public Food/Shop contract gate. A
+// domain is open to customers only when both its domain switch and its
+// customer switch are on and the global kill switch is off.
+func customerDomainGate(cfg config.Config) func(cart.Domain) bool {
+	return func(domain cart.Domain) bool {
+		if cfg.Flags.CommerceGlobalKillSwitch {
+			return false
+		}
+		switch domain {
+		case cart.DomainFood:
+			return cfg.Flags.CommerceFoodEnabled && cfg.Flags.CustomerFoodEnabled
+		case cart.DomainShop:
+			return cfg.Flags.CommerceShopEnabled && cfg.Flags.CustomerShopEnabled
+		default:
+			return false
+		}
+	}
+}
+
 // registerSection17ACustomerCartRoutes composes the customer cart boundary.
 //
 // It deliberately does not compose checkout, Inventory reservation, Wallet,
@@ -26,12 +45,12 @@ func registerSection17ACustomerCartRoutes(
 	foodService *food.Service,
 	shopService *shop.Service,
 	idempotencyStore *idempotency.Store,
-) {
+) *cart.Service {
 	if router == nil ||
 		db == nil ||
 		foodService == nil ||
 		shopService == nil {
-		return
+		return nil
 	}
 
 	customerSigner := sharedauth.NewTokenSigner(
@@ -58,7 +77,7 @@ func registerSection17ACustomerCartRoutes(
 		events.NewDomainPublisher(
 			events.NewOutboxRepository(db),
 		),
-	)
+	).WithDomainGate(customerDomainGate(cfg))
 
 	customerCommerce := router.Group(
 		"/api/v1/commerce",
@@ -70,4 +89,5 @@ func registerSection17ACustomerCartRoutes(
 		customerSigner,
 		idempotencyStore,
 	)
+	return cartService
 }

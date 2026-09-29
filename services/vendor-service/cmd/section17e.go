@@ -47,6 +47,7 @@ func buildSection17EOrderService(
 	if len(outboxes) > 0 {
 		orderStore.SetEventPublisher(outboxes[0])
 	}
+	orderStore.SetCustomerOrderMovements(cfg.Flags.CustomerMovementGroupingEnabled)
 	service, err := orders.NewService(orders.Options{
 		Store:   orderStore,
 		Quotes:  newSection17EQuoteAuthority(db),

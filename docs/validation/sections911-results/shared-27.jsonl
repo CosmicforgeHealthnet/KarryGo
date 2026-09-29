@@ -1,0 +1,12 @@
+{"Time":"2026-09-27T16:55:37.0840534+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/mediaclient"}
+{"Time":"2026-09-27T16:55:37.2263021+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/mediaclient","Test":"TestUploadSendsMultipartServiceAuthAndParsesAsset"}
+{"Time":"2026-09-27T16:55:37.2268605+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/mediaclient","Test":"TestUploadSendsMultipartServiceAuthAndParsesAsset","Output":"=== RUN   TestUploadSendsMultipartServiceAuthAndParsesAsset\n"}
+{"Time":"2026-09-27T16:55:37.2312585+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/mediaclient","Test":"TestUploadSendsMultipartServiceAuthAndParsesAsset","Output":"--- PASS: TestUploadSendsMultipartServiceAuthAndParsesAsset (0.00s)\n"}
+{"Time":"2026-09-27T16:55:37.2318207+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/mediaclient","Test":"TestUploadSendsMultipartServiceAuthAndParsesAsset","Elapsed":0}
+{"Time":"2026-09-27T16:55:37.2318207+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/mediaclient","Test":"TestGetByIDReturnsServiceError"}
+{"Time":"2026-09-27T16:55:37.2318207+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/mediaclient","Test":"TestGetByIDReturnsServiceError","Output":"=== RUN   TestGetByIDReturnsServiceError\n"}
+{"Time":"2026-09-27T16:55:37.2328718+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/mediaclient","Test":"TestGetByIDReturnsServiceError","Output":"--- PASS: TestGetByIDReturnsServiceError (0.00s)\n"}
+{"Time":"2026-09-27T16:55:37.2328718+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/mediaclient","Test":"TestGetByIDReturnsServiceError","Elapsed":0}
+{"Time":"2026-09-27T16:55:37.2328718+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/mediaclient","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:37.236801+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/mediaclient","Output":"ok  \tcosmicforge/logistics/shared/go/mediaclient\t0.153s\n"}
+{"Time":"2026-09-27T16:55:37.236801+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/mediaclient","Elapsed":0.153}

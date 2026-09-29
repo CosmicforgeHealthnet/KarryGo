@@ -24,7 +24,10 @@ type VendorOwned struct {
 }
 
 func (a *VendorOwned) Bind(ctx context.Context, b Binding, operation, correlation string) (Observation, error) {
-	if b.Authority != "VENDOR_OWN_DELIVERY" || !b.Valid() || b.BusinessID == "" || b.BranchID == "" || b.ProviderRef == "" || b.ReceiverRef == "" || b.ManifestRef == "" || b.ManifestVersion < 1 {
+	if b.Authority == "VENDOR_OWN_DELIVERY" && b.ReceiverRef == "" {
+		return Observation{}, ErrReceiverSecureChannelRequired
+	}
+	if b.Authority != "VENDOR_OWN_DELIVERY" || !b.Valid() || b.BusinessID == "" || b.BranchID == "" || b.ProviderRef == "" || b.ManifestRef == "" || b.ManifestVersion < 1 {
 		return Observation{}, ErrInvalid
 	}
 	body := map[string]any{"mission_ref": b.MissionRef, "fulfilment_ref": b.FulfilmentRef, "business_id": b.BusinessID, "branch_id": b.BranchID, "provider_ref": b.ProviderRef, "receiver_ref": b.ReceiverRef, "receiver_phone": b.ReceiverPhone, "manifest_ref": b.ManifestRef, "manifest_version": b.ManifestVersion, "parcel_refs": b.ParcelRefs}
@@ -153,6 +156,9 @@ func (a *VendorOwned) call(ctx context.Context, method, path string, input any, 
 	defer res.Body.Close()
 	if res.StatusCode >= 500 {
 		return ErrUnknown
+	}
+	if res.StatusCode == http.StatusPreconditionFailed {
+		return ErrReceiverSecureChannelRequired
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return ErrRejected

@@ -22,6 +22,7 @@ import (
 	walletusecases "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/usecases"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/audit"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/financeauth"
+	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -90,6 +91,12 @@ func main() {
 		JobPayments:       financeintegration.NewJobPaymentBridge(financeService),
 	})
 	var workers []func(context.Context) error
+	if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+		notificationOutbox := walletclients.WalletNotificationOutbox{DB: db, Sender: notifications.Client{
+			BaseURL: cfg.NotificationURL, ServiceName: "payment-wallet-service", Secret: cfg.NotificationSecret,
+		}}
+		workers = append(workers, notificationOutbox.Run)
+	}
 	if cfg.FinanceWorkersEnabled && !cfg.FinanceExecutionKillSwitch {
 		gateway := financeintegration.PaystackGateway{Client: paystack}
 		workerConfig := financeusecases.WorkerConfig{

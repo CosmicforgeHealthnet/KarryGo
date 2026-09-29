@@ -360,6 +360,28 @@ func (s *BookingService) ResendPickupCredential(ctx context.Context, providerID,
 		PickupCredentialView{Code: rec.Code, ExpiresAt: &expires, Verified: false}), nil
 }
 
+// ReadReceiverCredential reconstructs a live hash-only challenge only for the
+// account frozen as receiver. Booking ownership by the sender grants no read.
+func (s *BookingService) ReadReceiverCredential(ctx context.Context, receiverID, id, challengeRef string) (VerificationCodeView, error) {
+	b, err := s.bookings.GetByID(ctx, id)
+	if err != nil || b.ReceiverCustomerID == "" || receiverID != b.ReceiverCustomerID || b.ProviderID == nil {
+		return VerificationCodeView{}, apperrors.NotFound("Receiver credential was not found.", err)
+	}
+	if s.secureHandover == nil {
+		return VerificationCodeView{}, apperrors.Unavailable("Secure receiver credential read is unavailable.", nil)
+	}
+	rec, status, err := s.secureHandover.GetHandoverChallenge(ctx, id, handover.StepDelivery)
+	if err != nil || status != "ACTIVE" || rec.ChallengeRef != strings.TrimSpace(challengeRef) ||
+		rec.OwnerID != receiverID || rec.ProviderID != *b.ProviderID || !rec.ExpiresAt.After(time.Now()) {
+		return VerificationCodeView{}, apperrors.NotFound("Receiver credential was not found.", err)
+	}
+	recovered, ok := handover.RecoverSecureCredentials(s.handoverSecret, rec)
+	if !ok {
+		return VerificationCodeView{}, apperrors.Unavailable("Receiver credential requires secure rotation.", nil)
+	}
+	return withDeliveryDirection(id, secureVerificationCodeView(recovered, status)), nil
+}
+
 // GetVerificationCode returns delivery challenge status only. It cannot
 // redisplay an OTP or QR bearer token.
 func (s *BookingService) GetVerificationCode(ctx context.Context, customerID, id, step string) (VerificationCodeView, error) {
@@ -373,6 +395,9 @@ func (s *BookingService) GetVerificationCode(ctx context.Context, customerID, id
 	b, err := s.bookings.GetByIDForCustomer(ctx, id, customerID)
 	if err != nil {
 		return VerificationCodeView{}, err
+	}
+	if strings.TrimSpace(b.ReceiverCustomerID) == "" {
+		return VerificationCodeView{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", nil)
 	}
 	if s.secureHandover != nil {
 		rec, status, challengeErr := s.secureHandover.GetHandoverChallenge(ctx, id, handover.StepDelivery)
@@ -408,6 +433,9 @@ func (s *BookingService) ResendVerificationCode(ctx context.Context, customerID,
 	if err != nil {
 		return VerificationCodeView{}, err
 	}
+	if strings.TrimSpace(b.ReceiverCustomerID) == "" {
+		return VerificationCodeView{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", nil)
+	}
 
 	now := time.Now()
 	if s.secureHandover != nil {
@@ -431,14 +459,14 @@ func (s *BookingService) ResendVerificationCode(ctx context.Context, customerID,
 		if nextVersion < 1 {
 			nextVersion = 1
 		}
-		rec, issueErr := handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepDelivery, uuid.NewString(), nextVersion, id, *b.ProviderID, customerID, current.ResendCount+1, now)
+		rec, issueErr := handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepDelivery, uuid.NewString(), nextVersion, id, *b.ProviderID, b.ReceiverCustomerID, current.ResendCount+1, now)
 		if issueErr != nil {
 			return VerificationCodeView{}, apperrors.Internal("Could not generate a delivery credential.", issueErr)
 		}
 		if issueErr = s.bookings.ResendDeliveryCode(ctx, id, rec); issueErr != nil {
 			return VerificationCodeView{}, issueErr
 		}
-		s.notifier.NotifyCustomerDeliveryCodeReady(ctx, customerID, id, map[string]interface{}{"booking_id": id, "code": rec.Code, "qr_token": rec.QRToken, "challenge_ref": rec.ChallengeRef, "version": rec.Version})
+		s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.ReceiverCustomerID, id, map[string]interface{}{"booking_id": id, "challenge_ref": rec.ChallengeRef, "version": rec.Version})
 		return withDeliveryDirection(id, secureVerificationCodeView(rec, "ACTIVE")), nil
 	}
 	if ok, wait := b.DeliveryCodeRecord().CanResend(now); !ok {

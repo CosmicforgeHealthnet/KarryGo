@@ -1,0 +1,24 @@
+{"Time":"2026-09-27T16:55:48.3697885+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/observability"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestIdentifierLabelKeysAreRefused"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestIdentifierLabelKeysAreRefused","Output":"=== RUN   TestIdentifierLabelKeysAreRefused\n"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestIdentifierLabelKeysAreRefused","Output":"--- PASS: TestIdentifierLabelKeysAreRefused (0.00s)\n"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestIdentifierLabelKeysAreRefused","Elapsed":0}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestBoundedLabelKeysAreAccepted"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestBoundedLabelKeysAreAccepted","Output":"=== RUN   TestBoundedLabelKeysAreAccepted\n"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestBoundedLabelKeysAreAccepted","Output":"--- PASS: TestBoundedLabelKeysAreAccepted (0.00s)\n"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestBoundedLabelKeysAreAccepted","Elapsed":0}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestUnsafeLabelKeysReportsOnlyTheOffenders"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestUnsafeLabelKeysReportsOnlyTheOffenders","Output":"=== RUN   TestUnsafeLabelKeysReportsOnlyTheOffenders\n"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestUnsafeLabelKeysReportsOnlyTheOffenders","Output":"--- PASS: TestUnsafeLabelKeysReportsOnlyTheOffenders (0.00s)\n"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestUnsafeLabelKeysReportsOnlyTheOffenders","Elapsed":0}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestSnapshotReplacementClearsStaleLabels"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestSnapshotReplacementClearsStaleLabels","Output":"=== RUN   TestSnapshotReplacementClearsStaleLabels\n"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestSnapshotReplacementClearsStaleLabels","Output":"--- PASS: TestSnapshotReplacementClearsStaleLabels (0.00s)\n"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestSnapshotReplacementClearsStaleLabels","Elapsed":0}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestRegistryConcurrentSnapshotAndCounter"}
+{"Time":"2026-09-27T16:55:48.5319032+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestRegistryConcurrentSnapshotAndCounter","Output":"=== RUN   TestRegistryConcurrentSnapshotAndCounter\n"}
+{"Time":"2026-09-27T16:55:48.5327279+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestRegistryConcurrentSnapshotAndCounter","Output":"--- PASS: TestRegistryConcurrentSnapshotAndCounter (0.00s)\n"}
+{"Time":"2026-09-27T16:55:48.5327279+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/observability","Test":"TestRegistryConcurrentSnapshotAndCounter","Elapsed":0}
+{"Time":"2026-09-27T16:55:48.5327279+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:48.5352286+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/observability","Output":"ok  \tcosmicforge/logistics/shared/go/observability\t0.165s\n"}
+{"Time":"2026-09-27T16:55:48.5352286+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/observability","Elapsed":0.165}

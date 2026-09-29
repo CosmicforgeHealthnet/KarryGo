@@ -309,9 +309,23 @@ type FeatureFlags struct {
 
 	CommerceShopEnabled              bool
 	VendorShopCatalogueWritesEnabled bool
-	CommerceMultiVendorEnabled       bool
-	CommerceVariableWeightEnabled    bool
-	CommerceBulkRFQEnabled           bool
+
+	// CustomerFoodEnabled / CustomerShopEnabled are the Karryam V4 §24 public
+	// customer contract gates. They sit ON TOP of the domain switches above:
+	// the domain may be live for vendors (catalogue, inventory) while the
+	// customer surface stays dark until its contract E2E passes. The server
+	// refuses a disabled domain even for an outdated or malicious client.
+	CustomerFoodEnabled bool
+	CustomerShopEnabled bool
+
+	// ExternalReferenceRepricingEnabled is the cutover to the external
+	// Reference System / Repricing Engine (V4 §8). No approved adapter exists
+	// in this service, so turning it on is refused at boot rather than
+	// silently leaving the current quote path in place.
+	ExternalReferenceRepricingEnabled bool
+	CommerceMultiVendorEnabled        bool
+	CommerceVariableWeightEnabled     bool
+	CommerceBulkRFQEnabled            bool
 
 	VendorOwnDeliveryEnabled bool
 
@@ -320,6 +334,7 @@ type FeatureFlags struct {
 	// CustomerMovementGroupingEnabled publishes the commercial grouping of a
 	// purchase to customer-service. Grouping only: never execution state.
 	CustomerMovementGroupingEnabled   bool
+	CustomerGroupingBackfillEnabled   bool
 	HaulingCommerceIntegrationEnabled bool
 
 	PaymentWalletCommerceEnabled         bool
@@ -478,6 +493,7 @@ func Load() Config {
 			DispatchCommerceIntegrationEnabled: getEnvBool("DISPATCH_COMMERCE_INTEGRATION_ENABLED", false),
 			TaxiGoodsDeliveryEnabled:           getEnvBool("TAXI_GOODS_DELIVERY_ENABLED", false),
 			CustomerMovementGroupingEnabled:    getEnvBool("VENDOR_CUSTOMER_MOVEMENT_GROUPING_ENABLED", false),
+			CustomerGroupingBackfillEnabled:    getEnvBool("VENDOR_CUSTOMER_GROUPING_BACKFILL_ENABLED", false),
 			HaulingCommerceIntegrationEnabled:  getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", false),
 
 			PaymentWalletCommerceEnabled:         getEnvBool("PAYMENT_WALLET_COMMERCE_ENABLED", false),
@@ -591,6 +607,9 @@ func Load() Config {
 	cfg.Flags.VendorServiceEnabled = boolValue("VENDOR_SERVICE_ENABLED", false)
 	cfg.Flags.CommerceFulfilmentWorkersEnabled = boolValue("COMMERCE_FULFILMENT_WORKERS_ENABLED", false)
 	cfg.Flags.CommerceGlobalKillSwitch = boolValue("COMMERCE_GLOBAL_KILL_SWITCH", false)
+	cfg.Flags.CustomerFoodEnabled = boolValue("CUSTOMER_FOOD_ENABLED", false)
+	cfg.Flags.CustomerShopEnabled = boolValue("CUSTOMER_SHOP_ENABLED", false)
+	cfg.Flags.ExternalReferenceRepricingEnabled = boolValue("EXTERNAL_REFERENCE_REPRICING_ENABLED", false)
 	cfg.LoadErrors = loadErrors
 	return cfg
 }
@@ -618,6 +637,16 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(url) == "" || strings.TrimSpace(secret) == "" {
 			problems = append(problems, flagName+" requires "+urlVar+" and "+secretVar)
 		}
+	}
+
+	if c.Flags.CustomerFoodEnabled && !c.Flags.CommerceFoodEnabled {
+		problems = append(problems, "CUSTOMER_FOOD_ENABLED requires COMMERCE_FOOD_ENABLED")
+	}
+	if c.Flags.CustomerShopEnabled && !c.Flags.CommerceShopEnabled {
+		problems = append(problems, "CUSTOMER_SHOP_ENABLED requires COMMERCE_SHOP_ENABLED")
+	}
+	if c.Flags.ExternalReferenceRepricingEnabled {
+		problems = append(problems, "EXTERNAL_REFERENCE_REPRICING_ENABLED has no approved Reference System/Repricing adapter in this build")
 	}
 
 	requireCreds(c.Flags.PaymentWalletCommerceEnabled, "PAYMENT_WALLET_COMMERCE_ENABLED", c.WalletURL, c.WalletSecret, "VENDOR_WALLET_URL", "VENDOR_WALLET_SECRET")

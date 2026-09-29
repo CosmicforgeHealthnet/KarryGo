@@ -121,6 +121,14 @@ func (s *Service) FinalizeVariableMeasurement(ctx context.Context, actor Actor, 
 		return VariableMeasurement{}, err
 	}
 	lineAuthorized, err := CalculateMeasuredAmount(m.UnitPriceMinor, m.HardMaxQuantity)
+	var pricingBasis string
+	var frozenLineCap int64
+	if readErr := s.store.db.QueryRow(ctx, `SELECT pricing_basis,max_authorized_total_minor FROM commerce_vendor_order_lines WHERE id=$1 AND vendor_order_id=$2`, lineID, vendorOrderID).Scan(&pricingBasis, &frozenLineCap); readErr != nil {
+		return VariableMeasurement{}, readErr
+	}
+	if pricingBasis == "VARIABLE_MEASURE" {
+		lineAuthorized, err = frozenLineCap, nil
+	}
 	if err != nil {
 		return VariableMeasurement{}, err
 	}

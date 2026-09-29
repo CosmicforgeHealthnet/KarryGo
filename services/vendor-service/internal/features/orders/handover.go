@@ -35,7 +35,8 @@ func (s *Service) handoverBinding(ctx context.Context, actor Actor, orderID, mis
 	var parcelJSON []byte
 	err = s.store.db.QueryRow(ctx, `
 		SELECT vm.id,vm.id,vm.business_id,vm.branch_id,COALESCE(vm.assigned_staff_id,''),
-		       po.customer_id,COALESCE(COALESCE(po.operational_receiver_snapshot,po.receiver_snapshot)->>'receiver_phone',''),
+		       CASE WHEN po.has_receiver THEN COALESCE(COALESCE(po.operational_receiver_snapshot,po.receiver_snapshot)->>'receiver_customer_id','') ELSE po.customer_id END,
+		       COALESCE(COALESCE(po.operational_receiver_snapshot,po.receiver_snapshot)->>'receiver_phone',''),
 		       vm.plan_id||':'||vm.plan_mission_id,pv.version,jsonb_agg(p.id ORDER BY p.id)
 		  FROM commerce_vendor_missions vm
 		  JOIN commerce_fulfilment_groups g ON g.id=vm.group_id
@@ -45,7 +46,7 @@ func (s *Service) handoverBinding(ctx context.Context, actor Actor, orderID, mis
 		  JOIN commerce_fulfilment_parcels p ON p.id=mp.parcel_id
 		  JOIN commerce_fulfilment_units u ON u.id=p.unit_id AND u.vendor_order_id=$2
 		 WHERE vm.id=$1 AND vm.business_id=$3
-		 GROUP BY vm.id,po.customer_id,po.receiver_snapshot,pv.version`, missionID, order.ID, actor.VendorID).
+		 GROUP BY vm.id,po.customer_id,po.has_receiver,po.receiver_snapshot,po.operational_receiver_snapshot,pv.version`, missionID, order.ID, actor.VendorID).
 		Scan(&vendor.MissionRef, &vendor.FulfilmentRef, &vendor.BusinessID, &vendor.BranchID,
 			&vendor.ProviderRef, &vendor.ReceiverRef, &vendor.ReceiverPhone, &vendor.ManifestRef,
 			&vendor.ManifestVersion, &parcelJSON)

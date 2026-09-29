@@ -104,8 +104,8 @@ func (n *BookingNotifier) NotifyCustomerPickupVerificationRequired(ctx context.C
 }
 
 // NotifyCustomerDeliveryCodeReady tells the customer their delivery
-// verification code is ready to share with the driver. The code is included
-// in data so it can be surfaced in the notification body.
+// verification code is ready to retrieve after receiver verification. No
+// handover credential enters Notification Service.
 func (n *BookingNotifier) NotifyCustomerDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
 	n.send(ctx, notifications.EventBookingDeliveryCodeReady, notifications.RecipientCustomer, customerID, bookingID, data)
 }

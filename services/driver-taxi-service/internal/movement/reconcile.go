@@ -16,6 +16,7 @@ import (
 	bookingmodels "cosmicforge/logistics/services/taxi-service/internal/features/booking/models"
 	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/observability"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -94,6 +95,8 @@ type Reconciler struct {
 	Writer *Writer
 	Reader ProjectionReader
 	Batch  int
+	// Metrics, when set, receives Customer V4 §27.2 reconciliation evidence.
+	Metrics *observability.Metrics
 }
 
 // ReconcileResult reports one pass.
@@ -226,6 +229,14 @@ func (r *Reconciler) Run(ctx context.Context, interval time.Duration) {
 	defer ticker.Stop()
 	for {
 		result, err := r.Reconcile(ctx, cursor)
+		if r.Metrics != nil {
+			outcome := "success"
+			if err != nil {
+				outcome = "dependency_error"
+			}
+			r.Metrics.IncCounter("karry_movement_reconciliation_runs_total", map[string]string{"service": SourceService, "outcome": outcome}, 1)
+			r.Metrics.IncCounter("karry_movement_reconciliation_republished_total", map[string]string{"service": SourceService}, float64(result.Republished))
+		}
 		if err != nil {
 			logging.Error("taxi-movement-reconcile", "%v", err)
 		} else {

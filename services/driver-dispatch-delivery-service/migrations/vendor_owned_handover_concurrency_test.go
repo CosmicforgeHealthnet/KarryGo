@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,23 +16,49 @@ import (
 
 type credentialRecorder struct {
 	mu     sync.Mutex
-	values map[string]map[string]string
+	values map[string]struct {
+		stage  vendorownedhandover.Stage
+		holder string
+	}
+	service *vendorownedhandover.Service
+	mission string
 }
 
 func (r *credentialRecorder) Send(_ context.Context, in notifications.Request) (notifications.SendResponse, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.values == nil {
-		r.values = map[string]map[string]string{}
+	if err := in.Validate(); err != nil {
+		return notifications.SendResponse{}, err
 	}
-	r.values[in.SourceAggregateID] = map[string]string{"OTP": fmt.Sprint(in.TemplateData["code"]), "QR": fmt.Sprint(in.TemplateData["qr_token"])}
+	if r.values == nil {
+		r.values = map[string]struct {
+			stage  vendorownedhandover.Stage
+			holder string
+		}{}
+	}
+	r.values[in.SourceAggregateID] = struct {
+		stage  vendorownedhandover.Stage
+		holder string
+	}{vendorownedhandover.Stage(fmt.Sprint(in.TemplateData["stage"])), in.Recipient.ID}
 	return notifications.SendResponse{MessageID: uuid.NewString(), Status: "ACCEPTED"}, nil
 }
 func (r *credentialRecorder) get(ref, method string) string {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.values[ref][method]
+	metadata := r.values[ref]
+	r.mu.Unlock()
+	credential, err := r.service.ReadCredential(context.Background(), r.mission, ref, metadata.stage, metadata.holder)
+	if err != nil {
+		return ""
+	}
+	if method == "QR" {
+		return credential.QRToken
+	}
+	return credential.OTP
 }
+
+type permitCredentialRead struct{}
+
+func (permitCredentialRead) Allow(context.Context, string, int, time.Duration) error { return nil }
 
 type vendorAuthorityFixture struct {
 	service  *vendorownedhandover.Service
@@ -50,9 +77,10 @@ func newVendorAuthorityFixture(t *testing.T) vendorAuthorityFixture {
 		cleanup()
 		t.Fatal(err)
 	}
-	svc := vendorownedhandover.NewService(repo, vendorownedhandover.Policy{Enabled: true, MaxAttempts: 3, MaxResends: 3}).WithNotifier(rec)
+	svc := vendorownedhandover.NewService(repo, vendorownedhandover.Policy{Enabled: true, MaxAttempts: 3, MaxResends: 3}).WithNotifier(rec).WithRateLimiter(permitCredentialRead{})
 	id := uuid.NewString()
 	b := vendorownedhandover.MissionBinding{MissionRef: "mission-" + id, FulfilmentRef: "fulfilment-" + id, BusinessID: "business-" + id, BranchID: "branch-" + id, ProviderRef: "staff-" + id, ReceiverRef: "receiver-" + id, ReceiverPhone: "+15550000001", ManifestRef: "manifest-" + id, ManifestVersion: 1, ParcelRefs: []string{"parcel-" + id}, OperationRef: "bind-" + id, CorrelationID: id}
+	rec.service, rec.mission = svc, b.MissionRef
 	if _, err = svc.Bind(context.Background(), b); err != nil {
 		cleanup()
 		t.Fatal(err)
@@ -89,6 +117,30 @@ func TestVendorOwnedHandoverPostgresOTPVsQRRace(t *testing.T) {
 	}
 	if success != 1 {
 		t.Fatalf("canonical consumers=%d want 1", success)
+	}
+}
+
+func TestVendorOwnedReceiverAccountReadIsMissionBound(t *testing.T) {
+	f := newVendorAuthorityFixture(t)
+	defer f.cleanup()
+	ctx := context.Background()
+	pickup, err := f.service.Read(ctx, f.binding.MissionRef, vendorownedhandover.Pickup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.service.Confirm(ctx, command(f, vendorownedhandover.Pickup, pickup.HandoverRef, "OTP", f.recorder.get(pickup.HandoverRef, "OTP"), "pickup-for-receiver-read"), "vendor-service", "receiver-read"); err != nil {
+		t.Fatal(err)
+	}
+	delivery, err := f.service.Read(ctx, f.binding.MissionRef, vendorownedhandover.Delivery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.service.ReadCredential(ctx, f.binding.MissionRef, delivery.HandoverRef, vendorownedhandover.Delivery, "another-customer"); err == nil {
+		t.Fatal("unbound customer read receiver credential")
+	}
+	credential, err := f.service.ReadCredential(ctx, f.binding.MissionRef, delivery.HandoverRef, vendorownedhandover.Delivery, f.binding.ReceiverRef)
+	if err != nil || credential.OTP == "" || credential.QRToken == "" {
+		t.Fatalf("bound receiver read failed: %v", err)
 	}
 }
 

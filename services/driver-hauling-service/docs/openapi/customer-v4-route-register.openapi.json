@@ -1,0 +1,1104 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "driver-hauling-service customer route register (Customer V4 \u00a723)",
+    "version": "v4-23",
+    "description": "Mounted customer-family routes that had no OpenAPI document. Every operation is derived from the registered gin route and its handler source (request DTO fields, query and header reads); no field is hand-authored. Response bodies use the platform success/error envelope."
+  },
+  "paths": {
+    "/api/v1/hauling/customer/availability": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_availability",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/http.(*AvailabilityHandler).CheckAvailability-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/bookings/estimate": {
+      "post": {
+        "operationId": "post_api_v1_hauling_customer_bookings_estimate",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).EstimateFare-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "estimateFareRequest",
+                "properties": {
+                  "pickup_lat": {
+                    "type": "number"
+                  },
+                  "pickup_lng": {
+                    "type": "number"
+                  },
+                  "dropoff_lat": {
+                    "type": "number"
+                  },
+                  "dropoff_lng": {
+                    "type": "number"
+                  },
+                  "cargo_weight_kg": {
+                    "type": "integer"
+                  },
+                  "helper_count": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}/track": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_bookings_id_track",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*TrackHandler).StreamBookingTrack-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/hauling/customer/bookings": {
+      "post": {
+        "operationId": "post_api_v1_hauling_customer_bookings",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).CreateBooking-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "createBookingRequest",
+                "properties": {
+                  "pickup_address": {
+                    "type": "string"
+                  },
+                  "pickup_lat": {
+                    "type": "number"
+                  },
+                  "pickup_lng": {
+                    "type": "number"
+                  },
+                  "dropoff_address": {
+                    "type": "string"
+                  },
+                  "dropoff_lat": {
+                    "type": "number"
+                  },
+                  "dropoff_lng": {
+                    "type": "number"
+                  },
+                  "preferred_truck_type": {
+                    "type": "string"
+                  },
+                  "cargo_weight_kg": {
+                    "type": "integer"
+                  },
+                  "cargo_description": {
+                    "type": "string"
+                  },
+                  "requires_helpers": {
+                    "type": "boolean"
+                  },
+                  "helper_count": {
+                    "type": "integer"
+                  },
+                  "weight_category": {
+                    "type": "string"
+                  },
+                  "receiver_name": {
+                    "type": "string"
+                  },
+                  "receiver_phone": {
+                    "type": "string"
+                  },
+                  "receiver_email": {
+                    "type": "string"
+                  },
+                  "receiver_customer_id": {
+                    "type": "string"
+                  },
+                  "package_content": {
+                    "type": "string"
+                  },
+                  "package_size": {
+                    "type": "string"
+                  },
+                  "is_fragile": {
+                    "type": "boolean"
+                  },
+                  "payment_method": {
+                    "type": "string"
+                  },
+                  "scheduled_at": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_bookings",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).ListCustomerBookings-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_bookings_id",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).GetCustomerBooking-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}/location": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_bookings_id_location",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).GetBookingLocation-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}/card-payment": {
+      "post": {
+        "operationId": "post_api_v1_hauling_customer_bookings_id_card_payment",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).InitiateCardPayment-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "initiateCardPaymentRequest",
+                "properties": {
+                  "customer_email": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}/cancel": {
+      "put": {
+        "operationId": "put_api_v1_hauling_customer_bookings_id_cancel",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).CancelBooking-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "cancelBookingRequest",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}/review": {
+      "post": {
+        "operationId": "post_api_v1_hauling_customer_bookings_id_review",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).SubmitReview-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "submitReviewRequest",
+                "properties": {
+                  "rating": {
+                    "type": "integer"
+                  },
+                  "review_text": {
+                    "type": "string"
+                  },
+                  "recommends_driver": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_bookings_id_review",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).GetCustomerBookingReview-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}/verify-driver": {
+      "post": {
+        "operationId": "post_api_v1_hauling_customer_bookings_id_verify_driver",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).VerifyDriverAtPickup-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "verifyDriverRequest",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "qr_token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}/verification-code": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_bookings_id_verification_code",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).GetVerificationCode-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "step",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/receivers/bookings/{id}/credentials/{challengeRef}": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_receivers_bookings_id_credentials_challengeRef",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).ReadReceiverCredential-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "challengeRef",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/bookings/{id}/verification-code/resend": {
+      "post": {
+        "operationId": "post_api_v1_hauling_customer_bookings_id_verification_code_resend",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).ResendVerificationCode-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "step",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/providers/{id}": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_providers_id",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).GetPublicProvider-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/trucks/{id}": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_trucks_id",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).GetPublicTruck-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/notifications": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_notifications",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/notifications/http.(*Handler).ListFeed-fm",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/notifications/realtime-token": {
+      "post": {
+        "operationId": "post_api_v1_hauling_customer_notifications_realtime_token",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/notifications/http.(*Handler).RealtimeToken-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hauling/customer/notifications/devices": {
+      "post": {
+        "operationId": "post_api_v1_hauling_customer_notifications_devices",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/notifications/http.(*Handler).RegisterDevice-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "registerDeviceRequest",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "platform": {
+                    "type": "string"
+                  },
+                  "app": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "ServiceHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2 service auth: X-Service-Name, X-Service-Timestamp, X-Service-Nonce and X-Service-Signature; exact caller allowlist; replayed nonce refused."
+      }
+    },
+    "schemas": {
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {}
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

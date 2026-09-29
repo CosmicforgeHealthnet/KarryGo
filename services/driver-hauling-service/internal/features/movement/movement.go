@@ -46,12 +46,42 @@ func stateFor(status string) string {
 	return ""
 }
 
+// stageFor is the fine-grained lifecycle step beneath state (Customer V4
+// §22.2). Haulage records loading as picked_up; arrival at the drop-off and
+// delivery are one authority step (delivered), so no separate drop-off stage
+// is reported.
+func stageFor(status string) string {
+	switch status {
+	case "pending_match", "awaiting_acceptance":
+		return events.MovementStageSearching
+	case "accepted":
+		return events.MovementStageProviderAssigned
+	case "en_route_pickup":
+		return events.MovementStageEnRoutePickup
+	case "arrived_at_pickup":
+		return events.MovementStageArrivedPickup
+	case "picked_up":
+		return events.MovementStageCustodyStarted
+	case "en_route_delivery":
+		return events.MovementStageInTransit
+	case "delivered":
+		return events.MovementStageDelivered
+	case "completed":
+		return events.MovementStageCompleted
+	case "cancelled":
+		return events.MovementStageCancelled
+	case "unmatched":
+		return events.MovementStageUnmatched
+	}
+	return ""
+}
+
 // Publisher sweeps changed haulages into the movement outbox.
 type Publisher struct {
 	pool    *pgxpool.Pool
 	emitter *events.Emitter
-	cursor  time.Time
 	batch   int
+	after   string
 }
 
 func NewPublisher(pool *pgxpool.Pool) *Publisher {
@@ -59,9 +89,7 @@ func NewPublisher(pool *pgxpool.Pool) *Publisher {
 		emitter: &events.Emitter{Pool: pool, SourceService: SourceService, EntityType: "haulage_booking"}}
 }
 
-// Overlap re-inspects a short window behind the cursor so a row committed
-// slightly out of timestamp order is never skipped.
-const Overlap = 2 * time.Minute
+// Each bounded sweep advances through committed booking IDs and cycles back.
 
 // Sweep publishes every haulage whose committed state differs from the last
 // published view.
@@ -69,7 +97,11 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 	if p == nil || p.pool == nil {
 		return events.EmissionResult{}, events.ErrEmitterNotConfigured
 	}
-	since := p.cursor.Add(-Overlap)
+	since := time.Time{}
+	after := p.after
+	if after == "" {
+		after = "00000000-0000-0000-0000-000000000000"
+	}
 	rows, err := p.pool.Query(ctx, `
 		SELECT b.id::text, b.customer_id::text, b.status, b.cargo_type,
 		       b.pickup_address, b.pickup_lat, b.pickup_lng,
@@ -79,17 +111,19 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 		       b.updated_at
 		FROM haulage_bookings b
 		LEFT JOIN commerce_missions cm ON cm.booking_id = b.id
-		WHERE b.updated_at > $1
-		ORDER BY b.updated_at
-		LIMIT $2`, since, p.batch)
+		WHERE b.updated_at > $1 AND b.id > $3::uuid
+		ORDER BY b.id
+		LIMIT $2`, since, p.batch, after)
 	if err != nil {
 		return events.EmissionResult{}, err
 	}
 	var (
 		summaries []events.MovementSummary
-		newest    = p.cursor
+		lastID    string
 	)
+	scanned := 0
 	for rows.Next() {
+		scanned++
 		var (
 			id, customerID, status, cargoType            string
 			pickupAddress, dropoffAddress                string
@@ -104,9 +138,7 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 			rows.Close()
 			return events.EmissionResult{}, err
 		}
-		if changedAt.After(newest) {
-			newest = changedAt
-		}
+		lastID = id
 		state := stateFor(status)
 		if state == "" {
 			// An unmapped status publishes nothing rather than guessing a
@@ -115,7 +147,7 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 		}
 		summary := events.MovementSummary{
 			CustomerID: customerID, Authority: events.MovementAuthorityHauling, SourceRef: id,
-			ProductCode: cargoType, MovementType: events.MovementTypeHaulage, State: state,
+			ProductCode: cargoType, MovementType: events.MovementTypeHaulage, State: state, Stage: stageFor(status),
 			Origin:      &events.PlaceSummary{Label: pickupAddress, Latitude: pickupLat, Longitude: pickupLng},
 			Destination: &events.PlaceSummary{Label: dropoffAddress, Latitude: dropoffLat, Longitude: dropoffLng},
 			StartedAt:   startedAt, CompletedAt: completedAt,
@@ -134,7 +166,10 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 	if err != nil {
 		return result, err
 	}
-	p.cursor = newest
+	p.after = lastID
+	if scanned < p.batch {
+		p.after = ""
+	}
 	return result, nil
 }
 

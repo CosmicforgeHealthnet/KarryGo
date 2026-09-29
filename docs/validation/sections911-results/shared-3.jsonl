@@ -1,0 +1,24 @@
+{"Time":"2026-09-27T16:54:20.99454+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/auth"}
+{"Time":"2026-09-27T16:54:21.191364+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestGenerateNumericOTP"}
+{"Time":"2026-09-27T16:54:21.191364+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestGenerateNumericOTP","Output":"=== RUN   TestGenerateNumericOTP\n"}
+{"Time":"2026-09-27T16:54:21.2469477+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestGenerateNumericOTP","Output":"--- PASS: TestGenerateNumericOTP (0.00s)\n"}
+{"Time":"2026-09-27T16:54:21.2469477+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestGenerateNumericOTP","Elapsed":0}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestHashAndVerifyOTP"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestHashAndVerifyOTP","Output":"=== RUN   TestHashAndVerifyOTP\n"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestHashAndVerifyOTP","Output":"--- PASS: TestHashAndVerifyOTP (0.00s)\n"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestHashAndVerifyOTP","Elapsed":0}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestTokenSignerSignAndVerify"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestTokenSignerSignAndVerify","Output":"=== RUN   TestTokenSignerSignAndVerify\n"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestTokenSignerSignAndVerify","Output":"--- PASS: TestTokenSignerSignAndVerify (0.00s)\n"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestTokenSignerSignAndVerify","Elapsed":0}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestTokenSignerRejectsExpiredToken"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestTokenSignerRejectsExpiredToken","Output":"=== RUN   TestTokenSignerRejectsExpiredToken\n"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestTokenSignerRejectsExpiredToken","Output":"--- PASS: TestTokenSignerRejectsExpiredToken (0.00s)\n"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestTokenSignerRejectsExpiredToken","Elapsed":0}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestHashRefreshToken"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestHashRefreshToken","Output":"=== RUN   TestHashRefreshToken\n"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestHashRefreshToken","Output":"--- PASS: TestHashRefreshToken (0.00s)\n"}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/auth","Test":"TestHashRefreshToken","Elapsed":0}
+{"Time":"2026-09-27T16:54:21.2479672+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:21.2591151+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/auth","Output":"ok  \tcosmicforge/logistics/shared/go/auth\t0.252s\n"}
+{"Time":"2026-09-27T16:54:21.2591151+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/auth","Elapsed":0.265}

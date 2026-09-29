@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:17:48.0079373+02:00","Action":"start","Package":"cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority"}
+{"Time":"2026-09-27T16:17:48.1422153+02:00","Action":"run","Package":"cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority","Test":"TestProviderAndTruckLinkLifecyclePostgres"}
+{"Time":"2026-09-27T16:17:48.1422153+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority","Test":"TestProviderAndTruckLinkLifecyclePostgres","Output":"=== RUN   TestProviderAndTruckLinkLifecyclePostgres\n"}
+{"Time":"2026-09-27T16:17:48.269138+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority","Test":"TestProviderAndTruckLinkLifecyclePostgres","Output":"--- PASS: TestProviderAndTruckLinkLifecyclePostgres (0.13s)\n"}
+{"Time":"2026-09-27T16:17:48.269138+02:00","Action":"pass","Package":"cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority","Test":"TestProviderAndTruckLinkLifecyclePostgres","Elapsed":0.13}
+{"Time":"2026-09-27T16:17:48.269138+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority","Output":"PASS\n"}
+{"Time":"2026-09-27T16:17:48.2733316+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority","Output":"ok  \tcosmicforge/logistics/services/hauling-service/internal/features/fleetauthority\t0.265s\n"}
+{"Time":"2026-09-27T16:17:48.2733316+02:00","Action":"pass","Package":"cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority","Elapsed":0.265}

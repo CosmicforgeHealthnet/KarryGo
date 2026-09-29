@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS commerce_customer_grouping_backfill_results;
+DROP TABLE IF EXISTS commerce_customer_grouping_backfill_runs;

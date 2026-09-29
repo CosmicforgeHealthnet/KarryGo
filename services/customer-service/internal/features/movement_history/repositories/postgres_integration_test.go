@@ -110,7 +110,7 @@ func TestPostgresCommerceGroupingDecoratesMovementsInEitherOrder(t *testing.T) {
 	parent := "order-" + uuid.NewString()
 	early, late := "grp-"+uuid.NewString(), "grp-"+uuid.NewString()
 
-	grouping := events.MovementGrouping{CustomerID: customer, ParentContextType: "COMMERCE_ORDER", ParentContextRef: parent,
+	grouping := events.MovementGrouping{CustomerID: customer, ProductCode: "FOOD", ParentContextType: "COMMERCE_ORDER", ParentContextRef: parent,
 		FulfilmentPlanRef: "plan-1", Missions: []events.GroupingMission{
 			{FulfilmentGroupRef: early, MissionSequence: 1, MissionCount: 2},
 			{FulfilmentGroupRef: late, MissionSequence: 2, MissionCount: 2},
@@ -149,6 +149,9 @@ func TestPostgresCommerceGroupingDecoratesMovementsInEitherOrder(t *testing.T) {
 		if movement.ParentContextRef == nil || *movement.ParentContextRef != parent {
 			t.Fatalf("%s parent = %v, want %s", want.sourceRef, movement.ParentContextRef, parent)
 		}
+		if movement.ProductCode == nil || *movement.ProductCode != "FOOD" {
+			t.Fatalf("commerce classification = %v", movement.ProductCode)
+		}
 		if movement.MissionSequence == nil || *movement.MissionSequence != want.sequence || movement.MissionCount == nil || *movement.MissionCount != 2 {
 			t.Fatalf("%s grouping = %v/%v", want.sourceRef, movement.MissionSequence, movement.MissionCount)
 		}
@@ -175,5 +178,44 @@ func TestPostgresCommerceGroupingDecoratesMovementsInEitherOrder(t *testing.T) {
 	// Grouping decorates, it never becomes state.
 	if movement.State != events.MovementStateInProgress {
 		t.Fatalf("state = %s, want the authority's own state", movement.State)
+	}
+	versions, err := repo.ProjectedVersions(ctx, "COMMERCE", []string{parent, first.SourceRef})
+	if err != nil || versions[parent] != 7 || versions[first.SourceRef] != 0 {
+		t.Fatal("grouping-only reconciliation", versions, err)
+	}
+	// A newer execution event cannot erase the commerce classification.
+	project(t, repo, uuid.NewString(), 2, first)
+	movement, err = repo.Get(ctx, customer, first.Authority, first.SourceRef)
+	if err != nil || (movement.ProductCode == nil || *movement.ProductCode != "FOOD") {
+		t.Fatal("classification lost", movement, err)
+	}
+	foreign := grouping
+	foreign.CustomerID = uuid.NewString()
+	foreignEnvelope, _ := events.NewGroupingEnvelope(uuid.NewString(), "vendor-service", parent, 8, time.Now(), parent, foreign)
+	if outcome, _, err := repo.ApplyGrouping(ctx, foreignEnvelope, foreign); err != nil || outcome != "STALE" {
+		t.Fatal("grouping owner changed", outcome, err)
+	}
+}
+
+func TestPostgresAllFiveProductFiltersPreserveVariants(t *testing.T) {
+	db := pool(t)
+	repo := movementrepositories.NewPostgresRepository(db)
+	ctx := context.Background()
+	owner := uuid.NewString()
+	cases := []struct{ family, authority, kind, variant string }{
+		{"RIDE", "TAXI", events.MovementTypePassenger, "RIDE_STANDARD"},
+		{"SEND", "DISPATCH", events.MovementTypeDispatch, "express"},
+		{"TRUCK", "HAULING", events.MovementTypeHaulage, "general"},
+		{"FOOD", "DISPATCH", events.MovementTypeDispatch, "FOOD"},
+		{"SHOP", "HAULING", events.MovementTypeHaulage, "SHOP"},
+	}
+	for _, c := range cases {
+		project(t, repo, uuid.NewString(), 1, events.MovementSummary{CustomerID: owner, Authority: c.authority, SourceRef: uuid.NewString(), ProductCode: c.variant, MovementType: c.kind, State: events.MovementStateAssigned})
+	}
+	for _, c := range cases {
+		rows, total, err := repo.List(ctx, owner, movementrepositories.Filter{ProductCode: c.family, Page: 1, Limit: 10})
+		if err != nil || total != 1 || len(rows) != 1 || (rows[0].ProductCode == nil || *rows[0].ProductCode != c.variant) {
+			t.Fatal(c.family, rows, total, err)
+		}
 	}
 }

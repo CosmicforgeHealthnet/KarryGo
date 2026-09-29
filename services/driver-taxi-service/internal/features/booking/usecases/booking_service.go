@@ -125,9 +125,9 @@ type BookingService struct {
 	// completedWorkEnabled gates writing the canonical Fleet completed-work
 	// outbox row. Off by default (TAXI_FLEET_COMPLETED_WORK_ENABLED).
 	completedWorkEnabled bool
-	movement   *movement.Writer
-	capability CapabilityGate
-	riskStore  ScheduledRiskStore
+	movement             *movement.Writer
+	capability           CapabilityGate
+	riskStore            ScheduledRiskStore
 
 	products        ProductPolicySource
 	customerContext CustomerContextSource
@@ -245,9 +245,9 @@ func NewBookingService(opts Options) *BookingService {
 		adminAudit:        opts.AdminAudit,
 		managedSettlement: opts.ManagedSettlement, managedHandoff: opts.ManagedHandoff,
 		completedWorkEnabled: opts.CompletedWorkEnabled,
-		movement:   opts.Movement,
-		capability: opts.CapabilityGate,
-		riskStore:  opts.RiskStore,
+		movement:             opts.Movement,
+		capability:           opts.CapabilityGate,
+		riskStore:            opts.RiskStore,
 
 		products:        opts.ProductPolicy,
 		customerContext: opts.CustomerContext,
@@ -295,6 +295,9 @@ type CreateBookingInput struct {
 	// ServiceProductCode selects a Section 7 product. Empty maps the vehicle
 	// class to its legacy product.
 	ServiceProductCode string
+	// GuestTravellerID books the ride for one of the customer's saved
+	// travellers; Taxi freezes that traveller into the requirement snapshot.
+	GuestTravellerID string
 	// HardRequirements gate matching. A nil field is "not stated" and may be
 	// filled from the customer's saved mobility needs.
 	HardRequirements capability.HardRequirementInput

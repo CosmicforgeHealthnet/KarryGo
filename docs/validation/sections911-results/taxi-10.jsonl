@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:00:58.2315175+02:00","Action":"start","Package":"cosmicforge/logistics/services/taxi-service/internal/dbtx"}
+{"Time":"2026-09-27T16:00:58.2320793+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/dbtx","Output":"?   \tcosmicforge/logistics/services/taxi-service/internal/dbtx\t[no test files]\n"}
+{"Time":"2026-09-27T16:00:58.2320793+02:00","Action":"skip","Package":"cosmicforge/logistics/services/taxi-service/internal/dbtx","Elapsed":0.001}

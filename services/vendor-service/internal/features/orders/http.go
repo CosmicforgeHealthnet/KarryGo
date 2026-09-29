@@ -135,6 +135,15 @@ func orderHTTPError(err error) error {
 	if errors.As(err, &applicationError) {
 		return applicationError
 	}
+	var changeRequired *SubstitutionChangeRequiredError
+	if errors.As(err, &changeRequired) {
+		refusal := apperrors.New(409, "commercial_change_approval_required",
+			"Approve the replacement quote for this substitution first.", err)
+		refusal.Details = map[string]interface{}{
+			"commercial_change_id": changeRequired.ChangeID, "commercial_change_state": string(changeRequired.State),
+		}
+		return refusal
+	}
 	switch {
 	case errors.Is(err, ErrOrderNotFound):
 		return apperrors.NotFound("Order not found.", err)
@@ -173,6 +182,9 @@ func orderHTTPError(err error) error {
 		return apperrors.Conflict("This commercial change cannot be applied in its current state.", err)
 	case errors.Is(err, ErrForbidden):
 		return apperrors.Forbidden("You may not act on this order.", err)
+	case errors.Is(err, ErrPhysicalReplanRequired):
+		return apperrors.New(409, "logistics_replan_required",
+			"The packed load needs a different delivery vehicle before it can be handed over.", err)
 	case errors.Is(err, ErrDisabled), errors.Is(err, ErrDependencyMissing):
 		return apperrors.Unavailable("Order orchestration is temporarily unavailable.", err)
 	default:

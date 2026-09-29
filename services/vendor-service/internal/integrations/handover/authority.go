@@ -9,10 +9,11 @@ import (
 )
 
 var (
-	ErrUnavailable = errors.New("HANDOVER_NOT_AVAILABLE")
-	ErrInvalid     = errors.New("HANDOVER_SCOPE_INVALID")
-	ErrUnknown     = errors.New("HANDOVER_OUTCOME_UNKNOWN")
-	ErrRejected    = errors.New("HANDOVER_REJECTED")
+	ErrUnavailable                   = errors.New("HANDOVER_NOT_AVAILABLE")
+	ErrInvalid                       = errors.New("HANDOVER_SCOPE_INVALID")
+	ErrUnknown                       = errors.New("HANDOVER_OUTCOME_UNKNOWN")
+	ErrRejected                      = errors.New("HANDOVER_REJECTED")
+	ErrReceiverSecureChannelRequired = errors.New("RECEIVER_SECURE_CHANNEL_REQUIRED")
 )
 
 // Binding is resolved from the frozen fulfilment mission, never from a caller's

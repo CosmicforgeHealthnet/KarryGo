@@ -100,6 +100,9 @@ type LineLogistics struct {
 	SellUnitRef string
 
 	Quantity int64
+	// MeasureQuantity is the total expected or actually picked quantity in
+	// the canonical sell-unit measure. Quantity remains the package count.
+	MeasureQuantity int64
 }
 
 // LineProfile is the catalogue authority's physical answer for ONE unit of a

@@ -197,8 +197,8 @@ class _CustomerAppState extends State<CustomerApp> {
       onAuthFailure: _onAuthFailure,
     );
     final mediaApi = MediaFileApi(
-      config: ApiCoreConfig(baseUrl: config.mediaFileApiBaseUrl),
-      serviceToken: config.mediaFileServiceToken,
+      config: ApiCoreConfig(baseUrl: config.customerApiBaseUrl),
+      sessionStore: SecureCustomerSessionStore(),
     );
     _mediaUploadService = MediaUploadService(api: mediaApi);
 

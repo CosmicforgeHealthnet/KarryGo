@@ -9,12 +9,39 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/authority"
+	"cosmicforge/logistics/shared/go/apperrors"
+	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
 type Handler struct{ service *Service }
 
 func NewHandler(s *Service) *Handler { return &Handler{service: s} }
+
+// RegisterReceiverCredentialRead exposes delivery credentials only to the
+// account explicitly bound in the frozen receiver snapshot. A phone contact
+// without that account fails at Bind before any challenge is issued.
+func RegisterReceiverCredentialRead(engine *gin.Engine, h *Handler, customerSigner *sharedauth.TokenSigner) {
+	if h == nil || h.service == nil || !h.service.Enabled() {
+		return
+	}
+	receiver := engine.Group("/api/v1/customer/vendor-owned/missions")
+	receiver.Use(sharedauth.BearerMiddleware(customerSigner, "customer", "customer"))
+	receiver.GET("/:missionRef/handover/delivery/:challengeRef/credential", func(c *gin.Context) {
+		claims, ok := sharedauth.ClaimsFromContext(c)
+		if !ok || claims.Subject == "" {
+			httpx.Abort(c, apperrors.Unauthorized("Receiver authentication is required.", nil))
+			return
+		}
+		result, err := h.service.ReadCredential(c, c.Param("missionRef"), c.Param("challengeRef"), Delivery, claims.Subject)
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
+	})
+}
 
 func Register(group *gin.RouterGroup, h *Handler, verifier *serviceauth.Verifier, db *pgxpool.Pool) {
 	if h == nil || h.service == nil || !h.service.Enabled() || verifier == nil {
@@ -127,6 +154,12 @@ func fail(c *gin.Context, err error) {
 	case errors.Is(err, ErrDisabled):
 		status = http.StatusServiceUnavailable
 		code = "HANDOVER_NOT_AVAILABLE"
+	case errors.Is(err, ErrReceiverSecureChannelRequired):
+		status = http.StatusPreconditionFailed
+		code = "RECEIVER_SECURE_CHANNEL_REQUIRED"
+	case errors.Is(err, ErrRateLimited):
+		status = http.StatusTooManyRequests
+		code = "HANDOVER_RATE_LIMITED"
 	}
 	c.JSON(status, gin.H{"success": false, "error": gin.H{"code": code}})
 }

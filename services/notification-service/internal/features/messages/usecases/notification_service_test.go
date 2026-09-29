@@ -44,6 +44,29 @@ func TestSendUsesTemplateDefaultChannelsWhenChannelsAreOmitted(t *testing.T) {
 	}
 }
 
+func TestSendPersistsOnlyDerivedRouteIntent(t *testing.T) {
+	repo := newFakeRepository()
+	service := newTestService(repo, &fakeQueue{})
+	request := notifications.Request{
+		IDempotencyKey: "ride-event-1", SourceService: "driver-taxi-service",
+		SourceAggregateType: "booking", SourceAggregateID: "ride-1",
+		EventType: "taxi.booking.accepted", Recipient: notifications.Recipient{Type: notifications.RecipientCustomer, ID: "customer-1"},
+		Title: "Driver assigned", Body: "Open your ride.",
+		Data: map[string]interface{}{"booking_id": "ride-1", "route_intent": map[string]any{"target": "https://evil.example"}},
+	}
+	result, err := service.Send(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := repo.messages[result.MessageID].Data["route_intent"].(notifications.RouteIntent)
+	if !ok || got.Target != "RIDE_DETAIL" || got.Ref != "ride-1" || !got.ReadBack {
+		t.Fatalf("route %+v", repo.messages[result.MessageID].Data["route_intent"])
+	}
+	if request.Data["route_intent"].(map[string]any)["target"] != "https://evil.example" {
+		t.Fatal("Send mutated the producer request")
+	}
+}
+
 func TestProcessDeliverySkipsEmailWithoutRecipientEmail(t *testing.T) {
 	repo := newFakeRepository()
 	queue := &fakeQueue{}

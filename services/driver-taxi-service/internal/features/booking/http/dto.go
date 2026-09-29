@@ -39,9 +39,11 @@ type createBookingRequest struct {
 	// Section 7. service_product_code is optional (the vehicle class maps to
 	// its legacy product). requirements are hard gates; preferences are
 	// informational and never restrict matching.
-	ServiceProductCode string                 `json:"service_product_code"`
-	Requirements       *requirementsRequest   `json:"requirements,omitempty"`
-	Preferences        *ridePreferenceRequest `json:"preferences,omitempty"`
+	ServiceProductCode string `json:"service_product_code"`
+	// guest_traveller_id books for one of the customer's saved travellers.
+	GuestTravellerID string                 `json:"guest_traveller_id"`
+	Requirements     *requirementsRequest   `json:"requirements,omitempty"`
+	Preferences      *ridePreferenceRequest `json:"preferences,omitempty"`
 }
 
 type requirementsRequest struct {
@@ -79,6 +81,7 @@ func (r createBookingRequest) toInput(customerID string) bookingusecases.CreateB
 		PackageSize:             r.PackageSize,
 		IsFragile:               r.IsFragile,
 		ServiceProductCode:      r.ServiceProductCode,
+		GuestTravellerID:        r.GuestTravellerID,
 		HardRequirements:        r.hardRequirements(),
 		Preferences:             r.preferences(),
 	}

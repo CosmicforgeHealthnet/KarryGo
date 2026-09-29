@@ -45,7 +45,8 @@ func (a section17FChangeQuoteAuthority) ApproveReplacementQuote(ctx context.Cont
 
 func replacementQuote(q checkoutquote.Quote) orders.ReplacementQuote {
 	return orders.ReplacementQuote{
-		ID: q.ID, Version: q.QuoteVersion, Fingerprint: q.QuoteFingerprint,
+		CheckoutSessionID: q.CheckoutSessionID,
+		ID:                q.ID, Version: q.QuoteVersion, Fingerprint: q.QuoteFingerprint,
 		CustomerID: q.CustomerID,
 		Address: orders.AddressSnapshot{
 			SourceAddressRef: q.Address.SourceAddressRef, Title: q.Address.Title,

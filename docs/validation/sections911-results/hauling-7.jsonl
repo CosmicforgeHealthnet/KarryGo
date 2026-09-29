@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:16:35.6064987+02:00","Action":"start","Package":"cosmicforge/logistics/services/hauling-service/internal/database"}
+{"Time":"2026-09-27T16:16:35.7362135+02:00","Action":"run","Package":"cosmicforge/logistics/services/hauling-service/internal/database","Test":"TestApplyMigrationsTracksAndReplays"}
+{"Time":"2026-09-27T16:16:35.7362135+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/database","Test":"TestApplyMigrationsTracksAndReplays","Output":"=== RUN   TestApplyMigrationsTracksAndReplays\n"}
+{"Time":"2026-09-27T16:16:35.8431346+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/database","Test":"TestApplyMigrationsTracksAndReplays","Output":"--- PASS: TestApplyMigrationsTracksAndReplays (0.11s)\n"}
+{"Time":"2026-09-27T16:16:35.8431346+02:00","Action":"pass","Package":"cosmicforge/logistics/services/hauling-service/internal/database","Test":"TestApplyMigrationsTracksAndReplays","Elapsed":0.11}
+{"Time":"2026-09-27T16:16:35.8431346+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/database","Output":"PASS\n"}
+{"Time":"2026-09-27T16:16:35.846832+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/database","Output":"ok  \tcosmicforge/logistics/services/hauling-service/internal/database\t0.240s\n"}
+{"Time":"2026-09-27T16:16:35.846832+02:00","Action":"pass","Package":"cosmicforge/logistics/services/hauling-service/internal/database","Elapsed":0.24}

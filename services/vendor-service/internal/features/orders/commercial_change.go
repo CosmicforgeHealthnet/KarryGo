@@ -52,6 +52,7 @@ var (
 // ReplacementQuote is the safe projection needed to link a new immutable
 // checkout quote.  It deliberately contains no caller-supplied amount.
 type ReplacementQuote struct {
+	CheckoutSessionID  string
 	ID                 string
 	Version            int64
 	Fingerprint        string

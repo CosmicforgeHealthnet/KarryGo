@@ -31,7 +31,9 @@ func (s *Service) ProjectVendorMissionAction(ctx context.Context, businessID, st
 		if vendorMissionActionProjected(current, transition) {
 			continue
 		}
-		moved, parent, moveErr := s.store.Transition(ctx, TransitionRequest{VendorOrderID: current.ID, ExpectedVersion: current.Version, Transition: transition, ActorType: "VENDOR_RIDER", ActorRef: staffID, BusinessID: businessID}, s.now().UTC())
+		// A Vendor rider is authenticated Vendor staff. The rider runtime owns
+		// role/action evidence; the order audit uses its existing staff actor type.
+		moved, parent, moveErr := s.store.Transition(ctx, TransitionRequest{VendorOrderID: current.ID, ExpectedVersion: current.Version, Transition: transition, ActorType: "VENDOR_STAFF", ActorRef: staffID, BusinessID: businessID}, s.now().UTC())
 		if moveErr != nil {
 			return moveErr
 		}

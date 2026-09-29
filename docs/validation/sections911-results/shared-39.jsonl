@@ -1,0 +1,20 @@
+{"Time":"2026-09-27T16:56:14.7393602+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/serviceapp"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestUnstampedBuildReportsUnknownRatherThanEmpty"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestUnstampedBuildReportsUnknownRatherThanEmpty","Output":"=== RUN   TestUnstampedBuildReportsUnknownRatherThanEmpty\n"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestUnstampedBuildReportsUnknownRatherThanEmpty","Output":"--- PASS: TestUnstampedBuildReportsUnknownRatherThanEmpty (0.00s)\n"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestUnstampedBuildReportsUnknownRatherThanEmpty","Elapsed":0}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestBuildInfoReadsTheEnvironment"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestBuildInfoReadsTheEnvironment","Output":"=== RUN   TestBuildInfoReadsTheEnvironment\n"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestBuildInfoReadsTheEnvironment","Output":"--- PASS: TestBuildInfoReadsTheEnvironment (0.00s)\n"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestBuildInfoReadsTheEnvironment","Elapsed":0}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestStampedDistinguishesUnknownFromWrong"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestStampedDistinguishesUnknownFromWrong","Output":"=== RUN   TestStampedDistinguishesUnknownFromWrong\n"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestStampedDistinguishesUnknownFromWrong","Output":"--- PASS: TestStampedDistinguishesUnknownFromWrong (0.00s)\n"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestStampedDistinguishesUnknownFromWrong","Elapsed":0}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestBuildFieldsSurviveLogRedaction"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestBuildFieldsSurviveLogRedaction","Output":"=== RUN   TestBuildFieldsSurviveLogRedaction\n"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestBuildFieldsSurviveLogRedaction","Output":"--- PASS: TestBuildFieldsSurviveLogRedaction (0.00s)\n"}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/serviceapp","Test":"TestBuildFieldsSurviveLogRedaction","Elapsed":0}
+{"Time":"2026-09-27T16:56:14.8805634+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Output":"PASS\n"}
+{"Time":"2026-09-27T16:56:14.884372+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/serviceapp","Output":"ok  \tcosmicforge/logistics/shared/go/serviceapp\t0.145s\n"}
+{"Time":"2026-09-27T16:56:14.884372+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/serviceapp","Elapsed":0.145}

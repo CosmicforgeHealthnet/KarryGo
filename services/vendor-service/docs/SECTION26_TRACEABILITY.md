@@ -173,20 +173,25 @@ under a 60 kg motorcycle limit that no longer exists.
 
 ### Missing-metadata policy
 
-Four configured answers, none of them a guess:
+Five configured answers, none of them a guess:
 
 | Policy | Behaviour |
 |---|---|
-| `PROCEED_ON_LOWER_BOUND` (default) | plan on the stated lower bound, record `MEASUREMENT_EVIDENCE_INCOMPLETE` |
+| `REQUIRE_PACKED_WEIGHT` (default since `vehicle-capability/2`) | refuse (`METADATA_INCOMPLETE`) unless every line states a packed weight (`COMPLETE`); stated volume/dimensions are enforced, absent ones do not refuse on their own |
+| `PROCEED_ON_LOWER_BOUND` | plan on the stated lower bound, record `MEASUREMENT_EVIDENCE_INCOMPLETE` |
 | `CONSERVATIVE_ESCALATION` | refuse the smallest class |
-| `REQUIRE_METADATA` | refuse to decide |
+| `REQUIRE_METADATA` | refuse to decide unless weight, volume and dimensions are all present |
 | `MANUAL_REVIEW` | refuse to decide, ask for a human |
 
-`PROCEED_ON_LOWER_BOUND` is the default because it is what the platform
-already does — aggregation reports `PARTIAL`/`ABSENT` and planning proceeds in
-the open. Naming it makes that a stated choice rather than an accident of
-where a check was not written. Changing the platform's product behaviour was
-not this section's call.
+Karryam V4 §14.6 made the product rule explicit: every platform-delivery
+eligible sell unit must carry an estimated packed weight, and production must
+fail closed rather than plan an unmeasured load onto the smallest vehicle. The
+Food package-size fallback and any `PARTIAL` total are lower bounds, so they
+refuse under the default. An unknown policy value also normalizes to
+`REQUIRE_PACKED_WEIGHT`. Snapshots taken under `vehicle-capability/1` keep
+naming it. Catalogue rows without packed weight must be backfilled by the
+vendor before they can be delivered by platform logistics; vendor-owned
+delivery is unaffected.
 
 ---
 

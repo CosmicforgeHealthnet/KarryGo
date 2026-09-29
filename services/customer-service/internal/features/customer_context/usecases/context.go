@@ -23,9 +23,12 @@ const (
 	ScopeMobilityPreferences = "mobility_preferences"
 	ScopeAssistanceNotes     = "assistance_notes"
 	ScopeSavedLocation       = "saved_location"
+	// ScopeGuestTraveller lets a booking authority freeze who is actually
+	// travelling when a customer books for someone else (Customer V4 §5.1).
+	ScopeGuestTraveller = "guest_traveller"
 )
 
-var knownScopes = map[string]bool{ScopeMobilityPreferences: true, ScopeAssistanceNotes: true, ScopeSavedLocation: true}
+var knownScopes = map[string]bool{ScopeMobilityPreferences: true, ScopeAssistanceNotes: true, ScopeSavedLocation: true, ScopeGuestTraveller: true}
 
 // CallerScopes maps an HMAC-authenticated service name to its granted scopes.
 type CallerScopes map[string]map[string]bool
@@ -68,21 +71,36 @@ type LocationReader interface {
 	GetLocation(ctx context.Context, id, customerID string) (savedlocationmodels.SavedLocation, error)
 }
 
+// GuestReader reads one active traveller owned by the customer; another
+// customer's traveller reads as not found.
+type GuestReader interface {
+	GetGuest(ctx context.Context, customerID, id string) (mobilitymodels.GuestTraveller, error)
+}
+
 type Service struct {
 	scopes      CallerScopes
 	preferences PreferenceReader
 	locations   LocationReader
+	guests      GuestReader
 }
 
 func NewService(scopes CallerScopes, preferences PreferenceReader, locations LocationReader) *Service {
 	return &Service{scopes: scopes, preferences: preferences, locations: locations}
 }
 
+// WithGuests enables the guest_traveller scope. Without a reader the scope
+// is refused as unavailable rather than answered empty.
+func (s *Service) WithGuests(guests GuestReader) *Service {
+	s.guests = guests
+	return s
+}
+
 type Request struct {
-	Caller          string
-	CustomerID      string
-	RequestedScopes []string
-	SavedLocationID string
+	Caller           string
+	CustomerID       string
+	RequestedScopes  []string
+	SavedLocationID  string
+	GuestTravellerID string
 }
 
 // MobilityContext deliberately omits safety sharing defaults: they concern
@@ -106,12 +124,25 @@ type LocationContext struct {
 	Longitude float64 `json:"longitude"`
 }
 
+// GuestTravellerContext is the minimum a booking authority needs to freeze
+// the traveller: free-text accessibility notes and the relationship label are
+// deliberately absent. Requirements are Customer Service's normalized,
+// enumerated object, never free text.
+type GuestTravellerContext struct {
+	ID                   string          `json:"id"`
+	Name                 string          `json:"name"`
+	Phone                *string         `json:"phone,omitempty"`
+	MobilityRequirements json.RawMessage `json:"mobility_requirements,omitempty"`
+	Version              int64           `json:"version"`
+}
+
 type CustomerContext struct {
-	CustomerID          string           `json:"customer_id"`
-	Scopes              []string         `json:"scopes"`
-	MobilityPreferences *MobilityContext `json:"mobility_preferences,omitempty"`
-	SavedLocation       *LocationContext `json:"saved_location,omitempty"`
-	ContextVersion      string           `json:"context_version"`
+	CustomerID          string                 `json:"customer_id"`
+	Scopes              []string               `json:"scopes"`
+	MobilityPreferences *MobilityContext       `json:"mobility_preferences,omitempty"`
+	SavedLocation       *LocationContext       `json:"saved_location,omitempty"`
+	GuestTraveller      *GuestTravellerContext `json:"guest_traveller,omitempty"`
+	ContextVersion      string                 `json:"context_version"`
 }
 
 // Resolve returns only the intersection of requested and granted scopes. A
@@ -179,6 +210,21 @@ func (s *Service) Resolve(ctx context.Context, request Request) (CustomerContext
 		}
 		out.SavedLocation = &LocationContext{ID: location.ID, Address: location.Address, Latitude: location.Latitude, Longitude: location.Longitude}
 		versionParts = append(versionParts, "loc:"+location.ID+":"+location.UpdatedAt.UTC().Format("20060102150405.000000"))
+	}
+	if requested[ScopeGuestTraveller] {
+		if strings.TrimSpace(request.GuestTravellerID) == "" {
+			return CustomerContext{}, apperrors.Validation("A traveller is required for this scope.", []apperrors.FieldViolation{{Field: "guest_traveller_id", Message: "guest_traveller_id is required."}})
+		}
+		if s.guests == nil {
+			return CustomerContext{}, apperrors.Unavailable("Traveller context is unavailable.", nil)
+		}
+		guest, err := s.guests.GetGuest(ctx, customerID, strings.TrimSpace(request.GuestTravellerID))
+		if err != nil {
+			return CustomerContext{}, err
+		}
+		out.GuestTraveller = &GuestTravellerContext{ID: guest.ID, Name: guest.Name, Phone: guest.Phone,
+			MobilityRequirements: guest.MobilityRequirementsJSON, Version: guest.Version}
+		versionParts = append(versionParts, fmt.Sprintf("guest:%s:%d", guest.ID, guest.Version))
 	}
 	sum := sha256.Sum256([]byte(strings.Join(versionParts, "|")))
 	out.ContextVersion = hex.EncodeToString(sum[:])[:32]

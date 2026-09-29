@@ -539,6 +539,29 @@ type CompleteUploadInput struct {
 	Content          []byte
 }
 
+// CompleteCustomerUpload permits a phone to redeem only an already-minted,
+// customer-owned grant. The bearer token remains the only upload capability;
+// it cannot name another service, tenant, object, or business binding.
+func (s *Service) CompleteCustomerUpload(ctx context.Context, input CompleteUploadInput) (*models.Object, error) {
+	authorization, err := s.opts.Objects.AuthorizationByID(ctx, input.AuthorizationID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if authorization.CallerService != "customer-service" ||
+		authorization.OwnerService != "customer-service" ||
+		authorization.OwnerType != "CUSTOMER" ||
+		authorization.UploadPurpose != models.PurposeDisputeAttachment ||
+		!strings.HasPrefix(authorization.OrganizationID, "customer_") ||
+		strings.TrimPrefix(authorization.OrganizationID, "customer_") != authorization.OwnerReference {
+		return nil, ErrNotFound
+	}
+	input.Caller = Caller{Service: "customer-service", OrganizationID: authorization.OrganizationID}
+	return s.CompleteUpload(ctx, input)
+}
+
 // CompleteUpload stores and validates the bytes for one authorized upload.
 //
 // Order matters. The grant is redeemed first (single-use, under a row lock),

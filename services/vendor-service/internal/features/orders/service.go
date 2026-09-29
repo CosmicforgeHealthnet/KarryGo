@@ -96,7 +96,10 @@ type Service struct {
 	// customerGrouping publishes the commercial grouping of a purchase to the
 	// customer context owner. Optional: nil publishes nothing and changes no
 	// fulfilment behaviour.
-	customerGrouping   CustomerGroupingPublisher
+	customerGrouping CustomerGroupingPublisher
+	// physical re-answers a platform mission's vehicle class from the packed
+	// load before custody (Karryam V4 §14.6). Nil disables re-evaluation.
+	physical           PhysicalLoadEvaluator
 	restrictedGoods    RestrictedGoodsAuthority
 	abuseLimiter       AbuseLimiter
 	supportLimitMax    int
@@ -429,6 +432,23 @@ func (s *Service) Advance(
 	}
 	if transition == TransitionCancel {
 		request.CancelledBy = CancelByVendor
+	}
+	if transition == TransitionPack {
+		proposals, readErr := s.store.approvedSubstitutionsForOrder(ctx, current.ID)
+		if readErr != nil {
+			return VendorOrder{}, ParentOrder{}, readErr
+		}
+		for _, proposal := range proposals {
+			if stockErr := s.applySubstitutionInventory(ctx, proposal); stockErr != nil {
+				return VendorOrder{}, ParentOrder{}, stockErr
+			}
+		}
+		// The packed/measured/substituted load is re-answered BEFORE the pack
+		// transition releases it for pickup: an unsafe vehicle class is never
+		// handed the goods (Karryam V4 §14.6).
+		if _, err = s.ReevaluatePhysicalLoad(ctx, current.ParentOrderID, current.ID); err != nil {
+			return VendorOrder{}, ParentOrder{}, err
+		}
 	}
 
 	moved, parent, err := s.store.Transition(ctx, request, s.now().UTC())

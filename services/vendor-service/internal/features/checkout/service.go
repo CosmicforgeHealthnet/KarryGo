@@ -357,6 +357,8 @@ func buildLineOutcome(
 
 		ReservationBasis: BasisNone,
 
+		SubstitutionPolicy: firstNonEmpty(item.SubstitutionPolicy, cart.SubstitutionExactOnly),
+
 		Status: LineUnavailable,
 	}
 
@@ -1622,6 +1624,10 @@ func (s *Service) GetSession(
 	}
 
 	if session.Status.Live() && session.Expired(s.now()) {
+		if session.ReplacementSourceSessionID != nil {
+			session.Status = StatusExpired
+			return session, nil
+		}
 		return s.settle(
 			ctx,
 			customerID,
@@ -1664,6 +1670,13 @@ func (s *Service) CancelSession(
 
 	if !session.Status.Live() {
 		return Session{}, ErrSessionNotLive
+	}
+	if session.ReplacementSourceSessionID != nil {
+		_, err = s.store.db.Exec(ctx, `UPDATE commerce_checkout_sessions SET status='CANCELLED',version=version+1,updated_at=$3 WHERE id=$1 AND customer_id=$2 AND status IN ('VALIDATING','VALIDATED')`, session.ID, customerID, s.now().UTC())
+		if err != nil {
+			return Session{}, err
+		}
+		return loadOwnedSession(ctx, s.store.db, customerID, session.ID, false)
 	}
 
 	return s.settle(
@@ -1757,6 +1770,7 @@ func (s *Service) SweepDueSessions(
         SELECT id, customer_id, false
         FROM commerce_checkout_sessions
         WHERE status IN ('VALIDATING','VALIDATED')
+          AND replacement_source_session_id IS NULL
           AND expires_at <= $1
 
         UNION ALL

@@ -1,0 +1,64 @@
+{"Time":"2026-09-27T16:54:57.7171471+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/dispatchpricing"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo","Output":"=== RUN   TestFareKobo\n"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/min_fare_short_trip"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/min_fare_short_trip","Output":"=== RUN   TestFareKobo/min_fare_short_trip\n"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/min_fare_short_trip","Output":"--- PASS: TestFareKobo/min_fare_short_trip (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/min_fare_short_trip","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_small_standard"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_small_standard","Output":"=== RUN   TestFareKobo/5km_small_standard\n"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_small_standard","Output":"--- PASS: TestFareKobo/5km_small_standard (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_small_standard","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8528046+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_medium_standard"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_medium_standard","Output":"=== RUN   TestFareKobo/5km_medium_standard\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_medium_standard","Output":"--- PASS: TestFareKobo/5km_medium_standard (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_medium_standard","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_large_standard"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_large_standard","Output":"=== RUN   TestFareKobo/5km_large_standard\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_large_standard","Output":"--- PASS: TestFareKobo/5km_large_standard (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_large_standard","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_small_express"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_small_express","Output":"=== RUN   TestFareKobo/5km_small_express\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_small_express","Output":"--- PASS: TestFareKobo/5km_small_express (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/5km_small_express","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/unknown_size_defaults_small"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/unknown_size_defaults_small","Output":"=== RUN   TestFareKobo/unknown_size_defaults_small\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/unknown_size_defaults_small","Output":"--- PASS: TestFareKobo/unknown_size_defaults_small (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/unknown_size_defaults_small","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/unknown_tier_defaults_standard"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/unknown_tier_defaults_standard","Output":"=== RUN   TestFareKobo/unknown_tier_defaults_standard\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/unknown_tier_defaults_standard","Output":"--- PASS: TestFareKobo/unknown_tier_defaults_standard (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/unknown_tier_defaults_standard","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/tier_case-insensitive"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/tier_case-insensitive","Output":"=== RUN   TestFareKobo/tier_case-insensitive\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/tier_case-insensitive","Output":"--- PASS: TestFareKobo/tier_case-insensitive (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/tier_case-insensitive","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/size_case-insensitive_with_spaces"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/size_case-insensitive_with_spaces","Output":"=== RUN   TestFareKobo/size_case-insensitive_with_spaces\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/size_case-insensitive_with_spaces","Output":"--- PASS: TestFareKobo/size_case-insensitive_with_spaces (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo/size_case-insensitive_with_spaces","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo","Output":"--- PASS: TestFareKobo (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareKobo","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareRoundingAndFloor"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareRoundingAndFloor","Output":"=== RUN   TestFareRoundingAndFloor\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareRoundingAndFloor","Output":"--- PASS: TestFareRoundingAndFloor (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestFareRoundingAndFloor","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestBreakdown"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestBreakdown","Output":"=== RUN   TestBreakdown\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestBreakdown","Output":"--- PASS: TestBreakdown (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestBreakdown","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestETA"}
+{"Time":"2026-09-27T16:54:57.8538357+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestETA","Output":"=== RUN   TestETA\n"}
+{"Time":"2026-09-27T16:54:57.8553714+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestETA","Output":"--- PASS: TestETA (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestETA","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestRoundKM"}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestRoundKM","Output":"=== RUN   TestRoundKM\n"}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestRoundKM","Output":"--- PASS: TestRoundKM (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestRoundKM","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestHaversineKm"}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestHaversineKm","Output":"=== RUN   TestHaversineKm\n"}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestHaversineKm","Output":"--- PASS: TestHaversineKm (0.00s)\n"}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Test":"TestHaversineKm","Elapsed":0}
+{"Time":"2026-09-27T16:54:57.8559009+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:57.8577794+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Output":"ok  \tcosmicforge/logistics/shared/go/dispatchpricing\t0.140s\n"}
+{"Time":"2026-09-27T16:54:57.8577794+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchpricing","Elapsed":0.141}

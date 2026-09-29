@@ -15,11 +15,18 @@ const (
 	MovementAuthorityTaxi     = "TAXI"
 	MovementAuthorityDispatch = "DISPATCH"
 	MovementAuthorityHauling  = "HAULING"
+	// MovementAuthorityVendorCommerce publishes one purchase-level Activity
+	// row per ParentOrder (Customer V4 §22.1). It carries order state only:
+	// execution of each fulfilment mission stays with the executing
+	// authority's own movement, joined by parent_context_ref.
+	MovementAuthorityVendorCommerce = "VENDOR_COMMERCE"
 
 	MovementTypePassenger = "PASSENGER"
 	MovementTypeGoods     = "GOODS"
 	MovementTypeDispatch  = "DISPATCH"
 	MovementTypeHaulage   = "HAULAGE"
+	// MovementTypeCommerceOrder is the VENDOR_COMMERCE purchase row.
+	MovementTypeCommerceOrder = "COMMERCE_ORDER"
 
 	MovementSchemaVersion = 1
 
@@ -76,6 +83,45 @@ var movementStates = map[string]bool{
 	MovementStateUnmatched: true, MovementStateFailed: true,
 }
 
+// Movement stages are the authority's fine-grained lifecycle step beneath the
+// coarse State (Customer V4 §22.2). State stays the projection's filter and
+// terminal-protection vocabulary; Stage distinguishes the transitions a coarse
+// state collapses (en route vs assigned, custody started vs in transit,
+// drop-off arrival, return). It is optional: an authority reports only the
+// stages its own state machine records, never an inferred one.
+const (
+	MovementStageScheduled        = "SCHEDULED"
+	MovementStageSearching        = "SEARCHING"
+	MovementStageProviderAssigned = "PROVIDER_ASSIGNED"
+	MovementStageEnRoutePickup    = "EN_ROUTE_PICKUP"
+	MovementStageArrivedPickup    = "ARRIVED_PICKUP"
+	MovementStageCustodyStarted   = "CUSTODY_STARTED"
+	MovementStageInTransit        = "IN_TRANSIT"
+	MovementStageArrivedDropoff   = "ARRIVED_DROPOFF"
+	MovementStageDelivered        = "DELIVERED"
+	MovementStageReturning        = "RETURNING"
+	MovementStageReturned         = "RETURNED"
+	MovementStageCompleted        = "COMPLETED"
+	MovementStageCancelled        = "CANCELLED"
+	MovementStageUnmatched        = "UNMATCHED"
+	MovementStageFailed           = "FAILED"
+	// Commerce purchase stages (VENDOR_COMMERCE only).
+	MovementStageRefundPending = "REFUND_PENDING"
+	MovementStageRefunded      = "REFUNDED"
+)
+
+var movementStages = map[string]bool{
+	MovementStageScheduled: true, MovementStageSearching: true, MovementStageProviderAssigned: true,
+	MovementStageEnRoutePickup: true, MovementStageArrivedPickup: true, MovementStageCustodyStarted: true,
+	MovementStageInTransit: true, MovementStageArrivedDropoff: true, MovementStageDelivered: true,
+	MovementStageReturning: true, MovementStageReturned: true, MovementStageCompleted: true,
+	MovementStageCancelled: true, MovementStageUnmatched: true, MovementStageFailed: true,
+	MovementStageRefundPending: true, MovementStageRefunded: true,
+}
+
+// IsMovementStage reports a stage in the bounded shared vocabulary.
+func IsMovementStage(stage string) bool { return movementStages[stage] }
+
 // IsTerminalMovementState reports states a projection must never leave.
 func IsTerminalMovementState(state string) bool {
 	switch state {
@@ -100,6 +146,7 @@ type MovementSummary struct {
 	ProductCode              string        `json:"product_code,omitempty"`
 	MovementType             string        `json:"movement_type"`
 	State                    string        `json:"state"`
+	Stage                    string        `json:"stage,omitempty"`
 	Origin                   *PlaceSummary `json:"origin,omitempty"`
 	Destination              *PlaceSummary `json:"destination,omitempty"`
 	ScheduledAt              *time.Time    `json:"scheduled_at,omitempty"`
@@ -119,14 +166,22 @@ func (m MovementSummary) Validate() error {
 	switch {
 	case strings.TrimSpace(m.CustomerID) == "":
 		return fmt.Errorf("%w: customer_id", ErrInvalidEnvelope)
-	case m.Authority != MovementAuthorityTaxi && m.Authority != MovementAuthorityDispatch && m.Authority != MovementAuthorityHauling:
+	case m.Authority != MovementAuthorityTaxi && m.Authority != MovementAuthorityDispatch &&
+		m.Authority != MovementAuthorityHauling && m.Authority != MovementAuthorityVendorCommerce:
 		return fmt.Errorf("%w: authority", ErrInvalidEnvelope)
+	case (m.Authority == MovementAuthorityVendorCommerce) != (m.MovementType == MovementTypeCommerceOrder):
+		return fmt.Errorf("%w: commerce order movement must pair VENDOR_COMMERCE with COMMERCE_ORDER", ErrInvalidEnvelope)
+	case m.Authority == MovementAuthorityVendorCommerce && m.ProductCode != "FOOD" && m.ProductCode != "SHOP":
+		return fmt.Errorf("%w: commerce product_code", ErrInvalidEnvelope)
 	case strings.TrimSpace(m.SourceRef) == "", len(m.SourceRef) > 128:
 		return fmt.Errorf("%w: source_ref", ErrInvalidEnvelope)
-	case m.MovementType != MovementTypePassenger && m.MovementType != MovementTypeGoods && m.MovementType != MovementTypeDispatch && m.MovementType != MovementTypeHaulage:
+	case m.MovementType != MovementTypePassenger && m.MovementType != MovementTypeGoods && m.MovementType != MovementTypeDispatch &&
+		m.MovementType != MovementTypeHaulage && m.MovementType != MovementTypeCommerceOrder:
 		return fmt.Errorf("%w: movement_type", ErrInvalidEnvelope)
 	case !movementStates[m.State]:
 		return fmt.Errorf("%w: state", ErrInvalidEnvelope)
+	case m.Stage != "" && !movementStages[m.Stage]:
+		return fmt.Errorf("%w: stage", ErrInvalidEnvelope)
 	case m.ProviderReplacementCount < 0:
 		return fmt.Errorf("%w: provider_replacement_count", ErrInvalidEnvelope)
 	case m.MissionSequence != nil && *m.MissionSequence < 1, m.MissionCount != nil && *m.MissionCount < 1,
@@ -157,6 +212,7 @@ func NewMovementEnvelope(eventID, eventName, sourceService, entityType string, s
 // which planned mission each fulfilment group is. It carries no state, no
 // provider, no vehicle and no price, because Vendor owns none of those.
 type MovementGrouping struct {
+	ProductCode       string            `json:"product_code,omitempty"`
 	CustomerID        string            `json:"customer_id"`
 	ParentContextType string            `json:"parent_context_type"`
 	ParentContextRef  string            `json:"parent_context_ref"`
@@ -172,6 +228,9 @@ type GroupingMission struct {
 }
 
 func (g MovementGrouping) Validate() error {
+	if g.ProductCode != "" && g.ProductCode != "FOOD" && g.ProductCode != "SHOP" {
+		return fmt.Errorf("%w: commerce product_code", ErrInvalidEnvelope)
+	}
 	switch {
 	case strings.TrimSpace(g.CustomerID) == "":
 		return fmt.Errorf("%w: customer_id", ErrInvalidEnvelope)

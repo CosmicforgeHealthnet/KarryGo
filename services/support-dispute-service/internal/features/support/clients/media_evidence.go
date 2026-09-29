@@ -27,7 +27,7 @@ var ErrMediaUnavailable = errors.New("media service unavailable")
 
 // EvidencePurposes are the Section 16 purposes a complaint may cite.
 var EvidencePurposes = []string{"DAMAGE_EVIDENCE", "RECOVERY_TRANSFER", "CARGO_CONDITION", "SAFETY_INCIDENT",
-	"PROOF_IMAGE", "SIGNATURE"}
+	"PROOF_IMAGE", "SIGNATURE", "DISPUTE_ATTACHMENT"}
 
 // EvidenceVerdict is Media's answer.
 type EvidenceVerdict struct {

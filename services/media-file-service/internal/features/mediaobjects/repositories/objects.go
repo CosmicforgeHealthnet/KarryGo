@@ -286,6 +286,13 @@ func (r *Repository) LockAuthorization(ctx context.Context, q database.Querier,
 		`SELECT `+authorizationColumns+` FROM media_upload_authorizations WHERE id = $1 FOR UPDATE`, id))
 }
 
+// AuthorizationByID is used only to select the owner context for a public
+// token redemption. CompleteUpload re-locks and verifies the grant and token.
+func (r *Repository) AuthorizationByID(ctx context.Context, id string) (*models.UploadAuthorization, error) {
+	return scanAuthorization(r.db.QueryRow(ctx,
+		`SELECT `+authorizationColumns+` FROM media_upload_authorizations WHERE id = $1`, id))
+}
+
 // AuthorizationByIdempotencyKey resolves a replayed authorization request.
 func (r *Repository) AuthorizationByIdempotencyKey(ctx context.Context, q database.Querier,
 	callerService string, organizationID string, key string) (*models.UploadAuthorization, error) {

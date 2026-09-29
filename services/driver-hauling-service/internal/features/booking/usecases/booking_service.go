@@ -3,6 +3,7 @@ package bookingusecases
 import (
 	"context"
 	"errors"
+	"net/mail"
 	"sort"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/routing"
 )
@@ -111,6 +113,7 @@ type BookingService struct {
 	capability         CapabilityAuthority
 	capabilityMatching CapabilityMatchingConfig
 	payments           PaymentClient
+	bookingLocation    BookingLocationReader
 	commerceSettlement CommerceDeliverySettlementAuthority
 	notifier           *bookingclients.BookingNotifier
 	matchTimeout       time.Duration // per-provider acceptance window
@@ -253,6 +256,8 @@ type CreateBookingInput struct {
 	WeightCategory     string
 	ReceiverName       string
 	ReceiverPhone      string
+	ReceiverEmail      string
+	ReceiverCustomerID string
 	PackageContent     string
 	PackageSize        string
 	IsFragile          bool
@@ -276,6 +281,16 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	}
 	if input.CargoWeightKg <= 0 {
 		fields = append(fields, apperrors.FieldViolation{Field: "cargo_weight_kg", Message: "Cargo weight must be greater than zero."})
+	}
+	if receiverID := strings.TrimSpace(input.ReceiverCustomerID); receiverID != "" {
+		if _, err := uuid.Parse(receiverID); err != nil {
+			fields = append(fields, apperrors.FieldViolation{Field: "receiver_customer_id", Message: "Choose a valid receiver account."})
+		}
+	}
+	if receiverEmail := strings.TrimSpace(input.ReceiverEmail); receiverEmail != "" {
+		if address, err := mail.ParseAddress(receiverEmail); err != nil || address.Address != receiverEmail {
+			fields = append(fields, apperrors.FieldViolation{Field: "receiver_email", Message: "Enter a valid receiver email address."})
+		}
 	}
 	// Empty means "any truck" (skips the matcher's type filter). Anything else
 	// must be a real truck type, otherwise the booking would be stored fine and
@@ -334,6 +349,8 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		WeightCategory:     strings.TrimSpace(input.WeightCategory),
 		ReceiverName:       strings.TrimSpace(input.ReceiverName),
 		ReceiverPhone:      strings.TrimSpace(input.ReceiverPhone),
+		ReceiverEmail:      strings.ToLower(strings.TrimSpace(input.ReceiverEmail)),
+		ReceiverCustomerID: strings.TrimSpace(input.ReceiverCustomerID),
 		PackageContent:     strings.TrimSpace(input.PackageContent),
 		PackageSize:        strings.TrimSpace(input.PackageSize),
 		IsFragile:          input.IsFragile,
@@ -343,6 +360,9 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		PaymentStatus:      bookingmodels.PaymentStatusUnpaid,
 		Status:             bookingmodels.StatusPendingMatch,
 		ScheduledAt:        input.ScheduledAt,
+	}
+	if booking.ReceiverName == "" && booking.ReceiverPhone == "" && booking.ReceiverCustomerID == "" {
+		booking.ReceiverCustomerID = input.CustomerID
 	}
 
 	created, err := s.bookings.Create(ctx, booking)
@@ -374,6 +394,8 @@ type ProviderLocation struct {
 	Accuracy  float64 `json:"accuracy"`
 	UpdatedAt int64   `json:"updated_at"`
 	Available bool    `json:"available"`
+	// State is FRESH, STALE or UNAVAILABLE by server freshness policy.
+	State string `json:"state"`
 }
 
 // TrackTarget identifies whose live position a customer is entitled to watch
@@ -392,10 +414,34 @@ func (s *BookingService) ResolveTrackTarget(ctx context.Context, bookingID, cust
 	if err != nil {
 		return TrackTarget{}, err
 	}
-	if b.ProviderID == nil || *b.ProviderID == "" {
-		return TrackTarget{}, apperrors.NotFound("No driver is assigned to this booking yet.", nil)
+	// The stream is the driver's own channel: authorised only while that
+	// driver is assigned to an ACTIVE booking, never after it ends.
+	if b.ProviderID == nil || *b.ProviderID == "" || !activeCustomerTrackingStatuses[b.Status] {
+		return TrackTarget{}, apperrors.NotFound("No driver is currently assigned to this booking.", nil)
 	}
 	return TrackTarget{BookingID: bookingID, ProviderID: *b.ProviderID}, nil
+}
+
+// activeCustomerTrackingStatuses are the booking states in which the
+// assigned driver is on the customer's job and may be tracked.
+var activeCustomerTrackingStatuses = map[string]bool{
+	bookingmodels.StatusAccepted: true, bookingmodels.StatusEnRoutePickup: true,
+	bookingmodels.StatusArrivedAtPickup: true, bookingmodels.StatusPickedUp: true,
+	bookingmodels.StatusEnRouteDelivery: true,
+}
+
+// BookingLocationReader is the booking-bound point projection shared with
+// Share Journey (N10). Satisfied by *customershare.Service.
+type BookingLocationReader interface {
+	Read(ctx context.Context, bookingRef, customerID string) (journeyshare.Projection, error)
+}
+
+// WithBookingLocation wires booking-bound customer tracking. Without it the
+// customer location route reports no fix rather than the driver's global
+// heartbeat.
+func (s *BookingService) WithBookingLocation(reader BookingLocationReader) *BookingService {
+	s.bookingLocation = reader
+	return s
 }
 
 // GetBookingLocation returns the live location of the provider assigned to the
@@ -406,26 +452,29 @@ func (s *BookingService) GetBookingLocation(ctx context.Context, bookingID, cust
 	if err != nil {
 		return ProviderLocation{}, err
 	}
-	if b.ProviderID == nil {
-		return ProviderLocation{BookingID: bookingID, Available: false}, nil
+	unavailable := ProviderLocation{BookingID: bookingID, Available: false, State: "UNAVAILABLE"}
+	// Only the driver currently assigned to an active booking, and only a
+	// point bound to that assignment. The driver's global heartbeat is never
+	// a substitute, and a finished booking stops exposing the driver.
+	if b.ProviderID == nil || !activeCustomerTrackingStatuses[b.Status] || s.bookingLocation == nil {
+		return unavailable, nil
 	}
-	st, ok, err := s.availability.GetProviderStatus(ctx, *b.ProviderID)
+	projection, err := s.bookingLocation.Read(ctx, bookingID, customerID)
 	if err != nil {
 		return ProviderLocation{}, err
 	}
-	if !ok {
-		return ProviderLocation{BookingID: bookingID, Available: false}, nil
+	l := projection.Location
+	if projection.Terminal || !l.Available || l.Lat == nil || l.Lng == nil || l.UpdatedAt == nil {
+		return unavailable, nil
 	}
-	return ProviderLocation{
-		BookingID: bookingID,
-		Lat:       st.Lat,
-		Lng:       st.Lng,
-		Heading:   st.Heading,
-		Speed:     st.Speed,
-		Accuracy:  st.Accuracy,
-		UpdatedAt: st.UpdatedAt,
-		Available: true,
-	}, nil
+	out := ProviderLocation{BookingID: bookingID, Lat: *l.Lat, Lng: *l.Lng, UpdatedAt: l.UpdatedAt.Unix(), Available: true, State: l.State}
+	if l.Heading != nil {
+		out.Heading = *l.Heading
+	}
+	if l.AccuracyM != nil {
+		out.Accuracy = *l.AccuracyM
+	}
+	return out, nil
 }
 
 type InitiateCardPaymentInput struct {
@@ -1281,13 +1330,16 @@ func (s *BookingService) MarkEnRouteDelivery(ctx context.Context, id, providerID
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
 	}
+	if strings.TrimSpace(b.ReceiverCustomerID) == "" {
+		return bookingmodels.PublicBooking{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", nil)
+	}
 	var rec handover.CodeRecord
 	if s.secureHandover != nil {
 		version, versionErr := s.nextSecureHandoverVersion(ctx, id, handover.StepDelivery)
 		if versionErr != nil {
 			return bookingmodels.PublicBooking{}, versionErr
 		}
-		rec, err = handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepDelivery, uuid.NewString(), version, id, providerID, b.CustomerID, 0, time.Now())
+		rec, err = handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepDelivery, uuid.NewString(), version, id, providerID, b.ReceiverCustomerID, 0, time.Now())
 	} else {
 		rec, err = handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepDelivery, id), time.Now())
 	}
@@ -1300,13 +1352,12 @@ func (s *BookingService) MarkEnRouteDelivery(ctx context.Context, id, providerID
 	}
 	_ = s.addEvent(ctx, id, "driver_en_route_delivery", bookingmodels.ActorProvider, providerID)
 	s.notifier.NotifyCustomerEnRouteDelivery(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
-	deliveryPayload := map[string]interface{}{"booking_id": id, "code": rec.Code}
+	deliveryPayload := map[string]interface{}{"booking_id": id}
 	if rec.Version > 0 {
-		deliveryPayload["qr_token"] = rec.QRToken
 		deliveryPayload["challenge_ref"] = rec.ChallengeRef
 		deliveryPayload["version"] = rec.Version
 	}
-	s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.CustomerID, id, deliveryPayload)
+	s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.ReceiverCustomerID, id, deliveryPayload)
 	return updated.Public(), nil
 }
 
@@ -1317,6 +1368,9 @@ func (s *BookingService) ConfirmPickup(ctx context.Context, id, providerID strin
 	b, err := s.bookings.GetByID(ctx, id)
 	if err != nil {
 		return bookingmodels.PublicBooking{}, err
+	}
+	if strings.TrimSpace(b.ReceiverCustomerID) == "" {
+		return bookingmodels.PublicBooking{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody.", nil)
 	}
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)

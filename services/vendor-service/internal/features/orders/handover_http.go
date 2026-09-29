@@ -68,6 +68,8 @@ func respondHandover(c *gin.Context, o handover.Observation, err error) {
 		status, code = http.StatusNotFound, "NOT_FOUND"
 	case errors.Is(err, handover.ErrRejected), errors.Is(err, ErrOrderConflict):
 		status, code = http.StatusConflict, "HANDOVER_REJECTED"
+	case errors.Is(err, handover.ErrReceiverSecureChannelRequired):
+		status, code = http.StatusPreconditionFailed, "RECEIVER_SECURE_CHANNEL_REQUIRED"
 	case errors.Is(err, handover.ErrUnknown):
 		code = "HANDOVER_OUTCOME_UNKNOWN"
 	}

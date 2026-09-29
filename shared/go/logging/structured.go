@@ -56,7 +56,7 @@ func SafeFields(fields map[string]any) map[string]any {
 	for key, value := range fields {
 		k := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(key))
 		sensitive := false
-		for _, word := range []string{"otp", "qr", "credential", "secret", "hash", "password", "passcode", "authorization", "token", "cookie", "apikey", "phone", "email", "address", "body", "payload", "header", "url", "bank", "card"} {
+		for _, word := range []string{"otp", "qr", "credential", "secret", "hash", "password", "passcode", "authorization", "token", "cookie", "apikey", "phone", "email", "address", "body", "payload", "header", "url", "bank", "card", "accountnumber", "nuban", "bvn"} {
 			if strings.Contains(k, word) {
 				sensitive = true
 				break

@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:02:03.5650459+02:00","Action":"start","Package":"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver"}
+{"Time":"2026-09-27T16:02:03.8463542+02:00","Action":"run","Package":"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver","Test":"TestTaxiPublishesSupplyAndDemandAsCountsOnly"}
+{"Time":"2026-09-27T16:02:03.8463542+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver","Test":"TestTaxiPublishesSupplyAndDemandAsCountsOnly","Output":"=== RUN   TestTaxiPublishesSupplyAndDemandAsCountsOnly\n"}
+{"Time":"2026-09-27T16:02:05.0177165+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver","Test":"TestTaxiPublishesSupplyAndDemandAsCountsOnly","Output":"--- PASS: TestTaxiPublishesSupplyAndDemandAsCountsOnly (1.18s)\n"}
+{"Time":"2026-09-27T16:02:05.0177165+02:00","Action":"pass","Package":"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver","Test":"TestTaxiPublishesSupplyAndDemandAsCountsOnly","Elapsed":1.18}
+{"Time":"2026-09-27T16:02:05.0177165+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver","Output":"PASS\n"}
+{"Time":"2026-09-27T16:02:05.0198482+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver","Output":"ok  \tcosmicforge/logistics/services/taxi-service/internal/features/networkobserver\t1.454s\n"}
+{"Time":"2026-09-27T16:02:05.0198482+02:00","Action":"pass","Package":"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver","Elapsed":1.455}

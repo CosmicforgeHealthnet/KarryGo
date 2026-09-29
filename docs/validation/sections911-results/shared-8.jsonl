@@ -1,0 +1,12 @@
+{"Time":"2026-09-27T16:54:38.18134+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/commercecapability"}
+{"Time":"2026-09-27T16:54:38.3506836+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/commercecapability","Test":"TestClientReadsSignedCapabilityAndCaches"}
+{"Time":"2026-09-27T16:54:38.3506836+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/commercecapability","Test":"TestClientReadsSignedCapabilityAndCaches","Output":"=== RUN   TestClientReadsSignedCapabilityAndCaches\n"}
+{"Time":"2026-09-27T16:54:38.3561043+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/commercecapability","Test":"TestClientReadsSignedCapabilityAndCaches","Output":"--- PASS: TestClientReadsSignedCapabilityAndCaches (0.01s)\n"}
+{"Time":"2026-09-27T16:54:38.3561043+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/commercecapability","Test":"TestClientReadsSignedCapabilityAndCaches","Elapsed":0.01}
+{"Time":"2026-09-27T16:54:38.3561043+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/commercecapability","Test":"TestClientFailsClosed"}
+{"Time":"2026-09-27T16:54:38.3561043+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/commercecapability","Test":"TestClientFailsClosed","Output":"=== RUN   TestClientFailsClosed\n"}
+{"Time":"2026-09-27T16:54:38.3668868+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/commercecapability","Test":"TestClientFailsClosed","Output":"--- PASS: TestClientFailsClosed (0.01s)\n"}
+{"Time":"2026-09-27T16:54:38.3668868+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/commercecapability","Test":"TestClientFailsClosed","Elapsed":0.01}
+{"Time":"2026-09-27T16:54:38.3668868+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/commercecapability","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:38.3717934+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/commercecapability","Output":"ok  \tcosmicforge/logistics/shared/go/commercecapability\t0.190s\n"}
+{"Time":"2026-09-27T16:54:38.3717934+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/commercecapability","Elapsed":0.19}

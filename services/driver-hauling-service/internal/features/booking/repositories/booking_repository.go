@@ -137,8 +137,9 @@ func (r *PostgresBookingRepository) Create(ctx context.Context, b bookingmodels.
 			cargo_type, preferred_truck_type, cargo_weight_kg, cargo_description,
 			requires_helpers, helper_count,
 			weight_category, receiver_name, receiver_phone, package_content, package_size, is_fragile,
-			distance_km, fare_estimate_kobo, payment_method, payment_status, status, scheduled_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+			distance_km, fare_estimate_kobo, payment_method, payment_status, status, scheduled_at,
+			receiver_email, receiver_customer_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,NULLIF($28,'')::uuid)
 		RETURNING `+bookingSelectCols,
 		b.ID, b.CustomerID,
 		b.PickupAddress, b.PickupLat, b.PickupLng,
@@ -147,6 +148,7 @@ func (r *PostgresBookingRepository) Create(ctx context.Context, b bookingmodels.
 		b.RequiresHelpers, b.HelperCount,
 		b.WeightCategory, b.ReceiverName, b.ReceiverPhone, b.PackageContent, b.PackageSize, b.IsFragile,
 		b.DistanceKm, b.FareEstimateKobo, b.PaymentMethod, b.PaymentStatus, b.Status, b.ScheduledAt,
+		b.ReceiverEmail, b.ReceiverCustomerID,
 	)
 	return scanBooking(row)
 }
@@ -618,7 +620,8 @@ const bookingSelectCols = `
 	delivery_code, delivery_code_hash, delivery_code_expires_at, delivery_code_attempts,
 	delivery_code_resend_count, delivery_code_last_sent_at, delivery_code_verified_at,
 	matched_at, accepted_at, picked_up_at, delivered_at, completed_at, cancelled_at,
-	scheduled_at, created_at, updated_at
+	scheduled_at, created_at, updated_at,
+	receiver_email, COALESCE(receiver_customer_id::text,'')
 `
 
 type scannable interface {
@@ -644,6 +647,7 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 		&b.DeliveryCodeResendCount, &b.DeliveryCodeLastSentAt, &b.DeliveryCodeVerifiedAt,
 		&b.MatchedAt, &b.AcceptedAt, &b.PickedUpAt, &b.DeliveredAt, &b.CompletedAt, &b.CancelledAt,
 		&b.ScheduledAt, &b.CreatedAt, &b.UpdatedAt,
+		&b.ReceiverEmail, &b.ReceiverCustomerID,
 	)
 	return b, err
 }

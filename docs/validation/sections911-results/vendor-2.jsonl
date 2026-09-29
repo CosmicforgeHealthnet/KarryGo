@@ -1,0 +1,16 @@
+{"Time":"2026-09-27T16:20:56.0339079+02:00","Action":"start","Package":"cosmicforge/logistics/services/vendor-service/internal"}
+{"Time":"2026-09-27T16:20:56.1392649+02:00","Action":"run","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestFeaturesDoNotImportOtherFeatureHTTPOrRepositories"}
+{"Time":"2026-09-27T16:20:56.1392649+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestFeaturesDoNotImportOtherFeatureHTTPOrRepositories","Output":"=== RUN   TestFeaturesDoNotImportOtherFeatureHTTPOrRepositories\n"}
+{"Time":"2026-09-27T16:20:56.2538641+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestFeaturesDoNotImportOtherFeatureHTTPOrRepositories","Output":"--- PASS: TestFeaturesDoNotImportOtherFeatureHTTPOrRepositories (0.11s)\n"}
+{"Time":"2026-09-27T16:20:56.2538641+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestFeaturesDoNotImportOtherFeatureHTTPOrRepositories","Elapsed":0.11}
+{"Time":"2026-09-27T16:20:56.2538641+02:00","Action":"run","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestCloudKitchenHasOneCanonicalDirectory"}
+{"Time":"2026-09-27T16:20:56.2538641+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestCloudKitchenHasOneCanonicalDirectory","Output":"=== RUN   TestCloudKitchenHasOneCanonicalDirectory\n"}
+{"Time":"2026-09-27T16:20:56.2543847+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestCloudKitchenHasOneCanonicalDirectory","Output":"--- PASS: TestCloudKitchenHasOneCanonicalDirectory (0.00s)\n"}
+{"Time":"2026-09-27T16:20:56.2543847+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestCloudKitchenHasOneCanonicalDirectory","Elapsed":0}
+{"Time":"2026-09-27T16:20:56.2543847+02:00","Action":"run","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestVendorIsNotASecondCompletedWorkProducer"}
+{"Time":"2026-09-27T16:20:56.2543847+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestVendorIsNotASecondCompletedWorkProducer","Output":"=== RUN   TestVendorIsNotASecondCompletedWorkProducer\n"}
+{"Time":"2026-09-27T16:20:56.4387018+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestVendorIsNotASecondCompletedWorkProducer","Output":"--- PASS: TestVendorIsNotASecondCompletedWorkProducer (0.18s)\n"}
+{"Time":"2026-09-27T16:20:56.4387018+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal","Test":"TestVendorIsNotASecondCompletedWorkProducer","Elapsed":0.18}
+{"Time":"2026-09-27T16:20:56.4387018+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal","Output":"PASS\n"}
+{"Time":"2026-09-27T16:20:56.4413556+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal","Output":"ok  \tcosmicforge/logistics/services/vendor-service/internal\t0.407s\n"}
+{"Time":"2026-09-27T16:20:56.4413556+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal","Elapsed":0.407}

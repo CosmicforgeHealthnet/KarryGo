@@ -18,10 +18,10 @@ type EmergencyContact struct {
 }
 
 type PublicEmergencyContact struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Phone        string `json:"phone"`
-	Relationship string `json:"relationship"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Phone        string    `json:"phone"`
+	Relationship string    `json:"relationship"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -36,39 +36,41 @@ func (e EmergencyContact) Public() PublicEmergencyContact {
 }
 
 type Customer struct {
-	ID                 string
-	Phone              string
-	Email              string
-	FirstName          *string
-	LastName           *string
-	OnboardingStatus   string
-	Status             string
-	ProfilePhotoURL    *string
+	ID                  string
+	Phone               string
+	Email               string
+	FirstName           *string
+	LastName            *string
+	OnboardingStatus    string
+	Status              string
+	ProfilePhotoURL     *string
 	ProfilePhotoAssetID *string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type PublicCustomer struct {
-	ID               string  `json:"id"`
-	Phone            string  `json:"phone,omitempty"`
-	Email            string  `json:"email,omitempty"`
-	FirstName        *string `json:"first_name"`
-	LastName         *string `json:"last_name"`
-	OnboardingStatus string  `json:"onboarding_status"`
-	Status           string  `json:"status,omitempty"`
-	ProfilePhotoURL  *string `json:"profile_photo_url,omitempty"`
+	ID                  string  `json:"id"`
+	Phone               string  `json:"phone,omitempty"`
+	Email               string  `json:"email,omitempty"`
+	FirstName           *string `json:"first_name"`
+	LastName            *string `json:"last_name"`
+	OnboardingStatus    string  `json:"onboarding_status"`
+	Status              string  `json:"status,omitempty"`
+	ProfilePhotoURL     *string `json:"profile_photo_url,omitempty"`
+	ProfilePhotoAssetID *string `json:"profile_photo_asset_id,omitempty"`
 }
 
 func (c Customer) Public() PublicCustomer {
 	return PublicCustomer{
-		ID:              c.ID,
-		Phone:           c.Phone,
-		Email:           c.Email,
-		FirstName:       c.FirstName,
-		LastName:        c.LastName,
-		OnboardingStatus: c.OnboardingStatus,
-		Status:          c.Status,
-		ProfilePhotoURL: c.ProfilePhotoURL,
+		ID:                  c.ID,
+		Phone:               c.Phone,
+		Email:               c.Email,
+		FirstName:           c.FirstName,
+		LastName:            c.LastName,
+		OnboardingStatus:    c.OnboardingStatus,
+		Status:              c.Status,
+		ProfilePhotoURL:     c.ProfilePhotoURL,
+		ProfilePhotoAssetID: c.ProfilePhotoAssetID,
 	}
 }

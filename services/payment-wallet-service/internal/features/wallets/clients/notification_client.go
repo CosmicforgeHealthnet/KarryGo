@@ -9,10 +9,8 @@ import (
 
 const notificationSourceService = "payment-wallet-service"
 
-// WalletNotifier sends financial notifications to the central
-// notification-service. Like the booking notifier it is fire-and-forget: a
-// failed notification must never roll back or block a financial operation, so
-// errors are logged and swallowed.
+// WalletNotifier provides a low-latency hint. Committed state transitions also
+// write the durable wallet_notification_outbox for outage recovery.
 type WalletNotifier struct {
 	notifier notifications.Notifier
 }
@@ -41,24 +39,21 @@ func NewWalletNotifierWith(notifier notifications.Notifier) *WalletNotifier {
 // NotifyTopUpSuccess tells a customer their wallet top-up succeeded.
 func (n *WalletNotifier) NotifyTopUpSuccess(ctx context.Context, customerID, reference string, amountKobo int64) {
 	n.send(ctx, notifications.EventPaymentTopupSuccess, notifications.RecipientCustomer, customerID, reference, map[string]interface{}{
-		"reference":   reference,
-		"amount_kobo": amountKobo,
+		"reference": reference,
 	})
 }
 
 // NotifyPaymentSuccess tells a customer a payment completed.
 func (n *WalletNotifier) NotifyPaymentSuccess(ctx context.Context, customerID, reference string, amountKobo int64) {
 	n.send(ctx, notifications.EventPaymentSuccess, notifications.RecipientCustomer, customerID, reference, map[string]interface{}{
-		"reference":   reference,
-		"amount_kobo": amountKobo,
+		"reference": reference,
 	})
 }
 
 // NotifyWithdrawalCompleted tells a provider their withdrawal was paid out.
 func (n *WalletNotifier) NotifyWithdrawalCompleted(ctx context.Context, providerID, reference string, amountKobo int64) {
 	n.send(ctx, notifications.EventWithdrawalCompleted, notifications.RecipientProvider, providerID, reference, map[string]interface{}{
-		"reference":   reference,
-		"amount_kobo": amountKobo,
+		"reference": reference,
 	})
 }
 
@@ -66,7 +61,6 @@ func (n *WalletNotifier) NotifyWithdrawalCompleted(ctx context.Context, provider
 func (n *WalletNotifier) NotifyWithdrawalFailed(ctx context.Context, providerID, reference, reason string) {
 	n.send(ctx, notifications.EventWithdrawalFailed, notifications.RecipientProvider, providerID, reference, map[string]interface{}{
 		"reference": reference,
-		"reason":    reason,
 	})
 }
 
@@ -74,7 +68,6 @@ func (n *WalletNotifier) NotifyWithdrawalFailed(ctx context.Context, providerID,
 func (n *WalletNotifier) NotifyWithdrawalReversed(ctx context.Context, providerID, reference, reason string) {
 	n.send(ctx, notifications.EventWithdrawalReversed, notifications.RecipientProvider, providerID, reference, map[string]interface{}{
 		"reference": reference,
-		"reason":    reason,
 	})
 }
 

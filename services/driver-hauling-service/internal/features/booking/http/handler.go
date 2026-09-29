@@ -76,6 +76,8 @@ func (h *BookingHandler) CreateBooking(c *gin.Context) {
 		WeightCategory:     req.WeightCategory,
 		ReceiverName:       req.ReceiverName,
 		ReceiverPhone:      req.ReceiverPhone,
+		ReceiverEmail:      req.ReceiverEmail,
+		ReceiverCustomerID: req.ReceiverCustomerID,
 		PackageContent:     req.PackageContent,
 		PackageSize:        req.PackageSize,
 		IsFragile:          req.IsFragile,
@@ -236,6 +238,20 @@ func (h *BookingHandler) VerifyDriverAtPickup(c *gin.Context) {
 		return
 	}
 	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": booking})
+}
+
+func (h *BookingHandler) ReadReceiverCredential(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok || claims.Subject == "" {
+		httpx.Abort(c, apperrors.Unauthorized("Receiver authentication is required.", nil))
+		return
+	}
+	view, err := h.svc.ReadReceiverCredential(c.Request.Context(), claims.Subject, c.Param("id"), c.Param("challengeRef"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": view})
 }
 
 // GetVerificationCode returns status for the customer's delivery challenge.

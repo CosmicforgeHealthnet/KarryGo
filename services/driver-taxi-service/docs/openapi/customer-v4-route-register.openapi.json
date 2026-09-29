@@ -1,0 +1,716 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "driver-taxi-service customer route register (Customer V4 \u00a723)",
+    "version": "v4-23",
+    "description": "Mounted customer-family routes that had no OpenAPI document. Every operation is derived from the registered gin route and its handler source (request DTO fields, query and header reads); no field is hand-authored. Response bodies use the platform success/error envelope."
+  },
+  "paths": {
+    "/api/v1/taxi/customer/availability": {
+      "get": {
+        "operationId": "get_api_v1_taxi_customer_availability",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/http.(*AvailabilityHandler).CheckAvailability-fm",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/customer/bookings/estimate": {
+      "post": {
+        "operationId": "post_api_v1_taxi_customer_bookings_estimate",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).EstimateFare-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "estimateFareRequest",
+                "properties": {
+                  "pickup_lat": {
+                    "type": "number"
+                  },
+                  "pickup_lng": {
+                    "type": "number"
+                  },
+                  "dropoff_lat": {
+                    "type": "number"
+                  },
+                  "dropoff_lng": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/taxi/customer/bookings": {
+      "post": {
+        "operationId": "post_api_v1_taxi_customer_bookings",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.RegisterBookingRoutes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "createBookingRequest",
+                "properties": {
+                  "vehicle_class": {
+                    "type": "string"
+                  },
+                  "booking_mode": {
+                    "type": "string"
+                  },
+                  "passenger_count": {
+                    "type": "integer"
+                  },
+                  "ride_notes": {
+                    "type": "string"
+                  },
+                  "payment_method": {
+                    "type": "string"
+                  },
+                  "reserved_duration_minutes": {
+                    "type": "integer"
+                  },
+                  "stops": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "scheduled_at": {
+                    "type": "string"
+                  },
+                  "ride_purpose": {
+                    "type": "string"
+                  },
+                  "receiver_name": {
+                    "type": "string"
+                  },
+                  "receiver_phone": {
+                    "type": "string"
+                  },
+                  "package_desc": {
+                    "type": "string"
+                  },
+                  "package_type": {
+                    "type": "string"
+                  },
+                  "package_size": {
+                    "type": "string"
+                  },
+                  "is_fragile": {
+                    "type": "boolean"
+                  },
+                  "service_product_code": {
+                    "type": "string"
+                  },
+                  "guest_traveller_id": {
+                    "type": "string"
+                  },
+                  "requirements": {
+                    "type": "object"
+                  },
+                  "preferences": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_api_v1_taxi_customer_bookings",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).ListBookings-fm",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/customer/bookings/{id}": {
+      "get": {
+        "operationId": "get_api_v1_taxi_customer_bookings_id",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).GetBooking-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/customer/bookings/{id}/cancel": {
+      "put": {
+        "operationId": "put_api_v1_taxi_customer_bookings_id_cancel",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).CancelByCustomer-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "cancelBookingRequest",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/taxi/customer/bookings/{id}/pickup-code": {
+      "get": {
+        "operationId": "get_api_v1_taxi_customer_bookings_id_pickup_code",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).GetPickupCode-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/customer/bookings/{id}/pickup-code/resend": {
+      "post": {
+        "operationId": "post_api_v1_taxi_customer_bookings_id_pickup_code_resend",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).ResendPickupCode-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/customer/bookings/{id}/delivery-code": {
+      "get": {
+        "operationId": "get_api_v1_taxi_customer_bookings_id_delivery_code",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).GetDeliveryCode-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/customer/bookings/{id}/delivery-code/resend": {
+      "post": {
+        "operationId": "post_api_v1_taxi_customer_bookings_id_delivery_code_resend",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).ResendDeliveryCode-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/customer/bookings/{id}/review": {
+      "post": {
+        "operationId": "post_api_v1_taxi_customer_bookings_id_review",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).SubmitCustomerReview-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "submitReviewRequest",
+                "properties": {
+                  "rating": {
+                    "type": "integer"
+                  },
+                  "review_text": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "recommends_driver": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_api_v1_taxi_customer_bookings_id_review",
+        "x-handler": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http.(*BookingHandler).GetCustomerReviews-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "ServiceHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2 service auth: X-Service-Name, X-Service-Timestamp, X-Service-Nonce and X-Service-Signature; exact caller allowlist; replayed nonce refused."
+      }
+    },
+    "schemas": {
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {}
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

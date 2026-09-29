@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/hauling-service/internal/features/customershare"
+	haulingobservability "cosmicforge/logistics/services/hauling-service/internal/observability"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"net/http"
 	"strings"
 	"time"
@@ -194,8 +197,10 @@ func main() {
 	// keys use, so a provider can never be matchable from a position that has
 	// already aged out of their status key.
 	availabilityStore := availabilityrepositories.NewRedisAvailabilityStoreWithTTL(redisClient, onlineTTL)
+	shareService := &customershare.Service{DB: db, Points: journeyshare.BoundPointStore{Client: redisClient, Namespace: "HAULING"}}
 	restrictionService := restrictions.New(db)
 	availService := availabilityusecases.NewAvailabilityServiceWithAuthority(availabilityStore, truckRepo, onlineTTL, availabilityrepositories.NewPostgresAuthorityStore(db)).WithRestrictionGate(restrictionService)
+	availService.WithJourneyRecorder(shareService.Record)
 
 	// ─── Booking service ───────────────────────────────────────────────────────
 	// bookingNotifier sends booking-lifecycle notifications via notification-service.
@@ -264,6 +269,9 @@ func main() {
 		// fetched and the apps fall back to straight-line geometry.
 		Routes: routesClient,
 	})
+	// Customer tracking reuses the Share Journey booking-bound reader: only the
+	// current assignment's point, never the driver's global heartbeat.
+	bookingService.WithBookingLocation(shareService)
 	authorityHandler := fleetauthority.New(db, fleetauthority.Flags{
 		Enabled: cfg.FleetIntegrationEnabled, KillSwitch: cfg.FleetIntegrationKillSwitch,
 	})
@@ -341,6 +349,7 @@ func main() {
 	// queues what changed; the publisher delivers it to the customer context
 	// owner. Both are additive: neither can fail a haulage.
 	if cfg.CustomerMovementEventsEnabled {
+		go (&events.MovementReconciler{Pool: db, BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret, Metrics: haulingobservability.Metrics}).Run(ctx)
 		go movement.NewPublisher(db).Run(ctx, 10*time.Second)
 		go (&events.MovementPublisher{
 			Pool:  db,
@@ -353,6 +362,9 @@ func main() {
 	}
 
 	serviceapp.Run(serviceapp.Options{
+		RegisterRoot: func(root *gin.Engine) {
+			customershare.Register(root, shareService, fleetauthority.BoundaryWithDB(db, inboundVerifier, []string{"customer-service"}), fleetauthority.BoundaryWithDB(db, inboundVerifier, []string{"vendor-service"}))
+		},
 		Name:        "hauling-service",
 		DefaultAddr: cfg.HTTPAddr,
 		APIBase:     "/api/v1/hauling",
@@ -385,6 +397,18 @@ func main() {
 		},
 		Register: func(group *gin.RouterGroup) {
 			haulingMetrics.RegisterRoutes(group)
+			// Customer V4 §27.2: the capability, matching, recovery and
+			// reconciliation registry was recorded but never exported. Private,
+			// HMAC-verified scrape, the same shape as Taxi's.
+			group.GET("/internal/metrics", serviceauth.Middleware(inboundVerifier), func(c *gin.Context) {
+				switch c.GetString("service_name") {
+				case "admin-backoffice-service", "analytics-service":
+				default:
+					c.AbortWithStatus(http.StatusForbidden)
+					return
+				}
+				c.String(http.StatusOK, haulingobservability.Render()+haulingMetrics.Render()+journeyshare.Render())
+			})
 			// HLG-021: the server-side typed financial projection. Mounted on
 			// the ROOT group so every provider-facing response is covered,
 			// including any route added later; it no-ops for customer and

@@ -63,6 +63,7 @@ func TestConfirmPickupNotifiesCustomer(t *testing.T) {
 	repo := &fakeBookingRepo{booking: bookingmodels.Booking{
 		ID:                   "booking-1",
 		CustomerID:           "customer-1",
+		ReceiverCustomerID:   "customer-1",
 		ProviderID:           &providerID,
 		Status:               bookingmodels.StatusAccepted,
 		PickupCodeVerifiedAt: &verifiedAt,

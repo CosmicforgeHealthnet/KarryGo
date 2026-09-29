@@ -1,15 +1,19 @@
 package profilehttp
 
 import (
+	"context"
 	"github.com/gin-gonic/gin"
+	"time"
 
-	profileusecases "cosmicforge/logistics/services/customer-service/internal/features/profile/usecases"
 	authusecases "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases"
+	profileusecases "cosmicforge/logistics/services/customer-service/internal/features/profile/usecases"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 )
 
-func RegisterProfileRoutes(group *gin.RouterGroup, profileService *profileusecases.ProfileService, accessSigner *sharedauth.TokenSigner) {
-	handler := NewProfileHandler(profileService)
+func RegisterProfileRoutes(group *gin.RouterGroup, profileService *profileusecases.ProfileService, accessSigner *sharedauth.TokenSigner, limiters ...interface {
+	Allow(context.Context, string, string, int, time.Duration) error
+}) {
+	handler := NewProfileHandler(profileService, limiters...)
 
 	protected := group.Group("/profile")
 	protected.Use(sharedauth.BearerMiddleware(accessSigner, authusecases.CustomerRole, authusecases.CustomerService))

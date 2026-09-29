@@ -1,4 +1,24 @@
+## Karryam Backend V4 customer §14 closure — 28 September 2026
+
+**SECTION 14: COMPLETE LOCALLY — PASS.** This verdict covers the repository implementation and the targeted local tests below. §§9–13 retain their prior completed status. Work remains uncommitted on `staging`; no fetch, pull, reset, checkout, commit or push was performed for this closure.
+
+The saved authority is `C:\Users\favou\.claude\projects\C--KarryGoPush\memory\karryam_backend_v4.txt`, §14 (lines 680–1048). The implementation reuses the existing catalogue, Inventory, checkout, fulfilment, immutable quote, Wallet and logistics-authority contracts.
+
+**Customer discovery and preview.** Mounted Food and Shop catalogue, sellability/product detail, search/suggestions and cart delivery preview with customer bearer authorization, default-off feature flags, customer-scoped Redis rate limits and customer-safe DTOs. Preview recomputes authoritative pickup, destination, grouping and physical requirement on every read and makes no stock, mission, provider or money mutation. The mounted surface and OpenAPI inventory match.
+
+**Full local lifecycle evidence.** `TestCommerceLifecycleE2E_Food` and `TestCommerceLifecycleE2E_Shop*` pass from discovery/cart/preview through checkout, plan, quote, approval, payment hold, activation, vendor execution, logistics callbacks, completion, settlement, Activity grouping and mission-scoped Share. Shop covers single and multi-vendor allocation, Dispatch, Taxi Goods, Hauling and Vendor Own Delivery. The substitution cases cover equal, cheaper, costlier, reject and EXACT_ONLY decisions; the Shop chain also covers variable measurement, post-pick Dispatch-to-Taxi replanning, and one-vendor cancellation/refund while its sibling completes. Repeated callbacks, payment and refund requests do not duplicate their effects. Replanned mission references resolve to the active executor; the replaced executor cannot advance an order even when it presents the old plan slot. Consolidated mission fees equal the sum of every included VendorOrder's apportioned share.
+
+The E2E runs real Vendor-owned services and PostgreSQL persistence. Wallet, logistics quote/mission/read and handover authorities are explicit test doubles; local completion is not a claim of independently deployed multi-service black-box or staging certification.
+
+**Verification passed.** Affected PostgreSQL integration and race tests, Wallet and mission unknown-outcome read-back/recovery, concurrent replan/refund/inventory claims, Vendor migration apply/rollback/reapply through `000128`, route/OpenAPI parity, and targeted `go vet` passed. The Redis-backed HTTP load test completed 240 reads across eight workers (116 success, 124 expected rate-limit responses, no unexpected status; 767 ms under race). Final logs are `tmp/customer14-final-db.log`, `tmp/customer14-final-race.log`, `tmp/customer14-final-recovery.log`, `tmp/customer14-final-migrations.log` and `tmp/customer14-final-openapi.log`. The expensive §§9–13 suites were not rerun.
+
+**Defects closed in this local work.** Food orders no longer claim an Inventory hold; actual Taxi Goods transit callbacks are stored and projected to canonical Vendor/Activity status (`000127`–`000128`); consolidated delivery fees are summed across VendorOrders; measured Shop quantities use the frozen price basis and actual physical load; approved replacement stock is committed correctly; concurrent post-pick replan creates one replacement mission; Activity grouping follows the current mission binding. Mission creation and Wallet recovery read the authority after an unknown outcome rather than creating a duplicate. Substitution was unreachable before this work and is now closed: the customer's per-line rule is captured in the cart and frozen through checkout, quote fingerprint and order (`000126`; every Shop line previously froze as EXACT_ONLY); proposal creation no longer fails on `FOR UPDATE` across outer joins; nullable proposal timestamps/case ids scan; a costlier approval becomes effective once its commercial change is APPLIED (the store verifies that itself) without writing a duplicate POSITIVE_DELTA adjustment.
+
+**External/staging certification: PENDING.** Production catalogue and packed-weight data remediation, deployed configuration/ingress and multi-service staging certification, and the separately approved external Reference/Repricing adapter remain external. External Reference/Repricing stays disabled without that adapter. These items do not change the repository-local §14 verdict.
+
 <!-- SECTION17F_PAYMENT_BINDING -->
+Historical milestone entries below describe the state at their original closure. Their earlier Taxi-exclusion statements are superseded by the §14 Taxi Goods executor verified above.
+
 ## Section 17F - Payment Binding, Total Price Guarantee and Recovery
 
 **Status: IMPLEMENTED.** Independent final certification has NOT been run; this
@@ -2608,3 +2628,55 @@ Repository implementation remains complete. Local `api`, `worker`, and `all` pro
 The actual backend deployment convention was confirmed from repository and GitHub metadata: immutable GHCR images are deployed over SSH to Docker Compose under `/opt/karrygo` on a VPS. Vendor now has a repository-native deployment bundle following that convention: a Vendor-specific production image, a PostgreSQL-advisory-locked migration binary, distinct API and Worker Compose units, and a workflow enforcing migration -> API readiness -> Worker rollout. The API publishes only on VPS loopback and the Worker publishes no port. Compose validation, image build, and the packaged migration-tip verification (116 records) pass locally.
 
 This does not promote Sections 47/48 or production GO. The VPS shell, existing reverse proxy/TLS/DNS, Vendor environment file, PostgreSQL backup provider, monitoring control plane, and downstream staging credentials/allowlists are unavailable from this task. The exact remaining operator commands and pass conditions are in `deploy/vendor-service/README.md`; the authoritative production decision remains `PRODUCTION GO: BLOCKED`.
+
+## Customer V4 §22 purchase Activity row (2026-09-28, local)
+
+Vendor, as ParentOrder authority, publishes one `VENDOR_COMMERCE`/`COMMERCE_ORDER` movement per ParentOrder (`internal/features/orders/customer_movement.go`). It is appended to the existing outbox in the creation and parent-state-change transactions as `commerce.customer_order.movement`, delivered by `vendor-customer-order-movement` to Customer's movement ingress, and repaired by `customerOrderMovementReconciler` (`cmd/customer_order_movement.go`). `source_version` is the ParentOrder version. Order state only: no amounts, items, provider or credentials. Gated by `VENDOR_CUSTOMER_MOVEMENT_GROUPING_ENABLED`; no Vendor migration. Evidence: `TestCustomerOrderMovementCancelledBeforeDispatchAndReconciled` and the lifecycle E2E with emission enabled. Full record: `docs/customer-sections9-11-report.md` §§22–26 (Customer V4 numbering, not Vendor section numbering).
+
+## Customer V4 Sections 15–18 integration (2026-09-28, local)
+
+**Section 15: COMPLETE LOCALLY — PASS.** Wallet remains financial authority.
+Commerce binds approved immutable quote/order fingerprints and deterministic
+Wallet operation IDs, reads back UNKNOWN payment/refund outcomes, and preserves
+VendorOrder plus platform-leg isolation. Real PostgreSQL tests cover duplicate
+and concurrent writes, partial/full and multi-vendor refunds, recovery and
+Customer Wallet regressions. External Reference/Repricing remains gated and
+unimplemented pending an approved adapter.
+
+**Section 17: COMPLETE LOCALLY — PASS.** Support remains case/resolution
+authority. Order-scoped case ownership and child-ref integrity, Media verdict
+binding, IDOR denial and deterministic refund separation pass targeted tests.
+
+**Section 18: COMPLETE LOCALLY — PASS for repository scope.** Customer bearer
+authorization, Support ownership validation, one-use Media grant redemption,
+metadata read-back, MIME/size/expiry/rate limits, OpenAPI and mobile credential
+removal pass targeted tests. Production scanner, HMAC configuration and ingress
+remain staging items.
+
+**Section 16: PARTIAL locally.** Ride, Send, Truck, Commerce, Share and Wallet
+route-intent hints are wired; Taxi Ride, Customer Share and Wallet state
+transitions have durable retry. The receiver-channel product decision is now
+fixed: a phone-only snapshot without a verified account or other supported
+secure channel must fail closed; no SMS or voice integration is authorized.
+Dispatch secure handover returns `RECEIVER_SECURE_CHANNEL_REQUIRED` for that
+case. Dispatch secure handover, Vendor Own Delivery, Hauling and Taxi Goods
+notification producers now send challenge references, not OTP/QR values;
+Notification validation rejects custody secrets, and production template
+copy no longer interpolates a code. Vendor Own Delivery has a hash-checked
+credential reconstruction path. Dispatch, Hauling, Taxi Goods and Vendor Own
+Delivery now have account-scoped receiver reads; a third-party receiver account
+is explicitly frozen from the Vendor cart into the order and authority mission
+instead of being inferred from the sender. Phone-only third-party receiver
+bindings fail closed before pickup custody with `RECEIVER_SECURE_CHANNEL_REQUIRED`.
+The sender is no longer assumed to be the receiver in Dispatch secure handover.
+Hauling, Taxi Goods and Vendor Own PostgreSQL tests confirm that receiver
+binding changes invalidate or deny old credential reads. Vendor cart, order,
+mission and typed-error propagation have targeted tests; receiver read routes
+have bearer-auth and OpenAPI checks. The remaining closure is a transaction-
+bound, verified email-only receiver read contract. Notification delivery alone
+cannot prove mailbox control, and existing Customer email login creates an
+account rather than providing an account-free proof for this transaction.
+Until that authority contract and the full affected E2E/race
+matrix pass, repository-local §16 is not certified. Staging delivery and
+mobile navigation remain separate certification items. No commit or push was
+made in this local worktree.

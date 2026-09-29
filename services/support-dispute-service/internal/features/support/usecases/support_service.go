@@ -18,6 +18,7 @@ type SupportService struct {
 	identity            supportclients.IdentityResolver
 	corporate           supportclients.OrganizationResolver
 	resolutionPublisher supportclients.CommerceResolutionPublisher
+	media               EvidenceValidator
 }
 
 // Options configures optional collaborators. Nil/empty fields fall back to safe
@@ -32,6 +33,7 @@ type Options struct {
 	// existed: cases are created, simply without the label.
 	Corporate           supportclients.OrganizationResolver
 	ResolutionPublisher supportclients.CommerceResolutionPublisher
+	Media               EvidenceValidator
 }
 
 func NewSupportService(repo supportrepositories.SupportRepository, opts Options) *SupportService {
@@ -47,6 +49,7 @@ func NewSupportService(repo supportrepositories.SupportRepository, opts Options)
 	return &SupportService{
 		repo: repo, notifier: opts.Notifier, identity: opts.Identity,
 		corporate: opts.Corporate, resolutionPublisher: opts.ResolutionPublisher,
+		media: opts.Media,
 	}
 }
 
@@ -83,6 +86,9 @@ type AddEvidenceInput struct {
 	MediaAssetID string
 	MediaURL     string
 	Note         string
+	// ReferenceEvidence already obtained Media's verdict for the exact
+	// operational binding. Public callers cannot set this field.
+	validatedMedia bool
 }
 
 type UpdateComplaintStatusInput struct {
@@ -296,6 +302,21 @@ func (s *SupportService) AddEvidence(ctx context.Context, in AddEvidenceInput) (
 	}
 	if complaint.Status == supportmodels.ComplaintStatusResolved || complaint.Status == supportmodels.ComplaintStatusClosed {
 		return supportmodels.Evidence{}, apperrors.BadRequest("Evidence cannot be added to a closed complaint.", nil)
+	}
+	if strings.TrimSpace(in.MediaURL) != "" {
+		return supportmodels.Evidence{}, apperrors.Validation("Supply a MediaRef, not a file URL.", nil)
+	}
+	if objectID := strings.TrimSpace(in.MediaAssetID); objectID != "" && !in.validatedMedia {
+		if s.media == nil {
+			return supportmodels.Evidence{}, apperrors.Unavailable("Media evidence validation is unavailable.", nil)
+		}
+		verdict, err := s.media.Validate(ctx, objectID, "COMPLAINT", complaint.ID)
+		if err != nil {
+			return supportmodels.Evidence{}, apperrors.Unavailable("Media evidence could not be checked.", err)
+		}
+		if !verdict.Usable {
+			return supportmodels.Evidence{}, apperrors.Validation("MediaRef is not valid for this complaint.", nil)
+		}
 	}
 
 	evidence, err := s.repo.AddEvidence(ctx, supportrepositories.AddEvidenceInput{

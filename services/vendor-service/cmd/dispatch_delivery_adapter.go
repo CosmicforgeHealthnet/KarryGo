@@ -50,7 +50,7 @@ func (a *section17FMissionAuthority) createDispatchMission(
 
 	create := dispatchcommerce.MissionCreateRequest{
 		OperationRef: request.MissionRef, ParentOrderRef: request.ParentOrderID,
-		CustomerRef: request.CustomerID, Plan: *quoteRequest.Plan,
+		CustomerRef: request.CustomerID, ReceiverCustomerRef: receiverAccountRef(request), Plan: *quoteRequest.Plan,
 		Quote: dispatchcommerce.QuoteBinding{
 			QuoteID: quote.QuoteID, QuoteReference: quote.QuoteReference,
 			QuoteRevision: quote.Revision, QuoteFingerprint: quote.RequestFingerprint,

@@ -244,7 +244,8 @@ func (a *section17CCheckoutAuthority) lines(
 ) ([]fulfilment.LineLogistics, error) {
 	rows, err := a.db.Query(ctx, `
 		SELECT id, domain, business_id, branch_id,
-		       item_ref, variant_ref, listing_ref, sell_unit_ref, quantity
+		       item_ref, variant_ref, listing_ref, sell_unit_ref, quantity,
+		       CASE WHEN pricing_basis='VARIABLE_MEASURE' THEN expected_measure_quantity*quantity ELSE 0 END
 		  FROM commerce_checkout_lines
 		 WHERE session_id = $1 AND group_id = $2
 		   AND validation_status IN ('VALID', 'CHANGED')
@@ -266,7 +267,7 @@ func (a *section17CCheckoutAuthority) lines(
 			&line.CheckoutLineID, &line.Domain,
 			&line.BusinessID, &line.BranchID,
 			&line.ItemRef, &line.VariantRef, &line.ListingRef,
-			&line.SellUnitRef, &line.Quantity,
+			&line.SellUnitRef, &line.Quantity, &line.MeasureQuantity,
 		); err != nil {
 			return nil, err
 		}
@@ -312,7 +313,32 @@ func buildSection17CFulfilmentService(
 		return nil
 	}
 
-	planner, err := fulfilment.NewPlanner(fulfilment.Options{
+	planner, err := newSection17CPlanner(cfg, db, deliveryService)
+	if err != nil {
+		return nil
+	}
+
+	service, err := fulfilment.NewService(fulfilment.ServiceOptions{
+		Store:    fulfilment.NewStore(db),
+		Planner:  planner,
+		Checkout: newSection17CCheckoutAuthority(db),
+	})
+	if err != nil {
+		return nil
+	}
+
+	return service
+}
+
+// newSection17CPlanner builds THE fulfilment planner: checkout planning, the
+// cart delivery preview and post-pick re-evaluation all use this one, so the
+// same load always meets the same policy, capabilities and authorities.
+func newSection17CPlanner(
+	cfg config.Config,
+	db *pgxpool.Pool,
+	deliveryService *delivery.Service,
+) (*fulfilment.Planner, error) {
+	return fulfilment.NewPlanner(fulfilment.Options{
 		Logistics: newSection17CLogisticsAuthority(db),
 		Branches:  newSection17CBranchAuthority(db),
 		VendorOwn: section17CVendorDelivery{service: deliveryService},
@@ -356,20 +382,6 @@ func buildSection17CFulfilmentService(
 
 		CapabilityAuthorities: taxiCapabilityAuthorities(cfg),
 	})
-	if err != nil {
-		return nil
-	}
-
-	service, err := fulfilment.NewService(fulfilment.ServiceOptions{
-		Store:    fulfilment.NewStore(db),
-		Planner:  planner,
-		Checkout: newSection17CCheckoutAuthority(db),
-	})
-	if err != nil {
-		return nil
-	}
-
-	return service
 }
 
 // registerSection17CFulfilmentRoutes mounts the customer planning surface.

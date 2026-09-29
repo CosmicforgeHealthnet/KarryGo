@@ -50,6 +50,17 @@ func RegisterCustomer(engine *gin.Engine, signer *sharedauth.TokenSigner, handle
 	group.POST("/:id/pickup/verify", handler.verifyCustomerPickup)
 	group.POST("/:id/handover/resend", handler.resendCustomer)
 	group.POST("/:id/return-credential", handler.returnCredentialCustomer)
+	group.GET("/handover/:challengeRef/receiver-credential", handler.receiverCredential)
+}
+
+func (h *Handler) receiverCredential(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok || claims.Subject == "" {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	result, err := h.service.ReadReceiverCredential(c.Request.Context(), claims.Subject, c.Param("challengeRef"))
+	respond(c, http.StatusOK, result, err)
 }
 
 func RegisterInternal(group *gin.RouterGroup, handler *Handler, verifier *serviceauth.Verifier, db *pgxpool.Pool, allowed []string) {

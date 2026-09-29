@@ -97,6 +97,23 @@ func TestCapabilityVocabularyMigrationRollbackAndReapply(t *testing.T) {
 		VALUES($1,$2,'CATERING','ACTIVE')`, liveCatering, legacyBusiness); err != nil {
 		t.Fatalf("seed a live caterer: %v", err)
 	}
+	// Unwind anything a later section added so the next rollback targets
+	// 000121 itself, rather than assuming it is the last migration.
+	for unwound := 0; ; unwound++ {
+		var newer bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM vendor_service_schema_migrations WHERE version >= '000122')`).Scan(&newer); err != nil {
+			t.Fatal(err)
+		}
+		if !newer {
+			break
+		}
+		if unwound >= 8 {
+			t.Fatal("unwound 8 later migrations and 000121 is still not the tip")
+		}
+		if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+			t.Fatalf("unwind towards 000121: %v", err)
+		}
+	}
 	err := RollbackLastMigration(ctx, pool, "../../migrations")
 	if err == nil {
 		t.Fatal("the rollback dropped a live caterer's capability instead of refusing")

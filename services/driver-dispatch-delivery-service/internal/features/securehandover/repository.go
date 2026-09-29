@@ -42,12 +42,12 @@ func (r *Repository) ResolveByTrip(ctx context.Context, tripID string, stage Sta
 	var result Context
 	var receiverPhone string
 	err := r.db.QueryRow(ctx, `SELECT t.id::text,t.booking_id::text,t.provider_id::text,t.customer_id::text,
-		b.receiver_phone,COALESCE(dm.id::text,''),COALESCE(dm.delivery_group_id::text,''),
+		b.receiver_phone,b.receiver_email,COALESCE(b.receiver_customer_id::text,''),COALESCE(dm.id::text,''),COALESCE(dm.delivery_group_id::text,''),
 		COALESCE(dm.source_type,'CUSTOMER'),COALESCE(dm.source_ref,t.id::text),COALESCE(dm.source_version,1)
 		FROM trips t JOIN dispatch_bookings b ON b.id=t.booking_id
 		LEFT JOIN dispatch_delivery_missions dm ON dm.trip_id=t.id WHERE t.id=$1::uuid`, tripID).
 		Scan(&result.TripID, &result.BookingID, &result.ProviderID, &result.CustomerID,
-			&receiverPhone, &result.MissionID, &result.DeliveryGroupID, &result.SourceType, &result.SourceRef, &result.SourceVersion)
+			&receiverPhone, &result.ReceiverEmail, &result.ReceiverRef, &result.MissionID, &result.DeliveryGroupID, &result.SourceType, &result.SourceRef, &result.SourceVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Context{}, ErrNotFound
 	}

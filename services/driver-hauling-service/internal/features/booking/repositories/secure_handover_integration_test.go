@@ -68,6 +68,40 @@ func seedSecureHandoverBooking(t *testing.T, pool *pgxpool.Pool) (bookingID, cus
 	return bookingID, customerID, providerID
 }
 
+func TestDeliveryReceiverContactChangeInvalidatesCredential(t *testing.T) {
+	repo, pool := secureHandoverTestRepository(t)
+	bookingID, _, providerID := seedSecureHandoverBooking(t, pool)
+	receiverID := uuid.NewString()
+	if _, err := pool.Exec(context.Background(), `UPDATE haulage_bookings SET receiver_customer_id=$2,receiver_email=$3,receiver_phone=$4 WHERE id=$1`, bookingID, receiverID, "receiver@example.com", "+390001234567"); err != nil {
+		t.Fatal(err)
+	}
+	booking, err := repo.GetByID(context.Background(), bookingID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if booking.ReceiverCustomerID != receiverID || booking.ReceiverEmail != "receiver@example.com" {
+		t.Fatalf("receiver binding not persisted: %+v", booking)
+	}
+	secret := []byte("postgres-secure-handover-secret")
+	rec, err := handover.NewSecureCodeRecord(secret, "hauling", handover.StepDelivery, uuid.NewString(), 1, bookingID, providerID, receiverID, 0, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(context.Background(), `INSERT INTO hauling_handover_challenges(challenge_ref,booking_id,stage,assigned_provider_id,owner_id,otp_hash,qr_token_hash,version,status,expires_at) VALUES($1,$2,'delivery',$3,$4,$5,$6,1,'ACTIVE',$7)`, rec.ChallengeRef, bookingID, providerID, receiverID, rec.Hash, rec.QRHash, rec.ExpiresAt); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(context.Background(), `UPDATE haulage_bookings SET receiver_phone=$2 WHERE id=$1`, bookingID, "+390009876543"); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err = pool.QueryRow(context.Background(), `SELECT status FROM hauling_handover_challenges WHERE challenge_ref=$1`, rec.ChallengeRef).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "INVALIDATED" {
+		t.Fatalf("old credential remains %s after receiver change", status)
+	}
+}
+
 func TestSecureHandoverPostgresOTPVsQROneConsumeAndNoPlaintext(t *testing.T) {
 	repo, pool := secureHandoverTestRepository(t)
 	bookingID, customerID, providerID := seedSecureHandoverBooking(t, pool)

@@ -74,11 +74,11 @@ func (r *PostgresRepository) Insert(ctx context.Context, booking Booking) (Booki
 			dropoff_address, dropoff_lat, dropoff_lng,
 			distance_km, fare_amount, currency,
 			payment_method, payment_status,
-			receiver_name, receiver_phone,
+			receiver_name, receiver_phone, receiver_email, receiver_customer_id,
 			package_desc, package_weight, package_type, package_size, is_fragile,
 			service_tier, rollout_protection_mode, rollout_policy_version,
 			handover_required, pickup_evidence_required, delivery_evidence_required, provider_transfer_required
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NULLIF($17,'')::uuid,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
 		RETURNING id::text, created_at, updated_at
 	`,
 		booking.CustomerID, booking.Status,
@@ -86,7 +86,7 @@ func (r *PostgresRepository) Insert(ctx context.Context, booking Booking) (Booki
 		booking.DropoffAddress, booking.DropoffLat, booking.DropoffLng,
 		booking.DistanceKM, booking.FareAmount, booking.Currency,
 		booking.PaymentMethod, booking.PaymentStatus,
-		booking.ReceiverName, booking.ReceiverPhone,
+		booking.ReceiverName, booking.ReceiverPhone, booking.ReceiverEmail, booking.ReceiverCustomerID,
 		booking.PackageDesc, booking.PackageWeight, booking.PackageType, booking.PackageSize, booking.IsFragile,
 		booking.ServiceTier, booking.RolloutProtectionMode, booking.RolloutPolicyVersion,
 		booking.HandoverRequired, booking.PickupEvidenceRequired, booking.DeliveryEvidenceRequired, booking.ProviderTransferRequired,
@@ -111,9 +111,10 @@ func (r *PostgresRepository) InsertIdempotent(ctx context.Context, booking Booki
 			serviceability_quote_id,serviceability_quote_version,serviceability_quote_fingerprint,
 			create_idempotency_key,create_request_fingerprint,
 			rollout_protection_mode,rollout_policy_version,handover_required,
-			pickup_evidence_required,delivery_evidence_required,provider_transfer_required
+			pickup_evidence_required,delivery_evidence_required,provider_transfer_required,
+			receiver_email,receiver_customer_id
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-			NULLIF($22,''),NULLIF($23,0),$24,$25,$26,$27,$28,$29,$30,$31,$32)
+			NULLIF($22,''),NULLIF($23,0),$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,NULLIF($34,'')::uuid)
 		ON CONFLICT (customer_id,create_idempotency_key)
 		WHERE create_idempotency_key IS NOT NULL DO NOTHING
 		RETURNING id::text,created_at,updated_at`,
@@ -123,7 +124,8 @@ func (r *PostgresRepository) InsertIdempotent(ctx context.Context, booking Booki
 		booking.PackageDesc, booking.PackageWeight, booking.PackageType, booking.PackageSize, booking.IsFragile,
 		booking.ServiceTier, quoteID, quoteVersion, quoteFingerprint, key, fingerprint,
 		booking.RolloutProtectionMode, booking.RolloutPolicyVersion, booking.HandoverRequired,
-		booking.PickupEvidenceRequired, booking.DeliveryEvidenceRequired, booking.ProviderTransferRequired)
+		booking.PickupEvidenceRequired, booking.DeliveryEvidenceRequired, booking.ProviderTransferRequired,
+		booking.ReceiverEmail, booking.ReceiverCustomerID)
 	if err := row.Scan(&booking.ID, &booking.CreatedAt, &booking.UpdatedAt); err == nil {
 		return booking, false, nil
 	} else if !errors.Is(err, pgx.ErrNoRows) {

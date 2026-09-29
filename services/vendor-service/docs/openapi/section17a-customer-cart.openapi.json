@@ -53,13 +53,41 @@
     "/carts/{cartId}/items": {
       "post": {
         "operationId": "addCustomerCartItem",
+        "description": "Shop lines may carry substitution_policy (EXACT_ONLY default, AUTO_REFUND, CONTACT_FIRST, VENDOR_SUGGEST_AND_APPROVE). It is copied into checkout, bound into the quote fingerprint and frozen on the order. Food lines accept only EXACT_ONLY.",
         "parameters": [
           { "$ref": "#/components/parameters/CartId" },
           { "$ref": "#/components/parameters/IdempotencyKey" },
           { "$ref": "#/components/parameters/IfMatch" }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["item_ref", "quantity"],
+                "additionalProperties": false,
+                "properties": {
+                  "item_ref": { "type": "string" },
+                  "variant_ref": { "type": "string" },
+                  "menu_ref": { "type": "string" },
+                  "listing_ref": { "type": "string" },
+                  "sell_unit_ref": { "type": "string" },
+                  "size_ref": { "type": "string" },
+                  "quantity": { "type": "integer", "format": "int64", "minimum": 1 },
+                  "requested_measure_ref": { "type": "string" },
+                  "expected_measure_quantity": { "type": "integer", "format": "int64" },
+                  "pricing_basis": { "type": "string" },
+                  "substitution_policy": { "type": "string", "enum": ["EXACT_ONLY", "AUTO_REFUND", "CONTACT_FIRST", "VENDOR_SUGGEST_AND_APPROVE"] },
+                  "options": { "type": "array", "items": { "type": "object", "properties": { "group_ref": { "type": "string" }, "option_ref": { "type": "string" }, "quantity": { "type": "integer", "format": "int64" } } } }
+                }
+              }
+            }
+          }
+        },
         "responses": {
-          "200": { "description": "Updated cart" }
+          "200": { "description": "Updated cart" },
+          "400": { "description": "Invalid item, quantity or substitution policy" }
         }
       },
       "delete": {

@@ -1,0 +1,512 @@
+[
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/cmd",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-1.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/cmd/online",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-2.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/cmd/seed",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-3.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-4.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/adminaudit",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-5.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/apiresponse",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-6.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/capability",
+    "Status": "PASS",
+    "Pass": 13,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-7.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/config",
+    "Status": "PASS",
+    "Pass": 17,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-8.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/database",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-9.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/dbtx",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-10.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/clients",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-11.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/earnings",
+    "Status": "PASS",
+    "Pass": 12,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-12.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-13.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/matching",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-14.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-15.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/repositories",
+    "Status": "PASS",
+    "Pass": 17,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-16.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/reviews",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-17.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/settlement",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-18.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/telemetry",
+    "Status": "PASS",
+    "Pass": 21,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-19.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/usecases",
+    "Status": "PASS",
+    "Pass": 180,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-20.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-21.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/capabilities",
+    "Status": "PASS",
+    "Pass": 7,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-22.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/customertracking",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-23.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/fleetprovider",
+    "Status": "PASS",
+    "Pass": 15,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-24.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/goods",
+    "Status": "PASS",
+    "Pass": 57,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-25.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/identity/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-26.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/managedexec",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-27.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/markets/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-28.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/markets/repositories",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-29.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/networkobserver",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-30.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/operations/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-31.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/privateexecution",
+    "Status": "PASS",
+    "Pass": 20,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-32.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/http",
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-33.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-34.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-35.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/usecases",
+    "Status": "PASS",
+    "Pass": 15,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-36.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-37.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-38.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/repositories",
+    "Status": "PASS",
+    "Pass": 7,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-39.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/usecases",
+    "Status": "PASS",
+    "Pass": 16,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-40.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-41.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-42.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-43.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/usecases",
+    "Status": "PASS",
+    "Pass": 16,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-44.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/supportcontext",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-45.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/idempotency",
+    "Status": "PASS",
+    "Pass": 14,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-46.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/movement",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-47.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/outbox",
+    "Status": "PASS",
+    "Pass": 31,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-48.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/pricing",
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-49.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/routing",
+    "Status": "PASS",
+    "Pass": 17,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-50.log"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/vehicleclass",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-51.log"
+  }
+]

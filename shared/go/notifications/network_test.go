@@ -48,12 +48,12 @@ func TestNetworkNotificationsCarryReferencesOnly(t *testing.T) {
 			t.Errorf("refusal does not name %s", key)
 		}
 	}
-	// Existing non-network notifications are untouched by this rule.
+	// Handover notifications now also reject plaintext credentials.
 	legacy := Request{IDempotencyKey: "k", SourceService: "s", EventType: "booking.delivery_code_ready",
 		Recipient: Recipient{Type: RecipientCustomer, ID: "c"}, TemplateKey: "t",
 		Data: map[string]interface{}{"code": "123456"}}
-	if err := legacy.Validate(); err != nil {
-		t.Fatalf("legacy notification refused: %v", err)
+	if err := legacy.Validate(); err == nil {
+		t.Fatal("handover notification accepted plaintext credential")
 	}
 }
 

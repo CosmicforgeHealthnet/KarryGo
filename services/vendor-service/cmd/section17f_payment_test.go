@@ -314,7 +314,7 @@ func TestSection19VariableFinalizationParentCapRaceRequiresReapproval(t *testing
 		unitPrice := line.QuotedTotalMinor / 100
 		finalAmount := unitPrice * 110
 		fixture.env.exec(ctx, `UPDATE commerce_vendor_orders SET max_product_subtotal_minor=max_product_subtotal_minor+$2 WHERE id=$1`, vendor.ID, finalAmount-line.QuotedTotalMinor)
-		fixture.env.exec(ctx, `INSERT INTO commerce_variable_measurements(id,parent_order_id,vendor_order_id,order_line_id,measurement_mode,estimated_quantity,unit_price_minor,estimated_amount_minor,tolerance_quantity,hard_max_quantity,reserved_upper_quantity,actual_quantity,final_amount_minor,financial_state,wallet_capability_snapshot,version) VALUES($1,$2,$3,$4,'VARIABLE_COUNT',100,$5,$6,20,110,110,110,$7,'ACTUAL_RECORDED','CAP_AND_REFUND',1)`, "cvm_race_"+vendor.ID, parent.ID, vendor.ID, line.ID, unitPrice, line.QuotedTotalMinor, finalAmount)
+		fixture.env.exec(ctx, `UPDATE commerce_variable_measurements SET actual_quantity=1100,final_amount_minor=$3,financial_state='ACTUAL_RECORDED',wallet_capability_snapshot='CAP_AND_REFUND' WHERE vendor_order_id=$1 AND order_line_id=$2`, vendor.ID, line.ID, finalAmount)
 	}
 	order, operation, err := fixture.service.StartPayment(ctx, fixture.customerID, fixture.quoteID, fixture.finger)
 	if err != nil {
@@ -334,7 +334,7 @@ func TestSection19VariableFinalizationParentCapRaceRequiresReapproval(t *testing
 		if leg.VendorOrderID == "" {
 			continue
 		}
-		fixture.env.exec(ctx, `UPDATE commerce_payment_legs SET amount_minor=(SELECT hard_max_quantity*unit_price_minor FROM commerce_variable_measurements WHERE vendor_order_id=$1) WHERE payment_operation_id=$2 AND vendor_order_id=$1`, leg.VendorOrderID, operation.ID)
+		fixture.env.exec(ctx, `UPDATE commerce_payment_legs SET amount_minor=(SELECT max_authorized_total_minor FROM commerce_vendor_order_lines WHERE vendor_order_id=$1) WHERE payment_operation_id=$2 AND vendor_order_id=$1`, leg.VendorOrderID, operation.ID)
 	}
 	results := make(chan error, len(parent.VendorOrders))
 	var wg sync.WaitGroup

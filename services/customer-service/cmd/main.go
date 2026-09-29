@@ -2,6 +2,13 @@ package main
 
 import (
 	"context"
+	sharehttp "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/http"
+	sharerepositories "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/repositories"
+	shareusecases "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/usecases"
+	shareworkers "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/workers"
+	"cosmicforge/logistics/shared/go/journeyshare"
+	"cosmicforge/logistics/shared/go/observability"
+	"net/http"
 	"strings"
 	"time"
 
@@ -18,6 +25,7 @@ import (
 	contexthttp "cosmicforge/logistics/services/customer-service/internal/features/customer_context/http"
 	contextusecases "cosmicforge/logistics/services/customer-service/internal/features/customer_context/usecases"
 	identityhttp "cosmicforge/logistics/services/customer-service/internal/features/identity/http"
+	mediauploadhttp "cosmicforge/logistics/services/customer-service/internal/features/media_upload/http"
 	mobilityhttp "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http"
 	mobilityrepositories "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/repositories"
 	mobilityusecases "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/usecases"
@@ -35,6 +43,7 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/ratelimit"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -43,7 +52,13 @@ func main() {
 	_ = godotenv.Load()
 
 	cfg := config.Load()
-	logging.Notice("customer-service config", "migration=%t database=%s redis=%s", cfg.Migration, cfg.DatabaseURL, cfg.Redis.Addr)
+	if err := cfg.ValidateJourneySharing(); err != nil {
+		logging.Fatal("config", "%v", err)
+	}
+	if err := cfg.ValidateMediaUploadSessions(); err != nil {
+		logging.Fatal("config", "%v", err)
+	}
+	logging.Notice("customer-service config", "migration=%t database_configured=%t redis_configured=%t", cfg.Migration, cfg.DatabaseURL != "", cfg.Redis.Addr != "")
 
 	ctx := context.Background()
 	db, err := database.NewPool(ctx, cfg.DatabaseURL)
@@ -81,7 +96,7 @@ func main() {
 		})
 		logging.Success("media-client", "configured base_url=%s", cfg.MediaBaseURL)
 	} else {
-		logging.Notice("media-client", "not configured — profile photo uploads will store empty URL")
+		logging.Notice("media-client", "not configured; profile photo uploads are unavailable")
 	}
 
 	customerRepo := profilerepositories.NewPostgresCustomerRepository(db)
@@ -100,8 +115,9 @@ func main() {
 		otpSender = authclients.NewNotificationEmailOTPSender(notificationClient, otpSender)
 	}
 	profileService := profileusecases.NewProfileService(profileusecases.Options{
-		Customers:   customerRepo,
-		MediaClient: mediaClient,
+		Customers:    customerRepo,
+		MediaClient:  mediaClient,
+		MediaBaseURL: cfg.MediaBaseURL,
 	})
 	savedLocationService := savedlocationusecases.NewSavedLocationService(
 		savedlocationrepositories.NewPostgresSavedLocationRepository(db),
@@ -116,7 +132,9 @@ func main() {
 	if err != nil {
 		logging.Fatal("configuration", "%v", err)
 	}
+	customerMetrics := observability.NewMetrics()
 	movementService := movementusecases.NewService(movementusecases.Options{
+		Metrics:         customerMetrics,
 		Repository:      movementrepositories.NewPostgresRepository(db),
 		Callers:         movementCallers,
 		ConsumerEnabled: cfg.MovementEventsConsumerEnabled,
@@ -124,7 +142,7 @@ func main() {
 		GroupingCallers: strings.Split(cfg.MovementGroupingCallers, ","),
 	})
 	serviceVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
-	customerContextService := contextusecases.NewService(callerScopes, mobilityRepo, savedLocationService)
+	customerContextService := contextusecases.NewService(callerScopes, mobilityRepo, savedLocationService).WithGuests(mobilityRepo)
 	mobilityService := mobilityusecases.NewService(mobilityRepo, mobilityusecases.Flags{
 		MobilityPreferences: cfg.MobilityPreferencesEnabled,
 		GuestTravellers:     cfg.GuestTravellersEnabled,
@@ -148,7 +166,12 @@ func main() {
 		OTPDebug:           cfg.OTPDebug,
 	})
 
+	shareRepo := &sharerepositories.Postgres{DB: db}
+	shareService := &shareusecases.Service{Repository: shareRepo, Enabled: cfg.ShareJourneyEnabled, TTL: cfg.ShareJourneyTTL, CompletedRetention: cfg.ShareCompletedRetention, Reader: &journeyshare.Client{Endpoints: map[string]journeyshare.Endpoint{
+		"TAXI": {BaseURL: cfg.ShareTaxiURL, Secret: cfg.ShareTaxiSecret}, "DISPATCH": {BaseURL: cfg.ShareDispatchURL, Secret: cfg.ShareDispatchSecret}, "HAULING": {BaseURL: cfg.ShareHaulingURL, Secret: cfg.ShareHaulingSecret}, "VENDOR_COMMERCE": {BaseURL: cfg.ShareVendorURL, Secret: cfg.ShareVendorSecret},
+	}}}
 	serviceapp.Run(serviceapp.Options{
+		Workers:     []func(context.Context) error{shareworkers.Expiry(shareService, cfg.ShareJourneyEnabled), shareworkers.Notifications(shareRepo, notificationClient, cfg.ShareJourneyEnabled)},
 		Name:        "customer-service",
 		DefaultAddr: cfg.HTTPAddr,
 		APIBase:     "/api/v1/customer",
@@ -165,8 +188,12 @@ func main() {
 			},
 		},
 		Register: func(group *gin.RouterGroup) {
+			sharehttp.Register(group, shareService, authService.AccessSigner(), journeyshare.RedisLimiter{Client: redisClient}, cfg.ShareViewerOrigin, cfg.ShareTrustedGatewayCIDRs...)
 			customerhttp.RegisterCustomerRoutes(group, authService)
-			profilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
+			profilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner(), ratelimit.New(redisClient, "customer-media"))
+			mediauploadhttp.Register(group, authService.AccessSigner(), mediauploadhttp.Handler{
+				Config: cfg, Limiter: ratelimit.New(redisClient, "customer-evidence-media"),
+			})
 			profilehttp.RegisterTrustedContactRoutes(group, trustedContactService, authService.AccessSigner())
 			mobilityhttp.RegisterRoutes(group, mobilityService, authService.AccessSigner())
 			contexthttp.RegisterInternalRoutes(group, customerContextService, serviceVerifier)
@@ -183,6 +210,13 @@ func main() {
 			preferences.RegisterInternalRoutes(group, preferenceStore, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 		},
 		RegisterRoot: func(engine *gin.Engine) {
+			engine.GET("/internal/customer/v1/journey-share-metrics", append(journeyshare.RedisBoundary(serviceVerifier, redisClient, "admin-backoffice-service"), journeyshare.Metrics)...)
+			// Customer V4 §27.2 private scrape: movement ingestion, projection
+			// age and Share counters. Same caller boundary as the Share metrics.
+			engine.GET("/internal/customer/v1/metrics", append(journeyshare.RedisBoundary(serviceVerifier, redisClient, "admin-backoffice-service"), func(c *gin.Context) {
+				_ = observability.CollectGauges(c.Request.Context(), observability.PoolQuerier(db), customerMetrics, customerGaugeQueries)
+				c.Data(http.StatusOK, "text/plain; version=0.0.4", []byte(customerMetrics.Render()+journeyshare.Render()))
+			})...)
 			movementhttp.RegisterIngress(engine, movementService, serviceVerifier)
 		},
 	})
@@ -195,9 +229,9 @@ func logConnectivity(ctx context.Context, databaseURL string, redisAddr string, 
 	defer cancel()
 
 	if err := db.Ping(pingCtx); err != nil {
-		logging.Error("database", "failed url=%s err=%v", databaseURL, err)
+		logging.Error("database", "connectivity check failed")
 	} else {
-		logging.Success("database", "connected url=%s", databaseURL)
+		logging.Success("database", "connected")
 	}
 
 	if err := redisClient.Ping(pingCtx).Err(); err != nil {

@@ -44,6 +44,9 @@ const (
 )
 
 type VariableMeasurement struct {
+	// Derived from the frozen quote line, never from a live price. A package
+	// price for an expected measured portion is prorated in that same basis.
+	PricingDenominator    int64                      `json:"pricing_denominator,omitempty"`
 	Mode                  MeasurementMode            `json:"mode"`
 	EstimatedQuantity     int64                      `json:"estimated_quantity"`
 	UnitPriceMinor        int64                      `json:"unit_price_minor"`
@@ -123,7 +126,11 @@ func (m VariableMeasurement) RecordActual(actual int64) (VariableMeasurement, er
 	if actual < 0 || actual > m.ReservedUpperQuantity || actual > m.HardMaxQuantity {
 		return m, errors.New("actual quantity exceeds reserved or hard maximum")
 	}
-	amount, err := CalculateMeasuredAmount(m.UnitPriceMinor, actual)
+	denominator := m.PricingDenominator
+	if denominator <= 0 {
+		denominator = 1
+	}
+	amount, err := MultiplyRatio(m.UnitPriceMinor, actual, denominator)
 	if err != nil {
 		return m, err
 	}

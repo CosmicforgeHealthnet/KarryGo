@@ -108,6 +108,23 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service, verifier *servicea
 	}
 }
 
+func RegisterReceiverRoutes(group *gin.RouterGroup, service *Service, customerSigner *sharedauth.TokenSigner) {
+	if group == nil || service == nil || customerSigner == nil || !service.Enabled() {
+		return
+	}
+	receiver := group.Group("/customer/goods/missions")
+	receiver.Use(sharedauth.BearerMiddleware(customerSigner, "customer", "customer"))
+	receiver.GET("/:missionRef/delivery/credentials/:challengeRef", func(c *gin.Context) {
+		claims, ok := sharedauth.ClaimsFromContext(c)
+		if !ok || claims.Subject == "" {
+			httpx.RespondError(c, apperrors.Unauthorized("Receiver authentication is required.", nil))
+			return
+		}
+		credential, err := service.ReadReceiverCredential(c.Request.Context(), claims.Subject, c.Param("missionRef"), c.Param("challengeRef"))
+		respond(c, credential, err)
+	})
+}
+
 func (h *Handler) operationsOnlyAndNonce() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetString("service_name") != operationsServiceCaller {
@@ -457,6 +474,10 @@ func hError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrDisabled), errors.Is(err, ErrUnavailable):
 		httpx.RespondError(c, apperrors.Unavailable("Taxi Goods is unavailable.", err))
+	case errors.Is(err, ErrReceiverSecureChannelRequired):
+		httpx.RespondError(c, apperrors.New(http.StatusPreconditionFailed, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", err))
+	case errors.Is(err, ErrRateLimited):
+		httpx.RespondError(c, apperrors.New(http.StatusTooManyRequests, "RECEIVER_CREDENTIAL_READ_RATE_LIMITED", "Receiver credential reads are temporarily limited.", err))
 	case errors.Is(err, ErrStalePlan):
 		httpx.RespondError(c, apperrors.Conflict("The fulfilment plan version is stale.", err))
 	case errors.Is(err, ErrInvalid):

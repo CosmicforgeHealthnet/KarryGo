@@ -24,10 +24,17 @@ type CustomerContextSource interface {
 	MobilityHints(ctx context.Context, customerID string) capability.CustomerMobilityHints
 }
 
+// GuestTravellerSource reads the traveller a customer books for. The customer
+// context client implements it; without it, booking for someone else is
+// refused as unavailable.
+type GuestTravellerSource interface {
+	GuestTraveller(ctx context.Context, customerID, guestTravellerID string) (capability.GuestTraveller, error)
+}
+
 func requestStatesRequirements(input CreateBookingInput) bool {
 	hard := input.HardRequirements
 	truthy := func(v *bool) bool { return v != nil && *v }
-	return strings.TrimSpace(input.ServiceProductCode) != "" || truthy(hard.WheelchairRequired) || truthy(hard.ChildSeatRequired) || truthy(hard.PetTravel)
+	return strings.TrimSpace(input.ServiceProductCode) != "" || strings.TrimSpace(input.GuestTravellerID) != "" || truthy(hard.WheelchairRequired) || truthy(hard.ChildSeatRequired) || truthy(hard.PetTravel)
 }
 
 // freezePassengerProduct resolves the product and hard requirements for a new
@@ -49,7 +56,27 @@ func (s *BookingService) freezePassengerProduct(ctx context.Context, input Creat
 		return apperrors.Unavailable("Ride could not be created.", err)
 	}
 	hints := capability.CustomerMobilityHints{Status: capability.CustomerContextNotRequested}
-	if s.customerContext != nil {
+	var guest *capability.GuestTraveller
+	if id := strings.TrimSpace(input.GuestTravellerID); id != "" {
+		// Booking for someone else: the traveller's own needs gate matching,
+		// never the booking customer's profile, and an unreadable traveller
+		// refuses the booking rather than booking the customer instead.
+		if booking.RidePurpose != bookingmodels.RidePurposePassenger {
+			return apperrors.Validation("Check your details.", []apperrors.FieldViolation{{Field: "guest_traveller_id", Message: "A traveller applies only to passenger rides."}})
+		}
+		source, ok := s.customerContext.(GuestTravellerSource)
+		if !ok {
+			return apperrors.Unavailable("Booking for someone else is not available right now.", nil)
+		}
+		read, err := source.GuestTraveller(ctx, booking.CustomerID, id)
+		switch {
+		case errors.Is(err, capability.ErrGuestTravellerNotFound):
+			return apperrors.Validation("Check your details.", []apperrors.FieldViolation{{Field: "guest_traveller_id", Message: "Select one of your saved travellers."}})
+		case err != nil:
+			return apperrors.Unavailable("Booking for someone else is not available right now.", err)
+		}
+		guest, hints = &read, read.Hints
+	} else if s.customerContext != nil {
 		hints = s.customerContext.MobilityHints(ctx, booking.CustomerID)
 	}
 	snapshot, product, err := capability.BuildPassengerSnapshot(policy, input.ServiceProductCode, booking.VehicleClass, booking.PassengerCount,
@@ -63,6 +90,9 @@ func (s *BookingService) freezePassengerProduct(ctx context.Context, input Creat
 		return apperrors.Validation("Check your details.", []apperrors.FieldViolation{{Field: "passenger_count", Message: "Too many passengers for this ride product."}})
 	case err != nil:
 		return apperrors.Unavailable("Ride could not be created.", err)
+	}
+	if guest != nil {
+		snapshot = snapshot.ForGuest(guest.Snapshot)
 	}
 	raw, err := json.Marshal(snapshot)
 	if err != nil {

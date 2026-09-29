@@ -16,7 +16,7 @@ MediaUploadService _stubMediaService() => MediaUploadService(
         config: const ApiCoreConfig(
           baseUrl: 'http://localhost:8109/api/v1/media-files',
         ),
-        serviceToken: 'test-token',
+        sessionStore: MemoryCustomerSessionStore(),
         client: MockClient((_) async => http.Response('{}', 500)),
       ),
     );

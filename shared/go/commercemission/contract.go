@@ -199,6 +199,10 @@ type Request struct {
 	VendorOrderRefs []string `json:"vendor_order_refs"`
 
 	CustomerRef string `json:"customer_ref"`
+	// ReceiverCustomerRef is the authenticated account explicitly bound to
+	// the frozen recipient. Empty means no supported account channel; it must
+	// never be inferred from CustomerRef when a third-party contact exists.
+	ReceiverCustomerRef string `json:"receiver_customer_ref,omitempty"`
 
 	Service      Service      `json:"service"`
 	VehicleClass VehicleClass `json:"vehicle_class,omitempty"`

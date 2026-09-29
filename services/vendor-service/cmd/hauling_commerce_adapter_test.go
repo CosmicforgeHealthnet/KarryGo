@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -27,7 +28,7 @@ func TestHaulingMissionRequestCarriesExecutionEvidence(t *testing.T) {
 		DeliveryAddress: orders.AddressSnapshot{
 			SourceAddressRef: "addr_1", Address: "Dropoff", Latitude: 6.43, Longitude: 3.45,
 		},
-		Receiver:     orders.ReceiverSnapshot{ReceiverName: "Ada", ReceiverPhone: "+2348011111111"},
+		Receiver:     orders.ReceiverSnapshot{ReceiverName: "Ada", ReceiverPhone: "+2348011111111", ReceiverCustomerID: "22222222-2222-4222-8222-222222222222"},
 		WeightGrams:  120000,
 		PackageCount: 3,
 		Execution: &orders.MissionExecution{
@@ -55,6 +56,15 @@ func TestHaulingMissionRequestCarriesExecutionEvidence(t *testing.T) {
 	if payload.OperationReference() != request.MissionRef {
 		t.Fatalf("operation ref=%q", payload.OperationReference())
 	}
+	if payload.ReceiverCustomerRef != request.Receiver.ReceiverCustomerID || payload.ReceiverCustomerRef == request.CustomerID {
+		t.Fatalf("receiver account was replaced by sender: %q", payload.ReceiverCustomerRef)
+	}
+	phoneOnly := request
+	phoneOnly.Receiver.ReceiverCustomerID = ""
+	phonePayload, err := haulingMissionRequest(phoneOnly)
+	if err != nil || phonePayload.ReceiverCustomerRef != "" {
+		t.Fatalf("phone-only recipient acquired account binding: %q, %v", phonePayload.ReceiverCustomerRef, err)
+	}
 	if payload.Plan == nil || payload.Plan.PlanRef != "plan_1" || payload.Plan.MissionSlotRef != "slot_1" {
 		t.Fatalf("plan binding missing: %+v", payload.Plan)
 	}
@@ -73,6 +83,22 @@ func TestHaulingMissionRequestCarriesExecutionEvidence(t *testing.T) {
 	}
 	if reason, ok := payload.Validate(); !ok {
 		t.Fatalf("shared contract rejected payload: %s", reason)
+	}
+}
+
+// A mission without frozen execution evidence has no authoritative branch
+// pickup; it must be refused rather than planned at the customer's address.
+func TestHaulingMissionWithoutExecutionEvidenceFailsClosed(t *testing.T) {
+	for _, service := range []orders.LogisticsService{orders.LogisticsHauling, orders.LogisticsTaxi} {
+		_, err := haulingMissionRequest(orders.MissionRequest{
+			MissionRef: "m-1", ParentOrderID: "po-1", VendorOrderIDs: []string{"vo-1"},
+			CustomerID: "11111111-1111-1111-1111-111111111111", Service: service,
+			VehicleClass: "VAN", Currency: "NGN", PickupBranch: "branch-1",
+			DeliveryAddress: orders.AddressSnapshot{Address: "Dropoff", Latitude: 6.43, Longitude: 3.45},
+		})
+		if !errors.Is(err, commercemission.ErrInvalidRequest) {
+			t.Fatalf("%s: err=%v, want invalid request", service, err)
+		}
 	}
 }
 
@@ -114,49 +140,67 @@ func TestTaxiGoodsMissionRequiresAndCarriesFrozenAuthorityQuote(t *testing.T) {
 }
 
 func TestHaulingMissionUnknownCreateReadsBackStableOperationWithoutDuplicate(t *testing.T) {
-	posts, reads := 0, 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == commercemission.HaulingAPIBase+commercemission.Path:
-			posts++
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(commercemission.Envelope{Success: false})
-		case r.Method == http.MethodGet && r.URL.Path == commercemission.HaulingAPIBase+commercemission.OperationPath+"/mission-unknown-1":
-			reads++
-			_ = json.NewEncoder(w).Encode(commercemission.Envelope{Success: true, Data: commercemission.Mission{
-				MissionRef: "mission-unknown-1", OperationRef: "mission-unknown-1",
-				ExternalRef: "booking-1", Status: commercemission.StatusAccepted,
-				AcceptedFeeMinor: 12345, Version: 1,
-			}})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
+	for _, tc := range []struct {
+		service orders.LogisticsService
+		apiBase string
+		vehicle string
+	}{
+		{orders.LogisticsHauling, commercemission.HaulingAPIBase, "TRUCK"},
+		{orders.LogisticsTaxi, commercemission.TaxiAPIBase, "CAR"},
+	} {
+		t.Run(string(tc.service), func(t *testing.T) {
+			posts, reads := 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case r.Method == http.MethodPost && r.URL.Path == tc.apiBase+commercemission.Path:
+					posts++
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_ = json.NewEncoder(w).Encode(commercemission.Envelope{Success: false})
+				case r.Method == http.MethodGet && r.URL.Path == tc.apiBase+commercemission.OperationPath+"/mission-unknown-1":
+					reads++
+					_ = json.NewEncoder(w).Encode(commercemission.Envelope{Success: true, Data: commercemission.Mission{
+						MissionRef: "mission-unknown-1", OperationRef: "mission-unknown-1",
+						ExternalRef: "booking-1", Status: commercemission.StatusAccepted,
+						AcceptedFeeMinor: 12345, Version: 1,
+					}})
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
 
-	authority := &section17FMissionAuthority{hauling: commercemission.New(commercemission.Options{
-		BaseURL: server.URL, APIBase: commercemission.HaulingAPIBase,
-		Service: string(orders.LogisticsHauling), Secret: "test-secret",
-	})}
-	result, err := authority.createHaulingMission(context.Background(), orders.MissionRequest{
-		MissionRef: "mission-unknown-1", ParentOrderID: "po-1",
-		VendorOrderIDs: []string{"vo-1"}, CustomerID: "11111111-1111-1111-1111-111111111111",
-		Service: orders.LogisticsHauling, VehicleClass: "TRUCK",
-		Currency: "NGN", AgreedFeeMinor: 12345, WeightGrams: 1000, PackageCount: 1,
-		PlanMissionRef:  "slot-1",
-		DeliveryAddress: orders.AddressSnapshot{Address: "Dropoff", Latitude: 6.43, Longitude: 3.45},
-		Receiver:        orders.ReceiverSnapshot{ReceiverName: "Ada", ReceiverPhone: "+2348011111111"},
-		Execution: &orders.MissionExecution{
-			PlanRef: "plan-1", PlanVersion: 1, PlanFingerprint: "fingerprint-1",
-			Stops:   []orders.MissionStop{{StopRef: "stop-1", UnitRef: "unit-1", Address: "Pickup", Latitude: 6.455, Longitude: 3.41}},
-			Parcels: []orders.MissionParcel{{ParcelRef: "parcel-1", UnitRef: "unit-1", VendorOrderID: "vo-1", WeightGrams: 1000, PackageCount: 1}},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.ExternalRef != "booking-1" || posts != 1 || reads != 1 {
-		t.Fatalf("result=%+v posts=%d reads=%d", result, posts, reads)
+			client := commercemission.New(commercemission.Options{
+				BaseURL: server.URL, APIBase: tc.apiBase,
+				Service: string(tc.service), Secret: "test-secret",
+			})
+			authority := &section17FMissionAuthority{}
+			if tc.service == orders.LogisticsTaxi {
+				authority.taxi = client
+			} else {
+				authority.hauling = client
+			}
+			result, err := authority.createHaulingMission(context.Background(), orders.MissionRequest{
+				MissionRef: "mission-unknown-1", ParentOrderID: "po-1",
+				VendorOrderIDs: []string{"vo-1"}, CustomerID: "11111111-1111-1111-1111-111111111111",
+				Service: tc.service, VehicleClass: tc.vehicle,
+				Currency: "NGN", AgreedFeeMinor: 12345, WeightGrams: 1000, PackageCount: 1,
+				PlanMissionRef:  "slot-1",
+				DeliveryAddress: orders.AddressSnapshot{Address: "Dropoff", Latitude: 6.43, Longitude: 3.45},
+				Receiver:        orders.ReceiverSnapshot{ReceiverName: "Ada", ReceiverPhone: "+2348011111111"},
+				Execution: &orders.MissionExecution{
+					PlanRef: "plan-1", PlanVersion: 1, PlanFingerprint: "fingerprint-1",
+					AuthorityQuoteID: "authority-quote-1", AuthorityQuoteReference: "quote-reference-1",
+					Stops:   []orders.MissionStop{{StopRef: "stop-1", UnitRef: "unit-1", Address: "Pickup", Latitude: 6.455, Longitude: 3.41}},
+					Parcels: []orders.MissionParcel{{ParcelRef: "parcel-1", UnitRef: "unit-1", VendorOrderID: "vo-1", WeightGrams: 1000, PackageCount: 1}},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.ExternalRef != "booking-1" || posts != 1 || reads != 1 {
+				t.Fatalf("result=%+v posts=%d reads=%d", result, posts, reads)
+			}
+		})
 	}
 }

@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:54:12.87203+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/apperrors"}
+{"Time":"2026-09-27T16:54:13.0684582+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/apperrors","Test":"TestRetryabilitySemantics"}
+{"Time":"2026-09-27T16:54:13.0684582+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/apperrors","Test":"TestRetryabilitySemantics","Output":"=== RUN   TestRetryabilitySemantics\n"}
+{"Time":"2026-09-27T16:54:13.0684582+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/apperrors","Test":"TestRetryabilitySemantics","Output":"--- PASS: TestRetryabilitySemantics (0.00s)\n"}
+{"Time":"2026-09-27T16:54:13.0684582+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/apperrors","Test":"TestRetryabilitySemantics","Elapsed":0}
+{"Time":"2026-09-27T16:54:13.0684582+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/apperrors","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:13.0747966+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/apperrors","Output":"ok  \tcosmicforge/logistics/shared/go/apperrors\t0.203s\n"}
+{"Time":"2026-09-27T16:54:13.0747966+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/apperrors","Elapsed":0.203}

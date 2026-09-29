@@ -31,7 +31,7 @@ func policyWith(maxPickups int) capability.Policy {
 }
 
 func commitRequest(stops ...string) commercemission.Request {
-	r := commercemission.Request{MissionRef: "mission-1", OperationRef: "op-1", ParentOrderRef: "order-1", VendorOrderRefs: []string{"vo-1"}, CustomerRef: "11111111-1111-4111-8111-111111111111",
+	r := commercemission.Request{MissionRef: "mission-1", OperationRef: "op-1", ParentOrderRef: "order-1", VendorOrderRefs: []string{"vo-1"}, CustomerRef: "11111111-1111-4111-8111-111111111111", ReceiverCustomerRef: "11111111-1111-4111-8111-111111111111",
 		Service: commercemission.ServiceTaxi, Plan: &commercemission.PlanBinding{PlanRef: "plan-1", PlanVersion: 31, PlanFingerprint: "fp", MissionSlotRef: "slot-1"},
 		Pickup: commercemission.Point{Address: "cluster"}, Dropoff: commercemission.Point{Ref: "customer", Address: "home", Latitude: 6.5, Longitude: 3.4}, Currency: "NGN", AgreedFeeMinor: 500_00}
 	for i, stop := range stops {

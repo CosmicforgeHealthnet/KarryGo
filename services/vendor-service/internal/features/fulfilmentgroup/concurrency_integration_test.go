@@ -473,19 +473,20 @@ func TestIntegration_UnknownOutcomeRecoveryLinksRatherThanRecreates(t *testing.T
 	}
 
 	// It reads the canonical mission back from the authority and links it.
+	external := "bk_recovered_" + reserved.ID
 	linked, err := store.LinkPlatformMission(ctx, reserved.MissionRef, MissionLink{
-		ExternalRef: "bk_recovered", Accepted: true,
+		ExternalRef: external, Accepted: true,
 	}, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("link: %v", err)
 	}
-	if linked.LinkState != LinkLinked || linked.ExternalRef != "bk_recovered" {
+	if linked.LinkState != LinkLinked || linked.ExternalRef != external {
 		t.Fatalf("link state=%s external=%q", linked.LinkState, linked.ExternalRef)
 	}
 
 	// Linking the same answer again is a no-op, not a second mission.
 	relinked, err := store.LinkPlatformMission(ctx, reserved.MissionRef, MissionLink{
-		ExternalRef: "bk_recovered", Accepted: true,
+		ExternalRef: external, Accepted: true,
 	}, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("relink: %v", err)
@@ -498,7 +499,7 @@ func TestIntegration_UnknownOutcomeRecoveryLinksRatherThanRecreates(t *testing.T
 	// missions believing they execute the same work is the failure this guard
 	// exists for.
 	if _, err = store.LinkPlatformMission(ctx, reserved.MissionRef, MissionLink{
-		ExternalRef: "bk_other", Accepted: true,
+		ExternalRef: external + "_other", Accepted: true,
 	}, time.Now().UTC()); err != ErrConflict {
 		t.Fatalf("err = %v; want ErrConflict for a conflicting canonical mission", err)
 	}

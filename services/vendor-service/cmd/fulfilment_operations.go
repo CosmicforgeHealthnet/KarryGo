@@ -470,6 +470,13 @@ func (p *fulfilmentOperationsProjection) MissionExecution(
 		execution.AuthorityQuoteID = ""
 		execution.AuthorityQuoteReference = ""
 	}
+	// An escalated slot executes on the escalation authority's own quote.
+	if escalation, escalated, escErr := p.escalationFor(ctx, order, requested.PlanMissionRef); escErr != nil {
+		return orders.MissionExecution{}, escErr
+	} else if escalated {
+		execution.AuthorityQuoteID = escalation.AuthorityQuoteID
+		execution.AuthorityQuoteReference = escalation.AuthorityQuoteReference
+	}
 	for _, stop := range slot.PickupStops() {
 		readyFrom, readyTo := p.readyWindow(ctx, order.ID, byUnit[stop.UnitID], now)
 		execution.Stops = append(execution.Stops, orders.MissionStop{
@@ -537,6 +544,25 @@ func (p *fulfilmentOperationsProjection) ResolveMissionPlan(
 	plan.WeightGrams = weight
 	plan.PackageCount = packages
 	plan.LoadingDurationSeconds = loading
+	// A post-pick physical escalation re-points EXECUTION to a larger safe
+	// class and its authority's own quote. The customer's approved fee (checked
+	// above) is unchanged; only what the authority is asked to carry changes.
+	escalation, escalated, err := p.escalationFor(ctx, order, plan.PlanMissionRef)
+	if err != nil {
+		return orders.MissionPlan{}, err
+	}
+	if escalated {
+		plan.Service = escalation.Service
+		plan.VehicleClass = strings.ToUpper(strings.TrimSpace(escalation.VehicleClass))
+		plan.AgreedFeeMinor = escalation.AuthorityFeeMinor
+		plan.MissionRef = escalation.MissionRef
+		if escalation.WeightGrams > 0 {
+			plan.WeightGrams = escalation.WeightGrams
+		}
+		if escalation.PackageCount > 0 {
+			plan.PackageCount = escalation.PackageCount
+		}
+	}
 	return plan, nil
 }
 

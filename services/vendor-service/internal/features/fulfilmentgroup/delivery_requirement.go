@@ -132,10 +132,10 @@ func (d RequirementDecision) Validate() error {
 		return ErrInvalid
 	}
 
-	// The structural taxi gate, restated where a plan is written. The database
-	// refuses it too; refusing here as well means a bug is caught by a clear
-	// error rather than a constraint violation.
-	if d.SelectedVehicleClass == "CAR" {
+	// A car is executed only by Taxi Goods (Section 29 made it a commerce
+	// executor and migration 000111 lifted the old database refusal). A car
+	// claimed by any other authority is a delivery nobody would perform.
+	if d.SelectedVehicleClass == "CAR" && d.SelectedService != "TAXI" {
 		return ErrConflict
 	}
 

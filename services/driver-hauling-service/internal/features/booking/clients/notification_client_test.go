@@ -21,7 +21,6 @@ func TestDeliveryCredentialVersionsUseSafeDistinctNotificationKeys(t *testing.T)
 	for _, ref := range []string{"challenge-a", "challenge-b"} {
 		notifier.NotifyCustomerDeliveryCodeReady(context.Background(), "customer", "booking", map[string]interface{}{
 			"booking_id": "booking", "challenge_ref": ref,
-			"code": "123456", "qr_token": "opaque-secret-token",
 		})
 	}
 	if len(capture.requests) != 2 || capture.requests[0].IDempotencyKey == capture.requests[1].IDempotencyKey {
@@ -30,6 +29,9 @@ func TestDeliveryCredentialVersionsUseSafeDistinctNotificationKeys(t *testing.T)
 	for _, request := range capture.requests {
 		if strings.Contains(request.IDempotencyKey, "123456") || strings.Contains(request.IDempotencyKey, "opaque-secret-token") {
 			t.Fatal("notification idempotency key contains a bearer secret")
+		}
+		if err := request.Validate(); err != nil {
+			t.Fatalf("safe notification rejected: %v", err)
 		}
 	}
 }

@@ -237,16 +237,21 @@ func (s *RedisLiveStore) GetNearby(ctx context.Context, request NearbyProvidersR
 }
 
 type Service struct {
-	repository   Repository
-	live         LiveStore
-	events       EventPublisher
-	now          func() time.Time
-	restrictions interface {
+	journeyRecorder func(context.Context, string, Location)
+	repository      Repository
+	live            LiveStore
+	events          EventPublisher
+	now             func() time.Time
+	restrictions    interface {
 		Restricted(context.Context, string, string, string) (bool, error)
 	}
 }
 
 type ServiceOption func(*Service)
+
+func WithJourneyRecorder(record func(context.Context, string, Location)) ServiceOption {
+	return func(s *Service) { s.journeyRecorder = record }
+}
 
 func WithClock(now func() time.Time) ServiceOption {
 	return func(s *Service) {
@@ -557,6 +562,9 @@ func (s *Service) UpdateLocation(ctx context.Context, providerID string, request
 	// Refresh status TTL to 90 s on each accepted ping.
 	if err := s.live.SetStatus(ctx, providerID, liveStatus); err != nil {
 		return LocationUpdateResponse{}, err
+	}
+	if s.journeyRecorder != nil {
+		s.journeyRecorder(ctx, providerID, location)
 	}
 
 	// Publish provider.location_updated for analytics/admin map (non-blocking).

@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:00:29.1182164+02:00","Action":"start","Package":"cosmicforge/logistics/services/customer-service/migrations"}
+{"Time":"2026-09-27T16:00:29.26983+02:00","Action":"run","Package":"cosmicforge/logistics/services/customer-service/migrations","Test":"TestCustomerAuthMigrationContainsRequiredTables"}
+{"Time":"2026-09-27T16:00:29.26983+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/migrations","Test":"TestCustomerAuthMigrationContainsRequiredTables","Output":"=== RUN   TestCustomerAuthMigrationContainsRequiredTables\n"}
+{"Time":"2026-09-27T16:00:29.2703556+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/migrations","Test":"TestCustomerAuthMigrationContainsRequiredTables","Output":"--- PASS: TestCustomerAuthMigrationContainsRequiredTables (0.00s)\n"}
+{"Time":"2026-09-27T16:00:29.2703556+02:00","Action":"pass","Package":"cosmicforge/logistics/services/customer-service/migrations","Test":"TestCustomerAuthMigrationContainsRequiredTables","Elapsed":0}
+{"Time":"2026-09-27T16:00:29.2703556+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/migrations","Output":"PASS\n"}
+{"Time":"2026-09-27T16:00:29.2720232+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/migrations","Output":"ok  \tcosmicforge/logistics/services/customer-service/migrations\t0.154s\n"}
+{"Time":"2026-09-27T16:00:29.2729245+02:00","Action":"pass","Package":"cosmicforge/logistics/services/customer-service/migrations","Elapsed":0.155}

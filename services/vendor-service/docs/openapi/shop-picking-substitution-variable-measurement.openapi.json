@@ -13,7 +13,12 @@
             "description": "OK"
           }
         },
-        "summary": "Read pending customer substitution cases"
+        "summary": "Read pending customer substitution cases",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitution-cases/{caseId}": {
@@ -35,7 +40,12 @@
             "description": "OK"
           }
         },
-        "summary": "Read one customer-scoped case"
+        "summary": "Read one customer-scoped case",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitution-cases/{caseId}/accept": {
@@ -79,7 +89,12 @@
             "description": "OK"
           }
         },
-        "summary": "Accept a substitution case with OCC"
+        "summary": "Accept a substitution case with OCC",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitution-cases/{caseId}/reject": {
@@ -123,7 +138,12 @@
             "description": "OK"
           }
         },
-        "summary": "Reject a substitution case with OCC"
+        "summary": "Reject a substitution case with OCC",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/vendor/commerce/orders/{vendorOrderId}/lines/{lineId}/actual-quantity": {
@@ -274,6 +294,16 @@
           }
         },
         "summary": "Read immutable Shop picking snapshots and current evidence"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Customer Service access token; the customer is derived from the token, never from the request."
       }
     }
   }

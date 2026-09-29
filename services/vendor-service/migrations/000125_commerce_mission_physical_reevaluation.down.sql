@@ -1,0 +1,3 @@
+DROP TRIGGER IF EXISTS commerce_mission_physical_reevaluations_immutable ON commerce_mission_physical_reevaluations;
+DROP FUNCTION IF EXISTS commerce_mission_physical_reevaluations_immutable();
+DROP TABLE IF EXISTS commerce_mission_physical_reevaluations;

@@ -1,0 +1,56 @@
+{"Time":"2026-09-27T16:56:10.4875239+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/routing"}
+{"Time":"2026-09-27T16:56:10.6289461+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestClientImplementsFetcher"}
+{"Time":"2026-09-27T16:56:10.6289461+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestClientImplementsFetcher","Output":"=== RUN   TestClientImplementsFetcher\n"}
+{"Time":"2026-09-27T16:56:10.6295121+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestClientImplementsFetcher","Output":"--- PASS: TestClientImplementsFetcher (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6295121+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestClientImplementsFetcher","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6295121+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteSuccess"}
+{"Time":"2026-09-27T16:56:10.6295121+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteSuccess","Output":"=== RUN   TestRouteSuccess\n"}
+{"Time":"2026-09-27T16:56:10.6339251+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteSuccess","Output":"--- PASS: TestRouteSuccess (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6339251+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteSuccess","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6339251+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteTwoWheelerOmitsTrafficPreference"}
+{"Time":"2026-09-27T16:56:10.6339251+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteTwoWheelerOmitsTrafficPreference","Output":"=== RUN   TestRouteTwoWheelerOmitsTrafficPreference\n"}
+{"Time":"2026-09-27T16:56:10.6354769+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteTwoWheelerOmitsTrafficPreference","Output":"--- PASS: TestRouteTwoWheelerOmitsTrafficPreference (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6354769+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteTwoWheelerOmitsTrafficPreference","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6354769+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteDefaultsTravelMode"}
+{"Time":"2026-09-27T16:56:10.6354769+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteDefaultsTravelMode","Output":"=== RUN   TestRouteDefaultsTravelMode\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteDefaultsTravelMode","Output":"--- PASS: TestRouteDefaultsTravelMode (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteDefaultsTravelMode","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestUnconfiguredClient"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestUnconfiguredClient","Output":"=== RUN   TestUnconfiguredClient\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestUnconfiguredClient","Output":"--- PASS: TestUnconfiguredClient (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestUnconfiguredClient","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates","Output":"=== RUN   TestRouteRejectsMissingCoordinates\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/out_of_range_origin"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/out_of_range_origin","Output":"=== RUN   TestRouteRejectsMissingCoordinates/out_of_range_origin\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/out_of_range_origin","Output":"--- PASS: TestRouteRejectsMissingCoordinates/out_of_range_origin (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/out_of_range_origin","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/null_island_origin"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/null_island_origin","Output":"=== RUN   TestRouteRejectsMissingCoordinates/null_island_origin\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/null_island_origin","Output":"--- PASS: TestRouteRejectsMissingCoordinates/null_island_origin (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/null_island_origin","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/null_island_destination"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/null_island_destination","Output":"=== RUN   TestRouteRejectsMissingCoordinates/null_island_destination\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/null_island_destination","Output":"--- PASS: TestRouteRejectsMissingCoordinates/null_island_destination (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates/null_island_destination","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates","Output":"--- PASS: TestRouteRejectsMissingCoordinates (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteRejectsMissingCoordinates","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteSurfacesApiErrors"}
+{"Time":"2026-09-27T16:56:10.6370489+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteSurfacesApiErrors","Output":"=== RUN   TestRouteSurfacesApiErrors\n"}
+{"Time":"2026-09-27T16:56:10.6392024+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteSurfacesApiErrors","Output":"--- PASS: TestRouteSurfacesApiErrors (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6392024+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteSurfacesApiErrors","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6392024+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteWithNoRoutesReturnsError"}
+{"Time":"2026-09-27T16:56:10.6392024+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteWithNoRoutesReturnsError","Output":"=== RUN   TestRouteWithNoRoutesReturnsError\n"}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteWithNoRoutesReturnsError","Output":"--- PASS: TestRouteWithNoRoutesReturnsError (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteWithNoRoutesReturnsError","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestParseDurationSeconds"}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestParseDurationSeconds","Output":"=== RUN   TestParseDurationSeconds\n"}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestParseDurationSeconds","Output":"--- PASS: TestParseDurationSeconds (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestParseDurationSeconds","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteHelpers"}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteHelpers","Output":"=== RUN   TestRouteHelpers\n"}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteHelpers","Output":"--- PASS: TestRouteHelpers (0.00s)\n"}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Test":"TestRouteHelpers","Elapsed":0}
+{"Time":"2026-09-27T16:56:10.6402537+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Output":"PASS\n"}
+{"Time":"2026-09-27T16:56:10.64291+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/routing","Output":"ok  \tcosmicforge/logistics/shared/go/routing\t0.155s\n"}
+{"Time":"2026-09-27T16:56:10.64291+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/routing","Elapsed":0.155}

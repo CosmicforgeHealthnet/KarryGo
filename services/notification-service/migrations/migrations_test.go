@@ -70,3 +70,40 @@ func TestNetworkTemplatesCoverEveryIntent(t *testing.T) {
 		t.Fatal("network templates must not interpolate producer data")
 	}
 }
+
+func TestCustomerShareAndWalletTemplatesAreProductionSeededAndReferenceOnly(t *testing.T) {
+	for name, events := range map[string][]string{
+		"006_customer_share_templates.sql":  {"share.created", "share.revoked", "share.expired"},
+		"007_customer_wallet_templates.sql": {"payment.topup_success", "payment.success", "payment.failed", "refund.completed", "refund.failed"},
+	} {
+		content, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sql := string(content)
+		for _, event := range events {
+			if !strings.Contains(sql, "('"+event+"','en-NG'") {
+				t.Errorf("%s is missing %s", name, event)
+			}
+		}
+		if strings.Contains(sql, "{{") {
+			t.Errorf("%s interpolates producer data", name)
+		}
+	}
+}
+
+func TestHandoverTemplatesAreReferenceOnly(t *testing.T) {
+	content, err := os.ReadFile("008_safe_handover_templates.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := string(content)
+	for _, event := range []string{"booking.delivery_code_ready", "package.delivery_code_ready", "taxi.goods.pickup_credential_ready"} {
+		if !strings.Contains(sql, "('"+event+"','en-NG'") {
+			t.Errorf("missing %s", event)
+		}
+	}
+	if strings.Contains(sql, "{{") {
+		t.Fatal("handover templates interpolate producer data")
+	}
+}

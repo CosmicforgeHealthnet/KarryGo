@@ -12,6 +12,11 @@ const (
 	SourceRequest         = "REQUEST"
 	SourceCustomerProfile = "CUSTOMER_PROFILE"
 	SourceDefault         = "DEFAULT"
+	// SourceGuestTraveller marks a need taken from the saved traveller the
+	// customer booked for, never from the booking customer's own profile.
+	SourceGuestTraveller = "GUEST_TRAVELLER"
+
+	TravellerKindGuest = "GUEST"
 
 	CustomerContextUsed         = "USED"
 	CustomerContextNotRequested = "NOT_REQUESTED"
@@ -29,6 +34,10 @@ var (
 	ErrProductPurposeMismatch = errors.New("service product is not a passenger product")
 	ErrProductClassMismatch   = errors.New("service product does not match the vehicle class")
 	ErrProductPassengerLimit  = errors.New("passenger count exceeds the service product limit")
+
+	// Guest traveller lookup outcomes reported by the customer context source.
+	ErrGuestTravellerNotFound    = errors.New("guest traveller not found")
+	ErrGuestTravellerUnavailable = errors.New("guest traveller context unavailable")
 )
 
 // HardRequirementInput is what the booking request states explicitly. A nil
@@ -71,6 +80,26 @@ type CustomerContextRef struct {
 	Version int64  `json:"version,omitempty"`
 }
 
+// TravellerSnapshot freezes who is actually travelling when a customer books
+// a ride for someone else (Customer V4 §5.1/§5.2). It is copied from Customer
+// Service's reusable GuestTraveller at creation; editing or deleting that
+// record later never rewrites this booking. It grants the traveller no
+// account access.
+type TravellerSnapshot struct {
+	Kind              string  `json:"kind"`
+	GuestTravellerRef string  `json:"guest_traveller_ref"`
+	Name              string  `json:"name"`
+	Phone             *string `json:"phone,omitempty"`
+	SourceVersion     int64   `json:"source_version"`
+}
+
+// GuestTraveller is what the customer context returns for one traveller:
+// the snapshot to freeze and the traveller's own structured needs.
+type GuestTraveller struct {
+	Snapshot TravellerSnapshot
+	Hints    CustomerMobilityHints
+}
+
 // PassengerSnapshot is the immutable requirement snapshot persisted on a
 // passenger booking. The embedded PassengerRequirement carries the hard
 // gates; Preferences are informational only.
@@ -83,7 +112,25 @@ type PassengerSnapshot struct {
 	Sources         map[string]string  `json:"requirement_sources"`
 	Preferences     RidePreferences    `json:"preferences"`
 	CustomerContext CustomerContextRef `json:"customer_context"`
+	Traveller       *TravellerSnapshot `json:"traveller,omitempty"`
 	FrozenAt        time.Time          `json:"frozen_at"`
+}
+
+// ForGuest re-labels saved-need sources as the traveller's and attaches the
+// frozen traveller. The needs already came from the traveller's record, so
+// the booking customer's own profile never gates a guest's ride.
+func (s PassengerSnapshot) ForGuest(guest TravellerSnapshot) PassengerSnapshot {
+	sources := make(map[string]string, len(s.Sources))
+	for field, source := range s.Sources {
+		if source == SourceCustomerProfile {
+			source = SourceGuestTraveller
+		}
+		sources[field] = source
+	}
+	s.Sources = sources
+	guest.Kind = TravellerKindGuest
+	s.Traveller = &guest
+	return s
 }
 
 // BuildPassengerSnapshot resolves the product for a passenger booking and

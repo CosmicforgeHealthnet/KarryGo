@@ -13,6 +13,7 @@ import (
 	bookingclients "cosmicforge/logistics/services/hauling-service/internal/features/booking/clients"
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -312,7 +313,7 @@ func TestSecurePickupResendInvalidatesOldOTPAndQR(t *testing.T) {
 }
 
 func TestSecureDeliverySecretsStayAtCustomerNotificationBoundary(t *testing.T) {
-	repo := newSecureMemoryRepo(bookingmodels.Booking{ID: "b-delivery", CustomerID: "customer", ProviderID: ptr("provider"), Status: bookingmodels.StatusPickedUp})
+	repo := newSecureMemoryRepo(bookingmodels.Booking{ID: "b-delivery", CustomerID: "customer", ReceiverCustomerID: "customer", ProviderID: ptr("provider"), Status: bookingmodels.StatusPickedUp})
 	capture := &recordingNotifier{}
 	svc := NewBookingService(Options{
 		Bookings: repo, SecureHandover: repo, HandoverSecret: testHandoverSecret,
@@ -340,14 +341,21 @@ func TestSecureDeliverySecretsStayAtCustomerNotificationBoundary(t *testing.T) {
 	if view.Code != "" || view.QRToken != "" {
 		t.Fatal("customer generic read redisplayed a bearer credential")
 	}
+	secureRead, err := svc.ReadReceiverCredential(context.Background(), "customer", "b-delivery", challenge.ChallengeRef)
+	if err != nil || secureRead.Code != challenge.Code || secureRead.QRToken != challenge.QRToken {
+		t.Fatalf("receiver-specific read = %+v, %v", secureRead, err)
+	}
+	if _, err := svc.ReadReceiverCredential(context.Background(), "other", "b-delivery", challenge.ChallengeRef); err == nil {
+		t.Fatal("unbound account retrieved delivery credential")
+	}
 	var delivered bool
 	for _, request := range capture.requests {
 		if request.EventType == "booking.delivery_code_ready" {
-			delivered = request.Recipient.ID == "customer" && request.Data["code"] == challenge.Code && request.Data["qr_token"] == challenge.QRToken
+			delivered = request.Recipient.ID == "customer" && request.Data["challenge_ref"] == challenge.ChallengeRef && request.Data["code"] == nil && request.Data["qr_token"] == nil
 		}
 	}
 	if !delivered {
-		t.Fatal("customer did not receive the one-time credential through Notification transport")
+		t.Fatal("customer did not receive a safe retrieval notification")
 	}
 	if _, err = svc.ConfirmDelivery(context.Background(), "b-delivery", "other-provider", challenge.QRToken, "", ""); err == nil {
 		t.Fatal("provider IDOR unexpectedly succeeded")
@@ -357,5 +365,36 @@ func TestSecureDeliverySecretsStayAtCustomerNotificationBoundary(t *testing.T) {
 	}
 	if _, err = svc.ConfirmDelivery(context.Background(), "b-delivery", "provider", challenge.Code, "", ""); err == nil {
 		t.Fatal("OTP replay after delivery QR consumption unexpectedly succeeded")
+	}
+}
+
+func TestPhoneOnlyHaulingReceiverFailsBeforeDeliveryChallenge(t *testing.T) {
+	repo := newSecureMemoryRepo(bookingmodels.Booking{ID: "phone-only", CustomerID: "sender", ProviderID: ptr("provider"), Status: bookingmodels.StatusPickedUp, ReceiverPhone: "+2348011111111"})
+	svc := NewBookingService(Options{Bookings: repo, SecureHandover: repo, HandoverSecret: testHandoverSecret,
+		Notifier: bookingclients.NewBookingNotifierWith(&recordingNotifier{})})
+	_, err := svc.MarkEnRouteDelivery(context.Background(), "phone-only", "provider")
+	var typed *apperrors.Error
+	if !errors.As(err, &typed) || typed.Code != "RECEIVER_SECURE_CHANNEL_REQUIRED" || typed.Status != 412 {
+		t.Fatalf("phone-only error = %v", err)
+	}
+	if _, _, err := repo.GetHandoverChallenge(context.Background(), "phone-only", handover.StepDelivery); !errors.Is(err, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+		t.Fatalf("phone-only booking created challenge: %v", err)
+	}
+}
+
+func TestPhoneOnlyHaulingReceiverFailsBeforePickupCustody(t *testing.T) {
+	verified := time.Now()
+	repo := newSecureMemoryRepo(bookingmodels.Booking{ID: "phone-only-pickup", CustomerID: "sender", ProviderID: ptr("provider"), Status: bookingmodels.StatusArrivedAtPickup,
+		ReceiverPhone: "+2348011111111", PickupCodeVerifiedAt: &verified})
+	svc := NewBookingService(Options{Bookings: repo, SecureHandover: repo, HandoverSecret: testHandoverSecret,
+		Notifier: bookingclients.NewBookingNotifierWith(&recordingNotifier{})})
+	_, err := svc.ConfirmPickup(context.Background(), "phone-only-pickup", "provider")
+	var typed *apperrors.Error
+	if !errors.As(err, &typed) || typed.Code != "RECEIVER_SECURE_CHANNEL_REQUIRED" || typed.Status != 412 {
+		t.Fatalf("phone-only pickup error = %v", err)
+	}
+	booking, err := repo.GetByID(context.Background(), "phone-only-pickup")
+	if err != nil || booking.Status != bookingmodels.StatusArrivedAtPickup {
+		t.Fatalf("phone-only pickup advanced custody: %+v %v", booking, err)
 	}
 }

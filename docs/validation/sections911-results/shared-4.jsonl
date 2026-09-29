@@ -1,0 +1,20 @@
+{"Time":"2026-09-27T16:54:25.6309844+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/browserauth"}
+{"Time":"2026-09-27T16:54:25.796782+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestProductionPolicyFailsClosed"}
+{"Time":"2026-09-27T16:54:25.796782+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestProductionPolicyFailsClosed","Output":"=== RUN   TestProductionPolicyFailsClosed\n"}
+{"Time":"2026-09-27T16:54:25.7973182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestProductionPolicyFailsClosed","Output":"--- PASS: TestProductionPolicyFailsClosed (0.00s)\n"}
+{"Time":"2026-09-27T16:54:25.7973182+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestProductionPolicyFailsClosed","Elapsed":0}
+{"Time":"2026-09-27T16:54:25.7973182+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope"}
+{"Time":"2026-09-27T16:54:25.7973182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":"=== RUN   TestCookieAndDeletionScope\n"}
+{"Time":"2026-09-27T16:54:25.7973182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":"[GIN-debug] [WARNING] Running in \"debug\" mode. Switch to \"release\" mode in production.\n"}
+{"Time":"2026-09-27T16:54:25.7973182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":" - using env:\texport GIN_MODE=release\n"}
+{"Time":"2026-09-27T16:54:25.7973182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":" - using code:\tgin.SetMode(gin.ReleaseMode)\n"}
+{"Time":"2026-09-27T16:54:25.7973182+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":"\n"}
+{"Time":"2026-09-27T16:54:25.7987862+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":"[GIN-debug] [WARNING] Running in \"debug\" mode. Switch to \"release\" mode in production.\n"}
+{"Time":"2026-09-27T16:54:25.7993433+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":" - using env:\texport GIN_MODE=release\n"}
+{"Time":"2026-09-27T16:54:25.7993433+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":" - using code:\tgin.SetMode(gin.ReleaseMode)\n"}
+{"Time":"2026-09-27T16:54:25.7993433+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":"\n"}
+{"Time":"2026-09-27T16:54:25.7993433+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Output":"--- PASS: TestCookieAndDeletionScope (0.00s)\n"}
+{"Time":"2026-09-27T16:54:25.7993433+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/browserauth","Test":"TestCookieAndDeletionScope","Elapsed":0}
+{"Time":"2026-09-27T16:54:25.7993433+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:25.8026116+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/browserauth","Output":"ok  \tcosmicforge/logistics/shared/go/browserauth\t0.172s\n"}
+{"Time":"2026-09-27T16:54:25.8026116+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/browserauth","Elapsed":0.172}

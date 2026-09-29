@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:01:58.1007482+02:00","Action":"start","Package":"cosmicforge/logistics/services/taxi-service/internal/features/markets/models"}
+{"Time":"2026-09-27T16:01:58.1007482+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/features/markets/models","Output":"?   \tcosmicforge/logistics/services/taxi-service/internal/features/markets/models\t[no test files]\n"}
+{"Time":"2026-09-27T16:01:58.1007482+02:00","Action":"skip","Package":"cosmicforge/logistics/services/taxi-service/internal/features/markets/models","Elapsed":0}

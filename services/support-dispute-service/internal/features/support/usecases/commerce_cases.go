@@ -30,6 +30,21 @@ func (s *SupportService) CreateCommerceCase(ctx context.Context, in supportcase.
 	if err := in.Validate(); err != nil {
 		return supportcase.Case{}, false, apperrors.Validation("Commerce support case is invalid.", nil)
 	}
+	// A caller's opaque string is not proof that Media considers it usable for
+	// this order. Resolve every supplied reference before attaching any of
+	// them; an unavailable Media authority fails the whole request closed.
+	for _, mediaRef := range in.Context.MediaRefs {
+		if s.media == nil {
+			return supportcase.Case{}, false, apperrors.Unavailable("Media evidence validation is unavailable.", nil)
+		}
+		verdict, err := s.media.Validate(ctx, mediaRef, "ORDER", in.Context.CommerceOrderRef)
+		if err != nil {
+			return supportcase.Case{}, false, apperrors.Unavailable("Media evidence could not be checked.", err)
+		}
+		if !verdict.Usable {
+			return supportcase.Case{}, false, apperrors.Validation("MediaRef is not valid for this order.", nil)
+		}
+	}
 	fingerprint, err := supportcase.Fingerprint(in)
 	if err != nil {
 		return supportcase.Case{}, false, err

@@ -162,7 +162,7 @@ func TestHandoverNotificationReconciliationClaimRace(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO providers(id,phone,verification_status,is_active,onboarding_complete) VALUES($1,$2,'verified',true,true)`, provider, "+23483"+provider[:8]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO dispatch_bookings(id,customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,receiver_name,receiver_phone) VALUES($1,$2,'accepted','sender',6.5,3.4,'receiver',6.6,3.5,1500,'receiver','+2348011111111')`, booking, customer); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO dispatch_bookings(id,customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,receiver_name,receiver_phone,receiver_customer_id) VALUES($1,$2,'accepted','sender',6.5,3.4,'receiver',6.6,3.5,1500,'receiver','+2348011111111',$2)`, booking, customer); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO trips(id,booking_id,provider_id,customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,receiver_name,receiver_phone) VALUES($1,$2,$3,$4,'in_progress','sender',6.5,3.4,'receiver',6.6,3.5,1500,'receiver','+2348011111111')`, trip, booking, provider, customer); err != nil {
@@ -180,7 +180,9 @@ func TestHandoverNotificationReconciliationClaimRace(t *testing.T) {
 	if _, err = service.IssueDelivery(ctx, trip, "notification-race"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `UPDATE dispatch_handover_challenges SET notification_next_attempt_at=now()`); err != nil {
+	// Due a minute ago: the claim compares against the worker's clock, and a
+	// database clock running ahead of it must not make the row "not yet due".
+	if _, err = pool.Exec(ctx, `UPDATE dispatch_handover_challenges SET notification_next_attempt_at=now()-interval '1 minute'`); err != nil {
 		t.Fatal(err)
 	}
 	counts := make(chan int, 2)

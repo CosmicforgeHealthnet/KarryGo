@@ -69,6 +69,8 @@ type Booking struct {
 	PaymentRef                 string   `json:"-"`
 	ReceiverName               string   `json:"receiver_name"`
 	ReceiverPhone              string   `json:"receiver_phone"`
+	ReceiverEmail              string   `json:"-"`
+	ReceiverCustomerID         string   `json:"-"`
 	PackageDesc                string   `json:"package_desc"`
 	PackageWeight              *float64 `json:"package_weight,omitempty"`
 	PackageType                string   `json:"package_type"`
@@ -188,6 +190,8 @@ type CreateBookingInput struct {
 	Dropoff                LatLngAddress `json:"dropoff"`
 	ReceiverName           string        `json:"receiver_name"`
 	ReceiverPhone          string        `json:"receiver_phone"`
+	ReceiverEmail          string        `json:"receiver_email,omitempty"`
+	ReceiverCustomerID     string        `json:"receiver_customer_id,omitempty"`
 	PackageDesc            string        `json:"package_desc"`
 	PackageWeight          float64       `json:"package_weight"`
 	PackageType            string        `json:"package_type"`
@@ -296,14 +300,18 @@ type AvailabilityResponse struct {
 // Heading, speed and accuracy have always been collected by the rider app and
 // stored, but were dropped here, so the customer's marker could not be rotated
 // or dead-reckoned between fixes. They are carried through now.
+//
+// The point is bound to the trip's current assignment (never the rider's
+// global position) and State is FRESH or STALE by server policy. The rider's
+// internal id is deliberately not part of the customer response.
 type LocationResponse struct {
-	ProviderID string    `json:"provider_id"`
-	Lat        float64   `json:"lat"`
-	Lng        float64   `json:"lng"`
-	Heading    float64   `json:"heading"`
-	Speed      float64   `json:"speed"`
-	Accuracy   float64   `json:"accuracy"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Lat       float64   `json:"lat"`
+	Lng       float64   `json:"lng"`
+	Heading   float64   `json:"heading"`
+	Speed     float64   `json:"speed"`
+	Accuracy  float64   `json:"accuracy"`
+	UpdatedAt time.Time `json:"updated_at"`
+	State     string    `json:"state"`
 }
 
 type ReviewInput struct {

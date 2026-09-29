@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -67,6 +66,24 @@ type SendResult struct {
 func (s *NotificationService) Send(ctx context.Context, request notifications.Request) (SendResult, error) {
 	if err := request.Validate(); err != nil {
 		return SendResult{}, err
+	}
+	// A producer may name a source object, but cannot supply a destination URL
+	// or a final business state as navigation authority. Derive the bounded
+	// intent here so persisted feed, websocket and push carry the same hint.
+	if request.Data != nil {
+		copyData := make(map[string]interface{}, len(request.Data)+1)
+		for key, value := range request.Data {
+			if key != "route_intent" {
+				copyData[key] = value
+			}
+		}
+		request.Data = copyData
+	}
+	if intent, ok := notifications.RouteIntentFor(request); ok {
+		if request.Data == nil {
+			request.Data = map[string]interface{}{}
+		}
+		request.Data["route_intent"] = intent
 	}
 
 	resolved, err := s.resolveRequest(ctx, request)
@@ -287,20 +304,16 @@ func (s *NotificationService) resolveRequest(ctx context.Context, request notifi
 	}
 	if request.TemplateKey != "" {
 		resolved.templateKey = &request.TemplateKey
-		log.Printf("🔍 Looking for template: key=%s, locale=%s", request.TemplateKey, resolved.locale)
 		template, ok, err := s.repository.GetTemplate(ctx, request.TemplateKey, resolved.locale)
 		if err != nil {
-			log.Printf("❌ Template lookup error: %v", err)
 			return resolvedRequest{}, err
 		}
-		log.Printf("✅ Template found: ok=%v, title=%s, body=%s", ok, template.Title, template.Body)
 		if ok {
 			if resolved.title == "" {
 				resolved.title = renderTemplate(template.Title, request.TemplateData)
 			}
 			if resolved.body == "" {
 				resolved.body = renderTemplate(template.Body, request.TemplateData)
-				log.Printf("📝 Rendered body: %s", resolved.body)
 			}
 			if len(resolved.channels) == 0 {
 				resolved.channels = append([]string{}, template.DefaultChannels...)
@@ -351,7 +364,6 @@ func (s *NotificationService) deliverEmail(ctx context.Context, delivery message
 		errMessage := "recipient email is missing"
 		return s.finishDelivery(ctx, delivery, "smtp", nil, messagemodels.StatusSkipped, &errMessage)
 	}
-	log.Printf("📧 Delivering email: to=%s, subject=%s, body=%s", *message.RecipientEmail, message.Title, message.Body)
 	result, err := s.email.SendEmail(ctx, messageclients.EmailMessage{
 		To:      *message.RecipientEmail,
 		Subject: message.Title,

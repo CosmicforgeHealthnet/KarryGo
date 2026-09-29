@@ -347,7 +347,23 @@ func TestRebindMigrationRollsBackCleanly(t *testing.T) {
 	if !exists(table) || !exists(column) {
 		t.Fatal("000017 is not applied")
 	}
-	if err := database.RollbackLastMigration(ctx, h.pool, migrationsDir); err != nil {
+	// Later migrations (000018 onward) are unwound first, so the rollback
+	// under test is 000017's own rather than whichever migration is newest.
+	migrations, err := database.ListMigrations(migrationsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, migration := range migrations {
+		if migration.Number > 17 {
+			if err = database.RollbackLastMigration(ctx, h.pool, migrationsDir); err != nil {
+				t.Fatalf("rollback %s: %v", migration.Version, err)
+			}
+		}
+	}
+	if !exists(table) || !exists(column) {
+		t.Fatal("unwinding later migrations removed 000017's objects")
+	}
+	if err = database.RollbackLastMigration(ctx, h.pool, migrationsDir); err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
 	if exists(table) || exists(column) {

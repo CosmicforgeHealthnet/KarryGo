@@ -24,7 +24,12 @@
             "description": "Case projections"
           }
         },
-        "summary": "List safe Support case projections for an owned CommerceOrder"
+        "summary": "List safe Support case projections for an owned CommerceOrder",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       },
       "post": {
         "operationId": "commerce_support_cases_openapi_post_api_v1_commerce_orders_orderId_support_cases",
@@ -55,7 +60,12 @@
             "description": "Support case linked"
           }
         },
-        "summary": "Report one controlled issue for an owned CommerceOrder"
+        "summary": "Report one controlled issue for an owned CommerceOrder",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/orders/{orderId}/support-cases/{caseRef}": {
@@ -86,7 +96,12 @@
             "description": "Case projection"
           }
         },
-        "summary": "Read one safe Support case projection"
+        "summary": "Read one safe Support case projection",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/internal/vendor/commerce/support-case-resolutions": {
@@ -164,6 +179,16 @@
           }
         },
         "summary": "Open a controlled Support case in the acting Vendor scope"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Customer Service access token; the customer is derived from the token, never from the request."
       }
     }
   }

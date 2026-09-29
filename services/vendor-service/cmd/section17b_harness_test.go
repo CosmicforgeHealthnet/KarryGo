@@ -680,8 +680,9 @@ func boolPointer(value bool) *bool { return &value }
 // -----------------------------------------------------------------------------
 
 type s17bCartLine struct {
-	Item     s17bShopItem
-	Quantity int64
+	Item               s17bShopItem
+	Quantity           int64
+	SubstitutionPolicy string
 
 	ExpectedMeasureQuantity int64
 }
@@ -707,11 +708,12 @@ func (e *s17bEnv) seedShopCart(
 
 	for _, line := range lines {
 		input := cart.AddItemInput{
-			ItemRef:     line.Item.ProductID,
-			VariantRef:  line.Item.VariantID,
-			ListingRef:  line.Item.ListingID,
-			SellUnitRef: line.Item.SellUnitID,
-			Quantity:    line.Quantity,
+			ItemRef:            line.Item.ProductID,
+			VariantRef:         line.Item.VariantID,
+			ListingRef:         line.Item.ListingID,
+			SellUnitRef:        line.Item.SellUnitID,
+			Quantity:           line.Quantity,
+			SubstitutionPolicy: line.SubstitutionPolicy,
 		}
 
 		if line.ExpectedMeasureQuantity > 0 {

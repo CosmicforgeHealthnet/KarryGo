@@ -141,6 +141,9 @@ func respondError(c *gin.Context, err error) {
 	case errors.Is(err, ErrHandoverUnavailable):
 		status, code, message = http.StatusServiceUnavailable,
 			"VENDOR_HANDOVER_UNAVAILABLE", "Secure Vendor delivery handover is not available for this mission."
+	case errors.Is(err, ErrReceiverSecureChannelRequired):
+		status, code, message = http.StatusPreconditionFailed,
+			"RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody."
 	}
 
 	c.JSON(status, gin.H{

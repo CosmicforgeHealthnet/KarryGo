@@ -23,6 +23,13 @@ type vendorDeliveryRuntimeFixture struct {
 
 func seedVendorDeliveryRuntime(t *testing.T, riderCount int) vendorDeliveryRuntimeFixture {
 	t.Helper()
+	return seedVendorDeliveryRuntimeFor(t, riderCount, "")
+}
+
+// seedVendorDeliveryRuntimeFor lets a caller bind the order to a real
+// Customer identity; empty keeps the synthetic runtime customer.
+func seedVendorDeliveryRuntimeFor(t *testing.T, riderCount int, customerID string) vendorDeliveryRuntimeFixture {
+	t.Helper()
 	pool := integrationPool(t)
 	store := NewStore(pool, nil)
 	ctx := context.Background()
@@ -67,7 +74,9 @@ func seedVendorDeliveryRuntime(t *testing.T, riderCount int) vendorDeliveryRunti
 
 	parentOrderID := "parent_runtime_" + suffix
 	vendorOrderID := "vendor_order_runtime_" + suffix
-	customerID := "customer_runtime_" + suffix
+	if customerID == "" {
+		customerID = "customer_runtime_" + suffix
+	}
 	seedCommerceParentOrderEvidence(t, pool, parentOrderID, customerID, now)
 	if _, err := pool.Exec(ctx, `INSERT INTO commerce_vendor_orders(
 		id,parent_order_id,customer_id,business_id,branch_id,domain,currency,quote_group_ref,

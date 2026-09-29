@@ -1,6 +1,7 @@
 package handover
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +37,11 @@ func TestSecureCodeRecordUsesIndependentContextBoundCredentials(t *testing.T) {
 	if !VerifySecureCredential(secret, "OTP", rec, rec.Code, rec.Hash) || !VerifySecureCredential(secret, "QR", rec, rec.QRToken, rec.QRHash) {
 		t.Fatal("issued credentials did not verify")
 	}
+	restored := rec
+	restored.Code, restored.QRToken = "", ""
+	if recovered, ok := RecoverSecureCredentials(secret, restored); !ok || recovered.Code != rec.Code || recovered.QRToken != rec.QRToken {
+		t.Fatal("credential reconstruction failed")
+	}
 	if VerifySecureCredential(secret, "QR", rec, rec.Code, rec.QRHash) || VerifySecureCredential(secret, "OTP", rec, rec.QRToken, rec.Hash) {
 		t.Fatal("OTP and QR purposes must not be interchangeable")
 	}
@@ -56,7 +62,7 @@ func TestSecureCodeRecordGeneratesUnpredictableQRTokens(t *testing.T) {
 	secret := []byte("secure-handover-test-secret")
 	seen := make(map[string]struct{}, 128)
 	for i := 0; i < 128; i++ {
-		rec, err := NewSecureCodeRecord(secret, "hauling", StepDelivery, "challenge-"+string(rune(i+1)), 1, "booking-1", "provider-1", "customer-1", 0, time.Now())
+		rec, err := NewSecureCodeRecord(secret, "hauling", StepDelivery, fmt.Sprintf("challenge-%d", i+1), 1, "booking-1", "provider-1", "customer-1", 0, time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}

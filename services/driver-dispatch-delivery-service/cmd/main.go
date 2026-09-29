@@ -294,6 +294,7 @@ func main() {
 	// queues what changed; the publisher delivers it to the customer context
 	// owner. Both are additive: neither can fail a delivery.
 	if cfg.CustomerMovementEventsEnabled {
+		go (&events.MovementReconciler{Pool: db, BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret, Metrics: observability.Metrics}).Run(ctx)
 		movementPublisher := movement.NewPublisher(db)
 		go movementPublisher.Run(ctx, 10*time.Second)
 		go (&events.MovementPublisher{

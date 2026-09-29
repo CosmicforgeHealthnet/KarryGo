@@ -7,9 +7,9 @@ package handover
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -92,16 +92,7 @@ const SecureHandoverPurpose = "hauling-secure-handover-v1"
 // NewSecureCodeRecord issues two independent in-memory credentials for one
 // logical handover challenge. Only Hash and QRHash belong in persistence.
 func NewSecureCodeRecord(secret []byte, service string, stage Step, challengeRef string, version int64, bookingID, providerID, ownerID string, resendCount int, now time.Time) (CodeRecord, error) {
-	code, err := GenerateCode()
-	if err != nil {
-		return CodeRecord{}, err
-	}
-	var tokenBytes [32]byte
-	if _, err = rand.Read(tokenBytes[:]); err != nil {
-		return CodeRecord{}, err
-	}
 	record := CodeRecord{
-		Code: code, QRToken: base64.RawURLEncoding.EncodeToString(tokenBytes[:]),
 		ChallengeRef: strings.TrimSpace(challengeRef), Version: version,
 		Service: strings.TrimSpace(service), Stage: stage, BookingID: strings.TrimSpace(bookingID),
 		ProviderID: strings.TrimSpace(providerID), OwnerID: strings.TrimSpace(ownerID),
@@ -112,9 +103,38 @@ func NewSecureCodeRecord(secret []byte, service string, stage Step, challengeRef
 	if record.ChallengeRef == "" || record.Version < 1 || record.BookingID == "" || record.ProviderID == "" || record.OwnerID == "" {
 		return CodeRecord{}, fmt.Errorf("secure handover binding is incomplete")
 	}
+	record.Code, record.QRToken = deriveSecureCredentials(secret, record)
 	record.Hash = secureHash(secret, "OTP", record, record.Code)
 	record.QRHash = secureHash(secret, "QR", record, record.QRToken)
 	return record, nil
+}
+
+// RecoverSecureCredentials reconstructs the current challenge after its holder
+// proves identity. Older random challenges fail hash verification and require
+// a resend; no plaintext credential is persisted for either format.
+func RecoverSecureCredentials(secret []byte, record CodeRecord) (CodeRecord, bool) {
+	record.Code, record.QRToken = deriveSecureCredentials(secret, record)
+	if !VerifySecureCredential(secret, "OTP", record, record.Code, record.Hash) ||
+		!VerifySecureCredential(secret, "QR", record, record.QRToken, record.QRHash) {
+		return CodeRecord{}, false
+	}
+	return record, true
+}
+
+func deriveSecureCredentials(secret []byte, record CodeRecord) (string, string) {
+	derive := func(label string) []byte {
+		mac := hmac.New(sha256.New, secret)
+		for _, part := range []string{SecureHandoverPurpose, "receiver-read-v1", label, record.Service,
+			string(record.Stage), record.ChallengeRef, strconv.FormatInt(record.Version, 10),
+			record.BookingID, record.ProviderID, record.OwnerID, record.ExpiresAt.UTC().Format(time.RFC3339Nano)} {
+			_, _ = mac.Write([]byte(part))
+			_, _ = mac.Write([]byte{0})
+		}
+		return mac.Sum(nil)
+	}
+	otpDigest := derive("OTP")
+	otp := binary.BigEndian.Uint64(otpDigest[:8]) % 1_000_000
+	return fmt.Sprintf("%06d", otp), base64.RawURLEncoding.EncodeToString(derive("QR"))
 }
 
 // VerifySecureCredential compares the keyed digest in constant time. OTP and

@@ -487,5 +487,5 @@ func (s *NetworkContextService) ReferenceEvidence(ctx context.Context,
 		note = verdict.Purpose + " bound to " + strings.ToLower(bindingType)
 	}
 	return s.support.AddEvidence(ctx, AddEvidenceInput{ComplaintID: input.ComplaintID,
-		UploaderType: input.RequesterType, UploaderID: input.RequesterID, MediaAssetID: objectID, Note: note})
+		UploaderType: input.RequesterType, UploaderID: input.RequesterID, MediaAssetID: objectID, Note: note, validatedMedia: true})
 }

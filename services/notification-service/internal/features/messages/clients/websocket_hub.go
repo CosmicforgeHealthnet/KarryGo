@@ -24,6 +24,21 @@ func NewWebSocketHub() *WebSocketHub {
 	return &WebSocketHub{clients: map[string]map[*webSocketClient]struct{}{}}
 }
 
+// ActiveSessions is the number of open websocket connections (Customer V4
+// §27.2). It is a count only; recipients never leave the hub.
+func (h *WebSocketHub) ActiveSessions() int {
+	if h == nil {
+		return 0
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	total := 0
+	for _, clients := range h.clients {
+		total += len(clients)
+	}
+	return total
+}
+
 func (h *WebSocketHub) ServeHTTP(w http.ResponseWriter, r *http.Request, recipientType string, recipientID string) error {
 	if !isWebSocketRequest(r) {
 		return fmt.Errorf("request is not a websocket upgrade")

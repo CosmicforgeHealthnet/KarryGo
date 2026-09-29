@@ -1,0 +1,304 @@
+{"Time":"2026-09-27T16:55:06.2084473+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/geo"}
+{"Time":"2026-09-27T16:55:06.369685+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors"}
+{"Time":"2026-09-27T16:55:06.369685+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors","Output":"=== RUN   TestEncodeKnownVectors\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/null_island"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/null_island","Output":"=== RUN   TestEncodeKnownVectors/null_island\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/null_island","Output":"--- PASS: TestEncodeKnownVectors/null_island (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/null_island","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/wikipedia_worked_example"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/wikipedia_worked_example","Output":"=== RUN   TestEncodeKnownVectors/wikipedia_worked_example\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/wikipedia_worked_example","Output":"--- PASS: TestEncodeKnownVectors/wikipedia_worked_example (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/wikipedia_worked_example","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/murmansk"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/murmansk","Output":"=== RUN   TestEncodeKnownVectors/murmansk\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/murmansk","Output":"--- PASS: TestEncodeKnownVectors/murmansk (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/murmansk","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/jutland"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/jutland","Output":"=== RUN   TestEncodeKnownVectors/jutland\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/jutland","Output":"--- PASS: TestEncodeKnownVectors/jutland (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/jutland","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/jutland_truncated"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/jutland_truncated","Output":"=== RUN   TestEncodeKnownVectors/jutland_truncated\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/jutland_truncated","Output":"--- PASS: TestEncodeKnownVectors/jutland_truncated (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/jutland_truncated","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/san_francisco"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/san_francisco","Output":"=== RUN   TestEncodeKnownVectors/san_francisco\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/san_francisco","Output":"--- PASS: TestEncodeKnownVectors/san_francisco (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/san_francisco","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/precision_clamped_low"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/precision_clamped_low","Output":"=== RUN   TestEncodeKnownVectors/precision_clamped_low\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/precision_clamped_low","Output":"--- PASS: TestEncodeKnownVectors/precision_clamped_low (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors/precision_clamped_low","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors","Output":"--- PASS: TestEncodeKnownVectors (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodeKnownVectors","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCellsArePrefixHierarchical"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCellsArePrefixHierarchical","Output":"=== RUN   TestCellsArePrefixHierarchical\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCellsArePrefixHierarchical","Output":"--- PASS: TestCellsArePrefixHierarchical (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCellsArePrefixHierarchical","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeBoundsContainsEncodedPoint"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeBoundsContainsEncodedPoint","Output":"=== RUN   TestDecodeBoundsContainsEncodedPoint\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeBoundsContainsEncodedPoint","Output":"--- PASS: TestDecodeBoundsContainsEncodedPoint (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeBoundsContainsEncodedPoint","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeRejectsInvalidCells"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeRejectsInvalidCells","Output":"=== RUN   TestDecodeRejectsInvalidCells\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeRejectsInvalidCells","Output":"--- PASS: TestDecodeRejectsInvalidCells (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeRejectsInvalidCells","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeIsCaseInsensitive"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeIsCaseInsensitive","Output":"=== RUN   TestDecodeIsCaseInsensitive\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeIsCaseInsensitive","Output":"--- PASS: TestDecodeIsCaseInsensitive (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodeIsCaseInsensitive","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestNeighbors"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestNeighbors","Output":"=== RUN   TestNeighbors\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestNeighbors","Output":"--- PASS: TestNeighbors (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestNeighbors","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCoverRadiusIsSuperset"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCoverRadiusIsSuperset","Output":"=== RUN   TestCoverRadiusIsSuperset\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCoverRadiusIsSuperset","Output":"--- PASS: TestCoverRadiusIsSuperset (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCoverRadiusIsSuperset","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCoverCellCountMatchesCoverRadius"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCoverCellCountMatchesCoverRadius","Output":"=== RUN   TestCoverCellCountMatchesCoverRadius\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCoverCellCountMatchesCoverRadius","Output":"--- PASS: TestCoverCellCountMatchesCoverRadius (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCoverCellCountMatchesCoverRadius","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision","Output":"=== RUN   TestPickPrecision\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/short_radius_uses_fine_cells"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/short_radius_uses_fine_cells","Output":"=== RUN   TestPickPrecision/short_radius_uses_fine_cells\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/short_radius_uses_fine_cells","Output":"--- PASS: TestPickPrecision/short_radius_uses_fine_cells (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/short_radius_uses_fine_cells","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/dispatch_first_broadcast_ring"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/dispatch_first_broadcast_ring","Output":"=== RUN   TestPickPrecision/dispatch_first_broadcast_ring\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/dispatch_first_broadcast_ring","Output":"--- PASS: TestPickPrecision/dispatch_first_broadcast_ring (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/dispatch_first_broadcast_ring","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/hauling_match_radius_falls_back_to_coarse"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/hauling_match_radius_falls_back_to_coarse","Output":"=== RUN   TestPickPrecision/hauling_match_radius_falls_back_to_coarse\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/hauling_match_radius_falls_back_to_coarse","Output":"--- PASS: TestPickPrecision/hauling_match_radius_falls_back_to_coarse (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/hauling_match_radius_falls_back_to_coarse","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/dispatch_nearby_cap_stays_coarse"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/dispatch_nearby_cap_stays_coarse","Output":"=== RUN   TestPickPrecision/dispatch_nearby_cap_stays_coarse\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/dispatch_nearby_cap_stays_coarse","Output":"--- PASS: TestPickPrecision/dispatch_nearby_cap_stays_coarse (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision/dispatch_nearby_cap_stays_coarse","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision","Output":"--- PASS: TestPickPrecision (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecision","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecisionFallsBackToCoarsestWhenNothingFits"}
+{"Time":"2026-09-27T16:55:06.3701935+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecisionFallsBackToCoarsestWhenNothingFits","Output":"=== RUN   TestPickPrecisionFallsBackToCoarsestWhenNothingFits\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecisionFallsBackToCoarsestWhenNothingFits","Output":"--- PASS: TestPickPrecisionFallsBackToCoarsestWhenNothingFits (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPickPrecisionFallsBackToCoarsestWhenNothingFits","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCellDimensionsKm"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCellDimensionsKm","Output":"=== RUN   TestCellDimensionsKm\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCellDimensionsKm","Output":"--- PASS: TestCellDimensionsKm (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestCellDimensionsKm","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm","Output":"=== RUN   TestHaversineKm\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/same_point"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/same_point","Output":"=== RUN   TestHaversineKm/same_point\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/same_point","Output":"--- PASS: TestHaversineKm/same_point (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/same_point","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/ikeja_to_victoria_island"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/ikeja_to_victoria_island","Output":"=== RUN   TestHaversineKm/ikeja_to_victoria_island\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/ikeja_to_victoria_island","Output":"--- PASS: TestHaversineKm/ikeja_to_victoria_island (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/ikeja_to_victoria_island","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/victoria_island_to_lekki"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/victoria_island_to_lekki","Output":"=== RUN   TestHaversineKm/victoria_island_to_lekki\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/victoria_island_to_lekki","Output":"--- PASS: TestHaversineKm/victoria_island_to_lekki (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/victoria_island_to_lekki","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/symmetric"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/symmetric","Output":"=== RUN   TestHaversineKm/symmetric\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/symmetric","Output":"--- PASS: TestHaversineKm/symmetric (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/symmetric","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/one_degree_of_latitude"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/one_degree_of_latitude","Output":"=== RUN   TestHaversineKm/one_degree_of_latitude\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/one_degree_of_latitude","Output":"--- PASS: TestHaversineKm/one_degree_of_latitude (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm/one_degree_of_latitude","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm","Output":"--- PASS: TestHaversineKm (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineKm","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineMatchesLegacyEarthRadius"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineMatchesLegacyEarthRadius","Output":"=== RUN   TestHaversineMatchesLegacyEarthRadius\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineMatchesLegacyEarthRadius","Output":"--- PASS: TestHaversineMatchesLegacyEarthRadius (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestHaversineMatchesLegacyEarthRadius","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees","Output":"=== RUN   TestBearingDegrees\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_north"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_north","Output":"=== RUN   TestBearingDegrees/due_north\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_north","Output":"--- PASS: TestBearingDegrees/due_north (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_north","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_east"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_east","Output":"=== RUN   TestBearingDegrees/due_east\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_east","Output":"--- PASS: TestBearingDegrees/due_east (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_east","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_south"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_south","Output":"=== RUN   TestBearingDegrees/due_south\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_south","Output":"--- PASS: TestBearingDegrees/due_south (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_south","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_west"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_west","Output":"=== RUN   TestBearingDegrees/due_west\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_west","Output":"--- PASS: TestBearingDegrees/due_west (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees/due_west","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees","Output":"--- PASS: TestBearingDegrees (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBearingDegrees","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestNormalizeBearing"}
+{"Time":"2026-09-27T16:55:06.3708126+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestNormalizeBearing","Output":"=== RUN   TestNormalizeBearing\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestNormalizeBearing","Output":"--- PASS: TestNormalizeBearing (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestNormalizeBearing","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDestinationRoundTrips"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDestinationRoundTrips","Output":"=== RUN   TestDestinationRoundTrips\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDestinationRoundTrips","Output":"--- PASS: TestDestinationRoundTrips (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDestinationRoundTrips","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBoundsAroundEnclosesCircle"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBoundsAroundEnclosesCircle","Output":"=== RUN   TestBoundsAroundEnclosesCircle\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBoundsAroundEnclosesCircle","Output":"--- PASS: TestBoundsAroundEnclosesCircle (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestBoundsAroundEnclosesCircle","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity","Output":"=== RUN   TestPointValidity\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/lagos"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/lagos","Output":"=== RUN   TestPointValidity/lagos\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/lagos","Output":"--- PASS: TestPointValidity/lagos (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/lagos","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/null_island"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/null_island","Output":"=== RUN   TestPointValidity/null_island\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/null_island","Output":"--- PASS: TestPointValidity/null_island (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/null_island","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/latitude_out_of_range"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/latitude_out_of_range","Output":"=== RUN   TestPointValidity/latitude_out_of_range\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/latitude_out_of_range","Output":"--- PASS: TestPointValidity/latitude_out_of_range (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/latitude_out_of_range","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/longitude_out_of_range"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/longitude_out_of_range","Output":"=== RUN   TestPointValidity/longitude_out_of_range\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/longitude_out_of_range","Output":"--- PASS: TestPointValidity/longitude_out_of_range (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity/longitude_out_of_range","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity","Output":"--- PASS: TestPointValidity (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointValidity","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestLerp"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestLerp","Output":"=== RUN   TestLerp\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestLerp","Output":"--- PASS: TestLerp (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestLerp","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestWrapLng"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestWrapLng","Output":"=== RUN   TestWrapLng\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestWrapLng","Output":"--- PASS: TestWrapLng (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestWrapLng","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon","Output":"=== RUN   TestPointInPolygon\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/centre"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/centre","Output":"=== RUN   TestPointInPolygon/centre\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/centre","Output":"--- PASS: TestPointInPolygon/centre (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/centre","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/outside_east"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/outside_east","Output":"=== RUN   TestPointInPolygon/outside_east\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/outside_east","Output":"--- PASS: TestPointInPolygon/outside_east (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/outside_east","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/outside_north"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/outside_north","Output":"=== RUN   TestPointInPolygon/outside_north\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/outside_north","Output":"--- PASS: TestPointInPolygon/outside_north (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/outside_north","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/negative"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/negative","Output":"=== RUN   TestPointInPolygon/negative\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/negative","Output":"--- PASS: TestPointInPolygon/negative (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon/negative","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon","Output":"--- PASS: TestPointInPolygon (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPointInPolygon","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm","Output":"=== RUN   TestPathLengthKm\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/nil"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/nil","Output":"=== RUN   TestPathLengthKm/nil\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/nil","Output":"--- PASS: TestPathLengthKm/nil (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/nil","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/single_point"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/single_point","Output":"=== RUN   TestPathLengthKm/single_point\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/single_point","Output":"--- PASS: TestPathLengthKm/single_point (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/single_point","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/one_degree_of_longitude_at_equator"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/one_degree_of_longitude_at_equator","Output":"=== RUN   TestPathLengthKm/one_degree_of_longitude_at_equator\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/one_degree_of_longitude_at_equator","Output":"--- PASS: TestPathLengthKm/one_degree_of_longitude_at_equator (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm/one_degree_of_longitude_at_equator","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm","Output":"--- PASS: TestPathLengthKm (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPathLengthKm","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath","Output":"=== RUN   TestSnapToPath\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/on_the_first_vertex"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/on_the_first_vertex","Output":"=== RUN   TestSnapToPath/on_the_first_vertex\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/on_the_first_vertex","Output":"--- PASS: TestSnapToPath/on_the_first_vertex (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/on_the_first_vertex","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/midway_along_the_first_segment"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/midway_along_the_first_segment","Output":"=== RUN   TestSnapToPath/midway_along_the_first_segment\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/midway_along_the_first_segment","Output":"--- PASS: TestSnapToPath/midway_along_the_first_segment (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/midway_along_the_first_segment","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/on_the_final_vertex"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/on_the_final_vertex","Output":"=== RUN   TestSnapToPath/on_the_final_vertex\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/on_the_final_vertex","Output":"--- PASS: TestSnapToPath/on_the_final_vertex (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/on_the_final_vertex","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/offset_north_of_the_line"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/offset_north_of_the_line","Output":"=== RUN   TestSnapToPath/offset_north_of_the_line\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/offset_north_of_the_line","Output":"--- PASS: TestSnapToPath/offset_north_of_the_line (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/offset_north_of_the_line","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/before_the_start_clamps_to_the_start"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/before_the_start_clamps_to_the_start","Output":"=== RUN   TestSnapToPath/before_the_start_clamps_to_the_start\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/before_the_start_clamps_to_the_start","Output":"--- PASS: TestSnapToPath/before_the_start_clamps_to_the_start (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath/before_the_start_clamps_to_the_start","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath","Output":"--- PASS: TestSnapToPath (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPath","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3715407+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPathNeedsTwoPoints"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPathNeedsTwoPoints","Output":"=== RUN   TestSnapToPathNeedsTwoPoints\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPathNeedsTwoPoints","Output":"--- PASS: TestSnapToPathNeedsTwoPoints (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestSnapToPathNeedsTwoPoints","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath","Output":"=== RUN   TestProgressAlongPath\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_start"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_start","Output":"=== RUN   TestProgressAlongPath/at_start\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_start","Output":"--- PASS: TestProgressAlongPath/at_start (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_start","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/quarter_along"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/quarter_along","Output":"=== RUN   TestProgressAlongPath/quarter_along\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/quarter_along","Output":"--- PASS: TestProgressAlongPath/quarter_along (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/quarter_along","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_the_corner"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_the_corner","Output":"=== RUN   TestProgressAlongPath/at_the_corner\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_the_corner","Output":"--- PASS: TestProgressAlongPath/at_the_corner (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_the_corner","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/three_quarters_along"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/three_quarters_along","Output":"=== RUN   TestProgressAlongPath/three_quarters_along\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/three_quarters_along","Output":"--- PASS: TestProgressAlongPath/three_quarters_along (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/three_quarters_along","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_end"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_end","Output":"=== RUN   TestProgressAlongPath/at_end\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_end","Output":"--- PASS: TestProgressAlongPath/at_end (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3720953+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath/at_end","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath","Output":"--- PASS: TestProgressAlongPath (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestProgressAlongPath","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestRemainingKm"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestRemainingKm","Output":"=== RUN   TestRemainingKm\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestRemainingKm","Output":"--- PASS: TestRemainingKm (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestRemainingKm","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineGoogleReferenceVector"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineGoogleReferenceVector","Output":"=== RUN   TestDecodePolylineGoogleReferenceVector\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineGoogleReferenceVector","Output":"--- PASS: TestDecodePolylineGoogleReferenceVector (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineGoogleReferenceVector","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodePolylineGoogleReferenceVector"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodePolylineGoogleReferenceVector","Output":"=== RUN   TestEncodePolylineGoogleReferenceVector\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodePolylineGoogleReferenceVector","Output":"--- PASS: TestEncodePolylineGoogleReferenceVector (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestEncodePolylineGoogleReferenceVector","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPolylineRoundTrip"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPolylineRoundTrip","Output":"=== RUN   TestPolylineRoundTrip\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPolylineRoundTrip","Output":"--- PASS: TestPolylineRoundTrip (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestPolylineRoundTrip","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineEmptyIsNotAnError"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineEmptyIsNotAnError","Output":"=== RUN   TestDecodePolylineEmptyIsNotAnError\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineEmptyIsNotAnError","Output":"--- PASS: TestDecodePolylineEmptyIsNotAnError (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineEmptyIsNotAnError","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput","Output":"=== RUN   TestDecodePolylineRejectsMalformedInput\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/truncated_mid_value"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/truncated_mid_value","Output":"=== RUN   TestDecodePolylineRejectsMalformedInput/truncated_mid_value\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/truncated_mid_value","Output":"--- PASS: TestDecodePolylineRejectsMalformedInput/truncated_mid_value (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/truncated_mid_value","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/latitude_without_longitude"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/latitude_without_longitude","Output":"=== RUN   TestDecodePolylineRejectsMalformedInput/latitude_without_longitude\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/latitude_without_longitude","Output":"--- PASS: TestDecodePolylineRejectsMalformedInput/latitude_without_longitude (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/latitude_without_longitude","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/continuation_byte_at_end"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/continuation_byte_at_end","Output":"=== RUN   TestDecodePolylineRejectsMalformedInput/continuation_byte_at_end\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/continuation_byte_at_end","Output":"--- PASS: TestDecodePolylineRejectsMalformedInput/continuation_byte_at_end (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput/continuation_byte_at_end","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput","Output":"--- PASS: TestDecodePolylineRejectsMalformedInput (0.00s)\n"}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Test":"TestDecodePolylineRejectsMalformedInput","Elapsed":0}
+{"Time":"2026-09-27T16:55:06.3726091+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:06.3776963+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/geo","Output":"ok  \tcosmicforge/logistics/shared/go/geo\t0.169s\n"}
+{"Time":"2026-09-27T16:55:06.3776963+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/geo","Elapsed":0.169}

@@ -93,8 +93,8 @@ func RegisterIngress(engine *gin.Engine, service *movementusecases.Service, veri
 	// Reconciliation: an authority asks what this projection already holds
 	// for its own movements, so it republishes only what is missing.
 	engine.GET(events.CustomerMovementStatePath, serviceauth.Middleware(verifier), func(c *gin.Context) {
-		versions, err := service.ProjectedVersions(c.Request.Context(), strings.TrimSpace(c.GetString("service_name")),
-			strings.Split(c.Query("source_refs"), ","))
+		versions, err := service.ProjectedVersionsFor(c.Request.Context(), strings.TrimSpace(c.GetString("service_name")),
+			c.Query("authority"), strings.Split(c.Query("source_refs"), ","))
 		if err != nil {
 			httpx.RespondError(c, apperrors.From(err))
 			return
@@ -102,7 +102,7 @@ func RegisterIngress(engine *gin.Engine, service *movementusecases.Service, veri
 		c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": gin.H{"versions": versions}})
 	})
 	// Commerce grouping has its own ingress and its own caller allowlist, so
-	// a grouping publisher can never reach the movement-state path.
+	// a grouping publisher can never ingest operational movement state.
 	engine.POST(events.CustomerMovementGroupingPath, serviceauth.Middleware(verifier), func(c *gin.Context) {
 		ingest(c, func(caller string, envelope events.Envelope) (movementusecases.IngestResult, error) {
 			return service.IngestGrouping(c.Request.Context(), caller, envelope)

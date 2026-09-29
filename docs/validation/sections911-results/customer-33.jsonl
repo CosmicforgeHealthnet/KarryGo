@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:00:21.976031+02:00","Action":"start","Package":"cosmicforge/logistics/services/customer-service/internal/features/saved_locations/models"}
+{"Time":"2026-09-27T16:00:21.976031+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/internal/features/saved_locations/models","Output":"?   \tcosmicforge/logistics/services/customer-service/internal/features/saved_locations/models\t[no test files]\n"}
+{"Time":"2026-09-27T16:00:21.976031+02:00","Action":"skip","Package":"cosmicforge/logistics/services/customer-service/internal/features/saved_locations/models","Elapsed":0}

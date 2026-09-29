@@ -596,11 +596,25 @@ func (s *Service) ActivateFulfilment(
 // context owner. Vendor supplies grouping only: never a state, a provider or
 // a vehicle.
 func (s *Service) publishCustomerGrouping(ctx context.Context, order ParentOrder, missionRefs []string) {
-	if s.customerGrouping == nil || len(missionRefs) == 0 || strings.TrimSpace(order.CustomerID) == "" {
+	if s.customerGrouping == nil || strings.TrimSpace(order.CustomerID) == "" {
+		return
+	}
+	// The current operational plan includes Vendor-owned missions and replaces
+	// cancelled platform references after replanning. Publish that binding when
+	// the composition root provides it, rather than a transient create-call list.
+	if publisher, ok := s.customerGrouping.(interface {
+		PublishCurrentGrouping(context.Context, string) error
+	}); ok {
+		if err := publisher.PublishCurrentGrouping(ctx, order.ID); err != nil {
+			logging.Error("commerce-grouping", "order=%s: %v", order.ID, err)
+		}
+		return
+	}
+	if len(missionRefs) == 0 {
 		return
 	}
 	grouping := events.MovementGrouping{
-		CustomerID: order.CustomerID, ParentContextType: "COMMERCE_ORDER", ParentContextRef: order.ID,
+		CustomerID: order.CustomerID, ProductCode: order.Domain, ParentContextType: "COMMERCE_ORDER", ParentContextRef: order.ID,
 	}
 	for index, ref := range missionRefs {
 		grouping.Missions = append(grouping.Missions, events.GroupingMission{
@@ -668,10 +682,12 @@ func PlanMissions(order ParentOrder) ([]MissionPlan, error) {
 			byPlanMission[reference] = plan
 		}
 		plan.VendorOrderIDs = append(plan.VendorOrderIDs, vendorOrder.ID)
-		// The fee is counted once per plan mission. A consolidated mission
-		// covering two allocations is one delivery at one agreed fee, and
-		// summing per allocation would double-charge the platform for it.
-		plan.AgreedFeeMinor = vendorOrder.DeliveryGrossMinor
+		// A consolidated mission is one delivery at one agreed fee, which the
+		// planner apportioned across its allocations (fulfilment planner
+		// apportion). Each VendorOrder carries only its share, so the mission's
+		// fee is the sum of the shares; taking any single share would under-
+		// state it and the frozen-quote check at activation would refuse it.
+		plan.AgreedFeeMinor += vendorOrder.DeliveryGrossMinor
 		plan.PackageCount++
 	}
 
@@ -753,7 +769,7 @@ func (s *Service) FinalizeInventoryFor(ctx context.Context, vendorOrder VendorOr
 	switch vendorOrder.Status {
 	case VendorStatusCompleted:
 		if partial, ok := s.inventory.(PartialInventoryAuthority); ok {
-			if fulfilled, found, err := s.store.FulfilledQuantities(ctx, vendorOrder.ID); err != nil {
+			if fulfilled, found, err := s.fulfilledReservationQuantities(ctx, vendorOrder); err != nil {
 				return err
 			} else if found {
 				if err = partial.FinalizeReservationPartial(ctx, vendorOrder.BusinessID, vendorOrder.BranchID, vendorOrder.ReservationRef, fulfilled); err != nil {

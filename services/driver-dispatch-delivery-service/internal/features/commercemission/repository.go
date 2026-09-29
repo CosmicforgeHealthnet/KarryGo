@@ -150,11 +150,11 @@ func (r *Repository) CreateMissionWithBooking(
 			customer_id,status,pickup_address,pickup_lat,pickup_lng,
 			dropoff_address,dropoff_lat,dropoff_lng,fare_amount,currency,
 			payment_method,payment_status,payment_ref,
-			receiver_name,receiver_phone,package_desc,package_size,is_fragile,service_tier,
+			receiver_name,receiver_phone,receiver_customer_id,package_desc,package_size,is_fragile,service_tier,
 			rollout_protection_mode,rollout_policy_version,handover_required,
 			pickup_evidence_required,delivery_evidence_required,provider_transfer_required)
 		VALUES($1::uuid,'searching',$2,$3,$4,$5,$6,$7,$8,$9,'wallet','paid',$10,
-		       $11,$12,$13,$14,$15,'standard',$16,$17,$18,$19,$20,$21)
+		       $11,$12,NULLIF($22,'')::uuid,$13,$14,$15,'standard',$16,$17,$18,$19,$20,$21)
 		RETURNING id::text`,
 		request.CustomerRef,
 		request.Pickup.Address, request.Pickup.Latitude, request.Pickup.Longitude,
@@ -165,15 +165,15 @@ func (r *Repository) CreateMissionWithBooking(
 		request.Load.Description, packageSize(request.Load.WeightGrams),
 		request.Load.Fragile, protection.Mode, protection.PolicyVersion,
 		protection.HandoverRequired, protection.PickupEvidenceRequired,
-		protection.DeliveryEvidenceRequired, protection.ProviderTransferRequired).Scan(&bookingID); err != nil {
+		protection.DeliveryEvidenceRequired, protection.ProviderTransferRequired, request.ReceiverCustomerRef).Scan(&bookingID); err != nil {
 		return Record{}, err
 	}
 
 	record, err := scanRecord(tx.QueryRow(ctx, `
 		INSERT INTO commerce_missions(
-			mission_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,
+			mission_ref,operation_ref,canonical_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,
 			agreed_fee_minor,currency,quote_id,quote_reference,status,created_at)
-		VALUES($1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8,$9,'accepted',$10)
+		VALUES($1,$1,'dcm_'||replace(gen_random_uuid()::text,'-',''),$2,$3,$4::uuid,$5::uuid,$6,$7,$8,$9,'accepted',$10)
 		RETURNING `+missionColumns,
 		request.MissionRef, request.ParentOrderRef, request.VendorOrderRefs,
 		request.CustomerRef, bookingID, request.AgreedFeeMinor, request.Currency,
@@ -215,12 +215,12 @@ func (r *Repository) MarkRefused(
 			customer_id,status,pickup_address,pickup_lat,pickup_lng,
 			dropoff_address,dropoff_lat,dropoff_lng,fare_amount,currency,
 			payment_method,payment_status,payment_ref,
-			receiver_name,receiver_phone,package_desc,package_size,is_fragile,
+			receiver_name,receiver_phone,receiver_customer_id,package_desc,package_size,is_fragile,
 			service_tier,cancel_reason,cancelled_at,
 			rollout_protection_mode,rollout_policy_version,handover_required,
 			pickup_evidence_required,delivery_evidence_required,provider_transfer_required)
 		VALUES($1::uuid,'cancelled',$2,$3,$4,$5,$6,$7,$8,$9,'wallet','paid',$10,
-		       $11,$12,$13,$14,$15,'standard',$16,$17,$18,$19,$20,$21,$22,$23)
+		       $11,$12,NULLIF($24,'')::uuid,$13,$14,$15,'standard',$16,$17,$18,$19,$20,$21,$22,$23)
 		RETURNING id::text`,
 		request.CustomerRef,
 		request.Pickup.Address, request.Pickup.Latitude, request.Pickup.Longitude,
@@ -232,15 +232,15 @@ func (r *Repository) MarkRefused(
 		request.Load.Fragile,
 		input.RefusalCode, input.CreatedAt, protection.Mode, protection.PolicyVersion,
 		protection.HandoverRequired, protection.PickupEvidenceRequired,
-		protection.DeliveryEvidenceRequired, protection.ProviderTransferRequired).Scan(&bookingID); err != nil {
+		protection.DeliveryEvidenceRequired, protection.ProviderTransferRequired, request.ReceiverCustomerRef).Scan(&bookingID); err != nil {
 		return Record{}, err
 	}
 
 	record, err := scanRecord(tx.QueryRow(ctx, `
 		INSERT INTO commerce_missions(
-			mission_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,
+			mission_ref,operation_ref,canonical_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,
 			agreed_fee_minor,currency,quote_id,quote_reference,status,refusal_code,created_at)
-		VALUES($1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8,$9,'refused',$10,$11)
+		VALUES($1,$1,'dcm_'||replace(gen_random_uuid()::text,'-',''),$2,$3,$4::uuid,$5::uuid,$6,$7,$8,$9,'refused',$10,$11)
 		RETURNING `+missionColumns,
 		request.MissionRef, request.ParentOrderRef, request.VendorOrderRefs,
 		request.CustomerRef, bookingID, request.AgreedFeeMinor, request.Currency,

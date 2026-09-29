@@ -160,3 +160,23 @@ Source of truth: `internal/features/wallets/models/models.go`.
 > Feature folders other than `wallets/` (`payments`, `provider_earnings`,
 > `refunds`, `settlements`, `withdrawals`) are scaffolding only. The live
 > implementation for all of the above currently lives under `wallets/`.
+
+## V4 Section 15/16 customer integration (local)
+
+Wallet remains the sole authority for payment, refund, settlement, balance and
+receipt state. Vendor Commerce binds approved fingerprints and deterministic
+operation references, reads back ambiguous payment/refund outcomes, and keeps
+VendorOrder and platform allocations isolated. Targeted PostgreSQL tests cover
+concurrent/idempotent payment, multi-vendor and partial/full refunds, recovery,
+and Customer Wallet behavior. No external repricing formula was introduced.
+
+Migration `000018_customer_notification_outbox` writes reference-only payment,
+refund and withdrawal notification intents in the same transaction as future
+Wallet state transitions. The worker retries Notification outages with the
+same Notification idempotency key and dead-letters after bounded attempts;
+financial state is never rolled back for notification failure. Existing direct
+notifier calls remain a low-latency hint and no longer include amount or
+failure reason in payloads. The Notification service's production templates
+are in migration `007_customer_wallet_templates.sql`. Deployment must configure
+`PAYMENT_WALLET_NOTIFICATION_URL` and `PAYMENT_WALLET_NOTIFICATION_SECRET` to
+drain the outbox; without them, committed intents remain pending.

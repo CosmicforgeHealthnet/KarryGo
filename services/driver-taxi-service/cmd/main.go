@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/taxi-service/internal/features/customertracking"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"net/http"
 	"strings"
 	"time"
@@ -407,7 +409,8 @@ func main() {
 		Routing: routingClient, Settlement: goodsSettlement, Media: goodsMedia,
 		Notifier: goodsNotifier, Pricing: goodsPricing, Enabled: cfg.TaxiGoodsDeliveryEnabled,
 		HandoverSecret: cfg.TaxiGoodsHandoverSecret, QuoteTTL: cfg.TaxiGoodsQuoteTTL,
-		MatchRadiusKM: cfg.MatchMaxRadiusKm,
+		ReceiverReadLimiter: journeyshare.RedisLimiter{Client: redisClient},
+		MatchRadiusKM:       cfg.MatchMaxRadiusKm,
 		Capabilities: goods.ExecutionFlags{
 			CapabilityEnabled:     cfg.GoodsCapabilityEnabled,
 			MultiPickupEnabled:    cfg.GoodsMultiPickupEnabled,
@@ -477,7 +480,12 @@ func main() {
 	taxiOutboxMetrics := outboxmetrics.NewReporter(db, taxioutbox.MetricsInterval,
 		taxioutbox.MetricsSources()...).WithAuthToken(cfg.MetricsAuthToken)
 
+	trackingReader := &customertracking.Postgres{DB: db, FreshFor: cfg.CustomerLocationFreshFor}
 	serviceapp.Run(serviceapp.Options{
+		RegisterRoot: func(root *gin.Engine) {
+			customertracking.RegisterInternal(root, trackingReader, opsVerifier, redisClient, cfg.CustomerLiveLocationEnabled)
+			goods.RegisterCustomerShare(root, goodsService, opsVerifier)
+		},
 		Name:        "taxi-service",
 		DefaultAddr: cfg.HTTPAddr,
 		APIBase:     "/api/v1/taxi",
@@ -496,7 +504,7 @@ func main() {
 			func(ctx context.Context) error { return redisClient.Ping(ctx).Err() },
 		},
 		Register: func(group *gin.RouterGroup) {
-			taxiOutboxMetrics.RegisterRoutes(group)
+			customertracking.RegisterCustomer(group, trackingReader, customerSigner, cfg.CustomerLiveLocationEnabled)
 			if opsVerifier != nil {
 				// Section 15: Support's minimized read of a booking or goods
 				// mission. It verifies its own caller -- support-dispute-service
@@ -516,6 +524,7 @@ func main() {
 			fleetprovider.RegisterRoutes(group, authService.AccessSigner(), fleetprovider.NewHandler(fleetProviderClient, fleetProviderContext, cfg.TaxiFleetProviderWorkEnabled))
 			operationshttp.RegisterOperationsRoutes(group, bookingService, opsVerifier)
 			goods.RegisterRoutes(group, goodsService, opsVerifier, authService.AccessSigner(), cfg.TaxiFleetProviderWorkEnabled)
+			goods.RegisterReceiverRoutes(group, goodsService, customerSigner)
 			// Fleet's private-execution authority calls INTO taxi here. Both
 			// surfaces stay unmounted unless an internal caller is trusted
 			// and the integration is switched on (Section 8 TAX-028).
@@ -536,7 +545,7 @@ func main() {
 			capabilities.RegisterRoutes(group, capabilityService, authService.AccessSigner(), customerSigner, opsVerifier, strings.Split(cfg.CapabilityInternalCallers, ","))
 			if opsVerifier != nil {
 				group.GET("/internal/metrics", serviceauth.Middleware(opsVerifier), func(c *gin.Context) {
-					c.String(http.StatusOK, metrics.Render())
+					c.String(http.StatusOK, metrics.Render()+taxiOutboxMetrics.Render()+journeyshare.Render())
 				})
 			}
 		},
@@ -607,7 +616,7 @@ func main() {
 				// cannot flood the consumer.
 				if cfg.CustomerMovementEventsEnabled {
 					(&movement.Reconciler{
-						Pool: db, Writer: movementWriter,
+						Pool: db, Writer: movementWriter, Metrics: metrics,
 						Reader: &movement.CustomerProjectionClient{
 							BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
 						},

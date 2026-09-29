@@ -96,12 +96,14 @@ type Booking struct {
 	RequiresHelpers    bool
 	HelperCount        int
 
-	WeightCategory string
-	ReceiverName   string
-	ReceiverPhone  string
-	PackageContent string
-	PackageSize    string
-	IsFragile      bool
+	WeightCategory     string
+	ReceiverName       string
+	ReceiverPhone      string
+	ReceiverEmail      string
+	ReceiverCustomerID string
+	PackageContent     string
+	PackageSize        string
+	IsFragile          bool
 
 	DistanceKm       *float64
 	FareEstimateKobo *int64

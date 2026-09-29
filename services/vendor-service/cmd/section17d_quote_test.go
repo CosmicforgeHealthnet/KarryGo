@@ -18,6 +18,10 @@ type section17DSource struct {
 	planID     string
 }
 
+// s17dLineSubstitutionPolicy is the customer substitution rule the seeded
+// checkout lines carry into the quote. Empty keeps the EXACT_ONLY default.
+var s17dLineSubstitutionPolicy string
+
 func seedSection17DSource(t *testing.T, env *s17cEnv, variable, multi bool, now func() time.Time) section17DSource {
 	return seedSection17DSourceWithOptions(t, env, variable, multi, false, now)
 }
@@ -83,9 +87,13 @@ func seedSection17DSourceWithOptions(t *testing.T, env *s17cEnv, variable, multi
 		env.exec(ctx, `INSERT INTO commerce_checkout_groups(id,session_id,customer_id,domain,business_id,branch_id,requires_stock_reservation,reservation_status,reservation_source_ref,inventory_reservation_ref,catalogue_revision,inventory_revision,currency,quoted_total_minor,max_authorized_total_minor) VALUES($1,$2,$3,'SHOP',$4,$5,true,'RESERVED',$6,$7,11,22,'NGN',$8,$9)`, group.id, sessionID, customerID, group.business, group.branch, group.sourceRef, group.reservation, group.product, group.maximum)
 		pricingBasis, measureRef, expected, overfill := "FIXED_UNIT", "", int64(0), 0
 		if group.variable {
-			pricingBasis, measureRef, expected, overfill = "VARIABLE_MEASURE", "kg", 1000, 1500
+			pricingBasis, measureRef, expected, overfill = "VARIABLE_MEASURE", "smd_gram", 1000, 1500
 		}
 		env.exec(ctx, `INSERT INTO commerce_checkout_lines(id,session_id,group_id,customer_id,cart_item_id,domain,business_id,branch_id,item_ref,variant_ref,listing_ref,sell_unit_ref,quantity,unit_price_minor,currency,price_reference,catalogue_revision,inventory_revision,pricing_basis,requested_measure_ref,expected_measure_quantity,measure_overfill_bps,quoted_total_minor,max_authorized_total_minor,inventory_item_ref,reservation_quantity,reservation_basis,validation_status) VALUES($1,$2,$3,$4,$5,'SHOP',$6,$7,$8,$9,$10,$11,1,$12,'NGN',$13,11,22,$14,$15,$16,$17,$18,$19,$20,1,'SELL_UNIT','VALID')`, group.lineID, sessionID, group.id, customerID, group.itemID, group.business, group.branch, "product_"+env.suffix, "variant_"+env.suffix, "listing_"+env.suffix, "unit_"+env.suffix, group.product, "online-price-v1", pricingBasis, measureRef, expected, overfill, group.product, group.maximum, "stock_"+env.suffix)
+
+		if s17dLineSubstitutionPolicy != "" {
+			env.exec(ctx, `UPDATE commerce_checkout_lines SET substitution_policy=$2 WHERE id=$1`, group.lineID, s17dLineSubstitutionPolicy)
+		}
 
 		missionID := "mission_" + string(rune('a'+index)) + "_" + env.suffix
 		env.exec(ctx, `INSERT INTO commerce_fulfilment_missions(id,plan_id,customer_id,authority,service,vehicle_class,pickup_business_id,pickup_branch_id,pickup_latitude,pickup_longitude,dropoff_latitude,dropoff_longitude,authority_quote_id,authority_quote_reference,authority_quote_revision,authority_quote_expires_at,currency,gross_fee_minor,customer_fee_minor,vendor_funded_minor,platform_funded_minor,fee_beneficiary) VALUES($1,$2,$3,'PLATFORM_LOGISTICS','DISPATCH','MOTORCYCLE',$4,$5,6.455,3.41,6.43,3.45,$6,$7,1,now()+interval '10 minutes','NGN',$8,$9,$10,$11,'PLATFORM_PROVIDER')`, missionID, planID, customerID, group.business, group.branch, "delivery_quote_"+env.suffix+string(rune('a'+index)), "delivery_ref_"+env.suffix+string(rune('a'+index)), group.delivery, group.customer, group.vendor, group.platform)

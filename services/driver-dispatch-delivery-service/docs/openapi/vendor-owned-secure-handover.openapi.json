@@ -3,12 +3,12 @@
   "info": {
     "title": "Dispatch Vendor-owned Secure Handover Authority",
     "version": "1.0.0",
-    "description": "HMAC-v2 internal authority. Credentials are write-only inputs or narrow Notification commands and never appear in responses."
+    "description": "HMAC-v2 internal authority. Notifications carry safe retrieval references; only the bound receiver's authenticated credential read returns OTP/QR."
   },
   "servers": [{"url": "/api/v1/internal/commerce/vendor-owned"}],
   "security": [{"ServiceHMACv2": []}],
   "paths": {
-    "/missions": {"post": {"operationId": "bindVendorDeliveryMission", "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"201": {"description": "Pickup challenge created or replayed"}}}},
+    "/missions": {"post": {"operationId": "bindVendorDeliveryMission", "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"201": {"description": "Pickup challenge created or replayed"}, "412": {"description": "Receiver secure channel required"}}}},
     "/missions/{missionRef}/handover/{stage}": {"get": {"operationId": "readVendorHandover", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/Stage"}], "responses": {"200": {"description": "Opaque authoritative observation"}}}},
     "/missions/{missionRef}/handover/{stage}/confirm": {"post": {"operationId": "confirmVendorHandover", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/Stage"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Canonical challenge consumed"}}}},
     "/missions/{missionRef}/handover/{stage}/resend": {"post": {"operationId": "resendVendorHandover", "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/Stage"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Both credentials rotated"}}}},

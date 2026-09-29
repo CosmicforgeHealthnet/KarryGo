@@ -13,7 +13,12 @@
           "201": {
             "description": "Group session created"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/groups/{groupId}/close": {
@@ -34,7 +39,12 @@
           "204": {
             "description": "Group closed"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/groups/{groupId}/convert": {
@@ -55,7 +65,12 @@
           "200": {
             "description": "Organizer-paid order conversion"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/groups/{groupId}/join": {
@@ -144,7 +159,12 @@
           "201": {
             "description": "RFQ created"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/rfqs/{rfqId}/accept": {
@@ -165,7 +185,12 @@
           "200": {
             "description": "RFQ quote accepted"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/rfqs/{rfqId}/cancel": {
@@ -186,7 +211,12 @@
           "204": {
             "description": "RFQ cancelled with snapshotted refund policy"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/rfqs/{rfqId}/conversion": {
@@ -207,7 +237,12 @@
           "200": {
             "description": "Authoritative RFQ payment/conversion status"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/rfqs/{rfqId}/convert": {
@@ -228,7 +263,12 @@
           "204": {
             "description": "RFQ converted through CheckoutQuote and Wallet policy"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/rfqs/{rfqId}/open": {
@@ -249,7 +289,12 @@
           "204": {
             "description": "RFQ opened"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/rfqs/{rfqId}/quotes": {
@@ -270,7 +315,12 @@
           "200": {
             "description": "Eligible quote revisions"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/commerce/section21/rfqs/{rfqId}/quotes/{quoteId}/counter": {
@@ -300,7 +350,12 @@
           "201": {
             "description": "Requester counter-offer revision"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/vendor/commerce/section21/recurring-schedules": {
@@ -433,5 +488,15 @@
     {
       "url": "/api/v1"
     }
-  ]
+  ],
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Customer Service access token; the customer is derived from the token, never from the request."
+      }
+    }
+  }
 }

@@ -64,6 +64,8 @@ func EventNameFor(authority, state string) string {
 		MovementAuthorityTaxi:     "taxi.booking",
 		MovementAuthorityDispatch: "dispatch.delivery",
 		MovementAuthorityHauling:  "hauling.haulage",
+		// Distinct from Vendor's internal commerce.order.* domain events.
+		MovementAuthorityVendorCommerce: "commerce.customer_order",
 	}[authority]
 	if prefix == "" {
 		return ""

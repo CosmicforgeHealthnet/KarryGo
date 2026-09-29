@@ -18,6 +18,7 @@ import (
 	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"cosmicforge/logistics/shared/go/observability"
 )
 
@@ -44,19 +45,20 @@ type CredentialNotifier interface {
 }
 
 type Options struct {
-	Repository     *Repository
-	Markets        MarketResolver
-	Candidates     CandidateStore
-	Routing        routing.RoutingClient
-	Settlement     SettlementAuthority
-	Media          MediaAuthority
-	Notifier       CredentialNotifier
-	Pricing        PricingPolicy
-	Enabled        bool
-	HandoverSecret []byte
-	QuoteTTL       time.Duration
-	MatchRadiusKM  float64
-	Now            func() time.Time
+	Repository          *Repository
+	Markets             MarketResolver
+	Candidates          CandidateStore
+	Routing             routing.RoutingClient
+	Settlement          SettlementAuthority
+	Media               MediaAuthority
+	Notifier            CredentialNotifier
+	Pricing             PricingPolicy
+	Enabled             bool
+	HandoverSecret      []byte
+	QuoteTTL            time.Duration
+	MatchRadiusKM       float64
+	Now                 func() time.Time
+	ReceiverReadLimiter journeyshare.Limiter
 	// Section 7 multi-pickup, capability and recovery. Zero values keep
 	// the legacy single-pickup behaviour.
 	Capabilities ExecutionFlags
@@ -67,22 +69,23 @@ type Options struct {
 }
 
 type Service struct {
-	repo       *Repository
-	markets    MarketResolver
-	candidates CandidateStore
-	routes     routing.RoutingClient
-	settlement SettlementAuthority
-	media      MediaAuthority
-	notifier   CredentialNotifier
-	pricing    PricingPolicy
-	enabled    bool
-	secret     []byte
-	quoteTTL   time.Duration
-	radiusKM   float64
-	now        func() time.Time
-	caps       ExecutionFlags
-	policies   PolicySource
-	metrics    goodsMetrics
+	repo                *Repository
+	markets             MarketResolver
+	candidates          CandidateStore
+	routes              routing.RoutingClient
+	settlement          SettlementAuthority
+	media               MediaAuthority
+	notifier            CredentialNotifier
+	pricing             PricingPolicy
+	enabled             bool
+	secret              []byte
+	quoteTTL            time.Duration
+	radiusKM            float64
+	now                 func() time.Time
+	caps                ExecutionFlags
+	policies            PolicySource
+	metrics             goodsMetrics
+	receiverReadLimiter journeyshare.Limiter
 
 	goodsCandidates func(context.Context, []string) ([]capability.Candidate, error)
 }
@@ -104,7 +107,7 @@ func NewService(options Options) *Service {
 		settlement: options.Settlement, media: options.Media, notifier: options.Notifier, pricing: options.Pricing, enabled: options.Enabled,
 		secret: options.HandoverSecret, quoteTTL: options.QuoteTTL, radiusKM: options.MatchRadiusKM, now: options.Now,
 		caps: options.Capabilities, policies: options.Policies, metrics: goodsMetrics{m: options.Metrics},
-		goodsCandidates: options.GoodsCandidates}
+		goodsCandidates: options.GoodsCandidates, receiverReadLimiter: options.ReceiverReadLimiter}
 }
 
 func (s *Service) Enabled() bool { return s != nil && s.enabled }
@@ -439,6 +442,9 @@ func (s *Service) IssuePickupCredential(ctx context.Context, providerID, mission
 	if err != nil {
 		return Credential{}, err
 	}
+	if strings.TrimSpace(mission.ReceiverRef) == "" {
+		return Credential{}, ErrReceiverSecureChannelRequired
+	}
 	if s.isMultiStop(ctx, missionRef) {
 		return Credential{}, ErrConflict
 	}
@@ -457,6 +463,9 @@ func (s *Service) IssuePickupCredential(ctx context.Context, providerID, mission
 func (s *Service) issue(ctx context.Context, mission Mission, stage string, resend int) (Credential, error) {
 	if len(s.secret) == 0 {
 		return Credential{}, ErrUnavailable
+	}
+	if stage == StageDelivery && strings.TrimSpace(mission.ReceiverRef) == "" {
+		return Credential{}, ErrReceiverSecureChannelRequired
 	}
 	version := int64(1)
 	if latest, err := s.repo.LatestChallenge(ctx, mission.ID, stage, false); err == nil {
@@ -499,6 +508,9 @@ func (s *Service) Resend(ctx context.Context, providerID, missionRef, stage stri
 	mission, err := s.repo.ReadMissionForProvider(ctx, providerID, missionRef)
 	if err != nil {
 		return Credential{}, err
+	}
+	if stage == StageDelivery && strings.TrimSpace(mission.ReceiverRef) == "" {
+		return Credential{}, ErrReceiverSecureChannelRequired
 	}
 	latest, err := s.repo.LatestChallenge(ctx, mission.ID, stage, false)
 	if err != nil {
@@ -562,6 +574,9 @@ func (s *Service) VerifyPickup(ctx context.Context, caller, missionRef string, c
 	mission, err := s.repo.ReadMission(ctx, caller, missionRef)
 	if err != nil {
 		return Mission{}, err
+	}
+	if strings.TrimSpace(mission.ReceiverRef) == "" {
+		return Mission{}, ErrReceiverSecureChannelRequired
 	}
 	if mission.Status != StatusPickupHandoverRequired && mission.Status != StatusPickedUp && !(mission.Status == StatusEnRoutePickup && s.isMultiStop(ctx, missionRef)) {
 		return Mission{}, ErrConflict

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -125,6 +126,37 @@ func TestNetworkTemplatesResolve(t *testing.T) {
 	}
 }
 
+func TestShareAndWalletHintsResolveAndRequireAuthorityReadBack(t *testing.T) {
+	service, pool := networkService(t)
+	for _, tc := range []struct{ source, event, refKey, target string }{
+		{"customer-service", "share.created", "share_ref", "SHARE_MANAGEMENT"},
+		{"payment-wallet-service", notifications.EventRefundCompleted, "reference", "PAYMENT_DETAIL"},
+	} {
+		id, ref := uuid.NewString(), uuid.NewString()
+		_, err := service.Send(context.Background(), notifications.Request{
+			IDempotencyKey: id, SourceService: tc.source, EventType: tc.event,
+			SourceAggregateType: "operation", SourceAggregateID: ref,
+			Recipient:   notifications.Recipient{Type: notifications.RecipientCustomer, ID: uuid.NewString()},
+			TemplateKey: tc.event, Data: map[string]any{tc.refKey: ref},
+		})
+		if err != nil {
+			t.Fatal(tc.event, err)
+		}
+		var data, body string
+		if err = pool.QueryRow(context.Background(), `SELECT data::text,body FROM notification_messages WHERE idempotency_key=$1`, id).Scan(&data, &body); err != nil {
+			t.Fatal(err)
+		}
+		for _, required := range []string{tc.target, `"read_back": true`, ref} {
+			if !strings.Contains(data, required) {
+				t.Fatalf("%s missing %q: %s", tc.event, required, data)
+			}
+		}
+		if strings.Contains(data, "token") || strings.Contains(data, "amount") || strings.Contains(body, "{{") {
+			t.Fatal("hint exposed sensitive or unresolved data")
+		}
+	}
+}
+
 func TestALeakyNetworkNotificationStoresNothing(t *testing.T) {
 	service, pool := networkService(t)
 	fact := "case-" + uuid.NewString()
@@ -135,5 +167,32 @@ func TestALeakyNetworkNotificationStoresNothing(t *testing.T) {
 	}
 	if messageCount(t, pool, fact) != 0 {
 		t.Fatal("a refused notification left a message behind")
+	}
+}
+
+func TestRideLifecycleTemplateAndReadBackIntentPersist(t *testing.T) {
+	service, pool := networkService(t)
+	fact := "ride-event-" + uuid.NewString()
+	booking := "ride-" + uuid.NewString()
+	request := notifications.NetworkRequest("driver-taxi-service", notifications.NetworkIntent{
+		EventType: "taxi.booking.accepted", RecipientType: notifications.RecipientCustomer,
+		RecipientID: uuid.NewString(), SourceEventID: fact,
+		SourceAggregateType: "booking", SourceAggregateID: booking,
+		Data: map[string]interface{}{"booking_id": booking},
+	})
+	if _, err := service.Send(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	var title string
+	var data map[string]any
+	if err := pool.QueryRow(context.Background(), `SELECT title,data FROM notification_messages WHERE source_event_id=$1`, fact).Scan(&title, &data); err != nil {
+		t.Fatal(err)
+	}
+	if title != "Driver assigned" {
+		t.Fatalf("title=%q", title)
+	}
+	intent, ok := data["route_intent"].(map[string]any)
+	if !ok || intent["target"] != "RIDE_DETAIL" || intent["ref"] != booking || intent["read_back"] != true {
+		t.Fatalf("unsafe or missing read-back intent: %v", data)
 	}
 }

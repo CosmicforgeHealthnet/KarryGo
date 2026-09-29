@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:17:54.3067525+02:00","Action":"start","Package":"cosmicforge/logistics/services/hauling-service/internal/features/movement"}
+{"Time":"2026-09-27T16:17:54.4428035+02:00","Action":"run","Package":"cosmicforge/logistics/services/hauling-service/internal/features/movement","Test":"TestStateMapsEveryHaulageStatus"}
+{"Time":"2026-09-27T16:17:54.4433262+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/movement","Test":"TestStateMapsEveryHaulageStatus","Output":"=== RUN   TestStateMapsEveryHaulageStatus\n"}
+{"Time":"2026-09-27T16:17:54.4451315+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/movement","Test":"TestStateMapsEveryHaulageStatus","Output":"--- PASS: TestStateMapsEveryHaulageStatus (0.00s)\n"}
+{"Time":"2026-09-27T16:17:54.4451315+02:00","Action":"pass","Package":"cosmicforge/logistics/services/hauling-service/internal/features/movement","Test":"TestStateMapsEveryHaulageStatus","Elapsed":0}
+{"Time":"2026-09-27T16:17:54.4451315+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/movement","Output":"PASS\n"}
+{"Time":"2026-09-27T16:17:54.4462185+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/movement","Output":"ok  \tcosmicforge/logistics/services/hauling-service/internal/features/movement\t0.138s\n"}
+{"Time":"2026-09-27T16:17:54.4462185+02:00","Action":"pass","Package":"cosmicforge/logistics/services/hauling-service/internal/features/movement","Elapsed":0.139}

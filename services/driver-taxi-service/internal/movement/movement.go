@@ -45,6 +45,63 @@ func BookingState(status bookingmodels.Status) (string, bool) {
 	return "", false
 }
 
+// BookingStage is the Ride's fine-grained lifecycle step (Customer V4
+// §22.2): en route and arrived are distinct from assignment.
+func BookingStage(status bookingmodels.Status) string {
+	switch status {
+	case bookingmodels.StatusScheduled:
+		return events.MovementStageScheduled
+	case bookingmodels.StatusPendingMatch, bookingmodels.StatusAwaitingAccept:
+		return events.MovementStageSearching
+	case bookingmodels.StatusAccepted:
+		return events.MovementStageProviderAssigned
+	case bookingmodels.StatusEnRoutePickup:
+		return events.MovementStageEnRoutePickup
+	case bookingmodels.StatusArrivedAtPickup, bookingmodels.StatusPickupVerificationPending:
+		return events.MovementStageArrivedPickup
+	case bookingmodels.StatusInProgress:
+		return events.MovementStageInTransit
+	case bookingmodels.StatusCompleted:
+		return events.MovementStageCompleted
+	case bookingmodels.StatusCancelled:
+		return events.MovementStageCancelled
+	case bookingmodels.StatusUnmatched:
+		return events.MovementStageUnmatched
+	}
+	return ""
+}
+
+// GoodsStage is the Taxi Goods mission's fine-grained lifecycle step.
+func GoodsStage(status string) string {
+	switch status {
+	case "MATCHING", "OFFERED":
+		return events.MovementStageSearching
+	case "ASSIGNED":
+		return events.MovementStageProviderAssigned
+	case "EN_ROUTE_PICKUP":
+		return events.MovementStageEnRoutePickup
+	case "AT_PICKUP", "PICKUP_HANDOVER_REQUIRED":
+		return events.MovementStageArrivedPickup
+	case "PICKED_UP":
+		return events.MovementStageCustodyStarted
+	case "IN_TRANSIT":
+		return events.MovementStageInTransit
+	case "AT_DROPOFF", "DELIVERY_HANDOVER_REQUIRED":
+		return events.MovementStageArrivedDropoff
+	case "DELIVERED":
+		return events.MovementStageDelivered
+	case "COMPLETED":
+		return events.MovementStageCompleted
+	case "CANCELLED":
+		return events.MovementStageCancelled
+	case "UNMATCHED":
+		return events.MovementStageUnmatched
+	case "FAILED":
+		return events.MovementStageFailed
+	}
+	return ""
+}
+
 // BookingEventName maps a movement state to the canonical Taxi event name.
 func BookingEventName(state string) string {
 	switch state {
@@ -122,7 +179,7 @@ func (w *Writer) WriteBooking(ctx context.Context, exec dbtx.Executor, booking b
 	}
 	summary := events.MovementSummary{
 		CustomerID: booking.CustomerID, Authority: events.MovementAuthorityTaxi, SourceRef: booking.ID,
-		MovementType: events.MovementTypePassenger, State: state, ScheduledAt: booking.ScheduledAt,
+		MovementType: events.MovementTypePassenger, State: state, Stage: BookingStage(booking.Status), ScheduledAt: booking.ScheduledAt,
 		ProviderReplacementCount: replacements,
 	}
 	if booking.RidePurpose == "parcel" {
@@ -190,7 +247,7 @@ func (w *Writer) WriteGoodsMission(ctx context.Context, exec dbtx.Executor, refs
 	}
 	summary := events.MovementSummary{
 		CustomerID: refs.CustomerRef, Authority: events.MovementAuthorityTaxi, SourceRef: refs.MissionRef,
-		MovementType: events.MovementTypeGoods, State: state, ProductCode: refs.ProductCode,
+		MovementType: events.MovementTypeGoods, State: state, Stage: GoodsStage(refs.Status), ProductCode: refs.ProductCode,
 		ProviderReplacementCount: replacements, RecoveryState: recovery,
 		ParentContextType: "VENDOR_ORDER", ParentContextRef: refs.ParentOrderRef,
 		FulfilmentPlanRef: refs.FulfilmentPlanRef, FulfilmentGroupRef: refs.FulfilmentGroupRef,

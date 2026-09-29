@@ -47,7 +47,7 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
 
     ('booking.delivery_code_ready', 'en-NG',
      'Delivery verification code',
-     'Share this code with your driver to confirm delivery: {{code}}. It expires shortly.',
+     'A delivery credential is ready. Open the secure receiver view to retrieve it.',
      '["push", "websocket", "in_app"]'),
 
     ('cargo.picked_up', 'en-NG',
@@ -113,7 +113,7 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
 
     ('package.delivery_code_ready', 'en-NG',
      'Delivery verification code',
-     'Share this code with your rider to confirm delivery: {{code}}. It expires shortly.',
+     'A delivery credential is ready. Open the secure receiver view to retrieve it.',
      '["push", "websocket", "in_app"]'),
 
     ('package.delivered', 'en-NG',

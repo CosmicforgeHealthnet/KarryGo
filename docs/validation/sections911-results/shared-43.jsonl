@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:56:27.5023514+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/validation"}
+{"Time":"2026-09-27T16:56:27.5029056+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/validation","Output":"?   \tcosmicforge/logistics/shared/go/validation\t[no test files]\n"}
+{"Time":"2026-09-27T16:56:27.5029056+02:00","Action":"skip","Package":"cosmicforge/logistics/shared/go/validation","Elapsed":0.001}

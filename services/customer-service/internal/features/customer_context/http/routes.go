@@ -13,7 +13,7 @@ import (
 )
 
 // RegisterInternalRoutes mounts
-// GET /internal/customers/:customerId/context?scopes=a,b&saved_location_id=
+// GET /internal/customers/:customerId/context?scopes=a,b&saved_location_id=&guest_traveller_id=
 // behind HMAC service auth. The caller identity comes only from the verified
 // signature. Scope grants come from the configured caller allowlist.
 func RegisterInternalRoutes(group *gin.RouterGroup, service *contextusecases.Service, verifier *serviceauth.Verifier) {
@@ -24,10 +24,11 @@ func RegisterInternalRoutes(group *gin.RouterGroup, service *contextusecases.Ser
 	internal.Use(serviceauth.Middleware(verifier))
 	internal.GET("/customers/:customerId/context", func(c *gin.Context) {
 		result, err := service.Resolve(c.Request.Context(), contextusecases.Request{
-			Caller:          c.GetString("service_name"),
-			CustomerID:      c.Param("customerId"),
-			RequestedScopes: strings.Split(c.Query("scopes"), ","),
-			SavedLocationID: c.Query("saved_location_id"),
+			Caller:           c.GetString("service_name"),
+			CustomerID:       c.Param("customerId"),
+			RequestedScopes:  strings.Split(c.Query("scopes"), ","),
+			SavedLocationID:  c.Query("saved_location_id"),
+			GuestTravellerID: c.Query("guest_traveller_id"),
 		})
 		if err != nil {
 			httpx.RespondError(c, apperrors.From(err))

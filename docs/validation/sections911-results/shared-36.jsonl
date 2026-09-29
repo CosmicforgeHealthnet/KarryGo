@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:56:05.5603589+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/ratelimit"}
+{"Time":"2026-09-27T16:56:05.7201494+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/ratelimit","Test":"TestRedisKeyIsNamespacedDeterministicAndDoesNotExposePrincipal"}
+{"Time":"2026-09-27T16:56:05.7201494+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/ratelimit","Test":"TestRedisKeyIsNamespacedDeterministicAndDoesNotExposePrincipal","Output":"=== RUN   TestRedisKeyIsNamespacedDeterministicAndDoesNotExposePrincipal\n"}
+{"Time":"2026-09-27T16:56:05.7201494+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/ratelimit","Test":"TestRedisKeyIsNamespacedDeterministicAndDoesNotExposePrincipal","Output":"--- PASS: TestRedisKeyIsNamespacedDeterministicAndDoesNotExposePrincipal (0.00s)\n"}
+{"Time":"2026-09-27T16:56:05.7201494+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/ratelimit","Test":"TestRedisKeyIsNamespacedDeterministicAndDoesNotExposePrincipal","Elapsed":0}
+{"Time":"2026-09-27T16:56:05.7201494+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/ratelimit","Output":"PASS\n"}
+{"Time":"2026-09-27T16:56:05.7241959+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/ratelimit","Output":"ok  \tcosmicforge/logistics/shared/go/ratelimit\t0.163s\n"}
+{"Time":"2026-09-27T16:56:05.7241959+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/ratelimit","Elapsed":0.164}

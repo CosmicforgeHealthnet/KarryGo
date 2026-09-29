@@ -10,11 +10,13 @@ import (
 )
 
 var (
-	ErrInvalid  = errors.New("vendor-owned handover request is invalid")
-	ErrNotFound = errors.New("vendor-owned handover was not found")
-	ErrConflict = errors.New("vendor-owned handover conflicts with canonical state")
-	ErrRejected = errors.New("vendor-owned handover credential was rejected")
-	ErrDisabled = errors.New("vendor-owned handover is disabled")
+	ErrInvalid                       = errors.New("vendor-owned handover request is invalid")
+	ErrNotFound                      = errors.New("vendor-owned handover was not found")
+	ErrConflict                      = errors.New("vendor-owned handover conflicts with canonical state")
+	ErrRejected                      = errors.New("vendor-owned handover credential was rejected")
+	ErrDisabled                      = errors.New("vendor-owned handover is disabled")
+	ErrReceiverSecureChannelRequired = errors.New("receiver secure channel is required")
+	ErrRateLimited                   = errors.New("vendor-owned credential read rate limit exceeded")
 )
 
 type Stage string

@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T15:59:00.8197213+02:00","Action":"start","Package":"cosmicforge/logistics/services/customer-service/internal/features/auth/repositories"}
+{"Time":"2026-09-27T15:59:00.8197213+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/internal/features/auth/repositories","Output":"?   \tcosmicforge/logistics/services/customer-service/internal/features/auth/repositories\t[no test files]\n"}
+{"Time":"2026-09-27T15:59:00.8197213+02:00","Action":"skip","Package":"cosmicforge/logistics/services/customer-service/internal/features/auth/repositories","Elapsed":0}

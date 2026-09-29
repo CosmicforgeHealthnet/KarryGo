@@ -34,16 +34,17 @@ func (r *PostgresRepository) ApplyGrouping(ctx context.Context, envelope events.
 	for _, mission := range grouping.Missions {
 		tag, err := tx.Exec(ctx, `
 			INSERT INTO customer_movement_groupings (customer_id, fulfilment_group_ref, parent_context_type, parent_context_ref,
-				fulfilment_plan_ref, mission_sequence, mission_count, source_version, last_event_id)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+				fulfilment_plan_ref, mission_sequence, mission_count, source_version, last_event_id, product_code)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NULLIF($10,''))
 			ON CONFLICT (fulfilment_group_ref) DO UPDATE SET customer_id=EXCLUDED.customer_id,
 				parent_context_type=EXCLUDED.parent_context_type, parent_context_ref=EXCLUDED.parent_context_ref,
 				fulfilment_plan_ref=EXCLUDED.fulfilment_plan_ref, mission_sequence=EXCLUDED.mission_sequence,
 				mission_count=EXCLUDED.mission_count, source_version=EXCLUDED.source_version,
-				last_event_id=EXCLUDED.last_event_id, updated_at=NOW()
-			WHERE customer_movement_groupings.source_version < EXCLUDED.source_version`,
+				last_event_id=EXCLUDED.last_event_id, product_code=COALESCE(EXCLUDED.product_code,customer_movement_groupings.product_code), updated_at=NOW()
+			WHERE customer_movement_groupings.source_version < EXCLUDED.source_version
+			AND customer_movement_groupings.customer_id=EXCLUDED.customer_id`,
 			grouping.CustomerID, mission.FulfilmentGroupRef, grouping.ParentContextType, grouping.ParentContextRef,
-			grouping.FulfilmentPlanRef, mission.MissionSequence, mission.MissionCount, envelope.SourceVersion, envelope.EventID)
+			grouping.FulfilmentPlanRef, mission.MissionSequence, mission.MissionCount, envelope.SourceVersion, envelope.EventID, grouping.ProductCode)
 		if err != nil {
 			return "", 0, err
 		}
@@ -56,10 +57,10 @@ func (r *PostgresRepository) ApplyGrouping(ctx context.Context, envelope events.
 		tag, err = tx.Exec(ctx, `
 			UPDATE customer_movement_history_projection
 			   SET parent_context_type=$2, parent_context_ref=$3, fulfilment_plan_ref=NULLIF($4,''),
-			       mission_sequence=$5, mission_count=$6, updated_at=NOW()
+			       mission_sequence=$5, mission_count=$6, product_code=COALESCE(NULLIF($8,''),product_code), updated_at=NOW()
 			 WHERE fulfilment_group_ref=$1 AND customer_id=$7`,
 			mission.FulfilmentGroupRef, grouping.ParentContextType, grouping.ParentContextRef,
-			grouping.FulfilmentPlanRef, mission.MissionSequence, mission.MissionCount, grouping.CustomerID)
+			grouping.FulfilmentPlanRef, mission.MissionSequence, mission.MissionCount, grouping.CustomerID, grouping.ProductCode)
 		if err != nil {
 			return "", 0, err
 		}
@@ -86,8 +87,11 @@ func (r *PostgresRepository) ProjectedVersions(ctx context.Context, authority st
 	if len(sourceRefs) == 0 {
 		return versions, nil
 	}
-	rows, err := r.db.Query(ctx, `SELECT source_ref, source_version FROM customer_movement_history_projection
-		WHERE authority=$1 AND source_ref = ANY($2)`, authority, sourceRefs)
+	query := `SELECT source_ref, source_version FROM customer_movement_history_projection WHERE authority=$1 AND source_ref = ANY($2)`
+	if authority == "COMMERCE" {
+		query = `SELECT parent_context_ref,max(source_version) FROM customer_movement_groupings WHERE $1='COMMERCE' AND parent_context_ref=ANY($2) GROUP BY parent_context_ref`
+	}
+	rows, err := r.db.Query(ctx, query, authority, sourceRefs)
 	if err != nil {
 		return nil, err
 	}

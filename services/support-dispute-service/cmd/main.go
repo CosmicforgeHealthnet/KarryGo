@@ -71,6 +71,7 @@ func main() {
 		Identity:            identity,
 		Corporate:           corporate,
 		ResolutionPublisher: supportclients.NewCommerceResolutionClient(cfg.VendorServiceURL, cfg.VendorServiceSecret),
+		Media:               supportclients.NewMediaEvidenceValidator(cfg.MediaFileURL, cfg.MediaFileSecret, 5*time.Second),
 	})
 
 	customerSecret := []byte(cfg.CustomerAccessTokenSecret)

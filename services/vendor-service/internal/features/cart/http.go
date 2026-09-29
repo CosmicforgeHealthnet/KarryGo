@@ -37,6 +37,8 @@ type addCartItemRequest struct {
 	ExpectedMeasureQuantity int64  `json:"expected_measure_quantity,omitempty"`
 	PricingBasis            string `json:"pricing_basis,omitempty"`
 
+	SubstitutionPolicy string `json:"substitution_policy,omitempty"`
+
 	Options []RequestedOption `json:"options,omitempty"`
 }
 
@@ -228,6 +230,12 @@ func cartHTTPError(
 			err,
 		)
 
+	case errors.Is(err, ErrDomainDisabled):
+		return apperrors.Unavailable(
+			"This commerce service is not available right now.",
+			err,
+		)
+
 	case errors.Is(err, ErrInvalidQuantity):
 		return apperrors.BadRequest(
 			"Cart quantity is invalid.",
@@ -243,6 +251,12 @@ func cartHTTPError(
 	case errors.Is(err, ErrInvalidAddress):
 		return apperrors.BadRequest(
 			"The selected delivery address is invalid.",
+			err,
+		)
+
+	case errors.Is(err, ErrInvalidSubstitutionPolicy):
+		return apperrors.BadRequest(
+			"Choose EXACT_ONLY, AUTO_REFUND, CONTACT_FIRST or VENDOR_SUGGEST_AND_APPROVE; Food items cannot be substituted.",
 			err,
 		)
 
@@ -457,6 +471,7 @@ func (h *CustomerHandler) addItem(
 			RequestedMeasureRef:     request.RequestedMeasureRef,
 			ExpectedMeasureQuantity: request.ExpectedMeasureQuantity,
 			PricingBasis:            request.PricingBasis,
+			SubstitutionPolicy:      request.SubstitutionPolicy,
 			Options:                 request.Options,
 		},
 	)

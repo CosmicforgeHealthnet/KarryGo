@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:00:55.2862014+02:00","Action":"start","Package":"cosmicforge/logistics/services/taxi-service/internal/database"}
+{"Time":"2026-09-27T16:00:55.4131711+02:00","Action":"run","Package":"cosmicforge/logistics/services/taxi-service/internal/database","Test":"TestApplyMigrationsCleanAndReplay"}
+{"Time":"2026-09-27T16:00:55.4131711+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/database","Test":"TestApplyMigrationsCleanAndReplay","Output":"=== RUN   TestApplyMigrationsCleanAndReplay\n"}
+{"Time":"2026-09-27T16:00:56.6699025+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/database","Test":"TestApplyMigrationsCleanAndReplay","Output":"--- PASS: TestApplyMigrationsCleanAndReplay (1.26s)\n"}
+{"Time":"2026-09-27T16:00:56.6699025+02:00","Action":"pass","Package":"cosmicforge/logistics/services/taxi-service/internal/database","Test":"TestApplyMigrationsCleanAndReplay","Elapsed":1.26}
+{"Time":"2026-09-27T16:00:56.6699025+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/database","Output":"PASS\n"}
+{"Time":"2026-09-27T16:00:56.6741272+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal/database","Output":"ok  \tcosmicforge/logistics/services/taxi-service/internal/database\t1.387s\n"}
+{"Time":"2026-09-27T16:00:56.6741272+02:00","Action":"pass","Package":"cosmicforge/logistics/services/taxi-service/internal/database","Elapsed":1.388}

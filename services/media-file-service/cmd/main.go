@@ -124,6 +124,7 @@ func main() {
 		ReadyChecks: readyChecks,
 		Register: func(group *gin.RouterGroup) {
 			uploadhttp.RegisterUploadRoutes(group, uploadService, cfg.ServiceTokens, cfg.MaxUploadBytes, cfg.PartnerJWTSecret)
+			registerMediaMetricsRoute(group, db, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 			if mediaService == nil {
 				logging.Notice("media", "private media contract not mounted (MEDIA_FILE_PRIVATE_API_ENABLED)")
 				return
@@ -132,6 +133,7 @@ func main() {
 				mediahttp.NewHandler(mediaService, db),
 				serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
 				cfg.PrivateAllowedCallers, cfg.PrivateMaxUploadBytes)
+			mediahttp.RegisterCustomerUploadRoute(group, mediaService, cfg.PrivateMaxUploadBytes)
 			logging.Success("media", "private media contract mounted")
 		},
 		Workers: workers,

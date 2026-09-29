@@ -88,6 +88,7 @@ func main() {
 		},
 		Register: func(group *gin.RouterGroup) {
 			messagehttp.RegisterRoutes(group, notificationService, hub, serviceauth.Secrets(cfg.ServiceSecrets))
+			registerNotificationMetricsRoute(group, db, hub, serviceauth.Secrets(cfg.ServiceSecrets))
 		},
 	})
 }

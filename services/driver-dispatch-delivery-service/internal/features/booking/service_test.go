@@ -2,6 +2,7 @@ package booking
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/journeyshare"
 )
 
 // --- fakes ---
@@ -1165,11 +1167,65 @@ func TestGetLiveLocation(t *testing.T) {
 	repo.tripID[view.ID] = uuid.NewString()
 	repo.tripState[view.ID] = "en_route_pickup"
 	repo.mu.Unlock()
+	// Without the trip-bound reader the route fails closed: the rider's
+	// global position (fakeLive has one) is never a substitute.
+	if _, err := service.GetLiveLocation(context.Background(), testCustomer, view.ID); err == nil {
+		t.Fatal("expected fail-closed without a trip-bound reader")
+	}
+	lat, lng, at := 6.52, 3.39, time.Now().UTC()
+	reader := &fakeTripLocation{projection: journeyshare.Projection{Location: journeyshare.Location{Available: true, State: "FRESH", Lat: &lat, Lng: &lng, UpdatedAt: &at}}}
+	service.WithTripLocation(reader)
 	location, err := service.GetLiveLocation(context.Background(), testCustomer, view.ID)
 	if err != nil {
 		t.Fatalf("GetLiveLocation: %v", err)
 	}
-	if location.ProviderID != "provider-1" || location.Lat != 6.51 {
-		t.Fatalf("location = %+v", location)
+	if location.Lat != 6.52 || location.State != "FRESH" || reader.ref != repo.tripID[view.ID] || reader.customer != testCustomer {
+		t.Fatalf("location = %+v read=%s/%s", location, reader.ref, reader.customer)
+	}
+	raw, _ := json.Marshal(location)
+	if strings.Contains(string(raw), "provider-1") || strings.Contains(string(raw), "provider_id") {
+		t.Fatalf("rider identity leaked: %s", raw)
+	}
+	// A point not bound to the current assignment is unavailable, not a fallback.
+	reader.projection.Location = journeyshare.Location{State: "UNAVAILABLE"}
+	if _, err := service.GetLiveLocation(context.Background(), testCustomer, view.ID); err == nil {
+		t.Fatal("unbound point exposed")
+	}
+	// A finished trip stops exposing the rider.
+	reader.projection = journeyshare.Projection{Terminal: true, Location: journeyshare.Location{Available: true, State: "FRESH", Lat: &lat, Lng: &lng, UpdatedAt: &at}}
+	if _, err := service.GetLiveLocation(context.Background(), testCustomer, view.ID); err == nil {
+		t.Fatal("terminal trip still exposes the rider")
+	}
+}
+
+type fakeTripLocation struct {
+	projection    journeyshare.Projection
+	ref, customer string
+}
+
+func (f *fakeTripLocation) Read(_ context.Context, ref, customer string) (journeyshare.Projection, error) {
+	f.ref, f.customer = ref, customer
+	return f.projection, nil
+}
+
+func TestResolveTrackTargetOnlyActiveCurrentRider(t *testing.T) {
+	repo := newFakeRepo()
+	service := newTestService(repo, &fakeBroadcast{repo: repo}, &fakeTrips{}, &fakeLive{}, &fakePayments{})
+	view := createSearchingBooking(t, service)
+	repo.mu.Lock()
+	repo.tripProv[view.ID] = "provider-1"
+	repo.tripID[view.ID] = uuid.NewString()
+	repo.tripState[view.ID] = "in_progress"
+	repo.mu.Unlock()
+	if provider, err := service.ResolveTrackTarget(context.Background(), testCustomer, view.ID); err != nil || provider != "provider-1" {
+		t.Fatalf("active trip: %q %v", provider, err)
+	}
+	for _, status := range []string{"completed", "cancelled", "failed", "proof_submitted"} {
+		repo.mu.Lock()
+		repo.tripState[view.ID] = status
+		repo.mu.Unlock()
+		if _, err := service.ResolveTrackTarget(context.Background(), testCustomer, view.ID); err == nil {
+			t.Fatalf("%s trip still streams the rider", status)
+		}
 	}
 }

@@ -67,11 +67,10 @@ func DefaultRoutes() []Route {
 		{"/api/v1/taxi", UpstreamTaxi, ScopeMixed},
 		{"/api/v1/hauling", UpstreamHauling, ScopeMixed},
 		{"/api/v1/payment-wallet", UpstreamWallet, ScopeMixed},
-		{"/api/v1/notifications", UpstreamNotification, ScopeMixed},
+		{"/api/v1/notifications/ws", UpstreamNotification, ScopePublic},
 		{"/api/v1/support-disputes", UpstreamSupport, ScopeMixed},
 		{"/api/v1/vendor", UpstreamVendor, ScopeVendor},
 		{"/api/v1/commerce", UpstreamVendor, ScopeCustomer},
-		{"/api/v1/verification-compliance", UpstreamVerification, ScopeProvider},
 		{"/api/v1/admin", UpstreamAdmin, ScopeAdmin},
 		{"/fleet-partner/", UpstreamFleet, ScopeFleet},
 	}
@@ -125,6 +124,27 @@ func (t Table) Upstreams() []string {
 // on the decoded, cleaned path, case-insensitively, so encoding and dot
 // segments cannot smuggle one through.
 func IsInternalPath(path string) bool {
+	// These mounted routes use service credentials despite having no
+	// "internal" segment. Auth middleware, not spelling, defines exposure.
+	lower := strings.ToLower(path)
+	for _, prefix := range []string{"/api/v1/support-disputes/admin", "/api/v1/verification-compliance"} {
+		if lower == prefix || strings.HasPrefix(lower, prefix+"/") {
+			return true
+		}
+	}
+	// Operational scrape endpoints (/api/v1/<svc>/metrics, .../outbox-metrics)
+	// are secured by network placement, not by caller auth: Taxi's booking
+	// metrics carry no auth at all. They are never a public route.
+	if segments := strings.Split(strings.Trim(lower, "/"), "/"); len(segments) == 4 &&
+		segments[0] == "api" && segments[1] == "v1" &&
+		(segments[3] == "metrics" || segments[3] == "outbox-metrics") {
+		return true
+	}
+	if lower == "/api/v1/notifications" || strings.HasPrefix(lower, "/api/v1/notifications/") {
+		if lower != "/api/v1/notifications/ws" {
+			return true
+		}
+	}
 	for _, segment := range strings.Split(strings.ToLower(path), "/") {
 		if segment == "internal" || segment == ".." || strings.HasPrefix(segment, "internal%") {
 			return true

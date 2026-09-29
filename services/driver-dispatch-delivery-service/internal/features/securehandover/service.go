@@ -66,6 +66,9 @@ func (s *Service) IssuePickup(ctx context.Context, providerID, tripID, stopRef, 
 	if err != nil || context.ProviderID != providerID {
 		return Credential{}, apperrors.NotFound("Assigned trip pickup was not found.", err)
 	}
+	if strings.TrimSpace(context.ReceiverRef) == "" {
+		return Credential{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody.", nil)
+	}
 	challenge, _, err := s.issue(ctx, context, StagePickup, "PROVIDER", "provider:"+providerID, "provider:"+providerID, operationRef, false)
 	if err != nil {
 		return Credential{}, mapError(err)
@@ -91,7 +94,13 @@ func (s *Service) IssueDelivery(ctx context.Context, tripID, operationRef string
 		}
 		return s.issueReturnForCustomer(ctx, returnContext, operationRef)
 	}
-	recipient := s.cipher.recipientRef(strings.TrimSpace(context.ReceiverPhone))
+	// An email address alone is a delivery address, not proof that the caller
+	// controls that mailbox. Until the email verification read contract is
+	// available, issue only for a receiver bound to an authenticated account.
+	if strings.TrimSpace(context.ReceiverRef) == "" {
+		return Challenge{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", nil)
+	}
+	recipient := s.deliveryRecipientRef(context)
 	challenge, replayed, err := s.issue(ctx, context, StageDelivery, "RECEIVER", recipient, "system:"+tripID, operationRef, true)
 	if err != nil {
 		return Challenge{}, mapError(err)
@@ -101,6 +110,26 @@ func (s *Service) IssueDelivery(ctx context.Context, tripID, operationRef string
 		challenge, _ = s.repo.FindChallenge(ctx, challenge.ChallengeRef)
 	}
 	return sanitize(challenge), nil
+}
+
+// ReadReceiverCredential is available only to the account frozen as the
+// receiver on the current challenge. Sender ownership alone is insufficient.
+func (s *Service) ReadReceiverCredential(ctx context.Context, receiverID, challengeRef string) (Credential, error) {
+	if !s.Enabled() {
+		return Credential{}, apperrors.Unavailable("Secure handover is not enabled.", nil)
+	}
+	if err := s.limit(ctx, "receiver-read:"+receiverID+":"+challengeRef, 12, time.Minute); err != nil {
+		return Credential{}, err
+	}
+	challenge, err := s.repo.FindChallenge(ctx, strings.TrimSpace(challengeRef))
+	if err != nil || challenge.Stage != StageDelivery {
+		return Credential{}, apperrors.NotFound("Receiver handover was not found.", err)
+	}
+	current, err := s.repo.ResolveByTrip(ctx, challenge.TripID, StageDelivery, challenge.StopRef)
+	if err != nil || current.ReceiverRef == "" || receiverID != current.ReceiverRef || !s.notificationContextMatches(challenge, current) {
+		return Credential{}, apperrors.NotFound("Receiver handover was not found.", err)
+	}
+	return s.credential(challenge, true), nil
 }
 
 func (s *Service) issueReturnForCustomer(ctx context.Context, context Context, operationRef string) (Challenge, error) {
@@ -188,6 +217,9 @@ func (s *Service) VerifyPickupByCustomer(ctx context.Context, customerID, bookin
 	if err != nil {
 		return Challenge{}, mapError(err)
 	}
+	if strings.TrimSpace(context.ReceiverRef) == "" {
+		return Challenge{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody.", nil)
+	}
 	return s.verify(ctx, context, Actor{Type: "CUSTOMER", Ref: customerID}, StagePickup, command)
 }
 
@@ -198,6 +230,9 @@ func (s *Service) VerifyPickupBySource(ctx context.Context, caller, missionRef, 
 	context, err := s.repo.ResolveMission(ctx, missionRef, StagePickup, stopRef)
 	if err != nil {
 		return Challenge{}, mapError(err)
+	}
+	if strings.TrimSpace(context.ReceiverRef) == "" {
+		return Challenge{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody.", nil)
 	}
 	if (caller == "vendor-service" && context.SourceType != "VENDOR_COMMERCE") || (caller == "api-gateway" && context.SourceType != "PARTNER_API") {
 		return Challenge{}, apperrors.NotFound("Pickup handover was not found.", nil)
@@ -505,10 +540,11 @@ func (s *Service) credential(challenge Challenge, includeSecret bool) Credential
 
 func (s *Service) deliver(ctx context.Context, context Context, challenge Challenge, resend bool, leaseOwner ...string) {
 	channels := make([]string, 0, 3)
-	if s.policy.InAppAllowed && context.CustomerID != "" {
+	accountReceiver := context.ReceiverRef != ""
+	if s.policy.InAppAllowed && accountReceiver {
 		channels = append(channels, "in_app")
 	}
-	if s.policy.PushAllowed && context.CustomerID != "" {
+	if s.policy.PushAllowed && accountReceiver {
 		channels = append(channels, "push")
 	}
 	if s.policy.EmailAllowed && strings.TrimSpace(context.ReceiverEmail) != "" {
@@ -567,7 +603,7 @@ func (s *Service) reconcileNotifications(ctx context.Context, limit int) error {
 }
 
 func (s *Service) notificationContextMatches(challenge Challenge, current Context) bool {
-	recipient := s.cipher.recipientRef(strings.TrimSpace(current.ReceiverPhone))
+	recipient := s.deliveryRecipientRef(current)
 	if challenge.Stage == StageReturn {
 		recipient = s.cipher.recipientRef("customer:" + current.CustomerID)
 	}
@@ -576,6 +612,14 @@ func (s *Service) notificationContextMatches(challenge Challenge, current Contex
 		challenge.AssignedProviderID == current.ProviderID && challenge.ManifestRef == current.ManifestRef &&
 		challenge.ManifestVersion == current.ManifestVersion && challenge.SourceVersion == current.SourceVersion &&
 		challenge.IntendedRecipientRef == recipient && (challenge.Stage == StageDelivery || challenge.Stage == StageReturn)
+}
+
+func (s *Service) deliveryRecipientRef(current Context) string {
+	return s.cipher.recipientRef(strings.Join([]string{
+		strings.TrimSpace(current.ReceiverRef),
+		strings.ToLower(strings.TrimSpace(current.ReceiverEmail)),
+		strings.TrimSpace(current.ReceiverPhone),
+	}, "\x00"))
 }
 
 func (s *Service) notificationBackoff(attempt int) time.Duration {

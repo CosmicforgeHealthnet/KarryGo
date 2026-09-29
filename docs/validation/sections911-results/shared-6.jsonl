@@ -1,0 +1,52 @@
+{"Time":"2026-09-27T16:54:30.3830752+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/capabilityfit"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriZeroValueIsUnknown"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriZeroValueIsUnknown","Output":"=== RUN   TestTriZeroValueIsUnknown\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriZeroValueIsUnknown","Output":"--- PASS: TestTriZeroValueIsUnknown (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriZeroValueIsUnknown","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriFromPointerKeepsNullDistinctFromFalse"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriFromPointerKeepsNullDistinctFromFalse","Output":"=== RUN   TestTriFromPointerKeepsNullDistinctFromFalse\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriFromPointerKeepsNullDistinctFromFalse","Output":"--- PASS: TestTriFromPointerKeepsNullDistinctFromFalse (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriFromPointerKeepsNullDistinctFromFalse","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriPointerRoundTrip"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriPointerRoundTrip","Output":"=== RUN   TestTriPointerRoundTrip\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriPointerRoundTrip","Output":"--- PASS: TestTriPointerRoundTrip (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestTriPointerRoundTrip","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityDistinguishesUnknownFromNo"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityDistinguishesUnknownFromNo","Output":"=== RUN   TestRequireCapabilityDistinguishesUnknownFromNo\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityDistinguishesUnknownFromNo","Output":"--- PASS: TestRequireCapabilityDistinguishesUnknownFromNo (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityDistinguishesUnknownFromNo","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityIgnoresUnrequestedFacts"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityIgnoresUnrequestedFacts","Output":"=== RUN   TestRequireCapabilityIgnoresUnrequestedFacts\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityIgnoresUnrequestedFacts","Output":"--- PASS: TestRequireCapabilityIgnoresUnrequestedFacts (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityIgnoresUnrequestedFacts","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityAcceptsDeclaredYes"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityAcceptsDeclaredYes","Output":"=== RUN   TestRequireCapabilityAcceptsDeclaredYes\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityAcceptsDeclaredYes","Output":"--- PASS: TestRequireCapabilityAcceptsDeclaredYes (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireCapabilityAcceptsDeclaredYes","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundBoundaryIsInclusive"}
+{"Time":"2026-09-27T16:54:30.5328629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundBoundaryIsInclusive","Output":"=== RUN   TestRequireBoundBoundaryIsInclusive\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundBoundaryIsInclusive","Output":"--- PASS: TestRequireBoundBoundaryIsInclusive (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundBoundaryIsInclusive","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundUnknownDeclarationFailsClosed"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundUnknownDeclarationFailsClosed","Output":"=== RUN   TestRequireBoundUnknownDeclarationFailsClosed\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundUnknownDeclarationFailsClosed","Output":"--- PASS: TestRequireBoundUnknownDeclarationFailsClosed (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundUnknownDeclarationFailsClosed","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundSkipsWhenNothingRequired"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundSkipsWhenNothingRequired","Output":"=== RUN   TestRequireBoundSkipsWhenNothingRequired\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundSkipsWhenNothingRequired","Output":"--- PASS: TestRequireBoundSkipsWhenNothingRequired (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestRequireBoundSkipsWhenNothingRequired","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestDecisionCannotBecomeEligibleAgain"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestDecisionCannotBecomeEligibleAgain","Output":"=== RUN   TestDecisionCannotBecomeEligibleAgain\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestDecisionCannotBecomeEligibleAgain","Output":"--- PASS: TestDecisionCannotBecomeEligibleAgain (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestDecisionCannotBecomeEligibleAgain","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestDecisionCollectsEveryDistinctReasonOnce"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestDecisionCollectsEveryDistinctReasonOnce","Output":"=== RUN   TestDecisionCollectsEveryDistinctReasonOnce\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestDecisionCollectsEveryDistinctReasonOnce","Output":"--- PASS: TestDecisionCollectsEveryDistinctReasonOnce (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestDecisionCollectsEveryDistinctReasonOnce","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestEmptyDecisionReportsEligible"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestEmptyDecisionReportsEligible","Output":"=== RUN   TestEmptyDecisionReportsEligible\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestEmptyDecisionReportsEligible","Output":"--- PASS: TestEmptyDecisionReportsEligible (0.00s)\n"}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Test":"TestEmptyDecisionReportsEligible","Elapsed":0}
+{"Time":"2026-09-27T16:54:30.533385+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:30.5355224+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/capabilityfit","Output":"ok  \tcosmicforge/logistics/shared/go/capabilityfit\t0.152s\n"}
+{"Time":"2026-09-27T16:54:30.5355224+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/capabilityfit","Elapsed":0.152}

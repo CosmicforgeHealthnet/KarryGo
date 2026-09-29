@@ -531,6 +531,13 @@ func (s *Service) StopHandover(ctx context.Context, providerID, missionRef, stop
 	if !s.caps.SecureHandoverEnabled {
 		return Credential{}, ErrDisabled
 	}
+	bound, err := s.repo.ReadMissionForProvider(ctx, providerID, missionRef)
+	if err != nil {
+		return Credential{}, err
+	}
+	if strings.TrimSpace(bound.ReceiverRef) == "" {
+		return Credential{}, ErrReceiverSecureChannelRequired
+	}
 	mission, err := s.repo.TransitionStop(ctx, missionRef, providerID, stopRef, []string{StatusAtPickup}, StatusPickupHandoverRequired, "AT_PICKUP", []string{"ARRIVED"}, "HANDOVER_PENDING", "taxi.goods.pickup_handover_required.v1")
 	if err != nil {
 		return Credential{}, err

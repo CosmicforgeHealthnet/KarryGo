@@ -1,0 +1,100 @@
+{"Time":"2026-09-27T16:55:25.7150107+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/livetrack"}
+{"Time":"2026-09-27T16:55:25.8643858+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestStoreImplementations"}
+{"Time":"2026-09-27T16:55:25.8643858+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestStoreImplementations","Output":"=== RUN   TestStoreImplementations\n"}
+{"Time":"2026-09-27T16:55:25.8643858+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestStoreImplementations","Output":"--- PASS: TestStoreImplementations (0.00s)\n"}
+{"Time":"2026-09-27T16:55:25.8643858+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestStoreImplementations","Elapsed":0}
+{"Time":"2026-09-27T16:55:25.8643858+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixAndGetFixRoundTrip"}
+{"Time":"2026-09-27T16:55:25.8643858+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixAndGetFixRoundTrip","Output":"=== RUN   TestPutFixAndGetFixRoundTrip\n"}
+{"Time":"2026-09-27T16:55:25.874471+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixAndGetFixRoundTrip","Output":"--- PASS: TestPutFixAndGetFixRoundTrip (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.874471+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixAndGetFixRoundTrip","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.874471+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixRejectsBadInput"}
+{"Time":"2026-09-27T16:55:25.874471+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixRejectsBadInput","Output":"=== RUN   TestPutFixRejectsBadInput\n"}
+{"Time":"2026-09-27T16:55:25.8755848+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixRejectsBadInput","Output":"--- PASS: TestPutFixRejectsBadInput (0.00s)\n"}
+{"Time":"2026-09-27T16:55:25.8755848+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixRejectsBadInput","Elapsed":0}
+{"Time":"2026-09-27T16:55:25.8755848+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixDefaultsTimestamps"}
+{"Time":"2026-09-27T16:55:25.8755848+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixDefaultsTimestamps","Output":"=== RUN   TestPutFixDefaultsTimestamps\n"}
+{"Time":"2026-09-27T16:55:25.8836629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixDefaultsTimestamps","Output":"--- PASS: TestPutFixDefaultsTimestamps (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.8836629+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixDefaultsTimestamps","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.8836629+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance"}
+{"Time":"2026-09-27T16:55:25.8836629+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance","Output":"=== RUN   TestNearbyFiltersByTrueDistance\n"}
+{"Time":"2026-09-27T16:55:25.8900857+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance/tight_radius_keeps_only_the_close_one"}
+{"Time":"2026-09-27T16:55:25.8900857+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance/tight_radius_keeps_only_the_close_one","Output":"=== RUN   TestNearbyFiltersByTrueDistance/tight_radius_keeps_only_the_close_one\n"}
+{"Time":"2026-09-27T16:55:25.8916549+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance/tight_radius_keeps_only_the_close_one","Output":"--- PASS: TestNearbyFiltersByTrueDistance/tight_radius_keeps_only_the_close_one (0.00s)\n"}
+{"Time":"2026-09-27T16:55:25.8916549+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance/tight_radius_keeps_only_the_close_one","Elapsed":0}
+{"Time":"2026-09-27T16:55:25.8916549+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance/wide_radius_keeps_both"}
+{"Time":"2026-09-27T16:55:25.8916549+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance/wide_radius_keeps_both","Output":"=== RUN   TestNearbyFiltersByTrueDistance/wide_radius_keeps_both\n"}
+{"Time":"2026-09-27T16:55:25.8932148+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance/wide_radius_keeps_both","Output":"--- PASS: TestNearbyFiltersByTrueDistance/wide_radius_keeps_both (0.00s)\n"}
+{"Time":"2026-09-27T16:55:25.8932148+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance/wide_radius_keeps_both","Elapsed":0}
+{"Time":"2026-09-27T16:55:25.8932148+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance","Output":"--- PASS: TestNearbyFiltersByTrueDistance (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.8932148+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyFiltersByTrueDistance","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.8932148+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyWorksAtBothIndexedPrecisions"}
+{"Time":"2026-09-27T16:55:25.8932148+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyWorksAtBothIndexedPrecisions","Output":"=== RUN   TestNearbyWorksAtBothIndexedPrecisions\n"}
+{"Time":"2026-09-27T16:55:25.9044626+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyWorksAtBothIndexedPrecisions","Output":"--- PASS: TestNearbyWorksAtBothIndexedPrecisions (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9044626+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyWorksAtBothIndexedPrecisions","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9044626+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbySortsNearestFirstAndHonoursLimit"}
+{"Time":"2026-09-27T16:55:25.9044626+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbySortsNearestFirstAndHonoursLimit","Output":"=== RUN   TestNearbySortsNearestFirstAndHonoursLimit\n"}
+{"Time":"2026-09-27T16:55:25.9186626+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbySortsNearestFirstAndHonoursLimit","Output":"--- PASS: TestNearbySortsNearestFirstAndHonoursLimit (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9186626+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbySortsNearestFirstAndHonoursLimit","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9186626+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixRetractsThePreviousCell"}
+{"Time":"2026-09-27T16:55:25.9186626+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixRetractsThePreviousCell","Output":"=== RUN   TestPutFixRetractsThePreviousCell\n"}
+{"Time":"2026-09-27T16:55:25.9261633+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixRetractsThePreviousCell","Output":"--- PASS: TestPutFixRetractsThePreviousCell (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9261633+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixRetractsThePreviousCell","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9261633+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNonDiscoverableFixStaysReadableButUnmatched"}
+{"Time":"2026-09-27T16:55:25.9261633+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNonDiscoverableFixStaysReadableButUnmatched","Output":"=== RUN   TestNonDiscoverableFixStaysReadableButUnmatched\n"}
+{"Time":"2026-09-27T16:55:25.9339305+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNonDiscoverableFixStaysReadableButUnmatched","Output":"--- PASS: TestNonDiscoverableFixStaysReadableButUnmatched (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9339305+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNonDiscoverableFixStaysReadableButUnmatched","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9339305+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestSetDiscoverableTogglesIndexMembership"}
+{"Time":"2026-09-27T16:55:25.9339305+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestSetDiscoverableTogglesIndexMembership","Output":"=== RUN   TestSetDiscoverableTogglesIndexMembership\n"}
+{"Time":"2026-09-27T16:55:25.9446404+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestSetDiscoverableTogglesIndexMembership","Output":"--- PASS: TestSetDiscoverableTogglesIndexMembership (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9446404+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestSetDiscoverableTogglesIndexMembership","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9446404+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestRemoveClearsPositionAndIndex"}
+{"Time":"2026-09-27T16:55:25.9446404+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestRemoveClearsPositionAndIndex","Output":"=== RUN   TestRemoveClearsPositionAndIndex\n"}
+{"Time":"2026-09-27T16:55:25.9527659+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestRemoveClearsPositionAndIndex","Output":"--- PASS: TestRemoveClearsPositionAndIndex (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9527659+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestRemoveClearsPositionAndIndex","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9527659+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyPrunesFixesOlderThanTheTTL"}
+{"Time":"2026-09-27T16:55:25.9527659+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyPrunesFixesOlderThanTheTTL","Output":"=== RUN   TestNearbyPrunesFixesOlderThanTheTTL\n"}
+{"Time":"2026-09-27T16:55:25.9605226+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyPrunesFixesOlderThanTheTTL","Output":"--- PASS: TestNearbyPrunesFixesOlderThanTheTTL (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9605226+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyPrunesFixesOlderThanTheTTL","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9605226+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyEvictsIndexEntriesWithNoFix"}
+{"Time":"2026-09-27T16:55:25.9605226+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyEvictsIndexEntriesWithNoFix","Output":"=== RUN   TestNearbyEvictsIndexEntriesWithNoFix\n"}
+{"Time":"2026-09-27T16:55:25.967994+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyEvictsIndexEntriesWithNoFix","Output":"--- PASS: TestNearbyEvictsIndexEntriesWithNoFix (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.967994+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyEvictsIndexEntriesWithNoFix","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.967994+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestFixKeyExpiresAfterTTL"}
+{"Time":"2026-09-27T16:55:25.967994+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestFixKeyExpiresAfterTTL","Output":"=== RUN   TestFixKeyExpiresAfterTTL\n"}
+{"Time":"2026-09-27T16:55:25.9750631+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestFixKeyExpiresAfterTTL","Output":"--- PASS: TestFixKeyExpiresAfterTTL (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9750631+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestFixKeyExpiresAfterTTL","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9750631+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixPublishesLocationUpdate"}
+{"Time":"2026-09-27T16:55:25.9750631+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixPublishesLocationUpdate","Output":"=== RUN   TestPutFixPublishesLocationUpdate\n"}
+{"Time":"2026-09-27T16:55:25.9850764+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixPublishesLocationUpdate","Output":"--- PASS: TestPutFixPublishesLocationUpdate (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9850764+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestPutFixPublishesLocationUpdate","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9850764+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestRemovePublishesOffline"}
+{"Time":"2026-09-27T16:55:25.9850764+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestRemovePublishesOffline","Output":"=== RUN   TestRemovePublishesOffline\n"}
+{"Time":"2026-09-27T16:55:25.9959553+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestRemovePublishesOffline","Output":"--- PASS: TestRemovePublishesOffline (0.01s)\n"}
+{"Time":"2026-09-27T16:55:25.9966457+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestRemovePublishesOffline","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:25.9966457+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyBoundsCandidateWork"}
+{"Time":"2026-09-27T16:55:25.9966457+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyBoundsCandidateWork","Output":"=== RUN   TestNearbyBoundsCandidateWork\n"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyBoundsCandidateWork","Output":"--- PASS: TestNearbyBoundsCandidateWork (0.01s)\n"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNearbyBoundsCandidateWork","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNilClientDegradesToNoop"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNilClientDegradesToNoop","Output":"=== RUN   TestNilClientDegradesToNoop\n"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNilClientDegradesToNoop","Output":"--- PASS: TestNilClientDegradesToNoop (0.00s)\n"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestNilClientDegradesToNoop","Elapsed":0}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestConfigDefaults"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestConfigDefaults","Output":"=== RUN   TestConfigDefaults\n"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestConfigDefaults","Output":"--- PASS: TestConfigDefaults (0.00s)\n"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestConfigDefaults","Elapsed":0}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestChannelKeyOverride"}
+{"Time":"2026-09-27T16:55:26.0080158+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestChannelKeyOverride","Output":"=== RUN   TestChannelKeyOverride\n"}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestChannelKeyOverride","Output":"--- PASS: TestChannelKeyOverride (0.01s)\n"}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestChannelKeyOverride","Elapsed":0.01}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestKeysAreNamespaced"}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestKeysAreNamespaced","Output":"=== RUN   TestKeysAreNamespaced\n"}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestKeysAreNamespaced","Output":"--- PASS: TestKeysAreNamespaced (0.00s)\n"}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestKeysAreNamespaced","Elapsed":0}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestFixHelpers"}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestFixHelpers","Output":"=== RUN   TestFixHelpers\n"}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestFixHelpers","Output":"--- PASS: TestFixHelpers (0.00s)\n"}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Test":"TestFixHelpers","Elapsed":0}
+{"Time":"2026-09-27T16:55:26.018681+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:26.0221309+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/livetrack","Output":"ok  \tcosmicforge/logistics/shared/go/livetrack\t0.307s\n"}
+{"Time":"2026-09-27T16:55:26.0221309+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/livetrack","Elapsed":0.307}

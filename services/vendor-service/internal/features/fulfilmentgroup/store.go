@@ -1608,21 +1608,41 @@ func (s *Store) ParcelsForMissionSlot(ctx context.Context, planMissionID string)
 // serves both the simple selects and the joined ones instead of drifting into
 // two lists that have to be kept in agreement by hand.
 func prefixed(columns, alias string) string {
-	parts := strings.Split(columns, ",")
-	for index, part := range parts {
+	// Split on TOP-LEVEL commas only. A naive split cut
+	// "COALESCE(replaces_id, '')" in two and qualified the literal as
+	// "r.''", which is invalid SQL and broke every slot lookup that used it.
+	var parts []string
+	depth, start := 0, 0
+	for index, char := range columns {
+		switch char {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				parts = append(parts, columns[start:index])
+				start = index + 1
+			}
+		}
+	}
+	parts = append(parts, columns[start:])
+
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
 		trimmed := strings.TrimSpace(part)
 		if trimmed == "" {
 			continue
 		}
-		// COALESCE(...) wrappers already name their column; only bare
-		// identifiers need qualifying.
+		// COALESCE(...) wrappers already name their column; only its first
+		// argument - the column - needs qualifying.
 		if strings.Contains(trimmed, "(") {
-			parts[index] = strings.Replace(trimmed, "COALESCE(", "COALESCE("+alias+".", 1)
+			out = append(out, strings.Replace(trimmed, "COALESCE(", "COALESCE("+alias+".", 1))
 			continue
 		}
-		parts[index] = alias + "." + trimmed
+		out = append(out, alias+"."+trimmed)
 	}
-	return strings.Join(parts, ", ")
+	return strings.Join(out, ", ")
 }
 
 // ListMissionRefs reads a group's platform mission projections, including

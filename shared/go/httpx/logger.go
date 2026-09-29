@@ -1,86 +1,62 @@
 package httpx
 
 import (
-	"fmt"
-	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/observability"
 )
 
-const (
-	logReset  = "\033[0m"
-	logRed    = "\033[31m"
-	logGreen  = "\033[32m"
-	logYellow = "\033[33m"
-	logCyan   = "\033[36m"
-	logBold   = "\033[1m"
-	logDim    = "\033[2m"
-)
-
-// Logger returns a Gin middleware that logs every request with method, path, status, latency,
-// and request ID in color: green for 2xx, yellow for 3xx/4xx, red for 5xx.
+// Logger emits one structured access record per request (Customer V4 §27.1):
+// request ID (hashed unless a UUID), W3C trace ID, the matched route
+// TEMPLATE (never the raw path or query), method, status, latency and the
+// bounded outcome category. It goes through the canonical logging.Structured
+// / SafeFields path, so no header, body, query or credential is ever read.
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		path := c.FullPath()
-		if path == "" {
-			path = "unmatched"
+		route := c.FullPath()
+		if route == "" {
+			route = "unmatched"
 		}
-
-		latency := time.Since(start)
 		status := c.Writer.Status()
-		requestID := LogRequestID(c)
-
-		color := statusColor(status)
-		method := methodColor(c.Request.Method)
-
-		log.Printf(
-			"%s%s%s %s%-24s%s %s%3d%s  %s%-10s%s  %sreq=%s%s",
-			logBold, method, logReset,
-			logCyan, path, logReset,
-			color+logBold, status, logReset,
-			logDim, formatLatency(latency), logReset,
-			logDim, requestID, logReset,
-		)
+		fields := map[string]any{
+			"request_id": LogRequestID(c),
+			"route":      route,
+			"method":     c.Request.Method,
+			"status":     status,
+			"latency_ms": float64(time.Since(start).Microseconds()) / 1000,
+			"outcome":    string(observability.OutcomeForStatus(status)),
+		}
+		if traceID := TraceID(c.GetHeader("traceparent")); traceID != "" {
+			fields["trace_id"] = traceID
+		}
+		level := "info"
+		if status >= 500 {
+			level = "error"
+		}
+		logging.Structured(level, "http_request", fields)
 	}
 }
 
-func statusColor(status int) string {
-	switch {
-	case status >= 500:
-		return logRed
-	case status >= 300:
-		return logYellow
-	default:
-		return logGreen
+// TraceID returns the trace-id of a well-formed W3C traceparent header and
+// "" otherwise, so a malformed or hostile header never reaches a log line.
+func TraceID(traceparent string) string {
+	parts := strings.Split(strings.TrimSpace(traceparent), "-")
+	if len(parts) != 4 || len(parts[0]) != 2 || len(parts[1]) != 32 || len(parts[2]) != 16 || len(parts[3]) != 2 {
+		return ""
 	}
-}
-
-func methodColor(method string) string {
-	switch method {
-	case "GET":
-		return logGreen + "GET   "
-	case "POST":
-		return logCyan + "POST  "
-	case "PUT":
-		return logYellow + "PUT   "
-	case "PATCH":
-		return logYellow + "PATCH "
-	case "DELETE":
-		return logRed + "DELETE"
-	default:
-		return fmt.Sprintf("%-6s", method)
+	for _, r := range parts[1] {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return ""
+		}
 	}
-}
-
-func formatLatency(d time.Duration) string {
-	if d < time.Millisecond {
-		return fmt.Sprintf("%dµs", d.Microseconds())
+	if parts[1] == strings.Repeat("0", 32) {
+		return ""
 	}
-	if d < time.Second {
-		return fmt.Sprintf("%.2fms", float64(d.Microseconds())/1000)
-	}
-	return fmt.Sprintf("%.2fs", d.Seconds())
+	return parts[1]
 }

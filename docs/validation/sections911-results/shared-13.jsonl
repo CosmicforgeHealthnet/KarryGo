@@ -1,0 +1,12 @@
+{"Time":"2026-09-27T16:54:55.9203978+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/dispatchcommerce"}
+{"Time":"2026-09-27T16:54:56.0924296+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Test":"TestClientUsesCanonicalPathAndHMACV2"}
+{"Time":"2026-09-27T16:54:56.0924296+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Test":"TestClientUsesCanonicalPathAndHMACV2","Output":"=== RUN   TestClientUsesCanonicalPathAndHMACV2\n"}
+{"Time":"2026-09-27T16:54:56.0959293+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Test":"TestClientUsesCanonicalPathAndHMACV2","Output":"--- PASS: TestClientUsesCanonicalPathAndHMACV2 (0.00s)\n"}
+{"Time":"2026-09-27T16:54:56.0959293+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Test":"TestClientUsesCanonicalPathAndHMACV2","Elapsed":0}
+{"Time":"2026-09-27T16:54:56.0959293+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Test":"TestPickupCredentialDescribesItsOwnDirection"}
+{"Time":"2026-09-27T16:54:56.0959293+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Test":"TestPickupCredentialDescribesItsOwnDirection","Output":"=== RUN   TestPickupCredentialDescribesItsOwnDirection\n"}
+{"Time":"2026-09-27T16:54:56.0959293+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Test":"TestPickupCredentialDescribesItsOwnDirection","Output":"--- PASS: TestPickupCredentialDescribesItsOwnDirection (0.00s)\n"}
+{"Time":"2026-09-27T16:54:56.0959293+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Test":"TestPickupCredentialDescribesItsOwnDirection","Elapsed":0}
+{"Time":"2026-09-27T16:54:56.0959293+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:56.0996527+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Output":"ok  \tcosmicforge/logistics/shared/go/dispatchcommerce\t0.179s\n"}
+{"Time":"2026-09-27T16:54:56.0996527+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/dispatchcommerce","Elapsed":0.179}

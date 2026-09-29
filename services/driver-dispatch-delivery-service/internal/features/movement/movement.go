@@ -55,15 +55,59 @@ func stateFor(tripStatus, bookingStatus, broadcastStatus string, cancelled bool)
 	return events.MovementStateSearching
 }
 
+// stageFor is the fine-grained lifecycle step beneath state (Customer V4
+// §22.2). Drop-off arrival is the rider's own at-drop-off action, recorded as
+// an issued DELIVERY handover challenge; a return is recorded by the delivery
+// recovery return workflow. Nothing is inferred from location or time.
+func stageFor(state, tripStatus string, deliveryChallengeIssued bool, returnState string) string {
+	switch returnState {
+	case "ROUTED", "RETURNING", "HANDOVER_REQUIRED":
+		return events.MovementStageReturning
+	case "RETURNED":
+		return events.MovementStageReturned
+	}
+	switch tripStatus {
+	case "assigned":
+		return events.MovementStageProviderAssigned
+	case "en_route_pickup":
+		return events.MovementStageEnRoutePickup
+	case "arrived_pickup":
+		return events.MovementStageArrivedPickup
+	case "in_progress":
+		// Dispatch starts a trip only after the pickup handover, so the
+		// in-progress trip is the parcel in the rider's custody.
+		if deliveryChallengeIssued {
+			return events.MovementStageArrivedDropoff
+		}
+		return events.MovementStageInTransit
+	case "proof_submitted":
+		return events.MovementStageDelivered
+	case "completed":
+		return events.MovementStageCompleted
+	case "failed":
+		return events.MovementStageFailed
+	case "cancelled":
+		return events.MovementStageCancelled
+	}
+	switch state {
+	case events.MovementStateSearching:
+		return events.MovementStageSearching
+	case events.MovementStateAssigned:
+		return events.MovementStageProviderAssigned
+	case events.MovementStateUnmatched:
+		return events.MovementStageUnmatched
+	case events.MovementStateCancelled:
+		return events.MovementStageCancelled
+	}
+	return ""
+}
+
 // Publisher sweeps changed deliveries into the movement outbox.
 type Publisher struct {
 	pool    *pgxpool.Pool
 	emitter *events.Emitter
-	// cursor is the high-water mark of source updates already inspected. It
-	// starts at zero so every boot reconciles the whole table, which is also
-	// the backfill path.
-	cursor time.Time
-	batch  int
+	batch   int
+	after   string
 }
 
 func NewPublisher(pool *pgxpool.Pool) *Publisher {
@@ -71,9 +115,7 @@ func NewPublisher(pool *pgxpool.Pool) *Publisher {
 		emitter: &events.Emitter{Pool: pool, SourceService: SourceService, EntityType: "dispatch_booking"}}
 }
 
-// Overlap re-inspects a short window behind the cursor, so a row committed
-// with a slightly earlier timestamp than one already read is not skipped.
-const Overlap = 2 * time.Minute
+// Each bounded sweep advances through committed booking IDs and cycles back.
 
 // Sweep publishes every delivery whose committed state differs from what was
 // last published.
@@ -81,7 +123,11 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 	if p == nil || p.pool == nil {
 		return events.EmissionResult{}, events.ErrEmitterNotConfigured
 	}
-	since := p.cursor.Add(-Overlap)
+	since := time.Time{}
+	after := p.after
+	if after == "" {
+		after = "00000000-0000-0000-0000-000000000000"
+	}
 	rows, err := p.pool.Query(ctx, `
 		SELECT b.id::text, b.customer_id::text, b.status, COALESCE(b.service_tier,''),
 		       b.pickup_address, b.pickup_lat::float8, b.pickup_lng::float8,
@@ -89,22 +135,27 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 		       b.cancelled_at, b.completed_at,
 		       COALESCE(rb.status,''), COALESCE(t.status,''), t.started_at, t.completed_at,
 		       COALESCE(cm.parent_order_ref,''), COALESCE(cm.mission_ref,''),
-		       GREATEST(b.updated_at, COALESCE(t.updated_at, b.updated_at)) AS changed_at
+		       GREATEST(b.updated_at, COALESCE(t.updated_at, b.updated_at)) AS changed_at,
+		       EXISTS(SELECT 1 FROM dispatch_handover_challenges hc WHERE hc.trip_id = t.id AND hc.stage = 'DELIVERY'),
+		       COALESCE((SELECT rw.state FROM dispatch_return_workflows rw WHERE rw.original_trip_id = t.id
+		                 ORDER BY rw.created_at DESC, rw.id DESC LIMIT 1), '')
 		FROM dispatch_bookings b
 		LEFT JOIN request_broadcasts rb ON rb.booking_id = b.id
 		LEFT JOIN trips t ON t.booking_id = b.id
 		LEFT JOIN commerce_missions cm ON cm.booking_id = b.id
-		WHERE b.updated_at > $1 OR t.updated_at > $1
-		ORDER BY changed_at
-		LIMIT $2`, since, p.batch)
+		WHERE (b.updated_at > $1 OR t.updated_at > $1) AND b.id > $3::uuid
+		ORDER BY b.id
+		LIMIT $2`, since, p.batch, after)
 	if err != nil {
 		return events.EmissionResult{}, err
 	}
 	var (
 		summaries []events.MovementSummary
-		newest    = p.cursor
+		lastID    string
 	)
+	scanned := 0
 	for rows.Next() {
+		scanned++
 		var (
 			id, customerID, bookingStatus, tier                     string
 			pickupAddress, dropoffAddress                           string
@@ -112,24 +163,25 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 			cancelledAt, completedAt, startedAt, tripCompletedAt    *time.Time
 			broadcastStatus, tripStatus, parentOrderRef, missionRef string
 			changedAt                                               time.Time
+			deliveryChallenge                                       bool
+			returnState                                             string
 		)
 		if err = rows.Scan(&id, &customerID, &bookingStatus, &tier,
 			&pickupAddress, &pickupLat, &pickupLng, &dropoffAddress, &dropoffLat, &dropoffLng,
 			&cancelledAt, &completedAt, &broadcastStatus, &tripStatus, &startedAt, &tripCompletedAt,
-			&parentOrderRef, &missionRef, &changedAt); err != nil {
+			&parentOrderRef, &missionRef, &changedAt, &deliveryChallenge, &returnState); err != nil {
 			rows.Close()
 			return events.EmissionResult{}, err
 		}
-		if changedAt.After(newest) {
-			newest = changedAt
-		}
+		lastID = id
 		if completedAt == nil {
 			completedAt = tripCompletedAt
 		}
+		state := stateFor(tripStatus, bookingStatus, broadcastStatus, cancelledAt != nil)
 		summary := events.MovementSummary{
 			CustomerID: customerID, Authority: events.MovementAuthorityDispatch, SourceRef: id,
 			ProductCode: tier, MovementType: events.MovementTypeDispatch,
-			State:       stateFor(tripStatus, bookingStatus, broadcastStatus, cancelledAt != nil),
+			State: state, Stage: stageFor(state, tripStatus, deliveryChallenge, returnState),
 			Origin:      &events.PlaceSummary{Label: pickupAddress, Latitude: pickupLat, Longitude: pickupLng},
 			Destination: &events.PlaceSummary{Label: dropoffAddress, Latitude: dropoffLat, Longitude: dropoffLng},
 			StartedAt:   startedAt, CompletedAt: completedAt,
@@ -148,7 +200,10 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 	if err != nil {
 		return result, err
 	}
-	p.cursor = newest
+	p.after = lastID
+	if scanned < p.batch {
+		p.after = ""
+	}
 	return result, nil
 }
 

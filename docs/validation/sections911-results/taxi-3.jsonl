@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:00:39.0327963+02:00","Action":"start","Package":"cosmicforge/logistics/services/taxi-service/cmd/seed"}
+{"Time":"2026-09-27T16:00:39.0327963+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/cmd/seed","Output":"?   \tcosmicforge/logistics/services/taxi-service/cmd/seed\t[no test files]\n"}
+{"Time":"2026-09-27T16:00:39.0333103+02:00","Action":"skip","Package":"cosmicforge/logistics/services/taxi-service/cmd/seed","Elapsed":0.001}

@@ -85,7 +85,7 @@ func (r *PostgresRepository) claimAbandonedHolds(ctx context.Context, now time.T
 		SELECT b.id FROM dispatch_bookings b WHERE b.payment_status='unpaid' AND b.payment_method='wallet'
 		AND NOT EXISTS(SELECT 1 FROM dispatch_delivery_missions m WHERE m.booking_id=b.id)
 		AND NOT EXISTS(SELECT 1 FROM commerce_missions m WHERE m.booking_id=b.id)
-		AND (b.cancel_reason='payment_outcome_unknown' OR (b.status='searching' AND b.updated_at<$1-$5::interval
+		AND (b.cancel_reason='payment_outcome_unknown' OR (b.status='searching' AND b.updated_at<$1::timestamptz-$5::interval
 		AND NOT EXISTS(SELECT 1 FROM request_broadcasts rb WHERE rb.booking_id=b.id) AND NOT EXISTS(SELECT 1 FROM trips t WHERE t.booking_id=b.id)))
 		AND b.hold_reconciliation_state IN ('PENDING','UNKNOWN') AND b.hold_reconciliation_attempts<$4
 		AND b.hold_reconciliation_next_at<=$1 AND (b.hold_reconciliation_lease_expires_at IS NULL OR b.hold_reconciliation_lease_expires_at<=$1)

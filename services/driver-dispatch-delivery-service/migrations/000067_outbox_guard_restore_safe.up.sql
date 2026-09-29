@@ -1,0 +1,13 @@
+-- Customer V4 B21 restore drill finding.
+--
+-- dispatch_outbox_payload_is_safe(jsonb) backs the CHECK constraint
+-- dispatch_marketplace_outbox_secret_safe and calls itself recursively
+-- without a schema. pg_restore evaluates CHECK constraints during COPY with
+-- an EMPTY search_path, so a standard pg_dump of any database holding outbox
+-- rows could not be restored: the recursive call did not resolve and the
+-- restore aborted.
+--
+-- Pin the function's search_path to the schema this migration runs in. The
+-- function body and the constraint are unchanged; pg_dump preserves the
+-- setting, so the restored function resolves itself.
+ALTER FUNCTION dispatch_outbox_payload_is_safe(JSONB) SET search_path FROM CURRENT;

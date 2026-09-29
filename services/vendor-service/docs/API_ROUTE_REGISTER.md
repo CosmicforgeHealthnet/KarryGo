@@ -1945,3 +1945,27 @@ operational contracts; no public replay endpoint was introduced. The Section
 declarations without regeneration. Event and worker authority is recorded in
 `SECTION44_EVENT_PARITY.json`, `SECTION45_WORKER_CATALOGUE.json` and
 `SECTION44_45_TRACEABILITY.md`.
+
+## Customer journey sharing (Sections 9–11)
+
+| Method | Route | Boundary | Contract |
+|---|---|---|---|
+| GET | /internal/vendor/v1/customer-share/missions/{sourceRef} | HMAC v2; customer-service only; nonce replay guard | customer-share-mission-projection.openapi.json |
+
+Current inventory: 858 mounted routes; 868 OpenAPI declarations.
+
+## Karryam V4 §14 customer discovery and preview
+
+Customer access bearer only. CUSTOMER_FOOD_ENABLED/CUSTOMER_SHOP_ENABLED and matching COMMERCE flags are required; the global kill switch closes both. Shared per-customer Redis read budgets fail closed.
+
+| Method | Path | Authority |
+| --- | --- | --- |
+| GET | `/api/v1/commerce/food/branches/{branchId}/catalogue` | Customer bearer |
+| GET | `/api/v1/commerce/food/branches/{branchId}/items/{itemId}/sellability` | Customer bearer |
+| GET | `/api/v1/commerce/shop/branches/{branchId}/catalogue` | Customer bearer |
+| GET | `/api/v1/commerce/shop/branches/{branchId}/products/{productId}` | Customer bearer |
+| POST | `/api/v1/commerce/food/search` | Customer bearer |
+| GET | `/api/v1/commerce/food/search/suggestions` | Customer bearer |
+| POST | `/api/v1/commerce/shop/search` | Customer bearer |
+| GET | `/api/v1/commerce/shop/search/suggestions` | Customer bearer |
+| GET | `/api/v1/commerce/carts/{cartId}/delivery-preview` | Customer bearer |

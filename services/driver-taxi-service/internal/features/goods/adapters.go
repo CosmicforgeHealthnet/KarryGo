@@ -34,8 +34,8 @@ func (a *NotificationAdapter) NotifyDeliveryCredential(ctx context.Context, rece
 		SourceService:  taxiGoodsSourceService, EventType: notifications.EventBookingDeliveryCodeReady,
 		Recipient:    notifications.Recipient{Type: notifications.RecipientCustomer, ID: receiverRef},
 		TemplateKey:  notifications.EventBookingDeliveryCodeReady,
-		Data:         map[string]any{"mission_ref": missionRef, "challenge_ref": credential.ChallengeRef, "otp": credential.OTP, "qr_token": credential.QRToken, "expires_at": credential.ExpiresAt},
-		TemplateData: map[string]any{"mission_ref": missionRef, "challenge_ref": credential.ChallengeRef, "otp": credential.OTP, "qr_token": credential.QRToken, "expires_at": credential.ExpiresAt},
+		Data:         map[string]any{"mission_ref": missionRef, "challenge_ref": credential.ChallengeRef, "expires_at": credential.ExpiresAt},
+		TemplateData: map[string]any{"mission_ref": missionRef, "challenge_ref": credential.ChallengeRef, "expires_at": credential.ExpiresAt},
 	}
 	if a.publisher != nil {
 		return a.publisher.Publish(ctx, request)
@@ -54,8 +54,8 @@ func (a *NotificationAdapter) NotifyPickupCredential(ctx context.Context, provid
 		SourceService:  taxiGoodsSourceService, EventType: eventType,
 		Recipient:    notifications.Recipient{Type: notifications.RecipientProvider, ID: providerRef},
 		TemplateKey:  eventType,
-		Data:         map[string]any{"mission_ref": missionRef, "challenge_ref": credential.ChallengeRef, "otp": credential.OTP, "qr_token": credential.QRToken, "expires_at": credential.ExpiresAt},
-		TemplateData: map[string]any{"mission_ref": missionRef, "challenge_ref": credential.ChallengeRef, "otp": credential.OTP, "qr_token": credential.QRToken, "expires_at": credential.ExpiresAt},
+		Data:         map[string]any{"mission_ref": missionRef, "challenge_ref": credential.ChallengeRef, "expires_at": credential.ExpiresAt},
+		TemplateData: map[string]any{"mission_ref": missionRef, "challenge_ref": credential.ChallengeRef, "expires_at": credential.ExpiresAt},
 	}
 	if a.publisher != nil {
 		return a.publisher.Publish(ctx, request)

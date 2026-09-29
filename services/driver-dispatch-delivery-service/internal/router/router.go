@@ -2,6 +2,8 @@ package router
 
 import (
 	"context"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/customershare"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"fmt"
 	"log"
 	"math"
@@ -103,10 +105,10 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	}
 
 	engine := gin.New()
-	engine.Use(httpx.RequestID())
-	engine.Use(middleware.RequestLogger())
-	engine.Use(httpx.Recovery())
-	engine.Use(httpx.ErrorHandler())
+	engine.Use(httpx.RequestID(), middleware.RequestLogger(), httpx.Recovery(), httpx.ErrorHandler())
+	shareService := &customershare.Service{DB: db, Points: journeyshare.BoundPointStore{Client: redisClient, Namespace: "DISPATCH"}}
+	shareVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
+	customershare.Register(engine, shareService, authority.ServiceBoundary(shareVerifier, authority.NewPostgresNonceClaimer(db), []string{"customer-service"}), authority.ServiceBoundary(serviceauth.NewVerifier(serviceauth.Secrets{"vendor-service": cfg.VendorServiceSecret}, 5*time.Minute), authority.NewPostgresNonceClaimer(db), []string{"vendor-service"}))
 	if cfg.ProviderOrganizationModeEnabled {
 		engine.Use(apiresponse.ProviderPrivacy(providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)))
 	}
@@ -216,6 +218,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			availabilityRepository,
 			availabilityLiveStore,
 			availability.WithEventPublisher(availability.NewRedisEventPublisher(redisClient)),
+			availability.WithJourneyRecorder(shareService.Record),
 			availability.WithRestrictionGate(restrictionService),
 		),
 		authService.TokenUsecase(),
@@ -475,8 +478,10 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
 			vendorHandover.WithNotifier(notifications.Client{BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout}})
 		}
-		vendorownedhandover.Register(engine.Group("/api/v1/internal"), vendorownedhandover.NewHandler(vendorHandover),
+		vendorHandler := vendorownedhandover.NewHandler(vendorHandover)
+		vendorownedhandover.Register(engine.Group("/api/v1/internal"), vendorHandler,
 			serviceauth.NewVerifier(serviceauth.Secrets{"vendor-service": cfg.VendorServiceSecret}, 5*time.Minute), db)
+		vendorownedhandover.RegisterReceiverCredentialRead(engine, vendorHandler, sharedauth.NewTokenSigner(cfg.CustomerTokenSecret))
 	}
 	custodySecrets := serviceauth.Secrets{}
 	if len(cfg.VendorServiceSecret) > 0 {
@@ -610,6 +615,9 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	if bookingService != nil {
 		customerSigner := sharedauth.NewTokenSigner(cfg.CustomerTokenSecret)
 		bookingService.WithRolloutPolicy(rolloutPolicy)
+		// Customer tracking reuses the Share Journey trip-bound reader: only the
+		// current assignment's point, never the rider's global position.
+		bookingService.WithTripLocation(shareService)
 		bookingService.WithServiceabilityQuoteAuthority(
 			serviceability.NewRepository(db),
 			cfg.RouteServiceabilityEnabled && cfg.PackagePolicyEnabled,

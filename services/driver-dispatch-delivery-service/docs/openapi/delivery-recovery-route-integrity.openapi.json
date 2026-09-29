@@ -71,7 +71,12 @@
           "409": {
             "description": "Action or authority unavailable"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/provider/trips/{id}/breakdown": {
@@ -202,7 +207,12 @@
           "404": {
             "description": "Not found or not owned"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     }
   },
@@ -217,6 +227,14 @@
           "minLength": 1,
           "maxLength": 200
         }
+      }
+    },
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Customer Service access token; the customer is derived from the token, never from the request."
       }
     }
   }

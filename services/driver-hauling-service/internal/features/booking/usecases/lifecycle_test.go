@@ -29,7 +29,7 @@ func TestTripLifecycle_AdvancesThroughAllStages(t *testing.T) {
 	const provider = "p1"
 	const customer = "c1"
 	repo := newTrackingRepo(bookingmodels.Booking{
-		ID: "b1", CustomerID: customer, ProviderID: ptr(provider),
+		ID: "b1", CustomerID: customer, ReceiverCustomerID: customer, ProviderID: ptr(provider),
 		Status: bookingmodels.StatusAccepted,
 	})
 	svc := lifecycleService(repo)

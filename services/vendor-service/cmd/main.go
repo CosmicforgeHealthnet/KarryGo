@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/features/customershare"
+	"cosmicforge/logistics/shared/go/journeyshare"
+	"os"
 	"strings"
 	"time"
 
@@ -518,13 +521,51 @@ func main() {
 		publisher, err := events.NewHTTPPublisher(cfg.CustomerURL, sharedevents.CustomerMovementGroupingPath,
 			"vendor-service", []byte(cfg.CustomerSecret), 10*time.Second)
 		if err == nil {
-			worker := events.NewWorker(outboxRepo, publisher, events.WorkerConfig{
+			worker := events.NewWorker(outboxRepo, customerGroupingHTTPPublisher{inner: publisher}, events.WorkerConfig{
 				Owner: "vendor-customer-movement-grouping", EventType: sharedevents.CommerceGroupingEventName,
 			})
 			workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+			repair := &customerGroupingReconciler{publisher: &customerGroupingPublisher{db: db, outbox: outboxRepo}, baseURL: cfg.CustomerURL, secret: []byte(cfg.CustomerSecret)}
+			workers = append(workers, repair.Run)
+		}
+		// Customer V4 §22 purchase Activity row: same flag, same Customer
+		// endpoint and secret, its own worker and its own reconciliation.
+		movementPublisher, err := events.NewHTTPPublisher(cfg.CustomerURL, sharedevents.CustomerMovementIngressPath,
+			"vendor-service", []byte(cfg.CustomerSecret), 10*time.Second)
+		if err == nil {
+			worker := events.NewWorker(outboxRepo, customerOrderMovementHTTPPublisher{inner: movementPublisher}, events.WorkerConfig{
+				Owner: "vendor-customer-order-movement", EventType: orders.CustomerOrderMovementEvent,
+			})
+			workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+			orderRepair := &customerOrderMovementReconciler{db: db, outbox: outboxRepo, baseURL: cfg.CustomerURL, secret: []byte(cfg.CustomerSecret)}
+			workers = append(workers, orderRepair.Run)
 		}
 	}
+	if cfg.Flags.CustomerGroupingBackfillEnabled {
+		backfill := &customerGroupingPublisher{db: db, outbox: outboxRepo}
+		workers = append(workers, func(ctx context.Context) error {
+			runID := os.Getenv("VENDOR_CUSTOMER_GROUPING_BACKFILL_RUN_ID")
+			dryRun := os.Getenv("VENDOR_CUSTOMER_GROUPING_BACKFILL_APPLY") != "true"
+			cursor := ""
+			for {
+				_, next, done, err := backfill.BackfillBatch(ctx, runID, cursor, dryRun)
+				if err != nil {
+					return err
+				}
+				cursor = next
+				if done {
+					return nil
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(time.Second):
+				}
+			}
+		})
+	}
 	if cfg.AnalyticsURL != "" && cfg.AnalyticsSecret != "" {
+		// Other downstreams keep their own independently leased workers.
 		publisher, err := events.NewHTTPPublisher(
 			cfg.AnalyticsURL,
 			"/internal/analytics/v1/commerce-events",
@@ -819,6 +860,9 @@ func main() {
 	// Section 17D immutable quote lock. It freezes current checkout, product,
 	// fulfilment and funding evidence but performs no payment or order work.
 	quoteService := buildSection17DQuoteService(cfg, db, checkoutPromotionAdapter{service: promotionService, secret: cfg.Auth.OTPSecret})
+	if quoteService != nil && checkoutService != nil && fulfilmentService != nil {
+		quoteService.SetReplacementSourceAuthority(customer14ReplacementSource{db: db, checkout: checkoutService, planning: fulfilmentService})
+	}
 
 	// Section 17E order orchestration. It cuts one ParentOrder and its
 	// isolated VendorOrders from an approved quote. Composed with no Wallet
@@ -877,6 +921,16 @@ func main() {
 		if projection := newFulfilmentOperationsProjection(fulfilmentOpsService, db); projection != nil {
 			fulfilmentOpsProjection = projection
 			orderService.SetFulfilmentProjection(projection)
+		}
+		// Post-pick physical re-evaluation (Karryam V4 §14.6) uses THE same
+		// Section 17C planner checkout uses, so a packed load meets exactly the
+		// policy, capabilities and authorities its quote was built on.
+		if cfg.Flags.CommerceFulfilmentPlanningEnabled {
+			if planner, plannerErr := newSection17CPlanner(cfg, db, deliveryService); plannerErr == nil {
+				if evaluator := newPhysicalLoadEvaluator(db, planner); evaluator != nil {
+					orderService.SetPhysicalLoadEvaluator(evaluator)
+				}
+			}
 		}
 	}
 	fulfilmentOpsService.SetHybridFallbackAuthority(newVendorDeliveryRuntimeAuthority(
@@ -1370,7 +1424,13 @@ func main() {
 
 		},
 		RegisterRoot: func(router *gin.Engine) {
-			registerSection17ACustomerCartRoutes(
+			// Customer V4 §27.2: every customer commerce route below is
+			// registered after this, so each is measured by family/outcome.
+			router.Use(commerceRequestMetrics())
+			registerCustomerDiscoveryRoutes(router, cfg, foodService, shopService, section13Components, abuseLimiter)
+			shareService := &customershare.Service{DB: db, EnabledAuthorities: map[string]bool{"DISPATCH": cfg.Flags.DispatchCommerceIntegrationEnabled, "HAULING": cfg.Flags.HaulingCommerceIntegrationEnabled, "TAXI_GOODS": cfg.Flags.TaxiGoodsDeliveryEnabled, "VENDOR_OWN_DELIVERY": cfg.Flags.VendorOwnDeliveryEnabled}, Enabled: cfg.Flags.DispatchCommerceIntegrationEnabled || cfg.Flags.HaulingCommerceIntegrationEnabled || cfg.Flags.TaxiGoodsDeliveryEnabled || cfg.Flags.VendorOwnDeliveryEnabled, Logistics: &journeyshare.Client{Caller: "vendor-service", Endpoints: map[string]journeyshare.Endpoint{"DISPATCH": {BaseURL: cfg.DispatchURL, Secret: []byte(cfg.DispatchSecret)}, "HAULING": {BaseURL: cfg.HaulingURL, Secret: []byte(cfg.HaulingSecret)}, "TAXI_GOODS": {BaseURL: cfg.TaxiURL, Secret: []byte(cfg.TaxiSecret)}}, Paths: map[string]string{"DISPATCH": "/internal/dispatch/v1/commerce-share/missions/", "HAULING": "/internal/hauling/v1/commerce-share/missions/", "TAXI_GOODS": "/internal/taxi/v1/commerce-share/missions/"}}}
+			customershare.Register(router, shareService, journeyshare.RedisBoundary(inboundVerifier, redisClient, "customer-service"))
+			customerCartService := registerSection17ACustomerCartRoutes(
 				router,
 				cfg,
 				db,
@@ -1378,6 +1438,7 @@ func main() {
 				shopService,
 				idempotencyStore,
 			)
+			registerCartDeliveryPreview(router, cfg, customerCartService, newSection17BFoodAuthority(db, foodService), newSection17BShopAuthority(db, shopService, inventoryStockService), fulfilmentService, abuseLimiter)
 			registerSection17BCheckoutRoutes(
 				router,
 				cfg,
@@ -1434,6 +1495,10 @@ func main() {
 					"analytics-service":        true,
 				},
 			)
+			registerCommerceMetricsRoute(router, db, inboundVerifier, map[string]bool{
+				"admin-backoffice-service": true,
+				"analytics-service":        true,
+			})
 			orders.RegisterDispatchCommerceEventRoutes(router, orderService, inboundVerifier)
 			orders.RegisterSupportResolutionRoutes(router, orderService, inboundVerifier)
 			// Section 13 mounts two more internal-authority surfaces here: platform

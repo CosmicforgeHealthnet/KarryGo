@@ -134,6 +134,7 @@ func loadSection17EQuoteSource(
 		 WHERE q.id=$1 AND q.customer_id=$2
 		   AND q.expires_at>$3
 		   AND s.status='VALIDATED' AND s.failure_code=''
+		   AND s.replacement_source_session_id IS NULL
 		   AND s.validation_revision=q.checkout_validation_revision
 		   AND s.cart_id=q.cart_id AND s.cart_version=q.cart_version
 		   AND s.expires_at>$3
@@ -197,13 +198,13 @@ func loadSection17EQuoteSource(
 func loadSection17EReceiver(
 	ctx context.Context, q section17EQueryer, source *orders.QuoteSource,
 ) error {
-	var name, phone string
+	var name, phone, receiverCustomerID string
 	err := q.QueryRow(ctx, `
-		SELECT r.receiver_name,r.receiver_phone
+		SELECT r.receiver_name,r.receiver_phone,COALESCE(r.receiver_customer_id::text,'')
 		  FROM commerce_cart_receivers r
 		  JOIN commerce_carts c ON c.id=r.cart_id
 		 WHERE r.cart_id=$1 AND c.customer_id=$2 AND c.version=$3`,
-		source.CartID, source.CustomerID, source.CartVersion).Scan(&name, &phone)
+		source.CartID, source.CustomerID, source.CartVersion).Scan(&name, &phone, &receiverCustomerID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// No receiver is a normal purchase: the customer is the recipient.
 		return nil
@@ -212,7 +213,7 @@ func loadSection17EReceiver(
 		return err
 	}
 	source.HasReceiver = true
-	source.Receiver = orders.ReceiverSnapshot{ReceiverName: name, ReceiverPhone: phone}
+	source.Receiver = orders.ReceiverSnapshot{ReceiverName: name, ReceiverPhone: phone, ReceiverCustomerID: receiverCustomerID}
 	return nil
 }
 
@@ -351,6 +352,9 @@ func loadSection17ELines(
 			MaxAuthorizedTotalMinor int64  `json:"max_authorized_total_minor"`
 			InventoryItemRef        string `json:"inventory_item_ref"`
 			OnlinePriceDisclosure   string `json:"online_price_disclosure"`
+			SubstitutionPolicy      string `json:"substitution_policy"`
+			MeasurementMode         string `json:"measurement_mode"`
+			MeasurementBasis        string `json:"measurement_basis"`
 		}
 		if err = json.Unmarshal(raw, &snapshot); err != nil {
 			return nil, err
@@ -387,6 +391,9 @@ func loadSection17ELines(
 			InventoryRevision:       snapshot.InventoryRevision,
 			InventoryItemRef:        snapshot.InventoryItemRef,
 			OnlinePriceDisclosure:   snapshot.OnlinePriceDisclosure,
+			SubstitutionPolicy:      snapshot.SubstitutionPolicy,
+			MeasurementMode:         snapshot.MeasurementMode,
+			MeasurementBasis:        snapshot.MeasurementBasis,
 		})
 	}
 	return lines, rows.Err()

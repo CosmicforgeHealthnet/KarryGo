@@ -1,0 +1,12 @@
+{"Time":"2026-09-27T16:54:15.0799162+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/architecture"}
+{"Time":"2026-09-27T16:54:15.2025402+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/architecture","Test":"TestNoServiceImportsAnotherServicesCode"}
+{"Time":"2026-09-27T16:54:15.2025402+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/architecture","Test":"TestNoServiceImportsAnotherServicesCode","Output":"=== RUN   TestNoServiceImportsAnotherServicesCode\n"}
+{"Time":"2026-09-27T16:54:16.6446878+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/architecture","Test":"TestNoServiceImportsAnotherServicesCode","Output":"--- PASS: TestNoServiceImportsAnotherServicesCode (1.44s)\n"}
+{"Time":"2026-09-27T16:54:16.6446878+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/architecture","Test":"TestNoServiceImportsAnotherServicesCode","Elapsed":1.44}
+{"Time":"2026-09-27T16:54:16.6446878+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/architecture","Test":"TestNoServiceIsConfiguredWithAnotherServicesDatabase"}
+{"Time":"2026-09-27T16:54:16.6446878+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/architecture","Test":"TestNoServiceIsConfiguredWithAnotherServicesDatabase","Output":"=== RUN   TestNoServiceIsConfiguredWithAnotherServicesDatabase\n"}
+{"Time":"2026-09-27T16:54:17.1040059+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/architecture","Test":"TestNoServiceIsConfiguredWithAnotherServicesDatabase","Output":"--- PASS: TestNoServiceIsConfiguredWithAnotherServicesDatabase (0.46s)\n"}
+{"Time":"2026-09-27T16:54:17.1080702+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/architecture","Test":"TestNoServiceIsConfiguredWithAnotherServicesDatabase","Elapsed":0.46}
+{"Time":"2026-09-27T16:54:17.1080702+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/architecture","Output":"PASS\n"}
+{"Time":"2026-09-27T16:54:17.11033+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/architecture","Output":"ok  \tcosmicforge/logistics/shared/go/architecture\t2.030s\n"}
+{"Time":"2026-09-27T16:54:17.11033+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/architecture","Elapsed":2.03}

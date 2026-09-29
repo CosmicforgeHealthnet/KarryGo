@@ -12,7 +12,12 @@
           "200": {
             "description": "Pending substitution cases"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitution-cases/{caseId}": {
@@ -33,7 +38,12 @@
           "200": {
             "description": "Customer-scoped substitution case"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitution-cases/{caseId}/accept": {
@@ -76,7 +86,12 @@
           "200": {
             "description": "Accepted"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitution-cases/{caseId}/reject": {
@@ -119,7 +134,12 @@
           "200": {
             "description": "Rejected"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitutions/{proposalId}": {
@@ -140,7 +160,12 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitutions/{proposalId}/approve": {
@@ -183,7 +208,12 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/commerce/substitutions/{proposalId}/reject": {
@@ -226,7 +256,12 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
       }
     },
     "/api/v1/vendor/commerce/orders/{vendorOrderId}/delivered": {
@@ -989,6 +1024,16 @@
             "description": "Caller or mission forbidden"
           }
         }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Customer Service access token; the customer is derived from the token, never from the request."
       }
     }
   }

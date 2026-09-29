@@ -104,11 +104,12 @@ func cancelCommerceMission(ctx context.Context, client *commercemission.Client, 
 
 func haulingMissionRequest(request orders.MissionRequest) (commercemission.Request, error) {
 	payload := commercemission.Request{
-		MissionRef:      request.MissionRef,
-		OperationRef:    request.MissionRef,
-		ParentOrderRef:  request.ParentOrderID,
-		VendorOrderRefs: request.VendorOrderIDs,
-		CustomerRef:     request.CustomerID,
+		MissionRef:          request.MissionRef,
+		OperationRef:        request.MissionRef,
+		ParentOrderRef:      request.ParentOrderID,
+		VendorOrderRefs:     request.VendorOrderIDs,
+		CustomerRef:         request.CustomerID,
+		ReceiverCustomerRef: receiverAccountRef(request),
 		// The canonical spelling goes on the wire. A plan row carrying the
 		// product name TAXI_GOODS names the same authority as one carrying
 		// TAXI, and the shared contract only accepts the latter -- normalizing
@@ -134,14 +135,13 @@ func haulingMissionRequest(request orders.MissionRequest) (commercemission.Reque
 		AgreedFeeMinor: request.AgreedFeeMinor,
 		RequestedAt:    time.Now().UTC(),
 	}
+
 	if request.Execution == nil {
-		payload.Pickup = commercemission.Point{
-			Ref:       request.PickupBranch,
-			Address:   "Vendor branch " + request.PickupBranch,
-			Latitude:  request.DeliveryAddress.Latitude,
-			Longitude: request.DeliveryAddress.Longitude,
-		}
-		return payload, nil
+		// Without the frozen execution evidence there is no authoritative
+		// branch pickup location. The old fallback put the pickup at the
+		// customer's own coordinates, which sends a driver to the wrong place;
+		// refuse instead, exactly as the Dispatch adapter does.
+		return commercemission.Request{}, fmt.Errorf("%w: immutable fulfilment execution is unavailable", commercemission.ErrInvalidRequest)
 	}
 
 	execution := request.Execution
@@ -211,6 +211,13 @@ func haulingMissionRequest(request orders.MissionRequest) (commercemission.Reque
 	payload.Load.Description = "Commerce fulfilment manifest " + execution.PlanRef
 	payload.Vehicle = commercemission.VehicleRequirement{Class: commercemission.VehicleClass(request.VehicleClass)}
 	return payload, nil
+}
+
+func receiverAccountRef(request orders.MissionRequest) string {
+	if request.Receiver.ReceiverName == "" && request.Receiver.ReceiverPhone == "" {
+		return request.CustomerID
+	}
+	return request.Receiver.ReceiverCustomerID
 }
 
 func haulingMissionResult(mission commercemission.Mission) orders.MissionResult {

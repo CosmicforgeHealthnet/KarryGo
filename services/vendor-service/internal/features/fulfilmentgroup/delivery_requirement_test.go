@@ -60,17 +60,23 @@ func TestRequirementDecision_RejectsAHalfWrittenDecision(t *testing.T) {
 	}
 }
 
-// THE TAXI GATE, restated where a plan is written.
+// THE CAR GATE, restated where a plan is written.
 //
-// driver-taxi-service has no goods-delivery mode. A stored row claiming a car
-// executed a delivery would be a delivery nobody performed, and it would be
-// believed by everyone who read it afterwards.
+// Taxi Goods (Section 29) is the only authority that executes a car. A stored
+// row claiming a car was executed by anyone else would be a delivery nobody
+// performed, and it would be believed by everyone who read it afterwards.
 func TestRequirementDecision_RefusesAnExecutedCar(t *testing.T) {
 	decision := validDecision()
 	decision.SelectedVehicleClass = "CAR"
 
+	// A car claimed by a non-Taxi authority is refused...
 	if err := decision.Validate(); !errors.Is(err, ErrConflict) {
-		t.Fatalf("a car was accepted as an executed class: %v", err)
+		t.Fatalf("a car was accepted under %s: %v", decision.SelectedService, err)
+	}
+	// ...while Taxi Goods, the car executor since Section 29, is accepted.
+	decision.SelectedService = "TAXI"
+	if err := decision.Validate(); err != nil {
+		t.Fatalf("a Taxi Goods car execution was refused: %v", err)
 	}
 }
 

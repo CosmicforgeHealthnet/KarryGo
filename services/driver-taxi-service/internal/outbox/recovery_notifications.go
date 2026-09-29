@@ -57,12 +57,45 @@ func (d RecoveryNotificationDestination) Deliver(ctx context.Context, record Rec
 		// Could not read who to tell: retryable, the fact is not lost.
 		return err
 	}
-	for _, intent := range RecoveryIntents(record, audience) {
+	intents := RecoveryIntents(record, audience)
+	if strings.HasPrefix(record.EventType, "taxi.booking.") {
+		intents = RideLifecycleIntents(record, audience)
+	}
+	for _, intent := range intents {
 		if err = d.Publisher.Publish(ctx, notifications.NetworkRequest("driver-taxi-service", intent)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// RideLifecycleIntents announces committed passenger-ride milestones. The
+// outbox row supplies the immutable fact; Taxi's booking row supplies the
+// customer. No event payload or contact/driver detail is forwarded.
+func RideLifecycleIntents(record Record, audience RecoveryAudience) []notifications.NetworkIntent {
+	if audience.Goods || audience.CustomerID == "" {
+		return nil
+	}
+	var event string
+	switch record.EventType {
+	case EventBookingAccepted, EventBookingEnRoutePickup, EventBookingArrived, EventBookingStarted,
+		EventBookingCompleted, EventBookingCancelled,
+		"taxi.booking.auto_completed", "taxi.booking.admin_cancelled":
+		event = record.EventType
+	default:
+		return nil
+	}
+	source := record.IdempotencyKey
+	if source == "" {
+		source = record.ID
+	}
+	return []notifications.NetworkIntent{{
+		EventType: event, RecipientType: notifications.RecipientCustomer,
+		RecipientID: audience.CustomerID, SourceEventID: source,
+		SourceAggregateType: record.AggregateType, SourceAggregateID: record.AggregateID,
+		Data:     map[string]interface{}{"booking_id": record.AggregateID},
+		Priority: notifications.PriorityNormal,
+	}}
 }
 
 // RecoveryIntents maps one committed recovery fact to its notifications.

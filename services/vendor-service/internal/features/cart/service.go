@@ -20,6 +20,25 @@ type Service struct {
 	addresses CustomerAddressAuthority
 	events    EventPublisher
 	now       func() time.Time
+	// domainEnabled is the server-side public Food/Shop contract gate
+	// (Karryam V4 §24: CUSTOMER_FOOD_ENABLED / CUSTOMER_SHOP_ENABLED). nil
+	// means ungated, which only tests and pre-gate callers use.
+	domainEnabled func(Domain) bool
+}
+
+// WithDomainGate installs the public Food/Shop contract gate. A disabled
+// domain refuses new carts and new lines even from an outdated or malicious
+// client; existing carts stay readable so the customer can see what they had.
+func (s *Service) WithDomainGate(enabled func(Domain) bool) *Service {
+	s.domainEnabled = enabled
+	return s
+}
+
+func (s *Service) domainOpen(domain Domain) error {
+	if s.domainEnabled != nil && !s.domainEnabled(domain) {
+		return ErrDomainDisabled
+	}
+	return nil
 }
 
 func NewService(
@@ -246,6 +265,10 @@ func (s *Service) CreateOrGetActiveCart(
 		return Cart{}, ErrInvalidDomain
 	}
 
+	if err = s.domainOpen(domain); err != nil {
+		return Cart{}, err
+	}
+
 	if err = s.expireLiveCart(
 		ctx,
 		customerID,
@@ -397,7 +420,9 @@ func (s *Service) GetCart(
 		return Cart{}, err
 	}
 
-	tx, err := s.store.db.Begin(ctx)
+	// Preview and ordinary reads must see one coherent version of the header,
+	// lines, recipient and address while cart commands commit concurrently.
+	tx, err := s.store.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return Cart{}, err
 	}
@@ -564,6 +589,15 @@ func (s *Service) AddItem(
 		return Cart{}, err
 	}
 
+	substitutionPolicy, err := NormalizeSubstitutionPolicy(
+		current.Domain,
+		input.SubstitutionPolicy,
+	)
+
+	if err != nil {
+		return Cart{}, err
+	}
+
 	tx, err := s.store.db.Begin(ctx)
 
 	if err != nil {
@@ -599,6 +633,10 @@ func (s *Service) AddItem(
 
 	if validated.Domain != cart.Domain {
 		return Cart{}, ErrDomainConflict
+	}
+
+	if err = s.domainOpen(cart.Domain); err != nil {
+		return Cart{}, err
 	}
 
 	if cart.Domain == DomainFood {
@@ -662,6 +700,7 @@ func (s *Service) AddItem(
             logistics_profile_ref,
             estimated_weight_grams,
             temperature_zone,
+            substitution_policy,
             version
         )
         VALUES(
@@ -678,6 +717,7 @@ func (s *Service) AddItem(
             NULLIF($24,''),
             $25,
             NULLIF($26,''),
+            $27,
             1
         )
         `,
@@ -707,6 +747,7 @@ func (s *Service) AddItem(
 		validated.LogisticsProfileRef,
 		validated.EstimatedWeightGrams,
 		validated.TemperatureZone,
+		substitutionPolicy,
 	)
 
 	if err != nil {
@@ -1401,18 +1442,21 @@ func (s *Service) SetReceiver(
         INSERT INTO commerce_cart_receivers(
             cart_id,
             receiver_name,
-            receiver_phone
+            receiver_phone,
+            receiver_customer_id
         )
-        VALUES($1,$2,$3)
+        VALUES($1,$2,$3,NULLIF($4,'')::uuid)
         ON CONFLICT (cart_id)
         DO UPDATE SET
             receiver_name=EXCLUDED.receiver_name,
             receiver_phone=EXCLUDED.receiver_phone,
+            receiver_customer_id=EXCLUDED.receiver_customer_id,
             updated_at=now()
         `,
 		cart.ID,
 		receiver.Name,
 		receiver.Phone,
+		receiver.CustomerID,
 	)
 
 	if err != nil {

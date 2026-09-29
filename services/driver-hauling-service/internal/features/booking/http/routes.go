@@ -47,6 +47,7 @@ func RegisterBookingRoutes(
 	customerGroup.GET("/bookings/:id/review", handler.GetCustomerBookingReview)
 	customerGroup.POST("/bookings/:id/verify-driver", handler.VerifyDriverAtPickup)
 	customerGroup.GET("/bookings/:id/verification-code", handler.GetVerificationCode)
+	RegisterReceiverCredentialRoute(customerGroup, handler)
 	customerGroup.POST("/bookings/:id/verification-code/resend", handler.ResendVerificationCode)
 	customerGroup.GET("/providers/:id", handler.GetPublicProvider)
 	customerGroup.GET("/trucks/:id", handler.GetPublicTruck)
@@ -68,4 +69,8 @@ func RegisterBookingRoutes(
 	providerGroup.PUT("/bookings/:id/en-route-delivery", handler.MarkEnRouteDelivery)
 	providerGroup.PUT("/bookings/:id/delivered", handler.ConfirmDelivery)
 	providerGroup.PUT("/bookings/:id/cancel", handler.CancelByProvider)
+}
+
+func RegisterReceiverCredentialRoute(customerGroup *gin.RouterGroup, handler *BookingHandler) {
+	customerGroup.GET("/receivers/bookings/:id/credentials/:challengeRef", handler.ReadReceiverCredential)
 }

@@ -133,16 +133,16 @@ func (r *Repository) CreateMissionWithBooking(ctx context.Context, input CreateI
 			dropoff_address,dropoff_lat,dropoff_lng,
 			cargo_type,cargo_weight_kg,cargo_description,
 			fare_estimate_kobo,fare_final_kobo,payment_intent_id,status,
-			preferred_truck_type,scheduled_at,receiver_name,receiver_phone)
+			preferred_truck_type,scheduled_at,receiver_name,receiver_phone,receiver_customer_id)
 		VALUES($1::uuid,$2,$3,$4,$5,$6,$7,'general',$8,$9,$10,$10,$11,'pending_match',
-		       $12,$13,$14,$15)
+		       $12,$13,$14,$15,NULLIF($16,'')::uuid)
 		RETURNING id::text`,
 		request.CustomerRef,
 		pickup.Address, pickup.Latitude, pickup.Longitude,
 		request.Dropoff.Address, request.Dropoff.Latitude, request.Dropoff.Longitude,
 		cargoWeightKg(request.Load.WeightGrams), cargoDescription(request),
 		request.AgreedFeeMinor, request.ParentOrderRef, preferredTruckType(request),
-		scheduledAt(request), receiverName(request), request.Dropoff.Phone).Scan(&bookingID); err != nil {
+		scheduledAt(request), receiverName(request), request.Dropoff.Phone, request.ReceiverCustomerRef).Scan(&bookingID); err != nil {
 		return Record{}, err
 	}
 
@@ -179,10 +179,10 @@ func (r *Repository) MarkRefused(ctx context.Context, input RefusalInput) (Recor
 			dropoff_address,dropoff_lat,dropoff_lng,
 			cargo_type,cargo_weight_kg,cargo_description,
 			fare_estimate_kobo,fare_final_kobo,payment_intent_id,status,
-			preferred_truck_type,scheduled_at,receiver_name,receiver_phone,
+			preferred_truck_type,scheduled_at,receiver_name,receiver_phone,receiver_customer_id,
 			cancel_reason,cancelled_by,cancelled_at)
 		VALUES($1::uuid,$2,$3,$4,$5,$6,$7,'general',$8,$9,$10,$10,$11,'cancelled',
-		       $12,$13,$14,$15,$16,'platform',$17)
+		       $12,$13,$14,$15,NULLIF($18,'')::uuid,$16,'platform',$17)
 		RETURNING id::text`,
 		request.CustomerRef,
 		pickup.Address, pickup.Latitude, pickup.Longitude,
@@ -190,7 +190,7 @@ func (r *Repository) MarkRefused(ctx context.Context, input RefusalInput) (Recor
 		cargoWeightKg(request.Load.WeightGrams), cargoDescription(request),
 		request.AgreedFeeMinor, request.ParentOrderRef, preferredTruckType(request),
 		scheduledAt(request), receiverName(request), request.Dropoff.Phone,
-		input.RefusalCode, input.CreatedAt).Scan(&bookingID); err != nil {
+		input.RefusalCode, input.CreatedAt, request.ReceiverCustomerRef).Scan(&bookingID); err != nil {
 		return Record{}, err
 	}
 
