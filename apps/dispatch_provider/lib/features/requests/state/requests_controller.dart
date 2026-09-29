@@ -3,15 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
+import '../../../core/app_mode.dart';
+import '../../home/mock/dispatch_home_mock.dart';
 import '../data/request_model.dart';
 import '../data/requests_api.dart';
 
 class RequestsController extends ChangeNotifier {
   final RequestsApi api;
   final String? Function() getAccessToken;
-
-  /// When set, the periodic poll only fetches while this returns true (used to
-  /// gate polling on the rider being online).
   final bool Function()? shouldPoll;
 
   List<RequestModel> _requests = [];
@@ -20,12 +19,6 @@ class RequestsController extends ChangeNotifier {
   String? _error;
 
   Timer? _pollTimer;
-
-  /// Guards the request poll: one fetch in flight at a time, and a response
-  /// started before a local mutation (accept/reject) is dropped — otherwise a
-  /// poll that began just before an accept can land after it and revive the
-  /// just-accepted request in the pending list. Mirrors the truck provider's
-  /// home controller pattern.
   bool _pollInFlight = false;
   int _stateGeneration = 0;
 
@@ -46,10 +39,8 @@ class RequestsController extends ChangeNotifier {
 
   String? _token() => getAccessToken();
 
-  // ── Periodic polling (new-request delivery) ───────────────────────────────
+  // ── Polling ───────────────────────────────────────────────────────────────
 
-  /// Starts the 4-second inbox poll. Idempotent. The poll is the safety net;
-  /// realtime websocket / FCM pushes call [pokeRefresh] for immediacy.
   void startPolling() {
     if (_pollTimer != null) return;
     _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => _pollTick());
@@ -61,14 +52,13 @@ class RequestsController extends ChangeNotifier {
     _pollTimer = null;
   }
 
-  /// Fast-path poke (realtime event or foreground FCM push): refresh the inbox
-  /// immediately instead of waiting for the next tick.
   void pokeRefresh() {
     if (_pollTimer == null) return;
     _pollTick();
   }
 
   Future<void> _pollTick() async {
+    if (AppModeConfig.instance.isMock) return;
     if (_pollInFlight) return;
     if (shouldPoll != null && !shouldPoll!()) return;
     final token = _token();
@@ -77,17 +67,10 @@ class RequestsController extends ChangeNotifier {
     _pollInFlight = true;
     final generation = _stateGeneration;
     try {
-      final result = await api.listRequests(accessToken: token);
-      if (generation != _stateGeneration) return; // stale — a mutation landed
-      result.when(
-        success: (list) {
-          _requests = list;
-          notifyListeners();
-        },
-        failure: (err) {
-          _debugLog('[REQUESTS] poll failed: ${err.message}');
-        },
-      );
+      final merged = await _fetchAll(token);
+      if (generation != _stateGeneration) return;
+      _requests = merged;
+      notifyListeners();
     } finally {
       _pollInFlight = false;
     }
@@ -98,9 +81,18 @@ class RequestsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Load all pending requests ─────────────────────────────────────────────
+  // ── Load ──────────────────────────────────────────────────────────────────
 
   Future<ApiResult<List<RequestModel>>> loadRequests() async {
+    if (AppModeConfig.instance.isMock) {
+      _requests = DispatchHomeMock.isOnline
+          ? List<RequestModel>.from(DispatchHomeMock.pendingRequests)
+          : <RequestModel>[];
+      _error = null;
+      notifyListeners();
+      return ApiSuccess(_requests);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) {
       return ApiFailure(
@@ -114,23 +106,59 @@ class RequestsController extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    final result = await api.listRequests(accessToken: token);
-    result.when(
-      success: (list) {
-        _requests = list;
-        _debugLog('[REQUESTS] loaded ${list.length} request(s)');
-      },
-      failure: (err) {
-        _error = err.message;
-        _debugLog('[REQUESTS] loadRequests failed: ${err.message}');
-      },
-    );
+    final merged = await _fetchAll(token);
+    _requests = merged;
     _isLoading = false;
     notifyListeners();
-    return result;
+    return ApiSuccess(merged);
   }
 
-  // ── Load single request ───────────────────────────────────────────────────
+  /// Fetch all four sources in parallel. Fail-open per source: a 404 or 503
+  /// from one endpoint (flag off) leaves that source empty without breaking
+  /// the others.
+  Future<List<RequestModel>> _fetchAll(String token) async {
+    final results = await Future.wait<ApiResult<List<RequestModel>>>([
+      api.listBroadcasts(accessToken: token),
+      api.listAssignmentOffers(accessToken: token),
+      api.listOrganizationOffers(accessToken: token),
+      api.listCompanyAssignments(accessToken: token),
+    ]);
+
+    final merged = <RequestModel>[];
+    for (final result in results) {
+      result.when(
+        success: (list) => merged.addAll(list),
+        failure: (err) {
+          // 404 / 503 are the "flag off" signals — treat as empty, not error.
+          if (err.statusCode != 404 && err.statusCode != 503) {
+            _debugLog('[REQUESTS] source failed: ${err.message}');
+          }
+        },
+      );
+    }
+
+    // Stable ordering: assignments first (directed at you), then commerce,
+    // then broadcast. Within a group, soonest-to-expire first.
+    merged.sort((a, b) {
+      final cmp = _sourceRank(a.source).compareTo(_sourceRank(b.source));
+      if (cmp != 0) return cmp;
+      final ae = a.expiresAt;
+      final be = b.expiresAt;
+      if (ae == null && be == null) return 0;
+      if (ae == null) return 1;
+      if (be == null) return -1;
+      return ae.compareTo(be);
+    });
+    return merged;
+  }
+
+  static int _sourceRank(RequestSource s) => switch (s) {
+        RequestSource.assignment => 0,
+        RequestSource.commerce => 1,
+        RequestSource.broadcast => 2,
+      };
+
+  // ── Single fetch ──────────────────────────────────────────────────────────
 
   Future<ApiResult<RequestModel>> loadRequest(String id) async {
     final token = _token();
@@ -142,26 +170,32 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    final result = await api.getRequest(accessToken: token, id: id);
-    result.when(
-      success: (req) {
-        final idx = _requests.indexWhere((r) => r.id == req.id);
-        if (idx >= 0) {
-          _requests = [..._requests]..[idx] = req;
-        }
-        _debugLog('[REQUESTS] loadRequest $id ok');
-        notifyListeners();
-      },
-      failure: (err) {
-        _debugLog('[REQUESTS] loadRequest $id failed: ${err.message}');
-      },
-    );
-    return result;
+    // Broadcast is the only source with a per-item detail endpoint we
+    // currently call. Others return a list-only view; we serve from cache.
+    final existing = _requests.where((r) => r.id == id).firstOrNull;
+    if (existing == null) {
+      return ApiFailure(
+        const ApiException(
+          code: ApiErrorCode.notFound,
+          message: 'Request not found.',
+        ),
+      );
+    }
+    return ApiSuccess(existing);
   }
 
-  // ── Accept request ────────────────────────────────────────────────────────
+  // ── Accept ────────────────────────────────────────────────────────────────
 
-  Future<ApiResult<bool>> accept(String id) async {
+  Future<ApiResult<bool>> accept(RequestModel request) async {
+    if (AppModeConfig.instance.isMock) {
+      _activeRequest = request;
+      _requests = _requests.where((r) => r.id != request.id).toList();
+      DispatchHomeMock.pendingRequests = List<RequestModel>.from(_requests);
+      DispatchHomeMock.activeTrip = DispatchHomeMock.tripFromRequest(request);
+      notifyListeners();
+      return const ApiSuccess(true);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) {
       return ApiFailure(
@@ -171,28 +205,31 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    _debugLog('[REQUESTS] accepting $id');
-    final result = await api.acceptRequest(accessToken: token, id: id);
+    _debugLog('[REQUESTS] accepting ${request.source.label} ${request.id}');
+    final result = await api.accept(accessToken: token, request: request);
     result.when(
       success: (_) {
-        _stateGeneration++; // drop any in-flight poll fetched pre-accept
-        final req = _requests.where((r) => r.id == id).firstOrNull;
-        _activeRequest = req;
-        // Remove from pending list — it's now an active trip.
-        _requests = _requests.where((r) => r.id != id).toList();
-        _debugLog('[REQUESTS] accepted $id — activeRequest set');
+        _stateGeneration++;
+        _activeRequest = request;
+        _requests = _requests.where((r) => r.id != request.id).toList();
         notifyListeners();
       },
-      failure: (err) {
-        _debugLog('[REQUESTS] accept $id failed: ${err.message}');
-      },
+      failure: (err) =>
+          _debugLog('[REQUESTS] accept ${request.id} failed: ${err.message}'),
     );
     return result;
   }
 
-  // ── Reject request ────────────────────────────────────────────────────────
+  // ── Reject / decline ──────────────────────────────────────────────────────
 
-  Future<ApiResult<bool>> reject(String id, String reason) async {
+  Future<ApiResult<bool>> reject(RequestModel request, String reason) async {
+    if (AppModeConfig.instance.isMock) {
+      _requests = _requests.where((r) => r.id != request.id).toList();
+      DispatchHomeMock.pendingRequests = List<RequestModel>.from(_requests);
+      notifyListeners();
+      return const ApiSuccess(true);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) {
       return ApiFailure(
@@ -202,27 +239,23 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    _debugLog('[REQUESTS] rejecting $id reason="$reason"');
-    final result = await api.rejectRequest(
+    _debugLog('[REQUESTS] rejecting ${request.source.label} ${request.id}');
+    final result = await api.reject(
       accessToken: token,
-      id: id,
+      request: request,
       reason: reason,
     );
     result.when(
       success: (_) {
-        _stateGeneration++; // drop any in-flight poll fetched pre-reject
-        _requests = _requests.where((r) => r.id != id).toList();
-        _debugLog('[REQUESTS] rejected $id — removed from list');
+        _stateGeneration++;
+        _requests = _requests.where((r) => r.id != request.id).toList();
         notifyListeners();
       },
-      failure: (err) {
-        _debugLog('[REQUESTS] reject $id failed: ${err.message}');
-      },
+      failure: (err) =>
+          _debugLog('[REQUESTS] reject ${request.id} failed: ${err.message}'),
     );
     return result;
   }
-
-  // ── Clear active request (e.g. after trip completed) ─────────────────────
 
   void clearActiveRequest() {
     _activeRequest = null;

@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
+import '../../../core/app_mode.dart';
+import '../../home/mock/dispatch_home_mock.dart';
 import '../data/trip_model.dart';
 import '../data/trips_api.dart';
+import '../mock/trips_tab_mock.dart';
 
 class TripsController extends ChangeNotifier {
   final TripsApi api;
@@ -19,10 +22,14 @@ class TripsController extends ChangeNotifier {
   Timer? _activePollTimer;
   bool _activePollInFlight = false;
 
-  /// The rider's own pickup credential — shown once arrived at pickup,
-  /// cleared once the trip advances past pickup.
   PickupCredential? _pickupCredential;
   bool _isResendingPickupCredential = false;
+
+  /// Polls `/trips/:id/pickup-credential` while the rider is at pickup, so the
+  /// "Start Trip" gate flips to enabled the moment the customer scans their
+  /// pickup code. Stopped when the credential reports `verified=true`, when
+  /// the trip leaves `arrived_pickup`, or on dispose.
+  Timer? _pickupCredentialPollTimer;
 
   List<TripModel> get trips => List.unmodifiable(_trips);
   TripModel? get activeTrip => _activeTrip;
@@ -42,9 +49,6 @@ class TripsController extends ChangeNotifier {
 
   // ── Active-trip polling ───────────────────────────────────────────────────
 
-  /// Refreshes the active trip every 6 seconds so an accept elsewhere (or a
-  /// customer cancel) surfaces without a manual refresh. Idempotent; the
-  /// realtime websocket / FCM pushes call [pokeRefresh] for immediacy.
   void startActivePolling() {
     if (_activePollTimer != null) return;
     _activePollTimer = Timer.periodic(
@@ -58,18 +62,16 @@ class TripsController extends ChangeNotifier {
     _activePollTimer = null;
   }
 
-  /// Fast-path poke (realtime event or foreground FCM push).
   void pokeRefresh() {
     if (_activePollTimer == null) return;
     _activePollTick();
   }
 
   Future<void> _activePollTick() async {
+    if (AppModeConfig.instance.isMock) return;
     if (_activePollInFlight) return;
     final token = _token();
     if (token == null || token.isEmpty) return;
-    // Skip while a trip action (arrive/start/complete) is running to avoid
-    // clobbering the optimistic transition with a pre-action snapshot.
     if (_isActionLoading) return;
     _activePollInFlight = true;
     try {
@@ -94,6 +96,18 @@ class TripsController extends ChangeNotifier {
   // ── Load all trips ────────────────────────────────────────────────────────
 
   Future<ApiResult<List<TripModel>>> loadTrips() async {
+    if (AppModeConfig.instance.isMock) {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      await Future.delayed(const Duration(milliseconds: 300));
+      _trips = TripsTabMock.seed();
+      _isLoading = false;
+      notifyListeners();
+      return ApiSuccess(_trips);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
@@ -120,6 +134,12 @@ class TripsController extends ChangeNotifier {
   // ── Load active trip ──────────────────────────────────────────────────────
 
   Future<ApiResult<TripModel?>> loadActiveTrip() async {
+    if (AppModeConfig.instance.isMock) {
+      _activeTrip = DispatchHomeMock.activeTrip;
+      notifyListeners();
+      return ApiSuccess(_activeTrip);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
@@ -127,6 +147,9 @@ class TripsController extends ChangeNotifier {
     result.when(
       success: (trip) {
         _activeTrip = trip;
+        if (trip?.statusCode != TripStatusCode.arrivedPickup) {
+          _stopPickupCredentialPolling();
+        }
         _debugLog('[TRIPS] activeTrip=${trip?.id ?? 'none'}');
         notifyListeners();
       },
@@ -163,6 +186,28 @@ class TripsController extends ChangeNotifier {
   // ── Mark arrived ──────────────────────────────────────────────────────────
 
   Future<ApiResult<PickupCredential>> markArrived(String id) async {
+    if (AppModeConfig.instance.isMock) {
+      _isActionLoading = true;
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 600));
+
+      final trip = DispatchHomeMock.activeTrip;
+      if (trip != null) {
+        DispatchHomeMock.activeTrip = DispatchHomeMock.advanceTrip(
+          trip,
+          TripStatusCode.arrivedPickup,
+        );
+        _activeTrip = DispatchHomeMock.activeTrip;
+      }
+      _pickupCredential = PickupCredential(
+        code: '482913',
+        expiresAt: DateTime.now().add(const Duration(minutes: 10)),
+      );
+      _isActionLoading = false;
+      notifyListeners();
+      return ApiSuccess(_pickupCredential!);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
@@ -173,6 +218,9 @@ class TripsController extends ChangeNotifier {
     result.when(
       success: (credential) {
         _pickupCredential = credential;
+        if (!credential.verified) {
+          _startPickupCredentialPolling(id);
+        }
         _debugLog('[TRIPS] markArrived $id ok');
       },
       failure: (err) =>
@@ -183,8 +231,6 @@ class TripsController extends ChangeNotifier {
     return result;
   }
 
-  /// Refetches the rider's own pickup credential (e.g. after navigating away
-  /// from the arrived-at-pickup screen and back).
   Future<void> fetchPickupCredential(String id) async {
     final token = _token();
     if (token == null || token.isEmpty) return;
@@ -193,13 +239,16 @@ class TripsController extends ChangeNotifier {
       success: (credential) {
         _pickupCredential = credential;
         notifyListeners();
+        if (!credential.verified) {
+          _startPickupCredentialPolling(id);
+        } else {
+          _stopPickupCredentialPolling();
+        }
       },
       failure: (_) {},
     );
   }
 
-  /// Regenerates the rider's own pickup credential (e.g. it expired before
-  /// the customer could verify it).
   Future<void> resendPickupCredential(String id) async {
     final token = _token();
     if (token == null || token.isEmpty) return;
@@ -207,16 +256,87 @@ class TripsController extends ChangeNotifier {
     notifyListeners();
     final result = await api.resendPickupCredential(accessToken: token, id: id);
     result.when(
-      success: (credential) => _pickupCredential = credential,
+      success: (credential) {
+        _pickupCredential = credential;
+        _startPickupCredentialPolling(id);
+      },
       failure: (err) => _error = err.message,
     );
     _isResendingPickupCredential = false;
     notifyListeners();
   }
 
+  // ── Pickup-credential verification watch ──────────────────────────────────
+
+  void _startPickupCredentialPolling(String tripId) {
+    _pickupCredentialPollTimer?.cancel();
+    _pickupCredentialPollTimer = Timer.periodic(
+      const Duration(seconds: 4),
+      (_) => _pollPickupCredential(tripId),
+    );
+    _debugLog('[TRIPS] pickup-credential watch started trip=$tripId');
+  }
+
+  void _stopPickupCredentialPolling() {
+    if (_pickupCredentialPollTimer == null) return;
+    _pickupCredentialPollTimer?.cancel();
+    _pickupCredentialPollTimer = null;
+    _debugLog('[TRIPS] pickup-credential watch stopped');
+  }
+
+  Future<void> _pollPickupCredential(String tripId) async {
+    final active = _activeTrip;
+    if (active == null ||
+        active.id != tripId ||
+        active.statusCode != TripStatusCode.arrivedPickup) {
+      _stopPickupCredentialPolling();
+      return;
+    }
+
+    final token = _token();
+    if (token == null || token.isEmpty) return;
+
+    final result = await api.getPickupCredential(accessToken: token, id: tripId);
+    result.when(
+      success: (credential) {
+        final prev = _pickupCredential;
+        final changed = prev?.verified != credential.verified ||
+            prev?.code != credential.code ||
+            prev?.expiresAt != credential.expiresAt;
+        _pickupCredential = credential;
+        if (changed) notifyListeners();
+        if (credential.verified) {
+          _debugLog('[TRIPS] pickup verified by customer trip=$tripId');
+          _stopPickupCredentialPolling();
+        }
+      },
+      failure: (_) {},
+    );
+  }
+
   // ── Start trip ────────────────────────────────────────────────────────────
 
   Future<ApiResult<bool>> startTrip(String id) async {
+    if (AppModeConfig.instance.isMock) {
+      _isActionLoading = true;
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 600));
+
+      final trip = DispatchHomeMock.activeTrip;
+      if (trip != null) {
+        DispatchHomeMock.activeTrip = DispatchHomeMock.advanceTrip(
+          trip,
+          TripStatusCode.inProgress,
+        );
+        _activeTrip = DispatchHomeMock.activeTrip;
+      }
+      _pickupCredential = null;
+      _stopPickupCredentialPolling();
+      _isActionLoading = false;
+      notifyListeners();
+      return const ApiSuccess(true);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
@@ -227,6 +347,7 @@ class TripsController extends ChangeNotifier {
     result.when(
       success: (_) {
         _pickupCredential = null;
+        _stopPickupCredentialPolling();
         _debugLog('[TRIPS] startTrip $id ok');
       },
       failure: (err) =>
@@ -247,6 +368,24 @@ class TripsController extends ChangeNotifier {
     required String receiverPhone,
     required String code,
   }) async {
+    if (AppModeConfig.instance.isMock) {
+      _isActionLoading = true;
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 700));
+
+      final trip = DispatchHomeMock.activeTrip;
+      if (trip != null) {
+        DispatchHomeMock.activeTrip = DispatchHomeMock.advanceTrip(
+          trip,
+          TripStatusCode.proofSubmitted,
+        );
+        _activeTrip = DispatchHomeMock.activeTrip;
+      }
+      _isActionLoading = false;
+      notifyListeners();
+      return const ApiSuccess(true);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
@@ -272,9 +411,45 @@ class TripsController extends ChangeNotifier {
     return result;
   }
 
+  // ── Get proof ─────────────────────────────────────────────────────────────
+
+  Future<ApiResult<Map<String, dynamic>>> getProof(String id) async {
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      return const ApiSuccess(<String, dynamic>{
+        'photo_ref': 'mock://photo.jpg',
+        'signature_ref': 'mock://signature.png',
+        'receiver_name': 'Mock Receiver',
+        'receiver_phone': '+2348000000000',
+        'verified': true,
+      });
+    }
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    final result = await api.getProof(accessToken: token, id: id);
+    result.when(
+      success: (_) => _debugLog('[TRIPS] getProof $id ok'),
+      failure: (err) => _debugLog('[TRIPS] getProof $id failed: ${err.message}'),
+    );
+    return result;
+  }
+
   // ── Complete trip ─────────────────────────────────────────────────────────
 
   Future<ApiResult<bool>> completeTrip(String id) async {
+    if (AppModeConfig.instance.isMock) {
+      _isActionLoading = true;
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      DispatchHomeMock.activeTrip = null;
+      _activeTrip = null;
+      _stopPickupCredentialPolling();
+      _isActionLoading = false;
+      notifyListeners();
+      return const ApiSuccess(true);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
@@ -285,6 +460,7 @@ class TripsController extends ChangeNotifier {
     result.when(
       success: (_) {
         _activeTrip = null;
+        _stopPickupCredentialPolling();
         _debugLog('[TRIPS] completeTrip $id ok');
         notifyListeners();
       },
@@ -303,6 +479,20 @@ class TripsController extends ChangeNotifier {
     required String reasonCode,
     String reasonText = '',
   }) async {
+    if (AppModeConfig.instance.isMock) {
+      _isActionLoading = true;
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      DispatchHomeMock.activeTrip = null;
+      _activeTrip = null;
+      _pickupCredential = null;
+      _stopPickupCredentialPolling();
+      _isActionLoading = false;
+      notifyListeners();
+      return const ApiSuccess(true);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
@@ -318,6 +508,8 @@ class TripsController extends ChangeNotifier {
     result.when(
       success: (_) {
         _activeTrip = null;
+        _pickupCredential = null;
+        _stopPickupCredentialPolling();
         _debugLog('[TRIPS] cancelTrip $id ok');
         notifyListeners();
       },
@@ -329,14 +521,143 @@ class TripsController extends ChangeNotifier {
     return result;
   }
 
+  // ── Rate customer ─────────────────────────────────────────────────────────
+
+  Future<ApiResult<bool>> rateCustomer({
+    required String id,
+    required int score,
+    String? comment,
+  }) async {
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      return const ApiSuccess(true);
+    }
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    final result = await api.rateCustomer(
+      accessToken: token,
+      id: id,
+      score: score,
+      comment: comment,
+    );
+    result.when(
+      success: (_) => _debugLog('[TRIPS] rateCustomer $id ok score=$score'),
+      failure: (err) =>
+          _debugLog('[TRIPS] rateCustomer $id failed: ${err.message}'),
+    );
+    return result;
+  }
+
+  // ── Recipient confirmation ────────────────────────────────────────────────
+
+  Future<ApiResult<bool>> confirmRecipient({
+    required String id,
+    required String verificationMethod,
+    required String recipientContact,
+    required int expectedSourceVersion,
+    required String idempotencyKey,
+  }) async {
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      return const ApiSuccess(true);
+    }
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    final result = await api.confirmRecipient(
+      accessToken: token,
+      id: id,
+      verificationMethod: verificationMethod,
+      recipientContact: recipientContact,
+      expectedSourceVersion: expectedSourceVersion,
+      idempotencyKey: idempotencyKey,
+    );
+    result.when(
+      success: (_) => _debugLog('[TRIPS] confirmRecipient $id ok'),
+      failure: (err) =>
+          _debugLog('[TRIPS] confirmRecipient $id failed: ${err.message}'),
+    );
+    return result;
+  }
+
+  Future<ApiResult<Map<String, dynamic>>> getRecipientConfirmation(
+    String id,
+  ) async {
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      return const ApiSuccess(<String, dynamic>{
+        'trip_id': 'mock-trip',
+        'verification_method': 'code',
+        'confirmed_at': null,
+      });
+    }
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    return api.getRecipientConfirmation(accessToken: token, id: id);
+  }
+
+  // ── Fail delivery ─────────────────────────────────────────────────────────
+
+  Future<ApiResult<bool>> failDelivery({
+    required String id,
+    required String reasonCode,
+    String? operatorNotes,
+    String? attemptReference,
+    String? incidentReference,
+    required int expectedSourceVersion,
+    required String idempotencyKey,
+  }) async {
+    if (AppModeConfig.instance.isMock) {
+      _isActionLoading = true;
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 400));
+      DispatchHomeMock.activeTrip = null;
+      _activeTrip = null;
+      _pickupCredential = null;
+      _stopPickupCredentialPolling();
+      _isActionLoading = false;
+      notifyListeners();
+      return const ApiSuccess(true);
+    }
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+
+    _isActionLoading = true;
+    notifyListeners();
+    final result = await api.failDelivery(
+      accessToken: token,
+      id: id,
+      reasonCode: reasonCode,
+      operatorNotes: operatorNotes,
+      attemptReference: attemptReference,
+      incidentReference: incidentReference,
+      expectedSourceVersion: expectedSourceVersion,
+      idempotencyKey: idempotencyKey,
+    );
+    result.when(
+      success: (_) {
+        _activeTrip = null;
+        _pickupCredential = null;
+        _stopPickupCredentialPolling();
+        _debugLog('[TRIPS] failDelivery $id ok reason=$reasonCode');
+      },
+      failure: (err) =>
+          _debugLog('[TRIPS] failDelivery $id failed: ${err.message}'),
+    );
+    _isActionLoading = false;
+    notifyListeners();
+    return result;
+  }
+
   void clearActiveTrip() {
     _activeTrip = null;
+    _stopPickupCredentialPolling();
     notifyListeners();
   }
 
   @override
   void dispose() {
     stopActivePolling();
+    _stopPickupCredentialPolling();
     super.dispose();
   }
 }

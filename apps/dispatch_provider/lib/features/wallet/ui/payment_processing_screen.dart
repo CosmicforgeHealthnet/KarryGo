@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../core/theme/theme_extensions.dart';
 import 'withdrawal_receipt_screen.dart';
 
 class PaymentProcessingScreen extends StatefulWidget {
@@ -11,11 +13,20 @@ class PaymentProcessingScreen extends StatefulWidget {
       _PaymentProcessingScreenState();
 }
 
-class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
+class _PaymentProcessingScreenState extends State<PaymentProcessingScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 2), () {
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+
+    Future.delayed(const Duration(milliseconds: 2500), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -25,75 +36,166 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     });
   }
 
-  static String _formatAmount(double value) {
-    final s = value.toStringAsFixed(2);
-    final parts = s.split('.');
-    final whole = parts[0];
-    final buffer = StringBuffer();
-    for (int i = 0; i < whole.length; i++) {
-      if (i != 0 && (whole.length - i) % 3 == 0) buffer.write(',');
-      buffer.write(whole[i]);
-    }
-    return '₦ $buffer.${parts[1]}';
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.palette;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF05124D),
+      backgroundColor: colors.background,
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Amount to pay',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Total',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _formatAmount(widget.amount),
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Align(
-              alignment: Alignment.bottomCenter,
+            _buildTopBar(context),
+            Expanded(
               child: Padding(
-                padding: EdgeInsets.only(bottom: 40),
-                child: Text(
-                  'Payment Processing...',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _SpinnerRing(
+                      controller: _controller,
+                      trackColor: colors.navy10,
+                      sweepColor: colors.brandTeal500,
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Processing withdrawal',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: colors.text,
+                        letterSpacing: -0.3,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please do not close the app.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w400,
+                        color: colors.textMuted,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
+            const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildTopBar(BuildContext context) {
+    final colors = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                size: 22,
+                color: colors.text,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Spinner ring ────────────────────────────────────────────────────
+
+class _SpinnerRing extends StatelessWidget {
+  const _SpinnerRing({
+    required this.controller,
+    required this.trackColor,
+    required this.sweepColor,
+  });
+
+  final AnimationController controller;
+  final Color trackColor;
+  final Color sweepColor;
+
+  static const double _size = 56;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          return Transform.rotate(
+            angle: controller.value * 6.28318, // 2π
+            child: CustomPaint(
+              painter: _RingPainter(
+                trackColor: trackColor,
+                sweepColor: sweepColor,
+              ),
+              size: const Size(_size, _size),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  _RingPainter({required this.trackColor, required this.sweepColor});
+
+  final Color trackColor;
+  final Color sweepColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
+
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    final arcPaint = Paint()
+      ..color = sweepColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    const sweep = 3.14159 * 0.7;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -3.14159 / 2,
+      sweep,
+      false,
+      arcPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter oldDelegate) =>
+      oldDelegate.trackColor != trackColor ||
+      oldDelegate.sweepColor != sweepColor;
 }

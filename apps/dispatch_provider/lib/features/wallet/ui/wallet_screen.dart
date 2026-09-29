@@ -1,77 +1,32 @@
 import 'package:flutter/material.dart';
-import 'earning_summary_screen.dart';
-import 'log_dispute_screen.dart';
-import 'withdrawal_form_screen.dart';
+
+import '../../../core/app_mode.dart';
+import '../../../core/theme/theme_extensions.dart';
+import '../mock/wallet_tab_mock.dart';
 import '../state/wallet_controller.dart';
 import '../../disputes/state/rider_dispute_controller.dart';
 import '../../trips/state/trips_controller.dart';
 
+import 'add_bank_account_screen.dart';
+import 'earning_summary_screen.dart';
+import 'log_dispute_screen.dart';
+import 'quick_actions_sheet.dart';
+import 'transaction_detail_screen.dart';
+import 'withdrawal_form_screen.dart';
+import 'transaction_list_screen.dart';
+import 'bank_accounts_screen.dart';
 
-// ── Card clipper with bottom-right notch ──────────────────────────────────────
-
-class _CardWithNotchClipper extends CustomClipper<Path> {
-  const _CardWithNotchClipper({
-    required this.radius,
-    required this.notchWidth,
-    required this.notchHeight,
-    required this.notchRadius,
-  });
-
-  final double radius;
-  final double notchWidth;
-  final double notchHeight;
-  final double notchRadius;
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    final w = size.width;
-    final h = size.height;
-    final r = radius;
-    final nw = notchWidth;
-    final nh = notchHeight;
-    final nr = notchRadius;
-
-    path.moveTo(r, 0);
-    // top edge
-    path.lineTo(w - r, 0);
-    path.arcToPoint(Offset(w, r), radius: Radius.circular(r));
-    // right edge down to notch start
-    path.lineTo(w, h - nh - nr);
-    // notch top-right concave curve
-    path.arcToPoint(
-      Offset(w - nr, h - nh),
-      radius: Radius.circular(nr),
-      clockwise: false,
-    );
-    // notch bottom edge (goes left)
-    path.lineTo(w - nw + nr, h - nh);
-    // notch bottom-left concave curve
-    path.arcToPoint(
-      Offset(w - nw, h - nh + nr),
-      radius: Radius.circular(nr),
-      clockwise: false,
-    );
-    // down to bottom-right of left portion
-    path.lineTo(w - nw, h - r);
-    path.arcToPoint(Offset(w - nw - r, h), radius: Radius.circular(r));
-    // bottom edge going left
-    path.lineTo(r, h);
-    // bottom-left corner
-    path.arcToPoint(Offset(0, h - r), radius: Radius.circular(r));
-    // left edge
-    path.lineTo(0, r);
-    // top-left corner
-    path.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-// ── Screen ────────────────────────────────────────────────────────────────────
+// ── Balance card gradient — brand navy with a subtle lift.
+//    No teal bleed, no blue-tinted shadow. Reads as one solid premium panel
+//    in both light and dark mode.
+const LinearGradient _kBalanceGradient = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [
+    Color(0xFF081F44), // Midnight Navy
+    Color(0xFF0F2A5C), // subtle lift
+  ],
+);
 
 class WalletScreen extends StatefulWidget {
   final WalletController walletController;
@@ -91,493 +46,649 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen> {
   bool _balanceVisible = true;
-  bool _navigating = false;
 
   WalletController get _controller => widget.walletController;
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_onControllerUpdate);
+    _controller.addListener(_onUpdate);
     _controller.loadEarnings();
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onControllerUpdate);
+    _controller.removeListener(_onUpdate);
     super.dispose();
   }
 
-  void _onControllerUpdate() {
+  void _onUpdate() {
     if (mounted) setState(() {});
   }
 
-  static const double _btnHeight = 44.0;
-  static const double _btnWidth = 130.0;
-  static const double _notchRadius = 16.0;
-  static const double _cardRadius = 20.0;
+  void _toggleBalance() => setState(() => _balanceVisible = !_balanceVisible);
 
-  void _goToWithdraw() {
-    if (_navigating) return;
-    _navigating = true;
-    Navigator.of(context)
-        .push(MaterialPageRoute(
+  // ── Data ──────────────────────────────────────────────────────────
+
+  double get _balance {
+    if (AppModeConfig.instance.isMock) return WalletTabMock.balanceNaira;
+    return _controller.earnings?.availableKobo != null
+        ? _controller.earnings!.availableKobo / 100
+        : 0;
+  }
+
+  List<ActivityItem> get _activity {
+    if (AppModeConfig.instance.isMock) return WalletTabMock.recentActivity;
+    return const [];
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────
+
+  void _openWithdraw() => Navigator.of(context).push(
+        MaterialPageRoute(
           builder: (_) => WithdrawalFormScreen(walletController: _controller),
-        ))
-        .then((_) => _navigating = false);
+        ),
+      );
+
+  void _openAddBank() => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BankAccountsScreen(walletController: _controller),
+        ),
+      );
+
+  void _openEarnings() => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EarningSummaryScreen(walletController: _controller),
+        ),
+      );
+
+  // ignore: unused_element
+  void _openDispute() {
+    final d = widget.disputeController;
+    final t = widget.tripsController;
+    if (d == null || t == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            LogDisputeScreen(disputeController: d, tripsController: t),
+      ),
+    );
+  }
+
+  void _openQuickActions() {
+    QuickActionsSheet.show(
+      context,
+      onWithdraw: _openWithdraw,
+      onAddBank: _openAddBank,
+      onTransactions: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const TransactionListScreen(),
+        ),
+      ),
+      onEarnings: _openEarnings,
+      onHelp: () {},
+    );
+  }
+
+  void _openTransaction(ActivityItem item) {
+    if (!AppModeConfig.instance.isMock) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TransactionDetailScreen(
+          transaction: _mockTransactionFrom(item),
+        ),
+      ),
+    );
+  }
+
+  TransactionData _mockTransactionFrom(ActivityItem item) {
+    return TransactionData(
+      id: item.id,
+      amount: item.amountNaira,
+      commission: 0,
+      total: item.amountNaira,
+      status: TransactionStatus.successful,
+      type: item.isCredit ? TransactionType.trip : TransactionType.debit,
+      customerName: item.title,
+      date: item.subtitle,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            // ── Header ──────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Earnings',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Manage your Income here.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF888888),
-                          ),
-                        ),
-                      ],
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => EarningSummaryScreen(walletController: _controller),
-                        ),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF05124D),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.attach_money,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Earning Summary',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+    final colors = context.palette;
+
+    return AnimatedBuilder(
+      animation: AppModeConfig.instance,
+      builder: (context, _) => Scaffold(
+        backgroundColor: colors.background,
+        body: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              _buildTopBar(),
+              _buildBalanceCard(),
+              _buildQuickActionsRow(),
+              _buildRecentActivityHeader(),
+              _buildRecentActivityList(),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Top bar: Karryam logo + avatar ────────────────────────────────
+
+  Widget _buildTopBar() {
+    final colors = context.palette;
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+        child: Row(
+          children: [
+            Image.asset(
+              'assets/figma/splash_logo.png',
+              width: 34,
+              height: 34,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 8),
+            // Text(
+            //   'Karryam',
+            //   style: TextStyle(
+            //     fontSize: 22,
+            //     fontWeight: FontWeight.w800,
+            //     color: colors.text,
+            //     letterSpacing: -0.6,
+            //     height: 1.0,
+            //   ),
+            // ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {},
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: colors.navy10,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.navy20),
+                ),
+                child: Icon(
+                  Icons.person_outline_rounded,
+                  size: 22,
+                  color: colors.text,
                 ),
               ),
             ),
-
-            // ── Balance card with notch ──────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                // Stack sized to the full card bounding box (before clipping)
-                // so Positioned(bottom:0, right:0) lands exactly at card corner
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // clipped green card
-                    ClipPath(
-                      clipper: const _CardWithNotchClipper(
-                        radius: _cardRadius,
-                        notchWidth: _btnWidth,
-                        notchHeight: _btnHeight,
-                        notchRadius: _notchRadius,
-                      ),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(
-                          20,
-                          18,
-                          20,
-                          _btnHeight,
-                        ),
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF05124D), Color(0xFF2761A7)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Available Balance',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.white70,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _balanceVisible
-                                            ? (_controller.earnings != null
-                                                ? _controller.earnings!.availableNaira
-                                                : (_controller.isLoading ? '₦ ---' : '₦ 0.00'))
-                                            : '₦ ****',
-                                        style: const TextStyle(
-                                          fontSize: 30,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
-                                          letterSpacing: -0.5,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    GestureDetector(
-                                      onTap: () => setState(
-                                        () =>
-                                            _balanceVisible = !_balanceVisible,
-                                      ),
-                                      child: Icon(
-                                        _balanceVisible
-                                            ? Icons.visibility_outlined
-                                            : Icons.visibility_off_outlined,
-                                        color: Colors.white70,
-                                        size: 22,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    GestureDetector(
-                                      onTap:
-                                          widget.disputeController == null ||
-                                              widget.tripsController == null
-                                          ? null
-                                          : () => Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    LogDisputeScreen(
-                                                      disputeController: widget
-                                                          .disputeController!,
-                                                      tripsController: widget
-                                                          .tripsController!,
-                                                    ),
-                                              ),
-                                            ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 46,
-                                            height: 46,
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.18,
-                                              ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: const Icon(
-                                              Icons.receipt_long_outlined,
-                                              size: 22,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 5),
-                                          const Text(
-                                            'Dispute',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.white70,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            // bottom stats row
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Pending Balance',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white60,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        _balanceVisible
-                                            ? (_controller.earnings != null
-                                                ? _controller.earnings!.pendingNaira
-                                                : '₦ 0.00')
-                                            : '₦ ****',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        "Today's Earnings",
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white60,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        _balanceVisible ? '₦ 0.00' : '₦ ****',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: _btnWidth),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      width: _btnWidth,
-                      height: _btnHeight,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: _goToWithdraw,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(_notchRadius),
-                              bottomRight: Radius.circular(_cardRadius),
-                            ),
-                            border: Border.all(
-                              color: const Color(0xFF05124D),
-                              width: 1.5,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            'Withdraw',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF05124D),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            // ── Stats row (backend gap: trips_today / hours_online not available) ──
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFEEEEEE)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              'Trips Completed Today',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF05124D),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              '—',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF888888),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      VerticalDivider(color: Color(0xFFEEEEEE)),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              'Hours Online',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF05124D),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              '—',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF888888),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-            // ── Recent Transactions header ────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Recent Transactions',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    Text(
-                      'View All',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF05124D),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // Backend gap: no provider transaction history endpoint yet.
-            // Show empty state instead of fake data.
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.receipt_long_outlined,
-                      size: 48,
-                      color: Color(0xFFCCCCCC),
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'No transactions yet',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Complete a trip to start earning.',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF888888)),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
       ),
     );
+  }
+
+  // ── Balance card ──────────────────────────────────────────────────
+
+  Widget _buildBalanceCard() {
+    final hidden = !_balanceVisible;
+    final isDark = context.isDark;
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+        child: GestureDetector(
+          onTap: hidden ? _toggleBalance : null,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: _kBalanceGradient,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.16),
+                  blurRadius: 32,
+                  spreadRadius: -8,
+                  offset: const Offset(0, 14),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 104),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildCardIcon(hidden),
+                        const SizedBox(width: 16),
+                        Expanded(child: _buildCardBody(hidden)),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: IconButton(
+                    onPressed: _toggleBalance,
+                    tooltip: hidden ? 'Show balance' : 'Hide balance',
+                    splashRadius: 20,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 40, minHeight: 40),
+                    icon: Icon(
+                      hidden
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 20,
+                      color: Colors.white.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardIcon(bool hidden) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: hidden ? 0.10 : 0.14),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(
+        Icons.account_balance_wallet_outlined,
+        size: 26,
+        color: Colors.white.withValues(alpha: hidden ? 0.55 : 1.0),
+      ),
+    );
+  }
+
+  Widget _buildCardBody(bool hidden) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Wallet balance',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Colors.white.withValues(alpha: 0.70),
+            letterSpacing: 0.1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            hidden ? '₦ ••••••' : _formatNaira(_balance),
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: -0.8,
+              height: 1.05,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          hidden ? 'Tap to reveal your balance' : 'Available for withdrawal',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withValues(alpha: 0.65),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Quick actions ─────────────────────────────────────────────────
+
+  Widget _buildQuickActionsRow() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 24, 12, 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: _QuickActionIcon(
+                icon: Icons.arrow_upward_rounded,
+                label: 'Withdraw',
+                onTap: _openWithdraw,
+                isPrimary: true,
+              ),
+            ),
+            Expanded(
+              child: _QuickActionIcon(
+                icon: Icons.account_balance_outlined,
+                label: 'Add bank',
+                onTap: _openAddBank,
+                isPrimary: true,
+              ),
+            ),
+            Expanded(
+              child: _QuickActionIcon(
+                icon: Icons.swap_horiz_rounded,
+                label: 'Transactions',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const TransactionListScreen(),
+                  ),
+                ),
+                isPrimary: true,
+              ),
+            ),
+            Expanded(
+              child: _QuickActionIcon(
+                icon: Icons.more_horiz_rounded,
+                label: 'More',
+                onTap: _openQuickActions,
+                isPrimary: false,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Recent activity ───────────────────────────────────────────────
+
+  Widget _buildRecentActivityHeader() {
+    final colors = context.palette;
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 26, 20, 8),
+        child: Text(
+          'Recent activity',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: colors.text,
+            letterSpacing: -0.3,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentActivityList() {
+    final items = _activity;
+
+    if (items.isEmpty) return _buildEmptyState();
+
+    final colors = context.palette;
+    return SliverList.separated(
+      itemCount: items.length,
+      separatorBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Divider(height: 1, thickness: 1, color: colors.divider),
+      ),
+      itemBuilder: (context, i) {
+        final item = items[i];
+        return _ActivityRow(
+          item: item,
+          onTap: () => _openTransaction(item),
+        );
+      },
+    );
+  }
+
+  // ── Empty state ───────────────────────────────────────────────────
+
+  Widget _buildEmptyState() {
+    final colors = context.palette;
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
+        child: Column(
+          children: [
+            Container(
+              width: 104,
+              height: 104,
+              decoration: BoxDecoration(
+                color: colors.navy10,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.account_balance_wallet_outlined,
+                size: 48,
+                color: colors.navy40,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              'Your wallet is empty',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: colors.text,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your earnings will appear here\nafter you complete deliveries.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.45,
+                color: colors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 26),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.brandTeal500,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'View opportunities',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Formatting helpers ───────────────────────────────────────────────
+
+String _groupThousands(String whole) {
+  final buffer = StringBuffer();
+  for (int i = 0; i < whole.length; i++) {
+    if (i != 0 && (whole.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(whole[i]);
+  }
+  return buffer.toString();
+}
+
+String _formatNaira(double value) {
+  final parts = value.toStringAsFixed(2).split('.');
+  return '₦${_groupThousands(parts[0])}.${parts[1]}';
+}
+
+String _formatShort(double v) {
+  if (v == v.truncateToDouble()) {
+    return _groupThousands(v.toStringAsFixed(0));
+  }
+  final parts = v.toStringAsFixed(2).split('.');
+  return '${_groupThousands(parts[0])}.${parts[1]}';
+}
+
+// ── Quick action icon ───────────────────────────────────────────────
+
+class _QuickActionIcon extends StatelessWidget {
+  const _QuickActionIcon({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.isPrimary = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.palette;
+    final bg = isPrimary ? colors.teal10 : colors.navy10;
+    final fg = isPrimary ? colors.brandTeal500 : colors.text;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: bg,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 24, color: fg),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: colors.text,
+              letterSpacing: -0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Activity row ───────────────────────────────────────────────────
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({required this.item, required this.onTap});
+
+  final ActivityItem item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.palette;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _iconBg(item, colors),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                _icon(item),
+                size: 22,
+                color: _iconColor(item, colors),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                      height: 1.2,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.subtitle,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w400,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '${item.isCredit ? '+' : '-'}₦${_formatShort(item.amountNaira)}',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+                color: item.isCredit ? colors.success : colors.danger,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static IconData _icon(ActivityItem i) {
+    switch (i.kind) {
+      case ActivityKind.delivery:
+        return Icons.local_shipping_outlined;
+      case ActivityKind.withdrawal:
+        return Icons.arrow_upward_rounded;
+      case ActivityKind.adjustment:
+        return Icons.tune_rounded;
+      case ActivityKind.store:
+        return Icons.storefront_outlined;
+    }
+  }
+
+  static Color _iconColor(ActivityItem i, dynamic colors) {
+    return i.isCredit ? colors.brandTeal600 : colors.danger;
+  }
+
+  static Color _iconBg(ActivityItem i, dynamic colors) {
+    return i.isCredit ? colors.teal10 : colors.dangerSoft;
   }
 }

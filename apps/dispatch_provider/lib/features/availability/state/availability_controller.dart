@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
+import '../../../core/app_mode.dart';
+import '../../home/mock/dispatch_home_mock.dart';
 import '../data/availability_api.dart';
 import '../data/availability_models.dart';
 
@@ -22,28 +24,15 @@ class AvailabilityController extends ChangeNotifier {
 
   StreamSubscription<Position>? _positionSub;
 
-  /// Periodic re-post of the last known position. The GPS stream only fires
-  /// when the device moves (distanceFilter), so a stationary rider would stop
-  /// pinging and let the server-side live keys expire (location TTL 30s,
-  /// status TTL 90s), dropping the rider from the customer availability check.
-  /// This heartbeat keeps those keys warm regardless of movement.
   Timer? _heartbeatTimer;
   Position? _lastPosition;
 
   static const Duration _heartbeatInterval = Duration(seconds: 15);
 
-  /// Consecutive failed location pings. The server drops a rider from the
-  /// customer availability check when it stops hearing from them, so repeated
-  /// failures mean the rider is effectively invisible while the toggle still
-  /// reads "online".
   int _consecutiveLocationFailures = 0;
 
-  /// Roughly 45 s of failed pings at [_heartbeatInterval] — long enough to ride
-  /// out a transient blip, short enough to warn before the 90 s status TTL.
   static const int _locationFailureThreshold = 3;
 
-  /// True when location pings have failed enough times in a row that the rider
-  /// should no longer be treated as reliably discoverable.
   bool get hasStaleLocation =>
       isOnline && _consecutiveLocationFailures >= _locationFailureThreshold;
 
@@ -67,8 +56,6 @@ class AvailabilityController extends ChangeNotifier {
 
   // ── Location permission ───────────────────────────────────────────────────
 
-  /// Returns null on success, or an error message string if permission is
-  /// denied or location services are disabled.
   Future<String?> _ensureLocationPermission() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -109,26 +96,14 @@ class AvailabilityController extends ChangeNotifier {
           cancelOnError: false,
         );
 
-    // Seed the heartbeat with a position immediately. The stream above only
-    // emits after the device moves `distanceFilter` metres, and indoors it may
-    // never produce a fix at all — leaving _lastPosition null, which makes the
-    // heartbeat a no-op and lets the server-side live keys expire. Falling back
-    // to the last known fix (cached by the OS, no GPS lock required) means a
-    // stationary or indoor rider still pings and stays discoverable.
     unawaited(_seedLastPosition());
 
-    // Heartbeat: re-post the last known position on a fixed interval so a
-    // stationary rider keeps refreshing the server-side live keys and stays
-    // visible to customers even when the GPS stream is silent.
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) => _heartbeat());
 
     _debugLog('[LOCATION] GPS stream started');
   }
 
-  /// Best-effort initial fix so the heartbeat has something to send before the
-  /// position stream produces its first event. Never throws — on failure the
-  /// heartbeat simply stays idle until the stream delivers a position.
   Future<void> _seedLastPosition() async {
     if (_lastPosition != null) return;
     try {
@@ -210,6 +185,18 @@ class AvailabilityController extends ChangeNotifier {
   // ── Load current availability ─────────────────────────────────────────────
 
   Future<ApiResult<ProviderAvailability>> loadAvailability() async {
+    // MOCK: skip the network, return state from DispatchHomeMock.
+    if (AppModeConfig.instance.isMock) {
+      final avail = ProviderAvailability(
+  status: DispatchHomeMock.isOnline ? 'online' : 'offline',
+  sessionId: DispatchHomeMock.isOnline ? 'mock-session' : null,
+  sessionStart: DispatchHomeMock.isOnline ? DateTime.now() : null,
+);
+      _availability = avail;
+      notifyListeners();
+      return ApiSuccess(avail);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) {
       return ApiFailure(
@@ -253,6 +240,30 @@ class AvailabilityController extends ChangeNotifier {
         ),
       );
     }
+
+    // MOCK: 1.5 s fake latency gives the UI time to show the "Getting you
+    // online…" processing state before flipping to online.
+    if (AppModeConfig.instance.isMock) {
+      _isChangingStatus = true;
+      _errorMessage = null;
+      notifyListeners();
+
+            await Future.delayed(const Duration(milliseconds: 3200));
+
+      DispatchHomeMock.isOnline = true;
+      DispatchHomeMock.seedPendingRequests();
+
+      final avail = ProviderAvailability(
+  status: 'online',
+  sessionId: 'mock-session-${DateTime.now().millisecondsSinceEpoch}',
+  sessionStart: DateTime.now(),
+);
+      _availability = avail;
+      _isChangingStatus = false;
+      notifyListeners();
+      return ApiSuccess(avail);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) {
       return ApiFailure(
@@ -309,6 +320,25 @@ class AvailabilityController extends ChangeNotifier {
         ),
       );
     }
+
+    // MOCK: brief pause, clear online state + pending requests.
+    if (AppModeConfig.instance.isMock) {
+      _isChangingStatus = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      DispatchHomeMock.isOnline = false;
+      DispatchHomeMock.clearPendingRequests();
+
+      final avail = ProviderAvailability(status: 'offline');
+      _availability = avail;
+      _isChangingStatus = false;
+      notifyListeners();
+      return ApiSuccess(avail);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) {
       return ApiFailure(
@@ -395,6 +425,21 @@ class AvailabilityController extends ChangeNotifier {
         ),
       );
     }
+
+    // MOCK: no-op, just return a synthetic location.
+    if (AppModeConfig.instance.isMock) {
+      final loc = ProviderLocation(
+        lat: lat,
+        lng: lng,
+        heading: heading,
+        speed: speed,
+        accuracy: accuracy,
+        updatedAt: DateTime.now(),
+      );
+      _lastLocation = loc;
+      return ApiSuccess(loc);
+    }
+
     final token = _token();
     if (token == null || token.isEmpty) {
       return ApiFailure(
@@ -423,9 +468,6 @@ class AvailabilityController extends ChangeNotifier {
       },
       failure: (error) {
         _debugLog('[LOCATION] sendLocation failed: ${error.message}');
-        // The app showing "online" while the server has dropped this rider is
-        // worse than showing nothing: the rider waits for requests that can
-        // never arrive. Track repeated failures so the UI can say so.
         _consecutiveLocationFailures++;
         if (_consecutiveLocationFailures == _locationFailureThreshold) {
           notifyListeners();

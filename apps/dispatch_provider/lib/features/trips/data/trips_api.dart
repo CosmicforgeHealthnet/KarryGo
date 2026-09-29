@@ -92,8 +92,6 @@ class TripsApi {
       if (response.statusCode == 200) {
         final body = _tryDecode(response.body);
         if (body != null && body['success'] == true) {
-          // Backend wraps the list as {"trips": [...], "total":..., "page":...,
-          // "limit":...} (TripListResponse) rather than returning a bare array.
           final data = body['data'];
           final rawList = data is List
               ? data
@@ -214,8 +212,6 @@ class TripsApi {
 
   // ── GET/POST /api/v1/provider/trips/:id/pickup-credential ───────────────
 
-  /// Fetches the rider's own pickup credential for redisplay (e.g. after
-  /// navigating away from the arrived-at-pickup screen).
   Future<ApiResult<PickupCredential>> getPickupCredential({
     required String accessToken,
     required String id,
@@ -239,7 +235,6 @@ class TripsApi {
     }
   }
 
-  /// Regenerates the rider's own pickup credential.
   Future<ApiResult<PickupCredential>> resendPickupCredential({
     required String accessToken,
     required String id,
@@ -292,9 +287,6 @@ class TripsApi {
 
   // ── POST /api/v1/provider/trips/:id/proof ────────────────────────────────
 
-  /// Backend requires two separate image files — `delivery_photo` (JPEG/PNG,
-  /// <=5MB) and `signature` (JPEG/PNG, <=3MB) — plus `receiver_name` and
-  /// `receiver_phone` (must E.164-match the trip's expected receiver phone).
   Future<ApiResult<bool>> submitProof({
     required String accessToken,
     required String id,
@@ -406,8 +398,6 @@ class TripsApi {
 
   // ── POST /api/v1/provider/trips/:id/cancel ───────────────────────────────
 
-  /// Backend requires a non-empty `reason_code` from a fixed set (see
-  /// [tripCancelReasons]) — an empty body always fails with a 400.
   Future<ApiResult<bool>> cancelTrip({
     required String accessToken,
     required String id,
@@ -438,6 +428,153 @@ class TripsApi {
       return _failureFromResponse(response);
     } catch (e) {
       _debugLog('[TRIPS] POST cancel error: $e');
+      return _networkFailure(e);
+    }
+  }
+
+  // ── POST /api/v1/provider/trips/:id/rate-customer ────────────────────────
+
+  Future<ApiResult<bool>> rateCustomer({
+    required String accessToken,
+    required String id,
+    required int score,
+    String? comment,
+  }) async {
+    final uri = config.uri('/api/v1/provider/trips/$id/rate-customer');
+    _debugLog('[TRIPS] POST rate-customer $uri score=$score');
+    try {
+      final payload = <String, dynamic>{'score': score};
+      if (comment != null && comment.trim().isNotEmpty) {
+        payload['comment'] = comment.trim();
+      }
+      final response = await _client
+          .post(
+            uri,
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 15));
+      _debugLog('[TRIPS] rate-customer status=${response.statusCode}');
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return const ApiSuccess(true);
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      _debugLog('[TRIPS] rate-customer error: $e');
+      return _networkFailure(e);
+    }
+  }
+
+  // ── POST /api/v1/provider/trips/:id/recipient-confirmation ───────────────
+
+  Future<ApiResult<bool>> confirmRecipient({
+    required String accessToken,
+    required String id,
+    required String verificationMethod,
+    required String recipientContact,
+    required int expectedSourceVersion,
+    required String idempotencyKey,
+  }) async {
+    final uri =
+        config.uri('/api/v1/provider/trips/$id/recipient-confirmation');
+    _debugLog('[TRIPS] POST recipient-confirmation $uri');
+    try {
+      final headers = _jsonHeaders(accessToken);
+      headers['Idempotency-Key'] = idempotencyKey;
+      final response = await _client
+          .post(
+            uri,
+            headers: headers,
+            body: jsonEncode({
+              'verification_method': verificationMethod,
+              'recipient_contact': recipientContact,
+              'expected_source_version': expectedSourceVersion,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      _debugLog(
+        '[TRIPS] recipient-confirmation status=${response.statusCode}',
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return const ApiSuccess(true);
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      _debugLog('[TRIPS] recipient-confirmation error: $e');
+      return _networkFailure(e);
+    }
+  }
+
+  // ── GET /api/v1/provider/trips/:id/recipient-confirmation ────────────────
+
+  Future<ApiResult<Map<String, dynamic>>> getRecipientConfirmation({
+    required String accessToken,
+    required String id,
+  }) async {
+    final uri =
+        config.uri('/api/v1/provider/trips/$id/recipient-confirmation');
+    _debugLog('[TRIPS] GET recipient-confirmation $uri');
+    try {
+      final response = await _client
+          .get(uri, headers: _getHeaders(accessToken))
+          .timeout(const Duration(seconds: 15));
+      _debugLog(
+        '[TRIPS] GET recipient-confirmation status=${response.statusCode}',
+      );
+      if (response.statusCode == 200) {
+        final body = _tryDecode(response.body);
+        if (body != null && body['success'] == true) {
+          return ApiSuccess((body['data'] as Map<String, dynamic>?) ?? {});
+        }
+        return _failureFromResponse(response);
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      _debugLog('[TRIPS] GET recipient-confirmation error: $e');
+      return _networkFailure(e);
+    }
+  }
+
+  // ── POST /api/v1/provider/trips/:id/fail ─────────────────────────────────
+
+  Future<ApiResult<bool>> failDelivery({
+    required String accessToken,
+    required String id,
+    required String reasonCode,
+    String? operatorNotes,
+    String? attemptReference,
+    String? incidentReference,
+    required int expectedSourceVersion,
+    required String idempotencyKey,
+  }) async {
+    final uri = config.uri('/api/v1/provider/trips/$id/fail');
+    _debugLog('[TRIPS] POST fail $uri reason=$reasonCode');
+    try {
+      final headers = _jsonHeaders(accessToken);
+      headers['Idempotency-Key'] = idempotencyKey;
+      final payload = <String, dynamic>{
+        'reason_code': reasonCode,
+        'expected_source_version': expectedSourceVersion,
+      };
+      if (operatorNotes != null && operatorNotes.trim().isNotEmpty) {
+        payload['operator_notes'] = operatorNotes.trim();
+      }
+      if (attemptReference != null && attemptReference.trim().isNotEmpty) {
+        payload['attempt_reference'] = attemptReference.trim();
+      }
+      if (incidentReference != null && incidentReference.trim().isNotEmpty) {
+        payload['incident_reference'] = incidentReference.trim();
+      }
+      final response = await _client
+          .post(uri, headers: headers, body: jsonEncode(payload))
+          .timeout(const Duration(seconds: 15));
+      _debugLog('[TRIPS] fail status=${response.statusCode}');
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return const ApiSuccess(true);
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      _debugLog('[TRIPS] fail error: $e');
       return _networkFailure(e);
     }
   }

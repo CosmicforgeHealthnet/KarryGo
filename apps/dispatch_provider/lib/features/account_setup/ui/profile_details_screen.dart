@@ -1,9 +1,9 @@
-// profile details screen
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
+
+import '../../../core/theme/theme_extensions.dart';
 import '../../profile/state/provider_profile_controller.dart';
-import '../../../shared/widgets/document_upload_box.dart';
 
 class ProfileDetailsScreen extends StatefulWidget {
   const ProfileDetailsScreen({
@@ -22,11 +22,7 @@ class ProfileDetailsScreen extends StatefulWidget {
   final VoidCallback onBack;
   final int currentStep;
   final int totalSteps;
-
-  /// Phone number from the OTP-verified signup/login flow. Pre-filled and locked.
   final String? initialPhone;
-
-  /// Email from the signup start step. Pre-filled and locked (signup flow only).
   final String? initialEmail;
   final ProviderProfileController profileController;
   final String? operationType;
@@ -37,19 +33,20 @@ class ProfileDetailsScreen extends StatefulWidget {
 
 class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _cityController = TextEditingController();
-  final _idNumberController = TextEditingController();
+  DateTime? _dateOfBirth;
   String? _selectedState;
-  String? _selectedIdType;
-  String? _govtIdFilePath;
-  String? _govtIdFileName;
   bool _isLoading = false;
-
-  /// True when the email was supplied by the signup OTP flow; the field is
-  /// shown as read-only so the user does not accidentally clear a verified email.
   bool _emailReadOnly = false;
+
+  static const _states = [
+    'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue',
+    'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu',
+    'FCT', 'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina',
+    'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo',
+    'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
+  ];
 
   @override
   void initState() {
@@ -58,408 +55,262 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   }
 
   Future<void> _loadProfile() async {
-    // 1. Initialize phone from widget.initialPhone (strip +234 prefix for display).
-    String localPhone = widget.initialPhone ?? '';
-    if (localPhone.startsWith('+234')) {
-      localPhone = localPhone.substring(4);
-    } else if (localPhone.startsWith('234')) {
-      localPhone = localPhone.substring(3);
-    }
-    while (localPhone.startsWith('0')) {
-      localPhone = localPhone.substring(1);
-    }
-    _phoneController.text = localPhone;
-
-    // 2. Prefill email from signup flow — lock it as read-only because the
-    //    user verified ownership via OTP.
     if (widget.initialEmail != null && widget.initialEmail!.isNotEmpty) {
       _emailController.text = widget.initialEmail!;
       _emailReadOnly = true;
     }
 
-    // 3. Fetch authenticated profile from backend.
     setState(() => _isLoading = true);
     final result = await widget.profileController.loadMe();
     result.when(
       success: (profile) {
-        if (mounted) {
-          setState(() {
-            _nameController.text = profile.fullName ?? '';
-            _cityController.text = profile.city ?? '';
-            if (profile.state != null && profile.state!.isNotEmpty) {
-              _selectedState = profile.state;
-            }
-            // Populate phone from profile when initialPhone was not provided
-            // (e.g. the user logged in via email — currentPhoneNumber is null).
-            if (_phoneController.text.isEmpty && profile.phone.isNotEmpty) {
-              String p = profile.phone;
-              if (p.startsWith('+234')) {
-                p = p.substring(4);
-              } else if (p.startsWith('234')) {
-                p = p.substring(3);
-              }
-              while (p.startsWith('0')) {
-                p = p.substring(1);
-              }
-              _phoneController.text = p;
-            }
-            // Only overwrite email with backend value if no signup email was
-            // provided (login path where the user didn't just sign up).
-            if (!_emailReadOnly) {
-              _emailController.text = profile.email ?? '';
-            }
-          });
-        }
+        if (!mounted) return;
+        setState(() {
+          _nameController.text = profile.fullName ?? '';
+          if (!_emailReadOnly) {
+            _emailController.text = profile.email ?? '';
+          }
+          _cityController.text = profile.city ?? '';
+          if (profile.state != null && profile.state!.isNotEmpty) {
+            _selectedState = profile.state;
+          }
+        });
       },
       failure: (error) {
-        debugPrint(
-          'GET /provider/me failed or profile does not exist yet: ${error.message}',
-        );
+        debugPrint('[PROFILE] loadMe failed: ${error.message}');
       },
     );
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
+    if (mounted) setState(() => _isLoading = false);
   }
-
-  static const _states = [
-    'Abia',
-    'Adamawa',
-    'Akwa Ibom',
-    'Anambra',
-    'Bauchi',
-    'Bayelsa',
-    'Benue',
-    'Borno',
-    'Cross River',
-    'Delta',
-    'Ebonyi',
-    'Edo',
-    'Ekiti',
-    'Enugu',
-    'FCT',
-    'Gombe',
-    'Imo',
-    'Jigawa',
-    'Kaduna',
-    'Kano',
-    'Katsina',
-    'Kebbi',
-    'Kogi',
-    'Kwara',
-    'Lagos',
-    'Nasarawa',
-    'Niger',
-    'Ogun',
-    'Ondo',
-    'Osun',
-    'Oyo',
-    'Plateau',
-    'Rivers',
-    'Sokoto',
-    'Taraba',
-    'Yobe',
-    'Zamfara',
-  ];
-
-  static const _idTypes = [
-    'NIN',
-    'Driver\'s Licence',
-    'Voter\'s Card',
-    'International Passport',
-  ];
 
   @override
   void dispose() {
     _nameController.dispose();
-    _phoneController.dispose();
     _emailController.dispose();
     _cityController.dispose();
-    _idNumberController.dispose();
     super.dispose();
   }
 
   bool get _canContinue =>
       _nameController.text.trim().isNotEmpty &&
+      _dateOfBirth != null &&
       _emailController.text.trim().isNotEmpty &&
-      _selectedIdType != null &&
-      _idNumberController.text.trim().isNotEmpty &&
-      _govtIdFilePath != null;
+      _selectedState != null &&
+      _cityController.text.trim().isNotEmpty;
 
-  // The govt ID file collected here is uploaded by the app shell's final
-  // submit step via POST /api/v1/provider/verification/identity.
+  static const _monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
 
-  String _mapIdTypeToBackend(String uiType) {
-    return switch (uiType) {
-      'NIN' => 'nin',
-      'Driver\'s Licence' => 'drivers_licence',
-      'Voter\'s Card' => 'voter_card',
-      'International Passport' => 'passport',
-      _ => 'nin',
-    };
-  }
+  String _formatDate(DateTime d) =>
+      '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
+
+  Future<void> _pickDate() async {
+  final c = context.palette;
+  final now = DateTime.now();
+  final picked = await showDatePicker(
+    context: context,
+    initialDate: _dateOfBirth ?? DateTime(now.year - 25, 1, 1),
+    firstDate: DateTime(1940),
+    lastDate: DateTime(now.year - 18, 12, 31),
+    helpText: 'Select date of birth',
+    builder: (context, child) {
+      return Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+            primary: c.brandTeal500,
+            onPrimary: Colors.white,
+          ),
+        ),
+        child: child!,
+      );
+    },
+  );
+  if (picked != null) setState(() => _dateOfBirth = picked);
+}
 
   static bool _isValidEmail(String email) =>
       RegExp(r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$').hasMatch(email);
 
   void _continue() async {
-    // ── Validate full name: must contain at least two non-empty parts ──────
     final name = _nameController.text.trim();
-    final nameParts = name
-        .split(RegExp(r'\s+'))
-        .where((p) => p.isNotEmpty)
-        .toList();
-    if (nameParts.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your full name.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).length < 2) {
+      _showError('Please enter your full name.');
       return;
     }
-
-    // ── Validate email format ─────────────────────────────────────────────
     final email = _emailController.text.trim();
-    if (email.isNotEmpty && !_isValidEmail(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid email address.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (!_isValidEmail(email)) {
+      _showError('Please enter a valid email address.');
+      return;
+    }
+    if (_selectedState == null) {
+      _showError('Please select your state.');
       return;
     }
 
     setState(() => _isLoading = true);
     try {
-      debugPrint('[ONBOARDING] Submitting POST /provider/onboarding...');
-      final result = await widget.profileController.submitOnboarding(
-        fullName: _nameController.text.trim(),
-        email: _emailController.text.trim().isEmpty
-            ? null
-            : _emailController.text.trim(),
-        state: _selectedState ?? '',
+      // Saves name/email/state/city WITHOUT flipping onboarding_complete.
+      // The completion flag is set on the Review screen's submit.
+      final result = await widget.profileController.updateMe(
+        fullName: name,
+        email: email,
+        state: _selectedState!,
         city: _cityController.text.trim(),
-        operationType: widget.operationType ?? 'individual',
       );
 
-      bool onboardingReady = false;
-      String? onboardingError;
+      bool ok = false;
+      String? err;
       result.when(
-        success: (_) {
-          debugPrint('[ONBOARDING] POST /provider/onboarding succeeded');
-          onboardingReady = true;
-        },
-        failure: (error) {
-          debugPrint(
-            '[ONBOARDING] POST /provider/onboarding result: ${error.message} (code=${error.code})',
-          );
-          if (error.code == ApiErrorCode.conflict) {
-            // Onboarding was already completed in a prior session — proceed.
-            debugPrint(
-              '[ONBOARDING] Already completed — proceeding to verification',
-            );
-            onboardingReady = true;
-          } else {
-            onboardingError = error.message;
-          }
-        },
+        success: (_) => ok = true,
+        failure: (error) => err = error.message,
       );
 
-      if (!onboardingReady) {
-        if (mounted && onboardingError != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Onboarding failed: $onboardingError'),
-              backgroundColor: Colors.red.shade800,
-            ),
-          );
-        }
+      if (!ok) {
+        if (mounted && err != null) _showError('Save failed: $err');
         return;
       }
 
       final data = ProfileDetailsData(
-        fullName: _nameController.text.trim(),
-        phone: '+234${_phoneController.text.trim()}',
-        state: _selectedState ?? '',
+        fullName: name,
+        phone: widget.initialPhone ?? '',
+        state: _selectedState!,
         city: _cityController.text.trim(),
-        email: _emailController.text.trim(),
-        governmentIdFileName: _govtIdFileName ?? '',
-        governmentIdFilePath: _govtIdFilePath ?? '',
-        governmentIdType: _mapIdTypeToBackend(_selectedIdType!),
-        governmentIdNumber: _idNumberController.text.trim(),
+        email: email,
+        dateOfBirth: _dateOfBirth!,
       );
 
-      // Spinner stays on while parent polls GET /verification/status.
-      debugPrint(
-        '[ONBOARDING] Awaiting parent onContinue (verification step poll)...',
-      );
       await widget.onContinue(data);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$e'.replaceAll('Exception: ', '')),
-            backgroundColor: Colors.red.shade800,
-          ),
-        );
-      }
+      if (mounted) _showError('$e'.replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.red.shade800),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: c.background,
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Standard back arrow
-                    GestureDetector(
-                      onTap: widget.onBack,
-                      behavior: HitTestBehavior.opaque,
-                      child: const SizedBox(
-                        height: 36,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Icon(
-                            Icons.arrow_back_ios_new,
-                            size: 20,
-                            color: Color(0xFF1A1A1A),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: widget.onBack,
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 4,
+                            ),
+                            child: Icon(
+                              Icons.arrow_back_rounded,
+                              size: 24,
+                              color: c.text,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _ProgressBar(
-                      current: widget.currentStep,
-                      total: widget.totalSteps,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Step ${widget.currentStep} of ${widget.totalSteps}',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: c.textMuted,
+                                    height: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                _StepProgress(
+                                  current: widget.currentStep,
+                                  total: widget.totalSteps,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 44),
+                      ],
                     ),
                     const SizedBox(height: 28),
-                    const Text(
-                      'Tell us about you',
+                    Text(
+                      'Basic profile',
                       style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1A1A1A),
-                        letterSpacing: -0.3,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: c.text,
+                        letterSpacing: -0.4,
+                        height: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Let's setup your account so we can connect you with the right opportunities.",
+                    const SizedBox(height: 10),
+                    Text(
+                      'Tell us about yourself.',
                       style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF888888),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                        color: c.textMuted,
                         height: 1.5,
                       ),
                     ),
                     const SizedBox(height: 32),
 
-                    // Full Name
-                    const _FieldLabel(label: 'Your Full Name'),
-                    const SizedBox(height: 8),
+                    const _FieldLabel('Full name'),
+                    const SizedBox(height: 10),
                     _InputField(
                       controller: _nameController,
-                      hint: 'e.g. Favour Daniel',
+                      hint: 'Daniel Okafor',
                       keyboardType: TextInputType.name,
                       inputFormatters: [
-                        // Allow letters, spaces, hyphens, and apostrophes only.
                         FilteringTextInputFormatter.allow(
                           RegExp(r"[a-zA-Z '\-]"),
                         ),
                       ],
                       onChanged: (_) => setState(() {}),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
-                    // Phone
-                    const _FieldLabel(label: 'Your Phone Number'),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Container(
-                          height: 50,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFE0E0E0)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _NigeriaFlag(),
-                              SizedBox(width: 6),
-                              Text(
-                                '+234',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1A1A1A),
-                                ),
-                              ),
-                              SizedBox(width: 2),
-                              Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 18,
-                                color: Color(0xFF888888),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _InputField(
-                            controller: _phoneController,
-                            hint: '8067735987',
-                            keyboardType: TextInputType.phone,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            readOnly: true,
-                          ),
-                        ),
-                      ],
+                    const _FieldLabel('Date of birth'),
+                    const SizedBox(height: 10),
+                    _DateField(
+                      value: _dateOfBirth == null
+                          ? null
+                          : _formatDate(_dateOfBirth!),
+                      onTap: _pickDate,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
-                    // Location
-                    const _FieldLabel(label: 'Location'),
-                    const SizedBox(height: 8),
-                    _StateDropdown(
-                      value: _selectedState,
-                      states: _states,
-                      onChanged: (v) => setState(() => _selectedState = v),
-                    ),
+                    const _FieldLabel('Email address', isOptional: true),
                     const SizedBox(height: 10),
                     _InputField(
-                      controller: _cityController,
-                      hint: 'City',
-                      keyboardType: TextInputType.text,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r"[a-zA-Z '\-]"),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Email
-                    const _FieldLabel(label: 'Email'),
-                    const SizedBox(height: 8),
-                    _InputField(
                       controller: _emailController,
-                      hint: 'you@example.com',
+                      hint: 'youremail@example.com',
                       keyboardType: TextInputType.emailAddress,
                       inputFormatters: [
                         FilteringTextInputFormatter.deny(RegExp(r'\s')),
@@ -467,89 +318,64 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                       onChanged: (_) => setState(() {}),
                       readOnly: _emailReadOnly,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
-                    // Government ID Type
-                    const _FieldLabel(label: 'Government ID Type'),
-                    const SizedBox(height: 8),
-                    _IdTypeDropdown(
-                      value: _selectedIdType,
-                      items: _idTypes,
-                      onChanged: (v) => setState(() => _selectedIdType = v),
+                    const _FieldLabel('State'),
+                    const SizedBox(height: 10),
+                    _StateDropdown(
+                      value: _selectedState,
+                      states: _states,
+                      onChanged: (v) => setState(() => _selectedState = v),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
-                    // Government ID Number
-                    const _FieldLabel(label: 'Government ID Number'),
-                    const SizedBox(height: 8),
+                    const _FieldLabel('City'),
+                    const SizedBox(height: 10),
                     _InputField(
-                      controller: _idNumberController,
-                      hint: 'Enter ID Number',
+                      controller: _cityController,
+                      hint: 'Lekki',
                       keyboardType: TextInputType.text,
                       inputFormatters: [
-                        // Allow alphanumeric, hyphens, and slashes (common in IDs).
                         FilteringTextInputFormatter.allow(
-                          RegExp(r'[a-zA-Z0-9\-\/]'),
+                          RegExp(r"[a-zA-Z '\-]"),
                         ),
                       ],
                       onChanged: (_) => setState(() {}),
                     ),
-                    const SizedBox(height: 20),
-
-                    // Upload Govt ID — real picker (camera/gallery/PDF)
-                    const _FieldLabel(label: 'Upload Approved Government ID'),
-                    const SizedBox(height: 8),
-                    DocumentUploadBox(
-                      filePath: _govtIdFilePath,
-                      fileName: _govtIdFileName,
-                      hint:
-                          'International passport, NIN, Voter\'s card or Driver\'s License\nSupported file type: JPG, PNG, PDF\nMaximum File Size: 500 MB',
-                      onFileSelected: (path, name) {
-                        setState(() {
-                          _govtIdFilePath = path;
-                          _govtIdFileName = name;
-                        });
-                      },
-                      onClear: () => setState(() {
-                        _govtIdFilePath = null;
-                        _govtIdFileName = null;
-                      }),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
 
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
               child: SizedBox(
-                height: 52,
+                height: 58,
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _canContinue && !_isLoading ? _continue : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF05124D),
-                    disabledBackgroundColor: const Color(
-                      0xFF05124D,
-                    ).withValues(alpha: 0.4),
+                    backgroundColor: c.brandTeal500,
+                    disabledBackgroundColor:
+                        c.brandTeal500.withValues(alpha: 0.45),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 22,
+                          height: 22,
                           child: CircularProgressIndicator(
                             color: Colors.white,
-                            strokeWidth: 2.5,
+                            strokeWidth: 2,
                           ),
                         )
                       : const Text(
                           'Continue',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                           ),
@@ -564,8 +390,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   }
 }
 
-// ─── Data Model ──────────────────────────────────────────────────────────────
-
 class ProfileDetailsData {
   const ProfileDetailsData({
     required this.fullName,
@@ -573,10 +397,7 @@ class ProfileDetailsData {
     required this.state,
     required this.city,
     required this.email,
-    required this.governmentIdFileName,
-    required this.governmentIdFilePath,
-    required this.governmentIdType,
-    required this.governmentIdNumber,
+    required this.dateOfBirth,
   });
 
   final String fullName;
@@ -584,35 +405,87 @@ class ProfileDetailsData {
   final String state;
   final String city;
   final String email;
-  final String governmentIdFileName;
-
-  /// Local file path for the selected govt ID document, uploaded by the app
-  /// shell's final submit step via POST /api/v1/provider/verification/identity.
-  final String governmentIdFilePath;
-  final String governmentIdType;
-  final String governmentIdNumber;
+  final DateTime dateOfBirth;
 }
 
-// ─── Field Label ─────────────────────────────────────────────────────────────
+// ─── Step Progress ──────────────────────────────────────────────────────────
 
-class _FieldLabel extends StatelessWidget {
-  const _FieldLabel({required this.label});
-  final String label;
+class _StepProgress extends StatelessWidget {
+  const _StepProgress({required this.current, required this.total});
+  final int current;
+  final int total;
+
+  static const double _height = 9;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: Color(0xFF1A1A1A),
+    final c = context.palette;
+    final fraction =
+        total <= 0 ? 0.0 : (current / total).clamp(0.0, 1.0).toDouble();
+    final radius = BorderRadius.circular(_height / 2);
+
+    return SizedBox(
+      height: _height,
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: c.navy10,
+              borderRadius: radius,
+            ),
+          ),
+          FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: fraction,
+            heightFactor: 1,
+            child: Container(
+              decoration: BoxDecoration(
+                color: c.brandTeal500,
+                borderRadius: radius,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ─── Input Field ─────────────────────────────────────────────────────────────
+// ─── Field Label ────────────────────────────────────────────────────────────
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text, {this.isOptional = false});
+  final String text;
+  final bool isOptional;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.palette;
+    return Text.rich(
+      TextSpan(
+        text: text,
+        children: [
+          if (isOptional)
+            TextSpan(
+              text: ' (optional)',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                color: c.textMuted,
+              ),
+            ),
+        ],
+      ),
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: c.text,
+      ),
+    );
+  }
+}
+
+// ─── Input Field ────────────────────────────────────────────────────────────
 
 class _InputField extends StatelessWidget {
   const _InputField({
@@ -633,6 +506,7 @@ class _InputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
@@ -640,37 +514,44 @@ class _InputField extends StatelessWidget {
       onChanged: onChanged,
       readOnly: readOnly,
       style: TextStyle(
-        fontSize: 14,
-        color: readOnly ? const Color(0xFF666666) : const Color(0xFF1A1A1A),
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: readOnly ? c.textMuted : c.text,
       ),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(fontSize: 14, color: Color(0xFFBBBBBB)),
+        hintStyle: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: c.textDisabled,
+        ),
         filled: true,
-        // Subtly different background when field is locked (verified data).
-        fillColor: readOnly ? const Color(0xFFF0F0F0) : Colors.white,
+        fillColor: readOnly ? c.navy10 : c.inputFill,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 15,
+          horizontal: 16,
+          vertical: 18,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF05124D), width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: c.brandTeal500,
+            width: 1.5,
+          ),
         ),
       ),
     );
   }
 }
 
-// ─── State Dropdown ───────────────────────────────────────────────────────────
+// ─── State Dropdown ─────────────────────────────────────────────────────────
 
 class _StateDropdown extends StatelessWidget {
   const _StateDropdown({
@@ -685,26 +566,37 @@ class _StateDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
+        color: c.inputFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: c.border),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          hint: const Text(
-            'State',
-            style: TextStyle(color: Color(0xFFBBBBBB), fontSize: 14),
+          hint: Text(
+            'Select state',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: c.textDisabled,
+            ),
           ),
           isExpanded: true,
-          icon: const Icon(
+          icon: Icon(
             Icons.keyboard_arrow_down_rounded,
-            color: Color(0xFF888888),
+            color: c.text,
           ),
-          style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+          dropdownColor: c.surface,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: c.text,
+          ),
           items: states
               .map((s) => DropdownMenuItem(value: s, child: Text(s)))
               .toList(),
@@ -715,103 +607,49 @@ class _StateDropdown extends StatelessWidget {
   }
 }
 
-class _IdTypeDropdown extends StatelessWidget {
-  const _IdTypeDropdown({
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
+// ─── Date Field ─────────────────────────────────────────────────────────────
 
+class _DateField extends StatelessWidget {
+  const _DateField({required this.value, required this.onTap});
   final String? value;
-  final List<String> items;
-  final ValueChanged<String?> onChanged;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          hint: const Text(
-            'Government ID Type',
-            style: TextStyle(color: Color(0xFFBBBBBB), fontSize: 14),
-          ),
-          isExpanded: true,
-          icon: const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: Color(0xFF888888),
-          ),
-          style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
-          items: items
-              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-              .toList(),
-          onChanged: onChanged,
+    final c = context.palette;
+    final hasValue = value != null && value!.isNotEmpty;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: c.inputFill,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: c.border),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                hasValue ? value! : '12 May 1992',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: hasValue ? FontWeight.w500 : FontWeight.w400,
+                  color: hasValue ? c.text : c.textDisabled,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 20,
+              color: c.text,
+            ),
+          ],
         ),
       ),
-    );
-  }
-}
-
-// ─── Nigeria Flag ─────────────────────────────────────────────────────────────
-
-class _NigeriaFlag extends StatelessWidget {
-  const _NigeriaFlag();
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _Stripe(color: Color(0xFF008751)),
-          _Stripe(color: Colors.white),
-          _Stripe(color: Color(0xFF008751)),
-        ],
-      ),
-    );
-  }
-}
-
-class _Stripe extends StatelessWidget {
-  const _Stripe({required this.color});
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) =>
-      Container(width: 7, height: 16, color: color);
-}
-
-// ─── Progress Bar ─────────────────────────────────────────────────────────────
-
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({required this.current, required this.total});
-  final int current;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(total, (i) {
-        return Expanded(
-          child: Container(
-            margin: EdgeInsets.only(right: i < total - 1 ? 4 : 0),
-            height: 4,
-            decoration: BoxDecoration(
-              color: i < current
-                  ? const Color(0xFF05124D)
-                  : const Color(0xFFDDDDDD),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        );
-      }),
     );
   }
 }

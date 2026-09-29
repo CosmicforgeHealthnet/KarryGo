@@ -1,485 +1,341 @@
-import 'package:flutter/material.dart';
-import '../../verification/state/verification_controller.dart';
-import '../../verification/models/verification_models.dart';
+import 'dart:math' as math;
 
-class VerificationPendingScreen extends StatefulWidget {
+import 'package:flutter/material.dart';
+
+import '../../../core/theme/theme_extensions.dart';
+
+class VerificationPendingScreen extends StatelessWidget {
   const VerificationPendingScreen({
     super.key,
     required this.onGoToDashboard,
-    required this.verificationController,
+    this.verificationController,
   });
 
   final VoidCallback onGoToDashboard;
-  final VerificationController verificationController;
-
-  @override
-  State<VerificationPendingScreen> createState() =>
-      _VerificationPendingScreenState();
-}
-
-class _VerificationPendingScreenState extends State<VerificationPendingScreen> {
-  bool _localLoading = false;
-  String? _localError;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchStatus();
-  }
-
-  Future<void> _fetchStatus() async {
-    if (_localLoading) return;
-    setState(() {
-      _localLoading = true;
-      _localError = null;
-    });
-
-    final result = await widget.verificationController.loadVerificationStatus();
-    if (mounted) {
-      setState(() {
-        _localLoading = false;
-      });
-      result.when(
-        success: (_) {},
-        failure: (error) {
-          setState(() {
-            _localError = error.message;
-          });
-        },
-      );
-    }
-  }
+  final dynamic verificationController;
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.verificationController;
-    final statusResponse = state.latestStatus;
+    final c = context.palette;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        title: const Text(
-          'Verification Status',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: Color(0xFF1A1A1A),
-          ),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF05124D)),
-            onPressed: _fetchStatus,
-            tooltip: 'Refresh Status',
-          ),
-        ],
-      ),
+      backgroundColor: c.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-          child: _localLoading && statusResponse == null
-              ? const Center(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      CircularProgressIndicator(color: Color(0xFF05124D)),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      const Center(child: _SuccessBurst()),
+                      const SizedBox(height: 24),
                       Text(
-                        'Checking verification status...',
-                        style: TextStyle(color: Color(0xFF888888)),
-                      ),
-                    ],
-                  ),
-                )
-              : _localError != null && statusResponse == null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        color: Colors.red,
-                        size: 48,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Failed to load status: $_localError',
+                        'Setup submitted!',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Color(0xFF888888)),
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: c.text,
+                          letterSpacing: -0.4,
+                          height: 1.2,
+                        ),
                       ),
                       const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _fetchStatus,
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Retry'),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 280),
+                          child: Text(
+                            "Your information has been sent for verification. We'll review your details and notify you once you're all set.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w400,
+                              color: c.textMuted,
+                              height: 1.6,
+                            ),
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                )
-              : statusResponse == null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('No status data available.'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _fetchStatus,
-                        child: const Text('Load Status'),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: c.navy10,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Center(
-                              child: Image.asset(
-                                'assets/figma/profile_submitted.png',
-                                width: 140,
-                                height: 130,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(
-                                      Icons.assignment_turned_in_rounded,
-                                      size: 80,
-                                      color: Color(0xFF05124D),
-                                    ),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
                             Text(
-                              _getOverallStatusTitle(
-                                statusResponse.overallStatus,
-                              ),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF1A1A1A),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _getOverallStatusDescription(
-                                statusResponse.overallStatus,
-                              ),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF888888),
-                                height: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Progress Bar Card
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        'Verification Progress',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14,
-                                          color: Color(0xFF1A1A1A),
-                                        ),
-                                      ),
-                                      Text(
-                                        '${statusResponse.completionPercentage}%',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 15,
-                                          color: Color(0xFF05124D),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  LinearProgressIndicator(
-                                    value:
-                                        statusResponse.completionPercentage /
-                                        100.0,
-                                    backgroundColor: const Color(0xFFE7F5EC),
-                                    color: const Color(0xFF05124D),
-                                    minHeight: 8,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-
-                            // Steps Card
-                            const Text(
-                              'VERIFICATION STEPS',
+                              'What happens next?',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF888888),
-                                letterSpacing: 1.0,
+                                color: c.text,
+                                height: 1.2,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: statusResponse.steps.length,
-                                separatorBuilder: (context, index) =>
-                                    const Divider(
-                                      height: 1,
-                                      color: Color(0xFFF0F0F0),
-                                    ),
-                                itemBuilder: (context, i) {
-                                  final step = statusResponse.steps[i];
-                                  return _StepListTile(step: step);
-                                },
-                              ),
+                            const SizedBox(height: 20),
+                            const _NextStep(
+                              number: '1',
+                              text:
+                                  'We review your information (usually within 24 hours)',
+                            ),
+                            const SizedBox(height: 20),
+                            const _NextStep(
+                              number: '2',
+                              text: "You'll receive a notification",
+                            ),
+                            const SizedBox(height: 20),
+                            const _NextStep(
+                              number: '3',
+                              text: 'Start receiving opportunities',
                             ),
                           ],
                         ),
                       ),
-                    ),
-
-                    const SizedBox(height: 12),
-                    if (_localLoading)
-                      const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF05124D),
-                        ),
-                      )
-                    else
-                      SizedBox(
-                        height: 52,
-                        child: FilledButton(
-                          onPressed: statusResponse.overallStatus == 'verified'
-                              ? widget.onGoToDashboard
-                              : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF05124D),
-                            disabledBackgroundColor: const Color(0xFFC1C5D4),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          child: const Text(
-                            'Go to dashboard',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 58,
+                child: FilledButton(
+                  onPressed: onGoToDashboard,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: c.btnPrimary,
+                    foregroundColor: c.btnPrimaryFg,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'Back to sign in',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: c.btnPrimaryFg,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
   }
-
-  String _getOverallStatusTitle(String status) {
-    switch (status) {
-      case 'verified':
-        return 'Account Verified!';
-      case 'pending_review':
-        return 'Review in Progress';
-      case 'rejected':
-        return 'Verification Rejected';
-      case 'suspended':
-        return 'Account Suspended';
-      case 'in_progress':
-      default:
-        return 'Verification In Progress';
-    }
-  }
-
-  String _getOverallStatusDescription(String status) {
-    switch (status) {
-      case 'verified':
-        return 'Congratulations! Your profile has been reviewed and approved. You can now access your dashboard.';
-      case 'pending_review':
-        return 'We have received your verification documents. Our administrators are currently reviewing them. You will be notified shortly.';
-      case 'rejected':
-        return 'Your verification was rejected by the admin. Please verify your details or re-upload clear photos.';
-      case 'suspended':
-        return 'Your account is suspended. Please reach out to customer support for more information.';
-      case 'in_progress':
-      default:
-        return 'Please complete all onboarding and verification steps to continue.';
-    }
-  }
 }
 
-class _StepListTile extends StatelessWidget {
-  const _StepListTile({required this.step});
-  final VerificationStepSummary step;
+class _NextStep extends StatelessWidget {
+  const _NextStep({required this.number, required this.text});
+
+  final String number;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          _getStepIcon(step.status),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _getStepNameLabel(step.step),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-                if (step.isOptional) ...[
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Optional Step',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF888888)),
-                  ),
-                ],
-              ],
+    final c = context.palette;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: c.brandTeal500,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              number,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: c.btnPrimaryFg,
+              ),
             ),
           ),
-          _getStatusBadge(step.status),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w400,
+              color: c.textMuted,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SuccessBurst extends StatelessWidget {
+  const _SuccessBurst();
+
+  static const double _width = 300;
+  static const double _height = 220;
+  static const double _centerY = 128;
+  static const double _diameter = 104;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.palette;
+
+    return SizedBox(
+      width: _width,
+      height: _height,
+      child: Stack(
+        children: [
+          const Positioned.fill(
+            child: CustomPaint(
+              painter: _ConfettiPainter(
+                center: Offset(_width / 2, _centerY),
+              ),
+            ),
+          ),
+          Positioned(
+            left: (_width - _diameter) / 2,
+            top: _centerY - _diameter / 2,
+            child: Container(
+              width: _diameter,
+              height: _diameter,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [c.brandTeal500, c.brandTeal600],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: c.brandTeal500.withValues(alpha: 0.20),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const CustomPaint(painter: _CheckPainter()),
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  String _getStepNameLabel(String step) {
-    switch (step) {
-      case 'identity':
-        return 'Identity Verification';
-      case 'licence':
-        return 'Driver\'s License';
-      case 'face':
-        return 'Facial Matching';
-      case 'vehicle':
-        return 'Vehicle Verification';
-      case 'guarantor':
-        return 'Guarantor Setup';
-      case 'emergency':
-        return 'Emergency Contact';
-      default:
-        return step.toUpperCase();
-    }
-  }
+// ─── Painters (decorative — theme-agnostic) ────────────────────────────────
 
-  Widget _getStepIcon(String status) {
-    switch (status) {
-      case 'approved':
-        return const Icon(
-          Icons.check_circle_rounded,
-          color: Color(0xFF1F9D55),
-          size: 24,
-        );
-      case 'submitted':
-        return const Icon(
-          Icons.watch_later_rounded,
-          color: Color(0xFFF57F17),
-          size: 24,
-        );
-      case 'rejected':
-        return const Icon(
-          Icons.cancel_rounded,
-          color: Color(0xFFC62828),
-          size: 24,
-        );
-      case 'pending':
-      default:
-        return const Icon(
-          Icons.radio_button_unchecked_rounded,
-          color: Color(0xFFBBBBBB),
-          size: 24,
-        );
-    }
-  }
+class _CheckPainter extends CustomPainter {
+  const _CheckPainter();
 
-  Widget _getStatusBadge(String status) {
-    Color bgColor;
-    Color textColor;
-    String label;
-
-    switch (status) {
-      case 'approved':
-        bgColor = const Color(0xFFE7F5EC);
-        textColor = const Color(0xFF2E7D32);
-        label = 'Approved';
-        break;
-      case 'submitted':
-        bgColor = const Color(0xFFFFF8E1);
-        textColor = const Color(0xFFF57F17);
-        label = 'Submitted';
-        break;
-      case 'rejected':
-        bgColor = const Color(0xFFFFEBEE);
-        textColor = const Color(0xFFC62828);
-        label = 'Rejected';
-        break;
-      case 'pending':
-      default:
-        bgColor = const Color(0xFFF5F5F5);
-        textColor = const Color(0xFF757575);
-        label = 'Pending';
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: textColor,
-        ),
-      ),
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 104;
+    final path = Path()
+      ..moveTo(28 * s, 55 * s)
+      ..lineTo(45 * s, 72 * s)
+      ..lineTo(78 * s, 34 * s);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 9 * s
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
     );
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _ConfettiPiece {
+  const _ConfettiPiece(
+    this.dx,
+    this.dy,
+    this.length,
+    this.thickness,
+    this.angle,
+    this.color,
+  );
+
+  final double dx;
+  final double dy;
+  final double length;
+  final double thickness;
+  final double angle;
+  final Color color;
+}
+
+class _ConfettiPainter extends CustomPainter {
+  const _ConfettiPainter({required this.center});
+
+  final Offset center;
+
+  static const Color _gold = Color(0xFFF5B800);
+  static const Color _blue = Color(0xFF2563EB);
+  static const Color _teal = Color(0xFF14B8A6);
+  static const Color _cyan = Color(0xFF1094AA);
+  static const Color _red = Color(0xFFE5484D);
+  static const Color _orange = Color(0xFFF59E0B);
+
+  static const List<_ConfettiPiece> _pieces = [
+    _ConfettiPiece(-84, 71, 24, 8, 129, _cyan),
+    _ConfettiPiece(81, -116, 18, 8, 67, _teal),
+    _ConfettiPiece(134, -17, 19, 8, 128, _blue),
+    _ConfettiPiece(84, -53, 19, 8, 130, _gold),
+    _ConfettiPiece(-125, -37, 19, 7, 135, _gold),
+    _ConfettiPiece(103, 40, 14, 8, -143, _gold),
+    _ConfettiPiece(-98, -84, 14, 7, 54, _blue),
+    _ConfettiPiece(-108, 24, 12, 7, -148, _red),
+    _ConfettiPiece(44, 76, 11, 7, 58, _blue),
+    _ConfettiPiece(63, 53, 15, 4, -148, _teal),
+    _ConfettiPiece(33, -84, 6, 6, 0, _orange),
+    _ConfettiPiece(-31, -77, 6, 4, 72, _teal),
+    _ConfettiPiece(-56, -64, 5, 5, 0, _teal),
+    _ConfettiPiece(-107, 12, 6, 4, 90, _teal),
+    _ConfettiPiece(47, -69, 5, 5, 0, _teal),
+    _ConfettiPiece(96, -19, 4, 4, 0, _orange),
+    _ConfettiPiece(79, 1, 4, 4, 0, _orange),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final piece in _pieces) {
+      final paint = Paint()..color = piece.color;
+      final radius = piece.thickness <= 6 ? piece.thickness / 2 : 2.0;
+      canvas.save();
+      canvas.translate(center.dx + piece.dx, center.dy + piece.dy);
+      canvas.rotate(piece.angle * math.pi / 180);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset.zero,
+            width: piece.length,
+            height: piece.thickness,
+          ),
+          Radius.circular(radius),
+        ),
+        paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

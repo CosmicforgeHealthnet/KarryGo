@@ -1,11 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
+
+import '../../../core/theme/theme_extensions.dart';
 import '../state/dispatch_auth_controller.dart';
 
-/// Signup screen — collects phone number + email address.
-/// Called [PhoneEntryScreen] to preserve existing import paths.
 class PhoneEntryScreen extends StatefulWidget {
   const PhoneEntryScreen({
     super.key,
@@ -14,11 +14,8 @@ class PhoneEntryScreen extends StatefulWidget {
     this.onLoginTap,
   });
 
-  /// Called with (phone, email) after signupStart succeeds.
   final void Function(String phone, String email) onContinue;
   final DispatchAuthController controller;
-
-  /// Called when the user taps "Already have an account? Log In".
   final VoidCallback? onLoginTap;
 
   @override
@@ -39,313 +36,302 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: c.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 120),
-              // Car illustration
-              Padding(
-                padding: const EdgeInsets.only(left: 29.0),
-                child: Image.asset(
-                  'assets/figma/auth_car_header.png',
-                  width: 323,
-                  height: 88,
-                  fit: BoxFit.contain,
-                  alignment: Alignment.centerLeft,
-                ),
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'Welcome to Cosmicforge Logistics!',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                "Let's get you moving.",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF05124D),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Create your account to get started.',
-                style: TextStyle(fontSize: 13, color: Color(0xFF888888)),
-              ),
-              const SizedBox(height: 28),
-
-              // ── Phone number ──────────────────────────────────────────────
-              const Text(
-                'Phone Number',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Container(
-                    height: 52,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF05124D)),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _NigeriaFlag(),
-                        SizedBox(width: 6),
-                        Text(
-                          '+234',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                        SizedBox(width: 2),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 18,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF1A1A1A),
+        child: Column(
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
                       ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]')),
-                      ],
-                      decoration: InputDecoration(
-                        hintText: '8067735987',
-                        hintStyle: const TextStyle(
-                          color: Color(0xFFBBBBBB),
-                          fontSize: 14,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 16,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF05124D),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF05124D),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF05124D),
-                            width: 1.5,
-                          ),
+                      child: IntrinsicHeight(
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 550),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, t, child) {
+                            return Opacity(
+                              opacity: t,
+                              child: Transform.translate(
+                                offset: Offset(0, (1 - t) * 18),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: _buildContent(),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  );
+                },
               ),
-              const SizedBox(height: 16),
-
-              // ── Email address ─────────────────────────────────────────────
-              const Text(
-                'Email Address',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
-                ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 16,
+                bottom: 16,
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                autocorrect: false,
-                inputFormatters: [
-                  // Disallow spaces — email addresses never contain spaces.
-                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                ],
-                style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
-                decoration: InputDecoration(
-                  hintText: 'you@example.com',
-                  hintStyle: const TextStyle(
-                    color: Color(0xFFBBBBBB),
-                    fontSize: 14,
+              child: Text.rich(
+                TextSpan(
+                  text: 'By continuing, you agree to our\n',
+                  style: TextStyle(
+                    color: c.textMuted,
+                    fontSize: 13,
+                    height: 1.5,
                   ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 16,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF05124D)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF05124D)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF05124D),
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "We'll send your verification code to your phone.",
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF05124D),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // ── Continue button ───────────────────────────────────────────
-              _ContinueButton(
-                phoneListenable: _phoneController,
-                emailListenable: _emailController,
-                isLoading: _isLoading,
-                onTap: _signup,
-              ),
-              const SizedBox(height: 28),
-              const _DividerLabel(label: 'Or'),
-              const SizedBox(height: 20),
-              // Google button
-              SizedBox(
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFFDDDDDD)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SvgPicture.string(
-                        '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                          <path fill="none" d="M0 0h48v48H0z"/>
-                        </svg>''',
-                        width: 22,
-                        height: 22,
+                  children: [
+                    TextSpan(
+                      text: 'Terms of Service',
+                      style: TextStyle(
+                        color: c.text,
+                        fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Continue with Google',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Apple button
-              SizedBox(
-                height: 52,
-                child: FilledButton(
-                  onPressed: () {},
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
                     ),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.apple, color: Colors.white, size: 22),
-                      SizedBox(width: 10),
-                      Text(
-                        'Continue with Apple',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                    const TextSpan(text: ' and '),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      style: TextStyle(
+                        color: c.text,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-              GestureDetector(
-                onTap: widget.onLoginTap,
-                child: Text.rich(
-                  TextSpan(
-                    text: 'Already have an account? ',
-                    style: const TextStyle(
-                      color: Color(0xFF888888),
-                      fontSize: 13,
                     ),
-                    children: const [
-                      TextSpan(
-                        text: 'Log In',
-                        style: TextStyle(
-                          color: Color(0xFF05124D),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  textAlign: TextAlign.center,
+                  ],
                 ),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  Widget _buildContent() {
+    final c = context.palette;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 32),
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/figma/splash_logo.png',
+                width: 88,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Karryam',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: c.text,
+                  letterSpacing: -0.6,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+        Text(
+          "Let's get you started",
+          style: TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w700,
+            color: c.text,
+            letterSpacing: -0.6,
+            height: 1.15,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Sign in or create a provider account with your phone number.',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: c.textMuted,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 20),
+        const _FieldLabel('Phone number'),
+        const SizedBox(height: 10),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _phoneController,
+          builder: (context, value, _) {
+            return _FieldShell(
+              trailing: value.text.isEmpty
+                  ? null
+                  : _ClearButton(controller: _phoneController),
+              child: Row(
+                children: [
+                  const _NigeriaFlag(),
+                  const SizedBox(width: 10),
+                  Text(
+                    '+234',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: c.text,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 1,
+                    height: 24,
+                    color: c.border,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: c.text,
+                      ),
+                      inputFormatters: [_PhoneFormatter()],
+                      decoration: InputDecoration(
+                        hintText: '812 345 6789',
+                        hintStyle: TextStyle(
+                          color: c.textDisabled,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('Email address'),
+        const SizedBox(height: 10),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _emailController,
+          builder: (context, value, _) {
+            return _FieldShell(
+              leadingBuilder: (focused) => Icon(
+                Icons.mail_outline_rounded,
+                size: 22,
+                color: focused ? c.brandTeal500 : c.textMuted,
+              ),
+              trailing: value.text.isEmpty
+                  ? null
+                  : _ClearButton(controller: _emailController),
+              child: TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
+                autocorrect: false,
+                onSubmitted: (_) => _signup(),
+                inputFormatters: [
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                ],
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: c.text,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'you@example.com',
+                  hintStyle: TextStyle(
+                    color: c.textDisabled,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Icon(
+              Icons.verified_user_outlined,
+              size: 16,
+              color: c.brandTeal500,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                "We'll send your verification code to your phone.",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: c.textMuted,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ContinueButton(
+          phoneListenable: _phoneController,
+          emailListenable: _emailController,
+          isLoading: _isLoading,
+          onTap: _signup,
+        ),
+        const SizedBox(height: 4),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onLoginTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text.rich(
+              TextSpan(
+                text: 'Already have an account? ',
+                style: TextStyle(
+                  color: c.textMuted,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                children: [
+                  TextSpan(
+                    text: 'Log In',
+                    style: TextStyle(
+                      color: c.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+        const Spacer(),
+      ],
+    );
+  }
+
   void _signup() async {
-    if (_isLoading) return; // guard against double-tap
+    if (_isLoading) return;
 
     final rawPhone = _phoneController.text.replaceAll(' ', '').trim();
     final email = _emailController.text.trim();
@@ -369,7 +355,6 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
       return;
     }
 
-    // Basic email format validation.
     final emailRegex = RegExp(r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$');
     if (!emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -383,7 +368,6 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
 
     FocusScope.of(context).unfocus();
 
-    // Normalize phone: strip country code prefix and re-add +234.
     String subscriber = rawPhone;
     if (subscriber.startsWith('+234')) {
       subscriber = subscriber.substring(4);
@@ -394,7 +378,6 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
       subscriber = subscriber.substring(1);
     }
 
-    // Nigerian subscriber number is 10 digits (e.g. 8012345678).
     if (subscriber.length != 10 || !RegExp(r'^\d{10}$').hasMatch(subscriber)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -411,7 +394,6 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isLoading = true);
 
-    // signupStart always returns ApiResult — it never throws.
     final result = await widget.controller.signupStart(
       phoneNumber: phone,
       email: email,
@@ -434,13 +416,12 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
     );
   }
 
-  /// Returns a user-friendly message for signup errors.
   static String _signupErrorMessage(ApiException error) {
     switch (error.code) {
       case ApiErrorCode.conflict:
         return 'An account already exists with this phone number or email. Please log in instead.';
       case ApiErrorCode.network:
-        return 'Cannot connect to Cosmicforge Logistics server. Check backend URL/network and try again.';
+        return 'Cannot connect to Karryam server. Check backend URL/network and try again.';
       case ApiErrorCode.rateLimited:
         return 'Too many attempts. Please wait a moment and try again.';
       case ApiErrorCode.validationFailed:
@@ -455,7 +436,160 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
   }
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.palette;
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: c.text,
+      ),
+    );
+  }
+}
+
+class _ClearButton extends StatelessWidget {
+  const _ClearButton({required this.controller});
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.palette;
+    return IconButton(
+      onPressed: controller.clear,
+      icon: const Icon(Icons.close_rounded),
+      iconSize: 18,
+      color: c.textDisabled,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+    );
+  }
+}
+
+class _FieldShell extends StatefulWidget {
+  const _FieldShell({
+    required this.child,
+    this.leadingBuilder,
+    this.trailing,
+  });
+
+  final Widget child;
+  final Widget Function(bool focused)? leadingBuilder;
+  final Widget? trailing;
+
+  @override
+  State<_FieldShell> createState() => _FieldShellState();
+}
+
+class _FieldShellState extends State<_FieldShell> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.palette;
+    final focusRing = c.brandTeal500.withValues(alpha: 0.15);
+
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onFocusChange: (focused) => setState(() => _focused = focused),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        height: 58,
+        decoration: BoxDecoration(
+          color: _focused ? c.surface : c.inputFill,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _focused ? c.brandTeal500 : c.border,
+            width: _focused ? 1.6 : 1,
+          ),
+          boxShadow: _focused
+              ? [
+                  BoxShadow(
+                    color: focusRing,
+                    blurRadius: 0,
+                    spreadRadius: 4,
+                  ),
+                ]
+              : const [],
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 16),
+            if (widget.leadingBuilder != null) ...[
+              widget.leadingBuilder!(_focused),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  inputDecorationTheme: const InputDecorationTheme(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
+                    filled: false,
+                  ),
+                ),
+                child: widget.child,
+              ),
+            ),
+            widget.trailing ?? const SizedBox(width: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PhoneFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final allDigits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final digits =
+        allDigits.length > 13 ? allDigits.substring(0, 13) : allDigits;
+    final first = digits.startsWith('0') ? 4 : 3;
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i == first || i == first + 3) buffer.write(' ');
+      buffer.write(digits[i]);
+    }
+    final text = buffer.toString();
+
+    final end = newValue.selection.end < 0
+        ? newValue.text.length
+        : (newValue.selection.end > newValue.text.length
+              ? newValue.text.length
+              : newValue.selection.end);
+    var digitsBeforeCursor =
+        newValue.text.substring(0, end).replaceAll(RegExp(r'\D'), '').length;
+    if (digitsBeforeCursor > digits.length) digitsBeforeCursor = digits.length;
+
+    var offset = 0;
+    var seen = 0;
+    while (offset < text.length && seen < digitsBeforeCursor) {
+      if (text[offset] != ' ') seen++;
+      offset++;
+    }
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: offset),
+    );
+  }
+}
 
 class _ContinueButton extends StatelessWidget {
   const _ContinueButton({
@@ -472,23 +606,38 @@ class _ContinueButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
+    final buttonGlow = c.brandTeal500.withValues(alpha: 0.20);
+
     return ListenableBuilder(
       listenable: Listenable.merge([phoneListenable, emailListenable]),
       builder: (context, _) {
-        final canContinue =
-            phoneListenable.text.trim().isNotEmpty &&
+        final canContinue = phoneListenable.text.trim().isNotEmpty &&
             emailListenable.text.trim().isNotEmpty;
-        return SizedBox(
-          height: 52,
+        final enabled = canContinue && !isLoading;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          height: 56,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: enabled
+                ? [
+                    BoxShadow(
+                      color: buttonGlow,
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : const [],
+          ),
           child: FilledButton(
-            onPressed: canContinue && !isLoading ? onTap : null,
+            onPressed: enabled ? onTap : null,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF05124D),
-              disabledBackgroundColor: const Color(
-                0xFF05124D,
-              ).withValues(alpha: 0.45),
+              backgroundColor: c.brandTeal500,
+              disabledBackgroundColor:
+                  c.brandTeal500.withValues(alpha: 0.45),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
             child: isLoading
@@ -500,13 +649,24 @@ class _ContinueButton extends StatelessWidget {
                       strokeWidth: 2,
                     ),
                   )
-                : const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Continue',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 20,
+                        color: Colors.white,
+                      ),
+                    ],
                   ),
           ),
         );
@@ -515,13 +675,15 @@ class _ContinueButton extends StatelessWidget {
   }
 }
 
+// ── Nigeria flag (national colors — theme-independent) ────────────────
+
 class _NigeriaFlag extends StatelessWidget {
   const _NigeriaFlag();
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
+      borderRadius: BorderRadius.circular(3),
       child: const Row(
         children: [
           _Stripe(color: Color(0xFF008751)),
@@ -539,31 +701,5 @@ class _Stripe extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      Container(width: 8, height: 18, color: color);
-}
-
-class _DividerLabel extends StatelessWidget {
-  const _DividerLabel({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(child: Divider(color: Color(0xFFDDDDDD))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF888888),
-              fontWeight: FontWeight.w500,
-              fontSize: 13,
-            ),
-          ),
-        ),
-        const Expanded(child: Divider(color: Color(0xFFDDDDDD))),
-      ],
-    );
-  }
+      Container(width: 7, height: 16, color: color);
 }

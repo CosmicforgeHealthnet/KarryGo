@@ -1,31 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../core/app_mode.dart';
 import '../data/rider_notification_api.dart';
+import '../mock/notifications_mock.dart';
 import '../models/rider_notification.dart';
 
-/// Drives the rider's in-app notification feed (the bell screen).
-///
-/// The feed is loaded from the dispatch-service notification proxy when the
-/// screen opens and on pull-to-refresh. Live pushes arrive through the app's
-/// realtime listener, which forwards every event to [onRealtimeEvent] so an
-/// open feed refreshes without its own websocket.
-///
-/// Read styling: items newer than [unreadCutoff] (the last time the screen was
-/// opened, persisted across restarts) render as unread. Opening the feed
-/// advances the stored cutoff but keeps the current one in memory, so items
-/// stay visibly "new" for the whole visit and read on the next. The marker is
-/// stored in flutter_secure_storage (this app has no shared_preferences dep);
-/// reads/writes are best-effort so plugin-less test runs degrade to
-/// "all unread".
 class RiderNotificationController extends ChangeNotifier {
   RiderNotificationController({
     required RiderNotificationApi api,
     required String? Function() accessToken,
     FlutterSecureStorage? storage,
-  }) : _api = api,
-       _accessToken = accessToken,
-       _storage = storage ?? const FlutterSecureStorage();
+  })  : _api = api,
+        _accessToken = accessToken,
+        _storage = storage ?? const FlutterSecureStorage();
 
   static const _lastSeenKey = 'dp_notifications_last_seen';
 
@@ -54,8 +42,6 @@ class RiderNotificationController extends ChangeNotifier {
     return cutoff == null || item.createdAt.isAfter(cutoff);
   }
 
-  /// Loads the feed for a screen visit: styles anything newer than the previous
-  /// visit as unread, then advances the persisted last-seen marker.
   Future<void> openFeed() async {
     try {
       final storedMillis = int.tryParse(
@@ -69,19 +55,38 @@ class RiderNotificationController extends ChangeNotifier {
         value: '${DateTime.now().millisecondsSinceEpoch}',
       );
     } catch (_) {
-      // Storage unavailable (tests) — everything renders unread.
       _unreadCutoff = DateTime.fromMillisecondsSinceEpoch(0);
     }
     await refresh();
   }
 
-  /// Reloads the feed, keeping the current unread cutoff.
   Future<void> refresh() async {
-    final token = _accessToken();
-    if (token == null || _disposed) return;
+    if (_disposed) return;
+
     _loading = true;
     _error = null;
     notifyListeners();
+
+    // ── MOCK ──
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (_disposed) return;
+      _notifications
+        ..clear()
+        ..addAll(NotificationsMock.seed());
+      _loadedOnce = true;
+      _loading = false;
+      notifyListeners();
+      return;
+    }
+
+    // ── LIVE ──
+    final token = _accessToken();
+    if (token == null) {
+      _loading = false;
+      notifyListeners();
+      return;
+    }
     try {
       final items = await _api.listNotifications(accessToken: token);
       if (_disposed) return;
@@ -100,14 +105,11 @@ class RiderNotificationController extends ChangeNotifier {
     }
   }
 
-  /// Fast path from the realtime listener: a pushed event means the feed
-  /// changed. Only refreshes once the feed has been loaded at least once.
   void onRealtimeEvent(String eventType) {
     if (!_loadedOnce || _loading) return;
     refresh();
   }
 
-  /// Clears feed state on logout.
   void clear() {
     _notifications.clear();
     _loadedOnce = false;

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import '../models/provider_profile_models.dart';
+import 'package:http_parser/http_parser.dart' show MediaType;
 
 class ProviderProfileApi {
   final ApiCoreConfig config;
@@ -87,15 +88,17 @@ class ProviderProfileApi {
     String? state,
     String? city,
     String? profilePhotoUrl,
+    String? operationType,
   }) async {
     try {
       final uri = config.uri('/api/v1/provider/me');
-      final requestBody = {
+        final requestBody = {
         'full_name': ?fullName,
         'email': ?email,
         'state': ?state,
         'city': ?city,
         'profile_photo_url': ?profilePhotoUrl,
+        'operation_type': ?operationType,
       };
 
       final response = await _client
@@ -304,30 +307,49 @@ class ProviderProfileApi {
   }
 
   Future<ApiResult<ProviderProfile>> uploadAvatar({
-    required String accessToken,
-    required String filePath,
-  }) async {
-    try {
-      final uri = config.uri('/api/v1/provider/me/avatar');
-      final request = http.MultipartRequest('POST', uri)
-        ..headers['Authorization'] = 'Bearer $accessToken'
-        ..files.add(await http.MultipartFile.fromPath('avatar', filePath));
+  required String accessToken,
+  required String filePath,
+}) async {
+  try {
+    final uri = config.uri('/api/v1/provider/me/avatar');
 
-      final streamed = await request.send().timeout(const Duration(seconds: 30));
-      final response = await http.Response.fromStream(streamed);
+    // Detect MIME type from extension — backend REQUIRES image/jpeg or
+    // image/png on the multipart part.
+    final ext = filePath.split('.').last.toLowerCase();
+    final mediaType = switch (ext) {
+      'png' => MediaType('image', 'png'),
+      _ => MediaType('image', 'jpeg'),
+    };
 
-      final Map<String, dynamic> body = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        if (body['success'] == true) {
-          final data = body['data'] as Map<String, dynamic>;
-          return ApiSuccess(ProviderProfile.fromJson(data));
-        }
-      }
-      return ApiFailure(
-        ApiException.fromErrorEnvelope(body, statusCode: response.statusCode),
-      );
-    } catch (e) {
-      return ApiFailure(ApiException.network(e));
+    final multipartFile = await http.MultipartFile.fromPath(
+      'avatar',
+      filePath,
+      contentType: mediaType,   // ← the fix
+    );
+
+    final request = http.MultipartRequest('POST', uri)
+      ..headers['Authorization'] = 'Bearer $accessToken'
+      ..files.add(multipartFile);
+
+    final streamed = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamed);
+
+    print('[AVATAR] status=${response.statusCode} body=${response.body}');
+
+    final Map<String, dynamic> body = jsonDecode(response.body);
+    if (response.statusCode == 200 && body['success'] == true) {
+      final data = body['data'] as Map<String, dynamic>;
+      return ApiSuccess(ProviderProfile.fromJson(data));
     }
+    return ApiFailure(
+      ApiException.fromErrorEnvelope(body, statusCode: response.statusCode),
+    );
+  } on ApiException catch (e) {
+    return ApiFailure(e);
+  } catch (e) {
+    return ApiFailure(ApiException.network(e));
   }
+}
 }
