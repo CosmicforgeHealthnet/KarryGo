@@ -75,7 +75,7 @@ VENDOR_E2E = ("^(TestCommerceLifecycleE2E_|TestCustomerV4E2E07|TestCartDeliveryP
               "TestSection17FChange_AddressChange|TestSection17CLogistics_|TestPhysicalReplan_|TestRequirementEvidence_|"
               "TestCustomerDomainGate|TestDispatchAdapterRecovers|TestHaulingMissionUnknownCreate)")
 VENDOR_ENV = {"VENDOR_SERVICE_TEST_DATABASE_URL": "tip:vendor-service", "VENDOR_SERVICE_TEST_REDIS_ADDR": "redis",
-              "JOURNEY_TEST_REDIS_ADDR": "redis"}
+              "JOURNEY_TEST_REDIS_ADDR": "redis", "CUSTOMER14_TEST_REDIS_ADDR": "redis"}
 # Targeted V4 gates. db: "tip:<service>" clones that service's migrated
 # template, "empty" is a fresh database the suite migrates itself.
 GATES = [
@@ -103,7 +103,7 @@ GATES = [
      # share adapter reads an already-migrated schema.
      "package_env": {"/internal/features/customershare": {"HAULING_TEST_DATABASE_URL": "tip:driver-hauling-service"}}},
     {"name": "vendor-e2e", "dir": "services/vendor-service", "packages": ["./cmd"], "run": VENDOR_E2E,
-     "env": {"VENDOR_SERVICE_TEST_DATABASE_URL": "tip:vendor-service", "VENDOR_SERVICE_TEST_REDIS_ADDR": "redis", "JOURNEY_TEST_REDIS_ADDR": "redis"}},
+     "env": {"VENDOR_SERVICE_TEST_DATABASE_URL": "tip:vendor-service", "VENDOR_SERVICE_TEST_REDIS_ADDR": "redis", "JOURNEY_TEST_REDIS_ADDR": "redis", "CUSTOMER14_TEST_REDIS_ADDR": "redis"}},
     {"name": "vendor-packages", "dir": "services/vendor-service",
      "packages": ["./internal/features/cart", "./internal/features/customershare", "./internal/features/fulfilment",
                   "./internal/integrations/logistics", "./internal/crmcontract", "./internal/config"],
