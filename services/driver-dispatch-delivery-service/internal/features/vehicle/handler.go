@@ -8,11 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"cosmicforge/logistics/shared/go/apperrors"
-	"cosmicforge/logistics/shared/go/httpx"
 	authhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/http"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 // Handler wires HTTP to the service.

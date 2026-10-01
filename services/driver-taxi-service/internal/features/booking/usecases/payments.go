@@ -25,6 +25,7 @@ package bookingusecases
 import (
 	"context"
 	"strings"
+	"time"
 
 	bookingmodels "cosmicforge/logistics/services/taxi-service/internal/features/booking/models"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -60,7 +61,7 @@ const PaymentServiceName = "taxi-service"
 type PaymentClient interface {
 	CreatePaymentIntent(ctx context.Context, request walletclient.PaymentIntentRequest) (walletclient.PaymentIntent, error)
 	PayFromWallet(ctx context.Context, paymentIntentID string, idempotencyKey string) (walletclient.PaymentIntent, error)
-	CompleteJob(ctx context.Context, sourceService string, sourceReference string) (walletclient.PaymentIntent, error)
+	CompleteJobAt(ctx context.Context, sourceService string, sourceReference string, completedAt time.Time) (walletclient.PaymentIntent, error)
 	RequestRefund(ctx context.Context, request walletclient.RefundRequest) (walletclient.Refund, error)
 }
 
@@ -132,7 +133,13 @@ func (s *BookingService) settlePayment(ctx context.Context, booking bookingmodel
 	if s.payments == nil || booking.PaymentIntentID == nil {
 		return nil
 	}
-	_, err := s.payments.CompleteJob(ctx, PaymentServiceName, booking.ID)
+	// The ride's completion time rides along so the wallet can record when the
+	// job actually finished (the referral programme's time rules use it).
+	var completedAt time.Time
+	if booking.CompletedAt != nil {
+		completedAt = *booking.CompletedAt
+	}
+	_, err := s.payments.CompleteJobAt(ctx, PaymentServiceName, booking.ID, completedAt)
 	return err
 }
 

@@ -9,18 +9,20 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"cosmicforge/logistics/shared/go/apperrors"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 type IdentityRepository interface {
 	FindByPhone(ctx context.Context, phoneNumber string) (authmodels.Identity, bool, error)
 	FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error)
 	GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error)
-	UpsertByPhone(ctx context.Context, phoneNumber string) (authmodels.Identity, error)
+	// UpsertByPhone creates (legacy flow) or returns the identity for a phone.
+	// signup is announced to the referral programme only on creation.
+	UpsertByPhone(ctx context.Context, phoneNumber string, signup authmodels.Signup) (authmodels.Identity, error)
 	// CreateForSignup inserts a new identity with the given phone and optional email.
 	// Returns apperrors.Conflict if an identity with that phone (or email) already exists.
-	CreateForSignup(ctx context.Context, phoneNumber, email string) (authmodels.Identity, error)
+	CreateForSignup(ctx context.Context, phoneNumber, email string, signup authmodels.Signup) (authmodels.Identity, error)
 	// UpdatePhone atomically changes phone_number in dispatch_rider_identities and providers.
 	// Returns apperrors.Conflict if newPhone is already in use.
 	UpdatePhone(ctx context.Context, identityID, oldPhone, newPhone string) error
@@ -29,12 +31,33 @@ type IdentityRepository interface {
 	UpdateEmail(ctx context.Context, identityID, email string) error
 }
 
+// SignupAnnouncer records a newly created rider for the referral programme
+// inside the identity-creation transaction, so the account and its
+// announcement commit together or not at all.
+type SignupAnnouncer interface {
+	AnnounceRider(ctx context.Context, tx pgx.Tx, identity authmodels.Identity, signup authmodels.Signup) error
+}
+
 type PostgresIdentityRepository struct {
-	db *pgxpool.Pool
+	db        *pgxpool.Pool
+	announcer SignupAnnouncer
 }
 
 func NewPostgresIdentityRepository(db *pgxpool.Pool) *PostgresIdentityRepository {
 	return &PostgresIdentityRepository{db: db}
+}
+
+// SetSignupAnnouncer switches the referral announcement on (non-nil) or off.
+func (r *PostgresIdentityRepository) SetSignupAnnouncer(announcer SignupAnnouncer) {
+	r.announcer = announcer
+}
+
+// announce runs inside the creating transaction.
+func (r *PostgresIdentityRepository) announce(ctx context.Context, tx pgx.Tx, identity authmodels.Identity, signup authmodels.Signup) error {
+	if r.announcer == nil {
+		return nil
+	}
+	return r.announcer.AnnounceRider(ctx, tx, identity, signup)
 }
 
 func (r *PostgresIdentityRepository) FindByPhone(ctx context.Context, phoneNumber string) (authmodels.Identity, bool, error) {
@@ -67,31 +90,50 @@ func (r *PostgresIdentityRepository) GetByID(ctx context.Context, id string) (au
 	return scanOptionalIdentity(row)
 }
 
-func (r *PostgresIdentityRepository) UpsertByPhone(ctx context.Context, phoneNumber string) (authmodels.Identity, error) {
-	row := r.db.QueryRow(ctx, `
-		INSERT INTO dispatch_rider_identities (id, phone_number, status)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (phone_number) DO UPDATE
-		SET updated_at = now()
-		RETURNING id::text, phone_number, email, status, created_at, updated_at
-	`, uuid.NewString(), phoneNumber, authmodels.StatusActive)
-
-	return scanIdentity(row)
+func (r *PostgresIdentityRepository) UpsertByPhone(ctx context.Context, phoneNumber string, signup authmodels.Signup) (authmodels.Identity, error) {
+	id := uuid.NewString()
+	var identity authmodels.Identity
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		row := tx.QueryRow(ctx, `
+			INSERT INTO dispatch_rider_identities (id, phone_number, status)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (phone_number) DO UPDATE
+			SET updated_at = now()
+			RETURNING id::text, phone_number, email, status, created_at, updated_at
+		`, id, phoneNumber, authmodels.StatusActive)
+		var err error
+		if identity, err = scanIdentity(row); err != nil {
+			return err
+		}
+		// The returned id is the one generated here only when the row was
+		// inserted; a returning rider gets their existing id back.
+		if identity.ID == id {
+			return r.announce(ctx, tx, identity, signup)
+		}
+		return nil
+	})
+	return identity, err
 }
 
-func (r *PostgresIdentityRepository) CreateForSignup(ctx context.Context, phoneNumber, email string) (authmodels.Identity, error) {
+func (r *PostgresIdentityRepository) CreateForSignup(ctx context.Context, phoneNumber, email string, signup authmodels.Signup) (authmodels.Identity, error) {
 	var emailParam *string
 	if email != "" {
 		emailParam = &email
 	}
 
-	row := r.db.QueryRow(ctx, `
-		INSERT INTO dispatch_rider_identities (id, phone_number, email, status)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id::text, phone_number, email, status, created_at, updated_at
-	`, uuid.NewString(), phoneNumber, emailParam, authmodels.StatusActive)
-
-	identity, err := scanIdentity(row)
+	var identity authmodels.Identity
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		row := tx.QueryRow(ctx, `
+			INSERT INTO dispatch_rider_identities (id, phone_number, email, status)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id::text, phone_number, email, status, created_at, updated_at
+		`, uuid.NewString(), phoneNumber, emailParam, authmodels.StatusActive)
+		var err error
+		if identity, err = scanIdentity(row); err != nil {
+			return err
+		}
+		return r.announce(ctx, tx, identity, signup)
+	})
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation

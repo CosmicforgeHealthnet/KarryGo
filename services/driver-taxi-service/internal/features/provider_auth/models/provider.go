@@ -2,6 +2,15 @@ package providerauthmodels
 
 import "time"
 
+// Signup is what a sign-up carried besides the phone itself. It is used only
+// to announce a brand-new driver to the referral programme.
+type Signup struct {
+	// LinkCode is a referral code from a shared link; it wins over TypedCode.
+	LinkCode  string
+	TypedCode string
+	DeviceID  string
+}
+
 // Addendum §11.1: six independent status dimensions. No single generic status
 // field is expected to represent all of them — a provider can be
 // onboarding-complete and identity-verified while their vehicle document has

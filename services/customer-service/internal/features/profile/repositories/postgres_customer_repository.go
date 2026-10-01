@@ -3,6 +3,7 @@ package profilerepositories
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,8 +14,11 @@ import (
 )
 
 type CustomerRepository interface {
-	UpsertByPhone(ctx context.Context, phone string) (profilemodels.Customer, error)
-	UpsertByEmail(ctx context.Context, email string) (profilemodels.Customer, error)
+	// UpsertByPhone and UpsertByEmail return the customer for an identifier,
+	// creating it on first sight. signup is announced to the referral
+	// programme only when the account is actually created.
+	UpsertByPhone(ctx context.Context, phone string, signup profilemodels.Signup) (profilemodels.Customer, error)
+	UpsertByEmail(ctx context.Context, email string, signup profilemodels.Signup) (profilemodels.Customer, error)
 	GetByID(ctx context.Context, id string) (profilemodels.Customer, error)
 	UpdateProfilePhoto(ctx context.Context, id, assetID, photoURL string) (profilemodels.Customer, error)
 	UpdateProfile(ctx context.Context, id, firstName, lastName string) (profilemodels.Customer, error)
@@ -24,36 +28,63 @@ type CustomerRepository interface {
 	DeleteEmergencyContact(ctx context.Context, id, customerID string) error
 }
 
+// SignupAnnouncer records a newly created customer for the referral
+// programme inside the account-creation transaction, so the account and its
+// announcement commit together or not at all.
+type SignupAnnouncer interface {
+	AnnounceCustomer(ctx context.Context, tx pgx.Tx, customer profilemodels.Customer, signup profilemodels.Signup) error
+}
+
 type PostgresCustomerRepository struct {
-	db *pgxpool.Pool
+	db        *pgxpool.Pool
+	announcer SignupAnnouncer
 }
 
 func NewPostgresCustomerRepository(db *pgxpool.Pool) *PostgresCustomerRepository {
 	return &PostgresCustomerRepository{db: db}
 }
 
-func (r *PostgresCustomerRepository) UpsertByPhone(ctx context.Context, phone string) (profilemodels.Customer, error) {
-	id := uuid.NewString()
-	row := r.db.QueryRow(ctx, `
-		INSERT INTO customers (id, phone, onboarding_status, status)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (phone) DO UPDATE SET updated_at = now()
-		RETURNING id::text, COALESCE(phone, ''), COALESCE(email, ''), first_name, last_name, onboarding_status, status, profile_photo_url, profile_photo_asset_id, created_at, updated_at
-	`, id, phone, profilemodels.OnboardingProfileNeeded, profilemodels.StatusActive)
-
-	return scanCustomer(row)
+// SetSignupAnnouncer switches the referral announcement on (non-nil) or off.
+func (r *PostgresCustomerRepository) SetSignupAnnouncer(announcer SignupAnnouncer) {
+	r.announcer = announcer
 }
 
-func (r *PostgresCustomerRepository) UpsertByEmail(ctx context.Context, email string) (profilemodels.Customer, error) {
-	id := uuid.NewString()
-	row := r.db.QueryRow(ctx, `
-		INSERT INTO customers (id, email, onboarding_status, status)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (email) DO UPDATE SET updated_at = now()
-		RETURNING id::text, COALESCE(phone, ''), COALESCE(email, ''), first_name, last_name, onboarding_status, status, profile_photo_url, profile_photo_asset_id, created_at, updated_at
-	`, id, email, profilemodels.OnboardingProfileNeeded, profilemodels.StatusActive)
+func (r *PostgresCustomerRepository) UpsertByPhone(ctx context.Context, phone string, signup profilemodels.Signup) (profilemodels.Customer, error) {
+	return r.upsert(ctx, "phone", phone, signup)
+}
 
-	return scanCustomer(row)
+func (r *PostgresCustomerRepository) UpsertByEmail(ctx context.Context, email string, signup profilemodels.Signup) (profilemodels.Customer, error) {
+	return r.upsert(ctx, "email", email, signup)
+}
+
+// upsert creates or returns the customer for one identifier column. The
+// returned id equals the id generated here only when this call inserted the
+// row -- ON CONFLICT DO UPDATE returns the existing row's id otherwise -- which
+// is how a genuinely new account is told apart from a returning login.
+func (r *PostgresCustomerRepository) upsert(ctx context.Context, column string, value string, signup profilemodels.Signup) (profilemodels.Customer, error) {
+	if column != "phone" && column != "email" {
+		return profilemodels.Customer{}, fmt.Errorf("unsupported identifier column %q", column)
+	}
+	id := uuid.NewString()
+	var customer profilemodels.Customer
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		row := tx.QueryRow(ctx, `
+			INSERT INTO customers (id, `+column+`, onboarding_status, status)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (`+column+`) DO UPDATE SET updated_at = now()
+			RETURNING id::text, COALESCE(phone, ''), COALESCE(email, ''), first_name, last_name, onboarding_status, status, profile_photo_url, profile_photo_asset_id, created_at, updated_at
+		`, id, value, profilemodels.OnboardingProfileNeeded, profilemodels.StatusActive)
+		var err error
+		customer, err = scanCustomer(row)
+		if err != nil {
+			return err
+		}
+		if customer.ID == id && r.announcer != nil {
+			return r.announcer.AnnounceCustomer(ctx, tx, customer, signup)
+		}
+		return nil
+	})
+	return customer, err
 }
 
 func (r *PostgresCustomerRepository) GetByID(ctx context.Context, id string) (profilemodels.Customer, error) {

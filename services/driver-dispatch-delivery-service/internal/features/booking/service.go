@@ -849,7 +849,7 @@ func (s *Service) HandleTripCompleted(ctx context.Context, bookingID string, com
 		if !ok {
 			return apperrors.Unavailable("Wallet settlement authority is unavailable.", nil)
 		}
-		if err = authority.CompleteSettlement(ctx, bookingID); err != nil {
+		if err = authority.CompleteSettlement(ctx, bookingID, completedAt); err != nil {
 			return apperrors.Unavailable("Wallet settlement confirmation is pending.", err)
 		}
 		return s.repository.SetPayment(ctx, bookingID, PaymentPaid, state.Booking.PaymentRef)

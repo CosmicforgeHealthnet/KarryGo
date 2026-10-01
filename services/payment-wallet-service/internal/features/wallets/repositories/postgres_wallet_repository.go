@@ -14,6 +14,8 @@ import (
 
 	walletmodels "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/models"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/outbox"
+	"cosmicforge/logistics/shared/go/referralcontract"
 )
 
 const postedStatus = "posted"
@@ -46,6 +48,8 @@ type CreateWithdrawalInput struct {
 	AmountKobo     int64
 	Currency       string
 	IdempotencyKey string
+	// FundingSource is the balance paid from; empty means job earnings.
+	FundingSource string
 }
 
 type CreateRefundInput struct {
@@ -59,10 +63,18 @@ type CreateRefundInput struct {
 
 type PostgresWalletRepository struct {
 	db *pgxpool.Pool
+	// referralOutbox, when set, receives a finance.job.settled.v1 event inside
+	// every CompleteJob transaction. Nil keeps the referral feed switched off.
+	referralOutbox *outbox.Store
 }
 
 func NewPostgresWalletRepository(db *pgxpool.Pool) *PostgresWalletRepository {
 	return &PostgresWalletRepository{db: db}
+}
+
+// SetReferralOutbox switches the referral feed on (non-nil) or off (nil).
+func (r *PostgresWalletRepository) SetReferralOutbox(store *outbox.Store) {
+	r.referralOutbox = store
 }
 
 func (r *PostgresWalletRepository) GetWalletSummary(ctx context.Context, ownerType string, ownerID string, currency string) (walletmodels.WalletSummary, error) {
@@ -76,13 +88,25 @@ func (r *PostgresWalletRepository) GetWalletSummary(ctx context.Context, ownerTy
 		return walletmodels.WalletSummary{}, err
 	}
 
-	return walletmodels.WalletSummary{
+	summary := walletmodels.WalletSummary{
 		OwnerType:     ownerType,
 		OwnerID:       ownerID,
 		Currency:      currency,
 		AvailableKobo: available,
 		PendingKobo:   pending,
-	}, nil
+	}
+	if earningsType, promotionalType, ok := referralAccountTypes(ownerType); ok {
+		if summary.ReferralKobo, err = r.accountBalance(ctx, ownerType, ownerID, earningsType, currency); err != nil {
+			return walletmodels.WalletSummary{}, err
+		}
+		if summary.PromotionalKobo, err = r.accountBalance(ctx, ownerType, ownerID, promotionalType, currency); err != nil {
+			return walletmodels.WalletSummary{}, err
+		}
+		if ownerType == walletmodels.OwnerTypeCustomer {
+			summary.SpendableKobo = max(summary.AvailableKobo, 0) + max(summary.ReferralKobo, 0) + max(summary.PromotionalKobo, 0)
+		}
+	}
+	return summary, nil
 }
 
 func (r *PostgresWalletRepository) ListWalletTransactions(ctx context.Context, ownerType string, ownerID string, currency string, limit int) ([]walletmodels.WalletTransaction, error) {
@@ -256,21 +280,36 @@ func (r *PostgresWalletRepository) HoldPaymentFromWallet(ctx context.Context, in
 		if intent.PaymentMethod != walletmodels.PaymentMethodWallet {
 			return apperrors.BadRequest("Payment intent is not configured for wallet payment.", nil)
 		}
-		customerAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeCustomer, intent.CustomerID, walletmodels.AccountCustomerAvailable, intent.Currency, walletmodels.NormalCredit)
-		if err != nil {
-			return err
-		}
 		escrowAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeJob, jobOwnerID(intent.SourceService, intent.SourceReference), walletmodels.AccountJobEscrow, intent.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
-		balance, err := r.accountBalanceTx(ctx, tx, customerAccount.ID)
-		if err != nil {
-			return err
+		// Spend order: spend-only promotional credit first, then ordinary
+		// wallet money, then referral earnings (kept for last because they are
+		// the balance a customer may eventually cash out).
+		var sources []fundingSource
+		for _, accountType := range customerSpendOrder {
+			account, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeCustomer, intent.CustomerID, accountType, intent.Currency, walletmodels.NormalCredit)
+			if err != nil {
+				return err
+			}
+			balance, err := r.accountBalanceTx(ctx, tx, account.ID)
+			if err != nil {
+				return err
+			}
+			sources = append(sources, fundingSource{account: account, balance: balance})
 		}
-		if balance < intent.AmountKobo {
+		plan, ok := planFunding(sources, intent.AmountKobo)
+		if !ok {
 			return apperrors.Conflict("Wallet balance is not enough for this payment.", nil)
 		}
+		entries := []walletmodels.LedgerEntry{}
+		breakdown := map[string]int64{}
+		for _, part := range plan {
+			entries = append(entries, walletmodels.LedgerEntry{AccountID: part.account.ID, Side: walletmodels.SideDebit, AmountKobo: part.amount, Currency: intent.Currency, Memo: "Customer wallet payment hold"})
+			breakdown[part.account.AccountType] = part.amount
+		}
+		entries = append(entries, walletmodels.LedgerEntry{AccountID: escrowAccount.ID, Side: walletmodels.SideCredit, AmountKobo: intent.AmountKobo, Currency: intent.Currency, Memo: "Job escrow funded from wallet"})
 
 		err = r.postLedgerTransaction(ctx, tx, walletmodels.LedgerTransaction{
 			ID:              uuid.NewString(),
@@ -280,19 +319,21 @@ func (r *PostgresWalletRepository) HoldPaymentFromWallet(ctx context.Context, in
 			SourceService:   intent.SourceService,
 			SourceReference: intent.SourceReference,
 			IdempotencyKey:  idempotencyKey,
-		}, []walletmodels.LedgerEntry{
-			{AccountID: customerAccount.ID, Side: walletmodels.SideDebit, AmountKobo: intent.AmountKobo, Currency: intent.Currency, Memo: "Customer wallet payment hold"},
-			{AccountID: escrowAccount.ID, Side: walletmodels.SideCredit, AmountKobo: intent.AmountKobo, Currency: intent.Currency, Memo: "Job escrow funded from wallet"},
-		})
+		}, entries)
 		if err != nil {
 			return err
 		}
 
-		_, err = tx.Exec(ctx, `UPDATE payment_intents SET status = $2, updated_at = now() WHERE id = $1`, intent.ID, walletmodels.PaymentStatusHeld)
+		breakdownJSON, err := json.Marshal(breakdown)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE payment_intents SET status = $2, funding_breakdown = $3, updated_at = now() WHERE id = $1`, intent.ID, walletmodels.PaymentStatusHeld, breakdownJSON)
 		if err != nil {
 			return err
 		}
 		intent.Status = walletmodels.PaymentStatusHeld
+		intent.FundingBreakdown = breakdown
 		return nil
 	})
 	return intent, err
@@ -354,7 +395,12 @@ func (r *PostgresWalletRepository) ApplyPaystackChargeSuccess(ctx context.Contex
 	return intent, err
 }
 
-func (r *PostgresWalletRepository) CompleteJob(ctx context.Context, sourceService string, sourceReference string) (walletmodels.PaymentIntent, error) {
+// CompleteJob releases a held job payment from escrow to the provider and the
+// platform. completedAt is when the job itself finished, as reported by the
+// service that ran it; zero or implausible values fall back to the settlement
+// time (see resolveJobCompletedAt). It is idempotent: an already-completed
+// intent returns unchanged and emits nothing.
+func (r *PostgresWalletRepository) CompleteJob(ctx context.Context, sourceService string, sourceReference string, completedAt time.Time) (walletmodels.PaymentIntent, error) {
 	var intent walletmodels.PaymentIntent
 	err := r.withTx(ctx, func(tx pgx.Tx) error {
 		var err error
@@ -405,14 +451,71 @@ func (r *PostgresWalletRepository) CompleteJob(ctx context.Context, sourceServic
 		}, entries); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE payment_intents SET status = $2, updated_at = now() WHERE id = $1`, intent.ID, walletmodels.PaymentStatusCompleted)
+		settledAt := time.Now().UTC()
+		jobCompletedAt, completedAtSource := resolveJobCompletedAt(completedAt, intent.CreatedAt, settledAt)
+		_, err = tx.Exec(ctx, `UPDATE payment_intents SET status = $2, job_completed_at = $3, updated_at = now() WHERE id = $1`, intent.ID, walletmodels.PaymentStatusCompleted, jobCompletedAt)
 		if err != nil {
 			return err
 		}
 		intent.Status = walletmodels.PaymentStatusCompleted
-		return nil
+		return r.appendJobSettled(ctx, tx, intent, jobCompletedAt, completedAtSource, settledAt)
 	})
 	return intent, err
+}
+
+// appendJobSettled records the referral feed event in the settlement
+// transaction. The payload carries the commission actually posted above, so
+// referral cost can never drift from platform revenue.
+func (r *PostgresWalletRepository) appendJobSettled(ctx context.Context, tx pgx.Tx, intent walletmodels.PaymentIntent, jobCompletedAt time.Time, completedAtSource string, settledAt time.Time) error {
+	if r.referralOutbox == nil {
+		return nil
+	}
+	envelope, err := outbox.NewEnvelope("payment-wallet-service", referralcontract.EventJobSettled, "payment_intent", intent.ID, 1, referralcontract.JobSettled{
+		PaymentIntentID:      intent.ID,
+		PaymentReference:     intent.Reference,
+		SourceService:        intent.SourceService,
+		SourceReference:      intent.SourceReference,
+		CustomerID:           intent.CustomerID,
+		ProviderID:           intent.ProviderID,
+		ProviderType:         intent.ProviderType,
+		AmountKobo:           intent.AmountKobo,
+		PlatformFeeKobo:      intent.PlatformFeeKobo,
+		ProviderNetKobo:      intent.AmountKobo - intent.PlatformFeeKobo,
+		Currency:             intent.Currency,
+		JobCompletedAt:       jobCompletedAt,
+		JobCompletedAtSource: completedAtSource,
+		SettledAt:            settledAt,
+	})
+	if err != nil {
+		return err
+	}
+	return r.referralOutbox.Append(ctx, tx, envelope)
+}
+
+// jobCompletionSkew is how far a reported completion time may sit outside
+// [intent creation, settlement] before it is treated as unreliable. It absorbs
+// ordinary clock differences between services.
+const jobCompletionSkew = 5 * time.Minute
+
+// resolveJobCompletedAt decides which completion time to record. A missing,
+// future or pre-payment time is not trusted: the settlement time is used
+// instead and flagged, so degraded data is visible to consumers rather than
+// silent. A slightly-future time within the skew is clamped to settlement.
+func resolveJobCompletedAt(reported time.Time, intentCreatedAt time.Time, settledAt time.Time) (time.Time, string) {
+	if reported.IsZero() {
+		return settledAt, referralcontract.CompletedAtFromSettlement
+	}
+	reported = reported.UTC()
+	if reported.After(settledAt.Add(jobCompletionSkew)) {
+		return settledAt, referralcontract.CompletedAtFromSettlement
+	}
+	if !intentCreatedAt.IsZero() && reported.Before(intentCreatedAt.Add(-jobCompletionSkew)) {
+		return settledAt, referralcontract.CompletedAtFromSettlement
+	}
+	if reported.After(settledAt) {
+		return settledAt, referralcontract.CompletedAtFromProvider
+	}
+	return reported, referralcontract.CompletedAtFromProvider
 }
 
 func (r *PostgresWalletRepository) CreateProviderBankAccount(ctx context.Context, account walletmodels.ProviderBankAccount) (walletmodels.ProviderBankAccount, error) {
@@ -547,9 +650,15 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 		input.Reference = "wd_" + uuid.NewString()
 	}
 	input.Currency = walletmodels.DefaultCurrency(input.Currency)
+	if input.FundingSource == "" {
+		input.FundingSource = walletmodels.WithdrawalFromJobEarnings
+	}
 	if input.IdempotencyKey != "" {
 		existing, err := r.GetWithdrawalByIdempotency(ctx, input.ProviderType, input.ProviderID, input.IdempotencyKey)
 		if err == nil {
+			if existing.FundingSource != input.FundingSource {
+				return walletmodels.Withdrawal{}, false, apperrors.Conflict("Withdrawal idempotency key was already used for a different kind of withdrawal.", nil)
+			}
 			return existing, false, nil
 		}
 		if apperrors.From(err).Code != apperrors.CodeNotFound {
@@ -565,7 +674,8 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 		}
 		existing, existingErr := scanWithdrawal(tx.QueryRow(ctx, selectWithdrawalSQL()+` WHERE provider_type=$1 AND provider_id=$2 AND idempotency_key=$3`, input.ProviderType, input.ProviderID, input.IdempotencyKey))
 		if existingErr == nil {
-			if existing.AmountKobo != input.AmountKobo || existing.BankAccountID != input.BankAccountID || existing.Currency != input.Currency {
+			if existing.AmountKobo != input.AmountKobo || existing.BankAccountID != input.BankAccountID || existing.Currency != input.Currency ||
+				existing.FundingSource != input.FundingSource {
 				return apperrors.Conflict("Withdrawal idempotency key was reused with different details.", nil)
 			}
 			withdrawal = existing
@@ -579,7 +689,8 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 			return err
 		}
 		ownerType, ownerID, payableType := payableOwner(input.ProviderType, input.ProviderID)
-		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, payableType, input.Currency, walletmodels.NormalCredit)
+		sourceType := withdrawalSourceAccount(input.FundingSource, payableType)
+		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, sourceType, input.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
@@ -595,6 +706,9 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 			return err
 		}
 		if balance < input.AmountKobo {
+			if input.FundingSource == walletmodels.WithdrawalFromReferralEarnings {
+				return apperrors.Conflict("Referral earnings are not enough for this withdrawal.", nil)
+			}
 			return apperrors.Conflict("Provider earnings are not enough for this withdrawal.", nil)
 		}
 
@@ -609,10 +723,11 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 				amount_kobo,
 				currency,
 				status,
-				idempotency_key
+				idempotency_key,
+				funding_source
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		`, id, input.Reference, input.ProviderType, input.ProviderID, input.BankAccountID, input.AmountKobo, input.Currency, walletmodels.WithdrawalStatusPending, input.IdempotencyKey)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		`, id, input.Reference, input.ProviderType, input.ProviderID, input.BankAccountID, input.AmountKobo, input.Currency, walletmodels.WithdrawalStatusPending, input.IdempotencyKey, input.FundingSource)
 		if err != nil {
 			return err
 		}
@@ -625,6 +740,7 @@ func (r *PostgresWalletRepository) RequestWithdrawal(ctx context.Context, input 
 			SourceService:   "payment-wallet-service",
 			SourceReference: input.Reference,
 			IdempotencyKey:  input.IdempotencyKey,
+			Metadata:        map[string]interface{}{"funding_source": input.FundingSource},
 		}, []walletmodels.LedgerEntry{
 			{AccountID: providerAccount.ID, Side: walletmodels.SideDebit, AmountKobo: input.AmountKobo, Currency: input.Currency, Memo: "Provider withdrawal reserved"},
 			{AccountID: pendingAccount.ID, Side: walletmodels.SideCredit, AmountKobo: input.AmountKobo, Currency: input.Currency, Memo: "Withdrawal pending transfer"},
@@ -733,7 +849,7 @@ func (r *PostgresWalletRepository) ApplyTransferFailure(ctx context.Context, tra
 		if err != nil {
 			return err
 		}
-		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, payableType, withdrawal.Currency, walletmodels.NormalCredit)
+		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, withdrawalSourceAccount(withdrawal.FundingSource, payableType), withdrawal.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
@@ -782,7 +898,7 @@ func (r *PostgresWalletRepository) CancelWithdrawalReservation(ctx context.Conte
 		if err != nil {
 			return err
 		}
-		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, payableType, withdrawal.Currency, walletmodels.NormalCredit)
+		providerAccount, err := r.ensureAccount(ctx, tx, ownerType, ownerID, withdrawalSourceAccount(withdrawal.FundingSource, payableType), withdrawal.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
 		}
@@ -1034,9 +1150,17 @@ func (r *PostgresWalletRepository) MarkWalletRefundProcessed(ctx context.Context
 		if err != nil {
 			return err
 		}
-		customerAccount, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeCustomer, intent.CustomerID, walletmodels.AccountCustomerAvailable, refund.Currency, walletmodels.NormalCredit)
-		if err != nil {
-			return err
+		entries := []walletmodels.LedgerEntry{
+			{AccountID: refundPending.ID, Side: walletmodels.SideDebit, AmountKobo: refund.AmountKobo, Currency: refund.Currency, Memo: "Clear wallet refund pending"},
+		}
+		// Money goes back to the balance it came from, so a refund can never
+		// turn spend-only promotional credit into ordinary wallet money.
+		for _, part := range allocateRefund(intent.FundingBreakdown, refund.AmountKobo) {
+			account, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeCustomer, intent.CustomerID, part.accountType, refund.Currency, walletmodels.NormalCredit)
+			if err != nil {
+				return err
+			}
+			entries = append(entries, walletmodels.LedgerEntry{AccountID: account.ID, Side: walletmodels.SideCredit, AmountKobo: part.amount, Currency: refund.Currency, Memo: "Refund to customer wallet"})
 		}
 		if err := r.postLedgerTransaction(ctx, tx, walletmodels.LedgerTransaction{
 			ID:              uuid.NewString(),
@@ -1045,10 +1169,7 @@ func (r *PostgresWalletRepository) MarkWalletRefundProcessed(ctx context.Context
 			Status:          postedStatus,
 			SourceService:   intent.SourceService,
 			SourceReference: intent.SourceReference,
-		}, []walletmodels.LedgerEntry{
-			{AccountID: refundPending.ID, Side: walletmodels.SideDebit, AmountKobo: refund.AmountKobo, Currency: refund.Currency, Memo: "Clear wallet refund pending"},
-			{AccountID: customerAccount.ID, Side: walletmodels.SideCredit, AmountKobo: refund.AmountKobo, Currency: refund.Currency, Memo: "Refund to customer wallet"},
-		}); err != nil {
+		}, entries); err != nil {
 			return err
 		}
 		_, err = tx.Exec(ctx, `UPDATE refunds SET status = $2, updated_at = now() WHERE id = $1`, refund.ID, walletmodels.RefundStatusProcessed)
@@ -1251,7 +1372,8 @@ func selectPaymentIntentSQL() string {
 			COALESCE(access_code, ''),
 			metadata,
 			created_at,
-			updated_at
+			updated_at,
+			funding_breakdown
 		FROM payment_intents`
 }
 
@@ -1266,6 +1388,7 @@ func selectWithdrawalSQL() string {
 			amount_kobo,
 			currency,
 			status,
+			funding_source,
 			COALESCE(paystack_transfer_code, ''),
 			COALESCE(failure_reason, ''),
 			created_at,
@@ -1325,7 +1448,7 @@ func scanAccount(row pgx.Row) (walletmodels.Account, error) {
 
 func scanPaymentIntent(row pgx.Row) (walletmodels.PaymentIntent, error) {
 	var intent walletmodels.PaymentIntent
-	var metadataBytes []byte
+	var metadataBytes, fundingBytes []byte
 	err := row.Scan(
 		&intent.ID,
 		&intent.Reference,
@@ -1346,6 +1469,7 @@ func scanPaymentIntent(row pgx.Row) (walletmodels.PaymentIntent, error) {
 		&metadataBytes,
 		&intent.CreatedAt,
 		&intent.UpdatedAt,
+		&fundingBytes,
 	)
 	if err != nil {
 		return walletmodels.PaymentIntent{}, mapNotFound(err, "Payment could not be found.")
@@ -1353,6 +1477,9 @@ func scanPaymentIntent(row pgx.Row) (walletmodels.PaymentIntent, error) {
 	intent.Metadata = map[string]interface{}{}
 	if len(metadataBytes) > 0 {
 		_ = json.Unmarshal(metadataBytes, &intent.Metadata)
+	}
+	if len(fundingBytes) > 0 {
+		_ = json.Unmarshal(fundingBytes, &intent.FundingBreakdown)
 	}
 	return intent, nil
 }
@@ -1391,6 +1518,7 @@ func scanWithdrawal(row pgx.Row) (walletmodels.Withdrawal, error) {
 		&withdrawal.AmountKobo,
 		&withdrawal.Currency,
 		&withdrawal.Status,
+		&withdrawal.FundingSource,
 		&withdrawal.PaystackTransferCode,
 		&withdrawal.FailureReason,
 		&withdrawal.CreatedAt,
@@ -1497,6 +1625,17 @@ func jobOwnerID(sourceService string, sourceReference string) string {
 
 func providerOwnerID(providerType string, providerID string) string {
 	return providerType + ":" + providerID
+}
+
+// withdrawalSourceAccount is the account a withdrawal is paid from -- and
+// restored to if it fails or is cancelled. Job-earnings withdrawals never
+// touch the referral balance, and referral withdrawals never touch job
+// earnings.
+func withdrawalSourceAccount(fundingSource, payableType string) string {
+	if fundingSource == walletmodels.WithdrawalFromReferralEarnings {
+		return walletmodels.AccountProviderReferralAvailable
+	}
+	return payableType
 }
 
 func payableOwner(providerType string, providerID string) (string, string, string) {

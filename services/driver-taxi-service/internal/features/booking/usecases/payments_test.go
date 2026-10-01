@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	bookingmodels "cosmicforge/logistics/services/taxi-service/internal/features/booking/models"
 	"cosmicforge/logistics/shared/go/walletclient"
@@ -16,6 +17,7 @@ type fakePaymentClient struct {
 	createCalls   []walletclient.PaymentIntentRequest
 	payCalls      []string // intent IDs
 	completeCalls []string // "service|ref"
+	completedAts  []time.Time
 	refundCalls   []walletclient.RefundRequest
 }
 
@@ -39,8 +41,9 @@ func (f *fakePaymentClient) PayFromWallet(ctx context.Context, paymentIntentID, 
 	return walletclient.PaymentIntent{ID: paymentIntentID, Status: "held"}, nil
 }
 
-func (f *fakePaymentClient) CompleteJob(ctx context.Context, sourceService, sourceReference string) (walletclient.PaymentIntent, error) {
+func (f *fakePaymentClient) CompleteJobAt(ctx context.Context, sourceService, sourceReference string, completedAt time.Time) (walletclient.PaymentIntent, error) {
 	f.completeCalls = append(f.completeCalls, sourceService+"|"+sourceReference)
+	f.completedAts = append(f.completedAts, completedAt)
 	if f.completeErr != nil {
 		return walletclient.PaymentIntent{}, f.completeErr
 	}
@@ -187,6 +190,24 @@ func TestSettlePayment_UsesTheSourcePairNotTheIntentID(t *testing.T) {
 	want := PaymentServiceName + "|" + booking.ID
 	if len(pc.completeCalls) != 1 || pc.completeCalls[0] != want {
 		t.Errorf("completeCalls = %v, want exactly [%s]", pc.completeCalls, want)
+	}
+}
+
+func TestSettlePayment_ReportsTheRideCompletionTime(t *testing.T) {
+	pc := &fakePaymentClient{}
+	svc := NewBookingService(Options{Payments: pc})
+	intentID := "intent-xyz"
+	completedAt := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	booking := walletBooking(func(b *bookingmodels.Booking) {
+		b.PaymentIntentID = &intentID
+		b.CompletedAt = &completedAt
+	})
+
+	if err := svc.settlePayment(context.Background(), booking); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(pc.completedAts) != 1 || !pc.completedAts[0].Equal(completedAt) {
+		t.Errorf("completedAts = %v, want exactly [%s]", pc.completedAts, completedAt)
 	}
 }
 

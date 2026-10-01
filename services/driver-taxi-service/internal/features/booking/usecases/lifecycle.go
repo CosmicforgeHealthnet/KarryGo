@@ -168,12 +168,59 @@ func (s *BookingService) withTransition(
 
 // MarkEnRoutePickup: accepted -> en_route_pickup. The provider's operational
 // state moves EN_ROUTE_PICKUP in the same transaction.
+// The notifier adapters below exist so notifyCustomer can be handed a plain
+// function value. Taking a method value directly off s.notifier would
+// dereference it before the nil check runs, which panics whenever the
+// notification integration is unconfigured (local dev).
+func (s *BookingService) notifierEnRoutePickup(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	s.notifier.NotifyCustomerEnRoutePickup(ctx, customerID, bookingID, data)
+}
+
+func (s *BookingService) notifierArrivedPickup(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	s.notifier.NotifyCustomerArrivedPickup(ctx, customerID, bookingID, data)
+}
+
+func (s *BookingService) notifierStarted(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	s.notifier.NotifyCustomerStarted(ctx, customerID, bookingID, data)
+}
+
+func (s *BookingService) notifierCompleted(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	s.notifier.NotifyCustomerCompleted(ctx, customerID, bookingID, data)
+}
+
+func (s *BookingService) notifierCancelledByProvider(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	s.notifier.NotifyCustomerCancelledByProvider(ctx, customerID, bookingID, data)
+}
+
+func (s *BookingService) notifierDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
+	s.notifier.NotifyCustomerDeliveryCodeReady(ctx, customerID, bookingID, data)
+}
+
+// notifyCustomer fires one passenger-facing notification after a transition
+// has already committed. Fire-and-forget by contract: the ride has happened
+// whether or not the message lands, so this never affects the return value.
+func (s *BookingService) notifyCustomer(
+	ctx context.Context,
+	booking bookingmodels.Booking,
+	send func(context.Context, string, string, map[string]interface{}),
+) {
+	if s.notifier == nil || booking.CustomerID == "" {
+		return
+	}
+	send(ctx, booking.CustomerID, booking.ID, notifyData(booking))
+}
+
 func (s *BookingService) MarkEnRoutePickup(ctx context.Context, bookingID, providerID string) (bookingmodels.Booking, error) {
 	bookingID, providerID = strings.TrimSpace(bookingID), strings.TrimSpace(providerID)
-	return s.withTransition(ctx, bookingID, providerID, availabilitymodels.StateEnRoutePickup, "booking_en_route_pickup", outbox.EventBookingEnRoutePickup,
+	booking, err := s.withTransition(ctx, bookingID, providerID, availabilitymodels.StateEnRoutePickup, "booking_en_route_pickup", outbox.EventBookingEnRoutePickup,
 		func(exec Executor) (bookingmodels.Booking, error) {
 			return s.bookings.MarkEnRoutePickup(ctx, exec, bookingID, providerID)
 		})
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	s.notifyCustomer(ctx, booking, s.notifierEnRoutePickup)
+	return booking, nil
 }
 
 // MarkArrivedAtPickup: en_route_pickup -> arrived_at_pickup.
@@ -183,7 +230,7 @@ func (s *BookingService) MarkEnRoutePickup(ctx context.Context, bookingID, provi
 // own doc comment for why a nil repository is a safe skip, not an error.
 func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, bookingID, providerID string) (bookingmodels.Booking, error) {
 	bookingID, providerID = strings.TrimSpace(bookingID), strings.TrimSpace(providerID)
-	return s.withTransition(ctx, bookingID, providerID, availabilitymodels.StateAtPickup, "booking_arrived_at_pickup", outbox.EventBookingArrived,
+	booking, err := s.withTransition(ctx, bookingID, providerID, availabilitymodels.StateAtPickup, "booking_arrived_at_pickup", outbox.EventBookingArrived,
 		func(exec Executor) (bookingmodels.Booking, error) {
 			b, err := s.bookings.MarkArrivedAtPickup(ctx, exec, bookingID, providerID)
 			if err != nil {
@@ -194,6 +241,13 @@ func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, bookingID, pro
 			}
 			return b, nil
 		})
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	// The pickup credential was generated in the same transaction, so this
+	// doubles as "your code is ready".
+	s.notifyCustomer(ctx, booking, s.notifierArrivedPickup)
+	return booking, nil
 }
 
 // MarkInProgress is the "start trip" action: arrived_at_pickup -> in_progress.
@@ -205,10 +259,20 @@ func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, bookingID, pro
 // verification always passes.
 func (s *BookingService) MarkInProgress(ctx context.Context, bookingID, providerID string) (bookingmodels.Booking, error) {
 	bookingID, providerID = strings.TrimSpace(bookingID), strings.TrimSpace(providerID)
-	return s.withTransition(ctx, bookingID, providerID, availabilitymodels.StateOnTrip, "booking_started", outbox.EventBookingStarted,
+	booking, err := s.withTransition(ctx, bookingID, providerID, availabilitymodels.StateOnTrip, "booking_started", outbox.EventBookingStarted,
 		func(exec Executor) (bookingmodels.Booking, error) {
 			return s.bookings.MarkInProgress(ctx, exec, bookingID, providerID)
 		})
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	s.notifyCustomer(ctx, booking, s.notifierStarted)
+	// A parcel's drop-off window just opened, so the sender can now fetch the
+	// receiver's code.
+	if booking.IsParcel() {
+		s.notifyCustomer(ctx, booking, s.notifierDeliveryCodeReady)
+	}
+	return booking, nil
 }
 
 type CompleteBookingInput struct {
@@ -285,6 +349,7 @@ func (s *BookingService) MarkCompleted(ctx context.Context, input CompleteBookin
 			completed.PaymentStatus = bookingmodels.PaymentPaid
 		}
 	}
+	s.notifyCustomer(ctx, completed, s.notifierCompleted)
 	return completed, nil
 }
 
@@ -325,6 +390,12 @@ func (s *BookingService) CancelByCustomer(ctx context.Context, bookingID, custom
 			cancelled.PaymentStatus = bookingmodels.PaymentRefunded
 		}
 	}
+	// Tell the driver their job is gone; they may already be en route.
+	if s.notifier != nil && cancelled.ProviderID != nil && *cancelled.ProviderID != "" {
+		s.notifier.NotifyDriverCancelled(
+			ctx, *cancelled.ProviderID, cancelled.ID, notifyData(cancelled),
+		)
+	}
 	return cancelled, nil
 }
 
@@ -356,6 +427,7 @@ func (s *BookingService) CancelByProvider(ctx context.Context, bookingID, provid
 			cancelled.PaymentStatus = bookingmodels.PaymentRefunded
 		}
 	}
+	s.notifyCustomer(ctx, cancelled, s.notifierCancelledByProvider)
 	return cancelled, nil
 }
 

@@ -149,6 +149,11 @@ type VerifyAuthInput struct {
 	DeviceID    *string
 	UserAgent   string
 	IPAddress   string
+	// ReferralLinkCode and ReferralCode are an optional referral code from a
+	// shared link or typed by the driver. They matter only when this
+	// verification creates the account.
+	ReferralLinkCode string
+	ReferralCode     string
 }
 
 type TokenResult struct {
@@ -198,7 +203,11 @@ func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (To
 	// so a captured code cannot be replayed.
 	_ = s.challenges.Delete(ctx, identifierKey)
 
-	provider, err := s.providers.UpsertByPhone(ctx, normalized)
+	signup := providerauthmodels.Signup{LinkCode: input.ReferralLinkCode, TypedCode: input.ReferralCode}
+	if input.DeviceID != nil {
+		signup.DeviceID = *input.DeviceID
+	}
+	provider, err := s.providers.UpsertByPhone(ctx, normalized, signup)
 	if err != nil {
 		return TokenResult{}, err
 	}

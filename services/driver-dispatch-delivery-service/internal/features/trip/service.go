@@ -25,7 +25,7 @@ import (
 // WalletSettlementClient is the subset of walletclient.Client used by the trip service.
 // Defined as an interface so tests can inject a fake without making real HTTP calls.
 type WalletSettlementClient interface {
-	CompleteJob(ctx context.Context, sourceService, sourceReference string) (walletclient.PaymentIntent, error)
+	CompleteJobAt(ctx context.Context, sourceService, sourceReference string, completedAt time.Time) (walletclient.PaymentIntent, error)
 	RequestRefund(ctx context.Context, request walletclient.RefundRequest) (walletclient.Refund, error)
 }
 
@@ -746,7 +746,7 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 			log.Printf("trip settlement confirmation pending trip_id=%s", trip.ID)
 		}
 	} else if s.wallet != nil {
-		if _, err := s.wallet.CompleteJob(ctx, "dispatch-delivery-service", trip.BookingID); err != nil {
+		if _, err := s.wallet.CompleteJobAt(ctx, "dispatch-delivery-service", trip.BookingID, completedAt); err != nil {
 			log.Printf("wallet settlement failed trip_id=%s booking_id=%s provider_id=%s",
 				trip.ID, trip.BookingID, trip.ProviderID)
 			// Trip is already completed in the DB. Do not roll back.

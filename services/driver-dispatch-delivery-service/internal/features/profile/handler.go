@@ -9,11 +9,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/shared/go/apperrors"
-	"cosmicforge/logistics/shared/go/httpx"
 	authhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/http"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 const maxAvatarMemory = 5 << 20 // 5 MB multipart buffer

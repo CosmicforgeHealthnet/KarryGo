@@ -1,0 +1,24 @@
+{
+  "kind": "taxi.tariff",
+  "geography_level": "COUNTRY",
+  "geography_ref": "NG",
+  "schema_version": 1,
+  "change_reason": "V1 price-neutral baseline: reproduces driver-taxi-service's provisional provider exactly",
+  "body": {
+    "schema_version": 1,
+    "currency": "NGN",
+    "classes": {
+      "economy": {"base_kobo": 50000, "per_km_kobo": 10000, "per_min_kobo": 2000, "min_kobo": 70000},
+      "comfort": {"base_kobo": 70000, "per_km_kobo": 13000, "per_min_kobo": 2500, "min_kobo": 90000},
+      "xl":      {"base_kobo": 90000, "per_km_kobo": 16000, "per_min_kobo": 3000, "min_kobo": 120000}
+    },
+    "distance_basis": "ROAD_ROUTE",
+    "distance_rounding": "TRUNCATE",
+    "duration_unit": "WHOLE_MINUTES_FLOOR",
+    "time_basis": "ROUTE_DURATION",
+    "total_rounding": {"step_kobo": 50, "mode": "HALF_UP"},
+    "minimum_after_rounding": true,
+    "low_confidence_route": "ALLOW_WITH_FLAG",
+    "hourly_mode": "PRICE_AS_POINT_TO_POINT"
+  }
+}

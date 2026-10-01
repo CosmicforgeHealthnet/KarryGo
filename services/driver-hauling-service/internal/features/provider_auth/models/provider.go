@@ -2,6 +2,15 @@ package providerauthmodels
 
 import "time"
 
+// Signup is what a sign-up carried besides the identifier itself. It is used
+// only to announce a brand-new provider to the referral programme.
+type Signup struct {
+	// LinkCode is a referral code from a shared link; it wins over TypedCode.
+	LinkCode  string
+	TypedCode string
+	DeviceID  string
+}
+
 const (
 	ProviderStatusActive    = "active"
 	ProviderStatusSuspended = "suspended"

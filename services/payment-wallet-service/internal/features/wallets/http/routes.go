@@ -29,6 +29,9 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	provider.DELETE("/bank-accounts/:id", handler.DeleteBankAccount)
 	provider.PUT("/bank-accounts/:id/default", handler.SetDefaultBankAccount)
 	provider.POST("/withdrawals", handler.RequestWithdrawal)
+	// Referral earnings only; job earnings never pay a referral withdrawal
+	// and referral earnings never pay a normal one.
+	provider.POST("/referral-withdrawals", handler.RequestReferralWithdrawal)
 	provider.GET("/pin/status", handler.TransactionPinStatus)
 	provider.POST("/pin", handler.SetTransactionPin)
 	provider.PUT("/pin", handler.ChangeTransactionPin)
@@ -41,6 +44,10 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	internal.POST("/refunds", handler.RequestRefund)
 	internal.GET("/payments/:reference", handler.GetInternalPayment)
 	internal.PUT("/payments/:reference/provider", handler.AssignPaymentProvider)
+	// Referral programme money movement; referral-service only.
+	internal.POST("/referral/credits", handler.PostReferralCredit)
+	internal.POST("/referral/reversals", handler.PostReferralReversal)
+	internal.GET("/referral/totals", handler.ReferralTotals)
 	internal.POST("/vendor-bank-profiles/resolve", handler.ResolveVendorBankProfile)
 	internal.PUT("/vendor-bank-profiles/:businessId", handler.PutVendorBankProfile)
 	internal.GET("/vendor-bank-profiles/:businessId", handler.GetVendorBankProfile)

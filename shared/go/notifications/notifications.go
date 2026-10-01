@@ -91,6 +91,34 @@ const (
 	EventDeliveryCancelled           = "delivery.cancelled"
 	EventDeliveryCancelledByProvider = "delivery.cancelled_by_provider"
 
+	// driver-taxi-service ride lifecycle. Its own namespace for the same
+	// reason dispatch has one: a taxi passenger receiving hauling's "cargo
+	// delivered" copy, or a driver getting "New haulage request" for a car
+	// ride, is exactly what sharing event_type strings across services
+	// produced before.
+	//
+	// A taxi ride can carry a PACKAGE instead of a passenger (ride_purpose =
+	// parcel), which is why the parcel-only drop-off pair exists here even
+	// though every other key is ride-shaped.
+	EventRideMatched             = "ride.matched"
+	EventRideAccepted            = "ride.accepted"
+	EventRideUnmatched           = "ride.unmatched"
+	EventRideEnRoutePickup       = "ride.en_route_pickup"
+	EventRideArrivedPickup       = "ride.arrived_at_pickup"
+	EventRideStarted             = "ride.started"
+	EventRideCompleted           = "ride.completed"
+	EventRideCancelled           = "ride.cancelled"
+	EventRideCancelledByProvider = "ride.cancelled_by_provider"
+
+	// driver-taxi-service handover verification. Direction is the opposite of
+	// a courier's: in a taxi the PASSENGER (or parcel sender) displays the
+	// pickup code and the DRIVER verifies it, because the customer is what is
+	// being collected. The parcel drop-off pair mirrors that back the other
+	// way for the receiver.
+	EventRidePickupCodeReady   = "ride.pickup_code_ready"
+	EventRidePickupVerified    = "ride.pickup_verified"
+	EventRideDeliveryCodeReady = "ride.delivery_code_ready"
+
 	// driver-dispatch-delivery-service handover verification (QR/OTP pickup +
 	// delivery confirmation) — mirrors hauling's pair, kept in this service's
 	// own namespace. Pickup verification is checked by the customer against

@@ -26,7 +26,7 @@ type stubProviders struct {
 	byID map[string]providerauthmodels.Provider
 }
 
-func (s *stubProviders) UpsertByPhone(_ context.Context, phone string) (providerauthmodels.Provider, error) {
+func (s *stubProviders) UpsertByPhone(_ context.Context, phone string, _ providerauthmodels.Signup) (providerauthmodels.Provider, error) {
 	p := providerauthmodels.Provider{ID: "driver-1", Phone: phone, AccountStatus: providerauthmodels.AccountStatusActive}
 	s.byID[p.ID] = p
 	return p, nil

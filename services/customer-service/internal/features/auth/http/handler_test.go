@@ -207,7 +207,7 @@ type httpFakeCustomerRepository struct {
 	byID    map[string]profilemodels.Customer
 }
 
-func (r *httpFakeCustomerRepository) UpsertByPhone(ctx context.Context, phone string) (profilemodels.Customer, error) {
+func (r *httpFakeCustomerRepository) UpsertByPhone(ctx context.Context, phone string, signup profilemodels.Signup) (profilemodels.Customer, error) {
 	if existing, ok := r.byPhone[phone]; ok {
 		return existing, nil
 	}
@@ -222,7 +222,7 @@ func (r *httpFakeCustomerRepository) UpsertByPhone(ctx context.Context, phone st
 	return created, nil
 }
 
-func (r *httpFakeCustomerRepository) UpsertByEmail(ctx context.Context, email string) (profilemodels.Customer, error) {
+func (r *httpFakeCustomerRepository) UpsertByEmail(ctx context.Context, email string, signup profilemodels.Signup) (profilemodels.Customer, error) {
 	if existing, ok := r.byEmail[email]; ok {
 		return existing, nil
 	}

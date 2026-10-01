@@ -32,6 +32,7 @@ import (
 	providerassignments "cosmicforge/logistics/services/hauling-service/internal/features/providerassignments"
 	restrictions "cosmicforge/logistics/services/hauling-service/internal/features/restrictions"
 
+	providerauthclients "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/clients"
 	providerauthhttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/http"
 	providerauthrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/repositories"
 	providerauthusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases"
@@ -46,6 +47,7 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/providercompat"
+	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -108,6 +110,47 @@ func main() {
 
 	// ─── Repositories ─────────────────────────────────────────────────────────
 	providerRepo := providerauthrepositories.NewPostgresProviderRepository(db)
+
+	// Referral feed: providers who sign up themselves (and, from the profile
+	// flow, their completed onboarding) are announced to referral-service in
+	// the transaction that records them.
+	var referralFeed *referralcontract.Feed
+	if cfg.ReferralFeedEnabled {
+		feed, feedErr := referralcontract.NewFeed(db, "driver-hauling-service", cfg.ReferralIdentityPepper)
+		if feedErr != nil {
+			logging.Fatal("referral-feed", "configure: %v", feedErr)
+		}
+		relay, relayErr := feed.Relay(cfg.ReferralServiceURL, cfg.ReferralServiceSecret, 10*time.Second, func(err error) {
+			logging.Error("referral-feed", "relay: %v", err)
+		})
+		if relayErr != nil {
+			logging.Fatal("referral-feed", "configure relay: %v", relayErr)
+		}
+		referralFeed = feed
+		providerRepo.SetSignupAnnouncer(providerauthclients.NewReferralAnnouncer(feed))
+		go func() { _ = relay.Run(ctx) }()
+		// Announces each provider once they are fully approved. Approval in
+		// hauling is onboarding_status 'complete' on an active, self-registered
+		// provider (fleet-created drivers are outside the personal programme).
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				if _, err := feed.AnnounceApprovals(ctx, db, providerauthclients.HaulingApprovals, 100); err != nil {
+					logging.Error("referral-feed", "approval sweep: %v", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+		logging.Success("referral-feed", "announcing new providers to %s", cfg.ReferralServiceURL)
+	} else {
+		logging.Notice("referral-feed", "off (HAULING_REFERRAL_FEED_ENABLED=false): new providers are not announced to referral-service")
+	}
+	_ = referralFeed
 	sessionRepo := providerauthrepositories.NewPostgresRefreshSessionRepository(db)
 	challengeStore := providerauthrepositories.NewRedisOTPChallengeRepository(redisClient)
 	profileRepo := providerprofilerepositories.NewPostgresProfileRepository(db)

@@ -41,11 +41,11 @@ func (f *fakeProfileRepo) UpdatePhoto(ctx context.Context, id, assetID, photoURL
 	return providerauthmodels.Provider{}, nil
 }
 
-func (f *fakeProfileRepo) UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error) {
+func (f *fakeProfileRepo) UpsertByPhone(ctx context.Context, phone string, _ providerauthmodels.Signup) (providerauthmodels.Provider, error) {
 	return providerauthmodels.Provider{}, nil
 }
 
-func (f *fakeProfileRepo) UpsertByEmail(ctx context.Context, email string) (providerauthmodels.Provider, error) {
+func (f *fakeProfileRepo) UpsertByEmail(ctx context.Context, email string, _ providerauthmodels.Signup) (providerauthmodels.Provider, error) {
 	return providerauthmodels.Provider{}, nil
 }
 

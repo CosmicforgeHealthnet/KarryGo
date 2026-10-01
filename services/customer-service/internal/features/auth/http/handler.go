@@ -53,6 +53,9 @@ func (h *AuthHandler) VerifyAuth(c *gin.Context) {
 		DeviceID:    request.DeviceID,
 		UserAgent:   c.Request.UserAgent(),
 		IPAddress:   c.ClientIP(),
+
+		ReferralLinkCode: request.ReferralLinkCode,
+		ReferralCode:     request.ReferralCode,
 	})
 	if err != nil {
 		httpx.Abort(c, err)

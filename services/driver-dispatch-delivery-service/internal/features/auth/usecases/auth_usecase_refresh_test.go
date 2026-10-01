@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"cosmicforge/logistics/shared/go/apperrors"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 const refreshTestPhone = "+2348012345678"

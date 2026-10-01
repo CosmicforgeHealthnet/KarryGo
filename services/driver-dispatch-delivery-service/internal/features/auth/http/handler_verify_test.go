@@ -12,12 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/shared/go/apperrors"
-	"cosmicforge/logistics/shared/go/httpx"
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 // ── Fakes specific to verify handler tests ────────────────────────────────────
@@ -104,7 +104,7 @@ func (r *verifyIdentityRepo) GetByID(ctx context.Context, id string) (authmodels
 	}
 	return authmodels.Identity{}, false, nil
 }
-func (r *verifyIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+func (r *verifyIdentityRepo) UpsertByPhone(ctx context.Context, phone string, _ authmodels.Signup) (authmodels.Identity, error) {
 	if existing, ok := r.identities[phone]; ok {
 		return existing, nil
 	}
@@ -114,7 +114,7 @@ func (r *verifyIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (a
 	r.identities[phone] = id
 	return id, nil
 }
-func (r *verifyIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+func (r *verifyIdentityRepo) CreateForSignup(ctx context.Context, phone, email string, _ authmodels.Signup) (authmodels.Identity, error) {
 	id := authmodels.Identity{
 		ID: "htest-id-" + phone, PhoneNumber: phone, Status: authmodels.StatusActive,
 	}
@@ -123,7 +123,7 @@ func (r *verifyIdentityRepo) CreateForSignup(ctx context.Context, phone, email s
 }
 
 func (r *verifyIdentityRepo) UpdatePhone(_ context.Context, _, _, _ string) error { return nil }
-func (r *verifyIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error   { return nil }
+func (r *verifyIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error    { return nil }
 
 var _ authrepositories.IdentityRepository = (*verifyIdentityRepo)(nil)
 
@@ -138,14 +138,16 @@ func (r *verifySuspendedIdentityRepo) FindByEmail(ctx context.Context, email str
 func (r *verifySuspendedIdentityRepo) GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{ID: id, Status: authmodels.StatusSuspended}, true, nil
 }
-func (r *verifySuspendedIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+func (r *verifySuspendedIdentityRepo) UpsertByPhone(ctx context.Context, phone string, _ authmodels.Signup) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "sus-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, nil
 }
-func (r *verifySuspendedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+func (r *verifySuspendedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string, _ authmodels.Signup) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "sus-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, nil
 }
-func (r *verifySuspendedIdentityRepo) UpdatePhone(_ context.Context, _, _, _ string) error { return nil }
-func (r *verifySuspendedIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error   { return nil }
+func (r *verifySuspendedIdentityRepo) UpdatePhone(_ context.Context, _, _, _ string) error {
+	return nil
+}
+func (r *verifySuspendedIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error { return nil }
 
 var _ authrepositories.IdentityRepository = (*verifySuspendedIdentityRepo)(nil)
 

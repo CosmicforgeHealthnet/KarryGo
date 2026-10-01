@@ -31,6 +31,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/providercompat"
+	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
@@ -101,8 +102,47 @@ func main() {
 		membershipReader = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller,
 			cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
 	}
+	// Referral feed: new riders (and, from verification, completed onboarding)
+	// are announced to referral-service in the transaction that records them.
+	identityRepository := authrepositories.NewPostgresIdentityRepository(db)
+	var referralFeed *referralcontract.Feed
+	if cfg.ReferralFeedEnabled {
+		feed, feedErr := referralcontract.NewFeed(db, "driver-dispatch-delivery-service", cfg.ReferralIdentityPepper)
+		if feedErr != nil {
+			log.Fatalf("configure referral feed (DISPATCH_REFERRAL_IDENTITY_PEPPER): %v", feedErr)
+		}
+		relay, relayErr := feed.Relay(cfg.ReferralServiceURL, cfg.ReferralServiceSecret, 10*time.Second, func(err error) {
+			log.Printf("referral feed relay: %v", err)
+		})
+		if relayErr != nil {
+			log.Fatalf("configure referral feed relay (DISPATCH_REFERRAL_SERVICE_URL / _SECRET): %v", relayErr)
+		}
+		referralFeed = feed
+		identityRepository.SetSignupAnnouncer(authclients.NewReferralAnnouncer(feed))
+		go func() { _ = relay.Run(ctx) }()
+		// Announces each rider once they are fully approved.
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				if _, err := feed.AnnounceApprovals(ctx, db, authclients.DispatchApprovals, 100); err != nil {
+					log.Printf("referral feed approval sweep: %v", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+		log.Printf("referral feed on: announcing new riders to %s", cfg.ReferralServiceURL)
+	} else {
+		log.Printf("referral feed off (DISPATCH_REFERRAL_FEED_ENABLED=false): new riders are not announced to referral-service")
+	}
+	_ = referralFeed
+
 	authService := authusecases.NewAuthUsecase(authusecases.Options{
-		Identities:           authrepositories.NewPostgresIdentityRepository(db),
+		Identities:           identityRepository,
 		OTPs:                 authrepositories.NewPostgresOTPRepository(db),
 		Sessions:             authrepositories.NewPostgresSessionRepository(db),
 		Notifier:             authclients.NewLoggingNotificationClient(cfg.OTPDebug),

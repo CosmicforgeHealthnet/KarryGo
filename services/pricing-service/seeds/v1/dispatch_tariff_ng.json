@@ -1,0 +1,27 @@
+{
+  "kind": "dispatch.tariff",
+  "geography_level": "COUNTRY",
+  "geography_ref": "NG",
+  "schema_version": 1,
+  "change_reason": "V1 price-neutral baseline: reproduces shared/go/dispatchpricing exactly",
+  "body": {
+    "schema_version": 1,
+    "currency": "NGN",
+    "base_kobo": 80000,
+    "per_km_kobo": 18000,
+    "size_addons_kobo": {"small": 0, "medium": 30000, "large": 70000},
+    "express_multiplier": {"num": 135, "den": 100},
+    "express_applied_to": "SUBTOTAL_BEFORE_ROUNDING",
+    "distance_rounding": "HALF_AWAY_FROM_ZERO",
+    "distance_basis_by_channel": {
+      "CUSTOMER_APP": "STRAIGHT_LINE",
+      "COMMERCE": "STRAIGHT_LINE",
+      "PARTNER_API": "STRAIGHT_LINE",
+      "OPS": "ROAD_ROUTE"
+    },
+    "default_distance_basis": "ROAD_ROUTE",
+    "total_rounding": {"step_kobo": 50, "mode": "HALF_AWAY_FROM_ZERO"},
+    "minimum_kobo": 100000,
+    "minimum_after_rounding": true
+  }
+}

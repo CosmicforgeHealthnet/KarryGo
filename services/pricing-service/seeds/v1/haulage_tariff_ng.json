@@ -1,0 +1,26 @@
+{
+  "kind": "haulage.tariff",
+  "geography_level": "COUNTRY",
+  "geography_ref": "NG",
+  "schema_version": 1,
+  "change_reason": "V1 price-neutral baseline: reproduces driver-hauling-service CalculateFare exactly",
+  "body": {
+    "schema_version": 1,
+    "currency": "NGN",
+    "base_kobo": 500000,
+    "per_km_kobo": 25000,
+    "distance_rounding": "HALF_AWAY_FROM_ZERO",
+    "distance_basis": "STRAIGHT_LINE",
+    "weight_surcharge": {
+      "threshold_grams_exclusive": 500000,
+      "rate": {"num": 1, "den": 10},
+      "on": "BASE_PLUS_DISTANCE",
+      "rounding": "TRUNCATE"
+    },
+    "helper_fee_kobo": 200000,
+    "total_rounding": {"step_kobo": 0, "mode": "TRUNCATE"},
+    "minimum_kobo": 0,
+    "minimum_after_rounding": false,
+    "classes": ["flatbed", "container", "tipper", "van", "refrigerated", "pickup", "box", "tanker", "trailer", "dump", "lowbed", "crane", "other"]
+  }
+}

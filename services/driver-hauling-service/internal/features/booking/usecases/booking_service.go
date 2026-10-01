@@ -69,7 +69,9 @@ type PaymentClient interface {
 	// returns the intent id and the authorization URL for the checkout WebView.
 	CreateCardIntent(ctx context.Context, in PaymentHoldInput, customerEmail string) (intentID, authorizationURL string, err error)
 	// Settle releases the held funds to the provider on completion.
-	Settle(ctx context.Context, bookingID string, paymentReference string) error
+	// Settle releases held funds on completion. completedAt is when the job
+	// itself finished; the wallet records it for the referral programme.
+	Settle(ctx context.Context, bookingID string, paymentReference string, completedAt time.Time) error
 	// Refund reverses a charge on cancel/unmatched.
 	Refund(ctx context.Context, paymentIntentID string, amountKobo int64, reason string) error
 }
@@ -1312,11 +1314,25 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 	if b.PaymentIntentID != nil {
 		reference = *b.PaymentIntentID
 	}
-	if err := s.payments.Settle(ctx, bookingID, reference); err != nil {
+	if err := s.payments.Settle(ctx, bookingID, reference, jobCompletedAt(b)); err != nil {
 		_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusUnknown, reference)
 		return
 	}
 	_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusPaid, "")
+}
+
+// jobCompletedAt is when the job reached "completed", falling back to its
+// delivery stamp. Dispatch and taxi report their completion times too, so the
+// referral programme's time rules mean the same thing for every service. Zero
+// lets the wallet use its settlement time.
+func jobCompletedAt(b bookingmodels.Booking) time.Time {
+	if b.CompletedAt != nil {
+		return *b.CompletedAt
+	}
+	if b.DeliveredAt != nil {
+		return *b.DeliveredAt
+	}
+	return time.Time{}
 }
 
 // refundIfHeld reverses a held charge when a booking is cancelled or unmatched.

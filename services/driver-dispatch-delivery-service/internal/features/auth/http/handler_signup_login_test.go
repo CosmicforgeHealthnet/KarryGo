@@ -11,12 +11,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/shared/go/apperrors"
-	"cosmicforge/logistics/shared/go/httpx"
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 // ── In-memory identity repo for signup/login handler tests ───────────────────
@@ -67,7 +67,7 @@ func (r *slIdentityRepo) GetByID(ctx context.Context, id string) (authmodels.Ide
 	}
 	return authmodels.Identity{}, false, nil
 }
-func (r *slIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+func (r *slIdentityRepo) UpsertByPhone(ctx context.Context, phone string, _ authmodels.Signup) (authmodels.Identity, error) {
 	if existing, ok := r.byPhone[phone]; ok {
 		return existing, nil
 	}
@@ -75,7 +75,7 @@ func (r *slIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authm
 	r.byPhone[phone] = id
 	return id, nil
 }
-func (r *slIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+func (r *slIdentityRepo) CreateForSignup(ctx context.Context, phone, email string, _ authmodels.Signup) (authmodels.Identity, error) {
 	if _, ok := r.byPhone[phone]; ok {
 		return authmodels.Identity{}, apperrors.Conflict("An account with this phone number or email already exists.", nil)
 	}
@@ -102,7 +102,7 @@ func (r *slIdentityRepo) CreateForSignup(ctx context.Context, phone, email strin
 }
 
 func (r *slIdentityRepo) UpdatePhone(_ context.Context, _, _, _ string) error { return nil }
-func (r *slIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error   { return nil }
+func (r *slIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error    { return nil }
 
 var _ authrepositories.IdentityRepository = (*slIdentityRepo)(nil)
 

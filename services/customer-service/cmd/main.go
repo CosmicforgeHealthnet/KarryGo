@@ -17,6 +17,7 @@ import (
 	identityhttp "cosmicforge/logistics/services/customer-service/internal/features/identity/http"
 	notificationhttp "cosmicforge/logistics/services/customer-service/internal/features/notifications/http"
 	preferences "cosmicforge/logistics/services/customer-service/internal/features/preferences"
+	profileclients "cosmicforge/logistics/services/customer-service/internal/features/profile/clients"
 	profilehttp "cosmicforge/logistics/services/customer-service/internal/features/profile/http"
 	profilerepositories "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories"
 	profileusecases "cosmicforge/logistics/services/customer-service/internal/features/profile/usecases"
@@ -26,6 +27,7 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -99,6 +101,27 @@ func main() {
 	)
 	preferenceStore := preferences.NewStore(db)
 
+	var workers []func(context.Context) error
+	if cfg.ReferralFeedEnabled {
+		// New customers are announced to referral-service in the same
+		// transaction that creates them; this relay delivers the announcements.
+		feed, feedErr := referralcontract.NewFeed(db, "customer-service", cfg.ReferralIdentityPepper)
+		if feedErr != nil {
+			logging.Fatal("referral-feed", "configure (CUSTOMER_REFERRAL_IDENTITY_PEPPER): %v", feedErr)
+		}
+		relay, relayErr := feed.Relay(cfg.ReferralServiceURL, cfg.ReferralServiceSecret, 10*time.Second, func(err error) {
+			logging.Error("referral-feed", "relay: %v", err)
+		})
+		if relayErr != nil {
+			logging.Fatal("referral-feed", "configure relay (CUSTOMER_REFERRAL_SERVICE_URL / _SECRET): %v", relayErr)
+		}
+		customerRepo.SetSignupAnnouncer(profileclients.NewReferralAnnouncer(feed))
+		workers = append(workers, relay.Run)
+		logging.Success("referral-feed", "announcing new customers to %s", cfg.ReferralServiceURL)
+	} else {
+		logging.Notice("referral-feed", "off (CUSTOMER_REFERRAL_FEED_ENABLED=false): new customers are not announced to referral-service")
+	}
+
 	authService := authusecases.NewAuthService(authusecases.Options{
 		Customers:          customerRepo,
 		Sessions:           sessionRepo,
@@ -117,6 +140,7 @@ func main() {
 	})
 
 	serviceapp.Run(serviceapp.Options{
+		Workers:     workers,
 		Name:        "customer-service",
 		DefaultAddr: cfg.HTTPAddr,
 		APIBase:     "/api/v1/customer",

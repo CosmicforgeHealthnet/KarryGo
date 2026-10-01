@@ -1,4 +1,4 @@
-﻿package verification
+package verification
 
 import (
 	"bytes"

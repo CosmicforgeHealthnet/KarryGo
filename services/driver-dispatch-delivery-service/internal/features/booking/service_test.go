@@ -283,7 +283,7 @@ type fakePayments struct {
 	holdRefFor    func(bookingID string) string
 }
 
-func (p *fakePayments) CompleteSettlement(_ context.Context, bookingID string) error {
+func (p *fakePayments) CompleteSettlement(_ context.Context, bookingID string, _ time.Time) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.settlements = append(p.settlements, bookingID)

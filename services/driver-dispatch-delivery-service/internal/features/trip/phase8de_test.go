@@ -30,7 +30,7 @@ type fakeWalletClient struct {
 	refundDone chan struct{}
 }
 
-func (f *fakeWalletClient) CompleteJob(ctx context.Context, sourceService, sourceReference string) (walletclient.PaymentIntent, error) {
+func (f *fakeWalletClient) CompleteJobAt(ctx context.Context, sourceService, sourceReference string, _ time.Time) (walletclient.PaymentIntent, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.completeJobCalls = append(f.completeJobCalls, completeJobCall{sourceService, sourceReference})

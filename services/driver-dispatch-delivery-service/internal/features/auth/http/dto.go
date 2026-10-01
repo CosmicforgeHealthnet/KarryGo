@@ -44,6 +44,10 @@ type VerifyRequest struct {
 	Purpose    string  `json:"purpose"`
 	DeviceID   *string `json:"device_id,omitempty"`
 	DeviceType *string `json:"device_type,omitempty"`
+	// Optional referral code: from a shared link, or typed on the sign-up
+	// screen. Used only when this verification creates the account.
+	ReferralLinkCode string `json:"referral_link_code,omitempty"`
+	ReferralCode     string `json:"referral_code,omitempty"`
 }
 
 // ── Refresh / Logout ──────────────────────────────────────────────────────────

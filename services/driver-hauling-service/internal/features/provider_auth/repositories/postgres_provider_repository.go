@@ -27,8 +27,11 @@ const providerColumns = `id::text, COALESCE(phone,''), COALESCE(email,''),
 // ─── Provider Repository ──────────────────────────────────────────────────────
 
 type ProviderRepository interface {
-	UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error)
-	UpsertByEmail(ctx context.Context, email string) (providerauthmodels.Provider, error)
+	// UpsertByPhone and UpsertByEmail return the provider for an identifier,
+	// creating it on first sight. signup is announced to the referral
+	// programme only when the account is actually created.
+	UpsertByPhone(ctx context.Context, phone string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error)
+	UpsertByEmail(ctx context.Context, email string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error)
 	GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error)
 	UpdatePhone(ctx context.Context, id, phone string) (providerauthmodels.Provider, error)
 	// ContactTaken reports whether the given email and/or phone already belong to a
@@ -36,36 +39,61 @@ type ProviderRepository interface {
 	ContactTaken(ctx context.Context, excludeID, email, phone string) (emailTaken, phoneTaken bool, err error)
 }
 
+// SignupAnnouncer records a newly created provider for the referral
+// programme inside the account-creation transaction, so the account and its
+// announcement commit together or not at all.
+type SignupAnnouncer interface {
+	AnnounceProvider(ctx context.Context, tx pgx.Tx, provider providerauthmodels.Provider, signup providerauthmodels.Signup) error
+}
+
 type PostgresProviderRepository struct {
-	db *pgxpool.Pool
+	db        *pgxpool.Pool
+	announcer SignupAnnouncer
 }
 
 func NewPostgresProviderRepository(db *pgxpool.Pool) *PostgresProviderRepository {
 	return &PostgresProviderRepository{db: db}
 }
 
-func (r *PostgresProviderRepository) UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error) {
-	id := uuid.NewString()
-	row := r.db.QueryRow(ctx, `
-		INSERT INTO truck_providers (id, phone, onboarding_status, status)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (phone) DO UPDATE SET updated_at = now()
-		RETURNING `+providerColumns+`
-	`, id, phone, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.ProviderStatusActive)
-
-	return scanProvider(row)
+// SetSignupAnnouncer switches the referral announcement on (non-nil) or off.
+func (r *PostgresProviderRepository) SetSignupAnnouncer(announcer SignupAnnouncer) {
+	r.announcer = announcer
 }
 
-func (r *PostgresProviderRepository) UpsertByEmail(ctx context.Context, email string) (providerauthmodels.Provider, error) {
-	id := uuid.NewString()
-	row := r.db.QueryRow(ctx, `
-		INSERT INTO truck_providers (id, email, onboarding_status, status)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (email) DO UPDATE SET updated_at = now()
-		RETURNING `+providerColumns+`
-	`, id, email, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.ProviderStatusActive)
+func (r *PostgresProviderRepository) UpsertByPhone(ctx context.Context, phone string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	return r.upsert(ctx, "phone", phone, signup)
+}
 
-	return scanProvider(row)
+func (r *PostgresProviderRepository) UpsertByEmail(ctx context.Context, email string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	return r.upsert(ctx, "email", email, signup)
+}
+
+// upsert creates or returns the provider for one identifier column. The
+// returned id equals the id generated here only when this call inserted the
+// row, which is how a new sign-up is told apart from a returning login.
+func (r *PostgresProviderRepository) upsert(ctx context.Context, column string, value string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	if column != "phone" && column != "email" {
+		return providerauthmodels.Provider{}, errors.New("unsupported identifier column")
+	}
+	id := uuid.NewString()
+	var provider providerauthmodels.Provider
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		row := tx.QueryRow(ctx, `
+			INSERT INTO truck_providers (id, `+column+`, onboarding_status, status)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (`+column+`) DO UPDATE SET updated_at = now()
+			RETURNING `+providerColumns+`
+		`, id, value, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.ProviderStatusActive)
+		var err error
+		if provider, err = scanProvider(row); err != nil {
+			return err
+		}
+		if provider.ID == id && r.announcer != nil {
+			return r.announcer.AnnounceProvider(ctx, tx, provider, signup)
+		}
+		return nil
+	})
+	return provider, err
 }
 
 func (r *PostgresProviderRepository) GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error) {

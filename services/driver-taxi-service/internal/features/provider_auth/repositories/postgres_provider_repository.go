@@ -32,8 +32,9 @@ const providerColumns = `id::text, COALESCE(phone,''), COALESCE(email,''),
 
 type ProviderRepository interface {
 	// UpsertByPhone creates the driver on first login. Taxi driver auth is
-	// phone-only; there is no email path.
-	UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error)
+	// phone-only; there is no email path. signup is announced to the referral
+	// programme only when the account is actually created.
+	UpsertByPhone(ctx context.Context, phone string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error)
 	GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error)
 	UpdatePhone(ctx context.Context, id, phone string) (providerauthmodels.Provider, error)
 	// ContactTaken reports whether the given email and/or phone already belong to
@@ -41,29 +42,54 @@ type ProviderRepository interface {
 	ContactTaken(ctx context.Context, excludeID, email, phone string) (emailTaken, phoneTaken bool, err error)
 }
 
+// SignupAnnouncer records a newly created driver for the referral programme
+// inside the account-creation transaction, so the account and its
+// announcement commit together or not at all.
+type SignupAnnouncer interface {
+	AnnounceDriver(ctx context.Context, tx pgx.Tx, provider providerauthmodels.Provider, signup providerauthmodels.Signup) error
+}
+
 type PostgresProviderRepository struct {
-	db *pgxpool.Pool
+	db        *pgxpool.Pool
+	announcer SignupAnnouncer
 }
 
 func NewPostgresProviderRepository(db *pgxpool.Pool) *PostgresProviderRepository {
 	return &PostgresProviderRepository{db: db}
 }
 
-func (r *PostgresProviderRepository) UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error) {
-	id := uuid.NewString()
-	// New driver rows start at the "nothing done yet" value on every one of the
-	// six status dimensions. Only onboarding_status and account_status are set
-	// explicitly here because the other four already default correctly in the
-	// schema (001_taxi_core.sql) -- naming them again would just be two places
-	// to keep in sync instead of one.
-	row := r.db.QueryRow(ctx, `
-		INSERT INTO taxi_providers (id, phone, onboarding_status, account_status)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (phone) DO UPDATE SET updated_at = now()
-		RETURNING `+providerColumns+`
-	`, id, phone, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.AccountStatusActive)
+// SetSignupAnnouncer switches the referral announcement on (non-nil) or off.
+func (r *PostgresProviderRepository) SetSignupAnnouncer(announcer SignupAnnouncer) {
+	r.announcer = announcer
+}
 
-	return scanProvider(row)
+func (r *PostgresProviderRepository) UpsertByPhone(ctx context.Context, phone string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	id := uuid.NewString()
+	var provider providerauthmodels.Provider
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		// New driver rows start at the "nothing done yet" value on every one of
+		// the six status dimensions. Only onboarding_status and account_status
+		// are set explicitly here because the other four already default
+		// correctly in the schema (001_taxi_core.sql) -- naming them again would
+		// just be two places to keep in sync instead of one.
+		row := tx.QueryRow(ctx, `
+			INSERT INTO taxi_providers (id, phone, onboarding_status, account_status)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (phone) DO UPDATE SET updated_at = now()
+			RETURNING `+providerColumns+`
+		`, id, phone, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.AccountStatusActive)
+		var err error
+		if provider, err = scanProvider(row); err != nil {
+			return err
+		}
+		// The returned id is the one generated here only when the row was
+		// inserted; a returning driver gets their existing id back.
+		if provider.ID == id && r.announcer != nil {
+			return r.announcer.AnnounceDriver(ctx, tx, provider, signup)
+		}
+		return nil
+	})
+	return provider, err
 }
 
 func (r *PostgresProviderRepository) GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error) {

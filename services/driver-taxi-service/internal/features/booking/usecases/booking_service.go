@@ -25,6 +25,42 @@ import (
 	"cosmicforge/logistics/shared/go/phonenumber"
 )
 
+// RideNotifier is the slice of the notification client this service needs.
+// Declared locally, and satisfied with no adapter by
+// *bookingclients.RideNotifier — the same "consumer declares what it needs"
+// convention as MarketLookup below.
+//
+// Every method is fire-and-forget by design: a ride transition must never
+// fail because a notification could not be delivered.
+type RideNotifier interface {
+	NotifyDriverMatched(ctx context.Context, providerID, bookingID string, data map[string]interface{})
+	NotifyDriverCancelled(ctx context.Context, providerID, bookingID string, data map[string]interface{})
+	NotifyCustomerAccepted(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerUnmatched(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerEnRoutePickup(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerArrivedPickup(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerStarted(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerCompleted(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerCancelledByProvider(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+	NotifyCustomerDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{})
+}
+
+// notifyData is the small payload every ride notification carries. Kept
+// deliberately thin: enough for the app to render a line and deep-link, never
+// a second copy of the booking row.
+func notifyData(b bookingmodels.Booking) map[string]interface{} {
+	data := map[string]interface{}{
+		"booking_id":   b.ID,
+		"ride_purpose": string(b.RidePurpose),
+		"fare_kobo":    fareKobo(b),
+	}
+	if p := b.Stops; len(p) > 0 {
+		data["pickup_address"] = p[0].Address
+		data["dropoff_address"] = p[len(p)-1].Address
+	}
+	return data
+}
+
 // MarketLookup resolves which operating zone a coordinate belongs to. Booking
 // creation resolves it from the PICKUP stop specifically -- a multi-stop
 // itinerary is priced and matched from where the passenger actually is, not
@@ -100,6 +136,7 @@ type BookingService struct {
 	verification        VerificationConfig
 
 	payments PaymentClient
+	notifier RideNotifier
 
 	telemetry       bookingtelemetry.Repository
 	positions       PositionUpdater
@@ -149,6 +186,11 @@ type Options struct {
 	// documents for TAXI_NOTIFICATION_URL/TAXI_ROUTES_API_KEY.
 	Payments PaymentClient
 
+	// Notifier is nil-able like every other integration here: without it the
+	// ride lifecycle runs exactly as before, just silently, so local dev
+	// without TAXI_NOTIFICATION_URL still works end to end.
+	Notifier RideNotifier
+
 	// Telemetry/Positions are nil-able the same way: without Telemetry,
 	// IngestLocationPoints returns apperrors.Unavailable rather than
 	// panicking (see its own nil check); without Positions, a validated
@@ -191,6 +233,7 @@ func NewBookingService(opts Options) *BookingService {
 		routes: opts.Routes, lease: opts.Lease, matching: opts.Matching,
 		pickupVerifications: opts.PickupVerifications, verifyRateLimiter: opts.VerifyRateLimiter, verification: opts.Verification,
 		payments:  opts.Payments,
+		notifier:  opts.Notifier,
 		telemetry: opts.Telemetry, positions: opts.Positions, telemetryConfig: opts.TelemetryConfig,
 		reviews: opts.Reviews, reviewRevealWindow: opts.ReviewRevealWindow, operationalHistory: opts.OperationalHistory,
 		scheduling: opts.Scheduling,

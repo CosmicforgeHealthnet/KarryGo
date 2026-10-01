@@ -181,6 +181,66 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
     ('withdrawal.reversed', 'en-NG',
      'Withdrawal reversed',
      'Your withdrawal was reversed and the amount returned to your wallet.',
+     '["push", "websocket", "in_app"]'),
+
+    -- ── Taxi ride lifecycle ────────────────────────────────────────────────
+    -- Its own namespace, so a taxi passenger never receives hauling's "cargo
+    -- delivered" copy and a driver never gets "New haulage request" for a car
+    -- ride. A ride may carry a package instead of a passenger, which is why a
+    -- parcel drop-off key sits among otherwise ride-shaped copy.
+    ('ride.matched', 'en-NG',
+     'New trip request',
+     'You have a new trip to accept. Open the app to review and respond.',
+     '["push", "websocket", "in_app"]'),
+
+    ('ride.accepted', 'en-NG',
+     'Driver on the way',
+     'A driver accepted your trip and is heading to your pickup point.',
+     '["push", "websocket", "in_app"]'),
+
+    ('ride.unmatched', 'en-NG',
+     'No driver found',
+     'We could not find a driver nearby. Nothing was charged -- please try again.',
+     '["push", "websocket", "in_app"]'),
+
+    ('ride.en_route_pickup', 'en-NG',
+     'Your driver is on the way',
+     'Your driver has set off for the pickup point.',
+     '["push", "websocket", "in_app"]'),
+
+    -- The pickup credential is generated in the same transition, so arrival
+    -- doubles as "your code is ready".
+    ('ride.arrived_at_pickup', 'en-NG',
+     'Your driver has arrived',
+     'Your driver is at the pickup point. Show them your code to start the trip.',
+     '["push", "websocket", "in_app"]'),
+
+    ('ride.started', 'en-NG',
+     'Trip started',
+     'Your trip is under way. Have a safe journey.',
+     '["push", "websocket", "in_app"]'),
+
+    ('ride.completed', 'en-NG',
+     'Trip complete',
+     'You have arrived. Thanks for riding with Karry Go.',
+     '["push", "websocket", "in_app"]'),
+
+    -- Sent to the DRIVER when the passenger calls it off; they may already be
+    -- en route, which is exactly why this exists.
+    ('ride.cancelled', 'en-NG',
+     'Trip cancelled',
+     'The customer cancelled this trip. You are free to take new requests.',
+     '["push", "websocket", "in_app"]'),
+
+    ('ride.cancelled_by_provider', 'en-NG',
+     'Trip cancelled',
+     'Your driver cancelled this trip. Anything held was refunded -- please book again.',
+     '["push", "websocket", "in_app"]'),
+
+    -- Parcel only: the receiver's drop-off code has become available.
+    ('ride.delivery_code_ready', 'en-NG',
+     'Delivery code ready',
+     'Your package is on its way. Share the delivery code with whoever receives it.',
      '["push", "websocket", "in_app"]')
 ON CONFLICT (key, locale) DO UPDATE SET
     title = EXCLUDED.title,

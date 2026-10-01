@@ -13,11 +13,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/shared/go/apperrors"
-	"cosmicforge/logistics/shared/go/httpx"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
 )
 
 type refreshHTTPIdentityRepo struct {
@@ -42,7 +42,7 @@ func (r *refreshHTTPIdentityRepo) FindByEmail(ctx context.Context, email string)
 	return authmodels.Identity{}, false, nil
 }
 
-func (r *refreshHTTPIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+func (r *refreshHTTPIdentityRepo) UpsertByPhone(ctx context.Context, phone string, _ authmodels.Signup) (authmodels.Identity, error) {
 	if identity, ok := r.byPhone[phone]; ok {
 		return identity, nil
 	}
@@ -51,14 +51,14 @@ func (r *refreshHTTPIdentityRepo) UpsertByPhone(ctx context.Context, phone strin
 	return identity, nil
 }
 
-func (r *refreshHTTPIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+func (r *refreshHTTPIdentityRepo) CreateForSignup(ctx context.Context, phone, email string, _ authmodels.Signup) (authmodels.Identity, error) {
 	identity := authmodels.Identity{ID: "rider-http-1", PhoneNumber: phone, Status: authmodels.StatusActive}
 	r.byPhone[phone] = identity
 	return identity, nil
 }
 
 func (r *refreshHTTPIdentityRepo) UpdatePhone(_ context.Context, _, _, _ string) error { return nil }
-func (r *refreshHTTPIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error   { return nil }
+func (r *refreshHTTPIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error    { return nil }
 
 var _ authrepositories.IdentityRepository = (*refreshHTTPIdentityRepo)(nil)
 

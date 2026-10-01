@@ -1,9 +1,11 @@
 package wallethttp
 
 import (
+	"errors"
 	"io"
 	nethttp "net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -245,6 +247,30 @@ func (h *Handler) RequestWithdrawal(c *gin.Context) {
 	respond(c, nethttp.StatusCreated, result)
 }
 
+// RequestReferralWithdrawal cashes out a driver's referral earnings.
+func (h *Handler) RequestReferralWithdrawal(c *gin.Context) {
+	providerType, providerID := providerIdentity(c)
+	var request withdrawalRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	result, err := h.service.RequestReferralWithdrawal(c.Request.Context(), walletusecases.RequestWithdrawalInput{
+		ProviderType:   providerType,
+		ProviderID:     providerID,
+		BankAccountID:  request.BankAccountID,
+		AmountKobo:     request.AmountKobo,
+		Currency:       request.Currency,
+		IdempotencyKey: request.IdempotencyKey,
+		Pin:            request.Pin,
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respond(c, nethttp.StatusCreated, result)
+}
+
 func (h *Handler) TransactionPinStatus(c *gin.Context) {
 	providerType, providerID := providerIdentity(c)
 	pinSet, err := h.service.TransactionPinStatus(c.Request.Context(), providerType, providerID)
@@ -324,7 +350,19 @@ func (h *Handler) PayFromWallet(c *gin.Context) {
 }
 
 func (h *Handler) CompleteJob(c *gin.Context) {
-	result, err := h.service.CompleteJob(c.Request.Context(), c.Param("source_service"), c.Param("source_reference"))
+	// The body is optional: older callers post {} or nothing at all.
+	var request completeJobRequest
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&request); err != nil && !errors.Is(err, io.EOF) {
+			httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+			return
+		}
+	}
+	var completedAt time.Time
+	if request.CompletedAt != nil {
+		completedAt = *request.CompletedAt
+	}
+	result, err := h.service.CompleteJob(c.Request.Context(), c.Param("source_service"), c.Param("source_reference"), completedAt)
 	if err != nil {
 		httpx.Abort(c, err)
 		return

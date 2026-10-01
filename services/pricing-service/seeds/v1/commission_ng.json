@@ -1,0 +1,17 @@
+{
+  "kind": "commission",
+  "geography_level": "COUNTRY",
+  "geography_ref": "NG",
+  "schema_version": 1,
+  "change_reason": "V1 price-neutral baseline: 15% marketplace fee, 0% on commerce deliveries (which pay the rider the whole fee today)",
+  "body": {
+    "schema_version": 1,
+    "default_bps": 1500,
+    "by_scope_channel": {
+      "DISPATCH/COMMERCE": 0,
+      "HAULAGE/COMMERCE": 0
+    },
+    "applied_to": "CUSTOMER_PAYABLE",
+    "rounding": "FLOOR"
+  }
+}

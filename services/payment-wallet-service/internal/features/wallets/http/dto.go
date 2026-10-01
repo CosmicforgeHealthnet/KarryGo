@@ -1,5 +1,7 @@
 package wallethttp
 
+import "time"
+
 type topUpRequest struct {
 	AmountKobo     int64  `json:"amount_kobo"`
 	Currency       string `json:"currency"`
@@ -52,6 +54,12 @@ type setPinRequest struct {
 type changePinRequest struct {
 	CurrentPin string `json:"current_pin"`
 	NewPin     string `json:"new_pin"`
+}
+
+// completeJobRequest is the optional body of the internal job-completion call.
+// CompletedAt is when the job itself finished (RFC 3339).
+type completeJobRequest struct {
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
 type assignProviderRequest struct {

@@ -138,6 +138,11 @@ type VerifyAuthInput struct {
 	DeviceID    *string
 	UserAgent   string
 	IPAddress   string
+	// ReferralLinkCode and ReferralCode are an optional referral code from a
+	// shared link or typed by the user. They matter only when this
+	// verification creates the account; a returning login ignores them.
+	ReferralLinkCode string
+	ReferralCode     string
 }
 
 type TokenResult struct {
@@ -175,12 +180,16 @@ func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (To
 		return TokenResult{}, err
 	}
 
+	signup := profilemodels.Signup{LinkCode: input.ReferralLinkCode, TypedCode: input.ReferralCode}
+	if input.DeviceID != nil {
+		signup.DeviceID = *input.DeviceID
+	}
 	var customer profilemodels.Customer
 	switch identifier.Type {
 	case authmodels.IdentifierTypePhone:
-		customer, err = s.customers.UpsertByPhone(ctx, identifier.Value)
+		customer, err = s.customers.UpsertByPhone(ctx, identifier.Value, signup)
 	case authmodels.IdentifierTypeEmail:
-		customer, err = s.customers.UpsertByEmail(ctx, identifier.Value)
+		customer, err = s.customers.UpsertByEmail(ctx, identifier.Value, signup)
 	default:
 		err = apperrors.Validation("Check your details.", []apperrors.FieldViolation{
 			{Field: "identifier", Message: "Phone number or email address is required."},

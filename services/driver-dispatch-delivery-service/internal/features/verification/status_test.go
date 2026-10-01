@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"cosmicforge/logistics/shared/go/apperrors"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 func TestGetAllStatusReturnsAllSixSteps(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
+	"time"
 
 	walletclients "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/clients"
 	walletmodels "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/models"
@@ -27,6 +28,10 @@ type WalletService struct {
 	// finance verification record. Nil where the finance domain is disabled;
 	// the payment flow itself never depends on it.
 	jobPayments JobPaymentRecorder
+	// Referral cash-outs; see RequestReferralWithdrawal.
+	referralEligibility       ReferralEligibilityChecker
+	referralPepper            []byte
+	referralWithdrawalMinKobo int64
 }
 
 type Options struct {
@@ -43,6 +48,13 @@ type Options struct {
 	WithdrawalMinKobo int64
 	WithdrawalMaxKobo int64
 	JobPayments       JobPaymentRecorder
+	// ReferralEligibility asks referral-service before a driver cashes out
+	// referral earnings. Nil leaves referral withdrawals switched off.
+	ReferralEligibility ReferralEligibilityChecker
+	// ReferralPepper keys the bank-account hash sent with that question; it
+	// must be the identity pepper every referral producer uses.
+	ReferralPepper            []byte
+	ReferralWithdrawalMinKobo int64
 }
 
 type TopUpInput struct {
@@ -132,6 +144,10 @@ func NewWalletService(opts Options) *WalletService {
 		withdrawalMinKobo: opts.WithdrawalMinKobo,
 		withdrawalMaxKobo: opts.WithdrawalMaxKobo,
 		jobPayments:       opts.JobPayments,
+
+		referralEligibility:       opts.ReferralEligibility,
+		referralPepper:            opts.ReferralPepper,
+		referralWithdrawalMinKobo: opts.ReferralWithdrawalMinKobo,
 	}
 }
 
@@ -351,11 +367,14 @@ func (s *WalletService) AssignPaymentProvider(ctx context.Context, reference str
 	return s.repository.AssignPaymentIntentProvider(ctx, strings.TrimSpace(reference), strings.TrimSpace(providerType), strings.TrimSpace(providerID))
 }
 
-func (s *WalletService) CompleteJob(ctx context.Context, sourceService string, sourceReference string) (walletmodels.PaymentIntent, error) {
+// CompleteJob settles a held job payment. completedAt is when the job itself
+// finished; zero means the caller did not report it and the settlement time is
+// recorded instead.
+func (s *WalletService) CompleteJob(ctx context.Context, sourceService string, sourceReference string, completedAt time.Time) (walletmodels.PaymentIntent, error) {
 	if sourceService == "" || sourceReference == "" {
 		return walletmodels.PaymentIntent{}, apperrors.BadRequest("Source service and reference are required.", nil)
 	}
-	intent, err := s.repository.CompleteJob(ctx, sourceService, sourceReference)
+	intent, err := s.repository.CompleteJob(ctx, sourceService, sourceReference, completedAt)
 	if err == nil {
 		s.recordJobPayment(ctx, intent)
 	}
@@ -482,10 +501,17 @@ func (s *WalletService) RequestWithdrawal(ctx context.Context, input RequestWith
 	if !created {
 		return withdrawal, nil
 	}
+	return s.startWithdrawalTransfer(ctx, withdrawal, account.RecipientCode, "Karry Go provider withdrawal ")
+}
+
+// startWithdrawalTransfer sends a reserved withdrawal to Paystack. If the
+// transfer cannot even start, the reservation is cancelled and the money goes
+// back to the balance it came from.
+func (s *WalletService) startWithdrawalTransfer(ctx context.Context, withdrawal walletmodels.Withdrawal, recipientCode, reasonPrefix string) (walletmodels.Withdrawal, error) {
 	transfer, err := s.paystack.InitiateTransfer(ctx, walletclients.InitiateTransferRequest{
-		AmountKobo:    input.AmountKobo,
-		RecipientCode: account.RecipientCode,
-		Reason:        "Karry Go provider withdrawal " + withdrawal.Reference,
+		AmountKobo:    withdrawal.AmountKobo,
+		RecipientCode: recipientCode,
+		Reason:        reasonPrefix + withdrawal.Reference,
 		Reference:     withdrawal.Reference,
 	})
 	if err != nil {

@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	AppEnv   string
-	HTTPAddr string
+	AppEnv    string
+	HTTPAddr  string
 	Migration bool
 
 	DatabaseURL string
@@ -32,18 +32,27 @@ type Config struct {
 	NotificationBaseURL string
 	NotificationSecret  []byte
 
-	MediaBaseURL     string
+	MediaBaseURL      string
 	MediaServiceToken string
 
 	// ServiceSecrets are the HMAC secrets for internal service-to-service callers
 	// (e.g. support-dispute-service resolving a customer identity).
 	ServiceSecrets string
+
+	// Referral feed: announces new customers to referral-service. Off by
+	// default; when on, the URL (bare origin), secret and pepper are all
+	// required. The pepper must be identical in every service that feeds
+	// referral-service, or one person's accounts will not match up.
+	ReferralFeedEnabled    bool
+	ReferralServiceURL     string
+	ReferralServiceSecret  []byte
+	ReferralIdentityPepper []byte
 }
 
 func Load() Config {
 	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8101"),
+		AppEnv:    getEnv("APP_ENV", "development"),
+		HTTPAddr:  getEnv("HTTP_ADDR", ":8101"),
 		Migration: getEnvBool("MIGRATION", false),
 
 		DatabaseURL: getEnv("CUSTOMER_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5433/customer_service?sslmode=disable"),
@@ -73,6 +82,11 @@ func Load() Config {
 		MediaServiceToken: getEnv("CUSTOMER_MEDIA_SERVICE_TOKEN", ""),
 
 		ServiceSecrets: getEnv("CUSTOMER_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
+
+		ReferralFeedEnabled:    getEnvBool("CUSTOMER_REFERRAL_FEED_ENABLED", false),
+		ReferralServiceURL:     getEnv("CUSTOMER_REFERRAL_SERVICE_URL", ""),
+		ReferralServiceSecret:  []byte(getEnv("CUSTOMER_REFERRAL_SERVICE_SECRET", "")),
+		ReferralIdentityPepper: []byte(getEnv("CUSTOMER_REFERRAL_IDENTITY_PEPPER", "")),
 	}
 }
 

@@ -11,6 +11,15 @@ const (
 	RoleDispatchProvider = "dispatch_provider"
 )
 
+// Signup is what a sign-up carried besides the identifiers themselves. It is
+// used only to announce a brand-new rider to the referral programme.
+type Signup struct {
+	// LinkCode is a referral code from a shared link; it wins over TypedCode.
+	LinkCode  string
+	TypedCode string
+	DeviceID  string
+}
+
 type Identity struct {
 	ID          string
 	PhoneNumber string

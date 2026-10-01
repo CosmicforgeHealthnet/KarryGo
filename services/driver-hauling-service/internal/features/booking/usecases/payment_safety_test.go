@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 )
@@ -16,7 +17,7 @@ func (unknownPaymentClient) HoldFromWallet(context.Context, PaymentHoldInput) (s
 func (unknownPaymentClient) CreateCardIntent(context.Context, PaymentHoldInput, string) (string, string, error) {
 	return "", "", errors.New("unused")
 }
-func (unknownPaymentClient) Settle(context.Context, string, string) error {
+func (unknownPaymentClient) Settle(context.Context, string, string, time.Time) error {
 	return ErrPaymentOutcomeUnknown
 }
 func (unknownPaymentClient) Refund(context.Context, string, int64, string) error {

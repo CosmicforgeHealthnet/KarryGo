@@ -141,6 +141,8 @@ func (h *Handler) Verify(c *gin.Context) {
 			IPAddress:  c.ClientIP(),
 			UserAgent:  c.Request.UserAgent(),
 		},
+		ReferralLinkCode: req.ReferralLinkCode,
+		ReferralCode:     req.ReferralCode,
 	})
 	if err != nil {
 		httpx.Abort(c, err)

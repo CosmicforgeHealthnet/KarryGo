@@ -8,6 +8,16 @@ const (
 	OnboardingComplete      = "complete"
 )
 
+// Signup is what a sign-up carried besides the identifier itself. It is used
+// only to announce a brand-new account to the referral programme.
+type Signup struct {
+	// LinkCode is a referral code that arrived through a shared link; it wins
+	// over TypedCode when both are present.
+	LinkCode  string
+	TypedCode string
+	DeviceID  string
+}
+
 type EmergencyContact struct {
 	ID           string
 	CustomerID   string
@@ -18,10 +28,10 @@ type EmergencyContact struct {
 }
 
 type PublicEmergencyContact struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Phone        string `json:"phone"`
-	Relationship string `json:"relationship"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Phone        string    `json:"phone"`
+	Relationship string    `json:"relationship"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -36,17 +46,17 @@ func (e EmergencyContact) Public() PublicEmergencyContact {
 }
 
 type Customer struct {
-	ID                 string
-	Phone              string
-	Email              string
-	FirstName          *string
-	LastName           *string
-	OnboardingStatus   string
-	Status             string
-	ProfilePhotoURL    *string
+	ID                  string
+	Phone               string
+	Email               string
+	FirstName           *string
+	LastName            *string
+	OnboardingStatus    string
+	Status              string
+	ProfilePhotoURL     *string
 	ProfilePhotoAssetID *string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type PublicCustomer struct {
@@ -62,13 +72,13 @@ type PublicCustomer struct {
 
 func (c Customer) Public() PublicCustomer {
 	return PublicCustomer{
-		ID:              c.ID,
-		Phone:           c.Phone,
-		Email:           c.Email,
-		FirstName:       c.FirstName,
-		LastName:        c.LastName,
+		ID:               c.ID,
+		Phone:            c.Phone,
+		Email:            c.Email,
+		FirstName:        c.FirstName,
+		LastName:         c.LastName,
 		OnboardingStatus: c.OnboardingStatus,
-		Status:          c.Status,
-		ProfilePhotoURL: c.ProfilePhotoURL,
+		Status:           c.Status,
+		ProfilePhotoURL:  c.ProfilePhotoURL,
 	}
 }

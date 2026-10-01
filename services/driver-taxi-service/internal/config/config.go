@@ -74,6 +74,15 @@ type Config struct {
 	PaymentURL         string
 	PaymentSecret      []byte
 
+	// Referral feed: announces new drivers (and their completed onboarding)
+	// to referral-service. Off by default; when on, the URL (bare origin),
+	// secret and pepper are all required. The pepper must be identical in
+	// every service that feeds referral-service.
+	ReferralFeedEnabled    bool
+	ReferralServiceURL     string
+	ReferralServiceSecret  []byte
+	ReferralIdentityPepper []byte
+
 	// RoutesAPIKey enables road-route lookups for the live trip map and the
 	// progress bar. It is a Google Cloud key with the Routes API enabled, and
 	// is separate from the app-side Maps SDK key. Unset means routes are never
@@ -187,6 +196,11 @@ func Load() Config {
 		PaymentSecret:      []byte(os.Getenv("TAXI_PAYMENT_SECRET")),
 		RoutesAPIKey:       os.Getenv("TAXI_ROUTES_API_KEY"),
 
+		ReferralFeedEnabled:    getEnvBool("TAXI_REFERRAL_FEED_ENABLED", false),
+		ReferralServiceURL:     os.Getenv("TAXI_REFERRAL_SERVICE_URL"),
+		ReferralServiceSecret:  []byte(os.Getenv("TAXI_REFERRAL_SERVICE_SECRET")),
+		ReferralIdentityPepper: []byte(os.Getenv("TAXI_REFERRAL_IDENTITY_PEPPER")),
+
 		PricingRatesJSON:   getEnv("TAXI_PROVISIONAL_RATES", defaultProvisionalRatesJSON),
 		PricingRateVersion: getEnv("TAXI_PRICING_RATE_VERSION", "provisional-dev-v1"),
 
@@ -225,6 +239,9 @@ func Load() Config {
 // identities; there are no development secret fallbacks.
 func (c Config) Validate() error {
 	var problems []string
+	if c.ReferralFeedEnabled && (c.ReferralServiceURL == "" || len(c.ReferralServiceSecret) == 0 || len(c.ReferralIdentityPepper) == 0) {
+		problems = append(problems, "TAXI_REFERRAL_FEED_ENABLED requires TAXI_REFERRAL_SERVICE_URL, TAXI_REFERRAL_SERVICE_SECRET and TAXI_REFERRAL_IDENTITY_PEPPER")
+	}
 	for name, secret := range map[string][]byte{
 		"TAXI_PROVIDER_TOKEN_SECRET":   c.ProviderTokenSecret,
 		"TAXI_PROVIDER_REFRESH_SECRET": c.ProviderRefreshSecret,

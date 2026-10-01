@@ -11,9 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
-	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 )
 
 func TestProviderVerificationRoutesReturn401WithoutJWT(t *testing.T) {

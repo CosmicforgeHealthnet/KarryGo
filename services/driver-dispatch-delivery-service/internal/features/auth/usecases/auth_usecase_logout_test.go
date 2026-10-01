@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"cosmicforge/logistics/shared/go/apperrors"
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 const logoutTestPhone = "+2348012345678"

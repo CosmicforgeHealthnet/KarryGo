@@ -1,6 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Location: the availability heartbeat reports where the driver is, and
+         matching is proximity-based. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Camera: scanning the passenger's pickup QR and the receiver's
+         delivery QR at hand-over. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
-        android:label="taxi_provider"
+        android:label="Karry Go Driver"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

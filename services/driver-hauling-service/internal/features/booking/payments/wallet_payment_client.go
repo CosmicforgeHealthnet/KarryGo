@@ -7,6 +7,7 @@ package payments
 import (
 	"context"
 	"fmt"
+	"time"
 
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
 	"cosmicforge/logistics/shared/go/walletclient"
@@ -91,8 +92,8 @@ func (c *WalletPaymentClient) CreateCardIntent(ctx context.Context, in bookingus
 }
 
 // Settle releases the booking's held funds to the provider on completion.
-func (c *WalletPaymentClient) Settle(ctx context.Context, bookingID string, paymentReference string) error {
-	_, err := c.wallet.CompleteJob(ctx, sourceService, bookingID)
+func (c *WalletPaymentClient) Settle(ctx context.Context, bookingID string, paymentReference string, completedAt time.Time) error {
+	_, err := c.wallet.CompleteJobAt(ctx, sourceService, bookingID, completedAt)
 	if err == nil {
 		return nil
 	}

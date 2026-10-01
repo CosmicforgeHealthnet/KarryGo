@@ -50,6 +50,8 @@ Primary architecture reference: `docs/architecture.md`. Older service-boundary r
 - `services/analytics-service`: Reporting and read models scaffold.
 - `services/vendor-service`: Vendor Service / Commerce Logistics backend — Sections 5–17F are implemented: staff auth/IAM, business/brand/branch capabilities, onboarding/KYB, CRM, Food and Shop catalogues, taxonomy/search, generic inventory, purchasing, recipes and production, operational cost, customer cart, checkout validation with real stock reservation, fulfilment planning with authoritative logistics quotes, and the immutable customer-approved quote lock. Vendor-owned delivery policy lives here; platform delivery is quoted by `driver-dispatch-delivery-service` and `driver-hauling-service` through `shared/go/commercequote` — Vendor Service never prices a platform delivery, and Taxi is deliberately not used. The 17D quote is append-only and expiring, attributes delivery/promotion funding, discloses vendor online prices without physical-store parity, and creates no payment or order. Section 17E cuts one ParentOrder and one financially and operationally isolated VendorOrder per vendor/branch allocation from an approved quote — exactly once per quote, atomically, with per-vendor allocation, stock and fulfilment isolation, a derived aggregate state that never hides a mixed outcome, and prepared (never executed) refund/settlement allocations. Section 17F binds a Wallet payment to the exact approved quote (one payment intent per VendorOrder, because the Wallet contract settles and refunds an intent as a whole to a single provider), finalizes Inventory HELD→CONFIRMED→COMMITTED/RELEASED, and creates one logistics mission per plan mission for the fee the customer already paid — with durable crash recovery that asks the money authority what happened rather than guessing. Vendor-owned delivery gets no platform mission and Taxi is never an executor. 17F added NEW internal commerce-mission ingress to `driver-dispatch-delivery-service` and `driver-hauling-service` plus `shared/go/commercemission`. Independent final certification of Section 17 has NOT been run. The customer-initiated re-quote path IS implemented as the Section 17F commercial-change capability (`internal/features/orders/commercial_change.go`: request a replacement quote against a new checkout session or fulfilment plan, explicit fingerprint-verified customer approval, then a Wallet delta) — an address change and a fulfilment-mode/service-level change both flow through it, and a positive delta is only ever charged after approval. The cheaper operational replan refund IS implemented (`ApplyCheaperFulfilmentBenefit` + the `FULFILMENT_REPLAN_PRICE_DECREASE` refund policy), and it structurally cannot raise a price — an eligible final amount at or above the committed amount is refused. Exactly-once is carried by a UNIQUE `idempotency_key` plus immutability triggers in migration `000083_vendor_commerce_change_adjustments` and deterministic Wallet keys. **PostgreSQL-backed concurrency and exactly-once certification of these paths remains PENDING**: those tests (`cmd/section17f_change_test.go`, `cmd/section17f_cheaper_test.go`) skip whenever `VENDOR_SERVICE_TEST_DATABASE_URL` is unavailable, so they have not been executed here. See `services/vendor-service/docs/`.
 - `services/fleet-partner-service`: Corporate Logistics Backend — organizations, staff/IAM, RBAC, approvals, managed providers, marketplace assignments, trip projections, wallet finance integration, CRM/contracts/quotations, documents, search, exports, imports, and a real event platform (Redis Streams outbox/inbox). By far the largest and most mature backend service (54+ feature directories) but was never added to this file's own service listing by the sessions that built it — see `services/fleet-partner-service/docs/` and `services/fleet-partner-service/README.md` for its own documentation, not this file's session log below (which only tracked the consumer/driver apps until the vendor-service architecture session added this line).
+- `services/referral-service`: Referral programme engine — codes, attribution (one person, one referral, across customer and driver accounts matched by keyed phone/email hashes), customer rewards (₦500 bonus, welcome and first-booking credits, 5/10 milestones), driver commission (10% of the platform fee, 5 held activation jobs, 90-day window), the "active referrer" rule judged per job, refund take-backs, fraud flags and holds, an admin API, driver cash-out eligibility, and daily wallet reconciliation. Learns only from producer outboxes (`finance.job.settled.v1` from payment-wallet, `identity.*` from customer/hauling/dispatch/taxi) and never holds money — it asks payment-wallet to credit or take back referral balances. See `services/referral-service/README.md`.
+- `services/pricing-service`: **Central Pricing Engine** — the single marketplace pricing authority for Taxi, Dispatch and Haulage (and Vendor delivery quoted through Dispatch). Owns pricing geography, versioned typed policy per service/class, immutable quotes (issue → bind → reconcile) that reconcile against their ORIGINAL policy and index versions, explicit funding vs allocation with a conservation rule, cost indices, provider cost profiles, four-eye approval and an append-only audit trail. It never holds money (payment-wallet executes its instructions), never owns a booking, and never calls a routing provider — callers supply a trusted route snapshot. **Built so far**: foundation (immutability triggers, append-only audit, idempotency, exact whole-kobo arithmetic, canonical hashing) plus geography, versioned typed policy with four-eye approval, scheduled activation, rollback, market freeze, rollout switches, the pure calculator and simulation. **No quote endpoint yet** — nothing issues, binds or reconciles a price tag, so no consumer can be pointed at it. Commercial values are deliberately NOT in code or env — they are approved policy data. See `services/pricing-service/README.md`.
 
 ### Shared Backend Libraries
 
@@ -63,6 +65,8 @@ Primary architecture reference: `docs/architecture.md`. Older service-boundary r
 - `shared/go/walletclient`: Payment-wallet-service client.
 - `shared/go/commercequote`: Internal commerce delivery-quote contract and HMAC client, shared by `vendor-service` (caller) and `driver-dispatch-delivery-service` / `driver-hauling-service` (authorities). Schema and client only — each logistics service prices with its own formula, and this package never re-derives a fare.
 - `shared/go/phonenumber`: Nigerian phone number normalization.
+- `shared/go/outbox`: Generic transactional outbox (append in the caller's transaction, lease-based claim with `SKIP LOCKED`, capped backoff, dead-lettering) and a signed HTTP relay worker.
+- `shared/go/referralcontract`: Referral event contract (payloads, keyed identity hashes, producer `Feed` with approval sweeps) and the signed cash-out eligibility client used by payment-wallet.
 - `shared/go/geo`: Pure geographic primitives — distance, bearing, encoded polylines, projection of a point onto a route, and the geohash cell index used to spatially partition live vehicle positions. Single source of truth for haversine platform-wide.
 - `shared/go/livetrack`: Redis-backed live position store — geohash cell index (TTL-pruned on read), per-entity pub/sub fan-out, and the canonical telemetry envelope.
 - `shared/go/routing`: Google Routes API client for road geometry (encoded polyline + distance + duration). Optional: no API key means consumers fall back to straight lines.
@@ -341,6 +345,8 @@ Default local databases:
 - `admin_backoffice_service`
 - `analytics_service`
 - `vendor_service` (default local port `5445`; not yet provisioned by Docker Compose — `infra/docker-compose.yml` referenced above does not currently exist in this repository, see the vendor-service architecture session note below)
+- `referral_service` (default local port `5450`, Redis `6391`; `scripts/bootstrap_services/referral-local-bootstrap.sh`. Ports 5446–5449 are taken by fleet-partner's documented test containers.)
+- `pricing_service` (default local port `5451`, no Redis; `scripts/bootstrap_services/pricing-local-bootstrap.sh`. Pricing needs no Redis: a cache may later accelerate reads of immutable policy rows, but commercial truth lives only in Postgres.)
 
 Default local Postgres credentials used by service fallbacks are usually:
 
@@ -413,6 +419,8 @@ Important local ports:
 - Admin-backoffice service: `8110`
 - Analytics service: `8111`
 - Vendor service: `8112`
+- Referral service: `8114`
+- Pricing service: `8115`
 
 All three Flutter driver/customer apps (`apps/customer`, `apps/truck_provider`,
 `apps/dispatch_provider`) default their API/WebSocket base URLs to this dev
@@ -1676,3 +1684,170 @@ This **reverts the 2026-07-29 Task 5e decision** that standardized all three app
 **Callback route audit:** `/api/v1/vendor/internal/vendor/v1/verification-events` was accidental composition of the public `serviceapp` base and the canonical internal namespace. Added an explicit root registration hook and moved the callback to `POST /internal/vendor/v1/verification-events`, matching `/internal/<domain>/v1`; Verification's signed worker, OpenAPI, route tests, and documentation were synchronized. The route remains absent from API Gateway and protected by HMAC v2, exact caller allowlisting, timestamp freshness, durable nonce consumption, event dedupe, and source-version guards.
 
 **Verification:** fresh real-Postgres/Redis Vendor and fresh real-Postgres Verification suites passed, including Section 7 migration rollback/reapply and direct constraint assertions, `PENDING_REVIEW` callback persistence, activation blocking for business/branch/branch-capability scopes, stale versions, duplicate events, Sections 5/6 regression, OpenAPI parity, vet, build, and shared tests. No frontend or Section 8 work was added.
+
+### 2026-09-22 — Referral system backend (new referral-service, 7 steps)
+
+**Scope:** the backend engine for the "Referral System Product Scope" document — codes, attribution, customer and driver rewards, the active-referrer rule, milestones, refunds, fraud controls, admin actions, driver cash-out and reconciliation. App screens, leaderboards, prize campaigns and an admin console were explicitly deferred. Decisions made with the user: a new `services/referral-service`; payment-wallet announces paid jobs through an outbox and referral-service consumes them; referral money lives in new payment-wallet account types; "10% off first booking" and the "free delivery voucher" are capped one-time spend-only credits; customer referral earnings are spend-only for now (no customer KYC), only drivers can withdraw; referral-service stores keyed hashes only.
+
+**How it fits together:** referral-service never reads another service's database and never holds money. Five events feed it, each pinned to the one service allowed to emit it: `identity.customer.registered.v1` (customer-service), `identity.provider.registered.v1` and `identity.provider.onboarding_completed.v1` (hauling, dispatch, taxi), `finance.job.settled.v1` and `finance.job.settlement_reversed.v1` (payment-wallet). Accounts with the same keyed phone (then email) hash are one person with one code. Effects are keyed by business identity (job, referral, person), and deduplicated by the transaction-scoped inbox, the reward ledger's UNIQUE idempotency key and the wallet's own key.
+
+**Shared (`shared/go`):**
+- `outbox` — generic transactional outbox (append in the caller's transaction, lease claim with SKIP LOCKED, backoff, dead-lettering) + signed HTTP relay worker.
+- `referralcontract` — event payloads, `HashPhone/HashEmail/HashDevice/HashBankAccount` (HMAC with the shared `*_REFERRAL_IDENTITY_PEPPER`), producer `Feed` (`AccountRegistered`, `AnnounceApprovals` sweep), and the signed cash-out eligibility `Client`.
+- `walletclient` — `CompleteJobAt`, `CreditReferral`, `ReverseReferral`, `ReferralTotals`.
+
+**payment-wallet-service:** `referral_outbox` + `finance.job.settled.v1` appended in `CompleteJob`'s transaction with a trusted job completion time (000013); referral balances `customer_referral_available`, `provider_referral_available`, `customer_promotional`, `provider_promotional` funded by `platform_referral_expense`, spend order promotional → wallet → referral earnings, and `funding_breakdown` so refunds return money to its source (000014); internal `POST /internal/referral/credits|reversals` and `GET /internal/referral/totals` (caller `referral-service` only; reversals skip the balance check, so a balance may go negative); `withdrawals.funding_source` (000015) and `POST /provider/referral-withdrawals` — referral earnings only, ₦5,000 minimum, existing PIN + Paystack path, and a fail-closed eligibility call to referral-service first. `RequestWithdrawal` never touches referral balances, and a failed/cancelled withdrawal returns to the balance it came from. New settings: `PAYMENT_WALLET_REFERRAL_OUTBOX_*`, `PAYMENT_WALLET_REFERRAL_WITHDRAWALS_ENABLED`, `PAYMENT_WALLET_REFERRAL_IDENTITY_PEPPER`, `PAYMENT_WALLET_REFERRAL_WITHDRAWAL_MIN_KOBO`.
+
+**Producers:** customer-service (`007_referral_outbox.sql`), hauling (`015_referral_outbox`), dispatch (`000054_referral_outbox`), taxi (`007_referral_outbox.sql`) each announce new accounts in the creating transaction (sign-up DTOs accept `referral_link_code` / `referral_code`; the link wins), run a relay, and ship `cmd/referral-backfill` to give pre-existing accounts codes (backfilled accounts are never referable). The three driver services run an approval sweep (`referral_approval_announced_at`) that announces each fully approved driver exactly once, however the approval happened; fleet-managed hauling drivers are excluded. Everything is off by default (`*_REFERRAL_FEED_ENABLED`).
+
+**referral-service (`:8114`, Postgres `5450`, Redis `6391`):** migrations 000001–000006 (inbox/nonces, settled jobs and per-actor activity, persons/actors/fingerprints/codes/referrals/tracks/flags, reward ledger, driver onboarding + track jobs, milestones/reversals/admin trail, reconciliation mismatches). Rules: customer referral — ₦200 welcome + first-booking credit at sign-up, ₦500 when the first paid booking qualifies; 5th/10th qualified customer referral → free-delivery credit / ₦7,500 + Power User badge (once each, only referrals in good standing count); driver referral — commission on the first 5 jobs held, qualification at max(5th job, approval) opens a 90-day window judged by job completion time, 10% of the platform fee per job, ₦500 driver welcome credit (spend-only unless `REFERRAL_PROVIDER_WELCOME_WITHDRAWABLE`); active referrer = 5 paid bookings or 10 paid jobs in the 30 days before the job, decided an hour after arrival, lost (not deferred) when inactive. Refunds take back exactly what the job earned (partial refunds proportionally, from cumulative totals); take-backs post only after the credit they undo; a fully refunded qualifying booking un-qualifies the customer referral until the next genuine booking; every 3rd reversed job holds the referral. Fraud: self-referral, second code, identity conflicts, a sign-up sharing the referrer's device (or another of that referrer's referrals' device) holds the referral, a job between the referral's two people earns nothing, and a bank account used by two people stops both cash-outs until reviewed. Admin API under `/internal/referral/v1/admin` (freeze/clear/block persons, freeze/clear/disqualify referrals, reverse rewards, resolve flags, account overview, reconciliation list), every action audited with operator + reason. Workers: reward decisions, wallet posting, window expiry, daily reconciliation, nonce pruning.
+
+**Deviations / decisions to revisit:** (1) the refund assumption was refined for customer referrals — a fully refunded qualifying booking un-qualifies the referral (the spec says refunded bookings never qualify and reversed referrals leave the milestone count); driver tracks keep the approved "refund doesn't un-qualify" rule; (2) a milestone already reached is not taken back automatically if the count later falls (operators can reverse it); (3) milestone money is activity-gated like all referral income, the badge is not; (4) jobs between a referral's two people are excluded, which also delays a driver's legitimate passenger's first-ride qualification; (5) spend-only milestone credit goes to the person's customer account when they have one; (6) bank fingerprints come from the wallet inside the eligibility call rather than a separate endpoint; (7) nothing produces `finance.job.settlement_reversed.v1` yet — the wallet cannot refund after payout; (8) vendor shop orders are not counted; (9) fleet-created hauling drivers are not announced (spec excludes fleets); (10) approval time for hauling/taxi is when the sweep noticed; (11) the driver welcome-credit balance (spend-only vs withdrawable) is still an open product question.
+
+**Ops:** `scripts/bootstrap_services/referral-local-bootstrap.sh` (tracked migrations via `go run ./cmd/migrate`; added to `bootstrap-all.sh`), `services/referral-service/.env.example` and `README.md`, CI matrix + `REFERRAL_TEST_DATABASE_URL`, `CUSTOMER_TEST_DATABASE_URL`, `OUTBOX_TEST_DATABASE_URL`. `TAXI_TEST_DATABASE_URL` was deliberately not added to CI (it would switch on eleven existing taxi suites).
+
+**Verification:** `go build`/`go vet`/`go test` green against real PostgreSQL for `shared/go`, `referral-service` (full suite, also under `-race`), `payment-wallet-service`, `customer-service` and `driver-hauling-service`. In dispatch and taxi every package this work touched passes; the remaining failures reproduce on the committed code without these changes — dispatch `TestRelayWorkerUnknownOutcomeThenRecovery` (fails on committed code and committed schema) and ten taxi booking-repository / pickup-verification tests that violate CHECK constraints from the committed `006_parcel_mode.sql` (CI does not run taxi database tests, so this was invisible). The local bootstrap was verified on a throwaway cluster (re-run is a no-op), and the service booted and answered `/health`, `/ready`, `/meta` and the code check while refusing unauthenticated `/me` and admin calls.
+
+**Remaining:** app screens and dashboards, leaderboards/prizes, admin console, a reversal producer in the wallet, customer cash-out (needs customer KYC), vendor orders, and the welcome-credit decision above. To switch on locally: set the shared pepper and secrets (see each `.env.example`), enable the feeds, run the backfills once, then enable wallet posting (`REFERRAL_WALLET_URL/SECRET`) and cash-outs.
+
+### 2026-09-29 — Central Pricing Engine: plan + M0 characterization tests + M1 service foundation
+
+**Context:** a conceptual architecture document ("KarryGo Central Pricing Engine, A-to-Z") was turned into an
+implementation plan, then work began at the top of it. The audit behind the plan found **nine separate fare
+formulas** plus five places that copy a fee without computing one, across Taxi, Dispatch, Haulage, API Gateway,
+Vendor and Wallet. Three findings mattered most:
+- **The partner API quotes one price and charges another** — `api-gateway/internal/pkg/pricing` (quote) vs
+  `shared/go/dispatchpricing` (charge). Partners are under-quoted by 10–36%.
+- **The taxi final fare never reaches the Wallet.** `walletclient.CompleteJobRequest` carries only
+  `CompletedAt`, so the customer is always charged the booking-time estimate; `fare_final_kobo` is display only.
+- **Commerce (vendor) deliveries pay the rider 100%** (`vendor-service/.../orders/payment_service.go`), so a
+  single flat 15% commission in V1 would silently cut rider pay. V1 commission must vary by channel.
+
+**M0 — pinned today's behaviour (characterization tests, no behaviour changed):**
+- `services/driver-hauling-service/internal/features/booking/models/fare_test.go` — **new; the Haulage fare
+  formula had NO test at all.** Pins the strict 500kg boundary (exactly 500kg is not surcharged), the
+  truncating weight surcharge, and that Haulage does **not** round to 50 kobo (unlike Taxi and Dispatch).
+- `services/api-gateway/internal/features/partner/delivery/quote_vs_charge_test.go` — **new**; pins the
+  quote-vs-charge defect numerically (₦1,250 quoted vs ₦1,700 charged on a 5km delivery) and documents that
+  the "single source of truth" comment in `delivery/pricing.go` covers only the charge path. Deletes itself at
+  cutover. Dispatch and Taxi already had adequate pinned tests.
+
+**M1 — `services/pricing-service` foundation** (HTTP `:8115`, Postgres `5451`, no Redis, env prefix `PRICING_`,
+module `cosmicforge/logistics/services/pricing-service`; scaffold copied from `referral-service`):
+- `internal/platform/money` — exact integer arithmetic with `math/big`. Rates are integers over an integer unit
+  ("kobo per 1000 metres"), multipliers exact rationals, four explicit rounding modes, overflow **refused** not
+  wrapped. Its tests **reproduce all three legacy formulas exactly** (dispatch incl. express/minimum ordering,
+  haulage incl. the truncating surcharge, taxi incl. whole-minute flooring) — the proof that a price-neutral V1
+  is achievable.
+- `internal/platform/canonical` — byte-stable JSON + SHA-256 seal. The rule is "no *ambiguous* number": any
+  value whose JSON form has a fraction or exponent is refused; an exactly-integral float (`5.0`) encodes as `5`
+  and seals identically to the integer. `Micro()` is the single permitted float boundary (coordinates →
+  microdegrees), asserted by an architecture test so it cannot widen.
+- `internal/platform/{servicetrust,audit,operators,idempotency}` — nonce replay guard + per-group caller
+  allowlist; append-only audit recorder requiring actor/person/reason; operator roles (EDITOR/APPROVER/
+  INDEX_*/ROLLOUT_APPROVER/VIEWER) that keep proposing separate from approving; admin-command idempotency
+  (quotes will instead use natural keys, which survives pruning).
+- `migrations/000001_pricing_foundation.{up,down}.sql` — nonces, idempotency keys, append-only audit log,
+  `shared/go/outbox`-shaped outbox, operator register.
+- **Bug found and fixed during verification:** the first draft used ONE immutability guard with a
+  `pricing.allow_purge` escape hatch. Any session could `SET pricing.allow_purge='on'` and **delete audit
+  rows** — verified live. Split into `pricing_reject_mutation()` (absolute, no exception, for evidence tables)
+  and `pricing_reject_mutation_purgeable()` (UPDATE never; DELETE only under the purge flag, for expired
+  unbound quotes only). Re-verified: the attack is now refused.
+- **Bug found and fixed in my own test:** `defer pool.Close()` runs *before* `t.Cleanup`, so a restore ran
+  against a closed pool and the swallowed error left the tracking table short one row — which made `/ready`
+  return 503. Cleanups now registered in LIFO order and restore failures fail the test. Lesson: never `_, _ =`
+  a cleanup that repairs shared state.
+- `/ready` gates on `MigrationsCurrent`, verified live: forgetting a migration → 503, restoring → 200. So a
+  replica on stale schema cannot take quote traffic.
+- Ops/CI: `scripts/bootstrap_services/pricing-local-bootstrap.sh` (+ `bootstrap-all.sh`), `go.work`,
+  `PRICING_TEST_DATABASE_URL` + matrix entry + `pricing_test` in `section31-mandatory.yml`, `.env.example`,
+  `README.md`.
+
+**Deliberate non-goals at this milestone:** no quote or admin routes exist yet, and nothing can price anything.
+The parts that cannot be retrofitted safely once volume exists (immutability, audit, idempotency, exact
+arithmetic, reversible migrations) are built first. **Commercial values are absent from code and env by
+design** — they are approved policy data, and `config_test.go` asserts no config field looks like a rate.
+
+**Verification:** `go build`/`go vet`/`gofmt` clean; pricing-service tests pass (money, canonical, config,
+architecture, DB-backed foundation + migration replay against real Postgres on 5451, skipping cleanly without
+a DB); hauling and gateway packages pass including their new tests; service boots and serves
+`/health`, `/ready`, `/api/v1/pricing/meta`. The no-float architecture guard was proven to fail on a
+deliberate violation, then reverted.
+
+**Still open (needs the user):** production `TAXI_PROVISIONAL_RATES` and `PAYMENT_WALLET_PLATFORM_FEE_BPS`
+values for V1 policies; GitHub branch protection on `staging`; the 10 failing Taxi DB tests (that service has
+~23 uncommitted files from another workstream, so it was left untouched). Plan file:
+`~/.claude/plans/users-mgenius-downloads-karrygo-central-vivid-shore.md`.
+
+### 2026-09-29 (same day) — Central Pricing Engine M2: geography, versioned policy, four-eye approval, the calculator
+
+Continued the approved plan from M1. M2's headline result: **the Version 1 rate books reproduce all three legacy
+formulas exactly**, which is what makes a price-neutral cutover possible rather than merely hoped for.
+
+**Migrations** `000002_pricing_geography` (country → state → market → zone, immutable versioned zone shapes with
+microdegree integer coordinates, plus `pricing_zone_mappings` so a consuming service's operating zone maps onto a
+pricing zone *as at* a moment) and `000003_pricing_policies` (policy lineages unique per kind+place so resolution
+can never be ambiguous; versions; lifecycle events; activations; approval requests/decisions; market freezes;
+rollouts).
+
+**Three new database guards, each verified live by attempting the thing they forbid:**
+- `pricing_guard_policy_version_mutation` freezes a version's body the moment it leaves DRAFT and permits only
+  legal status transitions. A non-draft cannot be deleted.
+- `pricing_reject_self_approval` refuses a decision by the person who requested the change — the four-eye
+  guarantee, in the database as well as the usecase, because a control living only in application code is one
+  refactor from absent.
+- One decision per request (UNIQUE), so a second approver cannot overwrite the first.
+
+**`internal/engine`** — pure, I/O-free, zero floating point (enforced by the architecture test):
+- Typed policy kinds in a CLOSED registry with strict decoding (`DisallowUnknownFields`): `taxi.tariff`,
+  `dispatch.tariff`, `haulage.tariff`, `commission`, `quote.lifecycle`, `regulatory.charges`. Not a generic rule
+  language — an approver must be able to read what will change.
+- Components always sum to gross by construction (a `builder` keeps the running total), rounding and
+  minimum-fare top-ups are their own visible components, and funding/allocation conservation is asserted on
+  every result.
+- Per-kind `Validate()` reports every problem at once; `CanonicalBody` stores the canonical re-encoding so a
+  body hash is stable against reformatting (an approval binds to that hash).
+- Explanations are generated from the charged values, so they cannot drift from the price.
+
+**Key finding carried into V1:** commerce (vendor) deliveries pay the rider the whole delivery fee today, so
+`commission` V1 carries `DISPATCH/COMMERCE: 0` and `HAULAGE/COMMERCE: 0`. A single flat 15% would have quietly
+cut rider pay on every vendor order. `TestCommerceDeliveriesPayTheRiderEverything` pins it.
+
+**Features** `geography`, `approvals`, `policies`, `rollouts` — each `models`/`repositories`/`usecases`(/`http`),
+with cross-feature needs going through ports (the architecture test forbids importing another feature's http or
+repositories). The policy service takes store/approvals **factories** rather than instances so a change, its
+approval decision, its lifecycle event and its audit row commit in one transaction.
+
+**Resolution** picks the most specific place with an activation in force at the quote's as-of time (zone → market
+→ state → country) in one query. Historical truth verified: a trip quoted before a switch-over still resolves the
+earlier edition after the later one goes live. Back-dating an activation is refused outright — it would restate
+quotes already issued. A rollback is a NEW activation pointing at an older approved version, so nothing is ever
+deleted or edited to undo a mistake.
+
+**Admin API** at `/internal/pricing/v1/admin` (signed, single-use, admin callers only): draft, edit-draft,
+submit, approve, reject, activate, list versions, resolve, simulate, approvals queue, rollouts, freeze/unfreeze.
+**`cmd/pricingctl`** drives it over the same signed HTTP with the same four-eye checks — no back door.
+
+**Bugs found by verifying rather than assuming:**
+1. The resolution query first used `(level, ref) = ANY($3::text[][])`. Postgres has no `record = text` operator;
+   it fails at runtime. Caught by probing with psql before trusting it, replaced with `unnest` of two parallel
+   arrays (robust whatever a reference contains).
+2. Tests initially generated a throwaway country code, but `pricing_countries.code` is `^[A-Z]{2}$` — only 676
+   possible values — and a policy lineage is unique per (kind, level, ref), so tests would have silently shared
+   lineages and interfered. Tests now mint a unique state/market/zone each.
+3. `simulate` with no commission named defaulted to zero, showing the provider receiving the whole fare. It now
+   resolves the ACTIVE commission and labels the source (`active:pv_...` / `none_active_economic_fare_only`), so
+   a zero fee can never be mistaken for a real one.
+
+**Verification:** `gofmt`/`build`/`vet` clean. **175 assertions pass** with real Postgres and skip cleanly
+without it. Live walk-through with `pricingctl` over signed HTTP: Ada drafts the V1 taxi book → submits → is
+refused approving her own change even after being granted the APPROVER role ("You cannot approve a change you
+requested.") → Bola approves and activates → `resolve` returns it → `simulate` prices 8km/20m30s economy at
+exactly NGN 1,700 with a readable derivation, split NGN 1,445 driver / NGN 255 KarryGo once the 15% commission
+book is live. Unsigned, wrongly-signed, replayed and non-admin-caller requests are all refused.
+
+**Still open (unchanged from M1):** production `TAXI_PROVISIONAL_RATES` and `PAYMENT_WALLET_PLATFORM_FEE_BPS` for
+V1; GitHub branch protection on `staging`; the 10 failing Taxi DB tests (that service still has uncommitted work
+from another workstream). Next milestone is the quote authority (issue → bind → reconcile with immutable sealed
+quotes), then the wallet's explicit allocations, then Taxi in shadow mode.

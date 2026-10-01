@@ -24,7 +24,7 @@ type fakeProfiles struct {
 	updateErr error
 }
 
-func (f *fakeProfiles) UpsertByPhone(_ context.Context, phone string) (providerauthmodels.Provider, error) {
+func (f *fakeProfiles) UpsertByPhone(_ context.Context, phone string, _ providerauthmodels.Signup) (providerauthmodels.Provider, error) {
 	f.stored.Phone = phone
 	return f.stored, nil
 }

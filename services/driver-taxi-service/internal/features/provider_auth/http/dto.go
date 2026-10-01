@@ -10,6 +10,10 @@ type verifyAuthRequest struct {
 	OTP         string  `json:"otp"`
 	ChallengeID string  `json:"challenge_id"`
 	DeviceID    *string `json:"device_id"`
+	// Optional referral code: from a shared link, or typed on the sign-up
+	// screen. Used only when this verification creates the account.
+	ReferralLinkCode string `json:"referral_link_code"`
+	ReferralCode     string `json:"referral_code"`
 }
 
 type refreshRequest struct {

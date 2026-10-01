@@ -34,9 +34,17 @@ type Config struct {
 	// the progress bar. A Google Cloud key with the Routes API enabled,
 	// separate from the app-side Maps SDK key. Unset means routes are never
 	// fetched and consumers fall back to straight-line geometry.
-	RoutesAPIKey                  string
-	NotificationURL               string
-	NotificationSecret            []byte
+	RoutesAPIKey       string
+	NotificationURL    string
+	NotificationSecret []byte
+	// Referral feed: announces new riders and completed onboarding to
+	// referral-service. Off by default; when on, the URL (bare origin),
+	// secret and pepper are all required. The pepper must be identical in
+	// every service that feeds referral-service.
+	ReferralFeedEnabled           bool
+	ReferralServiceURL            string
+	ReferralServiceSecret         []byte
+	ReferralIdentityPepper        []byte
 	AnalyticsURL                  string
 	AnalyticsSecret               []byte
 	AnalyticsEventDeliveryEnabled bool
@@ -364,6 +372,10 @@ func Load() (Config, error) {
 		AnalyticsSecret:               []byte(getEnv("DISPATCH_ANALYTICS_SECRET", "")),
 		AnalyticsEventDeliveryEnabled: getEnvBool("DISPATCH_ANALYTICS_EVENT_DELIVERY_ENABLED", false),
 		NotificationSecret:            []byte(getEnv("DISPATCH_NOTIFICATION_SECRET", "")),
+		ReferralFeedEnabled:           getEnvBool("DISPATCH_REFERRAL_FEED_ENABLED", false),
+		ReferralServiceURL:            getEnv("DISPATCH_REFERRAL_SERVICE_URL", ""),
+		ReferralServiceSecret:         []byte(getEnv("DISPATCH_REFERRAL_SERVICE_SECRET", "")),
+		ReferralIdentityPepper:        []byte(getEnv("DISPATCH_REFERRAL_IDENTITY_PEPPER", "")),
 		// HMAC secrets trusted for internal service-to-service calls
 		// (name=secret pairs). Used by the internal identity endpoint that
 		// support-dispute-service calls to resolve rider identities.

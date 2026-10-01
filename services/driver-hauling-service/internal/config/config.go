@@ -43,6 +43,15 @@ type Config struct {
 	OTPMaxAttempts  int
 	OTPDebug        bool
 
+	// Referral feed: announces providers who sign up themselves (and their
+	// completed onboarding) to referral-service. Off by default; when on, the
+	// URL (bare origin), secret and pepper are all required. The pepper must be
+	// identical in every service that feeds referral-service.
+	ReferralFeedEnabled    bool
+	ReferralServiceURL     string
+	ReferralServiceSecret  []byte
+	ReferralIdentityPepper []byte
+
 	// Internal service clients
 	NotificationURL     string
 	NotificationSecret  []byte
@@ -127,6 +136,11 @@ func Load() Config {
 		OTPMaxAttempts:  getEnvInt("HAULING_OTP_MAX_ATTEMPTS", 5),
 		OTPDebug:        getEnvBool("HAULING_OTP_DEBUG", false),
 
+		ReferralFeedEnabled:    getEnvBool("HAULING_REFERRAL_FEED_ENABLED", false),
+		ReferralServiceURL:     os.Getenv("HAULING_REFERRAL_SERVICE_URL"),
+		ReferralServiceSecret:  []byte(os.Getenv("HAULING_REFERRAL_SERVICE_SECRET")),
+		ReferralIdentityPepper: []byte(os.Getenv("HAULING_REFERRAL_IDENTITY_PEPPER")),
+
 		NotificationURL:     os.Getenv("HAULING_NOTIFICATION_URL"),
 		NotificationSecret:  []byte(os.Getenv("HAULING_NOTIFICATION_SECRET")),
 		PaymentURL:          os.Getenv("HAULING_PAYMENT_URL"),
@@ -163,6 +177,9 @@ func Load() Config {
 // identities; there are no development secret fallbacks.
 func (c Config) Validate() error {
 	var problems []string
+	if c.ReferralFeedEnabled && (c.ReferralServiceURL == "" || len(c.ReferralServiceSecret) == 0 || len(c.ReferralIdentityPepper) == 0) {
+		problems = append(problems, "HAULING_REFERRAL_FEED_ENABLED requires HAULING_REFERRAL_SERVICE_URL, HAULING_REFERRAL_SERVICE_SECRET and HAULING_REFERRAL_IDENTITY_PEPPER")
+	}
 	for name, secret := range map[string][]byte{
 		"HAULING_PROVIDER_TOKEN_SECRET":   c.ProviderTokenSecret,
 		"HAULING_PROVIDER_REFRESH_SECRET": c.ProviderRefreshSecret,

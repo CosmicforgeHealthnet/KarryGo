@@ -3,6 +3,7 @@ package booking
 import (
 	"context"
 	"errors"
+	"time"
 
 	"cosmicforge/logistics/shared/go/walletclient"
 )
@@ -24,7 +25,9 @@ type PaymentClient interface {
 }
 
 type SettlementPaymentClient interface {
-	CompleteSettlement(context.Context, string) error
+	// CompleteSettlement settles the held payment. completedAt is when the
+	// trip completed; the wallet records it for the referral programme.
+	CompleteSettlement(context.Context, string, time.Time) error
 }
 
 type UnknownPaymentOutcome struct{ Cause error }
@@ -69,8 +72,8 @@ func (c *WalletPaymentClient) ReconcileAbandonedHold(ctx context.Context, b Book
 
 // CompleteSettlement uses Wallet's source-keyed, row-locked completion/read-back.
 // A lost response can be retried without creating another financial operation.
-func (c *WalletPaymentClient) CompleteSettlement(ctx context.Context, bookingID string) error {
-	intent, err := c.wallet.CompleteJob(ctx, walletSourceService, bookingID)
+func (c *WalletPaymentClient) CompleteSettlement(ctx context.Context, bookingID string, completedAt time.Time) error {
+	intent, err := c.wallet.CompleteJobAt(ctx, walletSourceService, bookingID, completedAt)
 	if err != nil {
 		return err
 	}

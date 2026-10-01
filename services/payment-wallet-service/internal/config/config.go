@@ -53,6 +53,26 @@ type Config struct {
 	FinanceOutboxInterval      time.Duration
 	FinanceOutboxLease         time.Duration
 	FinanceOutboxMaxAttempts   int
+
+	// Referral feed: finance.job.settled.v1 events relayed to referral-service.
+	// Off by default. When on, both the target URL (bare origin) and the
+	// secret are required.
+	ReferralOutboxEnabled     bool
+	ReferralOutboxTargetURL   string
+	ReferralOutboxSecret      []byte
+	ReferralOutboxBatchSize   int
+	ReferralOutboxInterval    time.Duration
+	ReferralOutboxLease       time.Duration
+	ReferralOutboxMaxAttempts int
+
+	// Referral cash-outs: drivers withdrawing referral earnings. Off by
+	// default. When on, the wallet asks referral-service (at the same
+	// PAYMENT_WALLET_REFERRAL_OUTBOX_TARGET_URL, signing with the same
+	// PAYMENT_WALLET_REFERRAL_OUTBOX_SECRET) before every payout, and hashes
+	// the destination bank account with the shared identity pepper.
+	ReferralWithdrawalsEnabled bool
+	ReferralIdentityPepper     []byte
+	ReferralWithdrawalMinKobo  int64
 }
 
 type PaystackConfig struct {
@@ -84,7 +104,8 @@ func Load() Config {
 		// support-dispute-service signs with SUPPORT_DISPUTE_PAYMENT_SECRET (used
 		// for the admin-driven dispute refund hook).
 		// vendor-service signs with VENDOR_WALLET_SECRET (vendor bank onboarding).
-		ServiceSecrets: serviceauth.ParseSecrets(getEnv("PAYMENT_WALLET_SERVICE_SECRETS", "taxi-service=development-payment-wallet-service-secret,dispatch-delivery-service=development-payment-wallet-service-secret,driver-hauling-service=development-hauling-payment-secret,admin-backoffice-service=development-payment-wallet-service-secret,support-dispute-service=development-support-dispute-payment-secret,vendor-service=development-vendor-wallet-secret")),
+		// referral-service signs with REFERRAL_WALLET_SECRET (referral rewards).
+		ServiceSecrets: serviceauth.ParseSecrets(getEnv("PAYMENT_WALLET_SERVICE_SECRETS", "taxi-service=development-payment-wallet-service-secret,dispatch-delivery-service=development-payment-wallet-service-secret,driver-hauling-service=development-hauling-payment-secret,admin-backoffice-service=development-payment-wallet-service-secret,support-dispute-service=development-support-dispute-payment-secret,vendor-service=development-vendor-wallet-secret,referral-service=development-referral-wallet-secret")),
 
 		NotificationURL:    os.Getenv("PAYMENT_WALLET_NOTIFICATION_URL"),
 		NotificationSecret: []byte(os.Getenv("PAYMENT_WALLET_NOTIFICATION_SECRET")),
@@ -120,6 +141,18 @@ func Load() Config {
 		FinanceOutboxInterval:      time.Duration(getEnvInt("PAYMENT_WALLET_FINANCE_OUTBOX_INTERVAL_SECONDS", 5)) * time.Second,
 		FinanceOutboxLease:         time.Duration(getEnvInt("PAYMENT_WALLET_FINANCE_OUTBOX_LEASE_SECONDS", 30)) * time.Second,
 		FinanceOutboxMaxAttempts:   getEnvInt("PAYMENT_WALLET_FINANCE_OUTBOX_MAX_ATTEMPTS", 10),
+
+		ReferralOutboxEnabled:     getEnvBool("PAYMENT_WALLET_REFERRAL_OUTBOX_ENABLED", false),
+		ReferralOutboxTargetURL:   os.Getenv("PAYMENT_WALLET_REFERRAL_OUTBOX_TARGET_URL"),
+		ReferralOutboxSecret:      []byte(os.Getenv("PAYMENT_WALLET_REFERRAL_OUTBOX_SECRET")),
+		ReferralOutboxBatchSize:   getEnvInt("PAYMENT_WALLET_REFERRAL_OUTBOX_BATCH_SIZE", 50),
+		ReferralOutboxInterval:    time.Duration(getEnvInt("PAYMENT_WALLET_REFERRAL_OUTBOX_INTERVAL_SECONDS", 2)) * time.Second,
+		ReferralOutboxLease:       time.Duration(getEnvInt("PAYMENT_WALLET_REFERRAL_OUTBOX_LEASE_SECONDS", 30)) * time.Second,
+		ReferralOutboxMaxAttempts: getEnvInt("PAYMENT_WALLET_REFERRAL_OUTBOX_MAX_ATTEMPTS", 100),
+
+		ReferralWithdrawalsEnabled: getEnvBool("PAYMENT_WALLET_REFERRAL_WITHDRAWALS_ENABLED", false),
+		ReferralIdentityPepper:     []byte(os.Getenv("PAYMENT_WALLET_REFERRAL_IDENTITY_PEPPER")),
+		ReferralWithdrawalMinKobo:  int64(getEnvInt("PAYMENT_WALLET_REFERRAL_WITHDRAWAL_MIN_KOBO", 500000)),
 	}
 }
 

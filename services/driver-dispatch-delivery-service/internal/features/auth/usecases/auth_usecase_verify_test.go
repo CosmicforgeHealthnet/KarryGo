@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"cosmicforge/logistics/shared/go/apperrors"
 	authclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 // ── Additional fakes needed for Verify ───────────────────────────────────────
@@ -44,7 +44,7 @@ func (f *fakeIdentityRepository) GetByID(ctx context.Context, id string) (authmo
 	return authmodels.Identity{}, false, nil
 }
 
-func (f *fakeIdentityRepository) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+func (f *fakeIdentityRepository) UpsertByPhone(ctx context.Context, phone string, _ authmodels.Signup) (authmodels.Identity, error) {
 	if existing, ok := f.identities[phone]; ok {
 		existing.UpdatedAt = time.Now()
 		f.identities[phone] = existing
@@ -61,7 +61,7 @@ func (f *fakeIdentityRepository) UpsertByPhone(ctx context.Context, phone string
 	return id, nil
 }
 
-func (f *fakeIdentityRepository) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+func (f *fakeIdentityRepository) CreateForSignup(ctx context.Context, phone, email string, _ authmodels.Signup) (authmodels.Identity, error) {
 	if _, exists := f.identities[phone]; exists {
 		return authmodels.Identity{}, apperrors.Conflict("An account with this phone number or email already exists.", nil)
 	}
@@ -117,14 +117,14 @@ func (r *suspendedIdentityRepo) FindByEmail(ctx context.Context, email string) (
 func (r *suspendedIdentityRepo) GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{ID: id, PhoneNumber: "+2348012345678", Status: authmodels.StatusSuspended}, true, nil
 }
-func (r *suspendedIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+func (r *suspendedIdentityRepo) UpsertByPhone(ctx context.Context, phone string, _ authmodels.Signup) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "id-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, nil
 }
-func (r *suspendedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+func (r *suspendedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string, _ authmodels.Signup) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "id-1", PhoneNumber: phone, Status: authmodels.StatusSuspended}, nil
 }
-func (r *suspendedIdentityRepo) UpdatePhone(_ context.Context, _, _, _ string) error  { return nil }
-func (r *suspendedIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error     { return nil }
+func (r *suspendedIdentityRepo) UpdatePhone(_ context.Context, _, _, _ string) error { return nil }
+func (r *suspendedIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error    { return nil }
 
 // deletedIdentityRepo always returns a deleted identity.
 type deletedIdentityRepo struct{}
@@ -138,14 +138,14 @@ func (r *deletedIdentityRepo) FindByEmail(ctx context.Context, email string) (au
 func (r *deletedIdentityRepo) GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error) {
 	return authmodels.Identity{ID: id, PhoneNumber: "+2348012345678", Status: authmodels.StatusDeleted}, true, nil
 }
-func (r *deletedIdentityRepo) UpsertByPhone(ctx context.Context, phone string) (authmodels.Identity, error) {
+func (r *deletedIdentityRepo) UpsertByPhone(ctx context.Context, phone string, _ authmodels.Signup) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "id-2", PhoneNumber: phone, Status: authmodels.StatusDeleted}, nil
 }
-func (r *deletedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string) (authmodels.Identity, error) {
+func (r *deletedIdentityRepo) CreateForSignup(ctx context.Context, phone, email string, _ authmodels.Signup) (authmodels.Identity, error) {
 	return authmodels.Identity{ID: "id-2", PhoneNumber: phone, Status: authmodels.StatusDeleted}, nil
 }
 func (r *deletedIdentityRepo) UpdatePhone(_ context.Context, _, _, _ string) error { return nil }
-func (r *deletedIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error   { return nil }
+func (r *deletedIdentityRepo) UpdateEmail(_ context.Context, _, _ string) error    { return nil }
 
 type fakeSessionRepository struct {
 	sessions map[string]authmodels.Session // keyed by ID
@@ -283,8 +283,8 @@ type IdentityRepositoryIface interface {
 	FindByPhone(ctx context.Context, phoneNumber string) (authmodels.Identity, bool, error)
 	FindByEmail(ctx context.Context, email string) (authmodels.Identity, bool, error)
 	GetByID(ctx context.Context, id string) (authmodels.Identity, bool, error)
-	UpsertByPhone(ctx context.Context, phoneNumber string) (authmodels.Identity, error)
-	CreateForSignup(ctx context.Context, phoneNumber, email string) (authmodels.Identity, error)
+	UpsertByPhone(ctx context.Context, phoneNumber string, signup authmodels.Signup) (authmodels.Identity, error)
+	CreateForSignup(ctx context.Context, phoneNumber, email string, signup authmodels.Signup) (authmodels.Identity, error)
 	UpdatePhone(ctx context.Context, identityID, oldPhone, newPhone string) error
 	UpdateEmail(ctx context.Context, identityID, email string) error
 }

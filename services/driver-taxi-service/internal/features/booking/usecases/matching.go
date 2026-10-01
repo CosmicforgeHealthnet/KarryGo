@@ -192,6 +192,13 @@ func (s *BookingService) matchBooking(ctx context.Context, bookingID string) {
 				return
 			}
 			offeredThisScan = true
+			// Tell the driver they have an offer. Keyed per recipient, so a
+			// booking offered to a second driver still notifies them.
+			if s.notifier != nil {
+				s.notifier.NotifyDriverMatched(
+					ctx, candidate.ProviderID, bookingID, notifyData(current),
+				)
+			}
 
 			switch s.waitForAcceptance(ctx, bookingID, candidate.ProviderID) {
 			case matchOutcomeAccepted:
@@ -218,6 +225,12 @@ func (s *BookingService) matchBooking(ctx context.Context, bookingID string) {
 			return s.bookings.MarkUnmatched(ctx, exec, bookingID, "No driver was found nearby.")
 		}); err != nil {
 		logging.Notice("taxi-matcher", "booking=%s already resolved by the time the search window elapsed", bookingID)
+	} else if s.notifier != nil {
+		if unmatched, rerr := s.bookings.GetByID(ctx, bookingID); rerr == nil {
+			s.notifier.NotifyCustomerUnmatched(
+				ctx, unmatched.CustomerID, bookingID, notifyData(unmatched),
+			)
+		}
 	}
 }
 
@@ -520,6 +533,11 @@ func (s *BookingService) AcceptBooking(ctx context.Context, bookingID, providerI
 	// best-effort bookkeeping, never load-bearing for the transition itself.
 	if s.availability != nil {
 		_ = s.availability.ReleaseMatchLock(ctx, providerID)
+	}
+	if s.notifier != nil {
+		s.notifier.NotifyCustomerAccepted(
+			ctx, booking.CustomerID, booking.ID, notifyData(booking),
+		)
 	}
 	return booking, nil
 }

@@ -25,6 +25,8 @@ SERVICES=(
   taxi
   customer
   support-dispute
+  referral
+  pricing
 )
 
 KEEP_GOING="${KEEP_GOING:-0}"

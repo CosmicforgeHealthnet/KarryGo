@@ -12,9 +12,9 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"cosmicforge/logistics/shared/go/apperrors"
 	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 const sessionCacheKeyPrefix = "dispatch_rider_auth:session:"

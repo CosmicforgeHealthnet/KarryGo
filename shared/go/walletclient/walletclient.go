@@ -417,9 +417,27 @@ func (c Client) PayFromWallet(ctx context.Context, paymentIntentID string, idemp
 }
 
 func (c Client) CompleteJob(ctx context.Context, sourceService string, sourceReference string) (PaymentIntent, error) {
+	return c.CompleteJobAt(ctx, sourceService, sourceReference, time.Time{})
+}
+
+// CompleteJobRequest is the optional body of the job-completion call.
+type CompleteJobRequest struct {
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
+// CompleteJobAt settles a held job payment and reports when the job itself
+// finished. The referral programme's time rules (30-day activity, 90-day
+// earning window) run off this time rather than the settlement time. A zero
+// completedAt behaves exactly like CompleteJob.
+func (c Client) CompleteJobAt(ctx context.Context, sourceService string, sourceReference string, completedAt time.Time) (PaymentIntent, error) {
 	var response PaymentIntent
 	path := "/api/v1/payment-wallet/internal/jobs/" + url.PathEscape(sourceService) + "/" + url.PathEscape(sourceReference) + "/complete"
-	err := c.post(ctx, path, map[string]interface{}{}, &response)
+	request := CompleteJobRequest{}
+	if !completedAt.IsZero() {
+		at := completedAt.UTC()
+		request.CompletedAt = &at
+	}
+	err := c.post(ctx, path, request, &response)
 	return response, err
 }
 
@@ -532,4 +550,67 @@ func (c Client) url(path string) string {
 		path = strings.TrimPrefix(path, apiBasePath)
 	}
 	return baseURL + path
+}
+
+// ReferralPostingRequest is a referral reward credit or reversal. For
+// customers OwnerID is the customer id; for drivers it is the provider id and
+// ProviderType names the driver's ledger (truck_provider, dispatch, taxi).
+// Balance is "earnings" (withdrawable/spendable) or "promotional"
+// (spend-only).
+type ReferralPostingRequest struct {
+	OwnerType      string `json:"owner_type"`
+	OwnerID        string `json:"owner_id"`
+	ProviderType   string `json:"provider_type,omitempty"`
+	Balance        string `json:"balance"`
+	AmountKobo     int64  `json:"amount_kobo"`
+	Currency       string `json:"currency"`
+	IdempotencyKey string `json:"idempotency_key"`
+	Reference      string `json:"reference"`
+	Reason         string `json:"reason"`
+}
+
+// ReferralPosting is the ledger outcome. Duplicate means the posting already
+// existed for this idempotency key and nothing new was written.
+type ReferralPosting struct {
+	TransactionReference string `json:"transaction_reference"`
+	Duplicate            bool   `json:"duplicate"`
+	AccountType          string `json:"account_type"`
+	BalanceKobo          int64  `json:"balance_kobo"`
+}
+
+// ReferralTotals is one owner's referral postings and balances.
+type ReferralTotals struct {
+	OwnerType              string `json:"owner_type"`
+	OwnerID                string `json:"owner_id"`
+	CreditedKobo           int64  `json:"credited_kobo"`
+	ReversedKobo           int64  `json:"reversed_kobo"`
+	EarningsBalanceKobo    int64  `json:"earnings_balance_kobo"`
+	PromotionalBalanceKobo int64  `json:"promotional_balance_kobo"`
+}
+
+// CreditReferral pays a referral reward. Safe to retry with the same
+// idempotency key.
+func (c Client) CreditReferral(ctx context.Context, request ReferralPostingRequest) (ReferralPosting, error) {
+	var response ReferralPosting
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/referral/credits", request, &response)
+	return response, err
+}
+
+// ReverseReferral takes a referral reward back; the balance may go negative.
+// Safe to retry with the same idempotency key.
+func (c Client) ReverseReferral(ctx context.Context, request ReferralPostingRequest) (ReferralPosting, error) {
+	var response ReferralPosting
+	err := c.post(ctx, "/api/v1/payment-wallet/internal/referral/reversals", request, &response)
+	return response, err
+}
+
+// ReferralTotals reads one owner's referral postings for reconciliation.
+func (c Client) ReferralTotals(ctx context.Context, ownerType, ownerID, providerType string) (ReferralTotals, error) {
+	var response ReferralTotals
+	query := url.Values{"owner_type": {ownerType}, "owner_id": {ownerID}}
+	if providerType != "" {
+		query.Set("provider_type", providerType)
+	}
+	err := c.get(ctx, "/api/v1/payment-wallet/internal/referral/totals?"+query.Encode(), &response)
+	return response, err
 }

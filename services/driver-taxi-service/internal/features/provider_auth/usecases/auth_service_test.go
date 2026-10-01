@@ -22,7 +22,7 @@ func newFakeProviders() *fakeProviders {
 	return &fakeProviders{byID: map[string]providerauthmodels.Provider{}, byPhone: map[string]string{}}
 }
 
-func (f *fakeProviders) UpsertByPhone(_ context.Context, phone string) (providerauthmodels.Provider, error) {
+func (f *fakeProviders) UpsertByPhone(_ context.Context, phone string, _ providerauthmodels.Signup) (providerauthmodels.Provider, error) {
 	if id, ok := f.byPhone[phone]; ok {
 		return f.byID[id], nil
 	}

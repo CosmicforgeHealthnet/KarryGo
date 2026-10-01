@@ -22,6 +22,8 @@ import (
 	walletusecases "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/usecases"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/audit"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/financeauth"
+	"cosmicforge/logistics/shared/go/outbox"
+	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"time"
@@ -77,6 +79,19 @@ func main() {
 	// The payment flow mirrors every job payment transition into the
 	// authoritative verification record other services read. Constructing the
 	// finance service first is what lets that bridge exist at all.
+	// Referral cash-outs stay off unless referral-service can be asked first.
+	var referralEligibility walletusecases.ReferralEligibilityChecker
+	if cfg.ReferralWithdrawalsEnabled {
+		if cfg.ReferralOutboxTargetURL == "" || len(cfg.ReferralOutboxSecret) == 0 || len(cfg.ReferralIdentityPepper) == 0 {
+			log.Fatalf("PAYMENT_WALLET_REFERRAL_WITHDRAWALS_ENABLED needs PAYMENT_WALLET_REFERRAL_OUTBOX_TARGET_URL, PAYMENT_WALLET_REFERRAL_OUTBOX_SECRET and PAYMENT_WALLET_REFERRAL_IDENTITY_PEPPER")
+		}
+		referralEligibility = referralcontract.Client{
+			BaseURL:     cfg.ReferralOutboxTargetURL,
+			ServiceName: "payment-wallet-service",
+			Secret:      cfg.ReferralOutboxSecret,
+			HTTPClient:  &http.Client{Timeout: cfg.HTTPRequestTimeout},
+		}
+	}
 	walletService := walletusecases.NewWalletService(walletusecases.Options{
 		Repository:        repository,
 		Paystack:          paystack,
@@ -87,6 +102,10 @@ func main() {
 		WithdrawalMinKobo: cfg.WithdrawalMinKobo,
 		WithdrawalMaxKobo: cfg.WithdrawalMaxKobo,
 		JobPayments:       financeintegration.NewJobPaymentBridge(financeService),
+
+		ReferralEligibility:       referralEligibility,
+		ReferralPepper:            cfg.ReferralIdentityPepper,
+		ReferralWithdrawalMinKobo: cfg.ReferralWithdrawalMinKobo,
 	})
 	var workers []func(context.Context) error
 	if cfg.FinanceWorkersEnabled && !cfg.FinanceExecutionKillSwitch {
@@ -109,6 +128,26 @@ func main() {
 		}
 		outboxWorker := events.NewWorker(outboxRepository, publisher, events.WorkerConfig{Owner: "payment-wallet-service-outbox", BatchSize: cfg.FinanceOutboxBatchSize, Interval: cfg.FinanceOutboxInterval, Lease: cfg.FinanceOutboxLease, MaxAttempts: cfg.FinanceOutboxMaxAttempts})
 		workers = append(workers, outboxWorker.Run)
+	}
+
+	if cfg.ReferralOutboxEnabled {
+		// Every job settlement appends a finance.job.settled.v1 event in its own
+		// transaction; this relay delivers them to referral-service.
+		referralStore, storeErr := outbox.NewStore(db, referralcontract.OutboxTable)
+		if storeErr != nil {
+			log.Fatalf("configure referral outbox: %v", storeErr)
+		}
+		referralPublisher, publisherErr := outbox.NewHTTPPublisher(cfg.ReferralOutboxTargetURL, referralcontract.IngestPath, "payment-wallet-service", cfg.ReferralOutboxSecret, cfg.HTTPRequestTimeout)
+		if publisherErr != nil {
+			log.Fatalf("configure referral outbox publisher (PAYMENT_WALLET_REFERRAL_OUTBOX_TARGET_URL / _SECRET): %v", publisherErr)
+		}
+		repository.SetReferralOutbox(referralStore)
+		referralRelay := outbox.NewWorker(referralStore, referralPublisher, outbox.WorkerConfig{
+			Owner: "payment-wallet-service-referral-outbox", BatchSize: cfg.ReferralOutboxBatchSize,
+			Interval: cfg.ReferralOutboxInterval, Lease: cfg.ReferralOutboxLease, MaxAttempts: cfg.ReferralOutboxMaxAttempts,
+			OnError: func(err error) { log.Printf("referral outbox relay: %v", err) },
+		})
+		workers = append(workers, referralRelay.Run)
 	}
 
 	serviceapp.Run(serviceapp.Options{

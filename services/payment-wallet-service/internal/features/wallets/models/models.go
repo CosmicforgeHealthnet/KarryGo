@@ -24,6 +24,15 @@ const (
 	AccountRefundPending      = "refund_pending"
 	AccountPlatformRevenue    = "platform_revenue"
 
+	// Referral programme balances. Earnings are withdrawable (drivers) or
+	// spendable (customers); promotional credit is spend-only and never
+	// withdrawable. platform_referral_expense funds every referral credit.
+	AccountCustomerReferralAvailable = "customer_referral_available"
+	AccountProviderReferralAvailable = "provider_referral_available"
+	AccountCustomerPromotional       = "customer_promotional"
+	AccountProviderPromotional       = "provider_promotional"
+	AccountPlatformReferralExpense   = "platform_referral_expense"
+
 	NormalDebit  = "debit"
 	NormalCredit = "credit"
 
@@ -105,8 +114,11 @@ type PaymentIntent struct {
 	AuthorizationURL string                 `json:"authorization_url,omitempty"`
 	AccessCode       string                 `json:"access_code,omitempty"`
 	Metadata         map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt        time.Time              `json:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at"`
+	// FundingBreakdown is which balances paid a wallet-funded hold, keyed by
+	// account type. Refunds return money to the same balances.
+	FundingBreakdown map[string]int64 `json:"funding_breakdown,omitempty"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
 }
 
 type WalletSummary struct {
@@ -116,6 +128,14 @@ type WalletSummary struct {
 	AvailableKobo int64  `json:"available_kobo"`
 	EscrowKobo    int64  `json:"escrow_kobo"`
 	PendingKobo   int64  `json:"pending_kobo"`
+	// ReferralKobo is referral earnings (withdrawable for drivers from the
+	// referral minimum; spendable on bookings for customers).
+	ReferralKobo int64 `json:"referral_kobo"`
+	// PromotionalKobo is spend-only credit (welcome credits, vouchers).
+	PromotionalKobo int64 `json:"promotional_kobo"`
+	// SpendableKobo is what a customer can pay a booking with: promotional
+	// credit + wallet balance + referral earnings.
+	SpendableKobo int64 `json:"spendable_kobo,omitempty"`
 }
 
 type WalletTransaction struct {
@@ -158,6 +178,12 @@ type TransactionPin struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
+// Withdrawal funding sources: the balance a withdrawal is paid from.
+const (
+	WithdrawalFromJobEarnings      = "job_earnings"
+	WithdrawalFromReferralEarnings = "referral_earnings"
+)
+
 type Withdrawal struct {
 	ID                   string    `json:"id"`
 	Reference            string    `json:"reference"`
@@ -167,6 +193,7 @@ type Withdrawal struct {
 	AmountKobo           int64     `json:"amount_kobo"`
 	Currency             string    `json:"currency"`
 	Status               string    `json:"status"`
+	FundingSource        string    `json:"funding_source"`
 	PaystackTransferCode string    `json:"paystack_transfer_code,omitempty"`
 	FailureReason        string    `json:"failure_reason,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`

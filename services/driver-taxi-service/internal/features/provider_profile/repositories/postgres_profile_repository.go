@@ -83,8 +83,8 @@ const providerColumns = `id::text, COALESCE(phone,''), COALESCE(email,''),
 		          emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
 	          accepts_parcels`
 
-func (r *PostgresProfileRepository) UpsertByPhone(ctx context.Context, phone string) (providerauthmodels.Provider, error) {
-	return providerauthrepositories.NewPostgresProviderRepository(r.db).UpsertByPhone(ctx, phone)
+func (r *PostgresProfileRepository) UpsertByPhone(ctx context.Context, phone string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	return providerauthrepositories.NewPostgresProviderRepository(r.db).UpsertByPhone(ctx, phone, signup)
 }
 
 func (r *PostgresProfileRepository) GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error) {

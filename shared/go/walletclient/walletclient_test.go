@@ -133,6 +133,30 @@ func TestCompleteJobEscapesPathSegments(t *testing.T) {
 	}
 }
 
+func TestCompleteJobAtSendsCompletionTime(t *testing.T) {
+	var body map[string]any
+	server, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		successEnvelope(w, PaymentIntent{Status: "completed"})
+	})
+	at := time.Date(2026, 9, 1, 9, 30, 0, 0, time.FixedZone("WAT", 3600))
+	if _, err := newClient(server.URL).CompleteJobAt(context.Background(), "taxi-service", "trip-1", at); err != nil {
+		t.Fatalf("CompleteJobAt: %v", err)
+	}
+	if body["completed_at"] != "2026-09-01T08:30:00Z" {
+		t.Fatalf("completed_at = %v, want the UTC completion time", body["completed_at"])
+	}
+
+	// Plain CompleteJob still sends no completion time.
+	body = nil
+	if _, err := newClient(server.URL).CompleteJob(context.Background(), "taxi-service", "trip-2"); err != nil {
+		t.Fatalf("CompleteJob: %v", err)
+	}
+	if _, present := body["completed_at"]; present {
+		t.Fatalf("CompleteJob sent completed_at: %v", body)
+	}
+}
+
 func TestGetPaymentUsesGET(t *testing.T) {
 	server, rec := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		successEnvelope(w, PaymentIntent{Reference: "ref-7"})
@@ -171,5 +195,30 @@ func TestErrorEnvelopeSurfacesMessage(t *testing.T) {
 	}
 	if err.Error() != "duplicate idempotency key" {
 		t.Fatalf("error = %q, want surfaced server message", err.Error())
+	}
+}
+
+func TestReferralCallsUseTheReferralRoutes(t *testing.T) {
+	server, rec := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		successEnvelope(w, ReferralPosting{TransactionReference: "ldt_1"})
+	})
+	client := newClient(server.URL)
+	if _, err := client.CreditReferral(context.Background(), ReferralPostingRequest{OwnerType: "customer", OwnerID: "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if rec.path != "/api/v1/payment-wallet/internal/referral/credits" || rec.method != http.MethodPost {
+		t.Fatalf("credit went to %s %s", rec.method, rec.path)
+	}
+	if _, err := client.ReverseReferral(context.Background(), ReferralPostingRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if rec.path != "/api/v1/payment-wallet/internal/referral/reversals" {
+		t.Fatalf("reversal went to %s", rec.path)
+	}
+	if _, err := client.ReferralTotals(context.Background(), "provider", "p", "taxi"); err != nil {
+		t.Fatal(err)
+	}
+	if rec.path != "/api/v1/payment-wallet/internal/referral/totals" || rec.method != http.MethodGet {
+		t.Fatalf("totals went to %s %s", rec.method, rec.path)
 	}
 }

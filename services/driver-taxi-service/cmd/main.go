@@ -15,6 +15,7 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/config"
 	"cosmicforge/logistics/services/taxi-service/internal/database"
 
+	providerauthclients "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/clients"
 	providerauthhttp "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/http"
 	providerauthrepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/repositories"
 	providerauthusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/usecases"
@@ -29,6 +30,7 @@ import (
 
 	marketrepositories "cosmicforge/logistics/services/taxi-service/internal/features/markets/repositories"
 
+	bookingclients "cosmicforge/logistics/services/taxi-service/internal/features/booking/clients"
 	bookinghttp "cosmicforge/logistics/services/taxi-service/internal/features/booking/http"
 	bookingmatching "cosmicforge/logistics/services/taxi-service/internal/features/booking/matching"
 	bookingrepositories "cosmicforge/logistics/services/taxi-service/internal/features/booking/repositories"
@@ -38,6 +40,7 @@ import (
 	bookingverification "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification"
 
 	identityhttp "cosmicforge/logistics/services/taxi-service/internal/features/identity/http"
+	notificationhttp "cosmicforge/logistics/services/taxi-service/internal/features/notifications/http"
 	operationshttp "cosmicforge/logistics/services/taxi-service/internal/features/operations/http"
 
 	"cosmicforge/logistics/services/taxi-service/internal/idempotency"
@@ -46,6 +49,8 @@ import (
 
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/referralcontract"
 	sharedrouting "cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -100,7 +105,15 @@ func main() {
 		defer notificationRedis.Close()
 		logging.Notice("notification-queue", "redis=%s", cfg.NotificationRedis.Addr)
 	}
-	_ = notificationRedis // wired to the ride notifier in A9
+	// Always durable: intents go onto the Redis stream notification-service
+	// consumes, so a downstream outage leaves them pending for retry rather
+	// than dropping them. Redis is already a hard dependency of this service,
+	// and this matches how hauling wires its own notifier.
+	//
+	// With notification-service absent entirely (local dev), entries simply
+	// accumulate unread — the ride lifecycle is unaffected, since every
+	// notify call is fire-and-forget by contract.
+	rideNotifier := bookingclients.NewDurableRideNotifier(notificationRedis)
 
 	logConnectivity(ctx, cfg.Redis.Addr, db, redisClient)
 
@@ -117,6 +130,45 @@ func main() {
 
 	// ─── Repositories ─────────────────────────────────────────────────────────
 	providerRepo := providerauthrepositories.NewPostgresProviderRepository(db)
+
+	// Referral feed: new drivers (and, from the profile flow, completed
+	// onboarding) are announced to referral-service in the transaction that
+	// records them.
+	var referralFeed *referralcontract.Feed
+	if cfg.ReferralFeedEnabled {
+		feed, feedErr := referralcontract.NewFeed(db, "driver-taxi-service", cfg.ReferralIdentityPepper)
+		if feedErr != nil {
+			logging.Fatal("referral-feed", "configure: %v", feedErr)
+		}
+		relay, relayErr := feed.Relay(cfg.ReferralServiceURL, cfg.ReferralServiceSecret, 10*time.Second, func(err error) {
+			logging.Error("referral-feed", "relay: %v", err)
+		})
+		if relayErr != nil {
+			logging.Fatal("referral-feed", "configure relay: %v", relayErr)
+		}
+		referralFeed = feed
+		providerRepo.SetSignupAnnouncer(providerauthclients.NewReferralAnnouncer(feed))
+		go func() { _ = relay.Run(ctx) }()
+		// Announces each driver once they are fully approved.
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				if _, err := feed.AnnounceApprovals(ctx, db, providerauthclients.TaxiApprovals, 100); err != nil {
+					logging.Error("referral-feed", "approval sweep: %v", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+		logging.Success("referral-feed", "announcing new drivers to %s", cfg.ReferralServiceURL)
+	} else {
+		logging.Notice("referral-feed", "off (TAXI_REFERRAL_FEED_ENABLED=false): new drivers are not announced to referral-service")
+	}
+	_ = referralFeed
 	sessionRepo := providerauthrepositories.NewPostgresRefreshSessionRepository(db)
 	challengeStore := providerauthrepositories.NewRedisOTPChallengeRepository(redisClient)
 	profileRepo := providerprofilerepositories.NewPostgresProfileRepository(db)
@@ -220,6 +272,7 @@ func main() {
 			MaxAttempts:    cfg.PickupVerifyMaxAttempts,
 		},
 		Payments: paymentClient,
+		Notifier: rideNotifier,
 		// Positions is the same Redis store used for matching candidates --
 		// its repository-level Heartbeat(ctx, ProviderStatus) already
 		// satisfies bookingusecases.PositionUpdater with no adapter, per
@@ -284,6 +337,20 @@ func main() {
 			// driver's identity for a complaint/dispute, the same way it
 			// already does for hauling/dispatch.
 			identityhttp.RegisterIdentityRoutes(group, authService, opsVerifier)
+			// Notification proxy for the driver and passenger apps (feed,
+			// realtime token, device registration). Skipped when
+			// TAXI_NOTIFICATION_URL is unset, in which case both apps fall
+			// back to polling.
+			notificationhttp.RegisterNotificationRoutes(
+				group,
+				notifications.Client{
+					BaseURL:     cfg.NotificationURL,
+					ServiceName: "driver-taxi-service",
+					Secret:      cfg.NotificationSecret,
+				},
+				authService.AccessSigner(),
+				customerSigner,
+			)
 		},
 		// Every worker below runs against serviceapp.Run's own
 		// signal-derived context and is waited on before shutdown completes

@@ -1,0 +1,11 @@
+{
+  "kind": "regulatory.charges",
+  "geography_level": "COUNTRY",
+  "geography_ref": "NG",
+  "schema_version": 1,
+  "change_reason": "V1 baseline: no tolls, levies or tax are charged today, so V1 charges none. Adding any is a governed policy change with an official source.",
+  "body": {
+    "schema_version": 1,
+    "charges": []
+  }
+}

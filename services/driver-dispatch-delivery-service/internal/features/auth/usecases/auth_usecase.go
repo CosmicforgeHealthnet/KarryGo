@@ -120,6 +120,11 @@ type VerifyInput struct {
 	Purpose       string
 	CorrelationID string
 	Metadata      RequestMetadata
+	// ReferralLinkCode and ReferralCode are an optional referral code from a
+	// shared link or typed by the rider. They matter only when this
+	// verification creates the account.
+	ReferralLinkCode string
+	ReferralCode     string
 }
 
 // TokenResult is returned by Verify and maps directly to the HTTP response data payload.
@@ -601,6 +606,10 @@ func (u *AuthUsecase) Verify(ctx context.Context, input VerifyInput) (TokenResul
 
 	// Resolve identity based on purpose.
 	var identity authmodels.Identity
+	signup := authmodels.Signup{LinkCode: input.ReferralLinkCode, TypedCode: input.ReferralCode}
+	if input.Metadata.DeviceID != nil {
+		signup.DeviceID = *input.Metadata.DeviceID
+	}
 
 	switch input.Purpose {
 	case "signup":
@@ -609,7 +618,7 @@ func (u *AuthUsecase) Verify(ctx context.Context, input VerifyInput) (TokenResul
 		if verifiedOTP.Email != nil {
 			email = *verifiedOTP.Email
 		}
-		identity, err = u.identities.CreateForSignup(ctx, phoneNumber, email)
+		identity, err = u.identities.CreateForSignup(ctx, phoneNumber, email, signup)
 		if err != nil {
 			return TokenResult{}, err
 		}
@@ -631,7 +640,7 @@ func (u *AuthUsecase) Verify(ctx context.Context, input VerifyInput) (TokenResul
 
 	default:
 		// Legacy path: upsert (create if new, touch updated_at if existing).
-		identity, err = u.identities.UpsertByPhone(ctx, phoneNumber)
+		identity, err = u.identities.UpsertByPhone(ctx, phoneNumber, signup)
 		if err != nil {
 			return TokenResult{}, err
 		}
